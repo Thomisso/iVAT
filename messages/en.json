@@ -150,6 +150,8 @@
     "unreadable_file": "The file cannot be read. It may be damaged.",
     "not_retryable": "Only a failed split can be retried.",
     "not_reprocessable": "The document is still being processed.",
+    "not_correctable": "Wait until extraction finishes before correcting the split.",
+    "invalid_split_boundary": "The selected split correction is no longer valid. Reload the page and try again.",
     "not_in_review": "Only a document that needs review can be changed, approved or rejected.",
     "stale_version": "Someone saved a newer version of this document in the meantime. Reload the page to see it.",
     "invalid_choice": "Choose one of the offered options.",
@@ -262,7 +264,13 @@
     "grossAmount": "Total",
     "vatReport": "VAT report",
     "eligible": "Counts",
-    "notEligible": "—"
+    "notEligible": "—",
+    "correctSplit": "Correct split",
+    "splitAfter": "Split after page",
+    "split": "Split",
+    "mergeWithNext": "Merge with next",
+    "moveLastToNext": "Move page {page} to next",
+    "moveFirstToPrevious": "Move page {page} to previous"
   },
   "review": {
     "title": "Document review",
