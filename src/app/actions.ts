@@ -33,7 +33,7 @@ import {
 import type { ExtractionPayload, Party } from "@/application/extraction-payload";
 import { retrySplit, uploadSourceFile } from "@/application/source-files";
 import { configurePlatformAiProvider, setOrganizationPlatformAiAccess } from "@/application/platform-ai";
-import { configuredAiProvider } from "@/ai";
+import { availableCompanyAiProviders } from "@/ai";
 import { configuredAresRegistry } from "@/ares";
 import { jobQueue } from "@/lib/jobs";
 import { createRequestClient, requireUserClient } from "@/lib/supabase/server";
@@ -221,10 +221,14 @@ function settled(result: { ok: true } | { ok: false; error: string }): FormState
 }
 
 export async function enableAiProcessingAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const client = await requireUserClient();
+  const providerName = field(formData, "provider");
+  const provider = (await availableCompanyAiProviders(client)).find((candidate) => candidate.name === providerName);
+  if (!provider) return refused("unknown_provider", formData, ["provider"]);
   return settled(
-    await enableAiProcessing(await requireUserClient(), jobQueue, {
+    await enableAiProcessing(client, jobQueue, {
       companyId: field(formData, "companyId"),
-      provider: configuredAiProvider(),
+      provider,
     }),
   );
 }

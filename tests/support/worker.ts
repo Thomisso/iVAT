@@ -20,14 +20,20 @@ export function systemClient(): SystemClient {
  * the jobs they enqueue, and collects the errors a job throws (the worker would
  * log them and let pg-boss retry).
  */
-export function testWorker(ai: AiProvider = fakeAiProvider()) {
+export function testWorker(aiOrProviders: AiProvider | AiProvider[] = fakeAiProvider()) {
+  const providers = Array.isArray(aiOrProviders) ? aiOrProviders : [aiOrProviders];
+  const ai = providers[0];
   const queued: ProcessingJob[] = [];
   const jobs: JobQueue = {
     async send(job) {
       queued.push(job);
     },
   };
-  const worker = { system: systemClient(), ai, jobs };
+  const worker = {
+    system: systemClient(),
+    providers: { get: (name: string) => providers.find((provider) => provider.name === name) },
+    jobs,
+  };
   return {
     jobs,
     ai,
