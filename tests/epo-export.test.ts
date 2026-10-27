@@ -90,9 +90,37 @@ it("refuses missing drafts and invalid export inputs without producing a downloa
   expect(
     await exportVatReport(a.client, {
       ...input,
-      details: { ...details, personType: "F", firstName: "Jan", lastName: "" },
+      details: { ...details, signatoryLastName: "" },
     }),
   ).toEqual({ ok: false, error: "invalid_export_details" });
+});
+it("uses the saved Company's person type for the XML header", async () => {
+  const a = await signedUpUser();
+  const company = await createCompany(a.client, {
+    organizationId: a.organizationId,
+    ...companyDetails({ personType: "natural" }),
+  });
+  if (!company.ok) throw new Error(company.error);
+  const input = {
+    companyId: company.value.id,
+    period: "2026-10",
+    format: "dphdp3",
+    details: {
+      ...details,
+      personType: "P",
+      firstName: "Jan",
+      lastName: "Novák",
+    },
+  };
+  await generateVatReport(a.client, input);
+
+  const result = await exportVatReport(a.client, input);
+
+  expect(result.ok).toBe(true);
+  if (!result.ok) throw new Error(result.error);
+  expect(result.value.xml).toContain('typ_ds="F"');
+  expect(result.value.xml).toContain('jmeno="Jan" prijmeni="Novák"');
+  expect(result.value.xml).not.toContain("zkrobchjm");
 });
 it.each(["dphdp3", "dphkh1"])(
   "blocks %s whose saved Company header fails the official schema",

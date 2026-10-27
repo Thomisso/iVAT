@@ -41,7 +41,11 @@ describe("audit log", () => {
 
     const events = await listAuditEvents(client, organizationId);
 
-    expect(events.map((e) => e.action)).toEqual(["user.signed_up", "company.created"]);
+    expect(events.map((e) => e.action)).toEqual([
+      "user.signed_up",
+      "company.created",
+      "company.filing_frequency_changed",
+    ]);
     expect(events[1]).toEqual(
       expect.objectContaining({
         actorUserId: userId,
