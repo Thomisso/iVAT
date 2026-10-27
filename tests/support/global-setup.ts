@@ -14,7 +14,7 @@ export default function setup(project: TestProject) {
   let status: Record<string, string>;
   try {
     status = JSON.parse(
-      execSync("npx supabase status -o json", { stdio: ["ignore", "pipe", "ignore"] }).toString(),
+      execSync("node scripts/supabase.mjs status -o json", { stdio: ["ignore", "pipe", "ignore"] }).toString(),
     );
   } catch {
     throw new Error("Local Supabase is not running. Start it with `npm run db:start`.");
