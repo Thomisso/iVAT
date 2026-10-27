@@ -95,7 +95,12 @@
     "invalid_country": "The country must be a two-letter code, such as CZ.",
     "one_file_required": "Choose one Source File to upload.",
     "invalid_reporting_period": "Select a valid month (2000–2099).",
-    "stale_report": "Documents changed during generation. Generate the draft again."
+    "stale_report": "Documents changed during generation. Generate the draft again.",
+    "invalid_export_details": "Enter a valid tax office, date and person details for the filing.",
+    "invalid_export_format": "Select a VAT Return or Control Statement.",
+    "report_not_found": "The saved draft is unavailable. Generate it first.",
+    "xml_invalid": "The XML does not match the official schema. Check the Company and Document data, correct it and regenerate the draft.",
+    "export_failed": "Download failed. Try again."
   },
   "aiProcessing": {
     "title": "AI processing",
@@ -280,6 +285,45 @@
       "manual_classification_required": "Manual Classification Required",
       "currency_conversion_required": "Currency conversion required",
       "incomplete_data": "Incomplete or invalid reporting data"
+    }
+  },
+  "epoExport": {
+    "title": "Tax portal export",
+    "description": "Enter the details for an ordinary filing. VAT ID, name and address come from the saved draft.",
+    "format": "Form",
+    "preparedOn": "Preparation date",
+    "taxOffice": "Tax office",
+    "choose": "Select",
+    "personType": "Person type",
+    "legalPerson": "Legal person",
+    "naturalPerson": "Natural person",
+    "signatory": "Authorized signatory",
+    "firstName": "First name",
+    "lastName": "Last name",
+    "capacity": "Capacity (e.g. director)",
+    "email": "Contact email (optional)",
+    "download": "Download XML",
+    "preparing": "Preparing XML…",
+    "formats": {
+      "dphdp3": "VAT Return (DPHDP3)",
+      "dphkh1": "Control Statement (DPHKH1)"
+    },
+    "taxOffices": {
+      "451": "FÚ pro hlavní město Prahu",
+      "452": "FÚ pro Středočeský kraj",
+      "453": "FÚ pro Jihočeský kraj",
+      "454": "FÚ pro Plzeňský kraj",
+      "455": "FÚ pro Karlovarský kraj",
+      "456": "FÚ pro Ústecký kraj",
+      "457": "FÚ pro Liberecký kraj",
+      "458": "FÚ pro Královéhradecký kraj",
+      "459": "FÚ pro Pardubický kraj",
+      "460": "FÚ pro Kraj Vysočina",
+      "461": "FÚ pro Jihomoravský kraj",
+      "462": "FÚ pro Olomoucký kraj",
+      "463": "FÚ pro Moravskoslezský kraj",
+      "464": "FÚ pro Zlínský kraj",
+      "13": "Specializovaný finanční úřad"
     }
   }
 }
