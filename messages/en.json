@@ -31,6 +31,8 @@
     "signUpLink": "Sign up",
     "signUpTitle": "Create your account",
     "signUp": "Sign up",
+    "or": "or",
+    "continueWithGoogle": "Continue with Google",
     "haveAccount": "Already have an account?",
     "logInLink": "Log in"
   },
@@ -71,6 +73,7 @@
     "email_taken": "An account with this email already exists.",
     "weak_password": "The password is too weak. Use at least 8 characters.",
     "sign_up_failed": "Sign-up failed. Please try again.",
+    "google_sign_in_failed": "Google sign-in failed. Please try again.",
     "invalid_credentials": "Wrong email or password.",
     "name_required": "Enter the company name.",
     "invalid_ico": "IČO must have 8 digits.",
