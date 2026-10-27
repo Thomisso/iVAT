@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { listAuditEvents } from "@/application/audit";
-import { signedUpUser } from "./support/clients";
+import { listMyOrganizations } from "@/application/organizations";
+import { anonymousClient, signedUpUser, uniqueEmail } from "./support/clients";
 import { administratorWithCompany } from "./support/fixtures";
 
 describe("audit log", () => {
-  it("records the sign-up", async () => {
-    const { client, userId, email, organizationId } = await signedUpUser("Novák s.r.o.");
+  it("records the sign-up without the User's personal data", async () => {
+    const { client, userId, organizationId } = await signedUpUser("Novák s.r.o.");
 
     expect(await listAuditEvents(client, organizationId)).toEqual([
       expect.objectContaining({
@@ -15,9 +16,21 @@ describe("audit log", () => {
         companyId: null,
         targetType: "user",
         targetId: userId,
-        payload: { email, organization_name: "Novák s.r.o." },
+        payload: { organization_name: "Novák s.r.o." },
       }),
     ]);
+  });
+
+  it("keeps the email out of the sign-up event when no Organization name was given", async () => {
+    // Sign-up paths without an Organization name (such as a social login) name the
+    // Organization after the email; the audit payload must not repeat it.
+    const client = anonymousClient();
+    await client.auth.signUp({ email: uniqueEmail(), password: "correct-horse-battery" });
+    const [organization] = await listMyOrganizations(client);
+
+    const [signUpEvent] = await listAuditEvents(client, organization.id);
+
+    expect(signUpEvent).toEqual(expect.objectContaining({ action: "user.signed_up", payload: {} }));
   });
 
   it("records Company creation", async () => {
