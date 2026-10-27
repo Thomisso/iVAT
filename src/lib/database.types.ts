@@ -97,6 +97,26 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
+                },"source_file": {
+                  Row: {
+                    "byte_size": number,"company_id": string,"file_name": string,"format": Database["public"]['Enums']["source_file_format"],"id": string,"organization_id": string,"page_count": number,"sha256": string,"uploaded_at": string,"uploaded_by": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "byte_size": number,"company_id": string,"file_name": string,"format": Database["public"]['Enums']["source_file_format"],"id": string,"organization_id": string,"page_count": number,"sha256": string,"uploaded_at"?: string,"uploaded_by"?: string | null
+                  }
+                  Update: {
+                    "byte_size"?: number,"company_id"?: string,"file_name"?: string,"format"?: Database["public"]['Enums']["source_file_format"],"id"?: string,"organization_id"?: string,"page_count"?: number,"sha256"?: string,"uploaded_at"?: string,"uploaded_by"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "source_file_company_id_organization_id_fkey"
+      columns: ["company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "company"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
                 }
           }
           Views: {
@@ -106,7 +126,7 @@ isOneToOne: false
             [_ in never]: never
           }
           Enums: {
-            "membership_role": "administrator"|"user"
+            "membership_role": "administrator"|"user","source_file_format": "pdf"|"png"|"jpeg"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -226,7 +246,7 @@ export const Constants = {
           }
         },"public": {
           Enums: {
-            "membership_role": ["administrator", "user"]
+            "membership_role": ["administrator", "user"],"source_file_format": ["pdf", "png", "jpeg"]
           }
         }
 } as const
