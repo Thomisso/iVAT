@@ -352,6 +352,9 @@ isOneToOne: false
               "enrolled": boolean,"required": boolean,"satisfied": boolean
             }[]
                            },
+"current_user_can_administrate_platform":
+{ Args: Record<PropertyKey, never>; Returns: boolean
+                           },
 "finish_mfa_disenrollment":
 { Args: Record<PropertyKey, never>; Returns: undefined
                            },

@@ -20,8 +20,9 @@ export type ConfigurePlatformAiProviderInput = {
 
 /** UI hint only; database functions remain the authority for every platform action. */
 export async function isSuperAdmin(client: AppClient): Promise<boolean> {
-  const { data } = await client.auth.getUser();
-  return data.user?.app_metadata.role === "super_admin";
+  const { data, error } = await client.rpc("current_user_can_administrate_platform");
+  if (error) return false;
+  return data;
 }
 
 type PlatformAiSettingsError = "forbidden" | "unknown_provider" | "model_required" | "invalid_platform_key";
