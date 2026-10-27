@@ -1,0 +1,50 @@
+{
+  "app": { "name": "iVAT", "tagline": "Přiznání k DPH z vašich dokladů" },
+  "language": { "label": "Jazyk", "cs": "Čeština", "en": "English" },
+  "nav": { "logOut": "Odhlásit se", "addCompany": "Přidat firmu" },
+  "auth": {
+    "email": "E-mail",
+    "password": "Heslo",
+    "organizationName": "Název organizace",
+    "organizationNameHint": "Vaše firma nebo účetní kancelář. Stanete se jejím administrátorem.",
+    "logInTitle": "Přihlášení",
+    "logIn": "Přihlásit se",
+    "noAccount": "Ještě nemáte účet?",
+    "signUpLink": "Zaregistrujte se",
+    "signUpTitle": "Vytvořte si účet",
+    "signUp": "Zaregistrovat se",
+    "haveAccount": "Už máte účet?",
+    "logInLink": "Přihlaste se"
+  },
+  "company": {
+    "createTitle": "Přidat firmu",
+    "createIntro": "Zadejte údaje plátce DPH, za kterého budete DPH vykazovat.",
+    "name": "Název firmy",
+    "ico": "IČO",
+    "vatId": "DIČ",
+    "street": "Ulice a číslo",
+    "city": "Obec",
+    "postalCode": "PSČ",
+    "create": "Vytvořit firmu",
+    "noOrganization": "Nejste administrátorem žádné organizace, proto nemůžete přidávat firmy."
+  },
+  "dashboard": {
+    "companies": "Firmy",
+    "documents": "Doklady",
+    "noDocuments": "Zatím žádné doklady."
+  },
+  "errors": {
+    "organization_name_required": "Zadejte název organizace.",
+    "email_taken": "Účet s tímto e-mailem už existuje.",
+    "weak_password": "Heslo je příliš slabé. Použijte alespoň 8 znaků.",
+    "sign_up_failed": "Registrace se nezdařila. Zkuste to prosím znovu.",
+    "invalid_credentials": "Nesprávný e-mail nebo heslo.",
+    "name_required": "Zadejte název firmy.",
+    "invalid_ico": "IČO musí mít 8 číslic.",
+    "invalid_vat_id": "DIČ musí začínat CZ a pokračovat 8 až 10 číslicemi.",
+    "address_required": "Zadejte ulici a obec.",
+    "invalid_postal_code": "PSČ musí mít 5 číslic.",
+    "ico_taken": "Firma s tímto IČO už ve vaší organizaci existuje.",
+    "forbidden": "K této akci nemáte oprávnění."
+  }
+}
