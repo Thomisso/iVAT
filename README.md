@@ -18,8 +18,7 @@ iVAT turns financial documents uploaded by Czech VAT payers into validated, stru
 
 ```bash
 npm install
-cp .env.example .env.local   # local Supabase defaults; `npx supabase status` prints them
-npm run db:start             # start local Supabase (applies migrations on first start)
+npm run db:start             # start local Supabase (applies migrations) and write .env.local
 npm run dev                  # app on http://localhost:3000
 npm run worker               # background worker, in a second terminal
 ```
@@ -30,7 +29,7 @@ Open http://localhost:3000/signup. Signing up creates your Organization, makes y
 
 | Command | What it does |
 | --- | --- |
-| `npm run db:start` / `db:stop` | Start or stop the local Supabase stack |
+| `npm run db:start` / `db:stop` | Start or stop the local Supabase stack; `db:start` also writes its URL and keys to `.env.local` |
 | `npm run db:reset` | Recreate the local database from `supabase/migrations/` (deletes all local data) |
 | `npm run db:types` | Regenerate `src/lib/database.types.ts` from the local schema after a migration |
 | `npm run dev` | Next.js dev server |
@@ -58,6 +57,10 @@ tests/             application-layer tests against the local database
 - Sign-up is handled in the database: a trigger on `auth.users` creates the Organization and the Administrator Membership in the same transaction.
 - `audit_event` is append-only. Only database code writes to it (`private.record_audit_event`, called from triggers). Users can only read it, and only as an Organization Administrator. Update, delete and truncate are rejected for every role.
 
+## Git worktrees
+
+All `db:*` scripts go through `scripts/supabase.mjs`. In the main checkout it uses `supabase/config.toml` as is. A linked git worktree gets its own stack instead: a separate database, ports shifted by 100 × a slot derived from the worktree path, and no Studio, Mailpit, analytics or edge runtime. Parallel worktrees can reset and test their databases independently. If two worktrees land on the same slot, set `SUPABASE_SLOT` (1–99) for one of them. Run `npm run db:stop -- --no-backup` before removing a worktree to delete its stack's data.
+
 ## Testing
 
 Tests exercise the application layer as real users against the local Postgres with RLS enabled, per the seams in the requirements' Testing Decisions. They create their own users and Organizations, so they need no reset between runs:
@@ -66,3 +69,7 @@ Tests exercise the application layer as real users against the local Postgres wi
 npm run db:start
 npm test
 ```
+
+## CI
+
+`.github/workflows/ci.yml` runs on every pull request and on `main`. It checks that `package-lock.json` matches `package.json`, starts local Supabase, checks that `src/lib/database.types.ts` matches the migrations, then runs typecheck, lint, tests and build. After changing a migration, run `npm run db:types` and commit the result. Coding conventions that need judgement rather than a check are in [`CODING_STANDARDS.md`](CODING_STANDARDS.md).

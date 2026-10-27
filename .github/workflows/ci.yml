@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: package-lock.json matches package.json
+        run: |
+          npm install --package-lock-only --ignore-scripts
+          git diff --exit-code package-lock.json
+
+      - name: Start local Supabase
+        run: npm run db:start -- -x studio,mailpit,logflare,vector,edge-runtime,imgproxy,supavisor
+
+      - name: Generated database types match the migrations
+        run: |
+          npm run db:types
+          git diff --exit-code src/lib/database.types.ts
+
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build

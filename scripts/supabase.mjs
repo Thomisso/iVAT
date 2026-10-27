@@ -22,7 +22,7 @@ const isLinkedWorktree =
   fs.realpathSync(path.resolve(root, git("rev-parse", "--git-common-dir")));
 
 // Services a worktree stack doesn't need; they only cost memory and start-up time.
-const WORKTREE_DISABLED_SECTIONS = new Set(["studio", "analytics", "inbucket", "edge_runtime"]);
+const WORKTREE_DISABLED_SECTIONS = new Set(["studio", "analytics", "local_smtp", "edge_runtime"]);
 
 function worktreeSlot() {
   if (process.env.SUPABASE_SLOT) return Number(process.env.SUPABASE_SLOT);
