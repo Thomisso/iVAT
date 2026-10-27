@@ -16,6 +16,7 @@
     "typecheck": "next typegen && tsc --noEmit",
     "lint": "eslint",
     "test": "vitest run",
+    "test:e2e": "node scripts/e2e.mjs",
     "test:watch": "vitest",
     "test:contract:ares": "ARES_CONTRACT_TEST=1 vitest run tests/contract/ares.test.ts"
   },
@@ -31,6 +32,7 @@
     "react-dom": "19.3.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@types/node": "^22.20.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
