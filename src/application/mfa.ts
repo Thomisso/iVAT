@@ -1,0 +1,150 @@
+import type { AppClient, Result } from "./client";
+
+export type MfaError =
+  | "mfa_enrollment_failed"
+  | "invalid_mfa_code"
+  | "recovery_codes_failed"
+  | "mfa_status_failed";
+
+export type TotpEnrollment = {
+  factorId: string;
+  qrCode: string;
+  secret: string;
+  uri: string;
+};
+
+export async function beginTotpEnrollment(
+  client: AppClient,
+): Promise<Result<TotpEnrollment, MfaError>> {
+  const { data, error } = await client.auth.mfa.enroll({
+    factorType: "totp",
+    friendlyName: "Authenticator app",
+  });
+  if (error) return { ok: false, error: "mfa_enrollment_failed" };
+  return {
+    ok: true,
+    value: {
+      factorId: data.id,
+      qrCode: data.totp.qr_code,
+      secret: data.totp.secret,
+      uri: data.totp.uri,
+    },
+  };
+}
+
+export async function completeTotpEnrollment(
+  client: AppClient,
+  input: { factorId: string; code: string },
+): Promise<Result<{ recoveryCodes: string[] }, MfaError>> {
+  const verified = await client.auth.mfa.challengeAndVerify({
+    factorId: input.factorId,
+    code: input.code.trim(),
+  });
+  if (verified.error) return { ok: false, error: "invalid_mfa_code" };
+
+  const generated = await client.rpc("finish_mfa_enrollment");
+  if (generated.error) throw generated.error;
+  if (generated.data.length !== 10) {
+    return { ok: false, error: "recovery_codes_failed" };
+  }
+  return { ok: true, value: { recoveryCodes: generated.data } };
+}
+
+export async function mfaStatus(client: AppClient): Promise<{
+  enrolled: boolean;
+  currentLevel: string | null;
+  nextLevel: string | null;
+  factorId: string | null;
+  recoveryCodesRemaining: number;
+}> {
+  const [factors, assurance, recovery] = await Promise.all([
+    client.auth.mfa.listFactors(),
+    client.auth.mfa.getAuthenticatorAssuranceLevel(),
+    client.rpc("mfa_recovery_codes_remaining"),
+  ]);
+  if (factors.error || assurance.error) throw new Error("mfa_status_failed");
+  const factor = factors.data.totp[0] ?? null;
+  return {
+    enrolled: factor !== null,
+    currentLevel: assurance.data.currentLevel,
+    nextLevel: assurance.data.nextLevel,
+    factorId: factor?.id ?? null,
+    recoveryCodesRemaining: recovery.error ? 0 : recovery.data,
+  };
+}
+
+export async function verifyRecoveryCode(
+  client: AppClient,
+  code: string,
+): Promise<Result<null, "invalid_mfa_code">> {
+  const { data, error } = await client.rpc("verify_mfa_recovery_code", {
+    input_code: code,
+  });
+  if (error || !data) return { ok: false, error: "invalid_mfa_code" };
+  return { ok: true, value: null };
+}
+
+export async function verifyTotp(
+  client: AppClient,
+  input: { factorId: string; code: string },
+): Promise<Result<null, "invalid_mfa_code">> {
+  const { error } = await client.auth.mfa.challengeAndVerify({
+    factorId: input.factorId,
+    code: input.code.trim(),
+  });
+  if (error) return { ok: false, error: "invalid_mfa_code" };
+  return { ok: true, value: null };
+}
+
+export async function disenrollMfa(
+  client: AppClient,
+  factorId: string,
+): Promise<Result<null, "mfa_disenrollment_failed">> {
+  const removed = await client.auth.mfa.unenroll({ factorId });
+  if (removed.error) return { ok: false, error: "mfa_disenrollment_failed" };
+  const cleanup = await client.rpc("finish_mfa_disenrollment");
+  if (cleanup.error) throw cleanup.error;
+  return { ok: true, value: null };
+}
+
+export async function setOrganizationMfaRequired(
+  client: AppClient,
+  input: { organizationId: string; required: boolean },
+): Promise<Result<null, "forbidden">> {
+  const { error } = await client.rpc("set_organization_mfa_required", {
+    target_organization_id: input.organizationId,
+    required: input.required,
+  });
+  if (error?.code === "42501") return { ok: false, error: "forbidden" };
+  if (error) throw error;
+  return { ok: true, value: null };
+}
+
+export async function mfaPolicy(client: AppClient): Promise<{
+  required: boolean;
+  enrolled: boolean;
+  satisfied: boolean;
+}> {
+  const { data, error } = await client.rpc("current_mfa_policy");
+  if (error) throw error;
+  const policy = data[0];
+  if (!policy) throw new Error("mfa_status_failed");
+  return policy;
+}
+
+export async function listOrganizationMfaSettings(client: AppClient): Promise<
+  { id: string; name: string; required: boolean }[]
+> {
+  const { data, error } = await client
+    .from("membership")
+    .select("organization:organization_id (id, name, mfa_required)")
+    .is("company_id", null)
+    .eq("role", "administrator")
+    .order("created_at");
+  if (error) throw error;
+  return data.map(({ organization }) => ({
+    id: organization!.id,
+    name: organization!.name,
+    required: organization!.mfa_required,
+  }));
+}
