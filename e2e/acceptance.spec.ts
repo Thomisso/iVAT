@@ -33,6 +33,7 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   await page.getByLabel("Street and number").fill("Na Příkopě 1");
   await page.getByLabel("City").fill("Praha");
   await page.getByLabel("Postal code").fill("11000");
+  await page.getByLabel("Effective from").fill("2026-01-01");
   await page.getByRole("button", { name: "Create company" }).click();
   await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+$/);
   const companyUrl = page.url();
@@ -89,7 +90,6 @@ test("an administrator can turn an uploaded Source File into a traceable, export
     has: page.getByRole("heading", { name: "Tax portal export" }),
   });
   await exportSection.getByLabel("Tax office").selectOption("451");
-  await exportSection.getByLabel("Person type").selectOption("P");
   await exportSection.getByLabel("First name").fill("Jana");
   await exportSection.getByLabel("Last name").fill("Nováková");
   await exportSection.getByLabel("Capacity").fill("jednatelka");

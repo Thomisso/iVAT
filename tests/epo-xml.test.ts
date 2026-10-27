@@ -21,6 +21,7 @@ const company = {
   street: "Na Příkopě 1",
   city: "Praha",
   postalCode: "110 00",
+  personType: "legal" as const,
 };
 const rows = [
   ["outgoing", 21, "10000.49", "2100.10", "12100.59"],
