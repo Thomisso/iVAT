@@ -42,6 +42,13 @@ function totp(secret: string, at = Date.now()): string {
 }
 
 describe("MFA", () => {
+  it("can restart an unfinished TOTP enrollment", async () => {
+    const user = await signedUpUser();
+
+    expect((await beginTotpEnrollment(user.client)).ok).toBe(true);
+    expect((await beginTotpEnrollment(user.client)).ok).toBe(true);
+  });
+
   it("enrols and verifies a TOTP authenticator, returns ten recovery codes, and audits the change", async () => {
     const user = await signedUpUser();
 

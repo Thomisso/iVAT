@@ -16,6 +16,14 @@ export type TotpEnrollment = {
 export async function beginTotpEnrollment(
   client: AppClient,
 ): Promise<Result<TotpEnrollment, MfaError>> {
+  const factors = await client.auth.mfa.listFactors();
+  if (factors.error) return { ok: false, error: "mfa_enrollment_failed" };
+  for (const factor of factors.data.all) {
+    if (factor.factor_type === "totp" && factor.status === "unverified") {
+      const stale = await client.auth.mfa.unenroll({ factorId: factor.id });
+      if (stale.error) return { ok: false, error: "mfa_enrollment_failed" };
+    }
+  }
   const { data, error } = await client.auth.mfa.enroll({
     factorType: "totp",
     friendlyName: "Authenticator app",
