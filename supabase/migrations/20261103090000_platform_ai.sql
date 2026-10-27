@@ -3,15 +3,25 @@
 
 create extension if not exists supabase_vault with schema vault;
 
-create function private.is_super_admin()
+create function private.can_administrate_platform()
 returns boolean
 language sql stable security definer set search_path = ''
 as $$
-  select coalesce(auth.jwt() -> 'app_metadata' ->> 'role' = 'super_admin', false);
+  select private.is_super_admin(auth.uid())
+    and private.current_user_mfa_satisfied();
 $$;
 
-revoke execute on function private.is_super_admin() from public;
-grant execute on function private.is_super_admin() to authenticated;
+revoke execute on function private.can_administrate_platform() from public;
+
+create function public.current_user_can_administrate_platform()
+returns boolean
+language sql stable security definer set search_path = ''
+as $$
+  select private.can_administrate_platform();
+$$;
+
+revoke execute on function public.current_user_can_administrate_platform() from public, anon;
+grant execute on function public.current_user_can_administrate_platform() to authenticated;
 
 create table public.platform_ai_provider (
   provider text primary key,
@@ -50,7 +60,7 @@ declare
   settings public.platform_ai_provider;
   secret_id uuid;
 begin
-  if not private.is_super_admin() then
+  if not private.can_administrate_platform() then
     raise exception 'forbidden' using errcode = '42501';
   end if;
   if length(trim(target_split_model)) = 0 or length(trim(target_extract_model)) = 0 then
@@ -113,7 +123,7 @@ returns table (
 language plpgsql stable security definer set search_path = ''
 as $$
 begin
-  if not private.is_super_admin() then
+  if not private.can_administrate_platform() then
     raise exception 'forbidden' using errcode = '42501';
   end if;
   return query
@@ -149,7 +159,7 @@ returns table (
 language plpgsql stable security definer set search_path = ''
 as $$
 begin
-  if not private.is_super_admin() then
+  if not private.can_administrate_platform() then
     raise exception 'forbidden' using errcode = '42501';
   end if;
   return query
@@ -173,7 +183,7 @@ returns void
 language plpgsql security definer set search_path = ''
 as $$
 begin
-  if not private.is_super_admin() then
+  if not private.can_administrate_platform() then
     raise exception 'forbidden' using errcode = '42501';
   end if;
   insert into public.organization_platform_ai_access (
