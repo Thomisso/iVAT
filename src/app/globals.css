@@ -988,6 +988,26 @@ select {
 .upload-form > .iv-btn {
   align-self: flex-start;
 }
+.upload-items {
+  display: grid;
+  gap: var(--space-2);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.upload-items li {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1fr) minmax(6rem, 12rem) auto;
+  align-items: center;
+  gap: var(--space-3);
+}
+.upload-items progress {
+  width: 100%;
+  accent-color: var(--accent);
+}
+.upload-items .iv-notice {
+  grid-column: 1 / -1;
+}
 .iv-drop {
   position: relative;
 }
@@ -1248,6 +1268,12 @@ select:disabled {
   }
   .form-row {
     flex-direction: column;
+  }
+  .upload-items li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .upload-items progress {
+    grid-column: 1 / -1;
   }
 }
 @media (prefers-reduced-motion: reduce) {

@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
-import { describe, expect, inject, it } from "vitest";
+import { beforeAll, describe, expect, inject, it } from "vitest";
 import { listAuditEvents } from "@/application/audit";
 import { asUserClient } from "@/application/client";
 import {
@@ -14,7 +14,6 @@ import {
   setOrganizationPlatformAiAccess,
 } from "@/application/platform-ai";
 import { signedUpUser } from "./support/clients";
-import { administratorWithCompany } from "./support/fixtures";
 import { systemClient } from "./support/worker";
 
 function aal2Client(userId: string) {
@@ -40,9 +39,23 @@ function aal2Client(userId: string) {
   );
 }
 
+let targetAdministrator: Awaited<ReturnType<typeof signedUpUser>>;
+let superAdministrator: Awaited<ReturnType<typeof signedUpUser>>;
+
+beforeAll(async () => {
+  targetAdministrator = await signedUpUser("BYOK Organization");
+  const promotedUser = await signedUpUser("BYOK precedence");
+  const promoted = await systemClient().from("platform_user").insert({
+    user_id: promotedUser.userId,
+    role: "super_admin",
+  });
+  if (promoted.error) throw promoted.error;
+  superAdministrator = { ...promotedUser, client: aal2Client(promotedUser.userId) };
+});
+
 describe("Organization AI provider keys", () => {
   it("requires the DPA acknowledgement and returns only the stored key's last four characters", async () => {
-    const administrator = await administratorWithCompany("BYOK Organization");
+    const administrator = targetAdministrator;
 
     expect(
       await saveOrganizationAiProviderKey(administrator.client, {
@@ -65,7 +78,10 @@ describe("Organization AI provider keys", () => {
       await listOrganizationAiProviderKeys(administrator.client, administrator.organizationId),
     ).toEqual({
       ok: true,
-      value: [{ provider: "anthropic", hasOrganizationKey: true, organizationKeyLastFour: "cret" }],
+      value: [
+        { provider: "anthropic", hasOrganizationKey: true, organizationKeyLastFour: "cret" },
+        { provider: "openai", hasOrganizationKey: false, organizationKeyLastFour: null },
+      ],
     });
 
     const events = await listAuditEvents(administrator.client, administrator.organizationId);
@@ -82,13 +98,8 @@ describe("Organization AI provider keys", () => {
   });
 
   it("resolves, replaces and removes an Organization key before falling back to the platform key", async () => {
-    const administrator = await signedUpUser("BYOK precedence");
-    const promoted = await systemClient().from("platform_user").insert({
-      user_id: administrator.userId,
-      role: "super_admin",
-    });
-    if (promoted.error) throw promoted.error;
-    const client = aal2Client(administrator.userId);
+    const administrator = superAdministrator;
+    const client = administrator.client;
 
     expect(
       await configurePlatformAiProvider(client, {
@@ -182,8 +193,8 @@ describe("Organization AI provider keys", () => {
   });
 
   it("refuses non-Organization Administrators and exposes no direct table access", async () => {
-    const target = await administratorWithCompany("Protected BYOK Organization");
-    const outsider = await signedUpUser("Another Organization");
+    const target = targetAdministrator;
+    const outsider = superAdministrator;
 
     expect(
       await saveOrganizationAiProviderKey(outsider.client, {

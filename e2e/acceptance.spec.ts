@@ -53,7 +53,9 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   await page.goto(companyUrl);
   await page.locator('input[type="file"]').setInputFiles("tests/fixtures/receipt.png");
   await page.getByRole("button", { name: "Upload" }).click();
-  await expect(page).toHaveURL(/\/source-files\/[0-9a-f-]+$/);
+  await expect(
+    page.locator(".upload-items").getByText("Uploaded", { exact: true }),
+  ).toBeVisible();
   await expect
     .poll(
       async () => {
@@ -63,9 +65,12 @@ test("an administrator can turn an uploaded Source File into a traceable, export
       { timeout: 30_000 },
     )
     .toBeGreaterThan(0);
+  await expect(
+    page.getByText("Processing finished for 1 Source File in your batch."),
+  ).toBeVisible();
   await page
     .getByRole("table", { name: "Documents" })
-    .getByRole("link", { name: "1" })
+    .getByRole("link", { name: "Review" })
     .click();
 
   const documentNumber = `FV-E2E-${digits}`;

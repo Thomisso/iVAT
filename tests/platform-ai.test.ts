@@ -7,6 +7,7 @@ import { asUserClient } from "@/application/client";
 import { enableAiProcessing } from "@/application/companies";
 import {
   configurePlatformAiProvider,
+  listAvailableAiProviders,
   listPlatformAiProviders,
   listPlatformOrganizations,
   resolvePlatformAiProvider,
@@ -85,18 +86,29 @@ describe("platform AI provider settings", () => {
       error: "forbidden",
     });
 
+    expect(await configurePlatformAiProvider(superAdministrator.client, {
+      provider: "openai",
+      available: true,
+      splitModel: "gpt-split",
+      extractModel: "gpt-extract",
+      apiKey: "sk-openai-platform-secret",
+    })).toEqual({ ok: true, value: null });
+    expect(await listAvailableAiProviders(ordinaryAdministrator.client)).toEqual(
+      expect.arrayContaining([{ provider: "openai", region: "global" }]),
+    );
+
     expect(await configurePlatformAiProvider(superAdministrator.client, settings)).toEqual({ ok: true, value: null });
-    expect(await listPlatformAiProviders(superAdministrator.client)).toEqual({
+    expect(await listPlatformAiProviders(superAdministrator.client)).toEqual(expect.objectContaining({
       ok: true,
-      value: [{
+      value: expect.arrayContaining([{
         provider: "anthropic",
         available: true,
         splitModel: "claude-sonnet-split",
         extractModel: "claude-sonnet-extract",
         hasPlatformKey: true,
         platformKeyLastFour: "cret",
-      }],
-    });
+      }]),
+    }));
   });
 
   it("resolves the encrypted platform key only for Organizations enabled by a SuperAdmin", async () => {

@@ -9,18 +9,19 @@ import {
   type DocumentFilters,
 } from "@/application/documents";
 import { DIRECTIONS } from "@/application/extraction-payload";
-import { listSourceFiles } from "@/application/source-files";
+import { getUploadLimits, listSourceFiles } from "@/application/source-files";
+import { listUploadNotifications } from "@/application/upload-batches";
 import {
   disableAiProcessingAction,
-  enableAiProcessingAction,
 } from "@/app/actions";
-import { configuredAiProvider } from "@/ai";
+import { availableCompanyAiProviders } from "@/ai";
 import { AppSidebar } from "@/components/app-sidebar";
 import { CommandButton } from "@/components/command-button";
 import { RefreshWhile } from "@/components/refresh-while";
 import { requireUserClient } from "@/lib/supabase/server";
 import { DataTable } from "@/components/data-table";
 import { EmptyState } from "@/components/empty-state";
+import { Notice } from "@/components/notice";
 import { Money } from "@/components/money";
 import { Button } from "@/components/button";
 import { TextField } from "@/components/text-field";
@@ -28,6 +29,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { statusBadgeState } from "@/components/status-badge-state";
 import { formatDocumentDate } from "@/lib/format-date";
 import { SourceFileUploadForm } from "./source-file-upload-form";
+import { AiProviderForm } from "./ai-provider-form";
 
 /** The Document list filters a query string names; unknown values are ignored. */
 function documentFilters(
@@ -54,12 +56,14 @@ export default async function CompanyDashboardPage({
   const client = await requireUserClient();
   const company = await getCompany(client, companyId);
   if (!company) notFound();
-  const [sourceFiles, documents] = await Promise.all([
+  const [sourceFiles, documents, uploadLimits, uploadNotifications, providers] = await Promise.all([
     listSourceFiles(client, company.id),
     listCompanyDocuments(client, company.id, filters),
+    getUploadLimits(client),
+    listUploadNotifications(client, company.id),
+    availableCompanyAiProviders(client),
   ]);
   const t = await getTranslations();
-  const provider = configuredAiProvider();
   const processing =
     sourceFiles.some(
       (file) => file.status === "uploaded" || file.status === "processing",
@@ -90,6 +94,11 @@ export default async function CompanyDashboardPage({
           {company.aiProcessing ? (
             <>
               <p>{t("aiProcessing.on", company.aiProcessing)}</p>
+              <AiProviderForm
+                companyId={company.id}
+                providers={providers}
+                currentProvider={company.aiProcessing.provider}
+              />
               <CommandButton
                 action={disableAiProcessingAction}
                 fields={{ companyId: company.id }}
@@ -100,20 +109,8 @@ export default async function CompanyDashboardPage({
           ) : (
             <>
               <p>{t("aiProcessing.off")}</p>
-              <p className="iv-muted">
-                {t("aiProcessing.consent", {
-                  provider: provider.name,
-                  region: provider.region,
-                })}
-              </p>
-              <CommandButton
-                variant="ai"
-                icon="marker"
-                action={enableAiProcessingAction}
-                fields={{ companyId: company.id }}
-              >
-                {t("aiProcessing.enable")}
-              </CommandButton>
+              <p className="iv-muted">{t("aiProcessing.consent")}</p>
+              <AiProviderForm companyId={company.id} providers={providers} currentProvider={null} />
             </>
           )}
         </section>
@@ -260,7 +257,14 @@ export default async function CompanyDashboardPage({
         </section>
         <section>
           <h2>{t("sourceFiles.title")}</h2>
-          <SourceFileUploadForm companyId={company.id} />
+          {uploadNotifications.map((notification) => (
+            <Notice key={notification.id} tone="success">
+              {t("sourceFiles.batchComplete", {
+                count: notification.fileCount,
+              })}
+            </Notice>
+          ))}
+          <SourceFileUploadForm companyId={company.id} limits={uploadLimits} />
           {sourceFiles.length === 0 ? (
             <EmptyState icon="file" title={t("sourceFiles.none")} />
           ) : (

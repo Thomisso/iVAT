@@ -9,6 +9,15 @@ export type PlatformAiProviderSettings = {
   platformKeyLastFour: string | null;
 };
 
+export type AvailableAiProvider = { provider: string; region: string };
+
+/** Provider metadata safe to show while a Company Administrator chooses consent. */
+export async function listAvailableAiProviders(client: AppClient): Promise<AvailableAiProvider[]> {
+  const { data, error } = await client.rpc("list_available_ai_providers");
+  if (error) throw error;
+  return data.map((provider) => ({ provider: provider.provider, region: provider.region }));
+}
+
 export type ConfigurePlatformAiProviderInput = {
   provider: string;
   available: boolean;

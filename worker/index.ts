@@ -3,7 +3,7 @@ import type { Database } from "@/lib/database.types";
 import type { JobWithMetadata } from "pg-boss";
 import { asSystemClient } from "@/application/client";
 import { PROCESSING_JOB_NAMES, runJob, type ProcessingJob, type Worker } from "@/application/processing";
-import { configuredAiProvider } from "@/ai";
+import { configuredAiProviders } from "@/ai";
 import { createBoss, createProcessingQueues, pgBossJobQueue } from "@/lib/jobs";
 
 // Background job runner (ADR-0002). The handlers live in the application layer
@@ -24,9 +24,10 @@ const system = asSystemClient(
   }),
 );
 
+const providers = configuredAiProviders(system);
 const worker: Worker = {
   system,
-  ai: configuredAiProvider(system),
+  providers: { get: (name) => providers.find((provider) => provider.name === name) },
   jobs: pgBossJobQueue(boss),
 };
 
@@ -39,7 +40,7 @@ async function main() {
       await runJob(worker, { name, data: job.data } as ProcessingJob, attempt);
     });
   }
-  console.log(`[worker] started with AI provider ${worker.ai.name}; waiting for jobs`);
+  console.log(`[worker] started with AI providers ${providers.map((provider) => provider.name).join(", ")}; waiting for jobs`);
 }
 
 async function shutdown() {
