@@ -3,17 +3,10 @@ import {
   type AiInput,
   type AiProvider,
   type AiUsage,
-  type PageRange,
 } from "@/application/ai-provider";
 import type { SystemClient } from "@/application/client";
-import {
-  DIRECTIONS,
-  DOCUMENT_TYPES,
-  validateExtractionPayload,
-  VAT_REGIMES,
-  type ExtractionPayload,
-} from "@/application/extraction-payload";
 import { resolvePlatformAiProvider } from "@/application/platform-ai";
+import { EXTRACTION_SCHEMA, extractionPayload, pageRanges, SPLIT_SCHEMA } from "./structured-output";
 
 export type AnthropicAiProviderOptions = {
   apiKey: string;
@@ -32,93 +25,6 @@ export class AnthropicProviderError extends AiProviderError {
   }
 }
 
-const SPLIT_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  required: ["documents"],
-  properties: {
-    documents: {
-      type: "array",
-      minItems: 1,
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["firstPage", "lastPage"],
-        properties: {
-          firstPage: { type: "integer", minimum: 1 },
-          lastPage: { type: "integer", minimum: 1 },
-        },
-      },
-    },
-  },
-} as const;
-
-const nullableString = { type: ["string", "null"] } as const;
-const nullableChoice = (choices: readonly string[]) => ({ type: ["string", "null"], enum: [...choices, null] });
-const partySchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["name", "ico", "vatId", "street", "city", "postalCode", "country"],
-  properties: {
-    name: nullableString,
-    ico: nullableString,
-    vatId: nullableString,
-    street: nullableString,
-    city: nullableString,
-    postalCode: nullableString,
-    country: nullableString,
-  },
-} as const;
-
-const EXTRACTION_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  required: [
-    "schemaVersion", "documentType", "documentNumber", "issueDate", "taxPointDate", "dueDate", "direction",
-    "supplier", "customer", "currency", "rateBreakdown", "totals", "payment", "proposedVatRegime",
-    "originalDocumentNumber",
-  ],
-  properties: {
-    schemaVersion: { type: "integer", const: 1 },
-    documentType: nullableChoice(DOCUMENT_TYPES),
-    documentNumber: nullableString,
-    issueDate: nullableString,
-    taxPointDate: nullableString,
-    dueDate: nullableString,
-    direction: nullableChoice(DIRECTIONS),
-    supplier: partySchema,
-    customer: partySchema,
-    currency: nullableString,
-    rateBreakdown: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["rate", "netAmount", "vatAmount"],
-        properties: {
-          rate: { type: "number", minimum: 0, maximum: 100 },
-          netAmount: { type: "string" },
-          vatAmount: { type: "string" },
-        },
-      },
-    },
-    totals: {
-      type: "object",
-      additionalProperties: false,
-      required: ["netAmount", "vatAmount", "grossAmount"],
-      properties: { netAmount: nullableString, vatAmount: nullableString, grossAmount: nullableString },
-    },
-    payment: {
-      type: "object",
-      additionalProperties: false,
-      required: ["variableSymbol", "bankAccount", "iban"],
-      properties: { variableSymbol: nullableString, bankAccount: nullableString, iban: nullableString },
-    },
-    proposedVatRegime: nullableChoice(VAT_REGIMES),
-    originalDocumentNumber: nullableString,
-  },
-} as const;
-
 function nativeContent(input: AiInput) {
   const source = {
     type: "base64",
@@ -126,42 +32,6 @@ function nativeContent(input: AiInput) {
     data: Buffer.from(input.bytes).toString("base64"),
   };
   return input.format === "pdf" ? { type: "document", source } : { type: "image", source };
-}
-
-function pageRanges(value: unknown): PageRange[] {
-  if (!value || typeof value !== "object" || !("documents" in value) || !Array.isArray(value.documents)) {
-    throw new Error("Anthropic returned an invalid Split");
-  }
-  return value.documents.map((range) => {
-    if (
-      !range ||
-      typeof range !== "object" ||
-      !("firstPage" in range) ||
-      !("lastPage" in range) ||
-      !Number.isInteger(range.firstPage) ||
-      !Number.isInteger(range.lastPage)
-    ) {
-      throw new Error("Anthropic returned an invalid Split");
-    }
-    return { firstPage: range.firstPage as number, lastPage: range.lastPage as number };
-  });
-}
-
-function extractionPayload(value: unknown): ExtractionPayload {
-  if (
-    !value || typeof value !== "object" ||
-    !("schemaVersion" in value) || value.schemaVersion !== 1 ||
-    !("supplier" in value) || !value.supplier || typeof value.supplier !== "object" ||
-    !("customer" in value) || !value.customer || typeof value.customer !== "object" ||
-    !("rateBreakdown" in value) || !Array.isArray(value.rateBreakdown) ||
-    !("totals" in value) || !value.totals || typeof value.totals !== "object" ||
-    !("payment" in value) || !value.payment || typeof value.payment !== "object"
-  ) {
-    throw new Error("Anthropic returned an invalid Extraction payload");
-  }
-  const payload = value as ExtractionPayload;
-  if (validateExtractionPayload(payload)) throw new Error("Anthropic returned an invalid Extraction payload");
-  return payload;
 }
 
 async function structuredMessage(
@@ -226,7 +96,11 @@ export function anthropicAiProvider(options: AnthropicAiProviderOptions): AiProv
         `Identify the inclusive page range of every Document in this ${input.pageCount}-page Source File.`,
         SPLIT_SCHEMA,
       );
-      return { model: result.model, documents: pageRanges(result.value), usage: result.usage };
+      return {
+        model: result.model,
+        documents: pageRanges("Anthropic", result.value),
+        ...(result.usage ? { usage: result.usage } : {}),
+      };
     },
     async extract(input) {
       const result = await structuredMessage(
@@ -236,7 +110,11 @@ export function anthropicAiProvider(options: AnthropicAiProviderOptions): AiProv
         "Extract the Document fields exactly as shown. Use null when a field is not present; never infer tax treatment beyond the proposed VAT Regime.",
         EXTRACTION_SCHEMA,
       );
-      return { model: result.model, payload: extractionPayload(result.value), usage: result.usage };
+      return {
+        model: result.model,
+        payload: extractionPayload("Anthropic", result.value),
+        ...(result.usage ? { usage: result.usage } : {}),
+      };
     },
   };
 }

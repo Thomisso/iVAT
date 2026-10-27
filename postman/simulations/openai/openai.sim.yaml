@@ -1,0 +1,8 @@
+simulation: openai
+routing: path
+mocks:
+  - name: openai
+    routeKey: openai
+    origin:
+      - api.openai.com
+    path: postman/mocks/openai-responses/config.yaml

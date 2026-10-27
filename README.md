@@ -28,7 +28,7 @@ Open http://localhost:3000/signup. Signing up creates your Organization, makes y
 Email/password sign-in works without third-party credentials. To enable Google
 sign-in locally, follow [`docs/google-sign-in.md`](docs/google-sign-in.md).
 
-Uploaded Source Files wait until the Company enables AI processing on its page. Locally, `AI_PROVIDER=fake` (the default `db:start` writes) Splits every page into its own Document and returns a sample Extraction, so no Document leaves your machine.
+Uploaded Source Files wait until the Company enables AI processing and chooses a provider on its page. Locally, `AI_PROVIDER=fake` (the default `db:start` writes) Splits every page into its own Document and returns a sample Extraction, so no Document leaves your machine. Set `AI_PROVIDER=platform` for per-Company Anthropic/OpenAI routing through the SuperAdmin settings.
 
 ## Scripts
 
