@@ -5,6 +5,7 @@ declare module "vitest" {
   export interface ProvidedContext {
     supabaseUrl: string;
     supabaseAnonKey: string;
+    supabaseSecretKey: string;
   }
 }
 
@@ -21,4 +22,5 @@ export default function setup(project: TestProject) {
   }
   project.provide("supabaseUrl", status.API_URL);
   project.provide("supabaseAnonKey", status.PUBLISHABLE_KEY);
+  project.provide("supabaseSecretKey", status.SECRET_KEY);
 }
