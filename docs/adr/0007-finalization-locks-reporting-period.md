@@ -1,0 +1,3 @@
+# Finalizing a VAT Report locks its Reporting Period
+
+Users and Administrators can approve Documents, but only an Administrator can finalize a VAT Report. Finalization puts a Period Lock on the Reporting Period: its Documents cannot be edited, re-approved or deleted. Only an Administrator can unlock the period, and the unlock is audited. Approved Documents in a locked period cannot be deleted at all, because Czech VAT law requires 10-year retention. Corrective (supplementary) returns are out of MVP scope; until they are supported, the workaround is to unlock, correct and export again. iVAT does not submit to the tax authority. It exports EPO XML (DPHDP3, DPHKH1), validated against the official XSD.
