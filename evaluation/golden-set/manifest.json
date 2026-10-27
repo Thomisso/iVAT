@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "illustrative-two-blank-pages",
+      "source": "../../tests/fixtures/two-invoices.pdf",
+      "format": "pdf",
+      "pageCount": 2,
+      "expectedSplit": [
+        { "firstPage": 1, "lastPage": 1 },
+        { "firstPage": 2, "lastPage": 2 }
+      ],
+      "documents": [
+        { "pages": { "firstPage": 1, "lastPage": 1 }, "expected": "blank.expected.json" },
+        { "pages": { "firstPage": 2, "lastPage": 2 }, "expected": "blank.expected.json" }
+      ]
+    },
+    {
+      "id": "illustrative-blank-image",
+      "source": "../../tests/fixtures/receipt.png",
+      "format": "png",
+      "pageCount": 1,
+      "expectedSplit": [
+        { "firstPage": 1, "lastPage": 1 }
+      ],
+      "documents": [
+        { "pages": { "firstPage": 1, "lastPage": 1 }, "expected": "blank.expected.json" }
+      ]
+    }
+  ]
+}

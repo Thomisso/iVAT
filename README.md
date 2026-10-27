@@ -43,6 +43,7 @@ Uploaded Source Files wait until the Company enables AI processing and chooses a
 | `npm run typecheck` | Generate Next route types, then run `tsc` |
 | `npm run lint` | ESLint |
 | `npm test` | Application-layer tests; requires `npm run db:start` |
+| `npm run evaluate:extraction` | Run the manual real-provider golden-set accuracy harness (not CI) |
 | `npm run build` | Production build |
 
 ## Layout
@@ -101,6 +102,11 @@ It signs up a unique local user, creates a Company, sends a local invitation,
 uploads and approves a Document, generates a VAT Report, checks its drill-down,
 and validates the downloaded EPO XML against the vendored official XSD. The
 test does not call an external AI or other external network service.
+
+The real-provider extraction evaluation is a separate manual command. Its
+versioned golden-set format, credentials, model overrides, scoring rules, and
+illustrative fixtures are documented in
+[`evaluation/golden-set/README.md`](evaluation/golden-set/README.md).
 
 ## CI
 
