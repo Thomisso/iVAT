@@ -1,4 +1,10 @@
-import { AiProviderError, type AiInput, type AiProvider, type PageRange } from "@/application/ai-provider";
+import {
+  AiProviderError,
+  type AiInput,
+  type AiProvider,
+  type AiUsage,
+  type PageRange,
+} from "@/application/ai-provider";
 import type { SystemClient } from "@/application/client";
 import {
   DIRECTIONS,
@@ -164,7 +170,7 @@ async function structuredMessage(
   input: AiInput,
   prompt: string,
   schema: object,
-): Promise<{ model: string; value: unknown }> {
+): Promise<{ model: string; value: unknown; usage?: AiUsage }> {
   let response: Response;
   try {
     response = await fetch(`${options.baseUrl ?? "https://api.anthropic.com"}/v1/messages`, {
@@ -191,10 +197,21 @@ async function structuredMessage(
       status: response.status,
     });
   }
-  const result = await response.json() as { model?: unknown; content?: { type?: unknown; text?: unknown }[] };
+  const result = await response.json() as {
+    model?: unknown;
+    content?: { type?: unknown; text?: unknown }[];
+    usage?: { input_tokens?: unknown; output_tokens?: unknown };
+  };
   const text = result.content?.find((block) => block.type === "text")?.text;
   if (typeof text !== "string") throw new Error("Anthropic returned no structured output");
-  return { model: typeof result.model === "string" ? result.model : model, value: JSON.parse(text) };
+  const usage = result.usage;
+  return {
+    model: typeof result.model === "string" ? result.model : model,
+    value: JSON.parse(text),
+    ...(typeof usage?.input_tokens === "number" && typeof usage.output_tokens === "number"
+      ? { usage: { inputTokens: usage.input_tokens, outputTokens: usage.output_tokens } }
+      : {}),
+  };
 }
 
 export function anthropicAiProvider(options: AnthropicAiProviderOptions): AiProvider {
@@ -209,7 +226,7 @@ export function anthropicAiProvider(options: AnthropicAiProviderOptions): AiProv
         `Identify the inclusive page range of every Document in this ${input.pageCount}-page Source File.`,
         SPLIT_SCHEMA,
       );
-      return { model: result.model, documents: pageRanges(result.value) };
+      return { model: result.model, documents: pageRanges(result.value), usage: result.usage };
     },
     async extract(input) {
       const result = await structuredMessage(
@@ -219,7 +236,7 @@ export function anthropicAiProvider(options: AnthropicAiProviderOptions): AiProv
         "Extract the Document fields exactly as shown. Use null when a field is not present; never infer tax treatment beyond the proposed VAT Regime.",
         EXTRACTION_SCHEMA,
       );
-      return { model: result.model, payload: extractionPayload(result.value) };
+      return { model: result.model, payload: extractionPayload(result.value), usage: result.usage };
     },
   };
 }

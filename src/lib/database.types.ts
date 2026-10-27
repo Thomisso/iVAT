@@ -2,7 +2,7 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
 
 export type Database = {
-
+  
   "graphql_public": {
           Tables: {
             [_ in never]: never
@@ -23,7 +23,33 @@ export type Database = {
           }
         },"public": {
           Tables: {
-            "audit_event": {
+            "ai_usage_event": {
+                  Row: {
+                    "company_id": string,"created_at": string,"id": number,"input_tokens": number,"job_name": string,"job_target_id": string,"model": string,"operation": string,"organization_id": string,"output_tokens": number,"provider": string,"requests": number
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "company_id": string,"created_at"?: string,"id"?: never,"input_tokens": number,"job_name": string,"job_target_id": string,"model": string,"operation": string,"organization_id": string,"output_tokens": number,"provider": string,"requests"?: number
+                  }
+                  Update: {
+                    "company_id"?: string,"created_at"?: string,"id"?: never,"input_tokens"?: number,"job_name"?: string,"job_target_id"?: string,"model"?: string,"operation"?: string,"organization_id"?: string,"output_tokens"?: number,"provider"?: string,"requests"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "ai_usage_event_company_id_organization_id_fkey"
+      columns: ["company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "company"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "ai_usage_event_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organization"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"audit_event": {
                   Row: {
                     "action": string,"actor_user_id": string | null,"company_id": string | null,"id": number,"occurred_at": string,"organization_id": string,"payload": NonNullable<Json>,"target_id": string | null,"target_type": string
                   }
@@ -35,7 +61,7 @@ export type Database = {
                     "action"?: string,"actor_user_id"?: string | null,"company_id"?: string | null,"id"?: never,"occurred_at"?: string,"organization_id"?: string,"payload"?: NonNullable<Json>,"target_id"?: string | null,"target_type"?: string
                   }
                   Relationships: [
-
+                    
                   ]
                 },"company": {
                   Row: {
@@ -213,7 +239,7 @@ isOneToOne: false
                     "created_at"?: string,"id"?: string,"mfa_required"?: boolean,"name"?: string
                   }
                   Relationships: [
-
+                    
                   ]
                 },"organization_platform_ai_access": {
                   Row: {
@@ -253,7 +279,7 @@ isOneToOne: false
                     "available"?: boolean,"extract_model"?: string,"platform_key_last_four"?: string | null,"platform_key_secret_id"?: string | null,"provider"?: string,"split_model"?: string,"updated_at"?: string,"updated_by"?: string | null
                   }
                   Relationships: [
-
+                    
                   ]
                 },"platform_settings": {
                   Row: {
@@ -267,7 +293,7 @@ isOneToOne: false
                     "max_source_file_bytes"?: number,"max_source_file_pages"?: number,"max_upload_batch_files"?: number,"singleton"?: boolean
                   }
                   Relationships: [
-
+                    
                   ]
                 },"platform_user": {
                   Row: {
@@ -281,7 +307,7 @@ isOneToOne: false
                     "created_at"?: string,"role"?: Database["public"]['Enums']["platform_role"],"user_id"?: string
                   }
                   Relationships: [
-
+                    
                   ]
                 },"source_file": {
                   Row: {
@@ -378,7 +404,7 @@ isOneToOne: false
                   }
                   ComputedFields: never
                   Relationships: [
-
+                    
                   ]
                 }
           }
@@ -427,9 +453,19 @@ isOneToOne: false
 "finish_upload_batch":
 { Args: { "target_batch_id": string }; Returns: undefined
                            },
+"list_organization_ai_usage":
+{ Args: { "period_from": string,"period_to": string,"target_company_id"?: string,"target_organization_id": string }; Returns: {
+              "company_id": string,"company_name": string,"input_tokens": number,"model": string,"output_tokens": number,"provider": string,"requests": number
+            }[]
+                           },
 "list_platform_ai_providers":
 { Args: Record<PropertyKey, never>; Returns: {
               "available": boolean,"extract_model": string,"has_platform_key": boolean,"platform_key_last_four": string,"provider": string,"split_model": string
+            }[]
+                           },
+"list_platform_ai_usage":
+{ Args: { "period_from": string,"period_to": string }; Returns: {
+              "input_tokens": number,"model": string,"organization_id": string,"organization_name": string,"output_tokens": number,"provider": string,"requests": number
             }[]
                            },
 "list_platform_organizations":
@@ -448,6 +484,9 @@ isOneToOne: false
                            },
 "record_ai_extraction":
 { Args: { "model": string,"payload": Json,"provider": string,"target_document_id": string,"target_extraction_request_id": string }; Returns: undefined
+                           },
+"record_ai_usage":
+{ Args: { "target_company_id": string,"target_input_tokens": number,"target_job_id": string,"target_job_name": string,"target_model": string,"target_operation": string,"target_organization_id": string,"target_output_tokens": number,"target_provider": string }; Returns: undefined
                            },
 "record_split":
 { Args: { "page_ranges": Json,"target_source_file_id": string }; Returns: undefined
@@ -608,7 +647,7 @@ export type CompositeTypes<
 export const Constants = {
   "graphql_public": {
           Enums: {
-
+            
           }
         },"public": {
           Enums: {

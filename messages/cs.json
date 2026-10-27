@@ -172,6 +172,27 @@
     "model_required": "Zadejte model pro rozdělení i vytěžení.",
     "invalid_platform_key": "Zadejte platný API klíč platformy."
   },
+  "aiUsage": {
+    "organizationNav": "Využití AI pro {organization}",
+    "platformNav": "Využití AI na platformě",
+    "organizationTitle": "Využití AI pro {organization}",
+    "organizationIntro": "Počty požadavků a tokenů této organizace podle společnosti, poskytovatele a modelu.",
+    "platformTitle": "Využití AI na platformě",
+    "platformIntro": "Počty požadavků a tokenů napříč organizacemi podle poskytovatele a modelu.",
+    "filters": "Filtry využití AI",
+    "from": "Od",
+    "to": "Do",
+    "company": "Společnost",
+    "organization": "Organizace",
+    "allCompanies": "Všechny společnosti",
+    "filter": "Filtrovat",
+    "provider": "Poskytovatel",
+    "model": "Model",
+    "requests": "Požadavky",
+    "inputTokens": "Vstupní tokeny",
+    "outputTokens": "Výstupní tokeny",
+    "empty": "V tomto období není zaznamenáno využití AI"
+  },
   "platformAi": {
     "nav": "Nastavení AI platformy",
     "title": "Nastavení AI platformy",
