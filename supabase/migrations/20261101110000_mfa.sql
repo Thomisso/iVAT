@@ -263,13 +263,17 @@ as $$
     );
 $$;
 
-drop policy "users read own memberships; organization administrators read all"
+drop policy "users read own memberships; administrators read their scope"
   on public.membership;
-create policy "MFA-verified users read own memberships; organization administrators read all"
+create policy "MFA-verified users read memberships in their scope"
   on public.membership for select to authenticated
   using (
     private.organization_mfa_satisfied(organization_id)
-      and (user_id = auth.uid() or private.is_organization_administrator(organization_id))
+      and (
+        user_id = auth.uid()
+        or private.is_organization_administrator(organization_id)
+        or (company_id is not null and private.is_company_administrator(company_id, organization_id))
+      )
   );
 
 create function public.set_organization_mfa_required(
