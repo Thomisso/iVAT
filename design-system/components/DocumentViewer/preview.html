@@ -1,0 +1,34 @@
+<!-- @dsCard group="Documents" height=560 -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>DocumentViewer — preview</title></head>
+<body>
+<div id="root" class="iv-demo"></div>
+<script>
+var I = window.iVAT, h = React.createElement;
+function Invoice() {
+  var r = function (a, b, bold) { return h('div', { style: { display: 'flex', justifyContent: 'space-between', fontWeight: bold ? 600 : 400 } }, h('span', null, a), h('span', null, b)); };
+  return h('div', { style: { display: 'flex', flexDirection: 'column', gap: 10, height: '100%' } },
+    h('div', { style: { display: 'flex', justifyContent: 'space-between' } },
+      h('div', null, h('div', { style: { fontSize: 14, fontWeight: 700 } }, 'Tiskárna Novák s.r.o.'), 'Cejl 18, 602 00 Brno', h('br'), 'IČO 25603426 · DIČ CZ25603426'),
+      h('div', { style: { textAlign: 'right' } }, h('div', { style: { fontSize: 13, fontWeight: 700 } }, 'FAKTURA'), 'č. FV-2026-00412')),
+    h('div', { style: { display: 'flex', justifyContent: 'space-between' } },
+      h('div', null, 'Odběratel:', h('br'), h('b', null, 'Pekárna U Mlýna s.r.o.'), h('br'), 'IČO 27082440'),
+      h('div', { style: { textAlign: 'right' } }, 'Datum vystavení: 14. 10. 2026', h('br'), 'DUZP: 14. 10. 2026', h('br'), 'VS: 2026100412')),
+    h('div', { style: { borderTop: '1px solid var(--ink-on-mark)', paddingTop: 6, display: 'flex', flexDirection: 'column', gap: 3 } },
+      r('Tisk letáků A5, 5 000 ks', '12 000,00'), r('Grafická úprava', '8 000,00')),
+    h('div', { style: { marginTop: 'auto', marginLeft: '40%', display: 'flex', flexDirection: 'column', gap: 3 } },
+      r('Základ 21 %', '20 000,00'), r('DPH 21 %', '4 200,00'), r('Celkem k úhradě', '24 200,00 Kč', true)));
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 } },
+  h(I.DocumentViewer, { label: 'FV-2026-00412, page 1 of 1', toolbar: [h('span', { key: 'a' }, 'Page 1 of 1 · PDF'), h(I.StatusBadge, { key: 'b', status: 'proposed' })],
+    regions: [
+      { id: 'vat', x: 6.5, y: 10.4, w: 34, h: 3.6, tag: 'Supplier VAT ID', active: true },
+      { id: 'duzp', x: 63, y: 20.5, w: 30, h: 3.4 },
+      { id: 'total', x: 46, y: 84.5, w: 47.5, h: 4 }
+    ] }, h(Invoice)),
+  h(I.DocumentViewer, { scanning: true, label: 'Extraction in progress', toolbar: [h('span', { key: 'a' }, 'Reading page 1…'), h(I.StatusBadge, { key: 'b', status: 'extracting' })] }, h(Invoice))));
+</script>
+</body>
+</html>

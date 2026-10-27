@@ -1,0 +1,13 @@
+<!-- @dsCard group="Status" height=240 -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>EmptyState — preview</title></head>
+<body>
+<div id="root" class="iv-demo"></div>
+<script>
+var I = window.iVAT, h = React.createElement;
+ReactDOM.createRoot(document.getElementById('root')).render(h(I.EmptyState, { icon: 'upload', title: 'No source files yet.', action: h(I.Button, { variant: 'primary', icon: 'upload' }, 'Upload invoices') },
+  'Upload invoices and receipts. iVAT splits them into Documents and proposes their data for you to approve.'));
+</script>
+</body>
+</html>

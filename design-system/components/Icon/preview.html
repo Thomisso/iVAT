@@ -1,0 +1,15 @@
+<!-- @dsCard group="Foundations" height=72 -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Icon — preview</title></head>
+<body>
+<div id="root" class="iv-demo iv-row"></div>
+<script>
+var I = window.iVAT, h = React.createElement;
+var names = ["check","alert","info","error","marker","upload","file","search","lock","chevron","duplicate","inbox","send","report","building","split","arrow","clock"];
+ReactDOM.createRoot(document.getElementById('root')).render(h(React.Fragment, null, names.map(function (n) {
+  return h('span', { key: n, title: n, style: { display: 'inline-grid', placeItems: 'center', width: 32, height: 32, borderRadius: 6, background: 'var(--surface)', border: '1px solid var(--line)', color: n === 'marker' ? 'var(--ai)' : 'var(--ink)' } }, h(I.Icon, { name: n }));
+})));
+</script>
+</body>
+</html>
