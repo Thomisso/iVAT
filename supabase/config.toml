@@ -162,10 +162,13 @@ site_url = "http://127.0.0.1:3000"
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
 additional_redirect_urls = [
+  "https://127.0.0.1:3000",
   "http://127.0.0.1:3000/auth/callback",
   "http://127.0.0.1:3100/auth/callback",
+  "http://127.0.0.1:3100/**",
   "http://localhost:3000/auth/callback",
   "http://localhost:3100/auth/callback",
+  "http://localhost:3100/**",
 ]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
@@ -237,7 +240,7 @@ max_frequency = "1s"
 # Number of characters used in the email OTP.
 otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour).
-otp_expiry = 3600
+otp_expiry = 604800
 
 # Use a production-ready SMTP server
 # [auth.email.smtp]
@@ -253,6 +256,10 @@ otp_expiry = 3600
 # [auth.email.template.invite]
 # subject = "You have been invited"
 # content_path = "./supabase/templates/invite.html"
+
+[auth.email.template.magic_link]
+subject = "Your iVAT invitation"
+content_path = "./supabase/templates/magic_link.html"
 
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]
