@@ -42,7 +42,8 @@
     "pages": "Stran",
     "uploadedAt": "Nahráno",
     "pageCount": "{count, plural, one {# strana} few {# strany} other {# stran}}",
-    "backToCompany": "Zpět na firmu"
+    "backToCompany": "← Zpět na firmu",
+    "hash": "Otisk SHA-256"
   },
   "errors": {
     "organization_name_required": "Zadejte název organizace.",
@@ -59,6 +60,7 @@
     "forbidden": "K této akci nemáte oprávnění.",
     "file_required": "Vyberte soubor k nahrání.",
     "unsupported_format": "Tento formát souboru není podporován. Nahrajte soubor PDF, PNG nebo JPEG.",
+    "content_does_not_match_format": "Obsah souboru neodpovídá jeho příponě. Zkontrolujte, že jde opravdu o PDF, PNG nebo JPEG.",
     "unreadable_file": "Soubor nelze přečíst. Může být poškozený."
   }
 }

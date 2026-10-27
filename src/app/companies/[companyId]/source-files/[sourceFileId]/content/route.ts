@@ -4,8 +4,8 @@ import { requireUserClient } from "@/lib/supabase/server";
 // Serves the stored original for the in-app viewer, as the signed-in user.
 export async function GET(_request: Request, ctx: RouteContext<"/companies/[companyId]/source-files/[sourceFileId]/content">) {
   const { companyId, sourceFileId } = await ctx.params;
-  const stored = await readSourceFile(await requireUserClient(), sourceFileId);
-  if (!stored || stored.file.companyId !== companyId) return new Response(null, { status: 404 });
+  const stored = await readSourceFile(await requireUserClient(), companyId, sourceFileId);
+  if (!stored) return new Response(null, { status: 404 });
 
   return new Response(Buffer.from(stored.bytes), {
     headers: {
