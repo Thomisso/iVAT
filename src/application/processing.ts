@@ -1,4 +1,4 @@
-import type { AiInput, AiProvider, PageRange } from "./ai-provider";
+import { AiProviderError, type AiInput, type AiProvider, type PageRange } from "./ai-provider";
 import type { SystemClient } from "./client";
 import type { DocumentStatus } from "./documents";
 import {
@@ -72,7 +72,7 @@ async function failOnFinalAttempt(attempt: Attempt, markFailed: () => Promise<vo
   try {
     await work();
   } catch (error) {
-    if (attempt.final) await markFailed();
+    if (attempt.final || (error instanceof AiProviderError && !error.transient)) await markFailed();
     throw error;
   }
 }
@@ -80,7 +80,7 @@ async function failOnFinalAttempt(attempt: Attempt, markFailed: () => Promise<vo
 async function splitSourceFile({ system, ai, jobs }: Worker, sourceFileId: string, attempt: Attempt) {
   const { data: file, error } = await system
     .from("source_file")
-    .select("id, company_id, format, page_count, status")
+    .select("id, organization_id, company_id, format, page_count, status")
     .eq("id", sourceFileId)
     .single();
   if (error) throw error;
@@ -99,20 +99,15 @@ async function splitSourceFile({ system, ai, jobs }: Worker, sourceFileId: strin
       if (error) throw error;
       return data.length > 0;
     };
-    await failOnFinalAttempt(
-      attempt,
-      () => moveStatus("failed", ["processing"]).then(() => undefined),
-      async () => {
-        if (!(await moveStatus("processing", ["uploaded", "processing"]))) return;
-        const bytes = await download(system, file.company_id, file.id);
-        const { documents } = await ai.split(aiInput(file.format, bytes, file.page_count));
-        const { error } = await system.rpc("record_split", {
-          target_source_file_id: file.id,
-          page_ranges: documents,
-        });
-        if (error) throw error;
-      },
-    );
+    await failOnFinalAttempt(attempt, () => moveStatus("failed", ["processing"]).then(() => undefined), async () => {
+      if (!(await moveStatus("processing", ["uploaded", "processing"]))) return;
+      const bytes = await download(system, file.company_id, file.id);
+      const { documents } = await ai.split(aiInput(file.format, bytes, file.page_count), {
+        organizationId: file.organization_id,
+      });
+      const { error } = await system.rpc("record_split", { target_source_file_id: file.id, page_ranges: documents });
+      if (error) throw error;
+    });
   }
 
   // Enqueues the Documents of the recorded Split, including when an earlier attempt recorded it.
@@ -130,9 +125,7 @@ async function splitSourceFile({ system, ai, jobs }: Worker, sourceFileId: strin
 async function extractDocument({ system, ai }: Worker, documentId: string, attempt: Attempt) {
   const { data: document, error } = await system
     .from("document")
-    .select(
-      "id, company_id, source_file_id, first_page, last_page, status, superseded_at, extraction_request_id, source_file (format)",
-    )
+    .select("id, organization_id, company_id, source_file_id, first_page, last_page, status, superseded_at, extraction_request_id, source_file (format)")
     .eq("id", documentId)
     .single();
   if (error) throw error;
@@ -152,25 +145,21 @@ async function extractDocument({ system, ai }: Worker, documentId: string, attem
     return data.length > 0;
   };
 
-  await failOnFinalAttempt(
-    attempt,
-    () => moveStatus("failed", ["processing"]).then(() => undefined),
-    async () => {
-      if (!(await moveStatus("processing", ["uploaded", "processing"]))) return;
-      const bytes = await download(system, document.company_id, document.source_file_id);
-      const range = { firstPage: document.first_page, lastPage: document.last_page };
-      const input = await documentInput(document.source_file!.format, bytes, range);
-      const { model, payload } = await ai.extract(input);
-      const { error } = await system.rpc("record_ai_extraction", {
-        target_document_id: document.id,
-        target_extraction_request_id: document.extraction_request_id,
-        provider: ai.name,
-        model,
-        payload,
-      });
-      if (error) throw error;
-    },
-  );
+  await failOnFinalAttempt(attempt, () => moveStatus("failed", ["processing"]).then(() => undefined), async () => {
+    if (!(await moveStatus("processing", ["uploaded", "processing"]))) return;
+    const bytes = await download(system, document.company_id, document.source_file_id);
+    const range = { firstPage: document.first_page, lastPage: document.last_page };
+    const input = await documentInput(document.source_file!.format, bytes, range);
+    const { model, payload } = await ai.extract(input, { organizationId: document.organization_id });
+    const { error } = await system.rpc("record_ai_extraction", {
+      target_document_id: document.id,
+      target_extraction_request_id: document.extraction_request_id,
+      provider: ai.name,
+      model,
+      payload,
+    });
+    if (error) throw error;
+  });
 }
 
 function aiInput(format: SourceFileFormat, bytes: Uint8Array, pageCount: number): AiInput {
