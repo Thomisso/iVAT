@@ -2,7 +2,7 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
 
 export type Database = {
-  
+
   "graphql_public": {
           Tables: {
             [_ in never]: never
@@ -35,7 +35,7 @@ export type Database = {
                     "action"?: string,"actor_user_id"?: string | null,"company_id"?: string | null,"id"?: never,"occurred_at"?: string,"organization_id"?: string,"payload"?: NonNullable<Json>,"target_id"?: string | null,"target_type"?: string
                   }
                   Relationships: [
-                    
+
                   ]
                 },"company": {
                   Row: {
@@ -183,17 +183,31 @@ isOneToOne: false
                   ]
                 },"organization": {
                   Row: {
-                    "created_at": string,"id": string,"name": string
+                    "created_at": string,"id": string,"mfa_required": boolean,"name": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "created_at"?: string,"id"?: string,"name": string
+                    "created_at"?: string,"id"?: string,"mfa_required"?: boolean,"name": string
                   }
                   Update: {
-                    "created_at"?: string,"id"?: string,"name"?: string
+                    "created_at"?: string,"id"?: string,"mfa_required"?: boolean,"name"?: string
                   }
                   Relationships: [
-                    
+
+                  ]
+                },"platform_user": {
+                  Row: {
+                    "created_at": string,"role": Database["public"]['Enums']["platform_role"],"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"role": Database["public"]['Enums']["platform_role"],"user_id": string
+                  }
+                  Update: {
+                    "created_at"?: string,"role"?: Database["public"]['Enums']["platform_role"],"user_id"?: string
+                  }
+                  Relationships: [
+
                   ]
                 },"source_file": {
                   Row: {
@@ -264,7 +278,7 @@ isOneToOne: false
                   }
                   ComputedFields: never
                   Relationships: [
-                    
+
                   ]
                 }
           }
@@ -290,6 +304,20 @@ isOneToOne: false
 "create_invitation":
 { Args: { "target_company_id": string,"target_email": string,"target_organization_id": string,"target_role": Database["public"]['Enums']["membership_role"] }; Returns: string
                            },
+"current_mfa_policy":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "enrolled": boolean,"required": boolean,"satisfied": boolean
+            }[]
+                           },
+"finish_mfa_disenrollment":
+{ Args: Record<PropertyKey, never>; Returns: undefined
+                           },
+"finish_mfa_enrollment":
+{ Args: Record<PropertyKey, never>; Returns: (string)[]
+                           },
+"mfa_recovery_codes_remaining":
+{ Args: Record<PropertyKey, never>; Returns: number
+                           },
 "record_ai_extraction":
 { Args: { "model": string,"payload": Json,"provider": string,"target_document_id": string,"target_extraction_request_id": string }; Returns: undefined
                            },
@@ -311,15 +339,21 @@ isOneToOne: false
 "save_vat_report":
 { Args: { "computed_result": Json,"expected_documents": Json,"target_company_id": string,"target_period": string }; Returns: string
                            },
+"set_organization_mfa_required":
+{ Args: { "required": boolean,"target_organization_id": string }; Returns: undefined
+                           },
 "update_company":
 { Args: { "company_city": string,"company_ico": string,"company_name": string,"company_person_type": Database["public"]['Enums']["person_type"],"company_postal_code": string,"company_street": string,"company_vat_id": string,"filing_frequency_effective_from": string,"new_filing_frequency": Database["public"]['Enums']["filing_frequency"],"target_company_id": string }; Returns: undefined
                            },
 "vat_report_documents":
 { Args: { "target_company_id": string,"target_period": string }; Returns: Json
+                           },
+"verify_mfa_recovery_code":
+{ Args: { "input_code": string }; Returns: boolean
                            }
           }
           Enums: {
-            "document_status": "uploaded"|"processing"|"needs_review"|"failed"|"approved"|"rejected","filing_frequency": "monthly"|"quarterly","membership_role": "administrator"|"user","person_type": "legal"|"natural","source_file_format": "pdf"|"png"|"jpeg","source_file_status": "uploaded"|"processing"|"split"|"failed"
+            "document_status": "uploaded"|"processing"|"needs_review"|"failed"|"approved"|"rejected","filing_frequency": "monthly"|"quarterly","membership_role": "administrator"|"user","person_type": "legal"|"natural","platform_role": "super_admin","source_file_format": "pdf"|"png"|"jpeg","source_file_status": "uploaded"|"processing"|"split"|"failed"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -435,11 +469,11 @@ export type CompositeTypes<
 export const Constants = {
   "graphql_public": {
           Enums: {
-            
+
           }
         },"public": {
           Enums: {
-            "document_status": ["uploaded", "processing", "needs_review", "failed", "approved", "rejected"],"filing_frequency": ["monthly", "quarterly"],"membership_role": ["administrator", "user"],"person_type": ["legal", "natural"],"source_file_format": ["pdf", "png", "jpeg"],"source_file_status": ["uploaded", "processing", "split", "failed"]
+            "document_status": ["uploaded", "processing", "needs_review", "failed", "approved", "rejected"],"filing_frequency": ["monthly", "quarterly"],"membership_role": ["administrator", "user"],"person_type": ["legal", "natural"],"platform_role": ["super_admin"],"source_file_format": ["pdf", "png", "jpeg"],"source_file_status": ["uploaded", "processing", "split", "failed"]
           }
         }
 } as const
