@@ -11,9 +11,11 @@ import { LanguageSwitcher } from "./language-switcher";
 export async function AppSidebar({
   currentCompanyId,
   activeDirection,
+  activeReport = false,
 }: {
   currentCompanyId?: string;
   activeDirection?: "incoming" | "outgoing";
+  activeReport?: boolean;
 }) {
   const client = await requireUserClient();
   const [companies, current, t] = await Promise.all([
@@ -28,7 +30,7 @@ export async function AppSidebar({
           label: t("nav.allDocuments"),
           icon: "inbox",
           href: `/companies/${currentCompanyId}`,
-          current: !activeDirection,
+          current: !activeDirection && !activeReport,
         },
         {
           label: t("nav.received"),
@@ -41,6 +43,13 @@ export async function AppSidebar({
           icon: "send",
           href: `/companies/${currentCompanyId}?direction=outgoing`,
           current: activeDirection === "outgoing",
+        },
+        { group: t("vatReports.title") },
+        {
+          label: t("vatReports.title"),
+          icon: "report",
+          href: `/companies/${currentCompanyId}/vat-reports`,
+          current: activeReport,
         },
       ]
     : [];

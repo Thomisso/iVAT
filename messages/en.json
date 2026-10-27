@@ -93,7 +93,9 @@
     "invalid_date": "Enter dates that exist.",
     "invalid_currency": "The currency must be a three-letter code, such as CZK.",
     "invalid_country": "The country must be a two-letter code, such as CZ.",
-    "one_file_required": "Choose one Source File to upload."
+    "one_file_required": "Choose one Source File to upload.",
+    "invalid_reporting_period": "Select a valid month (2000–2099).",
+    "stale_report": "Documents changed during generation. Generate the draft again."
   },
   "aiProcessing": {
     "title": "AI processing",
@@ -239,5 +241,45 @@
     "locked": "Period locked",
     "split": "Split",
     "rejected": "Rejected"
+  },
+  "vatReports": {
+    "title": "VAT Reports",
+    "period": "Reporting Period",
+    "selectPeriod": "Select a saved Reporting Period",
+    "show": "Show saved draft",
+    "generate": "Generate draft",
+    "regenerate": "Generate / regenerate draft",
+    "none": "No draft for this Reporting Period",
+    "scope": "Monthly domestic supplies in CZK at 21% and 12%. Other Documents are listed as excluded.",
+    "draft": "Draft · {period}",
+    "generated": "Generated {date}",
+    "snapshot": "Saved snapshot. Later approvals appear after regeneration. Expand an amount to see its contributing Documents.",
+    "vatReturn": "VAT Return",
+    "controlStatement": "Control Statement",
+    "line": "VAT Return line",
+    "netAmount": "Tax base",
+    "vatAmount": "VAT",
+    "outputVat": "Output VAT",
+    "inputVat": "Input VAT deduction",
+    "payable": "VAT payable",
+    "excessDeduction": "Excess deduction",
+    "section": "Section {section}",
+    "rate": "{rate}%",
+    "contributors": "Contributing Documents",
+    "noEntries": "No included Documents.",
+    "excluded": "Excluded Documents",
+    "noExclusions": "No excluded Documents in this period.",
+    "lines": {
+      "1": "1 · Domestic output, standard rate",
+      "2": "2 · Domestic output, reduced rate",
+      "40": "40 · Domestic input, standard rate",
+      "41": "41 · Domestic input, reduced rate"
+    },
+    "reasons": {
+      "not_approved": "Not Approved",
+      "manual_classification_required": "Manual Classification Required",
+      "currency_conversion_required": "Currency conversion required",
+      "incomplete_data": "Incomplete or invalid reporting data"
+    }
   }
 }

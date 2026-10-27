@@ -101,6 +101,12 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "document_overview"
       referencedColumns: ["id","company_id","organization_id"]
+    },{
+      foreignKeyName: "extraction_version_document_id_company_id_organization_id_fkey"
+      columns: ["document_id","company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "vat_report_document"
+      referencedColumns: ["id","company_id","organization_id"]
     }
                   ]
                 },"membership": {
@@ -163,6 +169,32 @@ isOneToOne: false
       referencedColumns: ["id","organization_id"]
     }
                   ]
+                },"vat_report": {
+                  Row: {
+                    "company_id": string,"documents": NonNullable<Json>,"generated_at": string,"generated_by": string,"id": string,"organization_id": string,"period": string,"result": NonNullable<Json>
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "company_id": string,"documents": NonNullable<Json>,"generated_at"?: string,"generated_by": string,"id"?: string,"organization_id": string,"period": string,"result": NonNullable<Json>
+                  }
+                  Update: {
+                    "company_id"?: string,"documents"?: NonNullable<Json>,"generated_at"?: string,"generated_by"?: string,"id"?: string,"organization_id"?: string,"period"?: string,"result"?: NonNullable<Json>
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "vat_report_company_id_organization_id_fkey"
+      columns: ["company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "company"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "vat_report_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organization"
+      referencedColumns: ["id"]
+    }
+                  ]
                 }
           }
           Views: {
@@ -179,6 +211,14 @@ isOneToOne: false
       referencedRelation: "source_file"
       referencedColumns: ["id","company_id","organization_id"]
     }
+                  ]
+                },"vat_report_document": {
+                  Row: {
+                    "company_id": string,"extraction_version_id": string | null,"id": string,"organization_id": string,"payload": Json | null,"status": Database["public"]['Enums']["document_status"]
+                  }
+                  ComputedFields: never
+                  Relationships: [
+                    
                   ]
                 }
           }
@@ -203,6 +243,9 @@ isOneToOne: false
                            },
 "retry_split":
 { Args: { "target_source_file_id": string }; Returns: undefined
+                           },
+"save_vat_report":
+{ Args: { "computed_result": Json,"expected_documents": Json,"target_company_id": string,"target_period": string }; Returns: string
                            }
           }
           Enums: {

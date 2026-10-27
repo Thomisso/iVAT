@@ -1188,3 +1188,27 @@ select:disabled {
     scroll-behavior: auto !important;
   }
 }
+
+.report-drilldown summary {
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 4px;
+}
+.report-drilldown ul {
+  text-align: left;
+  font-size: 0.875rem;
+  white-space: normal;
+}
+.report-totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+}
+.report-totals > div {
+  padding: var(--space-4);
+  background: var(--surface-sunken);
+  border: 1px solid var(--line);
+}
+.report-totals dd { margin: var(--space-2) 0 0; }
+.report-section + .report-section { margin-top: var(--space-5); }
