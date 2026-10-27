@@ -110,11 +110,17 @@ export async function AppSidebar({
         <details>
           <summary>{t("nav.userMenu")}</summary>
           {organizations.map((organization) => (
-            <Link key={organization.id} href={`/organizations/${organization.id}/members`}>
-              {t("members.organizationNav", { organization: organization.name })}
-            </Link>
+            <span key={organization.id} className="iv-stack">
+              <Link href={`/organizations/${organization.id}/members`}>
+                {t("members.organizationNav", { organization: organization.name })}
+              </Link>
+              <Link href={`/organizations/${organization.id}/ai-usage`}>
+                {t("aiUsage.organizationNav", { organization: organization.name })}
+              </Link>
+            </span>
           ))}
           {superAdmin && <Link href="/platform/ai-settings">{t("platformAi.nav")}</Link>}
+          {superAdmin && <Link href="/platform/ai-usage">{t("aiUsage.platformNav")}</Link>}
           <LanguageSwitcher />
           <Link href="/settings/security">{t("nav.security")}</Link>
           <form action={logOutAction}>

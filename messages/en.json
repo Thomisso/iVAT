@@ -172,6 +172,27 @@
     "model_required": "Enter a model for Split and Extract.",
     "invalid_platform_key": "Enter a valid platform API key."
   },
+  "aiUsage": {
+    "organizationNav": "AI usage for {organization}",
+    "platformNav": "Platform AI usage",
+    "organizationTitle": "AI usage for {organization}",
+    "organizationIntro": "Requests and tokens used by this Organization, grouped by Company, provider and model.",
+    "platformTitle": "Platform AI usage",
+    "platformIntro": "Requests and tokens across Organizations, grouped by provider and model.",
+    "filters": "AI usage filters",
+    "from": "From",
+    "to": "To",
+    "company": "Company",
+    "organization": "Organization",
+    "allCompanies": "All Companies",
+    "filter": "Filter",
+    "provider": "Provider",
+    "model": "Model",
+    "requests": "Requests",
+    "inputTokens": "Input tokens",
+    "outputTokens": "Output tokens",
+    "empty": "No AI usage in this period"
+  },
   "platformAi": {
     "nav": "Platform AI settings",
     "title": "Platform AI settings",
