@@ -32,6 +32,7 @@ Uploaded Source Files wait until the Company enables AI processing on its page. 
 | Command | What it does |
 | --- | --- |
 | `npm run db:start` / `db:stop` | Start or stop the local Supabase stack; `db:start` also writes its URL and keys to `.env.local` |
+| `npm run db:migrate` | Apply new migrations to the local database, keeping its data. A migration already applied is not re-run: after editing one, use `db:reset` |
 | `npm run db:reset` | Recreate the local database from `supabase/migrations/` (deletes all local data) |
 | `npm run db:types` | Regenerate `src/lib/database.types.ts` from the local schema after a migration |
 | `npm run dev` | Next.js dev server |
@@ -85,4 +86,4 @@ npm test
 
 ## CI
 
-`.github/workflows/ci.yml` runs on every pull request and on `main`. It checks that `package-lock.json` matches `package.json`, starts local Supabase, checks that `src/lib/database.types.ts` matches the migrations, then runs typecheck, lint, tests and build. After changing a migration, run `npm run db:types` and commit the result. Coding conventions that need judgement rather than a check are in [`CODING_STANDARDS.md`](CODING_STANDARDS.md).
+`.github/workflows/ci.yml` runs on every pull request and on `main`. It checks that `package-lock.json` matches `package.json` and, on a pull request, that no migration already on `main` was changed, renamed or deleted. It then starts local Supabase, checks that `src/lib/database.types.ts` matches the migrations, then runs typecheck, lint, tests and build. After changing a migration, run `npm run db:types` and commit the result. Coding conventions that need judgement rather than a check are in [`CODING_STANDARDS.md`](CODING_STANDARDS.md).

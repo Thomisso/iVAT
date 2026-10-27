@@ -1,15 +1,17 @@
 import { createClient } from "@supabase/supabase-js";
 import { inject } from "vitest";
 import type { AiProvider } from "@/application/ai-provider";
-import type { SystemClient } from "@/application/client";
+import { asSystemClient, type SystemClient } from "@/application/client";
 import { runJob, type JobQueue, type ProcessingJob } from "@/application/processing";
 import { fakeAiProvider } from "@/ai/fake";
 
 /** A client acting as the worker, as `worker/index.ts` creates it. */
 export function systemClient(): SystemClient {
-  return createClient(inject("supabaseUrl"), inject("supabaseSecretKey"), {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
+  return asSystemClient(
+    createClient(inject("supabaseUrl"), inject("supabaseSecretKey"), {
+      auth: { persistSession: false, autoRefreshToken: false },
+    }),
+  );
 }
 
 /**
