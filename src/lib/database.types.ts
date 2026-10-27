@@ -443,14 +443,14 @@ isOneToOne: false
 "mfa_recovery_codes_remaining":
 { Args: Record<PropertyKey, never>; Returns: number
                            },
+"move_document_page":
+{ Args: { "page": number,"source_document_id": string,"target_document_id": string }; Returns: (string)[]
+                           },
 "record_ai_extraction":
 { Args: { "model": string,"payload": Json,"provider": string,"target_document_id": string,"target_extraction_request_id": string }; Returns: undefined
                            },
 "record_split":
 { Args: { "page_ranges": Json,"target_source_file_id": string }; Returns: undefined
-                           },
-"move_document_page":
-{ Args: { "page": number,"source_document_id": string,"target_document_id": string }; Returns: (string)[]
                            },
 "reject_document":
 { Args: { "target_document_id": string }; Returns: undefined
