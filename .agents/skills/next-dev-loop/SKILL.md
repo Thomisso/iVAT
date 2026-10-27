@@ -144,11 +144,13 @@ manual rather than from memory.
   server say it rendered cleanly, a stale or misdirected browser
   session is the likelier cause than a real bug — reconcile the views
   before debugging the app.
-- Confirming a click or navigation: the page settles a beat later, so
-  wait with `wait --load networkidle` (no path to get wrong), then
-  snapshot/read to confirm the page. Avoid `wait --url` unless you pass
-  the link's exact href — a guessed or placeholder path won't match the
-  real URL and times out after 25s.
+- Confirming a click or navigation: wait for the intended URL or visible
+  state, then snapshot/read to verify the result. Use the link's observed
+  href for `wait --url`, or exact text from a snapshot or the app's
+  translations for `wait --text`. For a mutation on the same page, wait
+  for its resulting state. PDF viewers and polling can keep network activity
+  alive, so `wait --load networkidle` is not a reliable completion check
+  for those pages. Guessed URLs or success messages only cause timeouts.
 - A blank read, empty snapshot, `about:blank`, or a "no browser
   session" error — right after `open` or after a click (even if `open`
   reported the page) — is the browser dropping the page (a stale
