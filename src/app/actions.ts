@@ -21,7 +21,15 @@ import { prefillCompanyFromAres } from "@/application/ares";
 import { createCompany, disableAiProcessing, enableAiProcessing, updateCompany } from "@/application/companies";
 import { acceptInvitation, changeMembershipRole, inviteMember, removeMembership } from "@/application/memberships";
 import { supabaseInvitationMailer } from "@/application/supabase-invitation-mailer";
-import { approveDocument, correctDocument, rejectDocument, reprocessDocument } from "@/application/documents";
+import {
+  approveDocument,
+  correctDocument,
+  mergeDocuments,
+  moveDocumentPage,
+  rejectDocument,
+  reprocessDocument,
+  splitDocument,
+} from "@/application/documents";
 import type { ExtractionPayload, Party } from "@/application/extraction-payload";
 import { retrySplit, uploadSourceFile } from "@/application/source-files";
 import { configurePlatformAiProvider, setOrganizationPlatformAiAccess } from "@/application/platform-ai";
@@ -105,9 +113,7 @@ export type MfaCompletionState = {
 
 export async function beginTotpEnrollmentAction(): Promise<MfaEnrollmentState> {
   const result = await beginTotpEnrollment(await requireUserClient());
-  return result.ok
-    ? { error: null, enrollment: result.value }
-    : { error: result.error, enrollment: null };
+  return result.ok ? { error: null, enrollment: result.value } : { error: result.error, enrollment: null };
 }
 
 export async function completeTotpEnrollmentAction(
@@ -123,10 +129,7 @@ export async function completeTotpEnrollmentAction(
     : { error: result.error, recoveryCodes: null };
 }
 
-export async function verifyTotpAction(
-  _state: FormState,
-  formData: FormData,
-): Promise<FormState> {
+export async function verifyTotpAction(_state: FormState, formData: FormData): Promise<FormState> {
   const client = await requireUserClient();
   const status = await mfaStatus(client);
   if (!status.factorId) redirect("/mfa/enroll");
@@ -138,14 +141,8 @@ export async function verifyTotpAction(
   redirect("/");
 }
 
-export async function verifyRecoveryCodeAction(
-  _state: FormState,
-  formData: FormData,
-): Promise<FormState> {
-  const result = await verifyRecoveryCode(
-    await requireUserClient(),
-    field(formData, "recoveryCode"),
-  );
+export async function verifyRecoveryCodeAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const result = await verifyRecoveryCode(await requireUserClient(), field(formData, "recoveryCode"));
   if (!result.ok) return refused(result.error, formData, []);
   redirect("/");
 }
@@ -157,10 +154,7 @@ export async function disenrollMfaAction(): Promise<void> {
   redirect("/settings/security");
 }
 
-export async function setOrganizationMfaRequiredAction(
-  _state: FormState,
-  formData: FormData,
-): Promise<FormState> {
+export async function setOrganizationMfaRequiredAction(_state: FormState, formData: FormData): Promise<FormState> {
   return settled(
     await setOrganizationMfaRequired(await requireUserClient(), {
       organizationId: field(formData, "organizationId"),
@@ -257,6 +251,37 @@ export async function reprocessDocumentAction(_state: FormState, formData: FormD
   );
 }
 
+export async function mergeDocumentsAction(_state: FormState, formData: FormData): Promise<FormState> {
+  return settled(
+    await mergeDocuments(await requireUserClient(), jobQueue, {
+      companyId: field(formData, "companyId"),
+      leftDocumentId: field(formData, "leftDocumentId"),
+      rightDocumentId: field(formData, "rightDocumentId"),
+    }),
+  );
+}
+
+export async function splitDocumentAction(_state: FormState, formData: FormData): Promise<FormState> {
+  return settled(
+    await splitDocument(await requireUserClient(), jobQueue, {
+      companyId: field(formData, "companyId"),
+      documentId: field(formData, "documentId"),
+      splitAfterPage: Number(field(formData, "splitAfterPage")),
+    }),
+  );
+}
+
+export async function moveDocumentPageAction(_state: FormState, formData: FormData): Promise<FormState> {
+  return settled(
+    await moveDocumentPage(await requireUserClient(), jobQueue, {
+      companyId: field(formData, "companyId"),
+      sourceDocumentId: field(formData, "sourceDocumentId"),
+      targetDocumentId: field(formData, "targetDocumentId"),
+      page: Number(field(formData, "page")),
+    }),
+  );
+}
+
 /** A field of the correction form, or null when left empty. */
 function optionalField(formData: FormData, name: string): string | null {
   return field(formData, name).trim() || null;
@@ -277,9 +302,9 @@ function partyFromForm(formData: FormData, prefix: string): Party {
 
 /** The Extraction payload the correction form describes, as typed; `correctDocument` normalizes it. */
 function payloadFromForm(formData: FormData): ExtractionPayload {
-  const lines = [...new Set([...formData.keys()].flatMap((key) => /^rateBreakdown\.(\d+)\./.exec(key)?.[1] ?? []))].sort(
-    (a, b) => Number(a) - Number(b),
-  );
+  const lines = [
+    ...new Set([...formData.keys()].flatMap((key) => /^rateBreakdown\.(\d+)\./.exec(key)?.[1] ?? [])),
+  ].sort((a, b) => Number(a) - Number(b));
   return {
     schemaVersion: 1,
     documentType: optionalField(formData, "documentType") as ExtractionPayload["documentType"],
@@ -319,7 +344,9 @@ export async function correctDocumentAction(_state: FormState, formData: FormDat
     payload: payloadFromForm(formData),
   });
   if (!result.ok) {
-    const values = [...formData.entries()].filter(([name, value]) => !name.startsWith("$") && typeof value === "string");
+    const values = [...formData.entries()].filter(
+      ([name, value]) => !name.startsWith("$") && typeof value === "string",
+    );
     return { error: result.error, values: Object.fromEntries(values) as Record<string, string> };
   }
   refresh();
@@ -348,14 +375,15 @@ export async function rejectDocumentAction(_state: FormState, formData: FormData
 export async function setLocaleAction(formData: FormData): Promise<void> {
   const locale = formData.get("locale");
   if (isLocale(locale)) {
-    (await cookies()).set(localeCookie, locale, { path: "/", maxAge: 60 * 60 * 24 * 365, sameSite: "lax" });
+    (await cookies()).set(localeCookie, locale, {
+      path: "/",
+      maxAge: 60 * 60 * 24 * 365,
+      sameSite: "lax",
+    });
   }
 }
 
-export async function generateVatReportAction(
-  _state: FormState,
-  formData: FormData,
-): Promise<FormState> {
+export async function generateVatReportAction(_state: FormState, formData: FormData): Promise<FormState> {
   const companyId = field(formData, "companyId");
   const period = field(formData, "period");
   const result = await generateVatReport(await requireUserClient(), {
@@ -363,9 +391,7 @@ export async function generateVatReportAction(
     period,
   });
   if (!result.ok) return refused(result.error, formData, ["period"]);
-  redirect(
-    `/companies/${companyId}/vat-reports?period=${encodeURIComponent(period)}`,
-  );
+  redirect(`/companies/${companyId}/vat-reports?period=${encodeURIComponent(period)}`);
 }
 
 export async function inviteMemberAction(_state: FormState, formData: FormData): Promise<FormState> {
@@ -393,10 +419,12 @@ export async function acceptInvitationAction(_state: FormState, formData: FormDa
 }
 
 export async function changeMembershipRoleAction(_state: FormState, formData: FormData): Promise<FormState> {
-  return settled(await changeMembershipRole(await requireUserClient(), {
-    membershipId: field(formData, "membershipId"),
-    role: field(formData, "role") as "administrator" | "user",
-  }));
+  return settled(
+    await changeMembershipRole(await requireUserClient(), {
+      membershipId: field(formData, "membershipId"),
+      role: field(formData, "role") as "administrator" | "user",
+    }),
+  );
 }
 
 export async function removeMembershipAction(_state: FormState, formData: FormData): Promise<FormState> {

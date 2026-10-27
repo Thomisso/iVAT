@@ -79,14 +79,14 @@ isOneToOne: false
                   ]
                 },"document": {
                   Row: {
-                    "company_id": string,"created_at": string,"extraction_request_id": string,"first_page": number,"id": string,"last_page": number,"organization_id": string,"source_file_id": string,"status": Database["public"]['Enums']["document_status"]
+                    "company_id": string,"created_at": string,"extraction_request_id": string,"first_page": number,"id": string,"last_page": number,"organization_id": string,"source_file_id": string,"status": Database["public"]['Enums']["document_status"],"superseded_at": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "company_id": string,"created_at"?: string,"extraction_request_id"?: string,"first_page": number,"id"?: string,"last_page": number,"organization_id": string,"source_file_id": string,"status"?: Database["public"]['Enums']["document_status"]
+                    "company_id": string,"created_at"?: string,"extraction_request_id"?: string,"first_page": number,"id"?: string,"last_page": number,"organization_id": string,"source_file_id": string,"status"?: Database["public"]['Enums']["document_status"],"superseded_at"?: string | null
                   }
                   Update: {
-                    "company_id"?: string,"created_at"?: string,"extraction_request_id"?: string,"first_page"?: number,"id"?: string,"last_page"?: number,"organization_id"?: string,"source_file_id"?: string,"status"?: Database["public"]['Enums']["document_status"]
+                    "company_id"?: string,"created_at"?: string,"extraction_request_id"?: string,"first_page"?: number,"id"?: string,"last_page"?: number,"organization_id"?: string,"source_file_id"?: string,"status"?: Database["public"]['Enums']["document_status"],"superseded_at"?: string | null
                   }
                   Relationships: [
                     {
@@ -371,6 +371,9 @@ isOneToOne: false
               "id": string,"name": string,"platform_key_enabled": boolean
             }[]
                            },
+"merge_documents":
+{ Args: { "left_document_id": string,"right_document_id": string }; Returns: (string)[]
+                           },
 "mfa_recovery_codes_remaining":
 { Args: Record<PropertyKey, never>; Returns: number
                            },
@@ -379,6 +382,9 @@ isOneToOne: false
                            },
 "record_split":
 { Args: { "page_ranges": Json,"target_source_file_id": string }; Returns: undefined
+                           },
+"move_document_page":
+{ Args: { "page": number,"source_document_id": string,"target_document_id": string }; Returns: (string)[]
                            },
 "reject_document":
 { Args: { "target_document_id": string }; Returns: undefined
@@ -405,6 +411,9 @@ isOneToOne: false
                            },
 "set_organization_platform_ai_access":
 { Args: { "access_enabled": boolean,"target_organization_id": string,"target_provider": string }; Returns: undefined
+                           },
+"split_document":
+{ Args: { "split_after_page": number,"target_document_id": string }; Returns: (string)[]
                            },
 "update_company":
 { Args: { "company_city": string,"company_ico": string,"company_name": string,"company_person_type": Database["public"]['Enums']["person_type"],"company_postal_code": string,"company_street": string,"company_vat_id": string,"filing_frequency_effective_from": string,"new_filing_frequency": Database["public"]['Enums']["filing_frequency"],"target_company_id": string }; Returns: undefined
