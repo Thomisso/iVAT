@@ -1,0 +1,140 @@
+/* iVAT — generated from tokens.json. Edit tokens.json, then regenerate; do not edit by hand. */
+
+:root, [data-theme="light"] {
+  --canvas: #f6f6f3;
+  --surface: #ffffff;
+  --surface-sunken: #efefeb;
+  --surface-raised: #ffffff;
+  --desk: #e6e6e0;
+  --paper: #fffffc;
+  --line: #e2e2dc;
+  --line-strong: #8c8c84;
+  --ink: #1c1c1a;
+  --ink-muted: #62625c;
+  --accent: #1f5f8b;
+  --accent-hover: #174a6d;
+  --accent-soft: #e4eef5;
+  --on-accent: #ffffff;
+  --ai: #7a4f00;
+  --ai-soft: #fff6d1;
+  --ai-mark: #ffe066;
+  --ai-edge: #a77c00;
+  --ink-on-mark: #1c1c1a;
+  --success: #17663f;
+  --success-soft: #e2f2e8;
+  --warning: #a63f05;
+  --warning-soft: #fdeadc;
+  --danger: #b42318;
+  --danger-soft: #fbe5e3;
+  --link: var(--accent);
+  --focus: var(--accent);
+  --shadow-sm: 0 1px 2px #1c1c1a14;
+  --shadow-pop: 0 4px 12px #1c1c1a14, 0 12px 32px -4px #1c1c1a29;
+  --focus-ring: 0 0 0 2px #f6f6f3, 0 0 0 4px #1f5f8b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --canvas: #121413;
+    --surface: #1a1c1b;
+    --surface-sunken: #0e100f;
+    --surface-raised: #232625;
+    --desk: #0b0c0c;
+    --paper: #e4e2dc;
+    --line: #2c302e;
+    --line-strong: #6c726f;
+    --ink: #ececea;
+    --ink-muted: #a3a39d;
+    --accent: #6aa9d6;
+    --accent-hover: #8cc0e4;
+    --accent-soft: #15293a;
+    --on-accent: #0d1b26;
+    --ai: #f2c94c;
+    --ai-soft: #352b0b;
+    --ai-mark: #ffe066;
+    --ai-edge: #8a6500;
+    --ink-on-mark: #1c1c1a;
+    --success: #4cc38a;
+    --success-soft: #12301f;
+    --warning: #f5a25d;
+    --warning-soft: #3a1f0c;
+    --danger: #f97066;
+    --danger-soft: #3d1512;
+    --link: var(--accent);
+    --focus: var(--accent);
+    --shadow-sm: 0 1px 2px #00000080;
+    --shadow-pop: 0 12px 32px -4px #000000cc;
+    --focus-ring: 0 0 0 2px #121413, 0 0 0 4px #6aa9d6;
+    color-scheme: dark;
+  }
+}
+
+[data-theme="dark"] {
+  --canvas: #121413;
+  --surface: #1a1c1b;
+  --surface-sunken: #0e100f;
+  --surface-raised: #232625;
+  --desk: #0b0c0c;
+  --paper: #e4e2dc;
+  --line: #2c302e;
+  --line-strong: #6c726f;
+  --ink: #ececea;
+  --ink-muted: #a3a39d;
+  --accent: #6aa9d6;
+  --accent-hover: #8cc0e4;
+  --accent-soft: #15293a;
+  --on-accent: #0d1b26;
+  --ai: #f2c94c;
+  --ai-soft: #352b0b;
+  --ai-mark: #ffe066;
+  --ai-edge: #8a6500;
+  --ink-on-mark: #1c1c1a;
+  --success: #4cc38a;
+  --success-soft: #12301f;
+  --warning: #f5a25d;
+  --warning-soft: #3a1f0c;
+  --danger: #f97066;
+  --danger-soft: #3d1512;
+  --link: var(--accent);
+  --focus: var(--accent);
+  --shadow-sm: 0 1px 2px #00000080;
+  --shadow-pop: 0 12px 32px -4px #000000cc;
+  --focus-ring: 0 0 0 2px #121413, 0 0 0 4px #6aa9d6;
+  color-scheme: dark;
+}
+
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-full: 9999px;
+  --control-sm: 28px;
+  --control-md: 32px;
+  --control-lg: 40px;
+  --row-compact: 36px;
+  --row-comfortable: 44px;
+  --sidebar: 232px;
+  --review-panel: 400px;
+  --font-sans: Geist, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+.display { font-family: var(--font-sans); font-size: 40px; line-height: 44px; font-weight: 600; letter-spacing: -0.02em; }
+.title { font-family: var(--font-sans); font-size: 24px; line-height: 32px; font-weight: 600; letter-spacing: -0.01em; }
+.heading { font-family: var(--font-sans); font-size: 16px; line-height: 24px; font-weight: 600; }
+.body { font-family: var(--font-sans); font-size: 14px; line-height: 20px; font-weight: 400; }
+.body-strong { font-family: var(--font-sans); font-size: 14px; line-height: 20px; font-weight: 500; }
+.table { font-family: var(--font-sans); font-size: 13px; line-height: 18px; font-weight: 400; }
+.label { font-family: var(--font-sans); font-size: 12px; line-height: 16px; font-weight: 500; letter-spacing: 0.02em; }
+.eyebrow { font-family: var(--font-sans); font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: 0.08em; }
+.amount { font-family: var(--font-mono); font-size: 13px; line-height: 18px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.amount-lg { font-family: var(--font-mono); font-size: 20px; line-height: 28px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.code { font-family: var(--font-mono); font-size: 12px; line-height: 16px; font-weight: 400; font-variant-numeric: tabular-nums; }

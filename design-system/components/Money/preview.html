@@ -1,0 +1,13 @@
+<!-- @dsCard group="Data" height=64 -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Money — preview</title></head>
+<body>
+<div id="root" class="iv-demo iv-row"></div>
+<script>
+var I = window.iVAT, h = React.createElement;
+ReactDOM.createRoot(document.getElementById('root')).render(h(React.Fragment, null,
+  h(I.Money, { amount: 24200 }), h(I.Money, { amount: -2420 }), h(I.Money, { amount: 1284.5, currency: 'EUR' }), h(I.Money, { amount: 128400, currency: '' })));
+</script>
+</body>
+</html>
