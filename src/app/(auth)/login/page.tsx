@@ -5,7 +5,7 @@ import { LogInForm } from "./login-form";
 export default async function LogInPage() {
   const t = await getTranslations("auth");
   return (
-    <main className="card">
+    <main className="panel">
       <h1>{t("logInTitle")}</h1>
       <LogInForm />
       <p>

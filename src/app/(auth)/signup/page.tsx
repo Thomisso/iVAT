@@ -5,7 +5,7 @@ import { SignUpForm } from "./signup-form";
 export default async function SignUpPage() {
   const t = await getTranslations("auth");
   return (
-    <main className="card">
+    <main className="panel">
       <h1>{t("signUpTitle")}</h1>
       <SignUpForm />
       <p>
