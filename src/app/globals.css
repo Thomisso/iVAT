@@ -159,3 +159,42 @@ button:disabled {
   text-align: center;
   color: var(--muted);
 }
+
+.upload-form {
+  flex-direction: row;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.upload-form .form-error {
+  order: 1;
+  flex-basis: 100%;
+}
+
+.source-files {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.source-files th,
+.source-files td {
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.source-file-viewer {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-height: 80vh;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+img.source-file-viewer {
+  min-height: 0;
+  object-fit: contain;
+}

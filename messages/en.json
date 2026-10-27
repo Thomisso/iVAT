@@ -29,9 +29,21 @@
     "noOrganization": "You are not an administrator of any organization, so you cannot add companies."
   },
   "dashboard": {
-    "companies": "Companies",
-    "documents": "Documents",
-    "noDocuments": "No documents yet."
+    "companies": "Companies"
+  },
+  "sourceFiles": {
+    "title": "Source files",
+    "file": "File",
+    "fileHint": "PDF, PNG or JPEG. The original is kept unchanged.",
+    "upload": "Upload",
+    "none": "No source files yet.",
+    "fileName": "File",
+    "format": "Format",
+    "pages": "Pages",
+    "uploadedAt": "Uploaded",
+    "pageCount": "{count, plural, one {# page} other {# pages}}",
+    "backToCompany": "← Back to company",
+    "hash": "SHA-256 hash"
   },
   "errors": {
     "organization_name_required": "Enter the name of your organization.",
@@ -45,6 +57,10 @@
     "address_required": "Enter the street and city.",
     "invalid_postal_code": "Postal code must have 5 digits.",
     "ico_taken": "A company with this IČO already exists in your organization.",
-    "forbidden": "You are not allowed to do this."
+    "forbidden": "You are not allowed to do this.",
+    "file_required": "Choose a file to upload.",
+    "unsupported_format": "This file format is not supported. Upload a PDF, PNG or JPEG file.",
+    "content_does_not_match_format": "The file content does not match its extension. Check that the file is really a PDF, PNG or JPEG.",
+    "unreadable_file": "The file cannot be read. It may be damaged."
   }
 }

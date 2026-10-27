@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { logIn, logOut, signUp } from "@/application/auth";
 import { createCompany } from "@/application/companies";
+import { uploadSourceFile } from "@/application/source-files";
 import { createRequestClient, requireUserClient } from "@/lib/supabase/server";
 import { isLocale, localeCookie } from "@/i18n/locales";
 
@@ -58,6 +59,18 @@ export async function createCompanyAction(_state: FormState, formData: FormData)
   });
   if (!result.ok) return refused(result.error, formData, COMPANY_FIELDS);
   redirect(`/companies/${result.value.id}`);
+}
+
+export async function uploadSourceFileAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const companyId = field(formData, "companyId");
+  const file = formData.get("file");
+  const result = await uploadSourceFile(await requireUserClient(), {
+    companyId,
+    fileName: file instanceof File ? file.name : "",
+    bytes: file instanceof File ? new Uint8Array(await file.arrayBuffer()) : new Uint8Array(),
+  });
+  if (!result.ok) return refused(result.error, formData, []);
+  redirect(`/companies/${companyId}/source-files/${result.value.id}`);
 }
 
 export async function setLocaleAction(formData: FormData): Promise<void> {
