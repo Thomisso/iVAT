@@ -1,0 +1,50 @@
+{
+  "app": { "name": "iVAT", "tagline": "VAT returns from your documents" },
+  "language": { "label": "Language", "cs": "Čeština", "en": "English" },
+  "nav": { "logOut": "Log out", "addCompany": "Add company" },
+  "auth": {
+    "email": "Email",
+    "password": "Password",
+    "organizationName": "Organization name",
+    "organizationNameHint": "Your business or accounting office. You will be its administrator.",
+    "logInTitle": "Log in",
+    "logIn": "Log in",
+    "noAccount": "No account yet?",
+    "signUpLink": "Sign up",
+    "signUpTitle": "Create your account",
+    "signUp": "Sign up",
+    "haveAccount": "Already have an account?",
+    "logInLink": "Log in"
+  },
+  "company": {
+    "createTitle": "Add a company",
+    "createIntro": "Enter the details of the VAT payer whose VAT you will report.",
+    "name": "Company name",
+    "ico": "IČO",
+    "vatId": "VAT ID",
+    "street": "Street and number",
+    "city": "City",
+    "postalCode": "Postal code",
+    "create": "Create company",
+    "noOrganization": "You are not an administrator of any organization, so you cannot add companies."
+  },
+  "dashboard": {
+    "companies": "Companies",
+    "documents": "Documents",
+    "noDocuments": "No documents yet."
+  },
+  "errors": {
+    "organization_name_required": "Enter the name of your organization.",
+    "email_taken": "An account with this email already exists.",
+    "weak_password": "The password is too weak. Use at least 8 characters.",
+    "sign_up_failed": "Sign-up failed. Please try again.",
+    "invalid_credentials": "Wrong email or password.",
+    "name_required": "Enter the company name.",
+    "invalid_ico": "IČO must have 8 digits.",
+    "invalid_vat_id": "VAT ID must be CZ followed by 8 to 10 digits.",
+    "address_required": "Enter the street and city.",
+    "invalid_postal_code": "Postal code must have 5 digits.",
+    "ico_taken": "A company with this IČO already exists in your organization.",
+    "forbidden": "You are not allowed to do this."
+  }
+}
