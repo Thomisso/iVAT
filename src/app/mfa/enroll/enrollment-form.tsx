@@ -41,7 +41,7 @@ function CompleteEnrollment({
   return (
     <form action={action} className="form">
       <p>{t("scanIntro")}</p>
-      <Image src={enrollment.qrCode} width={220} height={220} alt={t("qrAlt")} unoptimized />
+      <Image src={enrollment.qrCode.trimEnd()} width={220} height={220} alt={t("qrAlt")} unoptimized />
       <p>{t("secretLabel")}: <code>{enrollment.secret}</code></p>
       <input type="hidden" name="factorId" value={enrollment.factorId} />
       <TextField label={t("codeLabel")} name="code" inputMode="numeric" autoComplete="one-time-code" required />
