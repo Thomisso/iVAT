@@ -33,6 +33,7 @@ import {
 import type { ExtractionPayload, Party } from "@/application/extraction-payload";
 import { retrySplit, uploadSourceFile } from "@/application/source-files";
 import { configurePlatformAiProvider, setOrganizationPlatformAiAccess } from "@/application/platform-ai";
+import { removeOrganizationAiProviderKey, saveOrganizationAiProviderKey } from "@/application/organization-ai";
 import { configuredAiProvider } from "@/ai";
 import { configuredAresRegistry } from "@/ares";
 import { jobQueue } from "@/lib/jobs";
@@ -455,5 +456,31 @@ export async function setOrganizationPlatformAiAccessAction(
     organizationId: field(formData, "organizationId"),
     provider: field(formData, "provider"),
     enabled: field(formData, "enabled") === "true",
+  }));
+}
+
+export async function saveOrganizationAiProviderKeyAction(
+  _state: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const result = await saveOrganizationAiProviderKey(await requireUserClient(), {
+    organizationId: field(formData, "organizationId"),
+    provider: field(formData, "provider"),
+    apiKey: field(formData, "apiKey"),
+    dpaAcknowledged: field(formData, "dpaAcknowledged") === "on",
+  });
+  // API keys are intentionally excluded: Server Action return values are serialized to the client.
+  if (!result.ok) return refused(result.error, formData, ["provider", "dpaAcknowledged"]);
+  refresh();
+  return { error: null, values: {} };
+}
+
+export async function removeOrganizationAiProviderKeyAction(
+  _state: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  return settled(await removeOrganizationAiProviderKey(await requireUserClient(), {
+    organizationId: field(formData, "organizationId"),
+    provider: field(formData, "provider"),
   }));
 }
