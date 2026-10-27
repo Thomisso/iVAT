@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Reference implementation, ported into src/ rather than imported.
+    "design-system/**",
   ]),
 ]);
 
