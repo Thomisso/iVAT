@@ -37,7 +37,13 @@ function prepareWorktreeWorkdir(slot) {
 
   for (const entry of fs.readdirSync(source)) {
     if (entry === "config.toml" || entry.startsWith(".")) continue;
-    fs.symlinkSync(path.join(source, entry), path.join(target, entry));
+    // The CLI rejects email template symlinks that resolve outside the generated
+    // worktree project root; copy templates while migrations and fixtures remain shared.
+    if (entry === "templates") {
+      fs.cpSync(path.join(source, entry), path.join(target, entry), { recursive: true });
+    } else {
+      fs.symlinkSync(path.join(source, entry), path.join(target, entry));
+    }
   }
 
   let section = "";

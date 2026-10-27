@@ -1,3 +1,4 @@
+import type { EmailOtpType } from "@supabase/supabase-js";
 import type { AppClient, Result } from "./client";
 
 export type SignUpInput = { email: string; password: string; organizationName: string };
@@ -45,4 +46,16 @@ export async function currentUserId(client: AppClient): Promise<string | null> {
 
 export async function logOut(client: AppClient): Promise<void> {
   await client.auth.signOut();
+}
+
+/** Establishes a session from a cross-browser email link token. */
+export async function verifyEmailOtp(client: AppClient, tokenHash: string, type: EmailOtpType): Promise<boolean> {
+  const { error } = await client.auth.verifyOtp({ token_hash: tokenHash, type });
+  return !error;
+}
+
+/** Establishes a session from a PKCE callback (for example OAuth). */
+export async function exchangeAuthCode(client: AppClient, code: string): Promise<boolean> {
+  const { error } = await client.auth.exchangeCodeForSession(code);
+  return !error;
 }
