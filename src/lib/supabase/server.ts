@@ -1,14 +1,14 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import type { AppClient } from "@/application/client";
+import { asUserClient, type AppClient } from "@/application/client";
 import type { Database } from "@/lib/database.types";
 import { supabasePublishableKey, supabaseUrl } from "@/lib/env";
 
 /** A Supabase client acting as the user of the current request. */
 export async function createRequestClient(): Promise<AppClient> {
   const cookieStore = await cookies();
-  return createServerClient<Database>(supabaseUrl, supabasePublishableKey, {
+  const client = createServerClient<Database>(supabaseUrl, supabasePublishableKey, {
     cookies: {
       getAll: () => cookieStore.getAll(),
       setAll: (cookiesToSet) => {
@@ -20,6 +20,7 @@ export async function createRequestClient(): Promise<AppClient> {
       },
     },
   });
+  return asUserClient(client);
 }
 
 /** The current request's client, redirecting to login when nobody is signed in. */

@@ -1,9 +1,13 @@
 import { createHash, randomUUID } from "node:crypto";
 import { PDFDocument } from "pdf-lib";
-import type { AppClient, Result } from "./client";
+import { isUuid, type AppClient, type Result } from "./client";
 import { getCompany } from "./companies";
+import { splitJob, type JobQueue } from "./processing";
 
 export type SourceFileFormat = "pdf" | "png" | "jpeg";
+
+/** Where the Split of a Source File stands; its Documents carry their own status. */
+export type SourceFileStatus = "uploaded" | "processing" | "split" | "failed";
 
 export type SourceFile = {
   id: string;
@@ -13,6 +17,7 @@ export type SourceFile = {
   byteSize: number;
   sha256: string;
   pageCount: number;
+  status: SourceFileStatus;
   uploadedAt: string;
 };
 
@@ -24,7 +29,7 @@ export type UploadSourceFileError =
   | "unreadable_file"
   | "forbidden";
 
-const BUCKET = "source-files";
+export const SOURCE_FILE_BUCKET = "source-files";
 
 export const SOURCE_FILE_MEDIA_TYPES: Record<SourceFileFormat, string> = {
   pdf: "application/pdf",
@@ -61,15 +66,17 @@ async function countPages(format: SourceFileFormat, bytes: Uint8Array): Promise<
   }
 }
 
-const objectPath = (companyId: string, sourceFileId: string) => `${companyId}/${sourceFileId}`;
+export const sourceFileObjectPath = (companyId: string, sourceFileId: string) => `${companyId}/${sourceFileId}`;
 
 /**
  * Stores an uploaded file unchanged as a Source File of the Company. The file
  * is stored before its row is recorded (the database refuses a row without a
  * stored file), so a failed recording leaves only an unreferenced object.
+ * Then the Split is enqueued; it runs once the Company enables AI processing.
  */
 export async function uploadSourceFile(
   client: AppClient,
+  jobs: JobQueue,
   input: UploadSourceFileInput,
 ): Promise<Result<{ id: string }, UploadSourceFileError>> {
   const fileName = input.fileName.trim();
@@ -86,8 +93,8 @@ export async function uploadSourceFile(
 
   const id = randomUUID();
   const stored = await client.storage
-    .from(BUCKET)
-    .upload(objectPath(company.id, id), input.bytes, { contentType: SOURCE_FILE_MEDIA_TYPES[format], upsert: false });
+    .from(SOURCE_FILE_BUCKET)
+    .upload(sourceFileObjectPath(company.id, id), input.bytes, { contentType: SOURCE_FILE_MEDIA_TYPES[format], upsert: false });
   if (stored.error) {
     if ("statusCode" in stored.error && stored.error.statusCode === "403") return { ok: false, error: "forbidden" };
     throw stored.error;
@@ -107,10 +114,11 @@ export async function uploadSourceFile(
     if (error.code === "42501") return { ok: false, error: "forbidden" };
     throw error;
   }
+  await jobs.send(splitJob(id));
   return { ok: true, value: { id } };
 }
 
-const COLUMNS = "id, company_id, file_name, format, byte_size, sha256, page_count, uploaded_at";
+const COLUMNS = "id, company_id, file_name, format, byte_size, sha256, page_count, status, uploaded_at";
 
 type SourceFileRow = {
   id: string;
@@ -120,6 +128,7 @@ type SourceFileRow = {
   byte_size: number;
   sha256: string;
   page_count: number;
+  status: SourceFileStatus;
   uploaded_at: string;
 };
 
@@ -132,6 +141,7 @@ function toSourceFile(row: SourceFileRow): SourceFile {
     byteSize: row.byte_size,
     sha256: row.sha256,
     pageCount: row.page_count,
+    status: row.status,
     uploadedAt: row.uploaded_at,
   };
 }
@@ -148,15 +158,13 @@ export async function listSourceFiles(client: AppClient, companyId: string): Pro
   return data.map(toSourceFile);
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /** A Source File of the Company, or null when the Company has none with that id. */
 export async function getSourceFile(
   client: AppClient,
   companyId: string,
   sourceFileId: string,
 ): Promise<SourceFile | null> {
-  if (!UUID.test(companyId) || !UUID.test(sourceFileId)) return null;
+  if (!isUuid(companyId) || !isUuid(sourceFileId)) return null;
   const { data, error } = await client
     .from("source_file")
     .select(COLUMNS)
@@ -175,7 +183,25 @@ export async function readSourceFile(
 ): Promise<{ file: SourceFile; bytes: Uint8Array } | null> {
   const file = await getSourceFile(client, companyId, sourceFileId);
   if (!file) return null;
-  const { data, error } = await client.storage.from(BUCKET).download(objectPath(file.companyId, file.id));
+  const { data, error } = await client.storage.from(SOURCE_FILE_BUCKET).download(sourceFileObjectPath(file.companyId, file.id));
   if (error) throw error;
   return { file, bytes: new Uint8Array(await data.arrayBuffer()) };
+}
+
+/** Runs the Split of a Source File again after it failed. */
+export async function retrySplit(
+  client: AppClient,
+  jobs: JobQueue,
+  input: { companyId: string; sourceFileId: string },
+): Promise<Result<null, "not_retryable" | "forbidden">> {
+  const file = await getSourceFile(client, input.companyId, input.sourceFileId);
+  if (!file) return { ok: false, error: "forbidden" };
+  const { error } = await client.rpc("retry_split", { target_source_file_id: file.id });
+  if (error) {
+    if (error.code === "42501") return { ok: false, error: "forbidden" };
+    if (error.hint === "not_retryable") return { ok: false, error: "not_retryable" };
+    throw error;
+  }
+  await jobs.send(splitJob(file.id));
+  return { ok: true, value: null };
 }

@@ -24,6 +24,7 @@ describe("Company creation", () => {
       id: result.value.id,
       organizationId,
       ...novak,
+      aiProcessing: null,
     });
     expect(await listMyCompanies(client)).toEqual([
       { id: result.value.id, organizationId, name: "Novák s.r.o." },

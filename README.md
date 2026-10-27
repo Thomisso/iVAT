@@ -25,11 +25,14 @@ npm run worker               # background worker, in a second terminal
 
 Open http://localhost:3000/signup. Signing up creates your Organization, makes you its Administrator, and takes you to create your first Company. Local email confirmation is off, so you are signed in right away. Supabase Studio runs at http://127.0.0.1:54323.
 
+Uploaded Source Files wait until the Company enables AI processing on its page. Locally, `AI_PROVIDER=fake` (the default `db:start` writes) Splits every page into its own Document and returns a sample Extraction, so no Document leaves your machine.
+
 ## Scripts
 
 | Command | What it does |
 | --- | --- |
 | `npm run db:start` / `db:stop` | Start or stop the local Supabase stack; `db:start` also writes its URL and keys to `.env.local` |
+| `npm run db:migrate` | Apply new migrations to the local database, keeping its data. A migration already applied is not re-run: after editing one, use `db:reset` |
 | `npm run db:reset` | Recreate the local database from `supabase/migrations/` (deletes all local data) |
 | `npm run db:types` | Regenerate `src/lib/database.types.ts` from the local schema after a migration |
 | `npm run dev` | Next.js dev server |
@@ -42,7 +45,9 @@ Open http://localhost:3000/signup. Signing up creates your Organization, makes y
 ## Layout
 
 ```
-src/application/   commands and queries; each takes a Supabase client acting as a user (AppClient)
+src/application/   commands and queries; each takes a Supabase client acting as a user (AppClient),
+                   plus the background job handlers (processing.ts) and the AI provider interface
+src/ai/            AI provider adapters (so far the scripted fake) and selection by AI_PROVIDER
 src/app/           Next.js routes and server actions, thin wrappers over src/application
 src/i18n/          locale config; messages are in messages/{cs,en}.json
 src/proxy.ts       session refresh and login redirect
@@ -57,13 +62,22 @@ tests/             application-layer tests against the local database
 - Sign-up is handled in the database: a trigger on `auth.users` creates the Organization and the Administrator Membership in the same transaction.
 - `audit_event` is append-only. Only database code writes to it (`private.record_audit_event`, called from triggers). Users can only read it, and only as an Organization Administrator. Update, delete and truncate are rejected for every role.
 
+## Processing
+
+Uploading a Source File enqueues a Split job (pg-boss). The worker Splits the file into Documents through the AI provider, then runs one Extract job per Document. Each Extract job stores an immutable Extraction Version and moves the Document to NeedsReview ([ADR-0004](docs/adr/0004-split-then-extract-with-multimodal-llms.md), [ADR-0005](docs/adr/0005-immutable-extraction-versions.md)).
+
+- Statuses: a Source File is `uploaded → processing → split`, and each Document is `uploaded → processing → needs_review`. Either ends in `failed` once a technical error has used up its retries. A failed Split can be retried. A failed or reviewed Document can be reprocessed, which adds a new Extraction Version.
+- No job calls the AI provider unless the Company has enabled AI processing for that provider and region ([ADR-0006](docs/adr/0006-ai-credentials-and-data-sharing-consent.md)). Enabling and disabling are audited.
+- The worker acts as `service_role`, but only through narrow grants and the `record_split` / `record_ai_extraction` functions, which keep jobs idempotent ([ADR-0010](docs/adr/0010-worker-acts-as-service-role-through-narrow-grants.md)).
+- The Extraction payload schema is documented in [`docs/extraction-payload.md`](docs/extraction-payload.md).
+
 ## Git worktrees
 
 All `db:*` scripts go through `scripts/supabase.mjs`. In the main checkout it uses `supabase/config.toml` as is. A linked git worktree gets its own stack instead: a separate database, ports shifted by 100 × a slot derived from the worktree path, and no Studio, Mailpit, analytics or edge runtime. Parallel worktrees can reset and test their databases independently. If two worktrees land on the same slot, set `SUPABASE_SLOT` (1–99) for one of them. Run `npm run db:stop -- --no-backup` before removing a worktree to delete its stack's data.
 
 ## Testing
 
-Tests exercise the application layer as real users against the local Postgres with RLS enabled, per the seams in the requirements' Testing Decisions. They create their own users and Organizations, so they need no reset between runs:
+Tests exercise the application layer as real users against the local Postgres with RLS enabled, per the seams in the requirements' Testing Decisions. Background jobs run synchronously through the worker's own handler (`testWorker` in `tests/support/worker.ts`), against a scripted fake AI provider. Tests create their own users and Organizations, so they need no reset between runs:
 
 ```bash
 npm run db:start
@@ -72,4 +86,4 @@ npm test
 
 ## CI
 
-`.github/workflows/ci.yml` runs on every pull request and on `main`. It checks that `package-lock.json` matches `package.json`, starts local Supabase, checks that `src/lib/database.types.ts` matches the migrations, then runs typecheck, lint, tests and build. After changing a migration, run `npm run db:types` and commit the result. Coding conventions that need judgement rather than a check are in [`CODING_STANDARDS.md`](CODING_STANDARDS.md).
+`.github/workflows/ci.yml` runs on every pull request and on `main`. It checks that `package-lock.json` matches `package.json` and, on a pull request, that no migration already on `main` was changed, renamed or deleted. It then starts local Supabase, checks that `src/lib/database.types.ts` matches the migrations, then runs typecheck, lint, tests and build. After changing a migration, run `npm run db:types` and commit the result. Coding conventions that need judgement rather than a check are in [`CODING_STANDARDS.md`](CODING_STANDARDS.md).

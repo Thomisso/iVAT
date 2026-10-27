@@ -3,13 +3,14 @@ import { createCompany } from "@/application/companies";
 import { getSourceFile, listSourceFiles, readSourceFile, uploadSourceFile } from "@/application/source-files";
 import { administratorWithCompany, companyDetails } from "./support/fixtures";
 import { fixtureFile } from "./support/files";
+import { testWorker } from "./support/worker";
 
 describe("Source File upload", () => {
   it("stores a PDF unchanged and lists it with its hash, format and page count", async () => {
     const { client, companyId } = await administratorWithCompany();
     const pdf = fixtureFile("two-invoices.pdf");
 
-    const result = await uploadSourceFile(client, { companyId, fileName: "two-invoices.pdf", bytes: pdf });
+    const result = await uploadSourceFile(client, testWorker().jobs, { companyId, fileName: "two-invoices.pdf", bytes: pdf });
 
     expect(result).toEqual({ ok: true, value: { id: expect.any(String) } });
     if (!result.ok) return;
@@ -22,6 +23,7 @@ describe("Source File upload", () => {
         byteSize: 1303,
         sha256: "79ae60b6a1040a3eaf64d441f2fa48f627a18d1e5c1ad831ba6919e9e9c663ea",
         pageCount: 2,
+        status: "uploaded",
         uploadedAt: expect.any(String),
       },
     ]);
@@ -37,7 +39,7 @@ describe("Source File upload", () => {
     const { client, companyId } = await administratorWithCompany();
     const image = fixtureFile(fixture);
 
-    const result = await uploadSourceFile(client, { companyId, fileName, bytes: image });
+    const result = await uploadSourceFile(client, testWorker().jobs, { companyId, fileName, bytes: image });
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -56,7 +58,7 @@ describe("Source File upload", () => {
   ])("refuses %s", async (_case, fileName, bytes, error) => {
     const { client, companyId } = await administratorWithCompany();
 
-    const result = await uploadSourceFile(client, { companyId, fileName, bytes });
+    const result = await uploadSourceFile(client, testWorker().jobs, { companyId, fileName, bytes });
 
     expect(result).toEqual({ ok: false, error });
     expect(await listSourceFiles(client, companyId)).toEqual([]);
@@ -64,8 +66,8 @@ describe("Source File upload", () => {
 
   it("lists the Company's Source Files newest first", async () => {
     const { client, companyId } = await administratorWithCompany();
-    await uploadSourceFile(client, { companyId, fileName: "first.png", bytes: fixtureFile("receipt.png") });
-    await uploadSourceFile(client, { companyId, fileName: "second.pdf", bytes: fixtureFile("two-invoices.pdf") });
+    await uploadSourceFile(client, testWorker().jobs, { companyId, fileName: "first.png", bytes: fixtureFile("receipt.png") });
+    await uploadSourceFile(client, testWorker().jobs, { companyId, fileName: "second.pdf", bytes: fixtureFile("two-invoices.pdf") });
 
     const files = await listSourceFiles(client, companyId);
 
@@ -77,7 +79,7 @@ describe("a stored Source File", () => {
   it("cannot be overwritten, changed or deleted by its uploader, even through direct queries", async () => {
     const { client, companyId } = await administratorWithCompany();
     const pdf = fixtureFile("two-invoices.pdf");
-    const result = await uploadSourceFile(client, { companyId, fileName: "two-invoices.pdf", bytes: pdf });
+    const result = await uploadSourceFile(client, testWorker().jobs, { companyId, fileName: "two-invoices.pdf", bytes: pdf });
     if (!result.ok) throw new Error(result.error);
     const before = await listSourceFiles(client, companyId);
     const path = `${companyId}/${result.value.id}`;
@@ -103,7 +105,7 @@ describe("a stored Source File", () => {
     const { client, organizationId, companyId } = await administratorWithCompany();
     const other = await createCompany(client, { organizationId, ...companyDetails() });
     if (!other.ok) throw new Error(other.error);
-    const result = await uploadSourceFile(client, { companyId, fileName: "a.png", bytes: fixtureFile("receipt.png") });
+    const result = await uploadSourceFile(client, testWorker().jobs, { companyId, fileName: "a.png", bytes: fixtureFile("receipt.png") });
     if (!result.ok) throw new Error(result.error);
 
     expect(await getSourceFile(client, other.value.id, result.value.id)).toBeNull();

@@ -4,6 +4,7 @@ import { listMyOrganizations } from "@/application/organizations";
 import { uploadSourceFile } from "@/application/source-files";
 import { anonymousClient, signedUpUser, uniqueEmail } from "./support/clients";
 import { fixtureFile } from "./support/files";
+import { testWorker } from "./support/worker";
 import { administratorWithCompany } from "./support/fixtures";
 
 describe("audit log", () => {
@@ -55,7 +56,7 @@ describe("audit log", () => {
 
   it("records a Source File upload", async () => {
     const { client, userId, organizationId, companyId } = await administratorWithCompany();
-    const result = await uploadSourceFile(client, {
+    const result = await uploadSourceFile(client, testWorker().jobs, {
       companyId,
       fileName: "two-invoices.pdf",
       bytes: fixtureFile("two-invoices.pdf"),

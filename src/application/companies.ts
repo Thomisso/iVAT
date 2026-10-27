@@ -1,4 +1,6 @@
-import type { AppClient, Result } from "./client";
+import type { AiProvider } from "./ai-provider";
+import { isUuid, type AppClient, type Result } from "./client";
+import { extractJob, splitJob, type JobQueue } from "./processing";
 
 export type CompanyDetails = {
   name: string;
@@ -9,7 +11,10 @@ export type CompanyDetails = {
   postalCode: string;
 };
 
-export type Company = CompanyDetails & { id: string; organizationId: string };
+/** The provider and region a Company has consented to send its Documents to; null while AI processing is off. */
+export type AiProcessingConsent = { provider: string; region: string } | null;
+
+export type Company = CompanyDetails & { id: string; organizationId: string; aiProcessing: AiProcessingConsent };
 
 export type CompanySummary = { id: string; organizationId: string; name: string };
 
@@ -76,13 +81,11 @@ export async function createCompany(
   return { ok: true, value: { id: data.id } };
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 export async function getCompany(client: AppClient, companyId: string): Promise<Company | null> {
-  if (!UUID.test(companyId)) return null;
+  if (!isUuid(companyId)) return null;
   const { data, error } = await client
     .from("company")
-    .select("id, organization_id, name, ico, vat_id, street, city, postal_code")
+    .select("id, organization_id, name, ico, vat_id, street, city, postal_code, ai_processing_enabled, ai_provider, ai_region")
     .eq("id", companyId)
     .maybeSingle();
   if (error) throw error;
@@ -96,6 +99,7 @@ export async function getCompany(client: AppClient, companyId: string): Promise<
     street: data.street,
     city: data.city,
     postalCode: data.postal_code,
+    aiProcessing: data.ai_processing_enabled ? { provider: data.ai_provider!, region: data.ai_region! } : null,
   };
 }
 
@@ -104,4 +108,50 @@ export async function listMyCompanies(client: AppClient): Promise<CompanySummary
   const { data, error } = await client.from("company").select("id, organization_id, name").order("name");
   if (error) throw error;
   return data.map((c) => ({ id: c.id, organizationId: c.organization_id, name: c.name }));
+}
+
+/**
+ * Consents to sending the Company's Documents to the provider, in its region
+ * (ADR-0006), and starts the processing that waited for it. Administrators only;
+ * the database audits the change.
+ */
+export async function enableAiProcessing(
+  client: AppClient,
+  jobs: JobQueue,
+  input: { companyId: string; provider: Pick<AiProvider, "name" | "region"> },
+): Promise<Result<null, "forbidden">> {
+  const consent = { ai_processing_enabled: true, ai_provider: input.provider.name, ai_region: input.provider.region };
+  const updated = await updateAiProcessing(client, input.companyId, consent);
+  if (!updated.ok) return updated;
+
+  const [sourceFiles, documents] = await Promise.all([
+    client.from("source_file").select("id").eq("company_id", input.companyId).in("status", ["uploaded", "processing"]),
+    client.from("document").select("id").eq("company_id", input.companyId).in("status", ["uploaded", "processing"]),
+  ]);
+  if (sourceFiles.error) throw sourceFiles.error;
+  if (documents.error) throw documents.error;
+  for (const file of sourceFiles.data) await jobs.send(splitJob(file.id));
+  for (const document of documents.data) await jobs.send(extractJob(document.id));
+  return updated;
+}
+
+/** Withdraws the consent; no further Document is sent to an AI provider. Administrators only. */
+export async function disableAiProcessing(client: AppClient, companyId: string): Promise<Result<null, "forbidden">> {
+  return updateAiProcessing(client, companyId, { ai_processing_enabled: false, ai_provider: null, ai_region: null });
+}
+
+async function updateAiProcessing(
+  client: AppClient,
+  companyId: string,
+  consent: { ai_processing_enabled: boolean; ai_provider: string | null; ai_region: string | null },
+): Promise<Result<null, "forbidden">> {
+  if (!isUuid(companyId)) return { ok: false, error: "forbidden" };
+  // RLS turns a refused update into one that matches no row.
+  const { data, error } = await client.from("company").update(consent).eq("id", companyId).select("id");
+  if (error) {
+    if (error.code === "42501") return { ok: false, error: "forbidden" };
+    throw error;
+  }
+  if (data.length === 0) return { ok: false, error: "forbidden" };
+  return { ok: true, value: null };
 }

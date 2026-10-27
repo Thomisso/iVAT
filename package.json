@@ -5,6 +5,7 @@
   "scripts": {
     "db:start": "node scripts/supabase.mjs start",
     "db:stop": "node scripts/supabase.mjs stop",
+    "db:migrate": "node scripts/supabase.mjs migration up",
     "db:reset": "node scripts/supabase.mjs db reset",
     "db:types": "node scripts/supabase.mjs gen types typescript --local > src/lib/database.types.ts",
     "dev": "next dev",

@@ -80,7 +80,10 @@ function writeEnvLocal() {
     NEXT_PUBLIC_SUPABASE_URL: stack.API_URL,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: stack.PUBLISHABLE_KEY,
     DATABASE_URL: stack.DB_URL,
+    SUPABASE_SECRET_KEY: stack.SECRET_KEY,
   };
+  // Settings the developer may change; written only when missing.
+  const defaults = { AI_PROVIDER: "fake" };
   const file = path.join(root, ".env.local");
   const kept = fs.existsSync(file)
     ? fs
@@ -88,7 +91,8 @@ function writeEnvLocal() {
         .split("\n")
         .filter((line) => line && !Object.keys(managed).some((key) => line.startsWith(`${key}=`)))
     : [];
-  const lines = [...kept, ...Object.entries(managed).map(([key, value]) => `${key}=${value}`)];
+  const missingDefaults = Object.entries(defaults).filter(([key]) => !kept.some((line) => line.startsWith(`${key}=`)));
+  const lines = [...kept, ...[...missingDefaults, ...Object.entries(managed)].map(([key, value]) => `${key}=${value}`)];
   fs.writeFileSync(file, `${lines.join("\n")}\n`);
   console.log(`Wrote local Supabase settings to ${path.relative(process.cwd(), file) || ".env.local"}`);
 }
