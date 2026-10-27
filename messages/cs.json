@@ -1,7 +1,25 @@
 {
-  "app": { "name": "iVAT", "tagline": "Přiznání k DPH z vašich dokladů" },
-  "language": { "label": "Jazyk", "cs": "Čeština", "en": "English" },
-  "nav": { "logOut": "Odhlásit se", "addCompany": "Přidat firmu" },
+  "app": {
+    "name": "iVAT",
+    "tagline": "Přiznání k DPH z vašich dokladů"
+  },
+  "language": {
+    "label": "Jazyk",
+    "cs": "Čeština",
+    "en": "English"
+  },
+  "nav": {
+    "logOut": "Odhlásit se",
+    "addCompany": "Přidat firmu",
+    "menu": "Nabídka",
+    "main": "Hlavní navigace",
+    "userMenu": "Uživatelská nabídka",
+    "switchCompany": "Vybrat firmu",
+    "ico": "IČO",
+    "allDocuments": "Všechny doklady",
+    "received": "Přijaté doklady",
+    "issued": "Vydané doklady"
+  },
   "auth": {
     "email": "E-mail",
     "password": "Heslo",
@@ -44,7 +62,9 @@
     "pageCount": "{count, plural, one {# strana} few {# strany} other {# stran}}",
     "backToCompany": "← Zpět na firmu",
     "hash": "Otisk SHA-256",
-    "status": "Stav"
+    "status": "Stav",
+    "dropTitle": "Přetáhněte sem zdrojový soubor",
+    "chooseFile": "Vybrat soubor"
   },
   "errors": {
     "organization_name_required": "Zadejte název organizace.",
@@ -72,7 +92,8 @@
     "invalid_rate": "Sazba DPH musí být procento od 0 do 100.",
     "invalid_date": "Zadejte existující data.",
     "invalid_currency": "Měna musí být třípísmenný kód, například CZK.",
-    "invalid_country": "Země musí být dvoupísmenný kód, například CZ."
+    "invalid_country": "Země musí být dvoupísmenný kód, například CZ.",
+    "one_file_required": "Vyberte jeden zdrojový soubor k nahrání."
   },
   "aiProcessing": {
     "title": "Zpracování pomocí AI",
@@ -204,5 +225,19 @@
       "eu_received_service": "Přijetí služby z EU",
       "other": "Jiný (vyžaduje ruční klasifikaci)"
     }
+  },
+  "statusBadge": {
+    "uploaded": "Nahráno",
+    "splitting": "Rozděluje se",
+    "extracting": "Vytěžuje se",
+    "proposed": "Návrh AI",
+    "needs-review": "Ke kontrole",
+    "duplicate": "Možná duplicita",
+    "manual": "Nutná ruční klasifikace",
+    "failed": "Selhalo",
+    "approved": "Schváleno",
+    "locked": "Období uzamčeno",
+    "split": "Rozděleno",
+    "rejected": "Zamítnuto"
   }
 }

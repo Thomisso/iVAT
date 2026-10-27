@@ -1,31 +1,61 @@
 import { notFound } from "next/navigation";
-import { getFormatter, getTranslations } from "next-intl/server";
+import { getTranslations } from "next-intl/server";
 import Link from "next/link";
 import { getCompany } from "@/application/companies";
-import { listCompanyDocuments, type DocumentFilters, type DocumentStatus } from "@/application/documents";
+import {
+  listCompanyDocuments,
+  type DocumentFilters,
+  type DocumentStatus,
+} from "@/application/documents";
 import { DIRECTIONS } from "@/application/extraction-payload";
 import { listSourceFiles } from "@/application/source-files";
-import { disableAiProcessingAction, enableAiProcessingAction } from "@/app/actions";
+import {
+  disableAiProcessingAction,
+  enableAiProcessingAction,
+} from "@/app/actions";
 import { configuredAiProvider } from "@/ai";
-import { AppHeader } from "@/components/app-header";
+import { AppSidebar } from "@/components/app-sidebar";
 import { CommandButton } from "@/components/command-button";
 import { RefreshWhile } from "@/components/refresh-while";
 import { requireUserClient } from "@/lib/supabase/server";
+import { DataTable } from "@/components/data-table";
+import { EmptyState } from "@/components/empty-state";
+import { Money } from "@/components/money";
+import { Button } from "@/components/button";
+import { TextField } from "@/components/text-field";
+import { StatusBadge } from "@/components/status-badge";
+import { statusBadgeState } from "@/components/status-badge-state";
+import { formatDocumentDate } from "@/lib/format-date";
 import { SourceFileUploadForm } from "./source-file-upload-form";
 
-const DOCUMENT_STATUSES: DocumentStatus[] = ["uploaded", "processing", "needs_review", "approved", "rejected", "failed"];
+const DOCUMENT_STATUSES: DocumentStatus[] = [
+  "uploaded",
+  "processing",
+  "needs_review",
+  "approved",
+  "rejected",
+  "failed",
+];
 
 /** The Document list filters a query string names; unknown values are ignored. */
-function documentFilters(query: Record<string, string | string[] | undefined>): DocumentFilters {
-  const one = (name: string) => (typeof query[name] === "string" ? query[name] : undefined);
+function documentFilters(
+  query: Record<string, string | string[] | undefined>,
+): DocumentFilters {
+  const one = (name: string) =>
+    typeof query[name] === "string" ? query[name] : undefined;
   const status = DOCUMENT_STATUSES.find((s) => s === one("status"));
   const direction = DIRECTIONS.find((d) => d === one("direction"));
-  const reportingPeriod = /^\d{4}-(0[1-9]|1[0-2])$/.test(one("period") ?? "") ? one("period") : undefined;
+  const reportingPeriod = /^\d{4}-(0[1-9]|1[0-2])$/.test(one("period") ?? "")
+    ? one("period")
+    : undefined;
   const counterparty = one("counterparty")?.trim() || undefined;
   return { status, direction, reportingPeriod, counterparty };
 }
 
-export default async function CompanyDashboardPage({ params, searchParams }: PageProps<"/companies/[companyId]">) {
+export default async function CompanyDashboardPage({
+  params,
+  searchParams,
+}: PageProps<"/companies/[companyId]">) {
   const { companyId } = await params;
   const filters = documentFilters(await searchParams);
   const filtered = Object.values(filters).some((value) => value !== undefined);
@@ -37,20 +67,29 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pag
     listCompanyDocuments(client, company.id, filters),
   ]);
   const t = await getTranslations();
-  const format = await getFormatter();
   const provider = configuredAiProvider();
   const processing =
-    sourceFiles.some((file) => file.status === "uploaded" || file.status === "processing") ||
-    documents.some((document) => document.status === "uploaded" || document.status === "processing");
+    sourceFiles.some(
+      (file) => file.status === "uploaded" || file.status === "processing",
+    ) ||
+    documents.some(
+      (document) =>
+        document.status === "uploaded" || document.status === "processing",
+    );
 
   return (
     <>
-      <AppHeader currentCompanyId={company.id} />
+      <AppSidebar
+        currentCompanyId={company.id}
+        activeDirection={filters.direction}
+      />
       <main className="dashboard">
         <header>
           <h1>{company.name}</h1>
-          <p className="muted">
-            {t("company.ico")} {company.ico} · {t("company.vatId")} {company.vatId} · {company.street},{" "}
+          <p className="iv-muted">
+            {t("company.ico")} <span className="iv-mono">{company.ico}</span> ·{" "}
+            {t("company.vatId")}{" "}
+            <span className="iv-mono">{company.vatId}</span> · {company.street},{" "}
             {company.postalCode} {company.city}
           </p>
         </header>
@@ -59,15 +98,28 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pag
           {company.aiProcessing ? (
             <>
               <p>{t("aiProcessing.on", company.aiProcessing)}</p>
-              <CommandButton action={disableAiProcessingAction} fields={{ companyId: company.id }}>
+              <CommandButton
+                action={disableAiProcessingAction}
+                fields={{ companyId: company.id }}
+              >
                 {t("aiProcessing.disable")}
               </CommandButton>
             </>
           ) : (
             <>
               <p>{t("aiProcessing.off")}</p>
-              <p className="muted">{t("aiProcessing.consent", { provider: provider.name, region: provider.region })}</p>
-              <CommandButton action={enableAiProcessingAction} fields={{ companyId: company.id }}>
+              <p className="iv-muted">
+                {t("aiProcessing.consent", {
+                  provider: provider.name,
+                  region: provider.region,
+                })}
+              </p>
+              <CommandButton
+                variant="ai"
+                icon="marker"
+                action={enableAiProcessingAction}
+                fields={{ companyId: company.id }}
+              >
                 {t("aiProcessing.enable")}
               </CommandButton>
             </>
@@ -76,7 +128,7 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pag
         <section className="documents">
           <h2>{t("documents.title")}</h2>
           <form className="form filters" aria-label={t("documents.filters")}>
-            <label>
+            <label className="iv-field-label">
               {t("documents.status")}
               <select name="status" defaultValue={filters.status ?? ""}>
                 <option value="">{t("documents.allStatuses")}</option>
@@ -87,7 +139,7 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pag
                 ))}
               </select>
             </label>
-            <label>
+            <label className="iv-field-label">
               {t("documents.direction")}
               <select name="direction" defaultValue={filters.direction ?? ""}>
                 <option value="">{t("documents.allDirections")}</option>
@@ -98,94 +150,173 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pag
                 ))}
               </select>
             </label>
-            <label>
-              {t("documents.reportingPeriod")}
-              <input type="month" name="period" defaultValue={filters.reportingPeriod ?? ""} />
-            </label>
-            <label>
-              {t("documents.counterparty")}
-              <input
-                type="search"
-                name="counterparty"
-                defaultValue={filters.counterparty ?? ""}
-                placeholder={t("documents.counterpartyHint")}
-              />
-            </label>
-            <button type="submit">{t("documents.filter")}</button>
-            {filtered && <Link href={`/companies/${company.id}`}>{t("documents.clearFilters")}</Link>}
+            <TextField
+              label={t("documents.reportingPeriod")}
+              type="month"
+              name="period"
+              defaultValue={filters.reportingPeriod ?? ""}
+            />
+            <TextField
+              label={t("documents.counterparty")}
+              type="search"
+              name="counterparty"
+              defaultValue={filters.counterparty ?? ""}
+              placeholder={t("documents.counterpartyHint")}
+            />
+            <Button type="submit">{t("documents.filter")}</Button>
+            {filtered && (
+              <Link href={`/companies/${company.id}`}>
+                {t("documents.clearFilters")}
+              </Link>
+            )}
           </form>
           {documents.length === 0 ? (
-            <p className="empty">{filtered ? t("documents.noMatch") : t("documents.none")}</p>
+            <EmptyState
+              icon="inbox"
+              title={filtered ? t("documents.noMatch") : t("documents.none")}
+            />
           ) : (
-            <table className="source-files">
-              <thead>
-                <tr>
-                  <th>{t("documents.documentNumber")}</th>
-                  <th>{t("documents.counterparty")}</th>
-                  <th>{t("documents.direction")}</th>
-                  <th>{t("documents.taxPointDate")}</th>
-                  <th>{t("documents.reportingPeriod")}</th>
-                  <th className="amount">{t("documents.grossAmount")}</th>
-                  <th>{t("documents.status")}</th>
-                  <th>{t("documents.vatReport")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {documents.map((document) => (
-                  <tr key={document.id}>
-                    <td>
-                      <Link href={`/companies/${company.id}/documents/${document.id}`}>
-                        {document.documentNumber ?? t("documents.review")}
-                      </Link>
-                    </td>
-                    <td>
+            <DataTable
+              caption={t("documents.title")}
+              rows={documents}
+              columns={[
+                {
+                  key: "documentNumber",
+                  header: t("documents.documentNumber"),
+                  mono: true,
+                  render: (document) => (
+                    <Link
+                      href={`/companies/${company.id}/documents/${document.id}`}
+                    >
+                      {document.documentNumber ?? t("documents.review")}
+                    </Link>
+                  ),
+                },
+                {
+                  key: "counterparty",
+                  header: t("documents.counterparty"),
+                  render: (document) => (
+                    <>
                       {document.counterparty?.name ?? "—"}
-                      {document.counterparty?.vatId && <span className="muted"> · {document.counterparty.vatId}</span>}
-                    </td>
-                    <td>{document.direction ? t(`review.direction.${document.direction}`) : "—"}</td>
-                    <td>{document.taxPointDate ? format.dateTime(new Date(document.taxPointDate), { dateStyle: "medium", timeZone: "UTC" }) : "—"}</td>
-                    <td>{document.reportingPeriod ?? "—"}</td>
-                    <td className="amount">
-                      {document.grossAmount ? `${document.grossAmount} ${document.currency ?? ""}` : "—"}
-                    </td>
-                    <td>{t(`documentStatus.${document.status}`)}</td>
-                    <td>{document.eligibleForVatReport ? t("documents.eligible") : t("documents.notEligible")}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      {document.counterparty?.vatId && (
+                        <span className="iv-muted iv-mono">
+                          {" "}
+                          · {document.counterparty.vatId}
+                        </span>
+                      )}
+                    </>
+                  ),
+                },
+                {
+                  key: "direction",
+                  header: t("documents.direction"),
+                  render: (document) =>
+                    document.direction
+                      ? t(`review.direction.${document.direction}`)
+                      : "—",
+                },
+                {
+                  key: "taxPointDate",
+                  header: t("documents.taxPointDate"),
+                  muted: true,
+                  render: (document) =>
+                    document.taxPointDate
+                      ? formatDocumentDate(document.taxPointDate)
+                      : "—",
+                },
+                {
+                  key: "reportingPeriod",
+                  header: t("documents.reportingPeriod"),
+                  mono: true,
+                },
+                {
+                  key: "eligibleForVatReport",
+                  header: t("documents.vatReport"),
+                  render: (document) =>
+                    document.eligibleForVatReport
+                      ? t("documents.eligible")
+                      : t("documents.notEligible"),
+                },
+                {
+                  key: "status",
+                  header: t("documents.status"),
+                  render: (document) => (
+                    <StatusBadge
+                      status={statusBadgeState(document.status, "document")}
+                    >
+                      {t(`documentStatus.${document.status}`)}
+                    </StatusBadge>
+                  ),
+                },
+                {
+                  key: "grossAmount",
+                  header: t("documents.grossAmount"),
+                  align: "right",
+                  render: (document) =>
+                    document.grossAmount !== null ? (
+                      <Money
+                        amount={Number(document.grossAmount)}
+                        currency={document.currency ?? ""}
+                      />
+                    ) : (
+                      "—"
+                    ),
+                },
+              ]}
+            />
           )}
         </section>
         <section>
           <h2>{t("sourceFiles.title")}</h2>
           <SourceFileUploadForm companyId={company.id} />
           {sourceFiles.length === 0 ? (
-            <p className="empty">{t("sourceFiles.none")}</p>
+            <EmptyState icon="file" title={t("sourceFiles.none")} />
           ) : (
-            <table className="source-files">
-              <thead>
-                <tr>
-                  <th>{t("sourceFiles.fileName")}</th>
-                  <th>{t("sourceFiles.format")}</th>
-                  <th>{t("sourceFiles.pages")}</th>
-                  <th>{t("sourceFiles.uploadedAt")}</th>
-                  <th>{t("sourceFiles.status")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sourceFiles.map((file) => (
-                  <tr key={file.id}>
-                    <td>
-                      <Link href={`/companies/${company.id}/source-files/${file.id}`}>{file.fileName}</Link>
-                    </td>
-                    <td>{file.format.toUpperCase()}</td>
-                    <td>{file.pageCount}</td>
-                    <td>{format.dateTime(new Date(file.uploadedAt), { dateStyle: "medium", timeStyle: "short" })}</td>
-                    <td>{t(`sourceFileStatus.${file.status}`)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <DataTable
+              caption={t("sourceFiles.title")}
+              rows={sourceFiles}
+              columns={[
+                {
+                  key: "fileName",
+                  header: t("sourceFiles.fileName"),
+                  render: (file) => (
+                    <Link
+                      href={`/companies/${company.id}/source-files/${file.id}`}
+                    >
+                      {file.fileName}
+                    </Link>
+                  ),
+                },
+                {
+                  key: "format",
+                  header: t("sourceFiles.format"),
+                  render: (file) => file.format.toUpperCase(),
+                },
+                {
+                  key: "pageCount",
+                  header: t("sourceFiles.pages"),
+                  mono: true,
+                  align: "right",
+                },
+                {
+                  key: "uploadedAt",
+                  header: t("sourceFiles.uploadedAt"),
+                  muted: true,
+                  render: (file) => formatDocumentDate(file.uploadedAt, true),
+                },
+                {
+                  key: "status",
+                  header: t("sourceFiles.status"),
+                  render: (file) => (
+                    <StatusBadge
+                      status={statusBadgeState(file.status, "source-file")}
+                    >
+                      {t(`sourceFileStatus.${file.status}`)}
+                    </StatusBadge>
+                  ),
+                },
+              ]}
+            />
           )}
         </section>
       </main>

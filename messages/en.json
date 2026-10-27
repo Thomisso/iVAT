@@ -1,7 +1,25 @@
 {
-  "app": { "name": "iVAT", "tagline": "VAT returns from your documents" },
-  "language": { "label": "Language", "cs": "Čeština", "en": "English" },
-  "nav": { "logOut": "Log out", "addCompany": "Add company" },
+  "app": {
+    "name": "iVAT",
+    "tagline": "VAT returns from your documents"
+  },
+  "language": {
+    "label": "Language",
+    "cs": "Čeština",
+    "en": "English"
+  },
+  "nav": {
+    "logOut": "Log out",
+    "addCompany": "Add company",
+    "menu": "Menu",
+    "main": "Main navigation",
+    "userMenu": "User menu",
+    "switchCompany": "Choose a Company",
+    "ico": "IČO",
+    "allDocuments": "All Documents",
+    "received": "Received Documents",
+    "issued": "Issued Documents"
+  },
   "auth": {
     "email": "Email",
     "password": "Password",
@@ -44,7 +62,9 @@
     "pageCount": "{count, plural, one {# page} other {# pages}}",
     "backToCompany": "← Back to company",
     "hash": "SHA-256 hash",
-    "status": "Status"
+    "status": "Status",
+    "dropTitle": "Drop a Source File here",
+    "chooseFile": "Choose a file"
   },
   "errors": {
     "organization_name_required": "Enter the name of your organization.",
@@ -72,7 +92,8 @@
     "invalid_rate": "A VAT rate must be a percentage between 0 and 100.",
     "invalid_date": "Enter dates that exist.",
     "invalid_currency": "The currency must be a three-letter code, such as CZK.",
-    "invalid_country": "The country must be a two-letter code, such as CZ."
+    "invalid_country": "The country must be a two-letter code, such as CZ.",
+    "one_file_required": "Choose one Source File to upload."
   },
   "aiProcessing": {
     "title": "AI processing",
@@ -204,5 +225,19 @@
       "eu_received_service": "Service received from the EU",
       "other": "Other (manual classification required)"
     }
+  },
+  "statusBadge": {
+    "uploaded": "Uploaded",
+    "splitting": "Splitting",
+    "extracting": "Extracting",
+    "proposed": "AI proposed",
+    "needs-review": "Needs review",
+    "duplicate": "Duplicate Warning",
+    "manual": "Manual Classification Required",
+    "failed": "Failed",
+    "approved": "Approved",
+    "locked": "Period locked",
+    "split": "Split",
+    "rejected": "Rejected"
   }
 }
