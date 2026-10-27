@@ -48,6 +48,25 @@
     "create": "Vytvořit firmu",
     "noOrganization": "Nejste administrátorem žádné organizace, proto nemůžete přidávat firmy."
   },
+  "members": {
+    "nav": "Členové",
+    "organizationNav": "Spravovat {organization}",
+    "companyTitle": "Členové firmy {company}",
+    "organizationTitle": "Členové organizace {organization}",
+    "inviteTitle": "Pozvat osobu",
+    "email": "E-mail",
+    "role": "Role",
+    "administrator": "Administrátor",
+    "user": "Uživatel",
+    "invite": "Odeslat pozvánku",
+    "currentTitle": "Aktuální členství",
+    "none": "V této oblasti nejsou žádná členství.",
+    "changeRole": "Změnit roli",
+    "remove": "Odebrat členství",
+    "acceptTitle": "Přijmout pozvánku",
+    "acceptIntro": "Přijetím pozvánky získáte přístup k organizaci nebo firmě.",
+    "accept": "Přijmout pozvánku"
+  },
   "dashboard": {
     "companies": "Firmy"
   },
@@ -82,6 +101,11 @@
     "invalid_postal_code": "PSČ musí mít 5 číslic.",
     "ico_taken": "Firma s tímto IČO už ve vaší organizaci existuje.",
     "forbidden": "K této akci nemáte oprávnění.",
+    "invalid_invitation": "Zadejte platný e-mail, roli a rozsah pozvánky.",
+    "invitation_failed": "E-mail s pozvánkou se nepodařilo odeslat. Zkuste to znovu.",
+    "invitation_invalid": "Tento odkaz s pozvánkou je neplatný.",
+    "invitation_used": "Tento odkaz s pozvánkou již byl použit.",
+    "invitation_expired": "Platnost tohoto odkazu s pozvánkou skončila.",
     "file_required": "Vyberte soubor k nahrání.",
     "unsupported_format": "Tento formát souboru není podporován. Nahrajte soubor PDF, PNG nebo JPEG.",
     "content_does_not_match_format": "Obsah souboru neodpovídá jeho příponě. Zkontrolujte, že jde opravdu o PDF, PNG nebo JPEG.",
