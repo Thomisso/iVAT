@@ -20,4 +20,5 @@ Each step ends when its check passes.
 ## Gotchas
 
 - A throwaway script resolves `@/` imports and `node_modules` only from inside the repo. Prefer extending `scripts/dev-seed.ts`.
+- `npm run build` rewrites `.next`, which a running `next dev` depends on; build only after stopping the dev servers of this checkout.
 - `npm run db:reset` deletes the stack's data; run it only in your own worktree, after changing a migration that is already applied.
