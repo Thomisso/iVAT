@@ -12,6 +12,10 @@ Default five-label vocabulary: needs-triage, needs-info, ready-for-agent, ready-
 
 Single-context: `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
 
+## Working copy
+
+Build a ticket in its own git worktree (`git worktree add ../iVAT-<ticket> -b <branch>`, then `npm ci` and `npm run db:start`). The main checkout's database, dev server and branch belong to the human working there; a worktree gets its own Supabase stack, so `db:reset` and tests touch only yours. See "Git worktrees" in `README.md`. Run its dev server on a free port (`npm run dev -- -p 3100`).
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 ## This is NOT the Next.js you know

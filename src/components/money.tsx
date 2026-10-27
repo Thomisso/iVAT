@@ -29,6 +29,7 @@ export function Money({
       {currency && (
         <span className="iv-money-cur">
           {" "}
+          {/* eslint-disable-next-line no-restricted-syntax -- a currency symbol, the same in every locale */}
           {currency === "CZK" ? "Kč" : currency}
         </span>
       )}
