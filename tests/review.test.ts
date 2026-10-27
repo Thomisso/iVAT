@@ -106,8 +106,8 @@ describe("correcting a Document", () => {
   });
 
   it.each([
-    ["an amount with a decimal comma", { totals: { ...SAMPLE_EXTRACTION.totals, grossAmount: "1210,00" } }, "invalid_amount"],
-    ["a Rate Breakdown amount without decimals", { rateBreakdown: [{ rate: 21, netAmount: "1000", vatAmount: "210.00" }] }, "invalid_amount"],
+    ["an amount that is no number", { totals: { ...SAMPLE_EXTRACTION.totals, grossAmount: "1210 Kč" } }, "invalid_amount"],
+    ["a Rate Breakdown amount with three decimals", { rateBreakdown: [{ rate: 21, netAmount: "1000.005", vatAmount: "210.00" }] }, "invalid_amount"],
     ["a negative VAT rate", { rateBreakdown: [{ rate: -21, netAmount: "1000.00", vatAmount: "210.00" }] }, "invalid_rate"],
     ["a date that does not exist", { taxPointDate: "2026-02-30" }, "invalid_date"],
     ["a currency that is not an ISO code", { currency: "Kč" }, "invalid_currency"],
@@ -127,6 +127,39 @@ describe("correcting a Document", () => {
 
     expect(result).toEqual({ ok: false, error });
     expect(await listExtractionVersions(client, companyId, documentId)).toHaveLength(1);
+  });
+
+  it("reads amounts and codes as people type them", async () => {
+    const { client, companyId, documentId } = await documentInReview();
+    const typed: ExtractionPayload = {
+      ...SAMPLE_EXTRACTION,
+      currency: " czk ",
+      supplier: { ...SAMPLE_EXTRACTION.supplier, vatId: "cz 27082440", country: "cz" },
+      rateBreakdown: [{ rate: 21, netAmount: "1 000", vatAmount: "210,5" }],
+      totals: { netAmount: "1000", vatAmount: "210.5", grossAmount: " 1 210,50 " },
+    };
+
+    await correctDocument(client, { companyId, documentId, basedOnVersion: 1, payload: typed });
+
+    const [, corrected] = await listExtractionVersions(client, companyId, documentId);
+    expect(corrected.payload).toEqual(
+      expect.objectContaining({
+        currency: "CZK",
+        supplier: { ...SAMPLE_EXTRACTION.supplier, vatId: "CZ27082440", country: "CZ" },
+        rateBreakdown: [{ rate: 21, netAmount: "1000.00", vatAmount: "210.50" }],
+        totals: { netAmount: "1000.00", vatAmount: "210.50", grossAmount: "1210.50" },
+      }),
+    );
+  });
+
+  it("refuses a Rate Breakdown line without its amounts", async () => {
+    const { client, companyId, documentId } = await documentInReview();
+    const payload = { ...SAMPLE_EXTRACTION, rateBreakdown: [{ rate: 21, netAmount: "1000.00", vatAmount: "" }] };
+
+    expect(await correctDocument(client, { companyId, documentId, basedOnVersion: 1, payload })).toEqual({
+      ok: false,
+      error: "invalid_amount",
+    });
   });
 
   it("accepts negative amounts of a Credit Note and fields left empty", async () => {
@@ -187,6 +220,13 @@ describe("approving and rejecting a Document", () => {
     expect((await listDocuments(document.client, document.companyId, document.sourceFileId))[0].status).toBe(
       "needs_review",
     );
+  });
+
+  it("lets an Administrator reject a Document", async () => {
+    const document = await documentInReview();
+
+    expect(await rejectDocument(document.client, document)).toEqual({ ok: true, value: null });
+    expect((await listDocuments(document.client, document.companyId, document.sourceFileId))[0].status).toBe("rejected");
   });
 
   it("lets a User of the Company reject a Document, and audits it", async () => {
@@ -336,6 +376,14 @@ describe("the Document list", () => {
     expect(await ids({ counterparty: "%" })).toEqual([]);
     expect(await ids({ counterparty: "_" })).toEqual([]);
     expect(await ids({ direction: "incoming", status: "needs_review" })).toEqual([]);
+  });
+
+  it("still lists a Document whose AI Extraction read a malformed date, without a Reporting Period", async () => {
+    const company = await companyWithDocuments({ ...PURCHASE, taxPointDate: "27.10.2026" });
+
+    expect(await listCompanyDocuments(company.client, company.companyId)).toEqual([
+      expect.objectContaining({ taxPointDate: "27.10.2026", reportingPeriod: null }),
+    ]);
   });
 
   it("shows nothing of another Organization, even to direct queries", async () => {

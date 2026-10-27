@@ -116,71 +116,57 @@ export async function reprocessDocumentAction(_state: FormState, formData: FormD
   );
 }
 
-/** A field of the correction form: trimmed, and null when left empty. */
-function optional(formData: FormData, name: string): string | null {
+/** A field of the correction form, or null when left empty. */
+function optionalField(formData: FormData, name: string): string | null {
   return field(formData, name).trim() || null;
 }
 
-/** An amount as typed ("1 210,5") in the payload's form ("1210.50"); left as typed when it is no number. */
-function amount(formData: FormData, name: string): string | null {
-  const typed = optional(formData, name)?.replace(/\s/g, "").replace(",", ".");
-  if (!typed || !/^-?\d+(\.\d{1,2})?$/.test(typed)) return typed ?? null;
-  const [whole, decimals = ""] = typed.split(".");
-  return `${whole}.${decimals.padEnd(2, "0")}`;
-}
-
-function party(formData: FormData, prefix: string): Party {
-  const value = (name: string) => optional(formData, `${prefix}.${name}`);
+function partyFromForm(formData: FormData, prefix: string): Party {
+  const value = (name: string) => optionalField(formData, `${prefix}.${name}`);
   return {
     name: value("name"),
     ico: value("ico"),
-    vatId: value("vatId")?.toUpperCase() ?? null,
+    vatId: value("vatId"),
     street: value("street"),
     city: value("city"),
     postalCode: value("postalCode"),
-    country: value("country")?.toUpperCase() ?? null,
+    country: value("country"),
   };
 }
 
-/** The Extraction payload the correction form describes. Rate Breakdown lines left empty are dropped. */
+/** The Extraction payload the correction form describes, as typed; `correctDocument` normalizes it. */
 function payloadFromForm(formData: FormData): ExtractionPayload {
-  const lines = [...new Set([...formData.keys()].flatMap((key) => /^rateBreakdown\.(\d+)\./.exec(key)?.[1] ?? []))]
-    .sort((a, b) => Number(a) - Number(b))
-    .map((i) => ({
-      rate: optional(formData, `rateBreakdown.${i}.rate`),
-      netAmount: amount(formData, `rateBreakdown.${i}.netAmount`),
-      vatAmount: amount(formData, `rateBreakdown.${i}.vatAmount`),
-    }))
-    .filter((line) => line.rate || line.netAmount || line.vatAmount);
+  const lines = [...new Set([...formData.keys()].flatMap((key) => /^rateBreakdown\.(\d+)\./.exec(key)?.[1] ?? []))].sort(
+    (a, b) => Number(a) - Number(b),
+  );
   return {
     schemaVersion: 1,
-    documentType: optional(formData, "documentType") as ExtractionPayload["documentType"],
-    documentNumber: optional(formData, "documentNumber"),
-    issueDate: optional(formData, "issueDate"),
-    taxPointDate: optional(formData, "taxPointDate"),
-    dueDate: optional(formData, "dueDate"),
-    direction: optional(formData, "direction") as ExtractionPayload["direction"],
-    supplier: party(formData, "supplier"),
-    customer: party(formData, "customer"),
-    currency: optional(formData, "currency")?.toUpperCase() ?? null,
-    rateBreakdown: lines.map((line) => ({
-      rate: line.rate === null ? NaN : Number(line.rate.replace(",", ".")),
-      // A line with a rate but no amount reads as zero, which the arithmetic checks (#36) will question.
-      netAmount: line.netAmount ?? "0.00",
-      vatAmount: line.vatAmount ?? "0.00",
+    documentType: optionalField(formData, "documentType") as ExtractionPayload["documentType"],
+    documentNumber: optionalField(formData, "documentNumber"),
+    issueDate: optionalField(formData, "issueDate"),
+    taxPointDate: optionalField(formData, "taxPointDate"),
+    dueDate: optionalField(formData, "dueDate"),
+    direction: optionalField(formData, "direction") as ExtractionPayload["direction"],
+    supplier: partyFromForm(formData, "supplier"),
+    customer: partyFromForm(formData, "customer"),
+    currency: optionalField(formData, "currency"),
+    rateBreakdown: lines.map((i) => ({
+      rate: Number(optionalField(formData, `rateBreakdown.${i}.rate`)?.replace(",", ".") ?? NaN),
+      netAmount: field(formData, `rateBreakdown.${i}.netAmount`),
+      vatAmount: field(formData, `rateBreakdown.${i}.vatAmount`),
     })),
     totals: {
-      netAmount: amount(formData, "totals.netAmount"),
-      vatAmount: amount(formData, "totals.vatAmount"),
-      grossAmount: amount(formData, "totals.grossAmount"),
+      netAmount: optionalField(formData, "totals.netAmount"),
+      vatAmount: optionalField(formData, "totals.vatAmount"),
+      grossAmount: optionalField(formData, "totals.grossAmount"),
     },
     payment: {
-      variableSymbol: optional(formData, "payment.variableSymbol"),
-      bankAccount: optional(formData, "payment.bankAccount"),
-      iban: optional(formData, "payment.iban"),
+      variableSymbol: optionalField(formData, "payment.variableSymbol"),
+      bankAccount: optionalField(formData, "payment.bankAccount"),
+      iban: optionalField(formData, "payment.iban"),
     },
-    proposedVatRegime: optional(formData, "proposedVatRegime") as ExtractionPayload["proposedVatRegime"],
-    originalDocumentNumber: optional(formData, "originalDocumentNumber"),
+    proposedVatRegime: optionalField(formData, "proposedVatRegime") as ExtractionPayload["proposedVatRegime"],
+    originalDocumentNumber: optionalField(formData, "originalDocumentNumber"),
   };
 }
 

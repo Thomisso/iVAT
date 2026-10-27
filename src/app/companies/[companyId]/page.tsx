@@ -3,9 +3,10 @@ import { getTranslations } from "next-intl/server";
 import Link from "next/link";
 import { getCompany } from "@/application/companies";
 import {
+  DOCUMENT_STATUSES,
+  isBeingExtracted,
   listCompanyDocuments,
   type DocumentFilters,
-  type DocumentStatus,
 } from "@/application/documents";
 import { DIRECTIONS } from "@/application/extraction-payload";
 import { listSourceFiles } from "@/application/source-files";
@@ -27,15 +28,6 @@ import { StatusBadge } from "@/components/status-badge";
 import { statusBadgeState } from "@/components/status-badge-state";
 import { formatDocumentDate } from "@/lib/format-date";
 import { SourceFileUploadForm } from "./source-file-upload-form";
-
-const DOCUMENT_STATUSES: DocumentStatus[] = [
-  "uploaded",
-  "processing",
-  "needs_review",
-  "approved",
-  "rejected",
-  "failed",
-];
 
 /** The Document list filters a query string names; unknown values are ignored. */
 function documentFilters(
@@ -72,10 +64,7 @@ export default async function CompanyDashboardPage({
     sourceFiles.some(
       (file) => file.status === "uploaded" || file.status === "processing",
     ) ||
-    documents.some(
-      (document) =>
-        document.status === "uploaded" || document.status === "processing",
-    );
+    documents.some((document) => isBeingExtracted(document.status));
 
   return (
     <>
@@ -197,7 +186,7 @@ export default async function CompanyDashboardPage({
                   header: t("documents.counterparty"),
                   render: (document) => (
                     <>
-                      {document.counterparty?.name ?? "—"}
+                      {document.counterparty?.name ?? t("review.notSet")}
                       {document.counterparty?.vatId && (
                         <span className="iv-muted iv-mono">
                           {" "}
@@ -213,7 +202,7 @@ export default async function CompanyDashboardPage({
                   render: (document) =>
                     document.direction
                       ? t(`review.direction.${document.direction}`)
-                      : "—",
+                      : t("review.notSet"),
                 },
                 {
                   key: "taxPointDate",
@@ -222,7 +211,7 @@ export default async function CompanyDashboardPage({
                   render: (document) =>
                     document.taxPointDate
                       ? formatDocumentDate(document.taxPointDate)
-                      : "—",
+                      : t("review.notSet"),
                 },
                 {
                   key: "reportingPeriod",
@@ -259,7 +248,7 @@ export default async function CompanyDashboardPage({
                         currency={document.currency ?? ""}
                       />
                     ) : (
-                      "—"
+                      t("review.notSet")
                     ),
                 },
               ]}

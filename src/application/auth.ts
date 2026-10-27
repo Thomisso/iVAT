@@ -37,6 +37,12 @@ export async function logIn(client: AppClient, input: LogInInput): Promise<Resul
   return { ok: true, value: null };
 }
 
+/** The id of the signed-in user, or null. */
+export async function currentUserId(client: AppClient): Promise<string | null> {
+  const { data } = await client.auth.getUser();
+  return data.user?.id ?? null;
+}
+
 export async function logOut(client: AppClient): Promise<void> {
   await client.auth.signOut();
 }

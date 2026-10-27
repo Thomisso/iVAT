@@ -88,6 +88,40 @@ function isIsoDate(value: string): boolean {
   return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(value);
 }
 
+/** An amount as typed ("1 210,5") in the payload's form ("1210.50"); left as typed when it is no number. */
+function normalizeAmount(amount: string): string {
+  const typed = amount.replace(/\s/g, "").replace(",", ".");
+  if (!/^-?\d+(\.\d{1,2})?$/.test(typed)) return typed;
+  const [whole, decimals = ""] = typed.split(".");
+  return `${whole}.${decimals.padEnd(2, "0")}`;
+}
+
+const normalizeCode = (code: string | null) => code?.replace(/\s/g, "").toUpperCase() ?? null;
+
+/**
+ * A payload as a person typed it, in the payload's conventions: amounts with a
+ * dot and two decimals, codes and VAT IDs in capitals without spaces. Rate
+ * Breakdown lines left entirely empty are dropped.
+ */
+export function normalizeExtractionPayload(payload: ExtractionPayload): ExtractionPayload {
+  const amount = (value: string | null) => (value === null ? null : normalizeAmount(value));
+  const party = (p: Party): Party => ({ ...p, vatId: normalizeCode(p.vatId), country: normalizeCode(p.country) });
+  return {
+    ...payload,
+    currency: normalizeCode(payload.currency),
+    supplier: party(payload.supplier),
+    customer: party(payload.customer),
+    rateBreakdown: payload.rateBreakdown
+      .filter((line) => !(Number.isNaN(line.rate) && !line.netAmount.trim() && !line.vatAmount.trim()))
+      .map((line) => ({ ...line, netAmount: normalizeAmount(line.netAmount), vatAmount: normalizeAmount(line.vatAmount) })),
+    totals: {
+      netAmount: amount(payload.totals.netAmount),
+      vatAmount: amount(payload.totals.vatAmount),
+      grossAmount: amount(payload.totals.grossAmount),
+    },
+  };
+}
+
 /** The first convention a payload breaks, or null. Null fields are always allowed. */
 export function validateExtractionPayload(payload: ExtractionPayload): ExtractionPayloadError | null {
   if (

@@ -1,15 +1,21 @@
 import type { PostgrestError } from "@supabase/supabase-js";
 import { isUuid, type AppClient, type Result } from "./client";
 import {
+  normalizeExtractionPayload,
   validateExtractionPayload,
   type Direction,
+  type Party,
   type ExtractionPayload,
   type ExtractionPayloadError,
 } from "./extraction-payload";
 import { extractJob, type JobQueue } from "./processing";
 import { pdfPages, readSourceFile, SOURCE_FILE_MEDIA_TYPES } from "./source-files";
 
-export type DocumentStatus = "uploaded" | "processing" | "needs_review" | "approved" | "rejected" | "failed";
+export const DOCUMENT_STATUSES = ["uploaded", "processing", "needs_review", "approved", "rejected", "failed"] as const;
+export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number];
+
+/** Whether Extraction of the Document is still to run or running. */
+export const isBeingExtracted = (status: DocumentStatus) => status === "uploaded" || status === "processing";
 
 export type Document = {
   id: string;
@@ -51,7 +57,7 @@ export type DocumentOverview = {
   /** The month of the Tax Point Date, "2026-10", until Receipt Dates and quarterly periods exist (#43). */
   reportingPeriod: string | null;
   /** The supplier of an incoming Document, the customer of an outgoing one; null while the Direction is unknown. */
-  counterparty: { name: string | null; vatId: string | null; ico: string | null } | null;
+  counterparty: Pick<Party, "name" | "vatId" | "ico"> | null;
   currency: string | null;
   grossAmount: string | null;
   eligibleForVatReport: boolean;
@@ -209,7 +215,8 @@ export type CorrectDocumentError = ExtractionPayloadError | "not_in_review" | "s
 
 /**
  * Saves a User's corrections of a Document in review as its next Extraction
- * Version (ADR-0005), authored by them. `basedOnVersion` is the version the
+ * Version (ADR-0005), authored by them. Amounts and codes are read as people
+ * type them ("1 210,5", "cz"). `basedOnVersion` is the version the
  * corrections start from; they are refused if a newer one has been recorded.
  * The provider's confidence describes its own reading, so it is not carried over.
  */
@@ -217,11 +224,11 @@ export async function correctDocument(
   client: AppClient,
   input: { companyId: string; documentId: string; basedOnVersion: number; payload: ExtractionPayload },
 ): Promise<Result<{ version: number }, CorrectDocumentError>> {
-  const invalid = validateExtractionPayload(input.payload);
+  const payload = normalizeExtractionPayload(input.payload);
+  const invalid = validateExtractionPayload(payload);
   if (invalid) return { ok: false, error: invalid };
   const document = await findDocumentId(client, input.companyId, input.documentId);
   if (!document) return { ok: false, error: "forbidden" };
-  const payload = { ...input.payload };
   delete payload.confidence;
 
   const { data: version, error } = await client.rpc("correct_document", {
@@ -291,22 +298,10 @@ export async function reprocessDocument(
   jobs: JobQueue,
   input: { companyId: string; documentId: string },
 ): Promise<Result<null, "not_reprocessable" | "forbidden">> {
-  if (!isUuid(input.companyId) || !isUuid(input.documentId)) return { ok: false, error: "forbidden" };
-  const { data: document, error: readError } = await client
-    .from("document")
-    .select("id")
-    .eq("company_id", input.companyId)
-    .eq("id", input.documentId)
-    .maybeSingle();
-  if (readError) throw readError;
+  const document = await findDocumentId(client, input.companyId, input.documentId);
   if (!document) return { ok: false, error: "forbidden" };
-
-  const { error } = await client.rpc("reprocess_document", { target_document_id: document.id });
-  if (error) {
-    if (error.code === "42501") return { ok: false, error: "forbidden" };
-    if (error.hint === "not_reprocessable") return { ok: false, error: "not_reprocessable" };
-    throw error;
-  }
-  await jobs.send(extractJob(document.id));
+  const { error } = await client.rpc("reprocess_document", { target_document_id: document });
+  if (error) return refusal(error, ["not_reprocessable"]);
+  await jobs.send(extractJob(document));
   return { ok: true, value: null };
 }

@@ -123,7 +123,11 @@ select
   v.payload ->> 'documentNumber' as document_number,
   v.payload ->> 'direction' as direction,
   v.payload ->> 'taxPointDate' as tax_point_date,
-  to_char((v.payload ->> 'taxPointDate')::date, 'YYYY-MM') as reporting_period,
+  -- Read from the text, never cast: an AI payload is not validated, and one
+  -- malformed date must not break the whole list.
+  case when v.payload ->> 'taxPointDate' ~ '^\d{4}-(0[1-9]|1[0-2])-\d{2}$'
+    then left(v.payload ->> 'taxPointDate', 7)
+  end as reporting_period,
   c.party ->> 'name' as counterparty_name,
   c.party ->> 'vatId' as counterparty_vat_id,
   c.party ->> 'ico' as counterparty_ico,
