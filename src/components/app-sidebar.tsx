@@ -3,6 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { logOutAction } from "@/app/actions";
 import { getCompany, getMyCompanyRole, listMyCompanies } from "@/application/companies";
 import { listMyOrganizations } from "@/application/organizations";
+import { isSuperAdmin } from "@/application/platform-ai";
 import { requireUserClient } from "@/lib/supabase/server";
 import { Sidebar, type SidebarItem } from "./sidebar";
 import { Icon } from "./icon";
@@ -21,11 +22,12 @@ export async function AppSidebar({
   activeMembers?: boolean;
 }) {
   const client = await requireUserClient();
-  const [companies, current, role, organizations, t] = await Promise.all([
+  const [companies, current, role, organizations, superAdmin, t] = await Promise.all([
     listMyCompanies(client),
     currentCompanyId ? getCompany(client, currentCompanyId) : null,
     currentCompanyId ? getMyCompanyRole(client, currentCompanyId) : null,
     listMyOrganizations(client),
+    isSuperAdmin(client),
     getTranslations(),
   ]);
   const items: SidebarItem[] = currentCompanyId
@@ -112,6 +114,7 @@ export async function AppSidebar({
               {t("members.organizationNav", { organization: organization.name })}
             </Link>
           ))}
+          {superAdmin && <Link href="/platform/ai-settings">{t("platformAi.nav")}</Link>}
           <LanguageSwitcher />
           <form action={logOutAction}>
             <Button type="submit" variant="ghost">
