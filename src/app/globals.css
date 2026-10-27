@@ -1120,6 +1120,12 @@ select:disabled {
 .correction-form.is-ai select {
   box-shadow: inset 0 -2px var(--ai-edge);
 }
+.correction-form.is-ai .iv-input:focus-visible,
+.correction-form.is-ai select:focus-visible {
+  box-shadow:
+    var(--focus-ring),
+    inset 0 -2px var(--ai-edge);
+}
 @media (max-width: 1024px) {
   .review {
     grid-template-columns: minmax(0, 1fr);
