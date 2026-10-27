@@ -175,6 +175,7 @@ export type Database = {
           organization_id: string;
           source_file_id: string;
           status: Database["public"]["Enums"]["document_status"];
+          superseded_at: string | null;
         };
         ComputedFields: never;
         Insert: {
@@ -187,6 +188,7 @@ export type Database = {
           organization_id: string;
           source_file_id: string;
           status?: Database["public"]["Enums"]["document_status"];
+          superseded_at?: string | null;
         };
         Update: {
           company_id?: string;
@@ -198,6 +200,7 @@ export type Database = {
           organization_id?: string;
           source_file_id?: string;
           status?: Database["public"]["Enums"]["document_status"];
+          superseded_at?: string | null;
         };
         Relationships: [
           {
@@ -378,6 +381,45 @@ export type Database = {
           },
         ];
       };
+      notification: {
+        Row: {
+          company_id: string;
+          created_at: string;
+          id: string;
+          kind: string;
+          organization_id: string;
+          payload: NonNullable<Json>;
+          user_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          company_id: string;
+          created_at?: string;
+          id?: string;
+          kind: string;
+          organization_id: string;
+          payload: NonNullable<Json>;
+          user_id: string;
+        };
+        Update: {
+          company_id?: string;
+          created_at?: string;
+          id?: string;
+          kind?: string;
+          organization_id?: string;
+          payload?: NonNullable<Json>;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "notification_company_id_organization_id_fkey";
+            columns: ["company_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "company";
+            referencedColumns: ["id", "organization_id"];
+          },
+        ];
+      };
       organization: {
         Row: {
           created_at: string;
@@ -474,6 +516,28 @@ export type Database = {
         };
         Relationships: [];
       };
+      platform_settings: {
+        Row: {
+          max_source_file_bytes: number;
+          max_source_file_pages: number;
+          max_upload_batch_files: number;
+          singleton: boolean;
+        };
+        ComputedFields: never;
+        Insert: {
+          max_source_file_bytes: number;
+          max_source_file_pages: number;
+          max_upload_batch_files: number;
+          singleton?: boolean;
+        };
+        Update: {
+          max_source_file_bytes?: number;
+          max_source_file_pages?: number;
+          max_upload_batch_files?: number;
+          singleton?: boolean;
+        };
+        Relationships: [];
+      };
       platform_user: {
         Row: {
           created_at: string;
@@ -504,6 +568,7 @@ export type Database = {
           page_count: number;
           sha256: string;
           status: Database["public"]["Enums"]["source_file_status"];
+          upload_batch_id: string | null;
           uploaded_at: string;
           uploaded_by: string | null;
         };
@@ -518,6 +583,7 @@ export type Database = {
           page_count: number;
           sha256: string;
           status?: Database["public"]["Enums"]["source_file_status"];
+          upload_batch_id?: string | null;
           uploaded_at?: string;
           uploaded_by?: string | null;
         };
@@ -531,12 +597,62 @@ export type Database = {
           page_count?: number;
           sha256?: string;
           status?: Database["public"]["Enums"]["source_file_status"];
+          upload_batch_id?: string | null;
           uploaded_at?: string;
           uploaded_by?: string | null;
         };
         Relationships: [
           {
             foreignKeyName: "source_file_company_id_organization_id_fkey";
+            columns: ["company_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "company";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "source_file_upload_batch_id_company_id_organization_id_fkey";
+            columns: ["upload_batch_id", "company_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "upload_batch";
+            referencedColumns: ["id", "company_id", "organization_id"];
+          },
+        ];
+      };
+      upload_batch: {
+        Row: {
+          company_id: string;
+          created_at: string;
+          created_by: string;
+          file_count: number;
+          id: string;
+          organization_id: string;
+          processing_finished_at: string | null;
+          upload_finished_at: string | null;
+        };
+        ComputedFields: never;
+        Insert: {
+          company_id: string;
+          created_at?: string;
+          created_by?: string;
+          file_count: number;
+          id?: string;
+          organization_id: string;
+          processing_finished_at?: string | null;
+          upload_finished_at?: string | null;
+        };
+        Update: {
+          company_id?: string;
+          created_at?: string;
+          created_by?: string;
+          file_count?: number;
+          id?: string;
+          organization_id?: string;
+          processing_finished_at?: string | null;
+          upload_finished_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "upload_batch_company_id_organization_id_fkey";
             columns: ["company_id", "organization_id"];
             isOneToOne: false;
             referencedRelation: "company";
@@ -650,6 +766,10 @@ export type Database = {
         Args: { reviewed_version: number; target_document_id: string };
         Returns: undefined;
       };
+      begin_upload_batch: {
+        Args: { selected_file_count: number; target_company_id: string };
+        Returns: string;
+      };
       cancel_invitation: {
         Args: { invitation_token: string };
         Returns: undefined;
@@ -723,6 +843,10 @@ export type Database = {
         Args: Record<PropertyKey, never>;
         Returns: string[];
       };
+      finish_upload_batch: {
+        Args: { target_batch_id: string };
+        Returns: undefined;
+      };
       list_available_ai_providers: {
         Args: Record<PropertyKey, never>;
         Returns: {
@@ -749,9 +873,21 @@ export type Database = {
           platform_key_enabled: boolean;
         }[];
       };
+      merge_documents: {
+        Args: { left_document_id: string; right_document_id: string };
+        Returns: string[];
+      };
       mfa_recovery_codes_remaining: {
         Args: Record<PropertyKey, never>;
         Returns: number;
+      };
+      move_document_page: {
+        Args: {
+          page: number;
+          source_document_id: string;
+          target_document_id: string;
+        };
+        Returns: string[];
       };
       record_ai_extraction: {
         Args: {
@@ -811,6 +947,10 @@ export type Database = {
           target_provider: string;
         };
         Returns: undefined;
+      };
+      split_document: {
+        Args: { split_after_page: number; target_document_id: string };
+        Returns: string[];
       };
       update_company: {
         Args: {
