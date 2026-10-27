@@ -113,6 +113,7 @@ export async function AppSidebar({
             </Link>
           ))}
           <LanguageSwitcher />
+          <Link href="/settings/security">{t("nav.security")}</Link>
           <form action={logOutAction}>
             <Button type="submit" variant="ghost">
               {t("nav.logOut")}
