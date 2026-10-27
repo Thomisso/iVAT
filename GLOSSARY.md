@@ -42,6 +42,10 @@ _Avoid_: Doklad (in code), file, record
 Whether a Document was received by the Company (incoming) or issued by it (outgoing).
 _Avoid_: Type, side, AP/AR
 
+**Counterparty**:
+The other party of a Document: its supplier when the Document is incoming, its customer when outgoing.
+_Avoid_: Partner, contact, vendor
+
 **Split**:
 Identifying the boundaries of the Documents contained in a Source File.
 _Avoid_: Segmentation, separation

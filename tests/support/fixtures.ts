@@ -1,5 +1,6 @@
 import { createCompany, type CompanyDetails } from "@/application/companies";
 import { signedUpUser } from "./clients";
+import { systemClient } from "./worker";
 
 let icoCounter = 0;
 
@@ -23,4 +24,20 @@ export async function administratorWithCompany(organizationName = "Test Organiza
   const result = await createCompany(user.client, { organizationId: user.organizationId, ...companyDetails() });
   if (!result.ok) throw new Error(`Company creation failed: ${result.error}`);
   return { ...user, companyId: result.value.id };
+}
+
+/**
+ * A signed-up user who is a member of the Company with the given Role. Until
+ * invitations exist (#23), the Membership is recorded directly with the secret key.
+ */
+export async function companyMember(
+  { organizationId, companyId }: { organizationId: string; companyId: string },
+  role: "administrator" | "user" = "user",
+) {
+  const user = await signedUpUser("Member's own Organization");
+  const { error } = await systemClient()
+    .from("membership")
+    .insert({ user_id: user.userId, organization_id: organizationId, company_id: companyId, role });
+  if (error) throw error;
+  return user;
 }
