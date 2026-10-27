@@ -27,7 +27,8 @@ export type Document = {
   createdAt: string;
 };
 
-export type ExtractionVersionAuthor = { kind: "ai"; provider: string; model: string } | { kind: "user"; userId: string };
+export type ExtractionVersionAuthor =
+  { kind: "ai"; provider: string; model: string } | { kind: "user"; userId: string };
 
 export type ExtractionVersion = {
   id: string;
@@ -109,7 +110,9 @@ export async function listCompanyDocuments(
     taxPointDate: d.tax_point_date,
     reportingPeriod: d.reporting_period,
     counterparty:
-      d.direction === null ? null : { name: d.counterparty_name, vatId: d.counterparty_vat_id, ico: d.counterparty_ico },
+      d.direction === null
+        ? null
+        : { name: d.counterparty_name, vatId: d.counterparty_vat_id, ico: d.counterparty_ico },
     currency: d.currency,
     grossAmount: d.gross_amount,
     eligibleForVatReport: isEligibleForVatReport(d.status),
@@ -146,6 +149,7 @@ export async function listDocuments(client: AppClient, companyId: string, source
     .select(DOCUMENT_COLUMNS)
     .eq("company_id", companyId)
     .eq("source_file_id", sourceFileId)
+    .is("superseded_at", null)
     .order("first_page");
   if (error) throw error;
   return data.map(toDocument);
@@ -159,6 +163,7 @@ export async function getDocument(client: AppClient, companyId: string, document
     .select(DOCUMENT_COLUMNS)
     .eq("company_id", companyId)
     .eq("id", documentId)
+    .is("superseded_at", null)
     .maybeSingle();
   if (error) throw error;
   return data && toDocument(data);
@@ -222,7 +227,12 @@ export type CorrectDocumentError = ExtractionPayloadError | "not_in_review" | "s
  */
 export async function correctDocument(
   client: AppClient,
-  input: { companyId: string; documentId: string; basedOnVersion: number; payload: ExtractionPayload },
+  input: {
+    companyId: string;
+    documentId: string;
+    basedOnVersion: number;
+    payload: ExtractionPayload;
+  },
 ): Promise<Result<{ version: number }, CorrectDocumentError>> {
   const payload = normalizeExtractionPayload(input.payload);
   const invalid = validateExtractionPayload(payload);
@@ -251,7 +261,10 @@ export async function approveDocument(
 ): Promise<Result<null, "not_in_review" | "stale_version" | "forbidden">> {
   const document = await findDocumentId(client, input.companyId, input.documentId);
   if (!document) return { ok: false, error: "forbidden" };
-  const { error } = await client.rpc("approve_document", { target_document_id: document, reviewed_version: input.version });
+  const { error } = await client.rpc("approve_document", {
+    target_document_id: document,
+    reviewed_version: input.version,
+  });
   if (error) return refusal(error, ["not_in_review", "stale_version"]);
   return { ok: true, value: null };
 }
@@ -276,6 +289,7 @@ async function findDocumentId(client: AppClient, companyId: string, documentId: 
     .select("id")
     .eq("company_id", companyId)
     .eq("id", documentId)
+    .is("superseded_at", null)
     .maybeSingle();
   if (error) throw error;
   return data?.id ?? null;
@@ -303,5 +317,69 @@ export async function reprocessDocument(
   const { error } = await client.rpc("reprocess_document", { target_document_id: document });
   if (error) return refusal(error, ["not_reprocessable"]);
   await jobs.send(extractJob(document));
+  return { ok: true, value: null };
+}
+
+export type CorrectSplitError = "not_correctable" | "invalid_split_boundary" | "forbidden";
+
+async function enqueueCorrectedDocuments(jobs: JobQueue, documentIds: string[]) {
+  for (const documentId of documentIds) await jobs.send(extractJob(documentId));
+}
+
+/** Merges two adjacent active Documents, keeping the left Document's history. */
+export async function mergeDocuments(
+  client: AppClient,
+  jobs: JobQueue,
+  input: { companyId: string; leftDocumentId: string; rightDocumentId: string },
+): Promise<Result<null, CorrectSplitError>> {
+  const [left, right] = await Promise.all([
+    findDocumentId(client, input.companyId, input.leftDocumentId),
+    findDocumentId(client, input.companyId, input.rightDocumentId),
+  ]);
+  if (!left || !right) return { ok: false, error: "forbidden" };
+  const { data, error } = await client.rpc("merge_documents", {
+    left_document_id: left,
+    right_document_id: right,
+  });
+  if (error) return refusal(error, ["not_correctable", "invalid_split_boundary"]);
+  await enqueueCorrectedDocuments(jobs, data);
+  return { ok: true, value: null };
+}
+
+/** Splits an active Document after the named page; both results are re-extracted. */
+export async function splitDocument(
+  client: AppClient,
+  jobs: JobQueue,
+  input: { companyId: string; documentId: string; splitAfterPage: number },
+): Promise<Result<null, CorrectSplitError>> {
+  const document = await findDocumentId(client, input.companyId, input.documentId);
+  if (!document) return { ok: false, error: "forbidden" };
+  const { data, error } = await client.rpc("split_document", {
+    target_document_id: document,
+    split_after_page: input.splitAfterPage,
+  });
+  if (error) return refusal(error, ["not_correctable", "invalid_split_boundary"]);
+  await enqueueCorrectedDocuments(jobs, data);
+  return { ok: true, value: null };
+}
+
+/** Moves one shared boundary page from one active Document to its neighbour. */
+export async function moveDocumentPage(
+  client: AppClient,
+  jobs: JobQueue,
+  input: { companyId: string; sourceDocumentId: string; targetDocumentId: string; page: number },
+): Promise<Result<null, CorrectSplitError>> {
+  const [source, target] = await Promise.all([
+    findDocumentId(client, input.companyId, input.sourceDocumentId),
+    findDocumentId(client, input.companyId, input.targetDocumentId),
+  ]);
+  if (!source || !target) return { ok: false, error: "forbidden" };
+  const { data, error } = await client.rpc("move_document_page", {
+    source_document_id: source,
+    target_document_id: target,
+    page: input.page,
+  });
+  if (error) return refusal(error, ["not_correctable", "invalid_split_boundary"]);
+  await enqueueCorrectedDocuments(jobs, data);
   return { ok: true, value: null };
 }

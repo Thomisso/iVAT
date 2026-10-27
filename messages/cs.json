@@ -137,6 +137,8 @@
     "unreadable_file": "Soubor nelze přečíst. Může být poškozený.",
     "not_retryable": "Znovu lze spustit jen rozdělení, které selhalo.",
     "not_reprocessable": "Doklad se ještě zpracovává.",
+    "not_correctable": "Před opravou rozdělení počkejte na dokončení vytěžení.",
+    "invalid_split_boundary": "Vybraná oprava rozdělení už není platná. Načtěte stránku znovu a opakujte akci.",
     "not_in_review": "Měnit, schválit nebo zamítnout lze jen doklad, který čeká na kontrolu.",
     "stale_version": "Mezitím někdo uložil novější verzi dokladu. Načtěte stránku znovu, abyste ji viděli.",
     "invalid_choice": "Vyberte jednu z nabízených možností.",
@@ -231,7 +233,13 @@
     "grossAmount": "Celkem",
     "vatReport": "Přiznání DPH",
     "eligible": "Započítá se",
-    "notEligible": "—"
+    "notEligible": "—",
+    "correctSplit": "Opravit rozdělení",
+    "splitAfter": "Rozdělit za stranou",
+    "split": "Rozdělit",
+    "mergeWithNext": "Sloučit s následujícím",
+    "moveLastToNext": "Přesunout stranu {page} do následujícího",
+    "moveFirstToPrevious": "Přesunout stranu {page} do předchozího"
   },
   "review": {
     "title": "Kontrola dokladu",
