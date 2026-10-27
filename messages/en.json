@@ -238,8 +238,11 @@
   "aiProcessing": {
     "title": "AI processing",
     "off": "AI processing is off. Uploaded files wait until an administrator enables it.",
-    "consent": "Enabling it sends this company's documents to the AI provider {provider} (region {region}) to split and extract them.",
+    "consent": "Choose the provider and region that may receive this company's documents for splitting and extraction.",
     "on": "AI processing is on. Documents are sent to the AI provider {provider} (region {region}).",
+    "provider": "AI provider and processing region",
+    "change": "Change AI provider",
+    "noneAvailable": "No AI provider is currently available. Ask the platform administrator to configure one.",
     "enable": "Enable AI processing",
     "disable": "Disable AI processing",
     "waiting": "waiting for AI processing to be enabled"

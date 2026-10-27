@@ -33,7 +33,11 @@ export interface JobQueue {
   send(job: ProcessingJob): Promise<void>;
 }
 
-export type Worker = { system: SystemClient; ai: AiProvider; jobs: JobQueue };
+export interface AiProviderRegistry {
+  get(provider: string): AiProvider | undefined;
+}
+
+export type Worker = { system: SystemClient; providers: AiProviderRegistry; jobs: JobQueue };
 
 /** Whether this is the job's last attempt; a technical failure then marks its target Failed. */
 export type Attempt = { final: boolean };
@@ -48,15 +52,21 @@ export async function runJob(worker: Worker, job: ProcessingJob, attempt: Attemp
   }
 }
 
-/** Whether the Company has consented to AI processing by this provider in this region. */
-async function consentsTo(system: SystemClient, companyId: string, ai: AiProvider): Promise<boolean> {
+/** The provider named by the Company's current consent, when this worker can serve it. */
+async function consentedProvider(
+  system: SystemClient,
+  companyId: string,
+  providers: AiProviderRegistry,
+): Promise<AiProvider | null> {
   const { data, error } = await system
     .from("company")
     .select("ai_processing_enabled, ai_provider, ai_region")
     .eq("id", companyId)
     .single();
   if (error) throw error;
-  return data.ai_processing_enabled && data.ai_provider === ai.name && data.ai_region === ai.region;
+  if (!data.ai_processing_enabled || !data.ai_provider) return null;
+  const provider = providers.get(data.ai_provider);
+  return provider && provider.region === data.ai_region ? provider : null;
 }
 
 async function download(system: SystemClient, companyId: string, sourceFileId: string): Promise<Uint8Array> {
@@ -77,7 +87,7 @@ async function failOnFinalAttempt(attempt: Attempt, markFailed: () => Promise<vo
   }
 }
 
-async function splitSourceFile({ system, ai, jobs }: Worker, sourceFileId: string, attempt: Attempt) {
+async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId: string, attempt: Attempt) {
   const { data: file, error } = await system
     .from("source_file")
     .select("id, organization_id, company_id, format, page_count, status")
@@ -87,7 +97,8 @@ async function splitSourceFile({ system, ai, jobs }: Worker, sourceFileId: strin
   if (file.status === "failed") return;
 
   if (file.status !== "split") {
-    if (!(await consentsTo(system, file.company_id, ai))) return;
+    const ai = await consentedProvider(system, file.company_id, providers);
+    if (!ai) return;
     // Moves the status only from the given ones, so a job that read a stale status cannot undo another's result.
     const moveStatus = async (to: SourceFileStatus, from: SourceFileStatus[]) => {
       const { data, error } = await system
@@ -134,7 +145,7 @@ async function splitSourceFile({ system, ai, jobs }: Worker, sourceFileId: strin
   for (const document of documents) await jobs.send(extractJob(document.id));
 }
 
-async function extractDocument({ system, ai }: Worker, documentId: string, attempt: Attempt) {
+async function extractDocument({ system, providers }: Worker, documentId: string, attempt: Attempt) {
   const { data: document, error } = await system
     .from("document")
     .select("id, organization_id, company_id, source_file_id, first_page, last_page, status, superseded_at, extraction_request_id, source_file (format)")
@@ -142,7 +153,8 @@ async function extractDocument({ system, ai }: Worker, documentId: string, attem
     .single();
   if (error) throw error;
   if (document.superseded_at !== null || (document.status !== "uploaded" && document.status !== "processing")) return;
-  if (!(await consentsTo(system, document.company_id, ai))) return;
+  const ai = await consentedProvider(system, document.company_id, providers);
+  if (!ai) return;
 
   // Moves the status of this Extraction request only from the given ones (see splitSourceFile).
   const moveStatus = async (to: DocumentStatus, from: DocumentStatus[]) => {

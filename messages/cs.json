@@ -238,8 +238,11 @@
   "aiProcessing": {
     "title": "Zpracování pomocí AI",
     "off": "Zpracování pomocí AI je vypnuté. Nahrané soubory čekají, dokud ho administrátor nezapne.",
-    "consent": "Zapnutím budou doklady této společnosti odesílány poskytovateli AI {provider} (region {region}) k rozdělení a vytěžení.",
+    "consent": "Vyberte poskytovatele a region, do kterého smějí být doklady této společnosti odesílány k rozdělení a vytěžení.",
     "on": "Zpracování pomocí AI je zapnuté. Doklady se odesílají poskytovateli AI {provider} (region {region}).",
+    "provider": "Poskytovatel AI a region zpracování",
+    "change": "Změnit poskytovatele AI",
+    "noneAvailable": "Žádný poskytovatel AI nyní není dostupný. Požádejte správce platformy o jeho nastavení.",
     "enable": "Zapnout zpracování pomocí AI",
     "disable": "Vypnout zpracování pomocí AI",
     "waiting": "čeká na zapnutí zpracování pomocí AI"

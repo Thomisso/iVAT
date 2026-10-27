@@ -158,20 +158,59 @@ describe("AI-processing consent", () => {
     expect((await getSourceFile(client, companyId, sourceFileId))?.status).toBe("uploaded");
   });
 
-  it("is audited with the provider and region when enabled and disabled", async () => {
-    const worker = testWorker();
-    const { client, userId, organizationId, companyId } = await companyWithAiProcessing(worker);
+  it("uses and audits the provider selected in the Company's consent", async () => {
+    let fakeCalls = 0;
+    let openAiCalls = 0;
+    const fake = fakeAiProvider({
+      split: () => (++fakeCalls, [{ firstPage: 1, lastPage: 1 }]),
+      extract: () => (++fakeCalls, SAMPLE_EXTRACTION),
+    });
+    const openai = {
+      ...fakeAiProvider({
+        split: () => (++openAiCalls, [{ firstPage: 1, lastPage: 1 }]),
+        extract: () => (++openAiCalls, SAMPLE_EXTRACTION),
+      }),
+      name: "openai",
+      region: "global",
+    };
+    const worker = testWorker([fake, openai]);
+    const { client, userId, organizationId, companyId } = await administratorWithCompany();
+
+    expect(await enableAiProcessing(client, worker.jobs, { companyId, provider: openai })).toEqual({
+      ok: true,
+      value: null,
+    });
+    const sourceFileId = await upload({ client, companyId }, worker, "receipt.png");
+    await worker.runJobs();
+
+    const [document] = await listDocuments(client, companyId, sourceFileId);
+    expect(fakeCalls).toBe(0);
+    expect(openAiCalls).toBe(2);
+    expect((await listExtractionVersions(client, companyId, document.id))[0].author).toEqual({
+      kind: "ai",
+      provider: "openai",
+      model: "fake-extract",
+    });
+    expect(await enableAiProcessing(client, worker.jobs, { companyId, provider: fake })).toEqual({
+      ok: true,
+      value: null,
+    });
+    expect((await getCompany(client, companyId))?.aiProcessing).toEqual({ provider: "fake", region: "local" });
     await disableAiProcessing(client, companyId);
 
-    const events = await listAuditEvents(client, organizationId);
-
-    expect(events.slice(-2)).toEqual([
+    const aiConsentEvents = (await listAuditEvents(client, organizationId))
+      .filter((event) => event.action.startsWith("company.ai_processing_"));
+    expect(aiConsentEvents.slice(-3)).toEqual([
       expect.objectContaining({
         action: "company.ai_processing_enabled",
         actorUserId: userId,
         companyId,
-        targetType: "company",
-        targetId: companyId,
+        payload: { provider: "openai", region: "global" },
+      }),
+      expect.objectContaining({
+        action: "company.ai_processing_enabled",
+        actorUserId: userId,
+        companyId,
         payload: { provider: "fake", region: "local" },
       }),
       expect.objectContaining({

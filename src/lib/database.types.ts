@@ -453,6 +453,11 @@ isOneToOne: false
 "finish_upload_batch":
 { Args: { "target_batch_id": string }; Returns: undefined
                            },
+"list_available_ai_providers":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "provider": string,"region": string
+            }[]
+                           },
 "list_organization_ai_usage":
 { Args: { "period_from": string,"period_to": string,"target_company_id"?: string,"target_organization_id": string }; Returns: {
               "company_id": string,"company_name": string,"input_tokens": number,"model": string,"output_tokens": number,"provider": string,"requests": number
