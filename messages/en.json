@@ -170,7 +170,9 @@
     "export_failed": "Download failed. Try again.",
     "unknown_provider": "This AI provider is not configured by the platform.",
     "model_required": "Enter a model for Split and Extract.",
-    "invalid_platform_key": "Enter a valid platform API key."
+    "invalid_platform_key": "Enter a valid platform API key.",
+    "invalid_organization_key": "Enter a valid Organization API key.",
+    "dpa_acknowledgement_required": "Acknowledge responsibility for the provider data processing agreement."
   },
   "aiUsage": {
     "organizationNav": "AI usage for {organization}",
@@ -207,6 +209,17 @@
     "organizationAccess": "Organizations allowed to use the platform key",
     "enableForOrganization": "Enable",
     "disableForOrganization": "Disable"
+  },
+  "organizationAi": {
+    "nav": "{organization} AI keys",
+    "title": "AI keys for {organization}",
+    "intro": "Use your Organization's provider keys instead of a platform key. Keys are encrypted and can never be read back.",
+    "apiKey": "Provider API key",
+    "keyStored": "A key ending in {lastFour} is stored. Saving a new key replaces it.",
+    "keyMissing": "No Organization key is stored for this provider.",
+    "dpaWarning": "I understand that using our own {provider} key makes our Organization responsible for the data processing agreement with that provider.",
+    "save": "Save Organization key",
+    "remove": "Remove Organization key"
   },
   "mfa": {
     "securityTitle": "Security",

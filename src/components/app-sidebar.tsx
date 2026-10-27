@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Fragment } from "react";
 import { getTranslations } from "next-intl/server";
 import { logOutAction } from "@/app/actions";
 import { getCompany, getMyCompanyRole, listMyCompanies } from "@/application/companies";
@@ -110,14 +111,21 @@ export async function AppSidebar({
         <details>
           <summary>{t("nav.userMenu")}</summary>
           {organizations.map((organization) => (
-            <span key={organization.id} className="iv-stack">
+            <Fragment key={organization.id}>
               <Link href={`/organizations/${organization.id}/members`}>
                 {t("members.organizationNav", { organization: organization.name })}
               </Link>
-              <Link href={`/organizations/${organization.id}/ai-usage`}>
-                {t("aiUsage.organizationNav", { organization: organization.name })}
-              </Link>
-            </span>
+              {organization.role === "administrator" && (
+                <>
+                  <Link href={`/organizations/${organization.id}/ai-settings`}>
+                    {t("organizationAi.nav", { organization: organization.name })}
+                  </Link>
+                  <Link href={`/organizations/${organization.id}/ai-usage`}>
+                    {t("aiUsage.organizationNav", { organization: organization.name })}
+                  </Link>
+                </>
+              )}
+            </Fragment>
           ))}
           {superAdmin && <Link href="/platform/ai-settings">{t("platformAi.nav")}</Link>}
           {superAdmin && <Link href="/platform/ai-usage">{t("aiUsage.platformNav")}</Link>}
