@@ -5,9 +5,12 @@ export type OrganizationSummary = { id: string; name: string; role: MembershipRo
 
 /** Organizations where the current user holds an Organization-level Membership. */
 export async function listMyOrganizations(client: AppClient): Promise<OrganizationSummary[]> {
+  const { data: auth } = await client.auth.getUser();
+  if (!auth.user) return [];
   const { data, error } = await client
     .from("membership")
     .select("role, organization:organization_id (id, name)")
+    .eq("user_id", auth.user.id)
     .is("company_id", null)
     .order("created_at");
   if (error) throw error;

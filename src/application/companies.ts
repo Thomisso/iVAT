@@ -223,6 +223,23 @@ export async function listMyCompanies(client: AppClient): Promise<CompanySummary
   return data.map((c) => ({ id: c.id, organizationId: c.organization_id, name: c.name }));
 }
 
+/** The current user's effective Role in a Company, including Organization administration. */
+export async function getMyCompanyRole(client: AppClient, companyId: string): Promise<"administrator" | "user" | null> {
+  if (!isUuid(companyId)) return null;
+  const [{ data: auth }, company] = await Promise.all([client.auth.getUser(), getCompany(client, companyId)]);
+  if (!auth.user || !company) return null;
+  const { data, error } = await client
+    .from("membership")
+    .select("company_id, role")
+    .eq("user_id", auth.user.id)
+    .eq("organization_id", company.organizationId);
+  if (error) throw error;
+  if (data.some((membership) => membership.company_id === null && membership.role === "administrator")) {
+    return "administrator";
+  }
+  return data.find((membership) => membership.company_id === companyId)?.role ?? null;
+}
+
 /**
  * Consents to sending the Company's Documents to the provider, in its region
  * (ADR-0006), and starts the processing that waited for it. Administrators only;
