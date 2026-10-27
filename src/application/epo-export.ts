@@ -25,7 +25,10 @@ export async function exportVatReport(
   if (!report) return { ok: false, error: "report_not_found" };
   if (!isEpoFormat(input.format))
     return { ok: false, error: "invalid_export_format" };
-  const details = parseExportDetails(input.details);
+  const details = parseExportDetails({
+    ...input.details,
+    personType: report.result.company.personType === "natural" ? "F" : "P",
+  });
   if (!details.ok) return details;
   const result = await createEpoXml(report.result, input.format, details.value);
   if (!result.ok) return result;
