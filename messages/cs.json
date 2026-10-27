@@ -93,7 +93,9 @@
     "invalid_date": "Zadejte existující data.",
     "invalid_currency": "Měna musí být třípísmenný kód, například CZK.",
     "invalid_country": "Země musí být dvoupísmenný kód, například CZ.",
-    "one_file_required": "Vyberte jeden zdrojový soubor k nahrání."
+    "one_file_required": "Vyberte jeden zdrojový soubor k nahrání.",
+    "invalid_reporting_period": "Vyberte platný měsíc (2000–2099).",
+    "stale_report": "Doklady se během výpočtu změnily. Vygenerujte návrh znovu."
   },
   "aiProcessing": {
     "title": "Zpracování pomocí AI",
@@ -239,5 +241,45 @@
     "locked": "Období uzamčeno",
     "split": "Rozděleno",
     "rejected": "Zamítnuto"
+  },
+  "vatReports": {
+    "title": "Přiznání a kontrolní hlášení",
+    "period": "Vykazované období",
+    "selectPeriod": "Výběr uloženého období",
+    "show": "Zobrazit uložený návrh",
+    "generate": "Vygenerovat návrh",
+    "regenerate": "Vygenerovat / přepočítat návrh",
+    "none": "Pro toto období zatím není návrh",
+    "scope": "Měsíční tuzemská plnění v CZK se sazbami 21 % a 12 %. Ostatní doklady jsou uvedeny mezi vyloučenými.",
+    "draft": "Návrh · {period}",
+    "generated": "Vygenerováno {date}",
+    "snapshot": "Uložený stav. Pozdější schválení se projeví po přepočítání. Rozbalením částky zobrazíte zdrojové doklady.",
+    "vatReturn": "Přiznání k DPH",
+    "controlStatement": "Kontrolní hlášení",
+    "line": "Řádek přiznání",
+    "netAmount": "Základ daně",
+    "vatAmount": "DPH",
+    "outputVat": "Daň na výstupu",
+    "inputVat": "Nárok na odpočet",
+    "payable": "Vlastní daňová povinnost",
+    "excessDeduction": "Nadměrný odpočet",
+    "section": "Oddíl {section}",
+    "rate": "{rate} %",
+    "contributors": "Zdrojové doklady",
+    "noEntries": "Žádné zahrnuté doklady.",
+    "excluded": "Vyloučené doklady",
+    "noExclusions": "V tomto období nejsou žádné vyloučené doklady.",
+    "lines": {
+      "1": "1 · Tuzemská plnění, základní sazba",
+      "2": "2 · Tuzemská plnění, snížená sazba",
+      "40": "40 · Tuzemský odpočet, základní sazba",
+      "41": "41 · Tuzemský odpočet, snížená sazba"
+    },
+    "reasons": {
+      "not_approved": "Neschválený doklad",
+      "manual_classification_required": "Vyžaduje ruční klasifikaci",
+      "currency_conversion_required": "Vyžaduje přepočet měny",
+      "incomplete_data": "Neúplné nebo neplatné údaje pro výkaz"
+    }
   }
 }
