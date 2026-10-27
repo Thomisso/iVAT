@@ -18,8 +18,14 @@ export type ProcessingJob =
   | { name: "split-source-file"; data: { sourceFileId: string } }
   | { name: "extract-document"; data: { documentId: string } };
 
-export const splitJob = (sourceFileId: string): ProcessingJob => ({ name: "split-source-file", data: { sourceFileId } });
-export const extractJob = (documentId: string): ProcessingJob => ({ name: "extract-document", data: { documentId } });
+export const splitJob = (sourceFileId: string): ProcessingJob => ({
+  name: "split-source-file",
+  data: { sourceFileId },
+});
+export const extractJob = (documentId: string): ProcessingJob => ({
+  name: "extract-document",
+  data: { documentId },
+});
 
 export const PROCESSING_JOB_NAMES: ProcessingJob["name"][] = ["split-source-file", "extract-document"];
 
@@ -64,7 +70,9 @@ async function consentedProvider(
 }
 
 async function download(system: SystemClient, companyId: string, sourceFileId: string): Promise<Uint8Array> {
-  const { data, error } = await system.storage.from(SOURCE_FILE_BUCKET).download(sourceFileObjectPath(companyId, sourceFileId));
+  const { data, error } = await system.storage
+    .from(SOURCE_FILE_BUCKET)
+    .download(sourceFileObjectPath(companyId, sourceFileId));
   if (error) throw error;
   return new Uint8Array(await data.arrayBuffer());
 }
@@ -118,6 +126,7 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
     .from("document")
     .select("id")
     .eq("source_file_id", file.id)
+    .is("superseded_at", null)
     .eq("status", "uploaded")
     .order("first_page");
   if (listError) throw listError;
@@ -127,11 +136,11 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
 async function extractDocument({ system, providers }: Worker, documentId: string, attempt: Attempt) {
   const { data: document, error } = await system
     .from("document")
-    .select("id, organization_id, company_id, source_file_id, first_page, last_page, status, extraction_request_id, source_file (format)")
+    .select("id, organization_id, company_id, source_file_id, first_page, last_page, status, superseded_at, extraction_request_id, source_file (format)")
     .eq("id", documentId)
     .single();
   if (error) throw error;
-  if (document.status !== "uploaded" && document.status !== "processing") return;
+  if (document.superseded_at !== null || (document.status !== "uploaded" && document.status !== "processing")) return;
   const ai = await consentedProvider(system, document.company_id, providers);
   if (!ai) return;
 
