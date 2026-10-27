@@ -3,7 +3,12 @@ import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { approveDocumentAction, rejectDocumentAction } from "@/app/actions";
 import { getCompany } from "@/application/companies";
-import { getDocument, listExtractionVersions } from "@/application/documents";
+import { currentUserId } from "@/application/auth";
+import {
+  getDocument,
+  isBeingExtracted,
+  listExtractionVersions,
+} from "@/application/documents";
 import { getSourceFile } from "@/application/source-files";
 import { AppSidebar } from "@/components/app-sidebar";
 import { CommandButton } from "@/components/command-button";
@@ -26,11 +31,11 @@ export default async function DocumentReviewPage({
   const { companyId, documentId } = await params;
   const { version: requestedVersion } = await searchParams;
   const client = await requireUserClient();
-  const [company, document, versions, { data: auth }] = await Promise.all([
+  const [company, document, versions, userId] = await Promise.all([
     getCompany(client, companyId),
     getDocument(client, companyId, documentId),
     listExtractionVersions(client, companyId, documentId),
-    client.auth.getUser(),
+    currentUserId(client),
   ]);
   if (!company || !document) notFound();
   const file = await getSourceFile(client, companyId, document.sourceFileId);
@@ -159,21 +164,25 @@ export default async function DocumentReviewPage({
                     >
                       {t("documents.version", {
                         version: v.version,
-                        documentNumber: v.payload.documentNumber ?? "—",
+                        documentNumber:
+                          v.payload.documentNumber ?? t("review.notSet"),
                         author:
                           v.author.kind === "ai"
                             ? t("review.aiAuthor", {
                                 provider: v.author.provider,
                                 model: v.author.model,
                               })
-                            : v.author.userId === auth.user?.id
-                              ? `${t("review.userAuthor")} (${t("review.you")})`
+                            : v.author.userId === userId
+                              ? t("review.userAuthorYou")
                               : t("review.userAuthor"),
                       })}
                     </Link>{" "}
                     <span className="iv-muted">
-                      {formatDocumentDate(v.createdAt, true)}
-                      {v === current && ` · ${t("review.current")}`}
+                      {v === current
+                        ? t("review.currentVersionTime", {
+                            time: formatDocumentDate(v.createdAt, true),
+                          })
+                        : formatDocumentDate(v.createdAt, true)}
                     </span>
                   </li>
                 ))}
@@ -185,7 +194,7 @@ export default async function DocumentReviewPage({
       <RefreshWhile
         active={
           company.aiProcessing !== null &&
-          (document.status === "uploaded" || document.status === "processing")
+          isBeingExtracted(document.status)
         }
       />
     </>
