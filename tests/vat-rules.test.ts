@@ -9,6 +9,7 @@ const company = {
   street: "Praha 1",
   city: "Praha",
   postalCode: "110 00",
+  personType: "legal" as const,
 };
 const period = "2026-10";
 function document(

@@ -199,7 +199,15 @@ export default async function VatReportsPage({
                 ))
               )}
             </section>
-            <ExportForm key={report.id + report.generatedAt} companyId={companyId} period={period} preparedOn={new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Prague" }).format(new Date())} />
+            <ExportForm
+              key={report.id + report.generatedAt}
+              companyId={companyId}
+              period={period}
+              preparedOn={new Intl.DateTimeFormat("sv-SE", {
+                timeZone: "Europe/Prague",
+              }).format(new Date())}
+              personType={result.company.personType}
+            />
             <section>
               <h2>{t("vatReports.excluded")}</h2>
               {result.excludedDocuments.length === 0 ? (

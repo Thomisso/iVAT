@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import type { PersonType } from "@/application/companies";
 import { useTranslations } from "next-intl";
 import { EPO_FORMATS, TAX_OFFICES } from "@/application/epo-export-details";
 import { TextField } from "@/components/text-field";
@@ -11,13 +12,14 @@ export function ExportForm({
   companyId,
   period,
   preparedOn,
+  personType,
 }: {
   companyId: string;
   period: string;
   preparedOn: string;
+  personType: PersonType;
 }) {
   const t = useTranslations("epoExport");
-  const [personType, setPersonType] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -105,20 +107,10 @@ export function ExportForm({
             ))}
           </select>
         </label>
-        <label className="iv-field-label">
-          {t("personType")}
-          <select
-            name="personType"
-            required
-            value={personType}
-            onChange={(event) => setPersonType(event.target.value)}
-          >
-            <option value="">{t("choose")}</option>
-            <option value="P">{t("legalPerson")}</option>
-            <option value="F">{t("naturalPerson")}</option>
-          </select>
-        </label>
-        {personType === "P" && (
+        <p>
+          {t("personType")}: {t(personType === "legal" ? "legalPerson" : "naturalPerson")}
+        </p>
+        {personType === "legal" && (
           <fieldset>
             <legend>{t("signatory")}</legend>
             <div className="form-row">
@@ -143,7 +135,7 @@ export function ExportForm({
             />
           </fieldset>
         )}
-        {personType === "F" && (
+        {personType === "natural" && (
           <div className="form-row">
             <TextField
               label={t("firstName")}

@@ -81,6 +81,9 @@ export default async function CompanyDashboardPage({
             <span className="iv-mono">{company.vatId}</span> · {company.street},{" "}
             {company.postalCode} {company.city}
           </p>
+          <Link href={`/companies/${company.id}/settings`}>
+            {t("company.settings")}
+          </Link>
         </header>
         <section className="ai-processing">
           <h2>{t("aiProcessing.title")}</h2>
