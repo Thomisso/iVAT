@@ -9,7 +9,8 @@ import {
   type DocumentFilters,
 } from "@/application/documents";
 import { DIRECTIONS } from "@/application/extraction-payload";
-import { listSourceFiles } from "@/application/source-files";
+import { getUploadLimits, listSourceFiles } from "@/application/source-files";
+import { listUploadNotifications } from "@/application/upload-batches";
 import {
   disableAiProcessingAction,
   enableAiProcessingAction,
@@ -21,6 +22,7 @@ import { RefreshWhile } from "@/components/refresh-while";
 import { requireUserClient } from "@/lib/supabase/server";
 import { DataTable } from "@/components/data-table";
 import { EmptyState } from "@/components/empty-state";
+import { Notice } from "@/components/notice";
 import { Money } from "@/components/money";
 import { Button } from "@/components/button";
 import { TextField } from "@/components/text-field";
@@ -54,9 +56,11 @@ export default async function CompanyDashboardPage({
   const client = await requireUserClient();
   const company = await getCompany(client, companyId);
   if (!company) notFound();
-  const [sourceFiles, documents] = await Promise.all([
+  const [sourceFiles, documents, uploadLimits, uploadNotifications] = await Promise.all([
     listSourceFiles(client, company.id),
     listCompanyDocuments(client, company.id, filters),
+    getUploadLimits(client),
+    listUploadNotifications(client, company.id),
   ]);
   const t = await getTranslations();
   const provider = configuredAiProvider();
@@ -260,7 +264,14 @@ export default async function CompanyDashboardPage({
         </section>
         <section>
           <h2>{t("sourceFiles.title")}</h2>
-          <SourceFileUploadForm companyId={company.id} />
+          {uploadNotifications.map((notification) => (
+            <Notice key={notification.id} tone="success">
+              {t("sourceFiles.batchComplete", {
+                count: notification.fileCount,
+              })}
+            </Notice>
+          ))}
+          <SourceFileUploadForm companyId={company.id} limits={uploadLimits} />
           {sourceFiles.length === 0 ? (
             <EmptyState icon="file" title={t("sourceFiles.none")} />
           ) : (

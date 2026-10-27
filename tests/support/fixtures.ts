@@ -63,34 +63,38 @@ export async function companyMember(
   return user;
 }
 
-/** Large report fixture. Uses the worker's narrow write functions to avoid 1001
- * full PDF extraction jobs; application tests still generate/read as a User. */
+/** Large report fixture. Uses platform-sized Source Files and the worker's narrow
+ * write functions to avoid 1001 full PDF extraction jobs; application tests still
+ * generate/read as a User. */
 export async function companyWithManyReportDocuments(count: number) {
   const { PDFDocument } = await import("pdf-lib");
   const { uploadSourceFile } = await import("@/application/source-files");
   const { SAMPLE_EXTRACTION } = await import("@/ai/fake");
   const admin = await administratorWithCompany();
-  const pdf = await PDFDocument.create();
-  for (let i = 0; i < count; i++) pdf.addPage();
-  const file = await uploadSourceFile(
-    admin.client,
-    { async send() {} },
-    {
-      companyId: admin.companyId,
-      fileName: "many.pdf",
-      bytes: await pdf.save(),
-    },
-  );
-  if (!file.ok) throw new Error(file.error);
   const system = systemClient();
-  const split = await system.rpc("record_split", {
-    target_source_file_id: file.value.id,
-    page_ranges: Array.from({ length: count }, (_, i) => ({
-      firstPage: i + 1,
-      lastPage: i + 1,
-    })),
-  });
-  if (split.error) throw split.error;
+  for (let first = 0; first < count; first += 50) {
+    const pageCount = Math.min(50, count - first);
+    const pdf = await PDFDocument.create();
+    for (let page = 0; page < pageCount; page++) pdf.addPage();
+    const file = await uploadSourceFile(
+      admin.client,
+      { async send() {} },
+      {
+        companyId: admin.companyId,
+        fileName: `many-${first / 50 + 1}.pdf`,
+        bytes: await pdf.save(),
+      },
+    );
+    if (!file.ok) throw new Error(file.error);
+    const split = await system.rpc("record_split", {
+      target_source_file_id: file.value.id,
+      page_ranges: Array.from({ length: pageCount }, (_, i) => ({
+        firstPage: i + 1,
+        lastPage: i + 1,
+      })),
+    });
+    if (split.error) throw split.error;
+  }
   for (let offset = 0; offset < count; offset += 100) {
     const { data, error } = await system
       .from("document")
