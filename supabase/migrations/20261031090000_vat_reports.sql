@@ -28,6 +28,21 @@ left join lateral (
 revoke all on public.vat_report_document from public, anon, authenticated, service_role;
 grant select on public.vat_report_document to authenticated;
 
+-- One JSON value avoids PostgREST's row cap and defines the source selection
+-- once for both computation and the transactional snapshot check. Invoker
+-- privileges keep the underlying view's RLS in force for application reads.
+create function public.vat_report_documents(target_company_id uuid, target_period text)
+returns jsonb language sql stable security invoker set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', d.id, 'status', d.status, 'extractionVersionId', d.extraction_version_id, 'payload', d.payload
+  ) order by d.id), '[]'::jsonb)
+  from public.vat_report_document d
+  where d.company_id = target_company_id and d.payload ->> 'taxPointDate' like target_period || '-%';
+$$;
+revoke execute on function public.vat_report_documents from public, anon, service_role;
+grant execute on function public.vat_report_documents(uuid, text) to authenticated;
+
 -- Both Company Users and Administrators generate. Only this function writes
 -- reports, validating the source snapshot and auditing the same transaction.
 create function public.save_vat_report(target_company_id uuid, target_period text, expected_documents jsonb, computed_result jsonb)
@@ -48,11 +63,7 @@ begin
   -- Review transitions also lock these rows. Once locked, the latest versions
   -- and statuses stay stable until the report and audit event are committed.
   perform id from public.document where company_id = company.id order by id for share;
-  select coalesce(jsonb_agg(jsonb_build_object(
-    'id', d.id, 'status', d.status, 'extractionVersionId', d.extraction_version_id, 'payload', d.payload
-  ) order by d.id), '[]'::jsonb) into current_documents
-  from public.vat_report_document d
-  where d.company_id = company.id and left(d.payload ->> 'taxPointDate', 7) = target_period;
+  current_documents := public.vat_report_documents(company.id, target_period);
   if current_documents is distinct from expected_documents then
     raise exception 'Documents changed during generation' using errcode = 'P0001', hint = 'stale_report';
   end if;

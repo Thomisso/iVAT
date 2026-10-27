@@ -4,9 +4,10 @@ import { approveDocument, listDocuments } from "@/application/documents";
 import { enableAiProcessing } from "@/application/companies";
 import { listAuditEvents } from "@/application/audit";
 import { uploadSourceFile } from "@/application/source-files";
-import { administratorWithCompany, companyMember } from "./support/fixtures";
+import { administratorWithCompany, companyMember, companyWithManyReportDocuments } from "./support/fixtures";
 import { signedUpUser } from "./support/clients";
 import { fixtureFile } from "./support/files";
+import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { testWorker } from "./support/worker";
 
 async function companyWithReportDocuments() {
@@ -162,3 +163,46 @@ it("refuses a stale source snapshot and direct writes to a stored report", async
       .inputVat,
   ).toBe("210.00");
 });
+
+it("a malformed AI date cannot block generation from valid Documents", async () => {
+  const a = await administratorWithCompany();
+  let i = 0;
+  const worker = testWorker(
+    fakeAiProvider({
+      extract: () => ({
+        ...SAMPLE_EXTRACTION,
+        taxPointDate: i++ === 0 ? "2026-10" : "2026-10-01",
+      }),
+    }),
+  );
+  await enableAiProcessing(a.client, worker.jobs, {
+    companyId: a.companyId,
+    provider: worker.ai,
+  });
+  await uploadSourceFile(a.client, worker.jobs, {
+    companyId: a.companyId,
+    fileName: "two-invoices.pdf",
+    bytes: fixtureFile("two-invoices.pdf"),
+  });
+  expect(await worker.runJobs()).toEqual([]);
+  expect(
+    (
+      await generateVatReport(a.client, {
+        companyId: a.companyId,
+        period: "2026-10",
+      })
+    ).ok,
+  ).toBe(true);
+});
+
+it("generates from more Documents than the API row cap without losing exclusions", async () => {
+  const a = await companyWithManyReportDocuments(1001);
+  const generated = await generateVatReport(a.client, {
+    companyId: a.companyId,
+    period: "2026-10",
+  });
+  expect(generated.ok).toBe(true);
+  const report = (await getVatReport(a.client, a.companyId, "2026-10"))!;
+  expect(report.documents).toHaveLength(1001);
+  expect(report.result.excludedDocuments).toHaveLength(1001);
+}, 60000);
