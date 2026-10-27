@@ -2,7 +2,7 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
 
 export type Database = {
-  
+
   "graphql_public": {
           Tables: {
             [_ in never]: never
@@ -35,7 +35,7 @@ export type Database = {
                     "action"?: string,"actor_user_id"?: string | null,"company_id"?: string | null,"id"?: never,"occurred_at"?: string,"organization_id"?: string,"payload"?: NonNullable<Json>,"target_id"?: string | null,"target_type"?: string
                   }
                   Relationships: [
-                    
+
                   ]
                 },"company": {
                   Row: {
@@ -193,7 +193,47 @@ isOneToOne: false
                     "created_at"?: string,"id"?: string,"name"?: string
                   }
                   Relationships: [
-                    
+
+                  ]
+                },"organization_platform_ai_access": {
+                  Row: {
+                    "enabled": boolean,"organization_id": string,"provider": string,"updated_at": string,"updated_by": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "enabled"?: boolean,"organization_id": string,"provider": string,"updated_at"?: string,"updated_by"?: string | null
+                  }
+                  Update: {
+                    "enabled"?: boolean,"organization_id"?: string,"provider"?: string,"updated_at"?: string,"updated_by"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "organization_platform_ai_access_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organization"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "organization_platform_ai_access_provider_fkey"
+      columns: ["provider"]
+isOneToOne: false
+      referencedRelation: "platform_ai_provider"
+      referencedColumns: ["provider"]
+    }
+                  ]
+                },"platform_ai_provider": {
+                  Row: {
+                    "available": boolean,"extract_model": string,"platform_key_last_four": string | null,"platform_key_secret_id": string | null,"provider": string,"split_model": string,"updated_at": string,"updated_by": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "available"?: boolean,"extract_model": string,"platform_key_last_four"?: string | null,"platform_key_secret_id"?: string | null,"provider": string,"split_model": string,"updated_at"?: string,"updated_by"?: string | null
+                  }
+                  Update: {
+                    "available"?: boolean,"extract_model"?: string,"platform_key_last_four"?: string | null,"platform_key_secret_id"?: string | null,"provider"?: string,"split_model"?: string,"updated_at"?: string,"updated_by"?: string | null
+                  }
+                  Relationships: [
+
                   ]
                 },"source_file": {
                   Row: {
@@ -264,7 +304,7 @@ isOneToOne: false
                   }
                   ComputedFields: never
                   Relationships: [
-                    
+
                   ]
                 }
           }
@@ -281,6 +321,9 @@ isOneToOne: false
 "change_membership_role":
 { Args: { "target_membership_id": string,"target_role": Database["public"]['Enums']["membership_role"] }; Returns: undefined
                            },
+"configure_platform_ai_provider":
+{ Args: { "platform_key"?: string,"provider_available": boolean,"target_extract_model": string,"target_provider": string,"target_split_model": string }; Returns: undefined
+                           },
 "correct_document":
 { Args: { "based_on_version": number,"payload": Json,"target_document_id": string }; Returns: number
                            },
@@ -289,6 +332,16 @@ isOneToOne: false
                            },
 "create_invitation":
 { Args: { "target_company_id": string,"target_email": string,"target_organization_id": string,"target_role": Database["public"]['Enums']["membership_role"] }; Returns: string
+                           },
+"list_platform_ai_providers":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "available": boolean,"extract_model": string,"has_platform_key": boolean,"platform_key_last_four": string,"provider": string,"split_model": string
+            }[]
+                           },
+"list_platform_organizations":
+{ Args: { "target_provider": string }; Returns: {
+              "id": string,"name": string,"platform_key_enabled": boolean
+            }[]
                            },
 "record_ai_extraction":
 { Args: { "model": string,"payload": Json,"provider": string,"target_document_id": string,"target_extraction_request_id": string }; Returns: undefined
@@ -305,11 +358,19 @@ isOneToOne: false
 "reprocess_document":
 { Args: { "target_document_id": string }; Returns: undefined
                            },
+"resolve_platform_ai_provider":
+{ Args: { "target_organization_id": string,"target_provider": string }; Returns: {
+              "api_key": string,"extract_model": string,"split_model": string
+            }[]
+                           },
 "retry_split":
 { Args: { "target_source_file_id": string }; Returns: undefined
                            },
 "save_vat_report":
 { Args: { "computed_result": Json,"expected_documents": Json,"target_company_id": string,"target_period": string }; Returns: string
+                           },
+"set_organization_platform_ai_access":
+{ Args: { "access_enabled": boolean,"target_organization_id": string,"target_provider": string }; Returns: undefined
                            },
 "update_company":
 { Args: { "company_city": string,"company_ico": string,"company_name": string,"company_person_type": Database["public"]['Enums']["person_type"],"company_postal_code": string,"company_street": string,"company_vat_id": string,"filing_frequency_effective_from": string,"new_filing_frequency": Database["public"]['Enums']["filing_frequency"],"target_company_id": string }; Returns: undefined
@@ -435,7 +496,7 @@ export type CompositeTypes<
 export const Constants = {
   "graphql_public": {
           Enums: {
-            
+
           }
         },"public": {
           Enums: {

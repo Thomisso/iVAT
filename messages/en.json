@@ -147,7 +147,25 @@
     "invalid_export_format": "Select a VAT Return or Control Statement.",
     "report_not_found": "The saved draft is unavailable. Generate it first.",
     "xml_invalid": "The XML does not match the official schema. Check the Company and Document data, correct it and regenerate the draft.",
-    "export_failed": "Download failed. Try again."
+    "export_failed": "Download failed. Try again.",
+    "unknown_provider": "This AI provider is not configured by the platform.",
+    "model_required": "Enter a model for Split and Extract.",
+    "invalid_platform_key": "Enter a valid platform API key."
+  },
+  "platformAi": {
+    "nav": "Platform AI settings",
+    "title": "Platform AI settings",
+    "intro": "Configure provider availability, models and encrypted platform keys, then choose which Organizations may use them.",
+    "available": "Provider available",
+    "splitModel": "Split model",
+    "extractModel": "Extract model",
+    "platformKey": "Platform API key",
+    "keyStored": "A key ending in {lastFour} is stored. Leave blank to keep it.",
+    "keyMissing": "No platform key is stored.",
+    "save": "Save provider settings",
+    "organizationAccess": "Organizations allowed to use the platform key",
+    "enableForOrganization": "Enable",
+    "disableForOrganization": "Disable"
   },
   "aiProcessing": {
     "title": "AI processing",
