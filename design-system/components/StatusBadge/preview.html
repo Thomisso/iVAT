@@ -1,0 +1,13 @@
+<!-- @dsCard group="Status" height=96 -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>StatusBadge — preview</title></head>
+<body>
+<div id="root" class="iv-demo iv-row"></div>
+<script>
+var I = window.iVAT, h = React.createElement;
+var s = ['uploaded','splitting','extracting','proposed','needs-review','duplicate','manual','failed','approved','locked'];
+ReactDOM.createRoot(document.getElementById('root')).render(h(React.Fragment, null, s.map(function (x) { return h(I.StatusBadge, { key: x, status: x }); })));
+</script>
+</body>
+</html>
