@@ -43,7 +43,8 @@
     "uploadedAt": "Nahráno",
     "pageCount": "{count, plural, one {# strana} few {# strany} other {# stran}}",
     "backToCompany": "← Zpět na firmu",
-    "hash": "Otisk SHA-256"
+    "hash": "Otisk SHA-256",
+    "status": "Stav"
   },
   "errors": {
     "organization_name_required": "Zadejte název organizace.",
@@ -61,6 +62,40 @@
     "file_required": "Vyberte soubor k nahrání.",
     "unsupported_format": "Tento formát souboru není podporován. Nahrajte soubor PDF, PNG nebo JPEG.",
     "content_does_not_match_format": "Obsah souboru neodpovídá jeho příponě. Zkontrolujte, že jde opravdu o PDF, PNG nebo JPEG.",
-    "unreadable_file": "Soubor nelze přečíst. Může být poškozený."
+    "unreadable_file": "Soubor nelze přečíst. Může být poškozený.",
+    "not_retryable": "Znovu lze spustit jen rozdělení, které selhalo.",
+    "not_reprocessable": "Doklad se ještě zpracovává."
+  },
+  "aiProcessing": {
+    "title": "Zpracování pomocí AI",
+    "off": "Zpracování pomocí AI je vypnuté. Nahrané soubory čekají, dokud ho administrátor nezapne.",
+    "consent": "Zapnutím budou doklady této společnosti odesílány poskytovateli AI {provider} (region {region}) k rozdělení a vytěžení.",
+    "on": "Zpracování pomocí AI je zapnuté. Doklady se odesílají poskytovateli AI {provider} (region {region}).",
+    "enable": "Zapnout zpracování pomocí AI",
+    "disable": "Vypnout zpracování pomocí AI",
+    "waiting": "čeká na zapnutí zpracování pomocí AI"
+  },
+  "sourceFileStatus": {
+    "uploaded": "Čeká",
+    "processing": "Rozděluje se",
+    "split": "Rozděleno",
+    "failed": "Selhalo"
+  },
+  "documentStatus": {
+    "uploaded": "Čeká",
+    "processing": "Zpracovává se",
+    "needs_review": "Ke kontrole",
+    "failed": "Selhalo"
+  },
+  "documents": {
+    "title": "Doklady",
+    "pages": "Strany",
+    "status": "Stav",
+    "extraction": "Vytěžení",
+    "version": "Verze {version}: {documentNumber} ({author})",
+    "userAuthor": "oprava uživatele",
+    "retry": "Zkusit znovu",
+    "reprocess": "Zpracovat znovu",
+    "retrySplit": "Zkusit rozdělit znovu"
   }
 }

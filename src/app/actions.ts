@@ -1,10 +1,14 @@
 "use server";
 
+import { refresh } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { logIn, logOut, signUp } from "@/application/auth";
-import { createCompany } from "@/application/companies";
-import { uploadSourceFile } from "@/application/source-files";
+import { createCompany, disableAiProcessing, enableAiProcessing } from "@/application/companies";
+import { reprocessDocument } from "@/application/documents";
+import { retrySplit, uploadSourceFile } from "@/application/source-files";
+import { configuredAiProvider } from "@/ai";
+import { jobQueue } from "@/lib/jobs";
 import { createRequestClient, requireUserClient } from "@/lib/supabase/server";
 import { isLocale, localeCookie } from "@/i18n/locales";
 
@@ -64,13 +68,51 @@ export async function createCompanyAction(_state: FormState, formData: FormData)
 export async function uploadSourceFileAction(_state: FormState, formData: FormData): Promise<FormState> {
   const companyId = field(formData, "companyId");
   const file = formData.get("file");
-  const result = await uploadSourceFile(await requireUserClient(), {
+  const result = await uploadSourceFile(await requireUserClient(), jobQueue, {
     companyId,
     fileName: file instanceof File ? file.name : "",
     bytes: file instanceof File ? new Uint8Array(await file.arrayBuffer()) : new Uint8Array(),
   });
   if (!result.ok) return refused(result.error, formData, []);
   redirect(`/companies/${companyId}/source-files/${result.value.id}`);
+}
+
+/** Maps a command's result for a form that stays on the page, refreshing it on success. */
+function settled(result: { ok: true } | { ok: false; error: string }): FormState {
+  if (!result.ok) return { error: result.error, values: {} };
+  refresh();
+  return { error: null, values: {} };
+}
+
+export async function enableAiProcessingAction(_state: FormState, formData: FormData): Promise<FormState> {
+  return settled(
+    await enableAiProcessing(await requireUserClient(), jobQueue, {
+      companyId: field(formData, "companyId"),
+      provider: configuredAiProvider(),
+    }),
+  );
+}
+
+export async function disableAiProcessingAction(_state: FormState, formData: FormData): Promise<FormState> {
+  return settled(await disableAiProcessing(await requireUserClient(), field(formData, "companyId")));
+}
+
+export async function retrySplitAction(_state: FormState, formData: FormData): Promise<FormState> {
+  return settled(
+    await retrySplit(await requireUserClient(), jobQueue, {
+      companyId: field(formData, "companyId"),
+      sourceFileId: field(formData, "sourceFileId"),
+    }),
+  );
+}
+
+export async function reprocessDocumentAction(_state: FormState, formData: FormData): Promise<FormState> {
+  return settled(
+    await reprocessDocument(await requireUserClient(), jobQueue, {
+      companyId: field(formData, "companyId"),
+      documentId: field(formData, "documentId"),
+    }),
+  );
 }
 
 export async function setLocaleAction(formData: FormData): Promise<void> {

@@ -39,14 +39,14 @@ export type Database = {
                   ]
                 },"company": {
                   Row: {
-                    "city": string,"created_at": string,"created_by": string | null,"ico": string,"id": string,"name": string,"organization_id": string,"postal_code": string,"street": string,"vat_id": string
+                    "ai_processing_enabled": boolean,"ai_provider": string | null,"ai_region": string | null,"city": string,"created_at": string,"created_by": string | null,"ico": string,"id": string,"name": string,"organization_id": string,"postal_code": string,"street": string,"vat_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "city": string,"created_at"?: string,"created_by"?: string | null,"ico": string,"id"?: string,"name": string,"organization_id": string,"postal_code": string,"street": string,"vat_id": string
+                    "ai_processing_enabled"?: boolean,"ai_provider"?: string | null,"ai_region"?: string | null,"city": string,"created_at"?: string,"created_by"?: string | null,"ico": string,"id"?: string,"name": string,"organization_id": string,"postal_code": string,"street": string,"vat_id": string
                   }
                   Update: {
-                    "city"?: string,"created_at"?: string,"created_by"?: string | null,"ico"?: string,"id"?: string,"name"?: string,"organization_id"?: string,"postal_code"?: string,"street"?: string,"vat_id"?: string
+                    "ai_processing_enabled"?: boolean,"ai_provider"?: string | null,"ai_region"?: string | null,"city"?: string,"created_at"?: string,"created_by"?: string | null,"ico"?: string,"id"?: string,"name"?: string,"organization_id"?: string,"postal_code"?: string,"street"?: string,"vat_id"?: string
                   }
                   Relationships: [
                     {
@@ -55,6 +55,46 @@ export type Database = {
 isOneToOne: false
       referencedRelation: "organization"
       referencedColumns: ["id"]
+    }
+                  ]
+                },"document": {
+                  Row: {
+                    "company_id": string,"created_at": string,"extraction_request_id": string,"first_page": number,"id": string,"last_page": number,"organization_id": string,"source_file_id": string,"status": Database["public"]['Enums']["document_status"]
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "company_id": string,"created_at"?: string,"extraction_request_id"?: string,"first_page": number,"id"?: string,"last_page": number,"organization_id": string,"source_file_id": string,"status"?: Database["public"]['Enums']["document_status"]
+                  }
+                  Update: {
+                    "company_id"?: string,"created_at"?: string,"extraction_request_id"?: string,"first_page"?: number,"id"?: string,"last_page"?: number,"organization_id"?: string,"source_file_id"?: string,"status"?: Database["public"]['Enums']["document_status"]
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "document_source_file_id_company_id_organization_id_fkey"
+      columns: ["source_file_id","company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "source_file"
+      referencedColumns: ["id","company_id","organization_id"]
+    }
+                  ]
+                },"extraction_version": {
+                  Row: {
+                    "author_user_id": string | null,"company_id": string,"created_at": string,"document_id": string,"extraction_request_id": string | null,"id": string,"model": string | null,"organization_id": string,"payload": NonNullable<Json>,"provider": string | null,"version": number
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "author_user_id"?: string | null,"company_id": string,"created_at"?: string,"document_id": string,"extraction_request_id"?: string | null,"id"?: string,"model"?: string | null,"organization_id": string,"payload": NonNullable<Json>,"provider"?: string | null,"version": number
+                  }
+                  Update: {
+                    "author_user_id"?: string | null,"company_id"?: string,"created_at"?: string,"document_id"?: string,"extraction_request_id"?: string | null,"id"?: string,"model"?: string | null,"organization_id"?: string,"payload"?: NonNullable<Json>,"provider"?: string | null,"version"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "extraction_version_document_id_company_id_organization_id_fkey"
+      columns: ["document_id","company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "document"
+      referencedColumns: ["id","company_id","organization_id"]
     }
                   ]
                 },"membership": {
@@ -99,14 +139,14 @@ isOneToOne: false
                   ]
                 },"source_file": {
                   Row: {
-                    "byte_size": number,"company_id": string,"file_name": string,"format": Database["public"]['Enums']["source_file_format"],"id": string,"organization_id": string,"page_count": number,"sha256": string,"uploaded_at": string,"uploaded_by": string | null
+                    "byte_size": number,"company_id": string,"file_name": string,"format": Database["public"]['Enums']["source_file_format"],"id": string,"organization_id": string,"page_count": number,"sha256": string,"status": Database["public"]['Enums']["source_file_status"],"uploaded_at": string,"uploaded_by": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "byte_size": number,"company_id": string,"file_name": string,"format": Database["public"]['Enums']["source_file_format"],"id": string,"organization_id": string,"page_count": number,"sha256": string,"uploaded_at"?: string,"uploaded_by"?: string | null
+                    "byte_size": number,"company_id": string,"file_name": string,"format": Database["public"]['Enums']["source_file_format"],"id": string,"organization_id": string,"page_count": number,"sha256": string,"status"?: Database["public"]['Enums']["source_file_status"],"uploaded_at"?: string,"uploaded_by"?: string | null
                   }
                   Update: {
-                    "byte_size"?: number,"company_id"?: string,"file_name"?: string,"format"?: Database["public"]['Enums']["source_file_format"],"id"?: string,"organization_id"?: string,"page_count"?: number,"sha256"?: string,"uploaded_at"?: string,"uploaded_by"?: string | null
+                    "byte_size"?: number,"company_id"?: string,"file_name"?: string,"format"?: Database["public"]['Enums']["source_file_format"],"id"?: string,"organization_id"?: string,"page_count"?: number,"sha256"?: string,"status"?: Database["public"]['Enums']["source_file_status"],"uploaded_at"?: string,"uploaded_by"?: string | null
                   }
                   Relationships: [
                     {
@@ -123,10 +163,21 @@ isOneToOne: false
             [_ in never]: never
           }
           Functions: {
-            [_ in never]: never
+            "record_ai_extraction":
+{ Args: { "model": string,"payload": Json,"provider": string,"target_document_id": string,"target_extraction_request_id": string }; Returns: undefined
+                           },
+"record_split":
+{ Args: { "page_ranges": Json,"target_source_file_id": string }; Returns: undefined
+                           },
+"reprocess_document":
+{ Args: { "target_document_id": string }; Returns: undefined
+                           },
+"retry_split":
+{ Args: { "target_source_file_id": string }; Returns: undefined
+                           }
           }
           Enums: {
-            "membership_role": "administrator"|"user","source_file_format": "pdf"|"png"|"jpeg"
+            "document_status": "uploaded"|"processing"|"needs_review"|"failed","membership_role": "administrator"|"user","source_file_format": "pdf"|"png"|"jpeg","source_file_status": "uploaded"|"processing"|"split"|"failed"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -246,7 +297,7 @@ export const Constants = {
           }
         },"public": {
           Enums: {
-            "membership_role": ["administrator", "user"],"source_file_format": ["pdf", "png", "jpeg"]
+            "document_status": ["uploaded", "processing", "needs_review", "failed"],"membership_role": ["administrator", "user"],"source_file_format": ["pdf", "png", "jpeg"],"source_file_status": ["uploaded", "processing", "split", "failed"]
           }
         }
 } as const

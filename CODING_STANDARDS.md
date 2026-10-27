@@ -4,10 +4,10 @@ Judgement calls for review. CI already enforces typecheck, lint, tests, build, g
 
 ## Application layer
 
-- Business behaviour lives in `src/application/`. Every command and query takes an `AppClient` acting as the user as its first argument, so RLS applies to everything it does. Routes and server actions stay thin: read the input, call one command or query, map the result.
+- Business behaviour lives in `src/application/`. Every command and query takes an `AppClient` acting as the user as its first argument, so RLS applies to everything it does. Routes and server actions stay thin: read the input, call one command or query, map the result. Background job handlers are the one exception: they take a `SystemClient` (ADR-0010), and only the worker creates one.
 - Expected refusals are returned as `Result` (`{ ok: false, error: "<code>" }`), never thrown. Error codes are snake_case, and each has a message under `errors` in both `messages/cs.json` and `messages/en.json`. Unexpected failures are thrown.
 - Commands don't check access or Roles themselves: the database is the only authority (ADR-0008). A Role read in the UI decides what to show, never what is allowed.
-- The command translates Postgres error codes into refusals (for example `42501` → `forbidden`, `23505` → `*_taken`), so callers never see database codes.
+- The command translates Postgres error codes into refusals (for example `42501` → `forbidden`, `23505` → `*_taken`), so callers never see database codes. A database function that refuses for a domain reason raises `P0001` with the refusal code as its `hint`, and the command maps the hint.
 - Values leaving `src/application/` are camelCase domain objects. Snake_case rows stay inside.
 
 ## Database
