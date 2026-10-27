@@ -1,4 +1,7 @@
-import { createCompany, type CompanyDetails } from "@/application/companies";
+import {
+  createCompany,
+  type CompanySettingsInput,
+} from "@/application/companies";
 import { signedUpUser } from "./clients";
 import { systemClient } from "./worker";
 
@@ -6,8 +9,8 @@ let icoCounter = 0;
 
 /** A random but well-formed set of Company details. */
 export function companyDetails(
-  overrides: Partial<CompanyDetails> = {},
-): CompanyDetails {
+  overrides: Partial<CompanySettingsInput> = {},
+): CompanySettingsInput {
   const ico = String(
     10_000_000 + ((Date.now() + icoCounter++) % 89_999_999),
   ).slice(0, 8);
@@ -18,6 +21,9 @@ export function companyDetails(
     street: "Vinohradská 12",
     city: "Praha",
     postalCode: "120 00",
+    personType: "legal",
+    filingFrequency: "monthly",
+    filingFrequencyEffectiveFrom: "2026-01-01",
     ...overrides,
   };
 }

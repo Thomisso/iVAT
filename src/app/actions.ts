@@ -5,11 +5,13 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { generateVatReport } from "@/application/vat-reports";
 import { logIn, logOut, signUp, startGoogleSignIn } from "@/application/auth";
-import { createCompany, disableAiProcessing, enableAiProcessing } from "@/application/companies";
+import { prefillCompanyFromAres } from "@/application/ares";
+import { createCompany, disableAiProcessing, enableAiProcessing, updateCompany } from "@/application/companies";
 import { approveDocument, correctDocument, rejectDocument, reprocessDocument } from "@/application/documents";
 import type { ExtractionPayload, Party } from "@/application/extraction-payload";
 import { retrySplit, uploadSourceFile } from "@/application/source-files";
 import { configuredAiProvider } from "@/ai";
+import { configuredAresRegistry } from "@/ares";
 import { jobQueue } from "@/lib/jobs";
 import { createRequestClient, requireUserClient } from "@/lib/supabase/server";
 import { isLocale, localeCookie } from "@/i18n/locales";
@@ -27,7 +29,17 @@ function refused(error: string, formData: FormData, fields: string[]): FormState
   return { error, values: Object.fromEntries(fields.map((name) => [name, field(formData, name)])) };
 }
 
-const COMPANY_FIELDS = ["name", "ico", "vatId", "street", "city", "postalCode"];
+const COMPANY_FIELDS = [
+  "name",
+  "ico",
+  "vatId",
+  "street",
+  "city",
+  "postalCode",
+  "personType",
+  "filingFrequency",
+  "filingFrequencyEffectiveFrom",
+];
 
 export async function signUpAction(_state: FormState, formData: FormData): Promise<FormState> {
   const result = await signUp(await createRequestClient(), {
@@ -64,14 +76,38 @@ export async function logOutAction(): Promise<void> {
 }
 
 export async function createCompanyAction(_state: FormState, formData: FormData): Promise<FormState> {
-  const result = await createCompany(await requireUserClient(), {
-    organizationId: field(formData, "organizationId"),
+  if (field(formData, "intent") === "ares") {
+    const prefill = await prefillCompanyFromAres(configuredAresRegistry(), field(formData, "ico"));
+    if (!prefill.ok) return refused(prefill.error, formData, COMPANY_FIELDS);
+    return {
+      error: null,
+      values: {
+        ...Object.fromEntries(COMPANY_FIELDS.map((name) => [name, field(formData, name)])),
+        ...prefill.value,
+      },
+    };
+  }
+  const companyId = field(formData, "companyId");
+  const settings = {
     name: field(formData, "name"),
     ico: field(formData, "ico"),
     vatId: field(formData, "vatId"),
     street: field(formData, "street"),
     city: field(formData, "city"),
     postalCode: field(formData, "postalCode"),
+    personType: field(formData, "personType") as "legal" | "natural",
+    filingFrequency: field(formData, "filingFrequency") as "monthly" | "quarterly",
+    filingFrequencyEffectiveFrom: field(formData, "filingFrequencyEffectiveFrom"),
+  };
+  const client = await requireUserClient();
+  if (companyId) {
+    const result = await updateCompany(client, { companyId, ...settings });
+    if (!result.ok) return refused(result.error, formData, COMPANY_FIELDS);
+    redirect(`/companies/${companyId}`);
+  }
+  const result = await createCompany(client, {
+    organizationId: field(formData, "organizationId"),
+    ...settings,
   });
   if (!result.ok) return refused(result.error, formData, COMPANY_FIELDS);
   redirect(`/companies/${result.value.id}`);

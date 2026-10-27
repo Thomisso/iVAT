@@ -882,6 +882,20 @@ code,
   flex: 1;
   min-width: 0;
 }
+.form-row-action {
+  align-items: end;
+}
+.form-row-action .iv-btn {
+  flex: 0 0 auto;
+}
+.company-create fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
 .auth-divider {
   display: flex;
   align-items: center;
