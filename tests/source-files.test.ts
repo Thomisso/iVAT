@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { listSourceFiles, readSourceFile, uploadSourceFile } from "@/application/source-files";
-import { administratorWithCompany } from "./support/fixtures";
+import { createCompany } from "@/application/companies";
+import { getSourceFile, listSourceFiles, readSourceFile, uploadSourceFile } from "@/application/source-files";
+import { administratorWithCompany, companyDetails } from "./support/fixtures";
 import { fixtureFile } from "./support/files";
 
 describe("Source File upload", () => {
@@ -24,7 +25,7 @@ describe("Source File upload", () => {
         uploadedAt: expect.any(String),
       },
     ]);
-    const stored = await readSourceFile(client, result.value.id);
+    const stored = await readSourceFile(client, companyId, result.value.id);
     expect(stored?.bytes).toEqual(pdf);
   });
 
@@ -43,13 +44,13 @@ describe("Source File upload", () => {
     expect(await listSourceFiles(client, companyId)).toEqual([
       expect.objectContaining({ id: result.value.id, fileName, format, sha256, pageCount: 1 }),
     ]);
-    expect((await readSourceFile(client, result.value.id))?.bytes).toEqual(image);
+    expect((await readSourceFile(client, companyId, result.value.id))?.bytes).toEqual(image);
   });
 
   it.each([
     ["an unsupported extension", "invoices.xlsx", fixtureFile("two-invoices.pdf"), "unsupported_format"],
     ["no extension", "invoice", fixtureFile("two-invoices.pdf"), "unsupported_format"],
-    ["content that does not match the extension", "invoice.pdf", fixtureFile("receipt.png"), "unsupported_format"],
+    ["content that does not match the extension", "receipt.jpg", fixtureFile("receipt.png"), "content_does_not_match_format"],
     ["a PDF that cannot be read", "invoice.pdf", new TextEncoder().encode("%PDF-1.7\nnot really a PDF"), "unreadable_file"],
     ["an empty file", "invoice.pdf", new Uint8Array(), "file_required"],
   ])("refuses %s", async (_case, fileName, bytes, error) => {
@@ -95,7 +96,19 @@ describe("a stored Source File", () => {
     expect(rename.error?.code).toBe("42501");
     expect(deleteRow.error?.code).toBe("42501");
     expect(await listSourceFiles(client, companyId)).toEqual(before);
-    expect((await readSourceFile(client, result.value.id))?.bytes).toEqual(pdf);
+    expect((await readSourceFile(client, companyId, result.value.id))?.bytes).toEqual(pdf);
+  });
+
+  it("is found only under its own Company", async () => {
+    const { client, organizationId, companyId } = await administratorWithCompany();
+    const other = await createCompany(client, { organizationId, ...companyDetails() });
+    if (!other.ok) throw new Error(other.error);
+    const result = await uploadSourceFile(client, { companyId, fileName: "a.png", bytes: fixtureFile("receipt.png") });
+    if (!result.ok) throw new Error(result.error);
+
+    expect(await getSourceFile(client, other.value.id, result.value.id)).toBeNull();
+    expect(await readSourceFile(client, other.value.id, result.value.id)).toBeNull();
+    expect(await listSourceFiles(client, other.value.id)).toEqual([]);
   });
 
   it("is not recorded without its stored file", async () => {

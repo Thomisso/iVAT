@@ -7,8 +7,8 @@ import { requireUserClient } from "@/lib/supabase/server";
 
 export default async function SourceFilePage({ params }: PageProps<"/companies/[companyId]/source-files/[sourceFileId]">) {
   const { companyId, sourceFileId } = await params;
-  const file = await getSourceFile(await requireUserClient(), sourceFileId);
-  if (!file || file.companyId !== companyId) notFound();
+  const file = await getSourceFile(await requireUserClient(), companyId, sourceFileId);
+  if (!file) notFound();
   const t = await getTranslations("sourceFiles");
   const format = await getFormatter();
   const contentUrl = `/companies/${companyId}/source-files/${file.id}/content`;
@@ -19,16 +19,16 @@ export default async function SourceFilePage({ params }: PageProps<"/companies/[
       <main className="dashboard">
         <header>
           <p>
-            <Link href={`/companies/${companyId}`}>← {t("backToCompany")}</Link>
+            <Link href={`/companies/${companyId}`}>{t("backToCompany")}</Link>
           </p>
           <h1>{file.fileName}</h1>
           <p className="muted">
             {file.format.toUpperCase()} · {t("pageCount", { count: file.pageCount })} ·{" "}
-            {format.number(file.byteSize / 1024, { maximumFractionDigits: 1 })} kB ·{" "}
+            {format.number(file.byteSize / 1000, { style: "unit", unit: "kilobyte", maximumFractionDigits: 1 })} ·{" "}
             {format.dateTime(new Date(file.uploadedAt), { dateStyle: "medium", timeStyle: "short" })}
           </p>
           <p className="muted">
-            SHA-256 <code>{file.sha256}</code>
+            {t("hash")} <code>{file.sha256}</code>
           </p>
         </header>
         {file.format === "pdf" ? (

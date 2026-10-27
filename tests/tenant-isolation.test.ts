@@ -72,8 +72,8 @@ describe("tenant isolation", () => {
       const b = await signedUpUser("Organization B");
 
       expect(await listSourceFiles(b.client, a.companyId)).toEqual([]);
-      expect(await getSourceFile(b.client, a.sourceFileId)).toBeNull();
-      expect(await readSourceFile(b.client, a.sourceFileId)).toBeNull();
+      expect(await getSourceFile(b.client, a.companyId, a.sourceFileId)).toBeNull();
+      expect(await readSourceFile(b.client, a.companyId, a.sourceFileId)).toBeNull();
     });
 
     it("refuses to fetch another Organization's file from storage under the user's identity", async () => {
@@ -116,7 +116,7 @@ describe("tenant isolation", () => {
       expect(rename.error?.code).toBe("42501");
       expect(deleteRow.error?.code).toBe("42501");
       expect(removed.data).toEqual([]);
-      expect((await readSourceFile(a.client, a.sourceFileId))?.bytes).toEqual(a.pdf);
+      expect((await readSourceFile(a.client, a.companyId, a.sourceFileId))?.bytes).toEqual(a.pdf);
     });
   });
 
