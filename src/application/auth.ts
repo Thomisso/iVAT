@@ -37,6 +37,27 @@ export async function logIn(client: AppClient, input: LogInInput): Promise<Resul
   return { ok: true, value: null };
 }
 
+export async function startGoogleSignIn(
+  client: AppClient,
+  input: { redirectTo: string },
+): Promise<Result<{ url: string }, "google_sign_in_failed">> {
+  const { data, error } = await client.auth.signInWithOAuth({
+    provider: "google",
+    options: { redirectTo: input.redirectTo, skipBrowserRedirect: true },
+  });
+  if (error || !data.url) return { ok: false, error: "google_sign_in_failed" };
+  return { ok: true, value: { url: data.url } };
+}
+
+export async function completeGoogleSignIn(
+  client: AppClient,
+  code: string,
+): Promise<Result<null, "google_sign_in_failed">> {
+  const { error } = await client.auth.exchangeCodeForSession(code);
+  if (error) return { ok: false, error: "google_sign_in_failed" };
+  return { ok: true, value: null };
+}
+
 /** The id of the signed-in user, or null. */
 export async function currentUserId(client: AppClient): Promise<string | null> {
   const { data } = await client.auth.getUser();
