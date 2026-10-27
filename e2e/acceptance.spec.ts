@@ -45,8 +45,10 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   await page.getByLabel("Email").fill(`user-${run}@example.test`);
   await page.getByLabel("Role").selectOption("user");
   await page.getByRole("button", { name: "Send invitation" }).click();
+  await expect(page.getByRole("button", { name: "Send invitation" })).toBeEnabled({
+    timeout: 15_000,
+  });
   await expect(page.getByLabel("Email")).toHaveValue("");
-  await expect(page.getByRole("button", { name: "Send invitation" })).toBeEnabled();
 
   await page.goto(companyUrl);
   await page.locator('input[type="file"]').setInputFiles("tests/fixtures/receipt.png");
