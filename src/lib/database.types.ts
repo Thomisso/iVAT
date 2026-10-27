@@ -442,6 +442,55 @@ export type Database = {
         };
         Relationships: [];
       };
+      organization_ai_provider_key: {
+        Row: {
+          dpa_acknowledged_at: string;
+          dpa_acknowledged_by: string;
+          key_last_four: string;
+          key_secret_id: string;
+          organization_id: string;
+          provider: string;
+          updated_at: string;
+          updated_by: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          dpa_acknowledged_at: string;
+          dpa_acknowledged_by: string;
+          key_last_four: string;
+          key_secret_id: string;
+          organization_id: string;
+          provider: string;
+          updated_at?: string;
+          updated_by: string;
+        };
+        Update: {
+          dpa_acknowledged_at?: string;
+          dpa_acknowledged_by?: string;
+          key_last_four?: string;
+          key_secret_id?: string;
+          organization_id?: string;
+          provider?: string;
+          updated_at?: string;
+          updated_by?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "organization_ai_provider_key_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organization";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "organization_ai_provider_key_provider_fkey";
+            columns: ["provider"];
+            isOneToOne: false;
+            referencedRelation: "platform_ai_provider";
+            referencedColumns: ["provider"];
+          },
+        ];
+      };
       organization_platform_ai_access: {
         Row: {
           enabled: boolean;
@@ -854,6 +903,14 @@ export type Database = {
           region: string;
         }[];
       };
+      list_organization_ai_provider_keys: {
+        Args: { target_organization_id: string };
+        Returns: {
+          has_organization_key: boolean;
+          organization_key_last_four: string;
+          provider: string;
+        }[];
+      };
       list_platform_ai_providers: {
         Args: Record<PropertyKey, never>;
         Returns: {
@@ -911,6 +968,10 @@ export type Database = {
         Args: { target_membership_id: string };
         Returns: undefined;
       };
+      remove_organization_ai_provider_key: {
+        Args: { target_organization_id: string; target_provider: string };
+        Returns: undefined;
+      };
       reprocess_document: {
         Args: { target_document_id: string };
         Returns: undefined;
@@ -925,6 +986,15 @@ export type Database = {
       };
       retry_split: {
         Args: { target_source_file_id: string };
+        Returns: undefined;
+      };
+      save_organization_ai_provider_key: {
+        Args: {
+          dpa_acknowledged: boolean;
+          organization_key: string;
+          target_organization_id: string;
+          target_provider: string;
+        };
         Returns: undefined;
       };
       save_vat_report: {
