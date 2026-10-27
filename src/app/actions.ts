@@ -3,6 +3,7 @@
 import { refresh } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { generateVatReport } from "@/application/vat-reports";
 import { logIn, logOut, signUp } from "@/application/auth";
 import { createCompany, disableAiProcessing, enableAiProcessing } from "@/application/companies";
 import { approveDocument, correctDocument, rejectDocument, reprocessDocument } from "@/application/documents";
@@ -209,4 +210,20 @@ export async function setLocaleAction(formData: FormData): Promise<void> {
   if (isLocale(locale)) {
     (await cookies()).set(localeCookie, locale, { path: "/", maxAge: 60 * 60 * 24 * 365, sameSite: "lax" });
   }
+}
+
+export async function generateVatReportAction(
+  _state: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const companyId = field(formData, "companyId");
+  const period = field(formData, "period");
+  const result = await generateVatReport(await requireUserClient(), {
+    companyId,
+    period,
+  });
+  if (!result.ok) return refused(result.error, formData, ["period"]);
+  redirect(
+    `/companies/${companyId}/vat-reports?period=${encodeURIComponent(period)}`,
+  );
 }
