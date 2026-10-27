@@ -37,7 +37,7 @@ function normalizeCompanyDetails(details: CompanyDetails): CompanyDetails {
   };
 }
 
-// Format checks only; registry and checksum validation belong to the Validation module.
+// Format checks only; checksum and registry checks are added with Document validations (#36).
 function validateCompanyDetails(details: CompanyDetails): CompanyDetailsError | null {
   if (!details.name) return "name_required";
   if (!/^\d{8}$/.test(details.ico)) return "invalid_ico";

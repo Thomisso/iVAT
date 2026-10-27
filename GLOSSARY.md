@@ -12,6 +12,14 @@ _Avoid_: Tenant (in user-facing language), account, workspace
 A VAT payer whose documents are processed and whose VAT is reported. Belongs to exactly one Organization.
 _Avoid_: Client, entity, firm
 
+**IČO**:
+The eight-digit identification number of a Czech business in the public registers.
+_Avoid_: Company ID, registration number
+
+**VAT ID**:
+The number under which a Company is registered as a Czech VAT payer (DIČ): "CZ" followed by eight to ten digits.
+_Avoid_: DIČ (in code), tax ID
+
 **Membership**:
 A User's access to an Organization or a Company, carrying a Role.
 _Avoid_: Assignment, access grant
