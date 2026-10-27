@@ -8,7 +8,10 @@ import { listMyOrganizations } from "@/application/organizations";
 export function anonymousClient(): AppClient {
   return asUserClient(
     createClient(inject("supabaseUrl"), inject("supabaseAnonKey"), {
-      auth: { persistSession: false, autoRefreshToken: false },
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
     }),
   );
 }
