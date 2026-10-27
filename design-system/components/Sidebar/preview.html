@@ -1,0 +1,22 @@
+<!-- @dsCard group="Navigation" height=460 -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Sidebar — preview</title></head>
+<body>
+<div id="root"></div>
+<script>
+var I = window.iVAT, h = React.createElement;
+ReactDOM.createRoot(document.getElementById('root')).render(h(I.Sidebar, { company: { name: 'Pekárna U Mlýna s.r.o.', ico: '27082440' }, items: [
+  { group: 'Documents' },
+  { label: 'Inbox', icon: 'inbox', count: 14, ai: true, current: true },
+  { label: 'Received', icon: 'file', count: 312 },
+  { label: 'Issued', icon: 'send', count: 88 },
+  { group: 'VAT' },
+  { label: 'Reporting Periods', icon: 'clock' },
+  { label: 'VAT Reports', icon: 'report' },
+  { group: 'Company' },
+  { label: 'Settings', icon: 'building' }
+] }));
+</script>
+</body>
+</html>

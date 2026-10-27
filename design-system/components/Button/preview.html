@@ -1,0 +1,22 @@
+<!-- @dsCard group="Actions" height=112 -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Button — preview</title></head>
+<body>
+<div id="root" class="iv-demo"></div>
+<script>
+var I = window.iVAT, h = React.createElement;
+ReactDOM.createRoot(document.getElementById('root')).render(h('div', { className: 'iv-stack' },
+  h('div', { className: 'iv-row' },
+    h(I.Button, { variant: 'primary', icon: 'check' }, 'Approve document'),
+    h(I.Button, null, 'Save draft'),
+    h(I.Button, { variant: 'ai', icon: 'marker' }, 'Extract again'),
+    h(I.Button, { variant: 'ghost', icon: 'duplicate' }, 'Compare'),
+    h(I.Button, { variant: 'danger', icon: 'lock' }, 'Unlock period')),
+  h('div', { className: 'iv-row' },
+    h(I.Button, { variant: 'primary', size: 'sm', icon: 'upload' }, 'Upload'),
+    h(I.Button, { size: 'sm' }, 'Skip'),
+    h(I.Button, { variant: 'primary', disabled: true }, 'Finalize Q3 2026'))));
+</script>
+</body>
+</html>
