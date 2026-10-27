@@ -882,6 +882,23 @@ code,
   flex: 1;
   min-width: 0;
 }
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-4) 0;
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--line);
+}
+.auth-google-button {
+  width: 100%;
+}
 .iv-field {
   flex: 1;
 }
@@ -1212,3 +1229,14 @@ select:disabled {
 }
 .report-totals dd { margin: var(--space-2) 0 0; }
 .report-section + .report-section { margin-top: var(--space-5); }
+.member-list {
+  display: grid;
+  gap: var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+.member-list .panel {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+}

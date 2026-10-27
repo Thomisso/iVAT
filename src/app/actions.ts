@@ -1,10 +1,10 @@
 "use server";
 
 import { refresh } from "next/cache";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { generateVatReport } from "@/application/vat-reports";
-import { logIn, logOut, signUp } from "@/application/auth";
+import { logIn, logOut, signUp, startGoogleSignIn } from "@/application/auth";
 import {
   beginTotpEnrollment,
   completeTotpEnrollment,
@@ -18,6 +18,8 @@ import {
 } from "@/application/mfa";
 import { mfaRedirectPath } from "@/application/mfa-routing";
 import { createCompany, disableAiProcessing, enableAiProcessing } from "@/application/companies";
+import { acceptInvitation, changeMembershipRole, inviteMember, removeMembership } from "@/application/memberships";
+import { supabaseInvitationMailer } from "@/application/supabase-invitation-mailer";
 import { approveDocument, correctDocument, rejectDocument, reprocessDocument } from "@/application/documents";
 import type { ExtractionPayload, Party } from "@/application/extraction-payload";
 import { retrySplit, uploadSourceFile } from "@/application/source-files";
@@ -61,6 +63,16 @@ export async function logInAction(_state: FormState, formData: FormData): Promis
   const destination = mfaRedirectPath("/", await mfaPolicy(client));
   if (destination) redirect(destination);
   redirect("/");
+}
+
+export async function googleSignInAction(): Promise<void> {
+  const origin = (await headers()).get("origin");
+  if (!origin) redirect("/login?error=google_sign_in_failed");
+  const result = await startGoogleSignIn(await createRequestClient(), {
+    redirectTo: new URL("/auth/callback", origin).toString(),
+  });
+  if (!result.ok) redirect("/login?error=google_sign_in_failed");
+  redirect(result.value.url);
 }
 
 export async function logOutAction(): Promise<void> {
@@ -317,4 +329,39 @@ export async function generateVatReportAction(
   redirect(
     `/companies/${companyId}/vat-reports?period=${encodeURIComponent(period)}`,
   );
+}
+
+export async function inviteMemberAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const client = await requireUserClient();
+  const requestHeaders = await headers();
+  const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host");
+  const protocol = requestHeaders.get("x-forwarded-proto") ?? "http";
+  if (!host) return refused("invitation_failed", formData, ["email", "role"]);
+  const result = await inviteMember(client, supabaseInvitationMailer(client), {
+    organizationId: field(formData, "organizationId"),
+    companyId: field(formData, "companyId") || null,
+    email: field(formData, "email"),
+    role: field(formData, "role") as "administrator" | "user",
+    acceptUrl: `${protocol}://${host}/invitations/accept`,
+  });
+  if (!result.ok) return refused(result.error, formData, ["email", "role"]);
+  refresh();
+  return { error: null, values: {} };
+}
+
+export async function acceptInvitationAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const result = await acceptInvitation(await requireUserClient(), field(formData, "token"));
+  if (!result.ok) return refused(result.error, formData, []);
+  redirect("/");
+}
+
+export async function changeMembershipRoleAction(_state: FormState, formData: FormData): Promise<FormState> {
+  return settled(await changeMembershipRole(await requireUserClient(), {
+    membershipId: field(formData, "membershipId"),
+    role: field(formData, "role") as "administrator" | "user",
+  }));
+}
+
+export async function removeMembershipAction(_state: FormState, formData: FormData): Promise<FormState> {
+  return settled(await removeMembership(await requireUserClient(), field(formData, "membershipId")));
 }

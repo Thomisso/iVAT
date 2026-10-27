@@ -25,6 +25,9 @@ npm run worker               # background worker, in a second terminal
 
 Open http://localhost:3000/signup. Signing up creates your Organization, makes you its Administrator, and takes you to create your first Company. Local email confirmation is off, so you are signed in right away. Supabase Studio runs at http://127.0.0.1:54323.
 
+Email/password sign-in works without third-party credentials. To enable Google
+sign-in locally, follow [`docs/google-sign-in.md`](docs/google-sign-in.md).
+
 Uploaded Source Files wait until the Company enables AI processing on its page. Locally, `AI_PROVIDER=fake` (the default `db:start` writes) Splits every page into its own Document and returns a sample Extraction, so no Document leaves your machine.
 
 ## Scripts
