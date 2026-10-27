@@ -1,14 +1,16 @@
 import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { inject } from "vitest";
-import type { AppClient } from "@/application/client";
+import { asUserClient, type AppClient } from "@/application/client";
 import { signUp } from "@/application/auth";
 import { listMyOrganizations } from "@/application/organizations";
 
 export function anonymousClient(): AppClient {
-  return createClient(inject("supabaseUrl"), inject("supabaseAnonKey"), {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
+  return asUserClient(
+    createClient(inject("supabaseUrl"), inject("supabaseAnonKey"), {
+      auth: { persistSession: false, autoRefreshToken: false },
+    }),
+  );
 }
 
 export function uniqueEmail(): string {

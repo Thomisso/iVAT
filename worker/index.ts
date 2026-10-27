@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
 import type { JobWithMetadata } from "pg-boss";
+import { asSystemClient } from "@/application/client";
 import { PROCESSING_JOB_NAMES, runJob, type ProcessingJob, type Worker } from "@/application/processing";
 import { configuredAiProvider } from "@/ai";
 import { createBoss, createProcessingQueues, pgBossJobQueue } from "@/lib/jobs";
@@ -18,9 +19,11 @@ function required(name: string): string {
 const boss = createBoss({ supervise: true });
 
 const worker: Worker = {
-  system: createClient<Database>(required("NEXT_PUBLIC_SUPABASE_URL"), required("SUPABASE_SECRET_KEY"), {
-    auth: { persistSession: false, autoRefreshToken: false },
-  }),
+  system: asSystemClient(
+    createClient<Database>(required("NEXT_PUBLIC_SUPABASE_URL"), required("SUPABASE_SECRET_KEY"), {
+      auth: { persistSession: false, autoRefreshToken: false },
+    }),
+  ),
   ai: configuredAiProvider(),
   jobs: pgBossJobQueue(boss),
 };
