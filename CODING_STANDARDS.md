@@ -10,6 +10,7 @@ Judgement calls for review. CI already enforces typecheck, lint, tests, build, g
 - Commands don't check access or Roles themselves: the database is the only authority (ADR-0008). A Role read in the UI decides what to show, never what is allowed.
 - The command translates Postgres error codes into refusals (for example `42501` → `forbidden`, `23505` → `*_taken`), so callers never see database codes. A database function that refuses for a domain reason raises `P0001` with the refusal code as its `hint`, and the command maps the hint.
 - Values leaving `src/application/` are camelCase domain objects. Snake_case rows stay inside.
+- A query feeding totals, exports or snapshots accounts for every relevant row beyond the configured PostgREST row limit. Review how it guarantees completeness (for example, pagination or a database aggregate returned as one value), and require a case above the limit when truncation would change the result.
 
 ## Database
 
