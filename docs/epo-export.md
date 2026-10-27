@@ -19,7 +19,6 @@ Body: form data (`multipart/form-data` or `application/x-www-form-urlencoded`).
 | `format` | `dphdp3` or `dphkh1` |
 | `taxOffice` | Official technical `c_ufo` code selected from the form |
 | `preparedOn` | Valid ISO preparation date |
-| `personType` | `P` (legal person) or `F` (natural person) |
 | `signatoryFirstName`, `signatoryLastName`, `signatoryCapacity` | Required for `P` |
 | `firstName`, `lastName` | Required for `F` |
 | `email` | Optional contact email |
@@ -41,6 +40,10 @@ Unauthenticated requests follow the app's login redirect. The browser form follo
 that redirect as navigation, renders refusal messages inline and creates a file
 only from a successful XML response. Exports do not mutate the report and do not
 submit anything to EPO.
+
+The legal/natural person type is taken from the Company data saved in the VAT
+Report snapshot, not from the request body. Legal Companies supply signatory
+details per export; natural-person Companies supply their first and last name.
 
 Schema provenance, mappings, rounding and update instructions are in
 [`schemas/epo/README.md`](../schemas/epo/README.md). Tests compare exports with
