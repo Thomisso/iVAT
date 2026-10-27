@@ -46,6 +46,25 @@
     "create": "Create company",
     "noOrganization": "You are not an administrator of any organization, so you cannot add companies."
   },
+  "members": {
+    "nav": "Members",
+    "organizationNav": "Manage {organization}",
+    "companyTitle": "Members of {company}",
+    "organizationTitle": "Members of {organization}",
+    "inviteTitle": "Invite a person",
+    "email": "Email",
+    "role": "Role",
+    "administrator": "Administrator",
+    "user": "User",
+    "invite": "Send invitation",
+    "currentTitle": "Current Memberships",
+    "none": "No Memberships in this scope.",
+    "changeRole": "Change Role",
+    "remove": "Remove Membership",
+    "acceptTitle": "Accept invitation",
+    "acceptIntro": "Accept the invitation to gain access to the Organization or Company.",
+    "accept": "Accept invitation"
+  },
   "dashboard": {
     "companies": "Companies"
   },
@@ -79,6 +98,11 @@
     "invalid_postal_code": "Postal code must have 5 digits.",
     "ico_taken": "A company with this IČO already exists in your organization.",
     "forbidden": "You are not allowed to do this.",
+    "invalid_invitation": "Enter a valid email, Role and invitation scope.",
+    "invitation_failed": "The invitation email could not be sent. Try again.",
+    "invitation_invalid": "This invitation link is invalid.",
+    "invitation_used": "This invitation link has already been used.",
+    "invitation_expired": "This invitation link has expired.",
     "file_required": "Choose a file to upload.",
     "unsupported_format": "This file format is not supported. Upload a PDF, PNG or JPEG file.",
     "content_does_not_match_format": "The file content does not match its extension. Check that the file is really a PDF, PNG or JPEG.",

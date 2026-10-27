@@ -109,16 +109,42 @@ isOneToOne: false
       referencedColumns: ["id","company_id","organization_id"]
     }
                   ]
-                },"membership": {
+                },"invitation": {
                   Row: {
-                    "company_id": string | null,"created_at": string,"id": string,"organization_id": string,"role": Database["public"]['Enums']["membership_role"],"user_id": string
+                    "accepted_at": string | null,"accepted_by": string | null,"company_id": string | null,"created_at": string,"created_by": string,"email": string,"expires_at": string,"id": string,"organization_id": string,"role": Database["public"]['Enums']["membership_role"],"token_hash": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "company_id"?: string | null,"created_at"?: string,"id"?: string,"organization_id": string,"role": Database["public"]['Enums']["membership_role"],"user_id": string
+                    "accepted_at"?: string | null,"accepted_by"?: string | null,"company_id"?: string | null,"created_at"?: string,"created_by"?: string,"email": string,"expires_at"?: string,"id"?: string,"organization_id": string,"role": Database["public"]['Enums']["membership_role"],"token_hash": string
                   }
                   Update: {
-                    "company_id"?: string | null,"created_at"?: string,"id"?: string,"organization_id"?: string,"role"?: Database["public"]['Enums']["membership_role"],"user_id"?: string
+                    "accepted_at"?: string | null,"accepted_by"?: string | null,"company_id"?: string | null,"created_at"?: string,"created_by"?: string,"email"?: string,"expires_at"?: string,"id"?: string,"organization_id"?: string,"role"?: Database["public"]['Enums']["membership_role"],"token_hash"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "invitation_company_id_organization_id_fkey"
+      columns: ["company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "company"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "invitation_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organization"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"membership": {
+                  Row: {
+                    "company_id": string | null,"created_at": string,"email": string,"id": string,"organization_id": string,"role": Database["public"]['Enums']["membership_role"],"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "company_id"?: string | null,"created_at"?: string,"email": string,"id"?: string,"organization_id": string,"role": Database["public"]['Enums']["membership_role"],"user_id": string
+                  }
+                  Update: {
+                    "company_id"?: string | null,"created_at"?: string,"email"?: string,"id"?: string,"organization_id"?: string,"role"?: Database["public"]['Enums']["membership_role"],"user_id"?: string
                   }
                   Relationships: [
                     {
@@ -223,11 +249,23 @@ isOneToOne: false
                 }
           }
           Functions: {
-            "approve_document":
+            "accept_invitation":
+{ Args: { "invitation_token": string }; Returns: undefined
+                           },
+"approve_document":
 { Args: { "reviewed_version": number,"target_document_id": string }; Returns: undefined
+                           },
+"cancel_invitation":
+{ Args: { "invitation_token": string }; Returns: undefined
+                           },
+"change_membership_role":
+{ Args: { "target_membership_id": string,"target_role": Database["public"]['Enums']["membership_role"] }; Returns: undefined
                            },
 "correct_document":
 { Args: { "based_on_version": number,"payload": Json,"target_document_id": string }; Returns: number
+                           },
+"create_invitation":
+{ Args: { "target_company_id": string,"target_email": string,"target_organization_id": string,"target_role": Database["public"]['Enums']["membership_role"] }; Returns: string
                            },
 "record_ai_extraction":
 { Args: { "model": string,"payload": Json,"provider": string,"target_document_id": string,"target_extraction_request_id": string }; Returns: undefined
@@ -237,6 +275,9 @@ isOneToOne: false
                            },
 "reject_document":
 { Args: { "target_document_id": string }; Returns: undefined
+                           },
+"remove_membership":
+{ Args: { "target_membership_id": string }; Returns: undefined
                            },
 "reprocess_document":
 { Args: { "target_document_id": string }; Returns: undefined
