@@ -116,6 +116,7 @@ export async function AppSidebar({
           ))}
           {superAdmin && <Link href="/platform/ai-settings">{t("platformAi.nav")}</Link>}
           <LanguageSwitcher />
+          <Link href="/settings/security">{t("nav.security")}</Link>
           <form action={logOutAction}>
             <Button type="submit" variant="ghost">
               {t("nav.logOut")}

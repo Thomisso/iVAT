@@ -87,6 +87,21 @@ npm run db:start
 npm test
 ```
 
+The end-to-end smoke test starts this worktree's Supabase stack, resets its
+database, starts Next.js and the worker with the fake AI provider, and walks the
+acceptance scenario in headless Chromium. Install Chromium once after `npm ci`,
+then run the whole scenario with one command:
+
+```bash
+npx playwright install chromium
+npm run test:e2e
+```
+
+It signs up a unique local user, creates a Company, sends a local invitation,
+uploads and approves a Document, generates a VAT Report, checks its drill-down,
+and validates the downloaded EPO XML against the vendored official XSD. The
+test does not call an external AI or other external network service.
+
 ## CI
 
 `.github/workflows/ci.yml` runs on every pull request and on `main`. It checks that `package-lock.json` matches `package.json` and, on a pull request, that no migration already on `main` was changed, renamed or deleted. It then starts local Supabase, checks that `src/lib/database.types.ts` matches the migrations, then runs typecheck, lint, tests and build. After changing a migration, run `npm run db:types` and commit the result. Coding conventions that need judgement rather than a check are in [`CODING_STANDARDS.md`](CODING_STANDARDS.md).
