@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
           node-version: 22
@@ -20,6 +22,16 @@ jobs:
         run: |
           npm install --package-lock-only --ignore-scripts
           git diff --exit-code package-lock.json
+
+      - name: Migrations already on main are unchanged
+        if: github.event_name == 'pull_request'
+        run: |
+          changed=$(git diff --name-only --diff-filter=MDR "origin/${{ github.base_ref }}...HEAD" -- supabase/migrations)
+          if [ -n "$changed" ]; then
+            echo "A migration on main is history; add a new migration instead. Changed:"
+            echo "$changed"
+            exit 1
+          fi
 
       - name: Start local Supabase
         run: npm run db:start -- -x studio,mailpit,logflare,vector,edge-runtime,imgproxy,supavisor

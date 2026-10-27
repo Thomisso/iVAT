@@ -198,3 +198,13 @@ img.source-file-viewer {
   min-height: 0;
   object-fit: contain;
 }
+
+.ai-processing {
+  margin-bottom: 1.5rem;
+}
+
+.command {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
