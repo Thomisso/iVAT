@@ -18,13 +18,15 @@ function required(name: string): string {
 
 const boss = createBoss({ supervise: true });
 
+const system = asSystemClient(
+  createClient<Database>(required("NEXT_PUBLIC_SUPABASE_URL"), required("SUPABASE_SECRET_KEY"), {
+    auth: { persistSession: false, autoRefreshToken: false },
+  }),
+);
+
 const worker: Worker = {
-  system: asSystemClient(
-    createClient<Database>(required("NEXT_PUBLIC_SUPABASE_URL"), required("SUPABASE_SECRET_KEY"), {
-      auth: { persistSession: false, autoRefreshToken: false },
-    }),
-  ),
-  ai: configuredAiProvider(),
+  system,
+  ai: configuredAiProvider(system),
   jobs: pgBossJobQueue(boss),
 };
 

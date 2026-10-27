@@ -7,6 +7,21 @@ export type AiInput = { format: SourceFileFormat; mediaType: string; bytes: Uint
 /** A Document found by Split, as an inclusive range of 1-based page numbers. */
 export type PageRange = { firstPage: number; lastPage: number };
 
+export type AiCallContext = { organizationId: string };
+
+/** A provider/configuration refusal whose retryability is known. */
+export class AiProviderError extends Error {
+  readonly code: string;
+  readonly transient: boolean;
+
+  constructor(code: string, message: string, options: { transient: boolean; cause?: unknown }) {
+    super(message, { cause: options.cause });
+    this.name = "AiProviderError";
+    this.code = code;
+    this.transient = options.transient;
+  }
+}
+
 /**
  * An AI provider adapter (ADR-0004). Implementations send PDFs and images
  * natively and throw on technical failures; the job retries and finally marks
@@ -17,6 +32,6 @@ export interface AiProvider {
   readonly name: string;
   /** Where the provider processes the Documents it receives, as consented to by the Company. */
   readonly region: string;
-  split(input: AiInput): Promise<{ model: string; documents: PageRange[] }>;
-  extract(input: AiInput): Promise<{ model: string; payload: ExtractionPayload }>;
+  split(input: AiInput, context?: AiCallContext): Promise<{ model: string; documents: PageRange[] }>;
+  extract(input: AiInput, context?: AiCallContext): Promise<{ model: string; payload: ExtractionPayload }>;
 }
