@@ -13,6 +13,7 @@ import { TextField } from "@/components/text-field";
 import { Button } from "@/components/button";
 import { formatDocumentDate } from "@/lib/format-date";
 import { GenerateForm } from "./generate-form";
+import { ExportForm } from "./export-form";
 
 export default async function VatReportsPage({
   params,
@@ -198,6 +199,7 @@ export default async function VatReportsPage({
                 ))
               )}
             </section>
+            <ExportForm key={report.id + report.generatedAt} companyId={companyId} period={period} preparedOn={new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Prague" }).format(new Date())} />
             <section>
               <h2>{t("vatReports.excluded")}</h2>
               {result.excludedDocuments.length === 0 ? (

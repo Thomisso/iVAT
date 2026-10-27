@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Pisemnost nazevSW="iVAT" verzeSW="0.1.0">
+  <DPHKH1 verzePis="03.01.15">
+    <VetaD dokument="KH1" k_uladis="DPH" khdph_forma="B" rok="2026" mesic="10" d_poddp="27.10.2026"/>
+    <VetaP c_ufo="451" dic="27082440" typ_ds="P" zkrobchjm="Test &amp; spol. s.r.o." ulice="Na Příkopě" c_pop="1" naz_obce="Praha" psc="11000" stat="ČESKÁ REPUBLIKA" email="qa@example.test" opr_jmeno="Jana" opr_prijmeni="Nováková" opr_postaveni="jednatelka"/>
+    <VetaA4 c_radku="1" dic_odb="27082440" c_evid_dd="INV-1" dppd="01.10.2026" kod_rezim_pl="0" zdph_44="N" zakl_dane1="10000.49" dan1="2100.10"/>
+    <VetaA5 zakl_dane2="2000.50" dan2="240.06"/>
+    <VetaB2 c_radku="1" dic_dod="27082440" c_evid_dd="INV-3" dppd="01.10.2026" pomer="N" zdph_44="N" zakl_dane2="20000.50" dan2="2400.06"/>
+    <VetaB3 zakl_dane1="1000.49" dan1="210.10"/>
+    <VetaC obrat23="10000.49" obrat5="2000.50" pln23="1000.49" pln5="20000.50"/>
+  </DPHKH1>
+</Pisemnost>

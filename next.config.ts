@@ -7,6 +7,14 @@ import createNextIntlPlugin from "next-intl/plugin";
 const UPLOAD_BODY_LIMIT = "21mb";
 
 const nextConfig: NextConfig = {
+  // Keep the validator's WASM module beside its Node entry point.
+  serverExternalPackages: ["libxml2-wasm"],
+  outputFileTracingIncludes: {
+    "/companies/**/vat-reports/**/xml": [
+      "./schemas/epo/*.xsd",
+      "./node_modules/libxml2-wasm/lib/*.wasm",
+    ],
+  },
   experimental: {
     serverActions: { bodySizeLimit: UPLOAD_BODY_LIMIT },
     proxyClientMaxBodySize: UPLOAD_BODY_LIMIT,

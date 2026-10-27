@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Pisemnost nazevSW="iVAT" verzeSW="0.1.0">
+  <DPHKH1 verzePis="03.01.15">
+    <VetaD dokument="KH1" k_uladis="DPH" khdph_forma="B" rok="2026" mesic="10" d_poddp="27.10.2026"/>
+    <VetaP c_ufo="451" dic="27082440" typ_ds="F" jmeno="Jan" prijmeni="Novák" ulice="Na Příkopě" c_pop="1" naz_obce="Praha" psc="11000" stat="ČESKÁ REPUBLIKA"/>
+    <VetaC obrat23="0.00" obrat5="0.00" pln23="0.00" pln5="0.00"/>
+  </DPHKH1>
+</Pisemnost>
