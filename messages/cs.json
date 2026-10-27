@@ -31,6 +31,8 @@
     "signUpLink": "Zaregistrujte se",
     "signUpTitle": "Vytvořte si účet",
     "signUp": "Zaregistrovat se",
+    "or": "nebo",
+    "continueWithGoogle": "Pokračovat přes Google",
     "haveAccount": "Už máte účet?",
     "logInLink": "Přihlaste se"
   },
@@ -90,6 +92,7 @@
     "email_taken": "Účet s tímto e-mailem už existuje.",
     "weak_password": "Heslo je příliš slabé. Použijte alespoň 8 znaků.",
     "sign_up_failed": "Registrace se nezdařila. Zkuste to prosím znovu.",
+    "google_sign_in_failed": "Přihlášení přes Google se nezdařilo. Zkuste to prosím znovu.",
     "invalid_credentials": "Nesprávný e-mail nebo heslo.",
     "name_required": "Zadejte název firmy.",
     "invalid_ico": "IČO musí mít 8 číslic.",

@@ -241,6 +241,7 @@ as $$
 declare
   new_organization_id uuid;
   given_organization_name text;
+  oauth_display_name text;
 begin
   if exists (
     select 1 from public.invitation i
@@ -250,8 +251,12 @@ begin
   end if;
 
   given_organization_name := nullif(trim(new.raw_user_meta_data ->> 'organization_name'), '');
+  oauth_display_name := coalesce(
+    nullif(trim(new.raw_user_meta_data ->> 'full_name'), ''),
+    nullif(trim(new.raw_user_meta_data ->> 'name'), '')
+  );
   insert into public.organization (name)
-  values (coalesce(given_organization_name, new.email))
+  values (coalesce(given_organization_name, oauth_display_name, new.email))
   returning id into new_organization_id;
 
   insert into public.membership (user_id, organization_id, role, email)

@@ -1,11 +1,10 @@
 "use server";
 
 import { refresh } from "next/cache";
-import { cookies } from "next/headers";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { generateVatReport } from "@/application/vat-reports";
-import { logIn, logOut, signUp } from "@/application/auth";
+import { logIn, logOut, signUp, startGoogleSignIn } from "@/application/auth";
 import { createCompany, disableAiProcessing, enableAiProcessing } from "@/application/companies";
 import { acceptInvitation, changeMembershipRole, inviteMember, removeMembership } from "@/application/memberships";
 import { supabaseInvitationMailer } from "@/application/supabase-invitation-mailer";
@@ -49,6 +48,16 @@ export async function logInAction(_state: FormState, formData: FormData): Promis
   });
   if (!result.ok) return refused(result.error, formData, ["email"]);
   redirect("/");
+}
+
+export async function googleSignInAction(): Promise<void> {
+  const origin = (await headers()).get("origin");
+  if (!origin) redirect("/login?error=google_sign_in_failed");
+  const result = await startGoogleSignIn(await createRequestClient(), {
+    redirectTo: new URL("/auth/callback", origin).toString(),
+  });
+  if (!result.ok) redirect("/login?error=google_sign_in_failed");
+  redirect(result.value.url);
 }
 
 export async function logOutAction(): Promise<void> {
