@@ -7,6 +7,8 @@ import { generateVatReport } from "@/application/vat-reports";
 import { logIn, logOut, signUp, startGoogleSignIn } from "@/application/auth";
 import { prefillCompanyFromAres } from "@/application/ares";
 import { createCompany, disableAiProcessing, enableAiProcessing, updateCompany } from "@/application/companies";
+import { acceptInvitation, changeMembershipRole, inviteMember, removeMembership } from "@/application/memberships";
+import { supabaseInvitationMailer } from "@/application/supabase-invitation-mailer";
 import { approveDocument, correctDocument, rejectDocument, reprocessDocument } from "@/application/documents";
 import type { ExtractionPayload, Party } from "@/application/extraction-payload";
 import { retrySplit, uploadSourceFile } from "@/application/source-files";
@@ -272,4 +274,39 @@ export async function generateVatReportAction(
   redirect(
     `/companies/${companyId}/vat-reports?period=${encodeURIComponent(period)}`,
   );
+}
+
+export async function inviteMemberAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const client = await requireUserClient();
+  const requestHeaders = await headers();
+  const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host");
+  const protocol = requestHeaders.get("x-forwarded-proto") ?? "http";
+  if (!host) return refused("invitation_failed", formData, ["email", "role"]);
+  const result = await inviteMember(client, supabaseInvitationMailer(client), {
+    organizationId: field(formData, "organizationId"),
+    companyId: field(formData, "companyId") || null,
+    email: field(formData, "email"),
+    role: field(formData, "role") as "administrator" | "user",
+    acceptUrl: `${protocol}://${host}/invitations/accept`,
+  });
+  if (!result.ok) return refused(result.error, formData, ["email", "role"]);
+  refresh();
+  return { error: null, values: {} };
+}
+
+export async function acceptInvitationAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const result = await acceptInvitation(await requireUserClient(), field(formData, "token"));
+  if (!result.ok) return refused(result.error, formData, []);
+  redirect("/");
+}
+
+export async function changeMembershipRoleAction(_state: FormState, formData: FormData): Promise<FormState> {
+  return settled(await changeMembershipRole(await requireUserClient(), {
+    membershipId: field(formData, "membershipId"),
+    role: field(formData, "role") as "administrator" | "user",
+  }));
+}
+
+export async function removeMembershipAction(_state: FormState, formData: FormData): Promise<FormState> {
+  return settled(await removeMembership(await requireUserClient(), field(formData, "membershipId")));
 }

@@ -55,7 +55,7 @@ describe("tenant isolation", () => {
     const deleteCompany = await b.client.from("company").delete().eq("id", a.companyId);
     const joinOrganization = await b.client
       .from("membership")
-      .insert({ user_id: b.userId, organization_id: a.organizationId, role: "administrator" });
+      .insert({ user_id: b.userId, organization_id: a.organizationId, email: b.email, role: "administrator" });
     const forgeFilingFrequency = await b.client
       .from("company_filing_frequency")
       .insert({

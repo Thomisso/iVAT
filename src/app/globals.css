@@ -1243,3 +1243,14 @@ select:disabled {
 }
 .report-totals dd { margin: var(--space-2) 0 0; }
 .report-section + .report-section { margin-top: var(--space-5); }
+.member-list {
+  display: grid;
+  gap: var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+.member-list .panel {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+}

@@ -56,6 +56,7 @@ export async function companyMember(
       user_id: user.userId,
       organization_id: organizationId,
       company_id: companyId,
+      email: user.email,
       role,
     });
   if (error) throw error;

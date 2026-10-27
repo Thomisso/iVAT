@@ -1,13 +1,26 @@
-import { NextResponse } from "next/server";
-import { completeGoogleSignIn } from "@/application/auth";
+import type { EmailOtpType } from "@supabase/supabase-js";
+import { NextResponse, type NextRequest } from "next/server";
+import { completeGoogleSignIn, verifyEmailOtp } from "@/application/auth";
 import { createRequestClient } from "@/lib/supabase/server";
 
-export async function GET(request: Request) {
-  const requestUrl = new URL(request.url);
-  const code = requestUrl.searchParams.get("code");
-  if (code) {
-    const result = await completeGoogleSignIn(await createRequestClient(), code);
-    if (result.ok) return NextResponse.redirect(new URL("/", requestUrl.origin));
+const EMAIL_OTP_TYPES: EmailOtpType[] = ["email", "email_change", "invite", "magiclink", "recovery", "signup"];
+
+export async function GET(request: NextRequest) {
+  const code = request.nextUrl.searchParams.get("code");
+  const tokenHash = request.nextUrl.searchParams.get("token_hash");
+  const requestedType = request.nextUrl.searchParams.get("type");
+  const requested = request.nextUrl.searchParams.get("next") ?? "/";
+  const next = requested.startsWith("/") && !requested.startsWith("//") ? requested : "/";
+  const client = await createRequestClient();
+
+  if (tokenHash && EMAIL_OTP_TYPES.includes(requestedType as EmailOtpType)) {
+    if (await verifyEmailOtp(client, tokenHash, requestedType as EmailOtpType)) {
+      return NextResponse.redirect(new URL(next, request.url));
+    }
   }
-  return NextResponse.redirect(new URL("/login?error=google_sign_in_failed", requestUrl.origin));
+  if (code) {
+    const result = await completeGoogleSignIn(client, code);
+    if (result.ok) return NextResponse.redirect(new URL("/", request.url));
+  }
+  return NextResponse.redirect(new URL(`/login${code ? "?error=google_sign_in_failed" : ""}`, request.url));
 }
