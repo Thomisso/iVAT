@@ -85,6 +85,8 @@ export function DropZone({
             files.some((file) => !acceptsFile(file, accept)) ||
             (!multiple && files.length > 1)
           ) {
+            input.current.value = "";
+            setNames("");
             setError(
               errors(
                 files.length > 1 && !multiple
