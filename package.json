@@ -18,7 +18,8 @@
     "test": "vitest run",
     "test:e2e": "node scripts/e2e.mjs",
     "test:watch": "vitest",
-    "test:contract:ares": "ARES_CONTRACT_TEST=1 vitest run tests/contract/ares.test.ts"
+    "test:contract:ares": "ARES_CONTRACT_TEST=1 vitest run tests/contract/ares.test.ts",
+    "test:contract:anthropic": "ANTHROPIC_CONTRACT_TEST=1 vitest run tests/contract/anthropic.test.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

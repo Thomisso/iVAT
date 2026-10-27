@@ -1011,6 +1011,29 @@ select {
   gap: var(--space-1);
   align-items: flex-start;
 }
+.platform-provider {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.platform-organizations {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--line);
+}
+.platform-organization {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--line);
+}
+.iv-checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
 .filters {
   flex-direction: row;
   flex-wrap: wrap;

@@ -152,7 +152,25 @@
     "invalid_export_format": "Vyberte přiznání k DPH nebo kontrolní hlášení.",
     "report_not_found": "Uložený návrh není dostupný. Nejprve jej vygenerujte.",
     "xml_invalid": "XML nevyhovuje oficiálnímu schématu. Zkontrolujte údaje firmy a dokladů, opravte je a návrh znovu vygenerujte.",
-    "export_failed": "Stažení se nezdařilo. Zkuste to znovu."
+    "export_failed": "Stažení se nezdařilo. Zkuste to znovu.",
+    "unknown_provider": "Tento poskytovatel AI není na platformě nastaven.",
+    "model_required": "Zadejte model pro rozdělení i vytěžení.",
+    "invalid_platform_key": "Zadejte platný API klíč platformy."
+  },
+  "platformAi": {
+    "nav": "Nastavení AI platformy",
+    "title": "Nastavení AI platformy",
+    "intro": "Nastavte dostupnost poskytovatelů, modely a šifrované klíče platformy a vyberte organizace, které je smějí používat.",
+    "available": "Poskytovatel je dostupný",
+    "splitModel": "Model pro rozdělení",
+    "extractModel": "Model pro vytěžení",
+    "platformKey": "API klíč platformy",
+    "keyStored": "Je uložen klíč končící na {lastFour}. Ponechte pole prázdné, chcete-li ho zachovat.",
+    "keyMissing": "Není uložen žádný klíč platformy.",
+    "save": "Uložit nastavení poskytovatele",
+    "organizationAccess": "Organizace oprávněné používat klíč platformy",
+    "enableForOrganization": "Povolit",
+    "disableForOrganization": "Zakázat"
   },
   "mfa": {
     "securityTitle": "Zabezpečení",
