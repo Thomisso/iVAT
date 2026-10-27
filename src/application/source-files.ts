@@ -66,6 +66,15 @@ async function countPages(format: SourceFileFormat, bytes: Uint8Array): Promise<
   }
 }
 
+/** A PDF of just the given pages, 1-based and inclusive, of a PDF Source File. */
+export async function pdfPages(bytes: Uint8Array, range: { firstPage: number; lastPage: number }): Promise<Uint8Array> {
+  const source = await PDFDocument.load(bytes, { ignoreEncryption: true, updateMetadata: false });
+  const pages = await PDFDocument.create();
+  const indices = Array.from({ length: range.lastPage - range.firstPage + 1 }, (_, i) => range.firstPage - 1 + i);
+  for (const page of await pages.copyPages(source, indices)) pages.addPage(page);
+  return pages.save();
+}
+
 export const sourceFileObjectPath = (companyId: string, sourceFileId: string) => `${companyId}/${sourceFileId}`;
 
 /**

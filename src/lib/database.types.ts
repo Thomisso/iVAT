@@ -95,6 +95,12 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "document"
       referencedColumns: ["id","company_id","organization_id"]
+    },{
+      foreignKeyName: "extraction_version_document_id_company_id_organization_id_fkey"
+      columns: ["document_id","company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "document_overview"
+      referencedColumns: ["id","company_id","organization_id"]
     }
                   ]
                 },"membership": {
@@ -160,14 +166,37 @@ isOneToOne: false
                 }
           }
           Views: {
-            [_ in never]: never
+            "document_overview": {
+                  Row: {
+                    "company_id": string,"counterparty_ico": string | null,"counterparty_name": string | null,"counterparty_search": string | null,"counterparty_vat_id": string | null,"created_at": string,"currency": string | null,"direction": string | null,"document_number": string | null,"first_page": number,"gross_amount": string | null,"id": string,"last_page": number,"organization_id": string,"reporting_period": string | null,"source_file_id": string,"status": Database["public"]['Enums']["document_status"],"tax_point_date": string | null,"version": number | null
+                  }
+                  ComputedFields: never
+                  Relationships: [
+                    {
+      foreignKeyName: "document_source_file_id_company_id_organization_id_fkey"
+      columns: ["source_file_id","company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "source_file"
+      referencedColumns: ["id","company_id","organization_id"]
+    }
+                  ]
+                }
           }
           Functions: {
-            "record_ai_extraction":
+            "approve_document":
+{ Args: { "reviewed_version": number,"target_document_id": string }; Returns: undefined
+                           },
+"correct_document":
+{ Args: { "based_on_version": number,"payload": Json,"target_document_id": string }; Returns: number
+                           },
+"record_ai_extraction":
 { Args: { "model": string,"payload": Json,"provider": string,"target_document_id": string,"target_extraction_request_id": string }; Returns: undefined
                            },
 "record_split":
 { Args: { "page_ranges": Json,"target_source_file_id": string }; Returns: undefined
+                           },
+"reject_document":
+{ Args: { "target_document_id": string }; Returns: undefined
                            },
 "reprocess_document":
 { Args: { "target_document_id": string }; Returns: undefined
@@ -177,7 +206,7 @@ isOneToOne: false
                            }
           }
           Enums: {
-            "document_status": "uploaded"|"processing"|"needs_review"|"failed","membership_role": "administrator"|"user","source_file_format": "pdf"|"png"|"jpeg","source_file_status": "uploaded"|"processing"|"split"|"failed"
+            "document_status": "uploaded"|"processing"|"needs_review"|"failed"|"approved"|"rejected","membership_role": "administrator"|"user","source_file_format": "pdf"|"png"|"jpeg","source_file_status": "uploaded"|"processing"|"split"|"failed"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -297,7 +326,7 @@ export const Constants = {
           }
         },"public": {
           Enums: {
-            "document_status": ["uploaded", "processing", "needs_review", "failed"],"membership_role": ["administrator", "user"],"source_file_format": ["pdf", "png", "jpeg"],"source_file_status": ["uploaded", "processing", "split", "failed"]
+            "document_status": ["uploaded", "processing", "needs_review", "failed", "approved", "rejected"],"membership_role": ["administrator", "user"],"source_file_format": ["pdf", "png", "jpeg"],"source_file_status": ["uploaded", "processing", "split", "failed"]
           }
         }
 } as const

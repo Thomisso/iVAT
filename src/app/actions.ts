@@ -5,7 +5,8 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { logIn, logOut, signUp } from "@/application/auth";
 import { createCompany, disableAiProcessing, enableAiProcessing } from "@/application/companies";
-import { reprocessDocument } from "@/application/documents";
+import { approveDocument, correctDocument, rejectDocument, reprocessDocument } from "@/application/documents";
+import type { ExtractionPayload, Party } from "@/application/extraction-payload";
 import { retrySplit, uploadSourceFile } from "@/application/source-files";
 import { configuredAiProvider } from "@/ai";
 import { jobQueue } from "@/lib/jobs";
@@ -109,6 +110,94 @@ export async function retrySplitAction(_state: FormState, formData: FormData): P
 export async function reprocessDocumentAction(_state: FormState, formData: FormData): Promise<FormState> {
   return settled(
     await reprocessDocument(await requireUserClient(), jobQueue, {
+      companyId: field(formData, "companyId"),
+      documentId: field(formData, "documentId"),
+    }),
+  );
+}
+
+/** A field of the correction form, or null when left empty. */
+function optionalField(formData: FormData, name: string): string | null {
+  return field(formData, name).trim() || null;
+}
+
+function partyFromForm(formData: FormData, prefix: string): Party {
+  const value = (name: string) => optionalField(formData, `${prefix}.${name}`);
+  return {
+    name: value("name"),
+    ico: value("ico"),
+    vatId: value("vatId"),
+    street: value("street"),
+    city: value("city"),
+    postalCode: value("postalCode"),
+    country: value("country"),
+  };
+}
+
+/** The Extraction payload the correction form describes, as typed; `correctDocument` normalizes it. */
+function payloadFromForm(formData: FormData): ExtractionPayload {
+  const lines = [...new Set([...formData.keys()].flatMap((key) => /^rateBreakdown\.(\d+)\./.exec(key)?.[1] ?? []))].sort(
+    (a, b) => Number(a) - Number(b),
+  );
+  return {
+    schemaVersion: 1,
+    documentType: optionalField(formData, "documentType") as ExtractionPayload["documentType"],
+    documentNumber: optionalField(formData, "documentNumber"),
+    issueDate: optionalField(formData, "issueDate"),
+    taxPointDate: optionalField(formData, "taxPointDate"),
+    dueDate: optionalField(formData, "dueDate"),
+    direction: optionalField(formData, "direction") as ExtractionPayload["direction"],
+    supplier: partyFromForm(formData, "supplier"),
+    customer: partyFromForm(formData, "customer"),
+    currency: optionalField(formData, "currency"),
+    rateBreakdown: lines.map((i) => ({
+      rate: Number(optionalField(formData, `rateBreakdown.${i}.rate`)?.replace(",", ".") ?? NaN),
+      netAmount: field(formData, `rateBreakdown.${i}.netAmount`),
+      vatAmount: field(formData, `rateBreakdown.${i}.vatAmount`),
+    })),
+    totals: {
+      netAmount: optionalField(formData, "totals.netAmount"),
+      vatAmount: optionalField(formData, "totals.vatAmount"),
+      grossAmount: optionalField(formData, "totals.grossAmount"),
+    },
+    payment: {
+      variableSymbol: optionalField(formData, "payment.variableSymbol"),
+      bankAccount: optionalField(formData, "payment.bankAccount"),
+      iban: optionalField(formData, "payment.iban"),
+    },
+    proposedVatRegime: optionalField(formData, "proposedVatRegime") as ExtractionPayload["proposedVatRegime"],
+    originalDocumentNumber: optionalField(formData, "originalDocumentNumber"),
+  };
+}
+
+export async function correctDocumentAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const result = await correctDocument(await requireUserClient(), {
+    companyId: field(formData, "companyId"),
+    documentId: field(formData, "documentId"),
+    basedOnVersion: Number(field(formData, "basedOnVersion")),
+    payload: payloadFromForm(formData),
+  });
+  if (!result.ok) {
+    const values = [...formData.entries()].filter(([name, value]) => !name.startsWith("$") && typeof value === "string");
+    return { error: result.error, values: Object.fromEntries(values) as Record<string, string> };
+  }
+  refresh();
+  return { error: null, values: {} };
+}
+
+export async function approveDocumentAction(_state: FormState, formData: FormData): Promise<FormState> {
+  return settled(
+    await approveDocument(await requireUserClient(), {
+      companyId: field(formData, "companyId"),
+      documentId: field(formData, "documentId"),
+      version: Number(field(formData, "version")),
+    }),
+  );
+}
+
+export async function rejectDocumentAction(_state: FormState, formData: FormData): Promise<FormState> {
+  return settled(
+    await rejectDocument(await requireUserClient(), {
       companyId: field(formData, "companyId"),
       documentId: field(formData, "documentId"),
     }),

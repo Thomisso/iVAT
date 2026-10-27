@@ -1,7 +1,25 @@
 {
-  "app": { "name": "iVAT", "tagline": "Přiznání k DPH z vašich dokladů" },
-  "language": { "label": "Jazyk", "cs": "Čeština", "en": "English" },
-  "nav": { "logOut": "Odhlásit se", "addCompany": "Přidat firmu" },
+  "app": {
+    "name": "iVAT",
+    "tagline": "Přiznání k DPH z vašich dokladů"
+  },
+  "language": {
+    "label": "Jazyk",
+    "cs": "Čeština",
+    "en": "English"
+  },
+  "nav": {
+    "logOut": "Odhlásit se",
+    "addCompany": "Přidat firmu",
+    "menu": "Nabídka",
+    "main": "Hlavní navigace",
+    "userMenu": "Uživatelská nabídka",
+    "switchCompany": "Vybrat firmu",
+    "ico": "IČO",
+    "allDocuments": "Všechny doklady",
+    "received": "Přijaté doklady",
+    "issued": "Vydané doklady"
+  },
   "auth": {
     "email": "E-mail",
     "password": "Heslo",
@@ -44,7 +62,9 @@
     "pageCount": "{count, plural, one {# strana} few {# strany} other {# stran}}",
     "backToCompany": "← Zpět na firmu",
     "hash": "Otisk SHA-256",
-    "status": "Stav"
+    "status": "Stav",
+    "dropTitle": "Přetáhněte sem zdrojový soubor",
+    "chooseFile": "Vybrat soubor"
   },
   "errors": {
     "organization_name_required": "Zadejte název organizace.",
@@ -64,7 +84,16 @@
     "content_does_not_match_format": "Obsah souboru neodpovídá jeho příponě. Zkontrolujte, že jde opravdu o PDF, PNG nebo JPEG.",
     "unreadable_file": "Soubor nelze přečíst. Může být poškozený.",
     "not_retryable": "Znovu lze spustit jen rozdělení, které selhalo.",
-    "not_reprocessable": "Doklad se ještě zpracovává."
+    "not_reprocessable": "Doklad se ještě zpracovává.",
+    "not_in_review": "Měnit, schválit nebo zamítnout lze jen doklad, který čeká na kontrolu.",
+    "stale_version": "Mezitím někdo uložil novější verzi dokladu. Načtěte stránku znovu, abyste ji viděli.",
+    "invalid_choice": "Vyberte jednu z nabízených možností.",
+    "invalid_amount": "Částky musí být čísla s nejvýše dvěma desetinnými místy, například 1210.00.",
+    "invalid_rate": "Sazba DPH musí být procento od 0 do 100.",
+    "invalid_date": "Zadejte existující data.",
+    "invalid_currency": "Měna musí být třípísmenný kód, například CZK.",
+    "invalid_country": "Země musí být dvoupísmenný kód, například CZ.",
+    "one_file_required": "Vyberte jeden zdrojový soubor k nahrání."
   },
   "aiProcessing": {
     "title": "Zpracování pomocí AI",
@@ -85,7 +114,9 @@
     "uploaded": "Čeká",
     "processing": "Zpracovává se",
     "needs_review": "Ke kontrole",
-    "failed": "Selhalo"
+    "failed": "Selhalo",
+    "approved": "Schváleno",
+    "rejected": "Zamítnuto"
   },
   "documents": {
     "title": "Doklady",
@@ -96,6 +127,117 @@
     "userAuthor": "oprava uživatele",
     "retry": "Zkusit znovu",
     "reprocess": "Zpracovat znovu",
-    "retrySplit": "Zkusit rozdělit znovu"
+    "retrySplit": "Zkusit rozdělit znovu",
+    "review": "Zkontrolovat",
+    "filters": "Filtry",
+    "allStatuses": "Všechny stavy",
+    "allDirections": "Přijaté i vydané",
+    "reportingPeriod": "Zdaňovací období",
+    "counterparty": "Protistrana",
+    "counterpartyHint": "Název, DIČ nebo IČO",
+    "filter": "Filtrovat",
+    "clearFilters": "Zrušit filtry",
+    "none": "Zatím žádné doklady.",
+    "noMatch": "Filtrům neodpovídá žádný doklad.",
+    "documentNumber": "Číslo",
+    "direction": "Směr",
+    "taxPointDate": "DUZP",
+    "grossAmount": "Celkem",
+    "vatReport": "Přiznání DPH",
+    "eligible": "Započítá se",
+    "notEligible": "—"
+  },
+  "review": {
+    "title": "Kontrola dokladu",
+    "backToCompany": "← Zpět na firmu",
+    "sourceFile": "Zdrojový soubor {fileName}, {pages}",
+    "page": "strana {page}",
+    "pageRange": "strany {first}–{last}",
+    "status": "Stav",
+    "approvedNote": "Schváleno. Doklad se započítá do přiznání k DPH.",
+    "rejectedNote": "Zamítnuto. Doklad se do přiznání k DPH nezapočítá.",
+    "notReviewableNote": "Doklad ještě není připravený ke kontrole.",
+    "noExtraction": "Zatím nic nebylo vytěženo.",
+    "save": "Uložit opravy",
+    "approve": "Schválit verzi {version}",
+    "reject": "Zamítnout",
+    "history": "Historie verzí",
+    "aiAuthor": "AI · {provider} / {model}",
+    "userAuthor": "Uživatel",
+    "userAuthorYou": "Uživatel (vy)",
+    "currentVersionTime": "{time} · aktuální",
+    "viewingOld": "Prohlížíte verzi {version}. Aktuální je verze {current}.",
+    "showCurrent": "Zobrazit aktuální verzi",
+    "addRateLine": "Přidat sazbu",
+    "removeRateLine": "Odebrat",
+    "notSet": "—",
+    "noImage": "Originál tohoto dokladu nelze zobrazit.",
+    "sections": {
+      "document": "Doklad",
+      "supplier": "Dodavatel",
+      "customer": "Odběratel",
+      "amounts": "Rozpis podle sazeb a součty",
+      "payment": "Platba"
+    },
+    "fields": {
+      "documentType": "Druh dokladu",
+      "documentNumber": "Číslo dokladu",
+      "issueDate": "Datum vystavení",
+      "taxPointDate": "DUZP",
+      "dueDate": "Datum splatnosti",
+      "direction": "Směr",
+      "vatRegime": "Režim DPH",
+      "currency": "Měna",
+      "originalDocumentNumber": "Číslo opravovaného dokladu",
+      "name": "Název",
+      "ico": "IČO",
+      "vatId": "DIČ",
+      "street": "Ulice",
+      "city": "Obec",
+      "postalCode": "PSČ",
+      "country": "Země",
+      "rate": "Sazba (%)",
+      "netAmount": "Základ",
+      "vatAmount": "DPH",
+      "totalNet": "Základ celkem",
+      "totalVat": "DPH celkem",
+      "totalGross": "Celkem s DPH",
+      "variableSymbol": "Variabilní symbol",
+      "bankAccount": "Bankovní účet",
+      "iban": "IBAN"
+    },
+    "documentType": {
+      "invoice": "Faktura",
+      "credit_note": "Opravný daňový doklad (dobropis)",
+      "debit_note": "Opravný daňový doklad (vrubopis)",
+      "receipt": "Účtenka",
+      "simplified_tax_document": "Zjednodušený daňový doklad",
+      "other": "Jiný"
+    },
+    "direction": {
+      "incoming": "Přijatý",
+      "outgoing": "Vydaný"
+    },
+    "vatRegime": {
+      "domestic": "Tuzemské plnění",
+      "domestic_reverse_charge": "Tuzemský přenos daňové povinnosti (§92a)",
+      "eu_acquisition_of_goods": "Pořízení zboží z EU",
+      "eu_received_service": "Přijetí služby z EU",
+      "other": "Jiný (vyžaduje ruční klasifikaci)"
+    }
+  },
+  "statusBadge": {
+    "uploaded": "Nahráno",
+    "splitting": "Rozděluje se",
+    "extracting": "Vytěžuje se",
+    "proposed": "Návrh AI",
+    "needs-review": "Ke kontrole",
+    "duplicate": "Možná duplicita",
+    "manual": "Nutná ruční klasifikace",
+    "failed": "Selhalo",
+    "approved": "Schváleno",
+    "locked": "Období uzamčeno",
+    "split": "Rozděleno",
+    "rejected": "Zamítnuto"
   }
 }

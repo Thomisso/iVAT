@@ -1,8 +1,8 @@
-import { PDFDocument } from "pdf-lib";
 import type { AiInput, AiProvider, PageRange } from "./ai-provider";
 import type { SystemClient } from "./client";
 import type { DocumentStatus } from "./documents";
 import {
+  pdfPages,
   SOURCE_FILE_BUCKET,
   SOURCE_FILE_MEDIA_TYPES,
   sourceFileObjectPath,
@@ -158,9 +158,5 @@ function aiInput(format: SourceFileFormat, bytes: Uint8Array, pageCount: number)
 /** The Document's own pages: a PDF of just its range, or the whole image. */
 async function documentInput(format: SourceFileFormat, bytes: Uint8Array, range: PageRange): Promise<AiInput> {
   if (format !== "pdf") return aiInput(format, bytes, 1);
-  const source = await PDFDocument.load(bytes, { ignoreEncryption: true, updateMetadata: false });
-  const pages = await PDFDocument.create();
-  const indices = Array.from({ length: range.lastPage - range.firstPage + 1 }, (_, i) => range.firstPage - 1 + i);
-  for (const page of await pages.copyPages(source, indices)) pages.addPage(page);
-  return aiInput(format, await pages.save(), indices.length);
+  return aiInput(format, await pdfPages(bytes, range), range.lastPage - range.firstPage + 1);
 }

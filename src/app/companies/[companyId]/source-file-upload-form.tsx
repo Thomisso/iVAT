@@ -4,22 +4,23 @@ import { useActionState } from "react";
 import { useTranslations } from "next-intl";
 import { uploadSourceFileAction } from "@/app/actions";
 import { FormError } from "@/components/form-error";
+import { DropZone } from "@/components/drop-zone";
+import { Button } from "@/components/button";
 
 export function SourceFileUploadForm({ companyId }: { companyId: string }) {
   const t = useTranslations("sourceFiles");
-  const [state, action, pending] = useActionState(uploadSourceFileAction, { error: null, values: {} });
+  const [state, action, pending] = useActionState(uploadSourceFileAction, {
+    error: null,
+    values: {},
+  });
   return (
     <form action={action} className="form upload-form">
       <input type="hidden" name="companyId" value={companyId} />
-      <label>
-        {t("file")}
-        <input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg" required />
-        <small>{t("fileHint")}</small>
-      </label>
+      <DropZone required disabled={pending} />
       <FormError error={state.error} />
-      <button type="submit" disabled={pending}>
+      <Button variant="primary" icon="upload" type="submit" disabled={pending}>
         {t("upload")}
-      </button>
+      </Button>
     </form>
   );
 }
