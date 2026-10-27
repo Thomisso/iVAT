@@ -6,7 +6,6 @@ import {
   type ComputedVatReport,
   type ReportDocument,
 } from "./vat-rules";
-import type { ExtractionPayload } from "./extraction-payload";
 import type { Json } from "@/lib/database.types";
 
 export type VatReport = {
@@ -29,19 +28,12 @@ export async function generateVatReport(
     return { ok: false, error: "invalid_reporting_period" };
   const company = await getCompany(client, input.companyId);
   if (!company) return { ok: false, error: "forbidden" };
-  const { data, error } = await client
-    .from("vat_report_document")
-    .select("id, status, extraction_version_id, payload")
-    .eq("company_id", company.id)
-    .like("payload->>taxPointDate", `${input.period}-%`)
-    .order("id");
+  const { data, error } = await client.rpc("vat_report_documents", {
+    target_company_id: company.id,
+    target_period: input.period,
+  });
   if (error) throw error;
-  const documents: ReportDocument[] = data.map((d) => ({
-    id: d.id,
-    status: d.status,
-    extractionVersionId: d.extraction_version_id,
-    payload: d.payload as ExtractionPayload | null,
-  }));
+  const documents = data as unknown as ReportDocument[];
   const details: CompanyDetails = {
     name: company.name,
     ico: company.ico,

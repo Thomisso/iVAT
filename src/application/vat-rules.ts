@@ -47,6 +47,7 @@ export type ComputedVatReport = {
     payable: string;
     excessDeduction: string;
   };
+  totalDocumentIds: Record<keyof ComputedVatReport["totals"], string[]>;
   excludedDocuments: { documentId: string; reason: ExclusionReason }[];
 };
 
@@ -184,7 +185,20 @@ export function computeVatReport(
   const output =
     halers(vatReturn[0].vatAmount) + halers(vatReturn[1].vatAmount);
   const input = halers(vatReturn[2].vatAmount) + halers(vatReturn[3].vatAmount);
+  const outputIds = [
+    ...new Set(vatReturn.slice(0, 2).flatMap((r) => r.documentIds)),
+  ];
+  const inputIds = [
+    ...new Set(vatReturn.slice(2).flatMap((r) => r.documentIds)),
+  ];
+  const allIds = [...new Set([...outputIds, ...inputIds])];
   return {
+    totalDocumentIds: {
+      outputVat: outputIds,
+      inputVat: inputIds,
+      payable: allIds,
+      excessDeduction: allIds,
+    },
     company,
     period,
     vatReturn,

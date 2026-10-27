@@ -246,6 +246,9 @@ isOneToOne: false
                            },
 "save_vat_report":
 { Args: { "computed_result": Json,"expected_documents": Json,"target_company_id": string,"target_period": string }; Returns: string
+                           },
+"vat_report_documents":
+{ Args: { "target_company_id": string,"target_period": string }; Returns: Json
                            }
           }
           Enums: {

@@ -55,21 +55,6 @@ export default async function VatReportsPage({
       <Money amount={Number(amount)} currency="CZK" locale={locale} />
     );
   const result = report?.result;
-  const outputIds = [
-    ...new Set(
-      result?.vatReturn
-        .filter((r) => r.line === "1" || r.line === "2")
-        .flatMap((r) => r.documentIds),
-    ),
-  ];
-  const inputIds = [
-    ...new Set(
-      result?.vatReturn
-        .filter((r) => r.line === "40" || r.line === "41")
-        .flatMap((r) => r.documentIds),
-    ),
-  ];
-  const allIds = [...new Set([...outputIds, ...inputIds])];
   return (
     <>
       <AppSidebar currentCompanyId={companyId} activeReport />
@@ -149,10 +134,13 @@ export default async function VatReportsPage({
               <dl className="report-totals">
                 {(
                   [
-                    ["outputVat", outputIds],
-                    ["inputVat", inputIds],
-                    ["payable", allIds],
-                    ["excessDeduction", allIds],
+                    ["outputVat", result.totalDocumentIds.outputVat],
+                    ["inputVat", result.totalDocumentIds.inputVat],
+                    ["payable", result.totalDocumentIds.payable],
+                    [
+                      "excessDeduction",
+                      result.totalDocumentIds.excessDeduction,
+                    ],
                   ] as const
                 ).map(([key, ids]) => (
                   <div key={key}>

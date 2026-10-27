@@ -203,3 +203,16 @@ it("uses the absolute whole-Document amount for mixed-rate and negative entries"
     excessDeduction: "1650.00",
   });
 });
+
+it("returns contributors for summary values from the Rules Engine", () => {
+  const report = computeVatReport(company, period, [
+    document(),
+    { ...document({ direction: "outgoing" }), id: "sale" },
+  ]);
+  expect(report.totalDocumentIds).toEqual({
+    outputVat: ["sale"],
+    inputVat: ["doc-1"],
+    payable: ["sale", "doc-1"],
+    excessDeduction: ["sale", "doc-1"],
+  });
+});
