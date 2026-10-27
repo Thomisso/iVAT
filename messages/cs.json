@@ -29,9 +29,20 @@
     "noOrganization": "Nejste administrátorem žádné organizace, proto nemůžete přidávat firmy."
   },
   "dashboard": {
-    "companies": "Firmy",
-    "documents": "Doklady",
-    "noDocuments": "Zatím žádné doklady."
+    "companies": "Firmy"
+  },
+  "sourceFiles": {
+    "title": "Zdrojové soubory",
+    "file": "Soubor",
+    "fileHint": "PDF, PNG nebo JPEG. Originál se uchová beze změny.",
+    "upload": "Nahrát",
+    "none": "Zatím žádné zdrojové soubory.",
+    "fileName": "Soubor",
+    "format": "Formát",
+    "pages": "Stran",
+    "uploadedAt": "Nahráno",
+    "pageCount": "{count, plural, one {# strana} few {# strany} other {# stran}}",
+    "backToCompany": "Zpět na firmu"
   },
   "errors": {
     "organization_name_required": "Zadejte název organizace.",
@@ -45,6 +56,9 @@
     "address_required": "Zadejte ulici a obec.",
     "invalid_postal_code": "PSČ musí mít 5 číslic.",
     "ico_taken": "Firma s tímto IČO už ve vaší organizaci existuje.",
-    "forbidden": "K této akci nemáte oprávnění."
+    "forbidden": "K této akci nemáte oprávnění.",
+    "file_required": "Vyberte soubor k nahrání.",
+    "unsupported_format": "Tento formát souboru není podporován. Nahrajte soubor PDF, PNG nebo JPEG.",
+    "unreadable_file": "Soubor nelze přečíst. Může být poškozený."
   }
 }

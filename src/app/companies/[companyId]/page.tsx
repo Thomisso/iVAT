@@ -1,15 +1,20 @@
 import { notFound } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { getFormatter, getTranslations } from "next-intl/server";
+import Link from "next/link";
 import { getCompany } from "@/application/companies";
+import { listSourceFiles } from "@/application/source-files";
 import { AppHeader } from "@/components/app-header";
 import { requireUserClient } from "@/lib/supabase/server";
+import { SourceFileUploadForm } from "./source-file-upload-form";
 
 export default async function CompanyDashboardPage({ params }: PageProps<"/companies/[companyId]">) {
   const { companyId } = await params;
   const client = await requireUserClient();
   const company = await getCompany(client, companyId);
   if (!company) notFound();
+  const sourceFiles = await listSourceFiles(client, company.id);
   const t = await getTranslations();
+  const format = await getFormatter();
 
   return (
     <>
@@ -23,8 +28,34 @@ export default async function CompanyDashboardPage({ params }: PageProps<"/compa
           </p>
         </header>
         <section>
-          <h2>{t("dashboard.documents")}</h2>
-          <p className="empty">{t("dashboard.noDocuments")}</p>
+          <h2>{t("sourceFiles.title")}</h2>
+          <SourceFileUploadForm companyId={company.id} />
+          {sourceFiles.length === 0 ? (
+            <p className="empty">{t("sourceFiles.none")}</p>
+          ) : (
+            <table className="source-files">
+              <thead>
+                <tr>
+                  <th>{t("sourceFiles.fileName")}</th>
+                  <th>{t("sourceFiles.format")}</th>
+                  <th>{t("sourceFiles.pages")}</th>
+                  <th>{t("sourceFiles.uploadedAt")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sourceFiles.map((file) => (
+                  <tr key={file.id}>
+                    <td>
+                      <Link href={`/companies/${company.id}/source-files/${file.id}`}>{file.fileName}</Link>
+                    </td>
+                    <td>{file.format.toUpperCase()}</td>
+                    <td>{file.pageCount}</td>
+                    <td>{format.dateTime(new Date(file.uploadedAt), { dateStyle: "medium", timeStyle: "short" })}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </section>
       </main>
     </>

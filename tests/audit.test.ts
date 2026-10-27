@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { listAuditEvents } from "@/application/audit";
 import { listMyOrganizations } from "@/application/organizations";
+import { uploadSourceFile } from "@/application/source-files";
 import { anonymousClient, signedUpUser, uniqueEmail } from "./support/clients";
+import { fixtureFile } from "./support/files";
 import { administratorWithCompany } from "./support/fixtures";
 
 describe("audit log", () => {
@@ -47,6 +49,36 @@ describe("audit log", () => {
         targetType: "company",
         targetId: companyId,
         payload: expect.objectContaining({ name: "Novák s.r.o." }),
+      }),
+    );
+  });
+
+  it("records a Source File upload", async () => {
+    const { client, userId, organizationId, companyId } = await administratorWithCompany();
+    const result = await uploadSourceFile(client, {
+      companyId,
+      fileName: "two-invoices.pdf",
+      bytes: fixtureFile("two-invoices.pdf"),
+    });
+    if (!result.ok) throw new Error(result.error);
+
+    const events = await listAuditEvents(client, organizationId);
+
+    expect(events.at(-1)).toEqual(
+      expect.objectContaining({
+        action: "source_file.uploaded",
+        actorUserId: userId,
+        organizationId,
+        companyId,
+        targetType: "source_file",
+        targetId: result.value.id,
+        payload: {
+          file_name: "two-invoices.pdf",
+          format: "pdf",
+          byte_size: 1303,
+          sha256: "79ae60b6a1040a3eaf64d441f2fa48f627a18d1e5c1ad831ba6919e9e9c663ea",
+          page_count: 2,
+        },
       }),
     );
   });
