@@ -5,6 +5,18 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { generateVatReport } from "@/application/vat-reports";
 import { logIn, logOut, signUp, startGoogleSignIn } from "@/application/auth";
+import {
+  beginTotpEnrollment,
+  completeTotpEnrollment,
+  disenrollMfa,
+  mfaPolicy,
+  mfaStatus,
+  setOrganizationMfaRequired,
+  verifyRecoveryCode,
+  verifyTotp,
+  type TotpEnrollment,
+} from "@/application/mfa";
+import { mfaRedirectPath } from "@/application/mfa-routing";
 import { prefillCompanyFromAres } from "@/application/ares";
 import { createCompany, disableAiProcessing, enableAiProcessing, updateCompany } from "@/application/companies";
 import { acceptInvitation, changeMembershipRole, inviteMember, removeMembership } from "@/application/memberships";
@@ -54,11 +66,14 @@ export async function signUpAction(_state: FormState, formData: FormData): Promi
 }
 
 export async function logInAction(_state: FormState, formData: FormData): Promise<FormState> {
-  const result = await logIn(await createRequestClient(), {
+  const client = await createRequestClient();
+  const result = await logIn(client, {
     email: field(formData, "email"),
     password: field(formData, "password"),
   });
   if (!result.ok) return refused(result.error, formData, ["email"]);
+  const destination = mfaRedirectPath("/", await mfaPolicy(client));
+  if (destination) redirect(destination);
   redirect("/");
 }
 
@@ -75,6 +90,82 @@ export async function googleSignInAction(): Promise<void> {
 export async function logOutAction(): Promise<void> {
   await logOut(await createRequestClient());
   redirect("/login");
+}
+
+export type MfaEnrollmentState = {
+  error: string | null;
+  enrollment: TotpEnrollment | null;
+};
+
+export type MfaCompletionState = {
+  error: string | null;
+  recoveryCodes: string[] | null;
+};
+
+export async function beginTotpEnrollmentAction(): Promise<MfaEnrollmentState> {
+  const result = await beginTotpEnrollment(await requireUserClient());
+  return result.ok
+    ? { error: null, enrollment: result.value }
+    : { error: result.error, enrollment: null };
+}
+
+export async function completeTotpEnrollmentAction(
+  _state: MfaCompletionState,
+  formData: FormData,
+): Promise<MfaCompletionState> {
+  const result = await completeTotpEnrollment(await requireUserClient(), {
+    factorId: field(formData, "factorId"),
+    code: field(formData, "code"),
+  });
+  return result.ok
+    ? { error: null, recoveryCodes: result.value.recoveryCodes }
+    : { error: result.error, recoveryCodes: null };
+}
+
+export async function verifyTotpAction(
+  _state: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const client = await requireUserClient();
+  const status = await mfaStatus(client);
+  if (!status.factorId) redirect("/mfa/enroll");
+  const result = await verifyTotp(client, {
+    factorId: status.factorId,
+    code: field(formData, "code"),
+  });
+  if (!result.ok) return refused(result.error, formData, []);
+  redirect("/");
+}
+
+export async function verifyRecoveryCodeAction(
+  _state: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const result = await verifyRecoveryCode(
+    await requireUserClient(),
+    field(formData, "recoveryCode"),
+  );
+  if (!result.ok) return refused(result.error, formData, []);
+  redirect("/");
+}
+
+export async function disenrollMfaAction(): Promise<void> {
+  const client = await requireUserClient();
+  const status = await mfaStatus(client);
+  if (status.factorId) await disenrollMfa(client, status.factorId);
+  redirect("/settings/security");
+}
+
+export async function setOrganizationMfaRequiredAction(
+  _state: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  return settled(
+    await setOrganizationMfaRequired(await requireUserClient(), {
+      organizationId: field(formData, "organizationId"),
+      required: field(formData, "required") === "true",
+    }),
+  );
 }
 
 export async function createCompanyAction(_state: FormState, formData: FormData): Promise<FormState> {
