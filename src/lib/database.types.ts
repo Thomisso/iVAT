@@ -181,6 +181,26 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"notification": {
+                  Row: {
+                    "company_id": string,"created_at": string,"id": string,"kind": string,"organization_id": string,"payload": NonNullable<Json>,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "company_id": string,"created_at"?: string,"id"?: string,"kind": string,"organization_id": string,"payload": NonNullable<Json>,"user_id": string
+                  }
+                  Update: {
+                    "company_id"?: string,"created_at"?: string,"id"?: string,"kind"?: string,"organization_id"?: string,"payload"?: NonNullable<Json>,"user_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "notification_company_id_organization_id_fkey"
+      columns: ["company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "company"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
                 },"organization": {
                   Row: {
                     "created_at": string,"id": string,"mfa_required": boolean,"name": string
@@ -191,6 +211,20 @@ isOneToOne: false
                   }
                   Update: {
                     "created_at"?: string,"id"?: string,"mfa_required"?: boolean,"name"?: string
+                  }
+                  Relationships: [
+
+                  ]
+                },"platform_settings": {
+                  Row: {
+                    "max_source_file_bytes": number,"max_source_file_pages": number,"max_upload_batch_files": number,"singleton": boolean
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "max_source_file_bytes": number,"max_source_file_pages": number,"max_upload_batch_files": number,"singleton"?: boolean
+                  }
+                  Update: {
+                    "max_source_file_bytes"?: number,"max_source_file_pages"?: number,"max_upload_batch_files"?: number,"singleton"?: boolean
                   }
                   Relationships: [
 
@@ -211,18 +245,44 @@ isOneToOne: false
                   ]
                 },"source_file": {
                   Row: {
-                    "byte_size": number,"company_id": string,"file_name": string,"format": Database["public"]['Enums']["source_file_format"],"id": string,"organization_id": string,"page_count": number,"sha256": string,"status": Database["public"]['Enums']["source_file_status"],"uploaded_at": string,"uploaded_by": string | null
+                    "byte_size": number,"company_id": string,"file_name": string,"format": Database["public"]['Enums']["source_file_format"],"id": string,"organization_id": string,"page_count": number,"sha256": string,"status": Database["public"]['Enums']["source_file_status"],"upload_batch_id": string | null,"uploaded_at": string,"uploaded_by": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "byte_size": number,"company_id": string,"file_name": string,"format": Database["public"]['Enums']["source_file_format"],"id": string,"organization_id": string,"page_count": number,"sha256": string,"status"?: Database["public"]['Enums']["source_file_status"],"uploaded_at"?: string,"uploaded_by"?: string | null
+                    "byte_size": number,"company_id": string,"file_name": string,"format": Database["public"]['Enums']["source_file_format"],"id": string,"organization_id": string,"page_count": number,"sha256": string,"status"?: Database["public"]['Enums']["source_file_status"],"upload_batch_id"?: string | null,"uploaded_at"?: string,"uploaded_by"?: string | null
                   }
                   Update: {
-                    "byte_size"?: number,"company_id"?: string,"file_name"?: string,"format"?: Database["public"]['Enums']["source_file_format"],"id"?: string,"organization_id"?: string,"page_count"?: number,"sha256"?: string,"status"?: Database["public"]['Enums']["source_file_status"],"uploaded_at"?: string,"uploaded_by"?: string | null
+                    "byte_size"?: number,"company_id"?: string,"file_name"?: string,"format"?: Database["public"]['Enums']["source_file_format"],"id"?: string,"organization_id"?: string,"page_count"?: number,"sha256"?: string,"status"?: Database["public"]['Enums']["source_file_status"],"upload_batch_id"?: string | null,"uploaded_at"?: string,"uploaded_by"?: string | null
                   }
                   Relationships: [
                     {
       foreignKeyName: "source_file_company_id_organization_id_fkey"
+      columns: ["company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "company"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "source_file_upload_batch_id_company_id_organization_id_fkey"
+      columns: ["upload_batch_id","company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "upload_batch"
+      referencedColumns: ["id","company_id","organization_id"]
+    }
+                  ]
+                },"upload_batch": {
+                  Row: {
+                    "company_id": string,"created_at": string,"created_by": string,"file_count": number,"id": string,"organization_id": string,"processing_finished_at": string | null,"upload_finished_at": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "company_id": string,"created_at"?: string,"created_by"?: string,"file_count": number,"id"?: string,"organization_id": string,"processing_finished_at"?: string | null,"upload_finished_at"?: string | null
+                  }
+                  Update: {
+                    "company_id"?: string,"created_at"?: string,"created_by"?: string,"file_count"?: number,"id"?: string,"organization_id"?: string,"processing_finished_at"?: string | null,"upload_finished_at"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "upload_batch_company_id_organization_id_fkey"
       columns: ["company_id","organization_id"]
 isOneToOne: false
       referencedRelation: "company"
@@ -289,6 +349,9 @@ isOneToOne: false
 "approve_document":
 { Args: { "reviewed_version": number,"target_document_id": string }; Returns: undefined
                            },
+"begin_upload_batch":
+{ Args: { "selected_file_count": number,"target_company_id": string }; Returns: string
+                           },
 "cancel_invitation":
 { Args: { "invitation_token": string }; Returns: undefined
                            },
@@ -314,6 +377,9 @@ isOneToOne: false
                            },
 "finish_mfa_enrollment":
 { Args: Record<PropertyKey, never>; Returns: (string)[]
+                           },
+"finish_upload_batch":
+{ Args: { "target_batch_id": string }; Returns: undefined
                            },
 "mfa_recovery_codes_remaining":
 { Args: Record<PropertyKey, never>; Returns: number

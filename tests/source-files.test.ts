@@ -64,6 +64,37 @@ describe("Source File upload", () => {
     expect(await listSourceFiles(client, companyId)).toEqual([]);
   });
 
+  it("refuses a Source File larger than the platform limit", async () => {
+    const { client, companyId } = await administratorWithCompany();
+    const bytes = new Uint8Array(20 * 1024 * 1024 + 1);
+    bytes.set(fixtureFile("receipt.png"));
+
+    const result = await uploadSourceFile(client, testWorker().jobs, {
+      companyId,
+      fileName: "large.png",
+      bytes,
+    });
+
+    expect(result).toEqual({ ok: false, error: "file_too_large" });
+    expect(await listSourceFiles(client, companyId)).toEqual([]);
+  });
+
+  it("refuses a PDF with more pages than the platform limit", async () => {
+    const { PDFDocument } = await import("pdf-lib");
+    const { client, companyId } = await administratorWithCompany();
+    const pdf = await PDFDocument.create();
+    for (let page = 0; page < 51; page++) pdf.addPage();
+
+    const result = await uploadSourceFile(client, testWorker().jobs, {
+      companyId,
+      fileName: "too-many-pages.pdf",
+      bytes: await pdf.save(),
+    });
+
+    expect(result).toEqual({ ok: false, error: "too_many_pages" });
+    expect(await listSourceFiles(client, companyId)).toEqual([]);
+  });
+
   it("lists the Company's Source Files newest first", async () => {
     const { client, companyId } = await administratorWithCompany();
     await uploadSourceFile(client, testWorker().jobs, { companyId, fileName: "first.png", bytes: fixtureFile("receipt.png") });
