@@ -170,7 +170,9 @@
     "export_failed": "Stažení se nezdařilo. Zkuste to znovu.",
     "unknown_provider": "Tento poskytovatel AI není na platformě nastaven.",
     "model_required": "Zadejte model pro rozdělení i vytěžení.",
-    "invalid_platform_key": "Zadejte platný API klíč platformy."
+    "invalid_platform_key": "Zadejte platný API klíč platformy.",
+    "invalid_organization_key": "Zadejte platný API klíč organizace.",
+    "dpa_acknowledgement_required": "Potvrďte odpovědnost za smlouvu o zpracování osobních údajů s poskytovatelem."
   },
   "platformAi": {
     "nav": "Nastavení AI platformy",
@@ -186,6 +188,17 @@
     "organizationAccess": "Organizace oprávněné používat klíč platformy",
     "enableForOrganization": "Povolit",
     "disableForOrganization": "Zakázat"
+  },
+  "organizationAi": {
+    "nav": "AI klíče – {organization}",
+    "title": "AI klíče organizace {organization}",
+    "intro": "Použijte klíče poskytovatelů své organizace namísto klíče platformy. Klíče jsou šifrované a nelze je znovu zobrazit.",
+    "apiKey": "API klíč poskytovatele",
+    "keyStored": "Je uložen klíč končící na {lastFour}. Uložením nového klíče jej nahradíte.",
+    "keyMissing": "Pro tohoto poskytovatele není uložen žádný klíč organizace.",
+    "dpaWarning": "Rozumím, že při použití vlastního klíče {provider} odpovídá naše organizace za smlouvu o zpracování osobních údajů s tímto poskytovatelem.",
+    "save": "Uložit klíč organizace",
+    "remove": "Odstranit klíč organizace"
   },
   "mfa": {
     "securityTitle": "Zabezpečení",
