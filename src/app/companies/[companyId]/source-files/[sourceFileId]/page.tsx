@@ -74,9 +74,11 @@ export default async function SourceFilePage({ params }: PageProps<"/companies/[
                 {documents.map((document) => (
                   <tr key={document.id}>
                     <td>
-                      {document.firstPage === document.lastPage
-                        ? document.firstPage
-                        : `${document.firstPage}–${document.lastPage}`}
+                      <Link href={`/companies/${companyId}/documents/${document.id}`}>
+                        {document.firstPage === document.lastPage
+                          ? document.firstPage
+                          : `${document.firstPage}–${document.lastPage}`}
+                      </Link>
                     </td>
                     <td>{t(`documentStatus.${document.status}`)}</td>
                     <td>
