@@ -24,6 +24,7 @@ import { supabaseInvitationMailer } from "@/application/supabase-invitation-mail
 import { approveDocument, correctDocument, rejectDocument, reprocessDocument } from "@/application/documents";
 import type { ExtractionPayload, Party } from "@/application/extraction-payload";
 import { retrySplit, uploadSourceFile } from "@/application/source-files";
+import { configurePlatformAiProvider, setOrganizationPlatformAiAccess } from "@/application/platform-ai";
 import { configuredAiProvider } from "@/ai";
 import { configuredAresRegistry } from "@/ares";
 import { jobQueue } from "@/lib/jobs";
@@ -400,4 +401,31 @@ export async function changeMembershipRoleAction(_state: FormState, formData: Fo
 
 export async function removeMembershipAction(_state: FormState, formData: FormData): Promise<FormState> {
   return settled(await removeMembership(await requireUserClient(), field(formData, "membershipId")));
+}
+
+export async function configurePlatformAiProviderAction(
+  _state: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const result = await configurePlatformAiProvider(await requireUserClient(), {
+    provider: field(formData, "provider"),
+    available: field(formData, "available") === "on",
+    splitModel: field(formData, "splitModel"),
+    extractModel: field(formData, "extractModel"),
+    apiKey: field(formData, "apiKey").trim() || undefined,
+  });
+  if (!result.ok) return refused(result.error, formData, ["provider", "available", "splitModel", "extractModel"]);
+  refresh();
+  return { error: null, values: {} };
+}
+
+export async function setOrganizationPlatformAiAccessAction(
+  _state: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  return settled(await setOrganizationPlatformAiAccess(await requireUserClient(), {
+    organizationId: field(formData, "organizationId"),
+    provider: field(formData, "provider"),
+    enabled: field(formData, "enabled") === "true",
+  }));
 }
