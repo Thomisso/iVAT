@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
+import { GoogleSignInButton } from "../google-sign-in-button";
 import { SignUpForm } from "./signup-form";
 
 export default async function SignUpPage() {
@@ -8,6 +9,7 @@ export default async function SignUpPage() {
     <main className="panel">
       <h1>{t("signUpTitle")}</h1>
       <SignUpForm />
+      <GoogleSignInButton />
       <p>
         {t("haveAccount")} <Link href="/login">{t("logInLink")}</Link>
       </p>
