@@ -29,12 +29,13 @@ export function Sidebar({
   userMenu,
 }: SidebarProps) {
   const t = useTranslations("nav");
+  const app = useTranslations("app");
   const [open, setOpen] = useState(false);
   return (
     <>
       <div className="mobile-nav">
         <Link href="/" className="iv-brand">
-          iVAT
+          {app("name")}
         </Link>
         <Button
           aria-expanded={open}
@@ -55,7 +56,7 @@ export function Sidebar({
       >
         <Link href="/" className="iv-brand">
           <b aria-hidden="true" />
-          iVAT
+          {app("name")}
         </Link>
         {companySwitcher ??
           (company && (
