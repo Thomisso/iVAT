@@ -21,9 +21,11 @@ export type SourceFile = {
   uploadedAt: string;
 };
 
-export type UploadSourceFileInput = { companyId: string; fileName: string; bytes: Uint8Array };
+export type UploadSourceFileInput = { companyId: string; batchId?: string; fileName: string; bytes: Uint8Array };
 export type UploadSourceFileError =
   | "file_required"
+  | "file_too_large"
+  | "too_many_pages"
   | "unsupported_format"
   | "content_does_not_match_format"
   | "unreadable_file"
@@ -45,6 +47,26 @@ const SIGNATURES: Record<SourceFileFormat, number[]> = {
   png: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
   jpeg: [0xff, 0xd8, 0xff],
 };
+
+export type UploadLimits = {
+  maxFileBytes: number;
+  maxFilePages: number;
+  maxBatchFiles: number;
+};
+
+/** Public, non-secret platform limits applied to Source File uploads. */
+export async function getUploadLimits(client: AppClient): Promise<UploadLimits> {
+  const { data, error } = await client
+    .from("platform_settings")
+    .select("max_source_file_bytes, max_source_file_pages, max_upload_batch_files")
+    .single();
+  if (error) throw error;
+  return {
+    maxFileBytes: Number(data.max_source_file_bytes),
+    maxFilePages: data.max_source_file_pages,
+    maxBatchFiles: data.max_upload_batch_files,
+  };
+}
 
 /** The format named by the file's extension. */
 function formatOf(fileName: string): SourceFileFormat | null {
@@ -90,11 +112,15 @@ export async function uploadSourceFile(
 ): Promise<Result<{ id: string }, UploadSourceFileError>> {
   const fileName = input.fileName.trim();
   if (!fileName || input.bytes.length === 0) return { ok: false, error: "file_required" };
+  if (input.batchId !== undefined && !isUuid(input.batchId)) return { ok: false, error: "forbidden" };
+  const limits = await getUploadLimits(client);
+  if (input.bytes.length > limits.maxFileBytes) return { ok: false, error: "file_too_large" };
   const format = formatOf(fileName);
   if (!format) return { ok: false, error: "unsupported_format" };
   if (!contentMatches(format, input.bytes)) return { ok: false, error: "content_does_not_match_format" };
   const pageCount = await countPages(format, input.bytes);
   if (!pageCount) return { ok: false, error: "unreadable_file" };
+  if (pageCount > limits.maxFilePages) return { ok: false, error: "too_many_pages" };
 
   // Only for the Organization of the row; RLS hides Companies the user cannot access.
   const company = await getCompany(client, input.companyId);
@@ -113,6 +139,7 @@ export async function uploadSourceFile(
     id,
     organization_id: company.organizationId,
     company_id: company.id,
+    upload_batch_id: input.batchId ?? null,
     file_name: fileName,
     format,
     byte_size: input.bytes.length,
