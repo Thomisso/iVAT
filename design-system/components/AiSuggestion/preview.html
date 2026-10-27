@@ -1,0 +1,15 @@
+<!-- @dsCard group="AI" height=264 -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>AiSuggestion — preview</title></head>
+<body>
+<div id="root" class="iv-demo"></div>
+<script>
+var I = window.iVAT, h = React.createElement;
+ReactDOM.createRoot(document.getElementById('root')).render(h('div', { style: { maxWidth: 440 } }, h(I.AiSuggestion, {
+  eyebrow: 'Proposed VAT Regime', title: 'Domestic reverse charge (§ 92e, construction work)', confidence: 0.93,
+  reasons: ['Line 1 reads "Stavební práce – CZ-CPA 43" on page 1.', 'No VAT is charged; the invoice says "daň odvede zákazník".', 'Supplier and customer are both Czech VAT payers.']
+})));
+</script>
+</body>
+</html>
