@@ -195,6 +195,32 @@ isOneToOne: false
                   Relationships: [
 
                   ]
+                },"organization_ai_provider_key": {
+                  Row: {
+                    "dpa_acknowledged_at": string,"dpa_acknowledged_by": string,"key_last_four": string,"key_secret_id": string,"organization_id": string,"provider": string,"updated_at": string,"updated_by": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "dpa_acknowledged_at": string,"dpa_acknowledged_by": string,"key_last_four": string,"key_secret_id": string,"organization_id": string,"provider": string,"updated_at"?: string,"updated_by": string
+                  }
+                  Update: {
+                    "dpa_acknowledged_at"?: string,"dpa_acknowledged_by"?: string,"key_last_four"?: string,"key_secret_id"?: string,"organization_id"?: string,"provider"?: string,"updated_at"?: string,"updated_by"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "organization_ai_provider_key_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organization"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "organization_ai_provider_key_provider_fkey"
+      columns: ["provider"]
+isOneToOne: false
+      referencedRelation: "platform_ai_provider"
+      referencedColumns: ["provider"]
+    }
+                  ]
                 },"organization_platform_ai_access": {
                   Row: {
                     "enabled": boolean,"organization_id": string,"provider": string,"updated_at": string,"updated_by": string | null
@@ -361,6 +387,11 @@ isOneToOne: false
 "finish_mfa_enrollment":
 { Args: Record<PropertyKey, never>; Returns: (string)[]
                            },
+"list_organization_ai_provider_keys":
+{ Args: { "target_organization_id": string }; Returns: {
+              "has_organization_key": boolean,"organization_key_last_four": string,"provider": string
+            }[]
+                           },
 "list_platform_ai_providers":
 { Args: Record<PropertyKey, never>; Returns: {
               "available": boolean,"extract_model": string,"has_platform_key": boolean,"platform_key_last_four": string,"provider": string,"split_model": string
@@ -377,20 +408,23 @@ isOneToOne: false
 "mfa_recovery_codes_remaining":
 { Args: Record<PropertyKey, never>; Returns: number
                            },
+"move_document_page":
+{ Args: { "page": number,"source_document_id": string,"target_document_id": string }; Returns: (string)[]
+                           },
 "record_ai_extraction":
 { Args: { "model": string,"payload": Json,"provider": string,"target_document_id": string,"target_extraction_request_id": string }; Returns: undefined
                            },
 "record_split":
 { Args: { "page_ranges": Json,"target_source_file_id": string }; Returns: undefined
                            },
-"move_document_page":
-{ Args: { "page": number,"source_document_id": string,"target_document_id": string }; Returns: (string)[]
-                           },
 "reject_document":
 { Args: { "target_document_id": string }; Returns: undefined
                            },
 "remove_membership":
 { Args: { "target_membership_id": string }; Returns: undefined
+                           },
+"remove_organization_ai_provider_key":
+{ Args: { "target_organization_id": string,"target_provider": string }; Returns: undefined
                            },
 "reprocess_document":
 { Args: { "target_document_id": string }; Returns: undefined
@@ -402,6 +436,9 @@ isOneToOne: false
                            },
 "retry_split":
 { Args: { "target_source_file_id": string }; Returns: undefined
+                           },
+"save_organization_ai_provider_key":
+{ Args: { "dpa_acknowledged": boolean,"organization_key": string,"target_organization_id": string,"target_provider": string }; Returns: undefined
                            },
 "save_vat_report":
 { Args: { "computed_result": Json,"expected_documents": Json,"target_company_id": string,"target_period": string }; Returns: string
