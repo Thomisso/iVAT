@@ -17,7 +17,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:e2e": "node scripts/e2e.mjs",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:contract:ares": "ARES_CONTRACT_TEST=1 vitest run tests/contract/ares.test.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

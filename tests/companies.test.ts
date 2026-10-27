@@ -1,7 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { createCompany, getCompany, listMyCompanies } from "@/application/companies";
+import {
+  createCompany,
+  getCompany,
+  getFilingFrequencyForPeriod,
+  listCompanyFilingFrequencies,
+  listMyCompanies,
+  updateCompany,
+} from "@/application/companies";
+import { listAuditEvents } from "@/application/audit";
 import { signedUpUser } from "./support/clients";
-import { administratorWithCompany, companyDetails } from "./support/fixtures";
+import {
+  administratorWithCompany,
+  companyDetails,
+  companyMember,
+} from "./support/fixtures";
 
 const novak = {
   name: "Novák s.r.o.",
@@ -10,13 +22,23 @@ const novak = {
   street: "Vinohradská 12",
   city: "Praha",
   postalCode: "120 00",
+  personType: "legal" as const,
+};
+
+const initialFiling = {
+  filingFrequency: "monthly" as const,
+  filingFrequencyEffectiveFrom: "2026-01-01",
 };
 
 describe("Company creation", () => {
   it("lets the Organization Administrator create a Company and open it", async () => {
     const { client, organizationId } = await signedUpUser();
 
-    const result = await createCompany(client, { organizationId, ...novak });
+    const result = await createCompany(client, {
+      organizationId,
+      ...novak,
+      ...initialFiling,
+    });
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -26,6 +48,12 @@ describe("Company creation", () => {
       ...novak,
       aiProcessing: null,
     });
+    expect(await listCompanyFilingFrequencies(client, result.value.id)).toEqual([
+      { frequency: "monthly", effectiveFrom: "2026-01-01" },
+    ]);
+    expect(
+      await getFilingFrequencyForPeriod(client, result.value.id, "2026-10"),
+    ).toBe("monthly");
     expect(await listMyCompanies(client)).toEqual([
       { id: result.value.id, organizationId, name: "Novák s.r.o." },
     ]);
@@ -44,6 +72,8 @@ describe("Company details", () => {
       street: " Vinohradská 12 ",
       city: " Praha ",
       postalCode: "12000",
+      personType: "legal",
+      ...initialFiling,
     });
 
     expect(result.ok).toBe(true);
@@ -76,6 +106,91 @@ describe("Company details", () => {
     const result = await createCompany(client, { organizationId, ...companyDetails({ ico: existing!.ico }) });
 
     expect(result).toEqual({ ok: false, error: "ico_taken" });
+  });
+
+  it("keeps effective-dated filing frequency history and audits Company changes", async () => {
+    const { client, userId, organizationId, companyId } =
+      await administratorWithCompany();
+    const existing = await getCompany(client, companyId);
+    if (!existing) throw new Error("Company not found");
+
+    const result = await updateCompany(client, {
+      companyId,
+      ...existing,
+      name: "Novák účetnictví s.r.o.",
+      personType: "natural",
+      filingFrequency: "quarterly",
+      filingFrequencyEffectiveFrom: "2027-01-01",
+    });
+
+    expect(result).toEqual({ ok: true, value: null });
+    expect(await getCompany(client, companyId)).toEqual(
+      expect.objectContaining({
+        name: "Novák účetnictví s.r.o.",
+        personType: "natural",
+      }),
+    );
+    expect(await listCompanyFilingFrequencies(client, companyId)).toEqual([
+      { frequency: "monthly", effectiveFrom: "2026-01-01" },
+      { frequency: "quarterly", effectiveFrom: "2027-01-01" },
+    ]);
+    expect(
+      await getFilingFrequencyForPeriod(client, companyId, "2026-12"),
+    ).toBe("monthly");
+    expect(
+      await getFilingFrequencyForPeriod(client, companyId, "2027-Q2"),
+    ).toBe("quarterly");
+    expect(
+      (await listAuditEvents(client, organizationId)).slice(-2),
+    ).toEqual([
+      expect.objectContaining({
+        action: "company.updated",
+        actorUserId: userId,
+        companyId,
+        payload: expect.objectContaining({
+          name: {
+            from: "Novák s.r.o.",
+            to: "Novák účetnictví s.r.o.",
+          },
+          person_type: { from: "legal", to: "natural" },
+        }),
+      }),
+      expect.objectContaining({
+        action: "company.filing_frequency_changed",
+        actorUserId: userId,
+        companyId,
+        payload: {
+          effective_from: "2027-01-01",
+          frequency: "quarterly",
+        },
+      }),
+    ]);
+  });
+
+  it("lets a Company Administrator edit settings and refuses a Company User", async () => {
+    const company = await administratorWithCompany();
+    const administrator = await companyMember(company, "administrator");
+    const user = await companyMember(company, "user");
+    const existing = await getCompany(company.client, company.companyId);
+    if (!existing) throw new Error("Company not found");
+    const change = {
+      companyId: company.companyId,
+      ...existing,
+      name: "Administrator changed this",
+      filingFrequency: "monthly" as const,
+      filingFrequencyEffectiveFrom: "2026-01-01",
+    };
+
+    expect(await updateCompany(administrator.client, change)).toEqual({
+      ok: true,
+      value: null,
+    });
+    expect(
+      await updateCompany(user.client, { ...change, name: "User changed this" }),
+    ).toEqual({ ok: false, error: "forbidden" });
+    expect((await getCompany(company.client, company.companyId))?.name).toBe(
+      "Administrator changed this",
+    );
   });
 });
 
