@@ -2,21 +2,12 @@ import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import {
   VisualPrototype,
+  prototypeScreens,
   type PrototypeScreen,
 } from "@/components/visual-prototype";
 
-const screens: PrototypeScreen[] = [
-  "overview",
-  "upload",
-  "documents",
-  "review",
-  "vat",
-  "vat-output",
-  "settings",
-];
-
 function isPrototypeScreen(value: unknown): value is PrototypeScreen {
-  return typeof value === "string" && screens.includes(value as PrototypeScreen);
+  return typeof value === "string" && prototypeScreens.includes(value as PrototypeScreen);
 }
 
 export async function generateMetadata(): Promise<Metadata> {

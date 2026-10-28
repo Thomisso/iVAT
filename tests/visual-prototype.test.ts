@@ -68,4 +68,10 @@ test("the representative screens show truthful work states without invented AI e
   expect(output).toContain("VAT Return");
   expect(output).toContain("Draft XML");
   expect(output).toContain("DRAFT_DPHDP3_2026-09.xml");
+  expect(output).toContain('href="/prototype?screen=vat-statement"');
+  expect(output).toMatch(/<button[^>]*disabled=""[^>]*>[^<]*(?:<svg[\s\S]*?<\/svg>)?Finalize and create final XML/);
+
+  const statement = render("vat-statement");
+  expect(statement).toContain("Control Statement · September 2026");
+  expect(statement).toContain("DRAFT_DPHKH1_2026-09.xml");
 });

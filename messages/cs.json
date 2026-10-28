@@ -601,7 +601,11 @@
     "company": {
       "initial": "A",
       "name": "Ateliér Novák s.r.o.",
-      "meta": "CZ 05861324"
+      "meta": "CZ 05861324",
+      "chooserLabel": "Vybrat společnost",
+      "menuLabel": "Společnosti",
+      "current": "(aktuální)",
+      "other": "Dvořák Studio s.r.o."
     },
     "profile": {
       "initials": "JN",
@@ -654,6 +658,7 @@
         "camera": "Vyfotit doklad",
         "files": "Vybrat soubory"
       },
+      "preview": { "label": "Náhled fotografie", "title": "Připraveno k přidání", "filename": "uctenka_2026-10-28.jpg", "remove": "Odebrat fotografii", "retake": "Vyfotit znovu" },
       "batch": {
         "title": "Říjnové účtenky",
         "meta": "8 zdrojových souborů · zahájeno dnes v 09:42",
@@ -733,6 +738,13 @@
       "summary": { "output": "DPH na výstupu", "outputValue": "122 640,00 Kč", "input": "DPH na vstupu", "inputValue": "54 220,00 Kč", "payable": "DPH k úhradě", "payableValue": "68 420,00 Kč" },
       "table": { "caption": "Řádky přiznání k DPH", "line": "Řádek přiznání", "base": "Základ daně", "vat": "DPH", "lineOne": "Řádek 1", "lineOneDetail": "Tuzemská plnění · základní sazba", "lineOneBase": "584 000,00", "lineOneVat": "122 640,00", "lineTwo": "Řádek 40", "lineTwoDetail": "Nárok na odpočet · základní sazba", "lineTwoBase": "258 190,00", "lineTwoVat": "54 220,00" },
       "export": { "status": "Pracovní export", "title": "Návrh XML", "detail": "Toto XML slouží jen ke kontrole. Není to finální artefakt.", "filename": "DRAFT_DPHDP3_2026-09.xml", "download": "Stáhnout návrh XML", "finalizeTitle": "Finalizovat zdaňovací období", "finalizeDetail": "Finalizace bude dostupná, až aktuální data nebudou obsahovat blokující problémy.", "finalize": "Finalizovat a vytvořit finální XML" }
+    },
+    "controlStatement": {
+      "title": "Kontrolní hlášení · září 2026",
+      "description": "Uložený návrh kontrolního hlášení. Aktuální živá data stále obsahují blokující problémy.",
+      "summary": { "received": "Přijatá plnění", "receivedValue": "18", "issued": "Vydaná plnění", "issuedValue": "13", "sections": "Vyplněné oddíly", "sectionsValue": "4" },
+      "table": { "caption": "Oddíly kontrolního hlášení", "section": "Oddíl", "documents": "Doklady", "base": "Základ daně", "first": "A.4", "firstDetail": "Zdanitelná plnění nad stanovený limit", "firstDocuments": "13", "firstBase": "584 000,00", "second": "B.2", "secondDetail": "Přijatá zdanitelná plnění nad stanovený limit", "secondDocuments": "18", "secondBase": "258 190,00" },
+      "export": { "status": "Pracovní export", "title": "Návrh XML kontrolního hlášení", "detail": "Toto XML slouží jen ke kontrole. Není to finální artefakt.", "filename": "DRAFT_DPHKH1_2026-09.xml", "download": "Stáhnout návrh XML" }
     },
     "settings": {
       "title": "Nastavení",
