@@ -37,7 +37,7 @@ export function acceptsFile(file: Pick<File, "name" | "type">, accept: string) {
 export function DropZone({
   title,
   hint,
-  accept = ".pdf,.png,.jpg,.jpeg",
+  accept = ".pdf,.png,.jpg,.jpeg,.xlsx,.xls",
   over,
   onFiles,
   name = "file",

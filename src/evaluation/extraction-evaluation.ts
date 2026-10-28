@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import type { AiInput, AiProvider, PageRange } from "@/application/ai-provider";
 import type { ExtractionPayload } from "@/application/extraction-payload";
+import type { ImageSourceFileFormat } from "@/application/source-files";
 import { extractionPayload, pageRanges } from "@/ai/structured-output";
 
 export type GoldenDocument = {
@@ -12,7 +13,7 @@ export type GoldenDocument = {
 export type GoldenCase = {
   id: string;
   sourcePath: string;
-  format: AiInput["format"];
+  format: ImageSourceFileFormat;
   mediaType: string;
   pageCount: number;
   expectedSplit: PageRange[];
@@ -50,7 +51,7 @@ export type DocumentBytes = (
   pages: PageRange,
 ) => Promise<Uint8Array>;
 
-const MEDIA_TYPES: Record<AiInput["format"], string> = {
+const MEDIA_TYPES: Record<ImageSourceFileFormat, string> = {
   pdf: "application/pdf",
   png: "image/png",
   jpeg: "image/jpeg",
@@ -79,7 +80,7 @@ const positiveInteger = (value: unknown, name: string): number => {
   return Number(value);
 };
 
-function format(value: unknown): AiInput["format"] {
+function format(value: unknown): ImageSourceFileFormat {
   if (value === "pdf" || value === "png" || value === "jpeg") return value;
   throw new Error("Golden set format must be pdf, png or jpeg");
 }
@@ -225,7 +226,10 @@ export async function evaluateGoldenSet(
       const bytes = await readBytes(source.sourcePath);
       const split = await configured.provider.split(input(source, bytes, source.pageCount));
       splitModel ||= split.model;
-      if (sameSplit(split.documents, source.expectedSplit)) splitCorrect += 1;
+      const pageDocuments = split.documents.filter((range): range is PageRange => "firstPage" in range);
+      if (pageDocuments.length === split.documents.length && sameSplit(pageDocuments, source.expectedSplit)) {
+        splitCorrect += 1;
+      }
 
       for (const document of source.documents) {
         const isolated = await documentBytes(bytes, source, document.pages);

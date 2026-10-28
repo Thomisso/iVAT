@@ -10,6 +10,7 @@ import {
 } from "./extraction-payload";
 import { extractJob, type JobQueue } from "./processing";
 import { pdfPages, readSourceFile, SOURCE_FILE_MEDIA_TYPES } from "./source-files";
+import { workbookRowsToText, type WorkbookRowSet } from "./workbooks";
 
 export const DOCUMENT_STATUSES = ["uploaded", "processing", "needs_review", "approved", "rejected", "failed"] as const;
 export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number];
@@ -25,6 +26,10 @@ export type Document = {
   lastPage: number;
   status: DocumentStatus;
   createdAt: string;
+  /** Present only for a Document identified by workbook rows instead of pages. */
+  rowSet?: WorkbookRowSet;
+  /** Present and false for row-based Documents, which have no page image. */
+  hasDocumentImage?: false;
 };
 
 export type ExtractionVersionAuthor =
@@ -119,7 +124,7 @@ export async function listCompanyDocuments(
   }));
 }
 
-const DOCUMENT_COLUMNS = "id, company_id, source_file_id, first_page, last_page, status, created_at";
+const DOCUMENT_COLUMNS = "id, company_id, source_file_id, first_page, last_page, source_sheet, first_row, last_row, has_document_image, status, created_at";
 
 function toDocument(d: {
   id: string;
@@ -127,10 +132,14 @@ function toDocument(d: {
   source_file_id: string;
   first_page: number;
   last_page: number;
+  source_sheet: string | null;
+  first_row: number | null;
+  last_row: number | null;
+  has_document_image: boolean;
   status: DocumentStatus;
   created_at: string;
 }): Document {
-  return {
+  const document: Document = {
     id: d.id,
     companyId: d.company_id,
     sourceFileId: d.source_file_id,
@@ -139,6 +148,11 @@ function toDocument(d: {
     status: d.status,
     createdAt: d.created_at,
   };
+  if (d.source_sheet !== null && d.first_row !== null && d.last_row !== null) {
+    document.rowSet = { sheetName: d.source_sheet, firstRow: d.first_row, lastRow: d.last_row };
+    document.hasDocumentImage = false;
+  }
+  return document;
 }
 
 /** The Documents a Source File of the Company was Split into, in page order. */
@@ -183,10 +197,28 @@ export async function readDocumentPages(
   const stored = await readSourceFile(client, companyId, document.sourceFileId);
   if (!stored) return null;
   const { file, bytes } = stored;
+  if (document.rowSet) return null;
   return {
     fileName: file.fileName,
     mediaType: SOURCE_FILE_MEDIA_TYPES[file.format],
     bytes: file.format === "pdf" ? await pdfPages(bytes, document) : bytes,
+  };
+}
+
+/** The row-numbered source table shown for a row-based Document in review. */
+export async function readDocumentRows(
+  client: AppClient,
+  companyId: string,
+  documentId: string,
+): Promise<(WorkbookRowSet & { fileName: string; text: string }) | null> {
+  const document = await getDocument(client, companyId, documentId);
+  if (!document?.rowSet) return null;
+  const stored = await readSourceFile(client, companyId, document.sourceFileId);
+  if (!stored) return null;
+  return {
+    fileName: stored.file.fileName,
+    ...document.rowSet,
+    text: workbookRowsToText(stored.bytes, document.rowSet),
   };
 }
 

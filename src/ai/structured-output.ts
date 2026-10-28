@@ -5,7 +5,7 @@ import {
   VAT_REGIMES,
   type ExtractionPayload,
 } from "@/application/extraction-payload";
-import type { PageRange } from "@/application/ai-provider";
+import type { PageRange, RowRange } from "@/application/ai-provider";
 
 export const SPLIT_SCHEMA = {
   type: "object",
@@ -22,6 +22,28 @@ export const SPLIT_SCHEMA = {
         properties: {
           firstPage: { type: "integer", minimum: 1 },
           lastPage: { type: "integer", minimum: 1 },
+        },
+      },
+    },
+  },
+} as const;
+
+export const SPREADSHEET_SPLIT_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["documents"],
+  properties: {
+    documents: {
+      type: "array",
+      minItems: 1,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["sheetName", "firstRow", "lastRow"],
+        properties: {
+          sheetName: { type: "string" },
+          firstRow: { type: "integer", minimum: 1 },
+          lastRow: { type: "integer", minimum: 1 },
         },
       },
     },
@@ -110,6 +132,31 @@ export function pageRanges(provider: string, value: unknown): PageRange[] {
       throw new Error(`${provider} returned an invalid Split`);
     }
     return { firstPage: range.firstPage as number, lastPage: range.lastPage as number };
+  });
+}
+
+export function rowRanges(provider: string, value: unknown): RowRange[] {
+  if (!value || typeof value !== "object" || !("documents" in value) || !Array.isArray(value.documents)) {
+    throw new Error(`${provider} returned an invalid Split`);
+  }
+  return value.documents.map((range) => {
+    if (
+      !range ||
+      typeof range !== "object" ||
+      !("sheetName" in range) ||
+      !("firstRow" in range) ||
+      !("lastRow" in range) ||
+      typeof range.sheetName !== "string" ||
+      !Number.isInteger(range.firstRow) ||
+      !Number.isInteger(range.lastRow)
+    ) {
+      throw new Error(`${provider} returned an invalid Split`);
+    }
+    return {
+      sheetName: range.sheetName,
+      firstRow: range.firstRow as number,
+      lastRow: range.lastRow as number,
+    };
   });
 }
 
