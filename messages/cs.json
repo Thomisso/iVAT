@@ -626,7 +626,7 @@
       "title": "Dobré ráno, Jano",
       "description": "Práce, která čeká na vaši pozornost ve společnosti Ateliér Novák.",
       "summaryLabel": "Souhrn zpracování",
-      "upload": "Nahrát doklady",
+      "upload": "Přidat zdrojové soubory",
       "ribbon": {
         "label": "Cesta zpracování dokladů",
         "captured": { "title": "Pořízeno", "detail": "18 zdrojových souborů" },
@@ -647,7 +647,7 @@
         "batch": "Říjnové účtenky",
         "detail": "Vytěžení čte 3 z 8 zdrojových souborů."
       },
-      "empty": { "title": "Žádné další aktivní dávky", "detail": "Nová nahrání se objeví tady." }
+      "empty": { "title": "Žádné další aktivní dávky", "detail": "Nové zdrojové soubory se zobrazí zde." }
     },
     "upload": {
       "title": "Nahrání",
