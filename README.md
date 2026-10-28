@@ -40,6 +40,8 @@ Uploaded Source Files wait until the Company enables AI processing and chooses a
 | `npm run db:types` | Regenerate `src/lib/database.types.ts` from the local schema after a migration |
 | `npm run dev` | Next.js dev server |
 | `npm run worker` | Worker process (restarts on change) |
+| `npm run dev:seed` | Create a fresh QA account with a Company and an uploaded Source File; prints its sign-in details |
+| `npm run demo` | Start Supabase and apply new migrations, start the dev server on a free port and the worker, seed a demo account, and print the URL, login and password. Ctrl+C stops the servers |
 | `npm run typecheck` | Generate Next route types, then run `tsc` |
 | `npm run lint` | ESLint |
 | `npm test` | Application-layer tests; requires `npm run db:start` |
