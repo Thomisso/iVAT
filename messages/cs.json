@@ -489,6 +489,8 @@
     "show": "Zobrazit uložený návrh",
     "generate": "Vygenerovat návrh",
     "regenerate": "Vygenerovat / přepočítat návrh",
+    "excelOverview": "Stáhnout přehled v Excelu",
+    "excelOverviewHint": "Před vygenerováním návrhu zkontrolujte aktuální doklady tohoto vykazovaného období.",
     "none": "Pro toto období zatím není návrh",
     "scope": "Měsíční tuzemská plnění, přenesení daňové povinnosti a podporovaná plnění z EU se sazbami 21 % a 12 %. Ostatní doklady jsou uvedeny mezi vyloučenými.",
     "draft": "Návrh · {period}",

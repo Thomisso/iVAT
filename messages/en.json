@@ -489,6 +489,8 @@
     "show": "Show saved draft",
     "generate": "Generate draft",
     "regenerate": "Generate / regenerate draft",
+    "excelOverview": "Download Excel overview",
+    "excelOverviewHint": "Check the current Documents in this Reporting Period before generating the draft.",
     "none": "No draft for this Reporting Period",
     "scope": "Monthly domestic, reverse-charge and supported EU supplies at 21% and 12%. Other Documents are listed as excluded.",
     "draft": "Draft · {period}",
