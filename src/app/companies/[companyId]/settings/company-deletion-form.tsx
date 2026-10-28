@@ -1,52 +1,89 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/button";
 import { Notice } from "@/components/notice";
-import { COMPANY_EXPORT_POLL_TIMEOUT_MS } from "@/lib/processing-policy";
-
-type TerminalExportStatus = "failed" | "stale";
-
-const EXPORT_POLL_INTERVAL_MS = 500;
+import {
+  forgetPendingCompanyExport,
+  pollCompanyExportStatus,
+  readPendingCompanyExport,
+  rememberPendingCompanyExport,
+  type CompanyExportTerminalStatus,
+} from "@/lib/company-export-polling";
 
 function downloadName(disposition: string | null): string {
   return disposition?.match(/filename="([^"]+)"/)?.[1] ?? "iVAT-company-export.zip";
 }
 
-async function waitForCompletedExport(
-  companyId: string,
-  exportId: string,
-): Promise<"completed" | TerminalExportStatus> {
-  const deadline = Date.now() + COMPANY_EXPORT_POLL_TIMEOUT_MS;
-  while (Date.now() < deadline) {
-    const response = await fetch(
-      `/companies/${encodeURIComponent(companyId)}/exports/${encodeURIComponent(exportId)}`,
-      { cache: "no-store" },
-    );
-    if (!response.ok) throw new Error("Company export status failed");
-    const status = await response.json() as "pending" | "completed" | TerminalExportStatus;
-    if (status !== "pending") return status;
-    await new Promise((resolve) => setTimeout(resolve, EXPORT_POLL_INTERVAL_MS));
-  }
-  throw new Error("Company export completion timed out");
-}
-
 export function CompanyDeletionForm({ companyId }: { companyId: string }) {
   const t = useTranslations("company");
   const router = useRouter();
+  const controllerRef = useRef<AbortController | null>(null);
   const [pending, setPending] = useState(false);
-  const [failure, setFailure] = useState<"technical" | TerminalExportStatus | null>(null);
+  const [failure, setFailure] = useState<"technical" | Exclude<CompanyExportTerminalStatus, "completed"> | null>(null);
+
+  const continueExport = useCallback(async (exportId: string, signal: AbortSignal) => {
+    try {
+      const status = await pollCompanyExportStatus(async (pollSignal) => {
+        const response = await fetch(
+          `/companies/${encodeURIComponent(companyId)}/exports/${encodeURIComponent(exportId)}`,
+          { cache: "no-store", signal: pollSignal },
+        );
+        if (!response.ok) throw new Error("Company export status failed");
+        return response.json();
+      }, { signal });
+      signal.throwIfAborted();
+      if (status !== "completed") {
+        forgetPendingCompanyExport(sessionStorage, companyId);
+        setFailure(status);
+        setPending(false);
+        return;
+      }
+      const deleted = await fetch(`/companies/${companyId}/delete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ exportId }),
+        signal,
+      });
+      if (!deleted.ok) throw new Error("Company deletion failed");
+      forgetPendingCompanyExport(sessionStorage, companyId);
+      router.replace("/");
+    } catch {
+      if (!signal.aborted) {
+        setFailure("technical");
+        setPending(false);
+      }
+    }
+  }, [companyId, router]);
+
+  useEffect(() => {
+    const exportId = readPendingCompanyExport(sessionStorage, companyId);
+    if (!exportId) return;
+    const controller = new AbortController();
+    controllerRef.current = controller;
+    queueMicrotask(() => {
+      if (controller.signal.aborted) return;
+      setPending(true);
+      setFailure(null);
+      void continueExport(exportId, controller.signal);
+    });
+    return () => controller.abort();
+  }, [companyId, continueExport]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!window.confirm(t("deleteConfirm"))) return;
+    controllerRef.current?.abort();
+    const controller = new AbortController();
+    controllerRef.current = controller;
     setPending(true);
     setFailure(null);
     try {
       const response = await fetch(`/companies/${companyId}/export`, {
         method: "POST",
+        signal: controller.signal,
       });
       if (!response.ok) throw new Error("Company export and deletion failed");
       const blob = await response.blob();
@@ -58,22 +95,13 @@ export function CompanyDeletionForm({ companyId }: { companyId: string }) {
       anchor.download = downloadName(response.headers.get("Content-Disposition"));
       anchor.click();
       setTimeout(() => URL.revokeObjectURL(url), 0);
-      const status = await waitForCompletedExport(companyId, exportId);
-      if (status !== "completed") {
-        setFailure(status);
-        setPending(false);
-        return;
-      }
-      const deleted = await fetch(`/companies/${companyId}/delete`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ exportId }),
-      });
-      if (!deleted.ok) throw new Error("Company deletion failed");
-      router.replace("/");
+      rememberPendingCompanyExport(sessionStorage, companyId, exportId);
+      await continueExport(exportId, controller.signal);
     } catch {
-      setFailure("technical");
-      setPending(false);
+      if (!controller.signal.aborted) {
+        setFailure("technical");
+        setPending(false);
+      }
     }
   }
 
