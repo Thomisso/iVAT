@@ -75,10 +75,12 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   await page.reload();
   await expect(reviewBatch).toBeVisible();
   await reviewBatch.click();
-  await expect(page).toHaveURL(/\/documents\?status=needs_review&batchId=[0-9a-f-]+$/);
+  await expect(page).toHaveURL(/\/documents\?view=review&batchId=[0-9a-f-]+$/);
   const documents = page.getByRole("table", { name: "Documents" });
   await expect(documents.getByRole("link")).toHaveCount(1);
   await documents.getByRole("link").first().click();
+  await expect(page).toHaveURL(/\/documents\/[0-9a-f-]+\?view=review&batchId=[0-9a-f-]+$/);
+  const documentUrl = page.url();
 
   const documentNumber = `FV-E2E-${digits}`;
   await page.getByLabel("Document number", { exact: true }).fill(documentNumber);
@@ -87,7 +89,8 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   const approve = page.getByRole("button", { name: "Approve version 2" });
   await expect(approve).toBeEnabled();
   await approve.click();
-  await expect(page.getByText("Approved. The document counts towards VAT reports.")).toBeVisible();
+  await expect(page).toHaveURL(/\/documents\?view=review&batchId=[0-9a-f-]+#document-[0-9a-f-]+$/);
+  await expect(page.getByText("No documents match the filters.")).toBeVisible();
 
   await page.goto(`${companyUrl}/vat-reports`);
   const generate = page.locator("form").filter({
@@ -121,6 +124,13 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   await expect(page.getByRole("button", { name: "Unlock period" })).toBeVisible();
   await expect(page.getByText("Period locked", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Generate / regenerate draft" })).toBeDisabled();
+
+  await page.goto(documentUrl);
+  await expect(page.getByText(/Reporting period 2026-10 is locked/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save corrections" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Reject" })).toHaveCount(0);
+
+  await page.goto(`${companyUrl}/vat-reports`);
 
   await page.getByRole("button", { name: "Unlock period" }).click();
   await expect(page.getByRole("button", { name: "Finalize and lock period" })).toBeVisible();
