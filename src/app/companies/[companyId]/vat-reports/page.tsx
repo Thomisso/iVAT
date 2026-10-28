@@ -3,19 +3,19 @@ import { notFound } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
 import {
   getCompany,
-  getFilingFrequencyForPeriod,
   getMyCompanyRole,
 } from "@/application/companies";
+import {
+  getReportingPeriodReadiness,
+  listReportingPeriods,
+} from "@/application/reporting-period-readiness";
 import { getPeriodLock, getVatReport } from "@/application/vat-reports";
 import { vatReturnPreviewData } from "@/application/vat-return-preview";
 import { isReportingPeriod } from "@/application/vat-rules";
 import { requireUserClient } from "@/lib/supabase/server";
-import { AppSidebar } from "@/components/app-sidebar";
 import { DataTable } from "@/components/data-table";
 import { EmptyState } from "@/components/empty-state";
 import { Money } from "@/components/money";
-import { TextField } from "@/components/text-field";
-import { Button } from "@/components/button";
 import { StatusBadge } from "@/components/status-badge";
 import { formatDocumentDate } from "@/lib/format-date";
 import { GenerateForm } from "./generate-form";
@@ -33,27 +33,28 @@ export default async function VatReportsPage({
       ? query.period
       : null;
   const client = await requireUserClient();
-  const company = await getCompany(client, companyId);
+  const [company, periods] = await Promise.all([
+    getCompany(client, companyId),
+    listReportingPeriods(client, companyId),
+  ]);
   if (!company) notFound();
-  const currentMonth = new Date().toISOString().slice(0, 7);
-  const currentFrequency = await getFilingFrequencyForPeriod(
-    client,
-    companyId,
-    currentMonth,
-  );
-  const month = Number(currentMonth.slice(5, 7));
-  const period =
-    requestedPeriod ??
-    (currentFrequency === "quarterly"
-      ? `${currentMonth.slice(0, 4)}-Q${Math.ceil(month / 3)}`
-      : currentMonth);
-  const [report, periodLock, role, t, locale] = await Promise.all([
+  const period = periods.some((candidate) => candidate.period === requestedPeriod)
+    ? requestedPeriod!
+    : periods.find((candidate) => candidate.oldestUnfinished)?.period ?? periods.at(-1)?.period;
+  if (!period) notFound();
+  const [report, periodLock, role, readinessResult, t, locale] = await Promise.all([
     getVatReport(client, companyId, period),
     getPeriodLock(client, companyId, period),
     getMyCompanyRole(client, companyId),
+    getReportingPeriodReadiness(client, { companyId, period }),
     getTranslations(),
     getLocale(),
   ]);
+  if (!readinessResult.ok) notFound();
+  const readiness = readinessResult.value;
+  const periodIndex = periods.findIndex((candidate) => candidate.period === period);
+  const previousPeriod = periods[periodIndex - 1]?.period;
+  const nextPeriod = periods[periodIndex + 1]?.period;
   const documents = report?.documents ?? [];
   const documentLink = (id: string) => (
     <Link href={`/companies/${companyId}/documents/${id}`}>
@@ -78,50 +79,82 @@ export default async function VatReportsPage({
     );
   const result = report?.result;
   const preview = result ? vatReturnPreviewData(result) : null;
+  const groupRows = ([
+    ["processing", readiness.groups.processing],
+    ["failed", readiness.groups.failed],
+    ["needsReview", readiness.groups.needsReview],
+    ["approved", readiness.groups.approved],
+    ["rejected", readiness.groups.rejected],
+  ] as const).filter(([, ids]) => ids.length > 0);
   return (
-    <>
-      <AppSidebar currentCompanyId={companyId} activeReport />
-      <main className="dashboard vat-reports">
-        <header>
-          <p className="iv-muted">{company.name}</p>
-          <h1>{t("vatReports.title")}</h1>
-          <p className="iv-muted">{t("vatReports.scope")}</p>
+      <main className="company-workspace vat-reports">
+        <header className="company-page-header vat-report-header">
+          <p><Link href={`/companies/${companyId}/vat`}>{t("vatReports.backToPeriods")}</Link></p>
+          <h1>{t("vatReports.processingTitle", { period })}</h1>
+          <p>{t("vatReports.processingDescription")}</p>
         </header>
-        <section>
-          <form
-            className="form filters"
-            aria-label={t("vatReports.selectPeriod")}
-          >
-            <TextField
-              label={t("vatReports.period")}
-              type="text"
-              name="period"
-              required
-              pattern="20[0-9]{2}-(0[1-9]|1[0-2]|Q[1-4])"
-              placeholder={t("vatReports.periodPlaceholder")}
-              hint={t("vatReports.periodHint")}
-              defaultValue={period}
-            />
-            <Button type="submit" variant="secondary">
-              {t("vatReports.show")}
-            </Button>
+        <section className="vat-period-toolbar" aria-label={t("vatReports.selectPeriod")}>
+          <Link aria-disabled={!previousPeriod} className={`vat-period-previous${!previousPeriod ? " is-disabled" : ""}`} href={previousPeriod ? `/companies/${companyId}/vat-reports?period=${previousPeriod}` : `?period=${period}`}>{t("vatReports.previous")}</Link>
+          <form key={period}>
+            <label htmlFor="reporting-period">{t("vatReports.period")}</label>
+            <select defaultValue={period} id="reporting-period" name="period">
+              {periods.map((candidate) => <option key={candidate.period} value={candidate.period}>{candidate.period}</option>)}
+            </select>
+            <button className="iv-btn iv-btn-secondary iv-btn-md" type="submit">{t("vatReports.show")}</button>
           </form>
-          <GenerateForm
-            key={period}
-            companyId={companyId}
-            period={period}
-            exists={!!report}
-            locked={!!periodLock}
-          />
-          <p className="iv-muted">{t("vatReports.excelOverviewHint")}</p>
-          <a
-            className="iv-btn iv-btn-secondary iv-btn-md"
-            href={`/companies/${companyId}/vat-reports/${period}/xlsx`}
-            download
-          >
-            {t("vatReports.excelOverview")}
-          </a>
+          <Link aria-disabled={!nextPeriod} className={`vat-period-next${!nextPeriod ? " is-disabled" : ""}`} href={nextPeriod ? `/companies/${companyId}/vat-reports?period=${nextPeriod}` : `?period=${period}`}>{t("vatReports.next")}</Link>
         </section>
+        <div className="vat-processing-grid">
+          <section className={`vat-readiness ${readiness.ready ? "is-ready" : "has-blockers"}`}>
+            <header>
+              <div>
+                <span className="vat-section-label">{t("vatReports.liveData")}</span>
+                <h2>{t(readiness.ready ? "vatReports.readinessReady" : "vatReports.readinessBlocked")}</h2>
+                <p>{t(readiness.ready ? "vatReports.readinessReadyHint" : "vatReports.readinessBlockedHint")}</p>
+              </div>
+              <strong>{readiness.ready ? t("vatReports.ready") : t("vatReports.blockerCount", { count: readiness.blockers.length })}</strong>
+            </header>
+            <dl className="vat-document-groups">
+              {groupRows.map(([group, ids]) => <div key={group}>
+                <dt>{t(`vatReports.groups.${group}`)}</dt>
+                <dd>{ids.length}</dd>
+              </div>)}
+            </dl>
+            {readiness.warnings.length > 0 && <p className="vat-readiness-warning">{t("vatReports.warningCount", { count: readiness.warnings.length })}</p>}
+            <div className="vat-processing-actions">
+              <GenerateForm
+                key={period}
+                companyId={companyId}
+                period={period}
+                exists={!!report}
+                locked={!!periodLock}
+                disabled={!readiness.ready}
+              />
+              <div>
+                <strong>{t("vatReports.liveWorkbook")}</strong>
+                <p>{t("vatReports.excelOverviewHint")}</p>
+                <a
+                  className="iv-btn iv-btn-secondary iv-btn-md"
+                  href={`/companies/${companyId}/vat-reports/${period}/xlsx`}
+                  download
+                >
+                  {t("vatReports.excelOverview")}
+                </a>
+              </div>
+            </div>
+          </section>
+          <aside className="vat-snapshot-card">
+            <span className="vat-section-label">{t("vatReports.savedSnapshot")}</span>
+            {readiness.snapshot ? <>
+              <h2>{t("vatReports.snapshotGenerated", { date: formatDocumentDate(readiness.snapshot.generatedAt, true) })}</h2>
+              <p>{t(`vatReports.snapshotFreshness.${readiness.snapshot.freshness}`)}</p>
+              <dl>
+                <div><dt>{t("vatReports.freshness")}</dt><dd data-freshness={readiness.snapshot.freshness}>{t(`vatReports.freshnessState.${readiness.snapshot.freshness}`)}</dd></div>
+                <div><dt>{t("vatReports.snapshotDocuments")}</dt><dd>{report?.documents.length ?? 0}</dd></div>
+              </dl>
+            </> : <><h2>{t("vatReports.noSnapshot")}</h2><p>{t("vatReports.noSnapshotHint")}</p></>}
+          </aside>
+        </div>
         {!report || !result || !preview ? (
           <EmptyState icon="report" title={t("vatReports.none")} />
         ) : (
@@ -148,6 +181,7 @@ export default async function VatReportsPage({
                   companyId={companyId}
                   period={period}
                   locked={!!periodLock}
+                  disabled={!readiness.ready && !periodLock}
                 />
               )}
               <DataTable
@@ -280,6 +314,5 @@ export default async function VatReportsPage({
           </>
         )}
       </main>
-    </>
   );
 }

@@ -1737,6 +1737,144 @@ select:disabled {
 }
 .report-totals dd { margin: var(--space-2) 0 0; }
 .report-section + .report-section { margin-top: var(--space-5); }
+
+/* Reporting Period timeline and live-readiness processing workspace (#84). */
+.vat-periods-workspace,
+.vat-reports {
+  --canvas: #f6f6f3;
+  --surface: #ffffff;
+  --surface-sunken: #efefeb;
+  --surface-raised: #ffffff;
+  --line: #e2e2dc;
+  --line-strong: #8c8c84;
+  --ink: #1c1c1a;
+  --ink-muted: #62625c;
+  --accent: #1f5f8b;
+  --accent-hover: #174a6d;
+  --accent-soft: #e4eef5;
+  --on-accent: #ffffff;
+  --ai: #7a4f00;
+  --ai-soft: #fff6d1;
+  --ai-mark: #ffe066;
+  --ai-edge: #a77c00;
+  --ink-on-mark: #1c1c1a;
+  --success: #17663f;
+  --success-soft: #e2f2e8;
+  --warning: #a63f05;
+  --warning-soft: #fdeadc;
+  --danger: #b42318;
+  --danger-soft: #fbe5e3;
+  max-width: 1240px;
+  color: #263944;
+  color-scheme: light;
+}
+.vat-period-list,
+.vat-readiness,
+.vat-snapshot-card,
+.vat-reports > section:not(.vat-period-toolbar) {
+  border: 1px solid #d4ddda;
+  border-radius: 9px;
+  background: white;
+  box-shadow: 0 1px 3px #12304a0a;
+}
+.vat-period-list > header {
+  padding: 18px 20px;
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid #e2e7e5;
+}
+.vat-period-list h2,
+.vat-readiness h2,
+.vat-snapshot-card h2 { margin: 0; color: var(--shell-navy); font-size: 18px; }
+.vat-period-list header p,
+.vat-readiness header p,
+.vat-snapshot-card > p { margin: 4px 0 0; color: #617078; }
+.vat-period-list > header > span { color: #617078; font-size: 12px; }
+.vat-period-list ol { margin: 0; padding: 0; list-style: none; }
+.vat-period-list li {
+  min-height: 76px;
+  padding: 14px 20px;
+  display: grid;
+  grid-template-columns: minmax(130px, .7fr) minmax(220px, 1.3fr) auto;
+  align-items: center;
+  gap: 18px;
+  border-bottom: 1px solid #e7ebe9;
+}
+.vat-period-list li:last-child { border-bottom: 0; }
+.vat-period-list li.is-oldest-unfinished { background: #fff9e4; box-shadow: inset 4px 0 #a77c00; }
+.vat-period-list li > div:first-child { display: flex; flex-direction: column; }
+.vat-period-list li > div:first-child strong { color: var(--shell-navy); font: 650 15px var(--font-mono); }
+.vat-period-list li small { color: #647279; }
+.vat-period-list li > a { color: var(--shell-blue); font-weight: 650; }
+.vat-period-state { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+.vat-period-state small { flex-basis: 100%; }
+.vat-oldest-label { padding: 3px 7px; border-radius: 999px; background: #f3df9b; color: #654d00; font-size: 11px; font-weight: 700; }
+.vat-report-header { margin-bottom: 18px; }
+.vat-report-header > p:first-child { margin-top: 0; }
+.vat-period-toolbar {
+  margin-bottom: 20px;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: end;
+  gap: 16px;
+}
+.vat-period-toolbar > a { padding-bottom: 8px; color: var(--shell-blue); font-weight: 650; text-decoration: none; }
+.vat-period-toolbar > a:last-child { text-align: right; }
+.vat-period-previous::before { content: "← "; }
+.vat-period-next::after { content: " →"; }
+.vat-period-toolbar > a.is-disabled { color: #94a09f; pointer-events: none; }
+.vat-period-toolbar form { display: flex; align-items: end; gap: 8px; }
+.vat-period-toolbar label { display: flex; flex-direction: column; gap: 4px; color: #526168; font-size: 12px; font-weight: 650; }
+.vat-period-toolbar select { min-width: 150px; height: 32px; padding: 0 30px 0 9px; border: 1px solid #aebbb7; border-radius: 5px; background: white; color: #213640; font: 600 13px var(--font-mono); }
+.vat-processing-grid { margin-bottom: 22px; display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(260px, .7fr); gap: 18px; align-items: start; }
+.vat-readiness > header { padding: 20px; display: flex; align-items: start; justify-content: space-between; gap: 16px; border-bottom: 1px solid #e2e7e5; }
+.vat-readiness > header > strong { flex: none; padding: 5px 9px; border-radius: 999px; font-size: 12px; }
+.vat-readiness.has-blockers > header > strong { background: var(--danger-soft); color: var(--danger); }
+.vat-readiness.is-ready > header > strong { background: var(--success-soft); color: var(--success); }
+.vat-section-label { display: block; margin-bottom: 5px; color: #6a787e; font-size: 10px; font-weight: 750; letter-spacing: .09em; }
+.vat-document-groups { margin: 0; padding: 8px 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(125px, 1fr)); }
+.vat-document-groups > div { padding: 10px 12px; border-right: 1px solid #e7ebe9; }
+.vat-document-groups > div:last-child { border-right: 0; }
+.vat-document-groups dt { color: #617078; font-size: 12px; }
+.vat-document-groups dd { margin: 3px 0 0; color: var(--shell-navy); font: 700 19px var(--font-mono); }
+.vat-readiness-warning { margin: 0; padding: 10px 20px; border-top: 1px solid #eee4c6; background: #fff9e4; color: #725800; }
+.vat-processing-actions { padding: 18px 20px; display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 18px; border-top: 1px solid #e2e7e5; }
+.vat-processing-actions .form { margin: 0; }
+.vat-processing-actions > div { max-width: 420px; }
+.vat-processing-actions p { margin: 3px 0 10px; color: #617078; font-size: 12px; }
+.vat-snapshot-card { padding: 20px; }
+.vat-snapshot-card dl { margin: 18px 0 0; }
+.vat-snapshot-card dl > div { padding: 10px 0; display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid #e2e7e5; }
+.vat-snapshot-card dd { margin: 0; font-weight: 700; }
+.vat-snapshot-card dd[data-freshness="current"] { color: var(--success); }
+.vat-snapshot-card dd[data-freshness="stale"] { color: var(--danger); }
+.vat-reports > section:not(.vat-period-toolbar) { margin-top: 20px; padding: 22px; }
+.vat-reports > .iv-empty { margin-top: 20px; }
+
+@media (max-width: 800px) {
+  .vat-period-list li { grid-template-columns: 1fr auto; }
+  .vat-period-state { grid-column: 1; grid-row: 2; }
+  .vat-period-list li > a { grid-column: 2; grid-row: 1 / 3; }
+  .vat-processing-grid { grid-template-columns: 1fr; }
+  .vat-period-toolbar { grid-template-columns: 1fr 1fr; }
+  .vat-period-toolbar form { grid-column: 1 / -1; grid-row: 1; justify-content: center; }
+}
+
+@media (max-width: 520px) {
+  .vat-period-list > header,
+  .vat-period-list li,
+  .vat-readiness > header,
+  .vat-processing-actions,
+  .vat-snapshot-card { padding-inline: 14px; }
+  .vat-period-list li { grid-template-columns: 1fr; gap: 9px; }
+  .vat-period-state,
+  .vat-period-list li > a { grid-column: 1; grid-row: auto; }
+  .vat-period-toolbar form { align-items: stretch; flex-direction: column; }
+  .vat-period-toolbar select { width: 100%; }
+  .vat-document-groups { grid-template-columns: 1fr 1fr; padding-inline: 8px; }
+}
 .member-list {
   display: grid;
   gap: var(--space-3);
