@@ -111,6 +111,7 @@ export async function companyWithManyReportDocuments(count: number) {
           provider: "fake",
           model: "fake-extract",
           payload: SAMPLE_EXTRACTION,
+          findings: [],
         });
         if (result.error) throw result.error;
       }),
