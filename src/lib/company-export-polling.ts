@@ -1,5 +1,6 @@
-export type CompanyExportPollingStatus = "pending" | "completed" | "failed" | "stale";
-export type CompanyExportTerminalStatus = Exclude<CompanyExportPollingStatus, "pending">;
+import type { CompanyDataExportStatus } from "./company-data-export-status";
+
+export type CompanyExportTerminalStatus = Exclude<CompanyDataExportStatus, "pending">;
 
 type PendingExportStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 type PollPause = (signal: AbortSignal) => Promise<void>;
@@ -46,7 +47,7 @@ function pauseForNextPoll(signal: AbortSignal): Promise<void> {
 
 /** Waits for a database-terminal export state; component lifecycle aborts are the only early exit. */
 export async function pollCompanyExportStatus(
-  readStatus: (signal: AbortSignal) => Promise<CompanyExportPollingStatus>,
+  readStatus: (signal: AbortSignal) => Promise<CompanyDataExportStatus>,
   options: { signal: AbortSignal; pause?: PollPause },
 ): Promise<CompanyExportTerminalStatus> {
   const pause = options.pause ?? pauseForNextPoll;
