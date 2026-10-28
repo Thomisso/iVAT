@@ -5,12 +5,11 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/button";
 import { Notice } from "@/components/notice";
-import { PROCESSING_JOB_RETRY_WINDOW_MS } from "@/lib/processing-policy";
+import { COMPANY_EXPORT_POLL_TIMEOUT_MS } from "@/lib/processing-policy";
 
 type TerminalExportStatus = "failed" | "stale";
 
 const EXPORT_POLL_INTERVAL_MS = 500;
-const EXPORT_POLL_TIMEOUT_MS = PROCESSING_JOB_RETRY_WINDOW_MS + 60_000;
 
 function downloadName(disposition: string | null): string {
   return disposition?.match(/filename="([^"]+)"/)?.[1] ?? "iVAT-company-export.zip";
@@ -20,7 +19,7 @@ async function waitForCompletedExport(
   companyId: string,
   exportId: string,
 ): Promise<"completed" | TerminalExportStatus> {
-  const deadline = Date.now() + EXPORT_POLL_TIMEOUT_MS;
+  const deadline = Date.now() + COMPANY_EXPORT_POLL_TIMEOUT_MS;
   while (Date.now() < deadline) {
     const response = await fetch(
       `/companies/${encodeURIComponent(companyId)}/exports/${encodeURIComponent(exportId)}`,
