@@ -47,6 +47,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
+    "happy-dom": "^21.0.4",
     "pdfjs-dist": "^6.4.299",
     "supabase": "^2.122.0",
     "tsx": "^4.23.15",

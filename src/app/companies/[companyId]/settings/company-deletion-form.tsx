@@ -24,7 +24,15 @@ export function CompanyDeletionForm({ companyId }: { companyId: string }) {
   const [pending, setPending] = useState(false);
   const [failure, setFailure] = useState<"technical" | Exclude<CompanyExportTerminalStatus, "completed"> | null>(null);
 
-  const continueExport = useCallback(async (exportId: string, signal: AbortSignal) => {
+  const replaceActiveController = useCallback(() => {
+    controllerRef.current?.abort();
+    const controller = new AbortController();
+    controllerRef.current = controller;
+    return controller;
+  }, []);
+
+  const continueExport = useCallback(async (exportId: string, controller: AbortController) => {
+    const { signal } = controller;
     try {
       const status = await pollCompanyExportStatus(async (pollSignal) => {
         const response = await fetch(
@@ -55,29 +63,38 @@ export function CompanyDeletionForm({ companyId }: { companyId: string }) {
         setFailure("technical");
         setPending(false);
       }
+    } finally {
+      if (controllerRef.current === controller) controllerRef.current = null;
     }
   }, [companyId, router]);
+
+  useEffect(() => () => {
+    const controller = controllerRef.current;
+    controllerRef.current = null;
+    controller?.abort();
+  }, []);
 
   useEffect(() => {
     const exportId = readPendingCompanyExport(sessionStorage, companyId);
     if (!exportId) return;
-    const controller = new AbortController();
-    controllerRef.current = controller;
+    const controller = replaceActiveController();
     queueMicrotask(() => {
       if (controller.signal.aborted) return;
       setPending(true);
       setFailure(null);
-      void continueExport(exportId, controller.signal);
+      void continueExport(exportId, controller);
     });
-    return () => controller.abort();
-  }, [companyId, continueExport]);
+    return () => {
+      if (controllerRef.current !== controller) return;
+      controllerRef.current = null;
+      controller.abort();
+    };
+  }, [companyId, continueExport, replaceActiveController]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!window.confirm(t("deleteConfirm"))) return;
-    controllerRef.current?.abort();
-    const controller = new AbortController();
-    controllerRef.current = controller;
+    const controller = replaceActiveController();
     setPending(true);
     setFailure(null);
     try {
@@ -96,12 +113,14 @@ export function CompanyDeletionForm({ companyId }: { companyId: string }) {
       anchor.click();
       setTimeout(() => URL.revokeObjectURL(url), 0);
       rememberPendingCompanyExport(sessionStorage, companyId, exportId);
-      await continueExport(exportId, controller.signal);
+      await continueExport(exportId, controller);
     } catch {
       if (!controller.signal.aborted) {
         setFailure("technical");
         setPending(false);
       }
+    } finally {
+      if (controllerRef.current === controller) controllerRef.current = null;
     }
   }
 
