@@ -5,6 +5,7 @@ import { asUserClient } from "@/application/client";
 import { logIn } from "@/application/auth";
 import { listAuditEvents } from "@/application/audit";
 import { enableAiProcessing } from "@/application/companies";
+import { listDocuments } from "@/application/documents";
 import {
   listPlatformOrganizationCompanies,
   getPlatformUploadLimits,
@@ -129,6 +130,41 @@ describe("SuperAdmin organization console", () => {
       expect.objectContaining({ targetId: target.organizationId, payload: { blocked: true } }),
       expect.objectContaining({ targetId: target.organizationId, payload: { blocked: false } }),
     ]);
+  });
+
+  it("defers an Extract job while blocked and completes it after unblocking", async () => {
+    const target = await administratorWithCompany("Blocked Extraction Organization");
+    const superAdmin = await superAdministrator();
+    const worker = testWorker();
+    await enableAiProcessing(target.client, worker.jobs, {
+      companyId: target.companyId,
+      provider: worker.ai,
+    });
+    const uploaded = await uploadSourceFile(target.client, worker.jobs, {
+      companyId: target.companyId,
+      fileName: "receipt.png",
+      bytes: fixtureFile("receipt.png"),
+    });
+    if (!uploaded.ok) throw new Error(uploaded.error);
+    await worker.runNextJob();
+    const [document] = await listDocuments(target.client, target.companyId, uploaded.value.id);
+    expect(document.status).toBe("uploaded");
+    expect(await setPlatformOrganizationBlocked(superAdmin.client, {
+      organizationId: target.organizationId,
+      blocked: true,
+    })).toEqual({ ok: true, value: null });
+
+    expect(await worker.runJobs()).toEqual([]);
+    expect(worker.delayed).toEqual([{ name: "extract-document", data: { documentId: document.id } }]);
+
+    expect(await setPlatformOrganizationBlocked(superAdmin.client, {
+      organizationId: target.organizationId,
+      blocked: false,
+    })).toEqual({ ok: true, value: null });
+    expect((await listDocuments(target.client, target.companyId, uploaded.value.id))[0].status).toBe("uploaded");
+    worker.releaseDelayedJobs();
+    expect(await worker.runJobs()).toEqual([]);
+    expect((await listDocuments(target.client, target.companyId, uploaded.value.id))[0].status).toBe("needs_review");
   });
 
   it("lets only a SuperAdmin edit upload limits and applies them to uploads", async () => {
@@ -272,7 +308,14 @@ describe("SuperAdmin organization console", () => {
             targetId: document.id,
             error: "worker crashed",
           }),
-        ]),
+          ]),
+      }));
+      expect(await retryFailedProcessingJob(ordinary.client, jobId)).toEqual({
+        ok: false,
+        error: "forbidden",
+      });
+      expect(await boss.getJobById("split-source-file", jobId)).toEqual(expect.objectContaining({
+        state: "failed",
       }));
       expect((await Promise.all([
         retryFailedProcessingJob(superAdmin.client, jobId),
