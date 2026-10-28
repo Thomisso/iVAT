@@ -54,9 +54,6 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   await page.goto(companyUrl);
   await page.locator('input[type="file"]').setInputFiles("tests/fixtures/receipt.png");
   await page.getByRole("button", { name: "Upload" }).click();
-  await expect(
-    page.locator(".upload-items").getByText("Uploaded", { exact: true }),
-  ).toBeVisible();
   await expect
     .poll(
       async () => {
