@@ -4,6 +4,10 @@ import { isUuid, type AppClient, type Result } from "./client";
 import { getCompany } from "./companies";
 import { splitJob, type JobQueue } from "./processing";
 import { workbookToText } from "./workbooks";
+import {
+  DIRECTIONS,
+  type Direction,
+} from "./extraction-payload";
 
 export type SourceFileFormat = "pdf" | "png" | "jpeg" | "xlsx" | "xls";
 export type ImageSourceFileFormat = "pdf" | "png" | "jpeg";
@@ -20,11 +24,18 @@ export type SourceFile = {
   byteSize: number;
   sha256: string;
   pageCount: number;
+  preselectedDirection: Direction | null;
   status: SourceFileStatus;
   uploadedAt: string;
 };
 
-export type UploadSourceFileInput = { companyId: string; batchId?: string; fileName: string; bytes: Uint8Array };
+export type UploadSourceFileInput = {
+  companyId: string;
+  batchId?: string;
+  fileName: string;
+  bytes: Uint8Array;
+  preselectedDirection?: Direction;
+};
 export type UploadSourceFileError =
   | "file_required"
   | "file_too_large"
@@ -32,6 +43,7 @@ export type UploadSourceFileError =
   | "unsupported_format"
   | "content_does_not_match_format"
   | "unreadable_file"
+  | "invalid_choice"
   | "forbidden";
 
 export const SOURCE_FILE_BUCKET = "source-files";
@@ -135,6 +147,12 @@ export async function uploadSourceFile(
   const fileName = input.fileName.trim();
   if (!fileName || input.bytes.length === 0) return { ok: false, error: "file_required" };
   if (input.batchId !== undefined && !isUuid(input.batchId)) return { ok: false, error: "forbidden" };
+  if (
+    input.preselectedDirection !== undefined &&
+    !DIRECTIONS.includes(input.preselectedDirection)
+  ) {
+    return { ok: false, error: "invalid_choice" };
+  }
   const limits = await getUploadLimits(client);
   if (input.bytes.length > limits.maxFileBytes) return { ok: false, error: "file_too_large" };
   const format = formatOf(fileName);
@@ -167,6 +185,7 @@ export async function uploadSourceFile(
     byte_size: input.bytes.length,
     sha256: createHash("sha256").update(input.bytes).digest("hex"),
     page_count: pageCount,
+    preselected_direction: input.preselectedDirection ?? null,
   });
   if (error) {
     if (error.code === "42501") return { ok: false, error: "forbidden" };
@@ -176,7 +195,7 @@ export async function uploadSourceFile(
   return { ok: true, value: { id } };
 }
 
-const COLUMNS = "id, company_id, file_name, format, byte_size, sha256, page_count, status, uploaded_at";
+const COLUMNS = "id, company_id, file_name, format, byte_size, sha256, page_count, preselected_direction, status, uploaded_at";
 
 type SourceFileRow = {
   id: string;
@@ -186,6 +205,7 @@ type SourceFileRow = {
   byte_size: number;
   sha256: string;
   page_count: number;
+  preselected_direction: string | null;
   status: SourceFileStatus;
   uploaded_at: string;
 };
@@ -199,6 +219,7 @@ function toSourceFile(row: SourceFileRow): SourceFile {
     byteSize: row.byte_size,
     sha256: row.sha256,
     pageCount: row.page_count,
+    preselectedDirection: row.preselected_direction as Direction | null,
     status: row.status,
     uploadedAt: row.uploaded_at,
   };

@@ -46,6 +46,12 @@ const error = (field: string, code: string): ValidationFinding => ({
   code,
 });
 
+const warning = (field: string, code: string): ValidationFinding => ({
+  field,
+  severity: "warning",
+  code,
+});
+
 export type IdentifierValidation = "valid" | "invalid_format" | "invalid_checksum";
 
 /** Czech IČO checksum: weighted first seven digits, with the eighth as check digit. */
@@ -159,6 +165,9 @@ export function validateDocument(
     ...identifierFindings(payload),
     ...requiredFieldFindings(payload),
   ];
+  if (payload.direction === null) {
+    findings.push(warning("direction", "direction_unknown"));
+  }
   const validRates = payload.taxPointDate
     ? referenceData.vatRates.find(
         (period) => period.validFrom <= payload.taxPointDate!,

@@ -23,6 +23,7 @@ async function companyWithExtractions(...extractions: ExtractionPayload[]) {
       companyId: admin.companyId,
       fileName: fixture,
       bytes: fixtureFile(fixture),
+      preselectedDirection: extractions[extraction].direction ?? undefined,
     });
     if (!result.ok) throw new Error(result.error);
     await worker.runJobs();
