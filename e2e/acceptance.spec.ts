@@ -115,6 +115,12 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   await expect(page.getByText("Period locked", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Generate / regenerate draft" })).toBeDisabled();
 
+  await page.getByRole("button", { name: "Unlock period" }).click();
+  await expect(page.getByRole("button", { name: "Finalize and lock period" })).toBeVisible();
+  await page.getByRole("button", { name: "Finalize and lock period" }).click();
+  await expect(page.getByRole("button", { name: "Unlock period" })).toBeVisible();
+  await expect(page.getByText("Period locked", { exact: true })).toBeVisible();
+
   await page.goto(`${companyUrl}/settings`);
   page.once("dialog", (dialog) => void dialog.accept());
   const companyExport = page.waitForEvent("download");
