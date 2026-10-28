@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { PDFDocument, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import type { AppClient, Result } from "./client";
+import { registeredAddressLine } from "./companies";
 import type { VatReturnPreviewData } from "./vat-return-preview";
 import { vatReturnPreviewData } from "./vat-return-preview";
 import { getVatReport } from "./vat-reports";
@@ -59,7 +60,7 @@ export async function createVatReturnPdf(
   text(page, font, preview.company.name, left, 767, 13);
   text(page, font, `VAT ID: ${preview.company.vatId}`, left, 747);
   text(page, font, `IČO: ${preview.company.ico}`, left, 731);
-  text(page, font, `Address: ${preview.company.street}`, left, 715);
+  text(page, font, `Address: ${registeredAddressLine(preview.company)}`, left, 715);
   text(
     page,
     font,

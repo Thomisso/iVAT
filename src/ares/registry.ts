@@ -1,6 +1,6 @@
 import type { AresRegistry, AresCompanyDetails } from "@/application/ares";
 
-const BASE_URL =
+const OFFICIAL_BASE_URL =
   "https://ares.gov.cz/ekonomicke-subjekty-v-be/rest/ekonomicke-subjekty";
 
 type AresResponse = {
@@ -42,17 +42,20 @@ function companyDetails(payload: AresResponse): AresCompanyDetails | null {
     name,
     ico,
     vatId: nonEmpty(payload.dic) ?? "",
-    street: `${streetName} ${houseNumber}${orientationNumber ? `/${orientationNumber}` : ""}`,
+    streetName,
+    houseNumber,
+    orientationNumber: orientationNumber ?? "",
     city,
     postalCode: `${rawPostalCode!.slice(0, 3)} ${rawPostalCode!.slice(3)}`,
   };
 }
 
 export function aresRegistry(fetcher: typeof fetch = fetch): AresRegistry {
+  const baseUrl = process.env.ARES_BASE_URL ?? OFFICIAL_BASE_URL;
   return {
     async findByIco(ico) {
       try {
-        const response = await fetcher(`${BASE_URL}/${encodeURIComponent(ico)}`, {
+        const response = await fetcher(`${baseUrl}/${encodeURIComponent(ico)}`, {
           headers: { Accept: "application/json" },
           signal: AbortSignal.timeout(5_000),
         });

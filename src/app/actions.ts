@@ -22,7 +22,14 @@ import {
 } from "@/application/mfa";
 import { mfaRedirectPath } from "@/application/mfa-routing";
 import { prefillCompanyFromAres } from "@/application/ares";
-import { createCompany, disableAiProcessing, enableAiProcessing, getCompany, updateCompany } from "@/application/companies";
+import {
+  createCompanyIdentity,
+  disableAiProcessing,
+  enableAiProcessing,
+  getCompany,
+  setCompanyFilingFrequency,
+  updateCompanyIdentity,
+} from "@/application/companies";
 import { acceptInvitation, changeMembershipRole, inviteMember, removeMembership } from "@/application/memberships";
 import { supabaseInvitationMailer } from "@/application/supabase-invitation-mailer";
 import {
@@ -92,14 +99,16 @@ function refused(error: string, formData: FormData, fields: string[]): FormState
 
 const COMPANY_FIELDS = [
   "name",
+  "firstName",
+  "lastName",
   "ico",
   "vatId",
-  "street",
+  "streetName",
+  "houseNumber",
+  "orientationNumber",
   "city",
   "postalCode",
   "personType",
-  "filingFrequency",
-  "filingFrequencyEffectiveFrom",
 ];
 
 export async function signUpAction(_state: FormState, formData: FormData): Promise<FormState> {
@@ -216,29 +225,42 @@ export async function createCompanyAction(_state: FormState, formData: FormData)
   const companyId = field(formData, "companyId");
   const settings = {
     name: field(formData, "name"),
+    firstName: field(formData, "firstName"),
+    lastName: field(formData, "lastName"),
     ico: field(formData, "ico"),
     vatId: field(formData, "vatId"),
-    street: field(formData, "street"),
+    streetName: field(formData, "streetName"),
+    houseNumber: field(formData, "houseNumber"),
+    orientationNumber: field(formData, "orientationNumber"),
     city: field(formData, "city"),
     postalCode: field(formData, "postalCode"),
     personType: field(formData, "personType") as "legal" | "natural",
-    filingFrequency: field(formData, "filingFrequency") as "monthly" | "quarterly",
-    filingFrequencyEffectiveFrom: field(formData, "filingFrequencyEffectiveFrom"),
   };
   const client = await requireUserClient();
   if (companyId) {
-    const result = await updateCompany(client, { companyId, ...settings });
+    const result = await updateCompanyIdentity(client, { companyId, ...settings });
     if (!result.ok) return refused(result.error, formData, COMPANY_FIELDS);
     await storeCompanyContext(companyId);
-    redirect(`/companies/${companyId}`);
+    redirect(`/companies/${companyId}/settings`);
   }
-  const result = await createCompany(client, {
+  const result = await createCompanyIdentity(client, {
     organizationId: field(formData, "organizationId"),
     ...settings,
   });
   if (!result.ok) return refused(result.error, formData, COMPANY_FIELDS);
   await storeCompanyContext(result.value.id);
-  redirect(`/companies/${result.value.id}`);
+  redirect(`/companies/${result.value.id}/setup/filing-frequency`);
+}
+
+export async function setCompanyFilingFrequencyAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const companyId = field(formData, "companyId");
+  const result = await setCompanyFilingFrequency(await requireUserClient(), {
+    companyId,
+    filingFrequency: field(formData, "filingFrequency") as "monthly" | "quarterly",
+    filingFrequencyEffectiveFrom: field(formData, "filingFrequencyEffectiveFrom"),
+  });
+  if (!result.ok) return refused(result.error, formData, ["filingFrequency", "filingFrequencyEffectiveFrom"]);
+  redirect(`/companies/${companyId}`);
 }
 
 export async function uploadSourceFileAction(_state: FormState, formData: FormData): Promise<FormState> {

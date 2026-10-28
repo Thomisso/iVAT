@@ -1,6 +1,7 @@
 import { isUuid, type AppClient, type Result } from "./client";
 import {
   getCompany,
+  getCompanySetupChecklist,
   getFilingFrequencyForPeriod,
   listCompanyFilingFrequencies,
   type CompanyDetails,
@@ -22,7 +23,7 @@ export type VatReport = {
   documents: ReportDocument[];
 };
 export type GenerateVatReportError =
-  "forbidden" | "invalid_reporting_period" | "stale_report" | "period_locked";
+  "forbidden" | "company_setup_incomplete" | "invalid_reporting_period" | "stale_report" | "period_locked";
 
 export type PeriodLock = {
   companyId: string;
@@ -117,6 +118,10 @@ export async function generateVatReport(
     return { ok: false, error: "invalid_reporting_period" };
   const company = await getCompany(client, input.companyId);
   if (!company) return { ok: false, error: "forbidden" };
+  const setup = await getCompanySetupChecklist(client, company.id);
+  if (setup.some((item) => (item.step === "identity" || item.step === "filing_frequency") && item.state !== "completed")) {
+    return { ok: false, error: "company_setup_incomplete" };
+  }
   const frequency = await getFilingFrequencyForPeriod(
     client,
     company.id,
@@ -137,9 +142,13 @@ export async function generateVatReport(
   const documents = data as unknown as ReportDocument[];
   const details: CompanyDetails = {
     name: company.name,
+    firstName: company.firstName,
+    lastName: company.lastName,
     ico: company.ico,
     vatId: company.vatId,
-    street: company.street,
+    streetName: company.streetName,
+    houseNumber: company.houseNumber,
+    orientationNumber: company.orientationNumber,
     city: company.city,
     postalCode: company.postalCode,
     personType: company.personType,
