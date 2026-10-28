@@ -255,14 +255,14 @@ isOneToOne: false
                   ]
                 },"notification": {
                   Row: {
-                    "company_id": string,"created_at": string,"id": string,"kind": string,"organization_id": string,"payload": NonNullable<Json>,"user_id": string
+                    "company_id": string,"created_at": string,"id": string,"kind": string,"organization_id": string,"payload": NonNullable<Json>,"read_at": string | null,"user_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "company_id": string,"created_at"?: string,"id"?: string,"kind": string,"organization_id": string,"payload": NonNullable<Json>,"user_id": string
+                    "company_id": string,"created_at"?: string,"id"?: string,"kind": string,"organization_id": string,"payload": NonNullable<Json>,"read_at"?: string | null,"user_id": string
                   }
                   Update: {
-                    "company_id"?: string,"created_at"?: string,"id"?: string,"kind"?: string,"organization_id"?: string,"payload"?: NonNullable<Json>,"user_id"?: string
+                    "company_id"?: string,"created_at"?: string,"id"?: string,"kind"?: string,"organization_id"?: string,"payload"?: NonNullable<Json>,"read_at"?: string | null,"user_id"?: string
                   }
                   Relationships: [
                     {
@@ -504,6 +504,14 @@ isOneToOne: false
       referencedColumns: ["id","company_id","organization_id"]
     }
                   ]
+                },"upload_batch_summary": {
+                  Row: {
+                    "actual_file_count": number | null,"company_id": string,"created_at": string,"document_failure_count": number | null,"extracting_count": number | null,"file_count": number,"id": string,"processing_finished_at": string | null,"review_count": number | null,"reviewed_count": number | null,"source_failure_count": number | null,"splitting_count": number | null,"transport_count": number | null,"transport_failure_count": number | null,"upload_finished_at": string | null,"waiting_count": number | null
+                  }
+                  ComputedFields: never
+                  Relationships: [
+
+                  ]
                 },"vat_report_document": {
                   Row: {
                     "claimed_reporting_period": string | null,"company_id": string,"extraction_version_id": string | null,"id": string,"organization_id": string,"payload": Json | null,"receipt_date": string,"status": Database["public"]['Enums']["document_status"]
@@ -646,6 +654,9 @@ isOneToOne: false
 { Args: { "target_provider": string }; Returns: {
               "id": string,"name": string,"platform_key_enabled": boolean
             }[]
+                           },
+"mark_upload_notification_read":
+{ Args: { "target_notification_id": string }; Returns: undefined
                            },
 "merge_documents":
 { Args: { "left_document_id": string,"right_document_id": string }; Returns: (string)[]
