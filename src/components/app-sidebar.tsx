@@ -123,6 +123,9 @@ export async function AppSidebar({
                   <Link href={`/organizations/${organization.id}/ai-usage`}>
                     {t("aiUsage.organizationNav", { organization: organization.name })}
                   </Link>
+                  <Link href={`/organizations/${organization.id}/audit-log`}>
+                    {t("auditLog.organizationNav", { organization: organization.name })}
+                  </Link>
                 </>
               )}
             </Fragment>
