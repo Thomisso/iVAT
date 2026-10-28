@@ -28,7 +28,11 @@ import { applyCnbConversion, type ExchangeRateProvider } from "./exchange-rates"
 
 export type ProcessingJob =
   | { name: "split-source-file"; data: { sourceFileId: string } }
-  | { name: "extract-document"; data: { documentId: string } };
+  | { name: "extract-document"; data: { documentId: string } }
+  | {
+      name: "complete-company-export";
+      data: { exportId: string; byteSize: number; sha256: string };
+    };
 
 export const splitJob = (sourceFileId: string): ProcessingJob => ({
   name: "split-source-file",
@@ -38,8 +42,20 @@ export const extractJob = (documentId: string): ProcessingJob => ({
   name: "extract-document",
   data: { documentId },
 });
+export const completeCompanyExportJob = (
+  exportId: string,
+  byteSize: number,
+  sha256: string,
+): ProcessingJob => ({
+  name: "complete-company-export",
+  data: { exportId, byteSize, sha256 },
+});
 
-export const PROCESSING_JOB_NAMES: ProcessingJob["name"][] = ["split-source-file", "extract-document"];
+export const PROCESSING_JOB_NAMES: ProcessingJob["name"][] = [
+  "split-source-file",
+  "extract-document",
+  "complete-company-export",
+];
 
 export interface JobQueue {
   send(job: ProcessingJob, options?: { startAfterSeconds?: number }): Promise<void>;
@@ -67,7 +83,24 @@ export async function runJob(worker: Worker, job: ProcessingJob, attempt: Attemp
       return splitSourceFile(worker, job.data.sourceFileId, attempt);
     case "extract-document":
       return extractDocument(worker, job.data.documentId, attempt);
+    case "complete-company-export":
+      return completeCompanyExport(worker.system, job.data);
   }
+}
+
+async function completeCompanyExport(
+  system: SystemClient,
+  input: { exportId: string; byteSize: number; sha256: string },
+): Promise<void> {
+  const { error } = await system.rpc("complete_company_data_export", {
+    target_export_id: input.exportId,
+    target_byte_size: input.byteSize,
+    target_sha256: input.sha256,
+  });
+  // A concurrent Company change permanently makes this snapshot stale. The
+  // authenticated status query exposes that terminal state to the browser.
+  if (error?.code === "P0001" && error.hint === "stale_export") return;
+  if (error) throw error;
 }
 
 type ProviderAvailability = { blocked: boolean; provider: AiProvider | null };

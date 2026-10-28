@@ -9,6 +9,7 @@ import {
 } from "@/application/companies";
 import {
   exportCompanyData,
+  getCompanyDataExportStatus,
   softDeleteCompany,
 } from "@/application/company-deletion";
 import { approveDocument, listDocuments, mergeDocuments } from "@/application/documents";
@@ -20,6 +21,13 @@ import {
 import { administratorWithCompany, companyMember } from "./support/fixtures";
 import { fixtureFile, workbookFile } from "./support/files";
 import { systemClient, testWorker } from "./support/worker";
+
+async function exportAndComplete(client: AppClient, input: { companyId: string }) {
+  const worker = testWorker();
+  const result = await exportCompanyData(client, worker.jobs, input);
+  if (result.ok) expect(await worker.runJobs()).toEqual([]);
+  return result;
+}
 
 it("exports a Company's originals and Document data before retaining it as soft-deleted", async () => {
   const company = await administratorWithCompany();
@@ -44,7 +52,7 @@ it("exports a Company's originals and Document data before retaining it as soft-
     uploaded.value.id,
   );
 
-  const result = await exportCompanyData(company.client, systemClient(), {
+  const result = await exportAndComplete(company.client, {
     companyId: company.companyId,
   });
 
@@ -116,18 +124,18 @@ it("allows a Company Administrator, but refuses a User and another tenant", asyn
   const outsider = await administratorWithCompany("Another Organization");
 
   expect(
-    await exportCompanyData(user.client, systemClient(), {
+    await exportAndComplete(user.client, {
       companyId: company.companyId,
     }),
   ).toEqual({ ok: false, error: "forbidden" });
   expect(
-    await exportCompanyData(outsider.client, systemClient(), {
+    await exportAndComplete(outsider.client, {
       companyId: company.companyId,
     }),
   ).toEqual({ ok: false, error: "forbidden" });
   expect(await getCompany(company.client, company.companyId)).not.toBeNull();
 
-  const exported = await exportCompanyData(administrator.client, systemClient(), {
+  const exported = await exportAndComplete(administrator.client, {
     companyId: company.companyId,
   });
   expect(exported).toEqual({
@@ -176,13 +184,11 @@ it("refuses a forged export receipt through an authenticated RPC", async () => {
   if (started.error) throw started.error;
   const pending = started.data as unknown as {
     exportId: string;
-    completionToken: string;
   };
   const forged = await Reflect.apply(company.client.rpc, company.client, [
     "complete_company_data_export",
     {
       target_export_id: pending.exportId,
-      completion_token: pending.completionToken,
       target_byte_size: 1,
       target_sha256: "0".repeat(64),
     },
@@ -207,6 +213,40 @@ it("refuses a forged export receipt through an authenticated RPC", async () => {
   })).toEqual({ ok: false, error: "export_required" });
 });
 
+it("completes an export idempotently when the worker runs the job twice at once", async () => {
+  const company = await administratorWithCompany();
+  const worker = testWorker();
+  const exported = await exportCompanyData(company.client, worker.jobs, {
+    companyId: company.companyId,
+  });
+  if (!exported.ok) throw new Error(exported.error);
+  expect(await getCompanyDataExportStatus(company.client, {
+    companyId: company.companyId,
+    exportId: exported.value.exportId,
+  })).toEqual({ ok: true, value: "pending" });
+  expect(await softDeleteCompany(company.client, {
+    companyId: company.companyId,
+    exportId: exported.value.exportId,
+  })).toEqual({ ok: false, error: "export_required" });
+
+  const [completionJob] = worker.queued;
+  worker.queued.push(completionJob);
+  expect(await worker.runJobsConcurrently()).toEqual([]);
+  worker.queued.push(completionJob);
+  expect(await worker.runJobs()).toEqual([]);
+  expect(await getCompanyDataExportStatus(company.client, {
+    companyId: company.companyId,
+    exportId: exported.value.exportId,
+  })).toEqual({ ok: true, value: "completed" });
+  expect((await listAuditEvents(company.client, company.organizationId)).filter((event) => (
+    event.action === "company.data_exported"
+  ))).toHaveLength(1);
+  expect(await softDeleteCompany(company.client, {
+    companyId: company.companyId,
+    exportId: exported.value.exportId,
+  })).toEqual({ ok: true, value: expect.any(Object) });
+});
+
 it("keeps a Company active when any Source File cannot be exported", async () => {
   const company = await administratorWithCompany();
   const uploaded = await uploadSourceFile(
@@ -226,7 +266,7 @@ it("keeps a Company active when any Source File cannot be exported", async () =>
   ).toBeNull();
 
   expect(
-    await exportCompanyData(company.client, systemClient(), {
+    await exportAndComplete(company.client, {
       companyId: company.companyId,
     }),
   ).toEqual({ ok: false, error: "export_failed" });
@@ -267,7 +307,7 @@ it("retains an Approved Document and its Period Lock after the Company is soft-d
     value: null,
   });
 
-  const exported = await exportCompanyData(company.client, systemClient(), report);
+  const exported = await exportAndComplete(company.client, report);
   expect(exported.ok).toBe(true);
   if (!exported.ok) return;
   expect(
@@ -321,7 +361,7 @@ it("exports every Document beyond the API row limit, including superseded rows",
     rightDocumentId: second.id,
   })).toEqual({ ok: true, value: null });
 
-  const exported = await exportCompanyData(company.client, systemClient(), { companyId: company.companyId });
+  const exported = await exportAndComplete(company.client, { companyId: company.companyId });
   expect(exported.ok).toBe(true);
   if (!exported.ok) return;
   const documents = JSON.parse(strFromU8(unzipSync(exported.value.bytes)["documents.json"]));
@@ -332,7 +372,7 @@ it("exports every Document beyond the API row limit, including superseded rows",
 
 it("refuses deletion when Company data changed after its completed export", async () => {
   const company = await administratorWithCompany();
-  const exported = await exportCompanyData(company.client, systemClient(), { companyId: company.companyId });
+  const exported = await exportAndComplete(company.client, { companyId: company.companyId });
   if (!exported.ok) throw new Error(exported.error);
   const changed = await uploadSourceFile(company.client, { async send() {} }, {
     companyId: company.companyId,
@@ -370,7 +410,8 @@ it("refuses an export receipt when Company data changes after its snapshot", asy
       return typeof value === "function" ? value.bind(target) : value;
     },
   }) as AppClient;
-  const exporting = exportCompanyData(delayedClient, systemClient(), { companyId: company.companyId });
+  const worker = testWorker();
+  const exporting = exportCompanyData(delayedClient, worker.jobs, { companyId: company.companyId });
   await snapshotReady;
   const changed = await uploadSourceFile(company.client, { async send() {} }, {
     companyId: company.companyId,
@@ -380,7 +421,13 @@ it("refuses an export receipt when Company data changes after its snapshot", asy
   releaseSnapshot();
   if (!changed.ok) throw new Error(changed.error);
 
-  expect(await exporting).toEqual({ ok: false, error: "stale_export" });
+  const exported = await exporting;
+  if (!exported.ok) throw new Error(exported.error);
+  expect(await worker.runJobs()).toEqual([]);
+  expect(await getCompanyDataExportStatus(company.client, {
+    companyId: company.companyId,
+    exportId: exported.value.exportId,
+  })).toEqual({ ok: true, value: "stale" });
   expect(await getCompany(company.client, company.companyId)).not.toBeNull();
 });
 
@@ -391,7 +438,7 @@ it("throws unexpected Company export failures", async () => {
     },
   } as unknown as AppClient;
 
-  await expect(exportCompanyData(brokenClient, systemClient(), {
+  await expect(exportCompanyData(brokenClient, testWorker().jobs, {
     companyId: "00000000-0000-4000-8000-000000000001",
   })).rejects.toThrow("database unavailable");
 });
@@ -399,7 +446,7 @@ it("throws unexpected Company export failures", async () => {
 it("does not expose Company export receipts through direct table reads or writes", async () => {
   const company = await administratorWithCompany();
   const outsider = await administratorWithCompany("Other Organization");
-  const exported = await exportCompanyData(company.client, systemClient(), { companyId: company.companyId });
+  const exported = await exportAndComplete(company.client, { companyId: company.companyId });
   if (!exported.ok) throw new Error(exported.error);
 
   const reads = [

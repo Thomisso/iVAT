@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
 import { zipSync, strToU8 } from "fflate";
-import { isUuid, type AppClient, type Result, type SystemClient } from "./client";
+import { isUuid, type AppClient, type Result } from "./client";
 import type { Company, FilingFrequencyHistoryEntry } from "./companies";
 import type { Document, ExtractionVersion } from "./documents";
+import { completeCompanyExportJob, type JobQueue } from "./processing";
 import { readSourceFile, type SourceFile } from "./source-files";
 
 export type CompanyDataExportDownload = {
@@ -12,8 +13,9 @@ export type CompanyDataExportDownload = {
   mediaType: "application/zip";
 };
 
-export type ExportCompanyDataError = "forbidden" | "export_failed" | "stale_export";
+export type ExportCompanyDataError = "forbidden" | "export_failed";
 export type SoftDeleteCompanyError = "forbidden" | "export_required" | "stale_export";
+export type CompanyDataExportStatus = "pending" | "completed" | "stale";
 export type CompanyDeletionReceipt = {
   sourceFileCount: number;
   documentCount: number;
@@ -32,7 +34,6 @@ type CompanyExportSnapshot = {
 type PendingCompanyExport = {
   exportId: string;
   fileName: string;
-  completionToken: string;
   snapshot: CompanyExportSnapshot;
 };
 
@@ -60,7 +61,7 @@ function isMissingStoredObject(error: unknown): boolean {
  */
 export async function exportCompanyData(
   client: AppClient,
-  receipts: SystemClient,
+  jobs: JobQueue,
   input: { companyId: string },
 ): Promise<
   Result<CompanyDataExportDownload, ExportCompanyDataError>
@@ -89,21 +90,32 @@ export async function exportCompanyData(
     archive[`source-files/${sourceFile.id}/${archiveLeaf(sourceFile.fileName)}`] = stored.bytes;
   }
   const bytes = zipSync(archive, { level: 6 });
-  const { error } = await receipts.rpc("complete_company_data_export", {
-    target_export_id: pending.exportId,
-    completion_token: pending.completionToken,
-    target_byte_size: bytes.byteLength,
-    target_sha256: createHash("sha256").update(bytes).digest("hex"),
-  });
-  if (error) {
-    if (error.code === "42501") return { ok: false, error: "forbidden" };
-    if (error.code === "P0001" && error.hint === "stale_export") return { ok: false, error: "stale_export" };
-    throw error;
-  }
+  await jobs.send(completeCompanyExportJob(
+    pending.exportId,
+    bytes.byteLength,
+    createHash("sha256").update(bytes).digest("hex"),
+  ));
   return {
     ok: true,
     value: { bytes, exportId: pending.exportId, fileName: pending.fileName, mediaType: "application/zip" },
   };
+}
+
+/** Whether the current Administrator's downloaded export can authorize deletion. */
+export async function getCompanyDataExportStatus(
+  client: AppClient,
+  input: { companyId: string; exportId: string },
+): Promise<Result<CompanyDataExportStatus, "forbidden">> {
+  if (!isUuid(input.companyId) || !isUuid(input.exportId)) {
+    return { ok: false, error: "forbidden" };
+  }
+  const { data, error } = await client.rpc("company_data_export_status", {
+    target_company_id: input.companyId,
+    target_export_id: input.exportId,
+  });
+  if (error?.code === "42501") return { ok: false, error: "forbidden" };
+  if (error) throw error;
+  return { ok: true, value: data as CompanyDataExportStatus };
 }
 
 /** Soft-deletes a Company only with the current Administrator's completed export. */

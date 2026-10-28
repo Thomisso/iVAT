@@ -23,11 +23,11 @@ export const isUuid = (value: string) => UUID.test(value);
 export type Result<T, E extends string> = { ok: true; value: T } | { ok: false; error: E };
 
 /**
- * A Supabase client acting as service_role, which RLS does not restrict. Only
- * background handlers and narrow server-only completion paths take one; explicit
- * function grants keep authoritative transitions in PostgreSQL.
+ * A Supabase client acting as the worker (service_role), which RLS does not
+ * restrict. Only background job handlers take one; the database still limits it
+ * to reading and to the processing transitions it grants the worker.
  */
 export type SystemClient = SupabaseClient<Database> & { readonly [actingAs]: "system" };
 
-/** Marks a secret-key client for worker transitions and narrowly granted server-only completion RPCs. */
+/** Marks a client created with the secret key as the SystemClient. Only the worker and its tests call this. */
 export const asSystemClient = (client: SupabaseClient<Database>) => client as SystemClient;
