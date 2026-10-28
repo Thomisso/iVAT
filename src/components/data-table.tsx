@@ -23,7 +23,12 @@ export function DataTable<Row extends { id: string | number }>({
   rowId,
 }: DataTableProps<Row>) {
   return (
-    <div className="iv-table-wrap">
+    <div
+      aria-label={caption}
+      className="iv-table-wrap"
+      role={caption ? "region" : undefined}
+      tabIndex={0}
+    >
       <table className="iv-table">
         {caption && <caption className="sr-only">{caption}</caption>}
         <thead>

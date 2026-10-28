@@ -3,18 +3,20 @@
 import { useState, type FormEvent } from "react";
 import type { PersonType } from "@/application/companies";
 import { useTranslations } from "next-intl";
-import { EPO_FORMATS, TAX_OFFICES } from "@/application/epo-export-details";
+import { TAX_OFFICES, type EpoFormat } from "@/application/epo-export-details";
 import { TextField } from "@/components/text-field";
 import { Button } from "@/components/button";
 import { FormError } from "@/components/form-error";
 
 export function ExportForm({
   companyId,
+  format,
   period,
   preparedOn,
   personType,
 }: {
   companyId: string;
+  format: EpoFormat;
   period: string;
   preparedOn: string;
   personType: PersonType;
@@ -73,21 +75,13 @@ export function ExportForm({
   }
 
   return (
-    <section>
-      <h2>{t("title")}</h2>
+    <article className="vat-export-card">
+      <span className="vat-section-label">{format.toUpperCase()}</span>
+      <h3>{t(`formats.${format}`)}</h3>
       <p className="iv-muted">{t("description")}</p>
       <form className="form" onSubmit={download}>
+        <input type="hidden" name="format" value={format} />
         <div className="form-row">
-          <label className="iv-field-label">
-            {t("format")}
-            <select name="format" defaultValue="dphdp3">
-              {EPO_FORMATS.map((format) => (
-                <option key={format} value={format}>
-                  {t(`formats.${format}`)}
-                </option>
-              ))}
-            </select>
-          </label>
           <TextField
             type="date"
             label={t("preparedOn")}
@@ -146,6 +140,6 @@ export function ExportForm({
           {t(pending ? "preparing" : "download")}
         </Button>
       </form>
-    </section>
+    </article>
   );
 }
