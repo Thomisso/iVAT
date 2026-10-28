@@ -74,7 +74,7 @@
 .ribbon li:last-child::after { display: none; }
 .ribbonActive { background: #fff9e9; box-shadow: inset 0 -3px #d79a24; }
 .ribbonActive::after { background: #fff9e9 !important; }
-.ribbonMarker { width: 30px; height: 30px; display: grid; place-items: center; flex: none; border: 1px solid #c5cecd; border-radius: 50%; background: #f3f5f3; color: #65747b; font: 650 12px var(--font-mono); }
+.ribbonMarker { width: 30px; height: 30px; display: grid; place-items: center; flex: none; border: 1px solid #c5cecd; border-radius: 50%; background: #f3f5f3; color: #5c6b72; font: 650 12px var(--font-mono); }
 .ribbon li:first-child .ribbonMarker { border-color: #6aa182; background: #e1f1e7; color: #17613c; }
 .ribbonActive .ribbonMarker { border-color: #d19a32; background: #f5d884; color: #684500; }
 .ribbon li > span:last-child { display: flex; flex-direction: column; }
