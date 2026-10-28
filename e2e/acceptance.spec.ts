@@ -92,20 +92,18 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   await expect(page).toHaveURL(/\/documents\?view=review&batchId=[0-9a-f-]+#document-[0-9a-f-]+$/);
   await expect(page.getByText("No documents match the filters.")).toBeVisible();
 
-  await page.goto(`${companyUrl}/vat-reports`);
-  const generate = page.locator("form").filter({
-    has: page.getByRole("button", { name: "Generate draft" }),
-  });
-  await generate.locator('input[name="period"]').fill("2026-10");
-  await generate.getByRole("button", { name: "Generate draft" }).click();
-  await expect(page.getByRole("heading", { name: "Draft · 2026-10" })).toBeVisible();
+  await page.goto(`${companyUrl}/vat-reports?period=2026-10`);
+  await page.getByRole("button", { name: "Generate draft" }).click();
+  await page.getByRole("navigation", { name: "Reporting Period destinations" })
+    .getByRole("link", { name: "VAT Return" }).click();
+  await expect(page.getByRole("heading", { name: "VAT Return · 2026-10" })).toBeVisible();
 
   const vatReturn = page.getByRole("table", { name: "VAT Return" });
   await vatReturn.locator("summary").first().click();
   await expect(vatReturn.getByRole("link", { name: documentNumber })).toBeVisible();
 
-  const exportSection = page.locator("section").filter({
-    has: page.getByRole("heading", { name: "Tax portal export" }),
+  const exportSection = page.locator("article").filter({
+    has: page.getByRole("heading", { name: "VAT Return (DPHDP3)" }),
   });
   await exportSection.getByLabel("Tax office").selectOption("451");
   await exportSection.getByLabel("First name").fill("Jana");
@@ -120,6 +118,7 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   const xml = await fs.readFile(path!, "utf8");
   expect(await validateEpoXml(xml, "dphdp3")).toBe(true);
 
+  await page.goto(`${companyUrl}/vat-reports?period=2026-10`);
   await page.getByRole("button", { name: "Finalize and lock period" }).click();
   await expect(page.getByRole("button", { name: "Unlock period" })).toBeVisible();
   await expect(page.getByText("Period locked", { exact: true })).toBeVisible();
@@ -130,7 +129,7 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   await expect(page.getByRole("button", { name: "Save corrections" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Reject" })).toHaveCount(0);
 
-  await page.goto(`${companyUrl}/vat-reports`);
+  await page.goto(`${companyUrl}/vat-reports?period=2026-10`);
 
   await page.getByRole("button", { name: "Unlock period" }).click();
   await expect(page.getByRole("button", { name: "Finalize and lock period" })).toBeVisible();
