@@ -45,6 +45,7 @@ Uploaded Source Files wait until the Company enables AI processing and chooses a
 | `npm run typecheck` | Generate Next route types, then run `tsc` |
 | `npm run lint` | ESLint |
 | `npm test` | Application-layer tests; requires `npm run db:start` |
+| `npm run test:serial` | The full application-layer suite with one Vitest worker; use for the final integration check |
 | `npm run evaluate:extraction` | Run the manual real-provider golden-set accuracy harness (not CI) |
 | `npm run build` | Production build |
 
@@ -112,4 +113,4 @@ illustrative fixtures are documented in
 
 ## CI
 
-`.github/workflows/ci.yml` runs on every pull request and on `main`. It checks that `package-lock.json` matches `package.json` and, on a pull request, that no migration already on `main` was changed, renamed or deleted. It then starts local Supabase, checks that `src/lib/database.types.ts` matches the migrations, then runs typecheck, lint, tests and build. After changing a migration, run `npm run db:types` and commit the result. Coding conventions that need judgement rather than a check are in [`CODING_STANDARDS.md`](CODING_STANDARDS.md).
+`.github/workflows/ci.yml` runs on every pull request and on `main`. It checks that `package-lock.json` matches `package.json` and, on a pull request, that no migration already on `main` was changed, renamed or deleted. It then starts local Supabase, checks that `src/lib/database.types.ts` matches the migrations, and runs typecheck, lint, tests and build. A separate job installs Chromium and runs the end-to-end acceptance scenario. After changing a migration, run `npm run db:types` and commit the result. Coding conventions that need judgement rather than a check are in [`CODING_STANDARDS.md`](CODING_STANDARDS.md).

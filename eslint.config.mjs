@@ -5,6 +5,31 @@ import nextTs from "eslint-config-next/typescript";
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
+  // ADR-0010: only the worker entrypoint and its test support construct a
+  // service-role client. Application modules receive one through their seam.
+  {
+    files: ["**/*.{ts,tsx}"],
+    ignores: [
+      "worker/index.ts",
+      "tests/support/worker.ts",
+      "src/application/client.ts",
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@/application/client", "./client", "**/application/client"],
+              importNames: ["asSystemClient"],
+              message:
+                "Only worker/index.ts and tests/support/worker.ts construct a SystemClient (ADR-0010).",
+            },
+          ],
+        },
+      ],
+    },
+  },
   // CODING_STANDARDS.md, UI and Application layer: user-visible text goes
   // through next-intl, and pages, routes and components reach the database
   // only through src/application/.
