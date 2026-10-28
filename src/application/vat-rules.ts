@@ -7,6 +7,11 @@ import {
   validateExtractionPayload,
   type ExtractionPayload,
 } from "./extraction-payload";
+import {
+  reportingPeriodForDate,
+  reportingPeriodStart,
+} from "./reporting-periods";
+export { isReportingPeriod } from "./reporting-periods";
 
 export type ReportDocument = {
   id: string;
@@ -30,26 +35,6 @@ function validDate(value: string | null): value is string {
   return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value;
 }
 
-function reportingPeriodForDate(
-  date: string,
-  filingFrequencies: readonly FilingFrequencyHistoryEntry[],
-): string | null {
-  const frequency = filingFrequencies
-    .filter((entry) => entry.effectiveFrom <= date)
-    .toSorted((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom))[0]
-    ?.frequency;
-  if (!frequency) return null;
-  if (frequency === "monthly") return date.slice(0, 7);
-  return `${date.slice(0, 4)}-Q${Math.ceil(Number(date.slice(5, 7)) / 3)}`;
-}
-
-function reportingPeriodStart(period: string): string | null {
-  const month = /^(20\d{2})-(0[1-9]|1[0-2])$/.exec(period);
-  if (month) return `${period}-01`;
-  const quarter = /^(20\d{2})-Q([1-4])$/.exec(period);
-  if (!quarter) return null;
-  return `${quarter[1]}-${String((Number(quarter[2]) - 1) * 3 + 1).padStart(2, "0")}-01`;
-}
 
 /** Assigns a Document to the Company's Reporting Period in force on its relevant date. */
 export function reportingPeriodForDocument(
@@ -128,9 +113,6 @@ export type ComputedVatReport = {
   totalDocumentIds: Record<keyof ComputedVatReport["totals"], string[]>;
   excludedDocuments: { documentId: string; reason: ExclusionReason }[];
 };
-
-export const isReportingPeriod = (value: string) =>
-  /^(20\d{2})-(0[1-9]|1[0-2]|Q[1-4])$/.test(value);
 
 /** Amounts are summed in integer halers; no financial value passes through a float. */
 function halers(value: string): bigint {

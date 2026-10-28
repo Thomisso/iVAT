@@ -135,22 +135,6 @@ export function ExportForm({
             />
           </fieldset>
         )}
-        {personType === "natural" && (
-          <div className="form-row">
-            <TextField
-              label={t("firstName")}
-              name="firstName"
-              required
-              maxLength={30}
-            />
-            <TextField
-              label={t("lastName")}
-              name="lastName"
-              required
-              maxLength={36}
-            />
-          </div>
-        )}
         <TextField
           label={t("email")}
           name="email"

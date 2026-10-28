@@ -133,7 +133,7 @@ export default async function VatReportsPage({
                 {preview.company.name} · {preview.company.vatId}
               </p>
               <p className="iv-muted">
-                {preview.company.street}, {preview.company.postalCode}{" "}
+                {preview.company.streetName} {preview.company.houseNumber}{preview.company.orientationNumber ? `/${preview.company.orientationNumber}` : ""}, {preview.company.postalCode}{" "}
                 {preview.company.city}
               </p>
               <p className="iv-muted">

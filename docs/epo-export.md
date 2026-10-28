@@ -20,7 +20,6 @@ Body: form data (`multipart/form-data` or `application/x-www-form-urlencoded`).
 | `taxOffice` | Official technical `c_ufo` code selected from the form |
 | `preparedOn` | Valid ISO preparation date |
 | `signatoryFirstName`, `signatoryLastName`, `signatoryCapacity` | Required for `P` |
-| `firstName`, `lastName` | Required for `F` |
 | `email` | Optional contact email |
 
 Success: HTTP 200, `Content-Type: application/xml; charset=utf-8`,
@@ -43,7 +42,9 @@ submit anything to EPO.
 
 The legal/natural person type is taken from the Company data saved in the VAT
 Report snapshot, not from the request body. Legal Companies supply signatory
-details per export; natural-person Companies supply their first and last name.
+details per export; natural-person names come only from the immutable Company
+identity in the VAT Report snapshot. Registered address components are serialized
+directly without parsing a display string.
 
 Schema provenance, mappings, rounding and update instructions are in
 [`schemas/epo/README.md`](../schemas/epo/README.md). Tests compare exports with
