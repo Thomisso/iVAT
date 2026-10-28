@@ -15,6 +15,7 @@
 .shell a { color: var(--prototype-blue); }
 .shell :where(button, input, select) { font: inherit; }
 .shell :where(a, button, input, select):focus-visible { outline: 3px solid #21628f; outline-offset: 3px; box-shadow: none; }
+.returnPanel:focus-visible { outline: 3px solid var(--prototype-blue); outline-offset: 3px; }
 .icon { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; }
 .visuallyHidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); border: 0; white-space: nowrap; }
 .skipLink { position: fixed; z-index: 50; top: 8px; left: 8px; padding: 10px 14px; transform: translateY(-160%); background: white; color: var(--prototype-navy); font-weight: 700; }

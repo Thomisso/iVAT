@@ -33,6 +33,20 @@ function render(screen: Parameters<typeof VisualPrototype>[0]["screen"]) {
   );
 }
 
+function renderCzech(screen: Parameters<typeof VisualPrototype>[0]["screen"]) {
+  return renderToStaticMarkup(
+    createElement(
+      TestProvider,
+      {
+        locale: "cs",
+        messages: czechMessages,
+        timeZone: "Europe/Prague",
+      },
+      createElement(VisualPrototype, { screen }),
+    ),
+  );
+}
+
 test("the prototype exposes the agreed Company navigation with an explicit current destination", () => {
   const html = render("overview");
 
@@ -98,6 +112,21 @@ test("Source File actions do not call files Documents or Uploads", () => {
   expect(messages.prototype.overview.empty.detail).toBe("New Source Files will appear here.");
   expect(czechMessages.prototype.overview.upload).toBe("Přidat zdrojové soubory");
   expect(czechMessages.prototype.overview.empty.detail).toBe("Nové zdrojové soubory se zobrazí zde.");
+});
+
+test("Czech workspace copy uses canonical tax terms outside the Source File preview", () => {
+  expect(renderCzech("documents")).toContain("Datum uskutečnění zdanitelného plnění");
+
+  const review = renderCzech("review");
+  const workspace = review.replace(/<section[^>]*aria-label="Náhled zdrojového souboru"[\s\S]*?<\/section>/, "");
+  expect(workspace).toContain("Daňové identifikační číslo");
+  expect(workspace).toContain("Datum uskutečnění zdanitelného plnění");
+  expect(workspace).not.toMatch(/\b(?:DUZP|DIČ)\b/);
+  expect(review).toContain("DUZP");
+
+  const settings = renderCzech("settings");
+  expect(settings).toContain("daňové identifikační číslo");
+  expect(settings).not.toMatch(/\b(?:DUZP|DIČ)\b/);
 });
 
 test("database setup is skipped only for an exact allowlisted Vitest scope", () => {
