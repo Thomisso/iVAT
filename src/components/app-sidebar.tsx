@@ -116,13 +116,19 @@ export async function AppSidebar({
                 {t("members.organizationNav", { organization: organization.name })}
               </Link>
               {organization.role === "administrator" && (
-                <Link href={`/organizations/${organization.id}/ai-settings`}>
-                  {t("organizationAi.nav", { organization: organization.name })}
-                </Link>
+                <>
+                  <Link href={`/organizations/${organization.id}/ai-settings`}>
+                    {t("organizationAi.nav", { organization: organization.name })}
+                  </Link>
+                  <Link href={`/organizations/${organization.id}/ai-usage`}>
+                    {t("aiUsage.organizationNav", { organization: organization.name })}
+                  </Link>
+                </>
               )}
             </Fragment>
           ))}
           {superAdmin && <Link href="/platform/ai-settings">{t("platformAi.nav")}</Link>}
+          {superAdmin && <Link href="/platform/ai-usage">{t("aiUsage.platformNav")}</Link>}
           <LanguageSwitcher />
           <Link href="/settings/security">{t("nav.security")}</Link>
           <form action={logOutAction}>

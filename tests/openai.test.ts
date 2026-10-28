@@ -33,6 +33,7 @@ describe("OpenAI provider", () => {
       response.end(JSON.stringify({
         model: "gpt-split",
         status: "completed",
+        usage: { input_tokens: 91, output_tokens: 12 },
         output: [{
           type: "message",
           content: [{ type: "output_text", text: JSON.stringify({ documents: [{ firstPage: 1, lastPage: 2 }] }) }],
@@ -54,6 +55,7 @@ describe("OpenAI provider", () => {
     })).resolves.toEqual({
       model: "gpt-split",
       documents: [{ firstPage: 1, lastPage: 2 }],
+      usage: { inputTokens: 91, outputTokens: 12 },
     });
     expect(received).toEqual({
       headers: expect.objectContaining({
@@ -133,6 +135,56 @@ describe("OpenAI provider", () => {
           strict: true,
           schema: expect.objectContaining({
             required: expect.arrayContaining(["schemaVersion", "documentType", "rateBreakdown", "totals"]),
+          }),
+        }),
+      },
+    }));
+  });
+
+  it("sends a workbook as text and returns row sets", async () => {
+    let body: unknown;
+    const baseUrl = await openAiStandIn((_request, received, response) => {
+      body = received;
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({
+        model: "gpt-split",
+        status: "completed",
+        output: [{
+          type: "message",
+          content: [{
+            type: "output_text",
+            text: JSON.stringify({ documents: [{ sheetName: "Invoices", firstRow: 2, lastRow: 2 }] }),
+          }],
+        }],
+      }));
+    });
+    const provider = openAiProvider({
+      apiKey: "test-secret",
+      splitModel: "gpt-split",
+      extractModel: "gpt-extract",
+      baseUrl,
+    });
+    const text = '[Sheet "Invoices"]\n1\tNumber\n2\tFV-1';
+
+    await expect(provider.split({
+      format: "xls",
+      mediaType: "text/plain; charset=utf-8",
+      bytes: new TextEncoder().encode(text),
+      text,
+      pageCount: 1,
+    })).resolves.toEqual({
+      model: "gpt-split",
+      documents: [{ sheetName: "Invoices", firstRow: 2, lastRow: 2 }],
+    });
+    expect(body).toEqual(expect.objectContaining({
+      input: [{
+        role: "user",
+        content: expect.arrayContaining([{ type: "input_text", text }]),
+      }],
+      text: {
+        format: expect.objectContaining({
+          schema: expect.objectContaining({
+            properties: expect.objectContaining({ documents: expect.objectContaining({ minItems: 1 }) }),
           }),
         }),
       },

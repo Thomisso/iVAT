@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import type { AiInput } from "@/application/ai-provider";
 import { listAuditEvents } from "@/application/audit";
 import { disableAiProcessing, enableAiProcessing, getCompany } from "@/application/companies";
-import { listDocuments, listExtractionVersions, reprocessDocument } from "@/application/documents";
+import { listDocuments, listExtractionVersions, readDocumentRows, reprocessDocument } from "@/application/documents";
 import type { ExtractionPayload } from "@/application/extraction-payload";
 import { getSourceFile, retrySplit, uploadSourceFile } from "@/application/source-files";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { signedUpUser } from "./support/clients";
-import { fixtureFile } from "./support/files";
+import { fixtureFile, workbookFile } from "./support/files";
 import { administratorWithCompany } from "./support/fixtures";
 import { testWorker } from "./support/worker";
 
@@ -242,6 +242,122 @@ describe("AI-processing consent", () => {
 });
 
 describe("Split", () => {
+  it.each(["xlsx", "xls"] as const)("converts a .%s invoice list to text and creates one row-based Document per invoice", async (format) => {
+    const splitInputs: AiInput[] = [];
+    const extracted: AiInput[] = [];
+    const worker = testWorker(fakeAiProvider({
+      split: (input) => {
+        splitInputs.push(input);
+        return [
+          { sheetName: "Invoices", firstRow: 2, lastRow: 2 },
+          { sheetName: "Invoices", firstRow: 3, lastRow: 3 },
+        ];
+      },
+      extract: (input) => {
+        extracted.push(input);
+        return extracted.length === 1 ? INVOICE_1 : INVOICE_2;
+      },
+    }));
+    const { client, companyId } = await companyWithAiProcessing(worker);
+    const bytes = workbookFile(format, [
+      ["Document number", "Issue date", "Gross amount"],
+      ["FV-1", new Date("2026-10-01T00:00:00.000Z"), 1210],
+      ["FV-2", new Date("2026-10-02T00:00:00.000Z"), 2420.5],
+    ]);
+    const uploaded = await uploadSourceFile(client, worker.jobs, {
+      companyId,
+      fileName: `invoice-list.${format}`,
+      bytes,
+    });
+    if (!uploaded.ok) throw new Error(uploaded.error);
+
+    expect(await worker.runJobs()).toEqual([]);
+
+    expect(new TextDecoder().decode(splitInputs[0].bytes)).toContain(
+      '[Sheet "Invoices"]\n1\tDocument number\tIssue date\tGross amount\n2\tFV-1\t2026-10-01\t1210',
+    );
+    expect(extracted.map((input) => new TextDecoder().decode(input.bytes))).toEqual([
+      '[Sheet "Invoices"]\n1\tDocument number\tIssue date\tGross amount\n2\tFV-1\t2026-10-01\t1210',
+      '[Sheet "Invoices"]\n1\tDocument number\tIssue date\tGross amount\n3\tFV-2\t2026-10-02\t2420.5',
+    ]);
+    const documents = await listDocuments(client, companyId, uploaded.value.id);
+    expect(documents).toEqual([
+      expect.objectContaining({
+        rowSet: { sheetName: "Invoices", firstRow: 2, lastRow: 2 },
+        hasDocumentImage: false,
+        status: "needs_review",
+      }),
+      expect.objectContaining({
+        rowSet: { sheetName: "Invoices", firstRow: 3, lastRow: 3 },
+        hasDocumentImage: false,
+        status: "needs_review",
+      }),
+    ]);
+    expect(await readDocumentRows(client, companyId, documents[1].id)).toEqual({
+      fileName: `invoice-list.${format}`,
+      sheetName: "Invoices",
+      firstRow: 3,
+      lastRow: 3,
+      text: '[Sheet "Invoices"]\n1\tDocument number\tIssue date\tGross amount\n3\tFV-2\t2026-10-02\t2420.5',
+    });
+  });
+
+  it("creates one Document when Split identifies a single invoice workbook", async () => {
+    const worker = testWorker(fakeAiProvider({
+      split: () => [{ sheetName: "Invoice", firstRow: 1, lastRow: 4 }],
+    }));
+    const { client, companyId } = await companyWithAiProcessing(worker);
+    const bytes = workbookFile("xlsx", [
+      ["Invoice number", "FV-100"],
+      ["Issue date", new Date("2026-10-01T00:00:00.000Z")],
+      ["Net", 1000],
+      ["VAT", 210],
+    ], "Invoice");
+    const uploaded = await uploadSourceFile(client, worker.jobs, {
+      companyId,
+      fileName: "invoice.xlsx",
+      bytes,
+    });
+    if (!uploaded.ok) throw new Error(uploaded.error);
+
+    expect(await worker.runJobs()).toEqual([]);
+    expect(await listDocuments(client, companyId, uploaded.value.id)).toEqual([
+      expect.objectContaining({
+        rowSet: { sheetName: "Invoice", firstRow: 1, lastRow: 4 },
+        hasDocumentImage: false,
+        status: "needs_review",
+      }),
+    ]);
+  });
+
+  it.each([
+    ["an unknown sheet", [{ sheetName: "Missing", firstRow: 2, lastRow: 2 }]],
+    ["a row past the worksheet", [{ sheetName: "Invoices", firstRow: 4, lastRow: 4 }]],
+    ["overlapping row sets", [
+      { sheetName: "Invoices", firstRow: 2, lastRow: 3 },
+      { sheetName: "Invoices", firstRow: 3, lastRow: 3 },
+    ]],
+    ["a page range", [{ firstPage: 1, lastPage: 1 }]],
+  ])("fails a workbook when the provider returns %s", async (_case, ranges) => {
+    const worker = testWorker(fakeAiProvider({ split: () => ranges }));
+    const { client, companyId } = await companyWithAiProcessing(worker);
+    const bytes = workbookFile("xlsx", [
+      ["Document number"],
+      ["FV-1"],
+      ["FV-2"],
+    ]);
+    const uploaded = await uploadSourceFile(client, worker.jobs, {
+      companyId,
+      fileName: "invoice-list.xlsx",
+      bytes,
+    });
+    if (!uploaded.ok) throw new Error(uploaded.error);
+
+    expect(await worker.runJobs()).toHaveLength(1);
+    expect((await getSourceFile(client, companyId, uploaded.value.id))?.status).toBe("failed");
+    expect(await listDocuments(client, companyId, uploaded.value.id)).toEqual([]);
+  });
+
   it("records each Document with the page range the provider found", async () => {
     const extracted: AiInput[] = [];
     const worker = testWorker(

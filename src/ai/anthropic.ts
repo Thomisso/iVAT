@@ -1,7 +1,19 @@
-import { AiProviderError, type AiInput, type AiProvider } from "@/application/ai-provider";
+import {
+  AiProviderError,
+  type AiInput,
+  type AiProvider,
+  type AiUsage,
+} from "@/application/ai-provider";
 import type { SystemClient } from "@/application/client";
 import { resolvePlatformAiProvider } from "@/application/platform-ai";
-import { EXTRACTION_SCHEMA, extractionPayload, pageRanges, SPLIT_SCHEMA } from "./structured-output";
+import {
+  EXTRACTION_SCHEMA,
+  extractionPayload,
+  pageRanges,
+  rowRanges,
+  SPREADSHEET_SPLIT_SCHEMA,
+  SPLIT_SCHEMA,
+} from "./structured-output";
 
 export type AnthropicAiProviderOptions = {
   apiKey: string;
@@ -21,6 +33,7 @@ export class AnthropicProviderError extends AiProviderError {
 }
 
 function nativeContent(input: AiInput) {
+  if (input.text !== undefined) return { type: "text", text: input.text };
   const source = {
     type: "base64",
     media_type: input.mediaType,
@@ -35,7 +48,7 @@ async function structuredMessage(
   input: AiInput,
   prompt: string,
   schema: object,
-): Promise<{ model: string; value: unknown }> {
+): Promise<{ model: string; value: unknown; usage?: AiUsage }> {
   let response: Response;
   try {
     response = await fetch(`${options.baseUrl ?? "https://api.anthropic.com"}/v1/messages`, {
@@ -62,10 +75,21 @@ async function structuredMessage(
       status: response.status,
     });
   }
-  const result = await response.json() as { model?: unknown; content?: { type?: unknown; text?: unknown }[] };
+  const result = await response.json() as {
+    model?: unknown;
+    content?: { type?: unknown; text?: unknown }[];
+    usage?: { input_tokens?: unknown; output_tokens?: unknown };
+  };
   const text = result.content?.find((block) => block.type === "text")?.text;
   if (typeof text !== "string") throw new Error("Anthropic returned no structured output");
-  return { model: typeof result.model === "string" ? result.model : model, value: JSON.parse(text) };
+  const usage = result.usage;
+  return {
+    model: typeof result.model === "string" ? result.model : model,
+    value: JSON.parse(text),
+    ...(typeof usage?.input_tokens === "number" && typeof usage.output_tokens === "number"
+      ? { usage: { inputTokens: usage.input_tokens, outputTokens: usage.output_tokens } }
+      : {}),
+  };
 }
 
 export function anthropicAiProvider(options: AnthropicAiProviderOptions): AiProvider {
@@ -73,14 +97,21 @@ export function anthropicAiProvider(options: AnthropicAiProviderOptions): AiProv
     name: "anthropic",
     region: "global",
     async split(input) {
+      const spreadsheet = input.text !== undefined;
       const result = await structuredMessage(
         options,
         options.splitModel,
         input,
-        `Identify the inclusive page range of every Document in this ${input.pageCount}-page Source File.`,
-        SPLIT_SCHEMA,
+        spreadsheet
+          ? "Identify every Document in this workbook table. A list normally has one Document per data row; a single invoice may span several rows. Return each inclusive row set and its sheet name."
+          : `Identify the inclusive page range of every Document in this ${input.pageCount}-page Source File.`,
+        spreadsheet ? SPREADSHEET_SPLIT_SCHEMA : SPLIT_SCHEMA,
       );
-      return { model: result.model, documents: pageRanges("Anthropic", result.value) };
+      return {
+        model: result.model,
+        documents: spreadsheet ? rowRanges("Anthropic", result.value) : pageRanges("Anthropic", result.value),
+        ...(result.usage ? { usage: result.usage } : {}),
+      };
     },
     async extract(input) {
       const result = await structuredMessage(
@@ -90,7 +121,11 @@ export function anthropicAiProvider(options: AnthropicAiProviderOptions): AiProv
         "Extract the Document fields exactly as shown. Use null when a field is not present; never infer tax treatment beyond the proposed VAT Regime.",
         EXTRACTION_SCHEMA,
       );
-      return { model: result.model, payload: extractionPayload("Anthropic", result.value) };
+      return {
+        model: result.model,
+        payload: extractionPayload("Anthropic", result.value),
+        ...(result.usage ? { usage: result.usage } : {}),
+      };
     },
   };
 }

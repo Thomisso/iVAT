@@ -33,6 +33,7 @@ describe("Anthropic AI provider", () => {
       response.end(JSON.stringify({
         model: "claude-sonnet-split",
         content: [{ type: "text", text: JSON.stringify({ documents: [{ firstPage: 1, lastPage: 2 }] }) }],
+        usage: { input_tokens: 123, output_tokens: 17 },
       }));
     });
     const provider = anthropicAiProvider({
@@ -50,6 +51,7 @@ describe("Anthropic AI provider", () => {
     })).resolves.toEqual({
       model: "claude-sonnet-split",
       documents: [{ firstPage: 1, lastPage: 2 }],
+      usage: { inputTokens: 123, outputTokens: 17 },
     });
     expect(received).toEqual({
       headers: expect.objectContaining({
@@ -119,6 +121,52 @@ describe("Anthropic AI provider", () => {
           type: "json_schema",
           schema: expect.objectContaining({
             required: expect.arrayContaining(["schemaVersion", "documentType", "rateBreakdown", "totals"]),
+          }),
+        }),
+      },
+    }));
+  });
+
+  it("sends a workbook as text and returns row sets", async () => {
+    let body: unknown;
+    const baseUrl = await anthropicStandIn((_request, received, response) => {
+      body = received;
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({
+        model: "claude-sonnet-split",
+        content: [{
+          type: "text",
+          text: JSON.stringify({ documents: [{ sheetName: "Invoices", firstRow: 2, lastRow: 2 }] }),
+        }],
+      }));
+    });
+    const provider = anthropicAiProvider({
+      apiKey: "test-secret",
+      splitModel: "claude-sonnet-split",
+      extractModel: "claude-sonnet-extract",
+      baseUrl,
+    });
+    const text = '[Sheet "Invoices"]\n1\tNumber\n2\tFV-1';
+
+    await expect(provider.split({
+      format: "xlsx",
+      mediaType: "text/plain; charset=utf-8",
+      bytes: new TextEncoder().encode(text),
+      text,
+      pageCount: 1,
+    })).resolves.toEqual({
+      model: "claude-sonnet-split",
+      documents: [{ sheetName: "Invoices", firstRow: 2, lastRow: 2 }],
+    });
+    expect(body).toEqual(expect.objectContaining({
+      messages: [{
+        role: "user",
+        content: expect.arrayContaining([{ type: "text", text }]),
+      }],
+      output_config: {
+        format: expect.objectContaining({
+          schema: expect.objectContaining({
+            properties: expect.objectContaining({ documents: expect.objectContaining({ minItems: 1 }) }),
           }),
         }),
       },
