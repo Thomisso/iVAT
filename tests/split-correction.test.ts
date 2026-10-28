@@ -59,6 +59,7 @@ async function processedFourPageFile(split?: () => { firstPage: number; lastPage
           totals: { netAmount: null, vatAmount: null, grossAmount: null },
           payment: { variableSymbol: null, bankAccount: null, iban: null },
           proposedVatRegime: "domestic",
+          reverseChargeCode: null,
           originalDocumentNumber: null,
         };
       },

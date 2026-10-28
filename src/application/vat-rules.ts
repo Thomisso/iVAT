@@ -11,18 +11,24 @@ export type ReportDocument = {
   status: DocumentStatus;
   payload: ExtractionPayload | null;
 };
+export const VAT_RETURN_LINES = [
+  "1", "2", "3", "4", "5", "6", "10", "11", "25", "40", "41", "43", "44",
+] as const;
+export type VatReturnLineNumber = (typeof VAT_RETURN_LINES)[number];
 export type VatReturnLine = {
-  line: "1" | "2" | "40" | "41";
+  line: VatReturnLineNumber;
   netAmount: string;
   vatAmount: string;
   documentIds: string[];
 };
 
 export type ControlStatementEntry = {
-  section: "A.4" | "A.5" | "B.2" | "B.3";
+  section: "A.1" | "A.2" | "A.4" | "A.5" | "B.1" | "B.2" | "B.3";
   counterpartyVatId: string | null;
+  counterpartyCountry: string | null;
   documentNumber: string | null;
   taxPointDate: string | null;
+  reverseChargeCode: string | null;
   rateBreakdown: {
     rate: number;
     netAmount: string;
@@ -62,6 +68,12 @@ function amount(value: bigint): string {
   const absolute = value < BigInt(0) ? -value : value;
   return `${value < BigInt(0) ? "-" : ""}${absolute / BigInt(100)}.${String(absolute % BigInt(100)).padStart(2, "0")}`;
 }
+function assessedVat(netAmount: string, rate: number): string {
+  const numerator = halers(netAmount) * BigInt(rate);
+  const absolute = numerator < BigInt(0) ? -numerator : numerator;
+  const rounded = (absolute + BigInt(50)) / BigInt(100);
+  return amount(numerator < BigInt(0) ? -rounded : rounded);
+}
 function add(
   target: { netAmount: string; vatAmount: string; documentIds: string[] },
   source: { netAmount: string; vatAmount: string },
@@ -89,22 +101,34 @@ function exclusion(document: ReportDocument): ExclusionReason | null {
     !p.totals.grossAmount
   )
     return "incomplete_data";
+  const regime = p.proposedVatRegime;
   if (
-    p.proposedVatRegime !== "domestic" ||
-    p.rateBreakdown.some((r) => r.rate !== 21 && r.rate !== 12)
+    !regime ||
+    regime === "other" ||
+    p.rateBreakdown.some((r) => r.rate !== 21 && r.rate !== 12) ||
+    ((regime === "eu_acquisition_of_goods" || regime === "eu_received_service") &&
+      p.direction !== "incoming")
   )
     return "manual_classification_required";
+  if (regime === "domestic_reverse_charge" && !/^\d{1,3}$/.test(p.reverseChargeCode ?? "")) {
+    return "incomplete_data";
+  }
   if (
     p.currency !== "CZK" &&
     (!p.czkConversion ||
       p.czkConversion.originalCurrency !== p.currency ||
       p.czkConversion.rateDate > p.taxPointDate)
   ) return "currency_conversion_required";
+  const counterparty = p.direction === "incoming" ? p.supplier : p.customer;
   if (
-    p.direction === "incoming" &&
-    !/^CZ[0-9]{8,10}$/.test(p.supplier.vatId ?? "")
-  )
-    return "incomplete_data";
+    (regime === "domestic_reverse_charge" &&
+      !/^CZ[0-9]{8,10}$/.test(counterparty.vatId ?? "")) ||
+    ((regime === "eu_acquisition_of_goods" || regime === "eu_received_service") &&
+      !/^[A-Z]{2}[A-Z0-9+*.]{2,12}$/.test(p.supplier.vatId ?? "")) ||
+    (regime === "domestic" &&
+      p.direction === "incoming" &&
+      !/^CZ[0-9]{8,10}$/.test(p.supplier.vatId ?? ""))
+  ) return "incomplete_data";
   return null;
 }
 
@@ -118,8 +142,32 @@ function czkPayload(payload: ExtractionPayload): ExtractionPayload {
   };
 }
 
+function returnLines(
+  payload: ExtractionPayload,
+  rate: number,
+): VatReturnLineNumber[] {
+  const reduced = rate === 12;
+  switch (payload.proposedVatRegime) {
+    case "domestic":
+      return [payload.direction === "outgoing" ? (reduced ? "2" : "1") : reduced ? "41" : "40"];
+    case "domestic_reverse_charge":
+      return payload.direction === "outgoing"
+        ? ["25"]
+        : [reduced ? "11" : "10", reduced ? "44" : "43"];
+    case "eu_acquisition_of_goods":
+      return [reduced ? "4" : "3", reduced ? "44" : "43"];
+    case "eu_received_service":
+      return [reduced ? "6" : "5", reduced ? "44" : "43"];
+    default:
+      return [];
+  }
+}
+
+const OUTPUT_LINES = new Set<VatReturnLineNumber>(["1", "2", "3", "4", "5", "6", "10", "11"]);
+const INPUT_LINES = new Set<VatReturnLineNumber>(["40", "41", "43", "44"]);
+
 /**
- * Domestic CZK supplies at 21% and 12%, monthly by Tax Point Date (#21).
+ * Supported Czech VAT regimes at 21% and 12%, monthly by Tax Point Date.
  * Unsupported data stays visible as exclusions, never silently treated as zero.
  * Statutory mapping and the whole-Document threshold: docs/vat-rules.md.
  */
@@ -128,7 +176,7 @@ export function computeVatReport(
   period: string,
   documents: ReportDocument[],
 ): ComputedVatReport {
-  const vatReturn: VatReturnLine[] = (["1", "2", "40", "41"] as const).map(
+  const vatReturn: VatReturnLine[] = VAT_RETURN_LINES.map(
     (line) => ({ line, netAmount: "0.00", vatAmount: "0.00", documentIds: [] }),
   );
   const controlStatement: ControlStatementEntry[] = [];
@@ -142,19 +190,24 @@ export function computeVatReport(
       continue;
     }
     const p = czkPayload(payload);
-    const vatId = (p.direction === "incoming" ? p.supplier : p.customer).vatId;
+    const counterparty = p.direction === "incoming" ? p.supplier : p.customer;
+    const vatId = counterparty.vatId;
+    const domestic = p.proposedVatRegime === "domestic";
     const gross = halers(p.totals.grossAmount!);
-    const individual =
+    const individualDomestic =
+      domestic &&
       (gross < BigInt(0) ? -gross : gross) > BigInt(1000000) &&
       (p.direction === "incoming" || /^CZ[0-9]{8,10}$/.test(vatId ?? ""));
-    const section =
-      p.direction === "outgoing"
-        ? individual
-          ? "A.4"
-          : "A.5"
-        : individual
-          ? "B.2"
-          : "B.3";
+    const section: ControlStatementEntry["section"] =
+      p.proposedVatRegime === "domestic_reverse_charge"
+        ? p.direction === "outgoing" ? "A.1" : "B.1"
+        : p.proposedVatRegime === "eu_acquisition_of_goods" ||
+            p.proposedVatRegime === "eu_received_service"
+          ? "A.2"
+          : p.direction === "outgoing"
+            ? individualDomestic ? "A.4" : "A.5"
+            : individualDomestic ? "B.2" : "B.3";
+    const individual = !domestic || individualDomestic;
     let entry = individual
       ? undefined
       : controlStatement.find((entry) => entry.section === section);
@@ -162,8 +215,13 @@ export function computeVatReport(
       entry = {
         section,
         counterpartyVatId: individual ? vatId : null,
+        counterpartyCountry: section === "A.2" ? p.supplier.country : null,
         documentNumber: individual ? p.documentNumber : null,
         taxPointDate: individual ? p.taxPointDate : null,
+        reverseChargeCode:
+          p.proposedVatRegime === "domestic_reverse_charge"
+            ? p.reverseChargeCode
+            : null,
         rateBreakdown: [],
         documentIds: [],
       };
@@ -171,19 +229,20 @@ export function computeVatReport(
     }
     entry.documentIds.push(document.id);
     for (const rate of p.rateBreakdown) {
-      const line =
-        p.direction === "outgoing"
-          ? rate.rate === 21
-            ? "1"
-            : "2"
-          : rate.rate === 21
-            ? "40"
-            : "41";
-      add(
-        vatReturn.find((entry) => entry.line === line)!,
-        rate,
-        document.id,
-      );
+      const selfAssessed = p.proposedVatRegime !== "domestic";
+      const calculatedVat = selfAssessed
+        ? assessedVat(rate.netAmount, rate.rate)
+        : rate.vatAmount;
+      for (const line of returnLines(p, rate.rate)) {
+        add(
+          vatReturn.find((entry) => entry.line === line)!,
+          {
+            netAmount: rate.netAmount,
+            vatAmount: line === "25" ? "0.00" : calculatedVat,
+          },
+          document.id,
+        );
+      }
       let breakdown = entry.rateBreakdown.find((b) => b.rate === rate.rate);
       if (!breakdown) {
         breakdown = {
@@ -194,17 +253,28 @@ export function computeVatReport(
         };
         entry.rateBreakdown.push(breakdown);
       }
-      add(breakdown, rate, document.id);
+      add(
+        breakdown,
+        {
+          netAmount: rate.netAmount,
+          vatAmount:
+            section === "A.1" ? "0.00" : calculatedVat,
+        },
+        document.id,
+      );
     }
   }
-  const output =
-    halers(vatReturn[0].vatAmount) + halers(vatReturn[1].vatAmount);
-  const input = halers(vatReturn[2].vatAmount) + halers(vatReturn[3].vatAmount);
+  const output = vatReturn
+    .filter((line) => OUTPUT_LINES.has(line.line))
+    .reduce((sum, line) => sum + halers(line.vatAmount), BigInt(0));
+  const input = vatReturn
+    .filter((line) => INPUT_LINES.has(line.line))
+    .reduce((sum, line) => sum + halers(line.vatAmount), BigInt(0));
   const outputIds = [
-    ...new Set(vatReturn.slice(0, 2).flatMap((r) => r.documentIds)),
+    ...new Set(vatReturn.filter((line) => OUTPUT_LINES.has(line.line)).flatMap((r) => r.documentIds)),
   ];
   const inputIds = [
-    ...new Set(vatReturn.slice(2).flatMap((r) => r.documentIds)),
+    ...new Set(vatReturn.filter((line) => INPUT_LINES.has(line.line)).flatMap((r) => r.documentIds)),
   ];
   const allIds = [...new Set([...outputIds, ...inputIds])];
   return {

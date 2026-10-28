@@ -37,5 +37,6 @@
     "iban": null
   },
   "proposedVatRegime": null,
+  "reverseChargeCode": null,
   "originalDocumentNumber": null
 }

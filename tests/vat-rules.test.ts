@@ -59,6 +59,68 @@ describe("domestic Rules Engine", () => {
   );
 });
 
+describe("reverse charge and EU Rules Engine", () => {
+  it.each([
+    ["domestic_reverse_charge", "outgoing", 21, ["25"], "A.1"],
+    ["domestic_reverse_charge", "outgoing", 12, ["25"], "A.1"],
+    ["domestic_reverse_charge", "incoming", 21, ["10", "43"], "B.1"],
+    ["domestic_reverse_charge", "incoming", 12, ["11", "44"], "B.1"],
+    ["eu_acquisition_of_goods", "incoming", 21, ["3", "43"], "A.2"],
+    ["eu_acquisition_of_goods", "incoming", 12, ["4", "44"], "A.2"],
+    ["eu_received_service", "incoming", 21, ["5", "43"], "A.2"],
+    ["eu_received_service", "incoming", 12, ["6", "44"], "A.2"],
+  ] as const)(
+    "maps %s %s at %s percent to Return lines %j and Control Statement %s",
+    (proposedVatRegime, direction, rate, lines, section) => {
+      const vatAmount = rate === 21 ? "210.00" : "120.00";
+      const report = computeVatReport(company, period, [
+        document({
+          proposedVatRegime,
+          direction,
+          reverseChargeCode:
+            proposedVatRegime === "domestic_reverse_charge" ? "4" : null,
+          supplier:
+            proposedVatRegime.startsWith("eu_")
+              ? { ...SAMPLE_EXTRACTION.supplier, vatId: "DE123456789", country: "DE" }
+              : SAMPLE_EXTRACTION.supplier,
+          customer: SAMPLE_EXTRACTION.supplier,
+          rateBreakdown: [{ rate, netAmount: "1000.00", vatAmount: "0.00" }],
+          totals: { netAmount: "1000.00", vatAmount: "0.00", grossAmount: "1000.00" },
+        }),
+      ]);
+
+      for (const line of lines) {
+        expect(report.vatReturn.find((entry) => entry.line === line)).toEqual({
+          line,
+          netAmount: "1000.00",
+          vatAmount: line === "25" ? "0.00" : vatAmount,
+          documentIds: ["doc-1"],
+        });
+      }
+      expect(report.controlStatement).toEqual([
+        expect.objectContaining({
+          section,
+          reverseChargeCode:
+            proposedVatRegime === "domestic_reverse_charge" ? "4" : null,
+          documentIds: ["doc-1"],
+        }),
+      ]);
+    },
+  );
+
+  it.each(["eu_acquisition_of_goods", "eu_received_service"] as const)(
+    "requires manual classification for outgoing %s",
+    (proposedVatRegime) => {
+      const report = computeVatReport(company, period, [
+        document({ proposedVatRegime, direction: "outgoing" }),
+      ]);
+      expect(report.excludedDocuments).toEqual([
+        { documentId: "doc-1", reason: "manual_classification_required" },
+      ]);
+    },
+  );
+});
+
 it.each([
   ["outgoing", "10000.00", "A.5"],
   ["outgoing", "10000.01", "A.4"],
