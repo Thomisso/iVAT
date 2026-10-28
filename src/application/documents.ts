@@ -34,6 +34,10 @@ export type Document = {
   lastPage: number;
   status: DocumentStatus;
   createdAt: string;
+  /** Defaults to the Source File upload date and determines an incoming claim's earliest period. */
+  receiptDate: string;
+  /** A User's explicit move of input VAT to a later Reporting Period. */
+  claimedReportingPeriod: string | null;
   /** Present only for a Document identified by workbook rows instead of pages. */
   rowSet?: WorkbookRowSet;
   /** Present and false for row-based Documents, which have no page image. */
@@ -69,7 +73,8 @@ export type DocumentOverview = {
   documentNumber: string | null;
   direction: Direction | null;
   taxPointDate: string | null;
-  /** The month of the Tax Point Date, "2026-10", until Receipt Dates and quarterly periods exist (#43). */
+  receiptDate: string;
+  claimedReportingPeriod: string | null;
   reportingPeriod: string | null;
   /** The supplier of an incoming Document, the customer of an outgoing one; null while the Direction is unknown. */
   counterparty: Pick<Party, "name" | "vatId" | "ico"> | null;
@@ -129,7 +134,7 @@ export async function listCompanyDocuments(
   let query = client
     .from("document_overview")
     .select(
-      "id, source_file_id, first_page, last_page, status, created_at, version, document_number, direction, tax_point_date, reporting_period, counterparty_name, counterparty_vat_id, counterparty_ico, currency, gross_amount, finding_count",
+      "id, source_file_id, first_page, last_page, status, created_at, version, document_number, direction, tax_point_date, receipt_date, claimed_reporting_period, reporting_period, counterparty_name, counterparty_vat_id, counterparty_ico, currency, gross_amount, finding_count",
     )
     .eq("company_id", companyId);
   if (filters.status) query = query.eq("status", filters.status);
@@ -152,6 +157,8 @@ export async function listCompanyDocuments(
     documentNumber: d.document_number,
     direction: d.direction as Direction | null,
     taxPointDate: d.tax_point_date,
+    receiptDate: d.receipt_date,
+    claimedReportingPeriod: d.claimed_reporting_period,
     reportingPeriod: d.reporting_period,
     counterparty:
       d.direction === null
@@ -164,7 +171,7 @@ export async function listCompanyDocuments(
   }));
 }
 
-const DOCUMENT_COLUMNS = "id, company_id, source_file_id, first_page, last_page, source_sheet, first_row, last_row, has_document_image, status, created_at";
+const DOCUMENT_COLUMNS = "id, company_id, source_file_id, first_page, last_page, source_sheet, first_row, last_row, has_document_image, status, created_at, receipt_date, claimed_reporting_period";
 
 function toDocument(d: {
   id: string;
@@ -178,6 +185,8 @@ function toDocument(d: {
   has_document_image: boolean;
   status: DocumentStatus;
   created_at: string;
+  receipt_date: string;
+  claimed_reporting_period: string | null;
 }): Document {
   const document: Document = {
     id: d.id,
@@ -187,6 +196,8 @@ function toDocument(d: {
     lastPage: d.last_page,
     status: d.status,
     createdAt: d.created_at,
+    receiptDate: d.receipt_date,
+    claimedReportingPeriod: d.claimed_reporting_period,
   };
   if (d.source_sheet !== null && d.first_row !== null && d.last_row !== null) {
     document.rowSet = { sheetName: d.source_sheet, firstRow: d.first_row, lastRow: d.last_row };
@@ -358,6 +369,60 @@ export async function rejectDocument(
   if (!document) return { ok: false, error: "forbidden" };
   const { error } = await client.rpc("reject_document", { target_document_id: document });
   if (error) return refusal(error, ["not_in_review"]);
+  return { ok: true, value: null };
+}
+
+export type UpdateDocumentReportingError =
+  | "invalid_receipt_date"
+  | "invalid_tax_point_date"
+  | "invalid_reporting_period"
+  | "claimed_period_not_later"
+  | "incoming_required"
+  | "forbidden";
+
+function validDate(value: string): boolean {
+  if (!/^20\d{2}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value;
+}
+
+/** Changes an incoming Document's Receipt Date and optional later input-VAT claim. */
+export async function updateDocumentReporting(
+  client: AppClient,
+  input: {
+    companyId: string;
+    documentId: string;
+    receiptDate: string;
+    claimedReportingPeriod: string | null;
+  },
+): Promise<Result<null, UpdateDocumentReportingError>> {
+  if (!validDate(input.receiptDate)) {
+    return { ok: false, error: "invalid_receipt_date" };
+  }
+  if (
+    input.claimedReportingPeriod !== null &&
+    !/^20\d{2}-(0[1-9]|1[0-2]|Q[1-4])$/.test(input.claimedReportingPeriod)
+  ) {
+    return { ok: false, error: "invalid_reporting_period" };
+  }
+  const document = await findDocumentId(client, input.companyId, input.documentId);
+  if (!document) return { ok: false, error: "forbidden" };
+  const { error } = await client.rpc("update_document_reporting", {
+    target_document_id: document,
+    new_receipt_date: input.receiptDate,
+    // PostgREST accepts SQL null here; generated RPC argument types do not
+    // encode nullable function parameters.
+    new_claimed_reporting_period: input.claimedReportingPeriod as string,
+  });
+  if (error) {
+    return refusal(error, [
+      "invalid_receipt_date",
+      "invalid_tax_point_date",
+      "invalid_reporting_period",
+      "claimed_period_not_later",
+      "incoming_required",
+    ]);
+  }
   return { ok: true, value: null };
 }
 

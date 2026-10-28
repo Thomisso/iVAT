@@ -1,4 +1,7 @@
-import type { CompanyDetails } from "./companies";
+import type {
+  CompanyDetails,
+  FilingFrequencyHistoryEntry,
+} from "./companies";
 import type { DocumentStatus } from "./documents";
 import {
   validateExtractionPayload,
@@ -10,7 +13,76 @@ export type ReportDocument = {
   extractionVersionId: string | null;
   status: DocumentStatus;
   payload: ExtractionPayload | null;
+  receiptDate?: string;
+  claimedReportingPeriod?: string | null;
 };
+
+export type ReportingPeriodDocument = {
+  direction: "incoming" | "outgoing" | null;
+  taxPointDate: string | null;
+  receiptDate: string;
+  claimedReportingPeriod: string | null;
+};
+
+function validDate(value: string | null): value is string {
+  if (!value || !/^20\d{2}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value;
+}
+
+function reportingPeriodForDate(
+  date: string,
+  filingFrequencies: readonly FilingFrequencyHistoryEntry[],
+): string | null {
+  const frequency = filingFrequencies
+    .filter((entry) => entry.effectiveFrom <= date)
+    .toSorted((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom))[0]
+    ?.frequency;
+  if (!frequency) return null;
+  if (frequency === "monthly") return date.slice(0, 7);
+  return `${date.slice(0, 4)}-Q${Math.ceil(Number(date.slice(5, 7)) / 3)}`;
+}
+
+function reportingPeriodStart(period: string): string | null {
+  const month = /^(20\d{2})-(0[1-9]|1[0-2])$/.exec(period);
+  if (month) return `${period}-01`;
+  const quarter = /^(20\d{2})-Q([1-4])$/.exec(period);
+  if (!quarter) return null;
+  return `${quarter[1]}-${String((Number(quarter[2]) - 1) * 3 + 1).padStart(2, "0")}-01`;
+}
+
+/** Assigns a Document to the Company's Reporting Period in force on its relevant date. */
+export function reportingPeriodForDocument(
+  document: ReportingPeriodDocument,
+  filingFrequencies: readonly FilingFrequencyHistoryEntry[],
+): string | null {
+  if (!validDate(document.taxPointDate)) return null;
+  if (document.direction === "outgoing") {
+    return reportingPeriodForDate(document.taxPointDate, filingFrequencies);
+  }
+  if (document.direction !== "incoming" || !validDate(document.receiptDate)) {
+    return null;
+  }
+  const assigned = reportingPeriodForDate(
+    document.receiptDate > document.taxPointDate
+      ? document.receiptDate
+      : document.taxPointDate,
+    filingFrequencies,
+  );
+  const claimedStart = document.claimedReportingPeriod
+    ? reportingPeriodStart(document.claimedReportingPeriod)
+    : null;
+  if (
+    assigned &&
+    claimedStart &&
+    reportingPeriodForDate(claimedStart, filingFrequencies) ===
+      document.claimedReportingPeriod &&
+    claimedStart > reportingPeriodStart(assigned)!
+  ) {
+    return document.claimedReportingPeriod;
+  }
+  return assigned;
+}
 export const VAT_RETURN_LINES = [
   "1", "2", "3", "4", "5", "6", "10", "11", "25", "40", "41", "43", "44",
 ] as const;
@@ -58,7 +130,7 @@ export type ComputedVatReport = {
 };
 
 export const isReportingPeriod = (value: string) =>
-  /^(20\d{2})-(0[1-9]|1[0-2])$/.test(value);
+  /^(20\d{2})-(0[1-9]|1[0-2]|Q[1-4])$/.test(value);
 
 /** Amounts are summed in integer halers; no financial value passes through a float. */
 function halers(value: string): bigint {
@@ -167,7 +239,7 @@ const OUTPUT_LINES = new Set<VatReturnLineNumber>(["1", "2", "3", "4", "5", "6",
 const INPUT_LINES = new Set<VatReturnLineNumber>(["40", "41", "43", "44"]);
 
 /**
- * Supported Czech VAT regimes at 21% and 12%, monthly by Tax Point Date.
+ * Supported Czech VAT regimes at 21% and 12%, in the assigned Reporting Period.
  * Unsupported data stays visible as exclusions, never silently treated as zero.
  * Statutory mapping and the whole-Document threshold: docs/vat-rules.md.
  */
@@ -175,6 +247,9 @@ export function computeVatReport(
   company: CompanyDetails,
   period: string,
   documents: ReportDocument[],
+  filingFrequencies: readonly FilingFrequencyHistoryEntry[] = [
+    { frequency: "monthly", effectiveFrom: "2000-01-01" },
+  ],
 ): ComputedVatReport {
   const vatReturn: VatReturnLine[] = VAT_RETURN_LINES.map(
     (line) => ({ line, netAmount: "0.00", vatAmount: "0.00", documentIds: [] }),
@@ -183,7 +258,27 @@ export function computeVatReport(
   const excludedDocuments: ComputedVatReport["excludedDocuments"] = [];
   for (const document of documents) {
     const payload = document.payload;
-    if (!payload?.taxPointDate?.startsWith(`${period}-`)) continue;
+    const assignedPeriod = payload
+      ? reportingPeriodForDocument(
+          {
+            direction: payload.direction,
+            taxPointDate: payload.taxPointDate,
+            receiptDate: document.receiptDate ?? payload.taxPointDate ?? "",
+            claimedReportingPeriod: document.claimedReportingPeriod ?? null,
+          },
+          filingFrequencies,
+        ) ??
+        (/^20\d{2}-(0[1-9]|1[0-2])-\d{2}$/.test(payload.taxPointDate ?? "")
+          ? reportingPeriodForDate(
+              `${payload.taxPointDate!.slice(0, 7)}-01`,
+              filingFrequencies,
+            )
+          : null)
+      : null;
+    if (
+      !payload ||
+      assignedPeriod !== period
+    ) continue;
     const reason = exclusion(document);
     if (reason) {
       excludedDocuments.push({ documentId: document.id, reason });

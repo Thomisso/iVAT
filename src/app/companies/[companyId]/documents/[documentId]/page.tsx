@@ -23,6 +23,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { statusBadgeState } from "@/components/status-badge-state";
 import { formatDocumentDate } from "@/lib/format-date";
 import { CorrectionForm } from "./correction-form";
+import { ReportingAssignmentForm } from "./reporting-assignment-form";
 
 // The review workspace: the Document's original pages next to its extracted
 // data. `?version=N` shows an earlier Extraction Version read-only.
@@ -160,6 +161,14 @@ export default async function DocumentReviewPage({
             />
           ) : (
             <EmptyState icon="file" title={t("review.noExtraction")} />
+          )}
+          {current?.payload.direction === "incoming" && (
+            <ReportingAssignmentForm
+              companyId={companyId}
+              documentId={document.id}
+              receiptDate={document.receiptDate}
+              claimedReportingPeriod={document.claimedReportingPeriod}
+            />
           )}
           {reviewing && (
             <div className="review-decision">

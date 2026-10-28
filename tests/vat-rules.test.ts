@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { computeVatReport, type ReportDocument } from "@/application/vat-rules";
+import {
+  computeVatReport,
+  reportingPeriodForDocument,
+  type ReportDocument,
+} from "@/application/vat-rules";
 import { SAMPLE_EXTRACTION } from "@/ai/fake";
 
 const company = {
@@ -12,6 +16,7 @@ const company = {
   personType: "legal" as const,
 };
 const period = "2026-10";
+const monthly = [{ frequency: "monthly", effectiveFrom: "2026-01-01" }] as const;
 function document(
   overrides: Partial<typeof SAMPLE_EXTRACTION> = {},
 ): ReportDocument {
@@ -22,6 +27,82 @@ function document(
     payload: { ...SAMPLE_EXTRACTION, ...overrides },
   };
 }
+
+it.each([
+  ["2026-10-05", "2026-10"],
+  ["2026-11-05", "2026-11"],
+] as const)(
+  "assigns an incoming Document received on %s without claiming before its Tax Point Date",
+  (receiptDate, expectedPeriod) => {
+    expect(
+      reportingPeriodForDocument(
+        {
+          direction: "incoming",
+          taxPointDate: "2026-10-20",
+          receiptDate,
+          claimedReportingPeriod: null,
+        },
+        monthly,
+      ),
+    ).toBe(expectedPeriod);
+  },
+);
+
+it("computes a quarterly Company's Documents across all three months", () => {
+  const reports = ["2027-01-15", "2027-03-15"].map((taxPointDate, index) => ({
+    ...document({ taxPointDate }),
+    id: `doc-${index + 1}`,
+  }));
+
+  const report = computeVatReport(company, "2027-Q1", reports, [
+    { frequency: "quarterly", effectiveFrom: "2027-01-01" },
+  ]);
+
+  expect(report.vatReturn.find((entry) => entry.line === "40")).toEqual({
+    line: "40",
+    netAmount: "2000.00",
+    vatAmount: "420.00",
+    documentIds: ["doc-1", "doc-2"],
+  });
+});
+
+it("moves an incoming input VAT claim to the explicitly chosen later Reporting Period", () => {
+  expect(
+    reportingPeriodForDocument(
+      {
+        direction: "incoming",
+        taxPointDate: "2026-10-20",
+        receiptDate: "2026-10-25",
+        claimedReportingPeriod: "2026-12",
+      },
+      monthly,
+    ),
+  ).toBe("2026-12");
+});
+
+it.each([
+  ["2026-12-15", "2026-12"],
+  ["2027-01-15", "2027-Q1"],
+  ["2027-04-15", "2027-Q2"],
+] as const)(
+  "uses the filing frequency in force for %s when assigning Reporting Period %s",
+  (taxPointDate, expectedPeriod) => {
+    expect(
+      reportingPeriodForDocument(
+        {
+          direction: "outgoing",
+          taxPointDate,
+          receiptDate: "2026-10-28",
+          claimedReportingPeriod: null,
+        },
+        [
+          { frequency: "monthly", effectiveFrom: "2026-01-01" },
+          { frequency: "quarterly", effectiveFrom: "2027-01-01" },
+        ],
+      ),
+    ).toBe(expectedPeriod);
+  },
+);
 
 describe("domestic Rules Engine", () => {
   it.each([
