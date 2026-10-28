@@ -19,7 +19,17 @@ export default async function NewCompanyPage() {
           {organization ? (
             <>
               <p>{t("createIntro")}</p>
-              <CompanyForm organizationId={organization.id} />
+              <CompanyForm
+                organizationId={organization.id}
+                initialValues={{
+                  personType: "legal",
+                  filingFrequency: "monthly",
+                  filingFrequencyEffectiveFrom: new Intl.DateTimeFormat(
+                    "sv-SE",
+                    { timeZone: "Europe/Prague" },
+                  ).format(new Date()),
+                }}
+              />
             </>
           ) : (
             <p>{t("noOrganization")}</p>

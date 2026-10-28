@@ -35,10 +35,15 @@ describe("tenant isolation", () => {
     const organizations = await b.client.from("organization").select("id").eq("id", a.organizationId);
     const companies = await b.client.from("company").select("id").eq("organization_id", a.organizationId);
     const memberships = await b.client.from("membership").select("id").eq("organization_id", a.organizationId);
+    const filingFrequencies = await b.client
+      .from("company_filing_frequency")
+      .select("company_id")
+      .eq("company_id", a.companyId);
 
     expect(organizations.data).toEqual([]);
     expect(companies.data).toEqual([]);
     expect(memberships.data).toEqual([]);
+    expect(filingFrequencies.data).toEqual([]);
   });
 
   it("refuses direct modification of another Organization under the user's identity", async () => {
@@ -50,9 +55,17 @@ describe("tenant isolation", () => {
     const deleteCompany = await b.client.from("company").delete().eq("id", a.companyId);
     const joinOrganization = await b.client
       .from("membership")
-      .insert({ user_id: b.userId, organization_id: a.organizationId, role: "administrator" });
+      .insert({ user_id: b.userId, organization_id: a.organizationId, email: b.email, role: "administrator" });
+    const forgeFilingFrequency = await b.client
+      .from("company_filing_frequency")
+      .insert({
+        company_id: a.companyId,
+        organization_id: a.organizationId,
+        frequency: "quarterly",
+        effective_from: "2027-01-01",
+      });
 
-    for (const attempt of [renameOrganization, renameCompany, deleteCompany, joinOrganization]) {
+    for (const attempt of [renameOrganization, renameCompany, deleteCompany, joinOrganization, forgeFilingFrequency]) {
       expect(attempt.error?.code).toBe("42501");
     }
     expect((await listMyOrganizations(a.client)).map((o) => o.name)).toEqual(["Organization A"]);
@@ -184,13 +197,14 @@ describe("tenant isolation", () => {
         }),
         await a.client.from("extraction_version").update({ payload: {} }).eq("id", version.id),
         await a.client.from("extraction_version").delete().eq("id", version.id),
-        await a.client.rpc("record_split", { target_source_file_id: a.sourceFileId, page_ranges: [] }),
+        await a.client.rpc("record_split", { target_source_file_id: a.sourceFileId, source_ranges: [] }),
         await a.client.rpc("record_ai_extraction", {
           target_document_id: a.documentId,
           target_extraction_request_id: "00000000-0000-4000-8000-000000000000",
           provider: "fake",
           model: "forged",
           payload: {},
+          findings: [],
         }),
         await a.client.from("source_file").update({ status: "uploaded" }).eq("id", a.sourceFileId),
         await a.client.from("company").update({ name: "Renamed" }).eq("id", a.companyId),

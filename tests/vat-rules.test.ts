@@ -9,6 +9,7 @@ const company = {
   street: "Praha 1",
   city: "Praha",
   postalCode: "110 00",
+  personType: "legal" as const,
 };
 const period = "2026-10";
 function document(
@@ -54,6 +55,68 @@ describe("domestic Rules Engine", () => {
         vatAmount: rate === 21 ? "210.00" : "120.00",
         documentIds: ["doc-1"],
       });
+    },
+  );
+});
+
+describe("reverse charge and EU Rules Engine", () => {
+  it.each([
+    ["domestic_reverse_charge", "outgoing", 21, ["25"], "A.1"],
+    ["domestic_reverse_charge", "outgoing", 12, ["25"], "A.1"],
+    ["domestic_reverse_charge", "incoming", 21, ["10", "43"], "B.1"],
+    ["domestic_reverse_charge", "incoming", 12, ["11", "44"], "B.1"],
+    ["eu_acquisition_of_goods", "incoming", 21, ["3", "43"], "A.2"],
+    ["eu_acquisition_of_goods", "incoming", 12, ["4", "44"], "A.2"],
+    ["eu_received_service", "incoming", 21, ["5", "43"], "A.2"],
+    ["eu_received_service", "incoming", 12, ["6", "44"], "A.2"],
+  ] as const)(
+    "maps %s %s at %s percent to Return lines %j and Control Statement %s",
+    (proposedVatRegime, direction, rate, lines, section) => {
+      const vatAmount = rate === 21 ? "210.00" : "120.00";
+      const report = computeVatReport(company, period, [
+        document({
+          proposedVatRegime,
+          direction,
+          reverseChargeCode:
+            proposedVatRegime === "domestic_reverse_charge" ? "4" : null,
+          supplier:
+            proposedVatRegime.startsWith("eu_")
+              ? { ...SAMPLE_EXTRACTION.supplier, vatId: "DE123456789", country: "DE" }
+              : SAMPLE_EXTRACTION.supplier,
+          customer: SAMPLE_EXTRACTION.supplier,
+          rateBreakdown: [{ rate, netAmount: "1000.00", vatAmount: "0.00" }],
+          totals: { netAmount: "1000.00", vatAmount: "0.00", grossAmount: "1000.00" },
+        }),
+      ]);
+
+      for (const line of lines) {
+        expect(report.vatReturn.find((entry) => entry.line === line)).toEqual({
+          line,
+          netAmount: "1000.00",
+          vatAmount: line === "25" ? "0.00" : vatAmount,
+          documentIds: ["doc-1"],
+        });
+      }
+      expect(report.controlStatement).toEqual([
+        expect.objectContaining({
+          section,
+          reverseChargeCode:
+            proposedVatRegime === "domestic_reverse_charge" ? "4" : null,
+          documentIds: ["doc-1"],
+        }),
+      ]);
+    },
+  );
+
+  it.each(["eu_acquisition_of_goods", "eu_received_service"] as const)(
+    "requires manual classification for outgoing %s",
+    (proposedVatRegime) => {
+      const report = computeVatReport(company, period, [
+        document({ proposedVatRegime, direction: "outgoing" }),
+      ]);
+      expect(report.excludedDocuments).toEqual([
+        { documentId: "doc-1", reason: "manual_classification_required" },
+      ]);
     },
   );
 });
@@ -136,6 +199,45 @@ it("never counts unapproved, unsupported or incomplete Documents and ignores oth
   expect(report.vatReturn.every((line) => line.documentIds.length === 0)).toBe(
     true,
   );
+});
+
+it("uses stored CZK conversion amounts while preserving foreign originals", () => {
+  const foreign = document({
+    currency: "EUR",
+    rateBreakdown: [
+      { rate: 21, netAmount: "10.00", vatAmount: "2.10" },
+    ],
+    totals: {
+      netAmount: "10.00",
+      vatAmount: "2.10",
+      grossAmount: "12.10",
+    },
+    czkConversion: {
+      originalCurrency: "EUR",
+      rate: "24.340",
+      unit: 1,
+      rateDate: "2026-10-01",
+      source: "CNB",
+      rateBreakdown: [
+        { rate: 21, netAmount: "243.40", vatAmount: "51.11" },
+      ],
+      totals: {
+        netAmount: "243.40",
+        vatAmount: "51.11",
+        grossAmount: "294.51",
+      },
+    },
+  });
+
+  const report = computeVatReport(company, period, [foreign]);
+
+  expect(foreign.payload?.totals.grossAmount).toBe("12.10");
+  expect(report.vatReturn.find((line) => line.line === "40")).toEqual({
+    line: "40",
+    netAmount: "243.40",
+    vatAmount: "51.11",
+    documentIds: ["doc-1"],
+  });
 });
 it("keeps separate high-value Documents, and outgoing supplies without a Czech VAT ID go to A.5", () => {
   const data = {

@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
-import { reprocessDocumentAction, retrySplitAction } from "@/app/actions";
+import { mergeDocumentsAction, moveDocumentPageAction, reprocessDocumentAction, retrySplitAction } from "@/app/actions";
 import { getCompany } from "@/application/companies";
-import { listDocuments, listExtractionVersions } from "@/application/documents";
+import { isBeingExtracted, listDocuments, listExtractionVersions } from "@/application/documents";
 import { getSourceFile } from "@/application/source-files";
 import { AppSidebar } from "@/components/app-sidebar";
 import { CommandButton } from "@/components/command-button";
@@ -13,6 +13,7 @@ import { DocumentViewer } from "@/components/document-viewer";
 import { EmptyState } from "@/components/empty-state";
 import { StatusBadge } from "@/components/status-badge";
 import { statusBadgeState } from "@/components/status-badge-state";
+import { SplitDocumentForm } from "@/components/split-document-form";
 import { formatDocumentDate } from "@/lib/format-date";
 import { requireUserClient } from "@/lib/supabase/server";
 
@@ -29,22 +30,19 @@ export default async function SourceFilePage({
   const documents = await Promise.all(
     (await listDocuments(client, companyId, file.id)).map(async (document) => ({
       ...document,
-      current: (
-        await listExtractionVersions(client, companyId, document.id)
-      ).at(-1),
+      current: (await listExtractionVersions(client, companyId, document.id)).at(-1),
     })),
   );
   const t = await getTranslations();
   const format = await getFormatter();
   const contentUrl = `/companies/${companyId}/source-files/${file.id}/content`;
+  const workbook = file.format === "xlsx" || file.format === "xls";
   // Nothing moves until the Company enables AI processing.
   const processing =
     company.aiProcessing !== null &&
     (file.status === "uploaded" ||
       file.status === "processing" ||
-      documents.some(
-        (d) => d.status === "uploaded" || d.status === "processing",
-      ));
+      documents.some((d) => d.status === "uploaded" || d.status === "processing"));
 
   return (
     <>
@@ -52,14 +50,11 @@ export default async function SourceFilePage({
       <main className="dashboard">
         <header>
           <p>
-            <Link href={`/companies/${companyId}`}>
-              {t("sourceFiles.backToCompany")}
-            </Link>
+            <Link href={`/companies/${companyId}`}>{t("sourceFiles.backToCompany")}</Link>
           </p>
           <h1>{file.fileName}</h1>
           <p className="iv-muted">
-            {file.format.toUpperCase()} ·{" "}
-            {t("sourceFiles.pageCount", { count: file.pageCount })} ·{" "}
+            {file.format.toUpperCase()} · {workbook ? t("sourceFiles.workbook") : t("sourceFiles.pageCount", { count: file.pageCount })} ·{" "}
             {format.number(file.byteSize / 1000, {
               style: "unit",
               unit: "kilobyte",
@@ -78,9 +73,7 @@ export default async function SourceFilePage({
             <StatusBadge status={statusBadgeState(file.status, "source-file")}>
               {t(`sourceFileStatus.${file.status}`)}
             </StatusBadge>
-            {!company.aiProcessing && (
-              <span className="iv-muted"> · {t("aiProcessing.waiting")}</span>
-            )}
+            {!company.aiProcessing && <span className="iv-muted"> · {t("aiProcessing.waiting")}</span>}
           </p>
           {file.status === "failed" && (
             <CommandButton
@@ -99,15 +92,21 @@ export default async function SourceFilePage({
               columns={[
                 {
                   key: "pages",
-                  header: t("documents.pages"),
+                  header: workbook ? t("documents.rows") : t("documents.pages"),
                   mono: true,
                   render: (document) => (
-                    <Link
-                      href={`/companies/${companyId}/documents/${document.id}`}
-                    >
-                      {document.firstPage === document.lastPage
-                        ? document.firstPage
-                        : `${document.firstPage}–${document.lastPage}`}
+                    <Link href={`/companies/${companyId}/documents/${document.id}`}>
+                      {document.rowSet
+                        ? document.rowSet.firstRow === document.rowSet.lastRow
+                          ? t("documents.row", { sheet: document.rowSet.sheetName, row: document.rowSet.firstRow })
+                          : t("documents.rowRange", {
+                              sheet: document.rowSet.sheetName,
+                              first: document.rowSet.firstRow,
+                              last: document.rowSet.lastRow,
+                            })
+                        : document.firstPage === document.lastPage
+                          ? document.firstPage
+                          : `${document.firstPage}–${document.lastPage}`}
                     </Link>
                   ),
                 },
@@ -115,9 +114,7 @@ export default async function SourceFilePage({
                   key: "status",
                   header: t("documents.status"),
                   render: (document) => (
-                    <StatusBadge
-                      status={statusBadgeState(document.status, "document")}
-                    >
+                    <StatusBadge status={statusBadgeState(document.status, "document")}>
                       {t(`documentStatus.${document.status}`)}
                     </StatusBadge>
                   ),
@@ -130,8 +127,7 @@ export default async function SourceFilePage({
                     document.current &&
                     t("documents.version", {
                       version: document.current.version,
-                      documentNumber:
-                        document.current.payload.documentNumber ?? "—",
+                      documentNumber: document.current.payload.documentNumber ?? "—",
                       author:
                         document.current.author.kind === "ai"
                           ? `${document.current.author.provider} / ${document.current.author.model}`
@@ -139,11 +135,84 @@ export default async function SourceFilePage({
                     }),
                 },
                 {
+                  key: "splitCorrection",
+                  header: t("documents.correctSplit"),
+                  render: (document) => {
+                    if (document.rowSet) return null;
+                    const index = documents.findIndex((candidate) => candidate.id === document.id);
+                    const previous = documents[index - 1];
+                    const next = documents[index + 1];
+                    const correctable = !isBeingExtracted(document.status);
+                    return (
+                      <div className="split-correction-actions">
+                        {correctable && document.firstPage < document.lastPage && (
+                          <SplitDocumentForm
+                            companyId={companyId}
+                            documentId={document.id}
+                            firstPage={document.firstPage}
+                            lastPage={document.lastPage}
+                          />
+                        )}
+                        {correctable && next && !isBeingExtracted(next.status) && (
+                          <CommandButton
+                            size="sm"
+                            action={mergeDocumentsAction}
+                            fields={{
+                              companyId,
+                              leftDocumentId: document.id,
+                              rightDocumentId: next.id,
+                            }}
+                          >
+                            {t("documents.mergeWithNext")}
+                          </CommandButton>
+                        )}
+                        {correctable &&
+                          next &&
+                          !isBeingExtracted(next.status) &&
+                          document.firstPage < document.lastPage && (
+                            <CommandButton
+                              size="sm"
+                              action={moveDocumentPageAction}
+                              fields={{
+                                companyId,
+                                sourceDocumentId: document.id,
+                                targetDocumentId: next.id,
+                                page: String(document.lastPage),
+                              }}
+                            >
+                              {t("documents.moveLastToNext", {
+                                page: document.lastPage,
+                              })}
+                            </CommandButton>
+                          )}
+                        {correctable &&
+                          previous &&
+                          !isBeingExtracted(previous.status) &&
+                          document.firstPage < document.lastPage && (
+                            <CommandButton
+                              size="sm"
+                              action={moveDocumentPageAction}
+                              fields={{
+                                companyId,
+                                sourceDocumentId: document.id,
+                                targetDocumentId: previous.id,
+                                page: String(document.firstPage),
+                              }}
+                            >
+                              {t("documents.moveFirstToPrevious", {
+                                page: document.firstPage,
+                              })}
+                            </CommandButton>
+                          )}
+                      </div>
+                    );
+                  },
+                },
+                {
                   key: "actions",
                   header: t("documents.review"),
                   render: (document) =>
-                    (document.status === "failed" ||
-                      document.status === "needs_review") && (
+                    (document.status === "failed" || document.status === "needs_review") && (
                       <CommandButton
                         variant="ai"
                         icon="marker"
@@ -151,9 +220,7 @@ export default async function SourceFilePage({
                         action={reprocessDocumentAction}
                         fields={{ companyId, documentId: document.id }}
                       >
-                        {document.status === "failed"
-                          ? t("documents.retry")
-                          : t("documents.reprocess")}
+                        {document.status === "failed" ? t("documents.retry") : t("documents.reprocess")}
                       </CommandButton>
                     ),
                 },
@@ -164,7 +231,12 @@ export default async function SourceFilePage({
           )}
         </section>
         <DocumentViewer label={file.fileName}>
-          {file.format === "pdf" ? (
+          {workbook ? (
+            <div className="workbook-source">
+              <p>{t("sourceFiles.workbookPreview")}</p>
+              <a href={contentUrl}>{t("sourceFiles.downloadOriginal")}</a>
+            </div>
+          ) : file.format === "pdf" ? (
             <iframe src={contentUrl} title={file.fileName} />
           ) : (
             // eslint-disable-next-line @next/next/no-img-element -- the original is shown as stored, not optimized

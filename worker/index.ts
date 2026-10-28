@@ -3,8 +3,10 @@ import type { Database } from "@/lib/database.types";
 import type { JobWithMetadata } from "pg-boss";
 import { asSystemClient } from "@/application/client";
 import { PROCESSING_JOB_NAMES, runJob, type ProcessingJob, type Worker } from "@/application/processing";
-import { configuredAiProvider } from "@/ai";
+import { configuredAiProviders } from "@/ai";
 import { createBoss, createProcessingQueues, pgBossJobQueue } from "@/lib/jobs";
+import { configuredVatPayerRegistry } from "@/vat-registry";
+import { configuredExchangeRates } from "@/cnb";
 
 // Background job runner (ADR-0002). The handlers live in the application layer
 // so tests can run them directly; here they run against pg-boss, acting as the
@@ -18,14 +20,19 @@ function required(name: string): string {
 
 const boss = createBoss({ supervise: true });
 
+const system = asSystemClient(
+  createClient<Database>(required("NEXT_PUBLIC_SUPABASE_URL"), required("SUPABASE_SECRET_KEY"), {
+    auth: { persistSession: false, autoRefreshToken: false },
+  }),
+);
+
+const providers = configuredAiProviders(system);
 const worker: Worker = {
-  system: asSystemClient(
-    createClient<Database>(required("NEXT_PUBLIC_SUPABASE_URL"), required("SUPABASE_SECRET_KEY"), {
-      auth: { persistSession: false, autoRefreshToken: false },
-    }),
-  ),
-  ai: configuredAiProvider(),
+  system,
+  providers: { get: (name) => providers.find((provider) => provider.name === name) },
   jobs: pgBossJobQueue(boss),
+  vatRegistry: configuredVatPayerRegistry(),
+  exchangeRates: configuredExchangeRates(),
 };
 
 async function main() {
@@ -37,7 +44,7 @@ async function main() {
       await runJob(worker, { name, data: job.data } as ProcessingJob, attempt);
     });
   }
-  console.log(`[worker] started with AI provider ${worker.ai.name}; waiting for jobs`);
+  console.log(`[worker] started with AI providers ${providers.map((provider) => provider.name).join(", ")}; waiting for jobs`);
 }
 
 async function shutdown() {

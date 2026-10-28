@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createCompany } from "@/application/companies";
 import { getSourceFile, listSourceFiles, readSourceFile, uploadSourceFile } from "@/application/source-files";
 import { administratorWithCompany, companyDetails } from "./support/fixtures";
-import { fixtureFile } from "./support/files";
+import { fixtureFile, workbookFile } from "./support/files";
 import { testWorker } from "./support/worker";
 
 describe("Source File upload", () => {
@@ -23,12 +23,29 @@ describe("Source File upload", () => {
         byteSize: 1303,
         sha256: "79ae60b6a1040a3eaf64d441f2fa48f627a18d1e5c1ad831ba6919e9e9c663ea",
         pageCount: 2,
+        preselectedDirection: null,
         status: "uploaded",
         uploadedAt: expect.any(String),
       },
     ]);
     const stored = await readSourceFile(client, companyId, result.value.id);
     expect(stored?.bytes).toEqual(pdf);
+  });
+
+  it("stores an optional Direction preselection with the Source File", async () => {
+    const { client, companyId } = await administratorWithCompany();
+
+    const result = await uploadSourceFile(client, testWorker().jobs, {
+      companyId,
+      fileName: "receipt.png",
+      bytes: fixtureFile("receipt.png"),
+      preselectedDirection: "outgoing",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(await listSourceFiles(client, companyId)).toEqual([
+      expect.objectContaining({ preselectedDirection: "outgoing" }),
+    ]);
   });
 
   it.each([
@@ -49,8 +66,30 @@ describe("Source File upload", () => {
     expect((await readSourceFile(client, companyId, result.value.id))?.bytes).toEqual(image);
   });
 
+  it.each(["xlsx", "xls"] as const)("stores a genuine .%s workbook unchanged", async (format) => {
+    const { client, companyId } = await administratorWithCompany();
+    const workbook = workbookFile(format, [
+      ["Document number", "Issue date", "Gross amount"],
+      ["FV-1", new Date("2026-10-01T00:00:00.000Z"), 1210],
+    ]);
+
+    const result = await uploadSourceFile(client, testWorker().jobs, {
+      companyId,
+      fileName: `invoices.${format}`,
+      bytes: workbook,
+    });
+
+    expect(result).toEqual({ ok: true, value: { id: expect.any(String) } });
+    if (!result.ok) return;
+    expect(await listSourceFiles(client, companyId)).toEqual([
+      expect.objectContaining({ id: result.value.id, format, pageCount: 1 }),
+    ]);
+    const storedWorkbook = (await readSourceFile(client, companyId, result.value.id))?.bytes;
+    expect(storedWorkbook && Buffer.from(storedWorkbook)).toEqual(Buffer.from(workbook));
+  });
+
   it.each([
-    ["an unsupported extension", "invoices.xlsx", fixtureFile("two-invoices.pdf"), "unsupported_format"],
+    ["an unsupported extension", "invoices.csv", fixtureFile("two-invoices.pdf"), "unsupported_format"],
     ["no extension", "invoice", fixtureFile("two-invoices.pdf"), "unsupported_format"],
     ["content that does not match the extension", "receipt.jpg", fixtureFile("receipt.png"), "content_does_not_match_format"],
     ["a PDF that cannot be read", "invoice.pdf", new TextEncoder().encode("%PDF-1.7\nnot really a PDF"), "unreadable_file"],
@@ -61,6 +100,37 @@ describe("Source File upload", () => {
     const result = await uploadSourceFile(client, testWorker().jobs, { companyId, fileName, bytes });
 
     expect(result).toEqual({ ok: false, error });
+    expect(await listSourceFiles(client, companyId)).toEqual([]);
+  });
+
+  it("refuses a Source File larger than the platform limit", async () => {
+    const { client, companyId } = await administratorWithCompany();
+    const bytes = new Uint8Array(20 * 1024 * 1024 + 1);
+    bytes.set(fixtureFile("receipt.png"));
+
+    const result = await uploadSourceFile(client, testWorker().jobs, {
+      companyId,
+      fileName: "large.png",
+      bytes,
+    });
+
+    expect(result).toEqual({ ok: false, error: "file_too_large" });
+    expect(await listSourceFiles(client, companyId)).toEqual([]);
+  });
+
+  it("refuses a PDF with more pages than the platform limit", async () => {
+    const { PDFDocument } = await import("pdf-lib");
+    const { client, companyId } = await administratorWithCompany();
+    const pdf = await PDFDocument.create();
+    for (let page = 0; page < 51; page++) pdf.addPage();
+
+    const result = await uploadSourceFile(client, testWorker().jobs, {
+      companyId,
+      fileName: "too-many-pages.pdf",
+      bytes: await pdf.save(),
+    });
+
+    expect(result).toEqual({ ok: false, error: "too_many_pages" });
     expect(await listSourceFiles(client, companyId)).toEqual([]);
   });
 

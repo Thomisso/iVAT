@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
 import { Money } from "@/components/money";
 import { statusBadgeState } from "@/components/status-badge-state";
+import { mfaRedirectPath } from "@/application/mfa-routing";
 import { acceptsFile } from "@/components/drop-zone";
 
 test("Money shows Czech amounts and a true minus for Credit Notes", () => {
@@ -50,4 +51,49 @@ test("badge mapping distinguishes Source File Split from Document Extraction and
   expect(statusBadgeState("split", "source-file")).toBe("split");
   expect(statusBadgeState("rejected", "document")).toBe("rejected");
   expect(statusBadgeState("approved", "document")).toBe("approved");
+});
+
+test("MFA routing forces enrollment or verification before application access", () => {
+  expect(
+    mfaRedirectPath("/companies/new", {
+      required: true,
+      enrolled: false,
+      satisfied: false,
+    }),
+  ).toBe("/mfa/enroll");
+  expect(
+    mfaRedirectPath("/companies/new", {
+      required: false,
+      enrolled: true,
+      satisfied: false,
+    }),
+  ).toBe("/mfa/verify");
+  expect(
+    mfaRedirectPath("/mfa/verify", {
+      required: true,
+      enrolled: true,
+      satisfied: false,
+    }),
+  ).toBeNull();
+  expect(
+    mfaRedirectPath("/mfa/enroll", {
+      required: true,
+      enrolled: true,
+      satisfied: true,
+    }),
+  ).toBe("/");
+  expect(
+    mfaRedirectPath("/companies/new", {
+      required: false,
+      enrolled: false,
+      satisfied: true,
+    }),
+  ).toBeNull();
+  expect(
+    mfaRedirectPath("/mfa/enroll", {
+      required: false,
+      enrolled: false,
+      satisfied: true,
+    }),
+  ).toBeNull();
 });

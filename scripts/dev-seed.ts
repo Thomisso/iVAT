@@ -52,6 +52,9 @@ async function main() {
     street: "Na Příkopě 1",
     city: "Praha",
     postalCode: "110 00",
+    personType: "legal",
+    filingFrequency: "monthly",
+    filingFrequencyEffectiveFrom: "2026-01-01",
   });
   if (!company.ok) throw new Error(`Company creation failed: ${company.error}`);
   const companyId = company.value.id;
