@@ -10,4 +10,3 @@ export const PROCESSING_JOB_RETRY_WINDOW_MS = 1000 * Array.from(
     PROCESSING_JOB_RETRY_DELAY_MAX_SECONDS,
   ),
 ).reduce((total, delay) => total + delay, 0);
-
