@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getCompany } from "@/application/companies";
@@ -6,6 +7,14 @@ import { getVatReport } from "@/application/vat-reports";
 import { requireUserClient } from "@/lib/supabase/server";
 import { EmptyState } from "@/components/empty-state";
 import { PeriodNavigation } from "../../period-navigation";
+
+export async function generateMetadata({
+  params,
+}: PageProps<"/companies/[companyId]/vat-reports/[period]/exports">): Promise<Metadata> {
+  const { period } = await params;
+  const t = await getTranslations("vatReports");
+  return { title: t("exportHistoryTitle", { period }) };
+}
 
 export default async function ExportHistoryPage({
   params,

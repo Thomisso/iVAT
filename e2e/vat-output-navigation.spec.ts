@@ -78,6 +78,7 @@ test("empty and draft Reporting Periods expose separate statutory destinations i
   await expect(page).toHaveURL(
     new RegExp(`/companies/${companyId}/vat-reports/2026-01/vat-return$`),
   );
+  await expect(page).toHaveTitle("VAT Return · 2026-01");
   await expect(page.getByText(`${companyName} · 2026-01`, { exact: true })).toBeVisible();
   await expect(page.getByRole("table", { name: "VAT Return" })).toBeVisible();
   await expect(page.locator('input[name="format"]')).toHaveValue("dphdp3");
@@ -96,6 +97,7 @@ test("empty and draft Reporting Periods expose separate statutory destinations i
   await expect(page).toHaveURL(
     new RegExp(`/companies/${companyId}/vat-reports/2026-01/control-statement$`),
   );
+  await expect(page).toHaveTitle("Control Statement · 2026-01");
   await expect(page.getByRole("heading", { name: "Control Statement · 2026-01" })).toBeVisible();
   await expect(page.locator('input[name="format"]')).toHaveValue("dphkh1");
   await expect(page.locator('select[name="format"]')).toHaveCount(0);
@@ -108,6 +110,7 @@ test("empty and draft Reporting Periods expose separate statutory destinations i
 
   await setLocale(context, baseURL, "cs");
   await page.reload();
+  await expect(page).toHaveTitle("Historie exportů · 2026-01");
   const czechNavigation = page.getByRole("navigation", {
     name: "Části zdaňovacího období",
   });
