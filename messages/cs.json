@@ -413,6 +413,11 @@
       "other": "Jiný (vyžaduje ruční klasifikaci)"
     }
   },
+  "duplicateWarning": {
+    "document_identity": "Možný duplikát: DIČ protistrany, číslo dokladu a směr se shodují se starším dokladem.",
+    "source_file_hash": "Možný duplikát: stejný zdrojový soubor už byl nahrán.",
+    "openMatch": "Otevřít shodný doklad"
+  },
   "statusBadge": {
     "uploaded": "Nahráno",
     "splitting": "Rozděluje se",

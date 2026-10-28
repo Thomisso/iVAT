@@ -413,6 +413,11 @@
       "other": "Other (manual classification required)"
     }
   },
+  "duplicateWarning": {
+    "document_identity": "Possible duplicate: the counterparty VAT ID, document number and direction match an earlier Document.",
+    "source_file_hash": "Possible duplicate: the same Source File was uploaded earlier.",
+    "openMatch": "Open the matching Document"
+  },
   "statusBadge": {
     "uploaded": "Uploaded",
     "splitting": "Splitting",
