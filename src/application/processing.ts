@@ -23,6 +23,7 @@ import type { Direction } from "./extraction-payload";
 import { applyCnbConversion, type ExchangeRateProvider } from "./exchange-rates";
 import { createHash } from "node:crypto";
 import { buildCompanyDataArchive, type CompanyExportSnapshot } from "./company-data-export";
+import type { CompanyDataExportStatus } from "@/lib/company-data-export-status";
 
 // Background processing (ADR-0004): Split per Source File, then Extract per
 // Document. Jobs carry only ids; the state lives in the database, which makes
@@ -95,7 +96,7 @@ async function completeCompanyExport(
     const loaded = await system.rpc("company_data_export_for_completion", { target_export_id: exportId });
     if (loaded.error) throw loaded.error;
     const receipt = loaded.data as unknown as {
-      status: "pending" | "completed" | "failed" | "stale";
+      status: CompanyDataExportStatus;
       companyId: string;
       snapshot: CompanyExportSnapshot;
     };
