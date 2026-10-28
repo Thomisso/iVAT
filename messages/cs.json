@@ -113,7 +113,13 @@
     "hash": "Otisk SHA-256",
     "status": "Stav",
     "dropTitle": "Přetáhněte sem zdrojový soubor",
-    "chooseFile": "Vybrat soubor"
+    "chooseFile": "Vybrat soubor",
+    "direction": "Směr",
+    "directionAutomatic": "Určit automaticky podle identity firmy",
+    "directionValue": {
+      "incoming": "Přijatý",
+      "outgoing": "Vydaný"
+    }
   },
   "errors": {
     "organization_name_required": "Zadejte název organizace.",
@@ -175,7 +181,8 @@
     "model_required": "Zadejte model pro rozdělení i vytěžení.",
     "invalid_platform_key": "Zadejte platný API klíč platformy.",
     "invalid_organization_key": "Zadejte platný API klíč organizace.",
-    "dpa_acknowledgement_required": "Potvrďte odpovědnost za smlouvu o zpracování osobních údajů s poskytovatelem."
+    "dpa_acknowledgement_required": "Potvrďte odpovědnost za smlouvu o zpracování osobních údajů s poskytovatelem.",
+    "direction_required": "Před schválením nastavte směr dokladu."
   },
   "aiUsage": {
     "organizationNav": "Využití AI pro {organization}",
@@ -359,7 +366,8 @@
       "counterparty_vat_id_required": "Pro tento režim DPH je DIČ protistrany povinné.",
       "unreliable_vat_payer": "Dodavatel je v registru veden jako nespolehlivý plátce DPH.",
       "unpublished_bank_account": "Platební účet není u tohoto dodavatele zveřejněn v registru plátců DPH.",
-      "vat_registry_check_not_performed": "Registr plátců DPH nebyl dostupný, proto nebyla provedena kontrola dodavatele a platebního účtu."
+      "vat_registry_check_not_performed": "Registr plátců DPH nebyl dostupný, proto nebyla provedena kontrola dodavatele a platebního účtu.",
+      "direction_unknown": "Směr se nepodařilo určit podle identity firmy. Před schválením jej nastavte."
     },
     "noDocumentImage": "Tento doklad vznikl z řádků tabulky a nemá obraz dokladu.",
     "sections": {

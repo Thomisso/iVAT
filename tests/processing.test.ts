@@ -3,7 +3,7 @@ import type { AiInput } from "@/application/ai-provider";
 import { listAuditEvents } from "@/application/audit";
 import { disableAiProcessing, enableAiProcessing, getCompany } from "@/application/companies";
 import { listDocuments, listExtractionVersions, readDocumentRows, reprocessDocument } from "@/application/documents";
-import type { ExtractionPayload } from "@/application/extraction-payload";
+import type { Direction, ExtractionPayload } from "@/application/extraction-payload";
 import { getSourceFile, retrySplit, uploadSourceFile } from "@/application/source-files";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { signedUpUser } from "./support/clients";
@@ -29,8 +29,14 @@ async function upload(
   { client, companyId }: { client: Awaited<ReturnType<typeof administratorWithCompany>>["client"]; companyId: string },
   worker: ReturnType<typeof testWorker>,
   fixture = "two-invoices.pdf",
+  preselectedDirection: Direction | null = "incoming",
 ) {
-  const result = await uploadSourceFile(client, worker.jobs, { companyId, fileName: fixture, bytes: fixtureFile(fixture) });
+  const result = await uploadSourceFile(client, worker.jobs, {
+    companyId,
+    fileName: fixture,
+    bytes: fixtureFile(fixture),
+    preselectedDirection: preselectedDirection ?? undefined,
+  });
   if (!result.ok) throw new Error(result.error);
   return result.value.id;
 }
@@ -142,6 +148,91 @@ describe("VAT payer registry checks", () => {
       field: "supplier.vatId",
       severity: "warning",
       code: "vat_registry_check_not_performed",
+    });
+  });
+});
+
+describe("automatic Direction detection", () => {
+  it.each([
+    ["supplier", "outgoing"],
+    ["customer", "incoming"],
+  ] as const)("uses a Company identity match on the %s", async (party, direction) => {
+    const companyIdentity = { ico: "", vatId: "" };
+    const worker = testWorker(
+      fakeAiProvider({
+        extract: () => ({
+          ...SAMPLE_EXTRACTION,
+          direction: direction === "incoming" ? "outgoing" : "incoming",
+          [party]: {
+            ...SAMPLE_EXTRACTION[party],
+            ico: companyIdentity.ico,
+            vatId: companyIdentity.vatId,
+          },
+        }),
+      }),
+    );
+    const { client, companyId } = await companyWithAiProcessing(worker);
+    const company = await getCompany(client, companyId);
+    if (!company) throw new Error("Company missing");
+    Object.assign(companyIdentity, company);
+    const sourceFileId = await upload(
+      { client, companyId },
+      worker,
+      "receipt.png",
+      null,
+    );
+
+    await worker.runJobs();
+
+    const [document] = await listDocuments(client, companyId, sourceFileId);
+    const [version] = await listExtractionVersions(
+      client,
+      companyId,
+      document.id,
+    );
+    expect(version.payload.direction).toBe(direction);
+    expect(version.findings).not.toContainEqual(
+      expect.objectContaining({ code: "direction_unknown" }),
+    );
+  });
+
+  it("lets an upload preselection win", async () => {
+    const worker = testWorker();
+    const { client, companyId } = await companyWithAiProcessing(worker);
+    const uploaded = await uploadSourceFile(client, worker.jobs, {
+      companyId,
+      fileName: "receipt.png",
+      bytes: fixtureFile("receipt.png"),
+      preselectedDirection: "outgoing",
+    });
+    if (!uploaded.ok) throw new Error(uploaded.error);
+
+    await worker.runJobs();
+
+    const [document] = await listDocuments(client, companyId, uploaded.value.id);
+    const [version] = await listExtractionVersions(client, companyId, document.id);
+    expect(version.payload.direction).toBe("outgoing");
+  });
+
+  it("sets no Direction and records a warning when neither party matches", async () => {
+    const worker = testWorker();
+    const { client, companyId } = await companyWithAiProcessing(worker);
+    const sourceFileId = await upload(
+      { client, companyId },
+      worker,
+      "receipt.png",
+      null,
+    );
+
+    await worker.runJobs();
+
+    const [document] = await listDocuments(client, companyId, sourceFileId);
+    const [version] = await listExtractionVersions(client, companyId, document.id);
+    expect(version.payload.direction).toBeNull();
+    expect(version.findings).toContainEqual({
+      field: "direction",
+      severity: "warning",
+      code: "direction_unknown",
     });
   });
 });

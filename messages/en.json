@@ -113,7 +113,13 @@
     "hash": "SHA-256 hash",
     "status": "Status",
     "dropTitle": "Drop a Source File here",
-    "chooseFile": "Choose a file"
+    "chooseFile": "Choose a file",
+    "direction": "Direction",
+    "directionAutomatic": "Detect automatically from the Company identity",
+    "directionValue": {
+      "incoming": "Incoming",
+      "outgoing": "Outgoing"
+    }
   },
   "errors": {
     "organization_name_required": "Enter the name of your organization.",
@@ -175,7 +181,8 @@
     "model_required": "Enter a model for Split and Extract.",
     "invalid_platform_key": "Enter a valid platform API key.",
     "invalid_organization_key": "Enter a valid Organization API key.",
-    "dpa_acknowledgement_required": "Acknowledge responsibility for the provider data processing agreement."
+    "dpa_acknowledgement_required": "Acknowledge responsibility for the provider data processing agreement.",
+    "direction_required": "Set the document Direction before approving it."
   },
   "aiUsage": {
     "organizationNav": "AI usage for {organization}",
@@ -359,7 +366,8 @@
       "counterparty_vat_id_required": "The counterparty VAT ID is required for this VAT treatment.",
       "unreliable_vat_payer": "The supplier is listed as an unreliable VAT payer.",
       "unpublished_bank_account": "The payment account is not published for this supplier in the VAT payer registry.",
-      "vat_registry_check_not_performed": "The VAT payer registry was unavailable, so the supplier and payment account check was not performed."
+      "vat_registry_check_not_performed": "The VAT payer registry was unavailable, so the supplier and payment account check was not performed.",
+      "direction_unknown": "Direction could not be detected from the Company identity. Set it before approval."
     },
     "noDocumentImage": "This Document came from spreadsheet rows and has no document image.",
     "sections": {

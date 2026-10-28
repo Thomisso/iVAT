@@ -4,6 +4,10 @@ import { useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import type { UploadLimits } from "@/application/source-files";
+import {
+  DIRECTIONS,
+  type Direction,
+} from "@/application/extraction-payload";
 import { Button } from "@/components/button";
 import { DropZone } from "@/components/drop-zone";
 import { FormError } from "@/components/form-error";
@@ -46,6 +50,7 @@ function uploadFile(
   companyId: string,
   batchId: string,
   item: UploadItem,
+  direction: Direction | "",
   update: (change: Partial<UploadItem>) => void,
 ): Promise<void> {
   return new Promise((resolve) => {
@@ -87,6 +92,7 @@ function uploadFile(
     });
     const data = new FormData();
     data.set("batchId", batchId);
+    if (direction) data.set("direction", direction);
     data.set("file", item.file);
     request.send(data);
   });
@@ -104,6 +110,7 @@ export function SourceFileUploadForm({
   const [items, setItems] = useState<UploadItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [direction, setDirection] = useState<Direction | "">("");
   const form = useRef<HTMLFormElement>(null);
 
   const update = (index: number, change: Partial<UploadItem>) => {
@@ -136,8 +143,12 @@ export function SourceFileUploadForm({
             update(index, { status: "refused", error: "file_too_large" });
             continue;
           }
-          await uploadFile(companyId, started.value.id, item, (change) =>
-            update(index, change),
+          await uploadFile(
+            companyId,
+            started.value.id,
+            item,
+            direction,
+            (change) => update(index, change),
           );
         }
       };
@@ -146,6 +157,7 @@ export function SourceFileUploadForm({
       );
       await finishBrowserUploadBatch(companyId, started.value.id);
       form.current?.reset();
+      setDirection("");
       router.refresh();
     } catch {
       setError("upload_failed");
@@ -156,6 +168,27 @@ export function SourceFileUploadForm({
 
   return (
     <form ref={form} onSubmit={submit} className="form upload-form">
+      <div className="iv-field">
+        <label className="iv-field-label" htmlFor="upload-direction">
+          {t("direction")}
+        </label>
+        <select
+          id="upload-direction"
+          name="direction"
+          value={direction}
+          disabled={pending}
+          onChange={(event) =>
+            setDirection(event.currentTarget.value as Direction | "")
+          }
+        >
+          <option value="">{t("directionAutomatic")}</option>
+          {DIRECTIONS.map((value) => (
+            <option key={value} value={value}>
+              {t(`directionValue.${value}`)}
+            </option>
+          ))}
+        </select>
+      </div>
       <DropZone
         required
         multiple
