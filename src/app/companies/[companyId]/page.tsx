@@ -43,7 +43,8 @@ function documentFilters(
     ? one("period")
     : undefined;
   const counterparty = one("counterparty")?.trim() || undefined;
-  return { status, direction, reportingPeriod, counterparty };
+  const hasFindings = one("findings") === "1" || undefined;
+  return { status, direction, reportingPeriod, counterparty, hasFindings };
 }
 
 export default async function CompanyDashboardPage({
@@ -152,6 +153,15 @@ export default async function CompanyDashboardPage({
               defaultValue={filters.counterparty ?? ""}
               placeholder={t("documents.counterpartyHint")}
             />
+            <label className="filter-check">
+              <input
+                type="checkbox"
+                name="findings"
+                value="1"
+                defaultChecked={filters.hasFindings}
+              />
+              {t("documents.findingsOnly")}
+            </label>
             <Button type="submit">{t("documents.filter")}</Button>
             {filtered && (
               <Link href={`/companies/${company.id}`}>
@@ -225,6 +235,15 @@ export default async function CompanyDashboardPage({
                     document.eligibleForVatReport
                       ? t("documents.eligible")
                       : t("documents.notEligible"),
+                },
+                {
+                  key: "findingCount",
+                  header: t("documents.findings"),
+                  align: "right",
+                  render: (document) =>
+                    document.findingCount > 0
+                      ? t("documents.findingCount", { count: document.findingCount })
+                      : t("documents.noFindings"),
                 },
                 {
                   key: "status",

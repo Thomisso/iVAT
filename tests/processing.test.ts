@@ -71,6 +71,7 @@ describe("processing a Source File", () => {
         version: 1,
         author: { kind: "ai", provider: "fake", model: "fake-extract" },
         payload: INVOICE_1,
+        findings: [],
         createdAt: expect.any(String),
       },
     ]);

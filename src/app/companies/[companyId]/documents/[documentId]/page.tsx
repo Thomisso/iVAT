@@ -119,6 +119,7 @@ export default async function DocumentReviewPage({
               documentId={document.id}
               version={shown.version}
               payload={shown.payload}
+              findings={shown.findings}
               editable={reviewing && shown === current}
               aiProposed={
                 shown.author.kind === "ai" && document.status !== "approved"
