@@ -1,8 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
-import { getCompany, getFilingFrequencyForPeriod } from "@/application/companies";
-import { getVatReport } from "@/application/vat-reports";
+import {
+  getCompany,
+  getFilingFrequencyForPeriod,
+  getMyCompanyRole,
+} from "@/application/companies";
+import { getPeriodLock, getVatReport } from "@/application/vat-reports";
 import { vatReturnPreviewData } from "@/application/vat-return-preview";
 import { isReportingPeriod } from "@/application/vat-rules";
 import { requireUserClient } from "@/lib/supabase/server";
@@ -12,9 +16,11 @@ import { EmptyState } from "@/components/empty-state";
 import { Money } from "@/components/money";
 import { TextField } from "@/components/text-field";
 import { Button } from "@/components/button";
+import { StatusBadge } from "@/components/status-badge";
 import { formatDocumentDate } from "@/lib/format-date";
 import { GenerateForm } from "./generate-form";
 import { ExportForm } from "./export-form";
+import { PeriodLockForm } from "./period-lock-form";
 
 export default async function VatReportsPage({
   params,
@@ -41,8 +47,10 @@ export default async function VatReportsPage({
     (currentFrequency === "quarterly"
       ? `${currentMonth.slice(0, 4)}-Q${Math.ceil(month / 3)}`
       : currentMonth);
-  const [report, t, locale] = await Promise.all([
+  const [report, periodLock, role, t, locale] = await Promise.all([
     getVatReport(client, companyId, period),
+    getPeriodLock(client, companyId, period),
+    getMyCompanyRole(client, companyId),
     getTranslations(),
     getLocale(),
   ]);
@@ -103,6 +111,7 @@ export default async function VatReportsPage({
             companyId={companyId}
             period={period}
             exists={!!report}
+            locked={!!periodLock}
           />
           <p className="iv-muted">{t("vatReports.excelOverviewHint")}</p>
           <a
@@ -119,6 +128,7 @@ export default async function VatReportsPage({
           <>
             <section>
               <h2>{t("vatReports.draft", { period: preview.period })}</h2>
+              {periodLock && <StatusBadge status="locked" />}
               <p>
                 {preview.company.name} · {preview.company.vatId}
               </p>
@@ -132,6 +142,9 @@ export default async function VatReportsPage({
                 })}
               </p>
               <p className="iv-muted">{t("vatReports.snapshot")}</p>
+              {role === "administrator" && (
+                <PeriodLockForm companyId={companyId} period={period} locked={!!periodLock} />
+              )}
               <DataTable
                 caption={t("vatReports.vatReturn")}
                 rows={preview.lines.map((r) => ({ ...r, id: r.line }))}
