@@ -32,6 +32,27 @@ export function reportingPeriodForDate(
   return `${date.slice(0, 4)}-Q${Math.ceil(Number(date.slice(5, 7)) / 3)}`;
 }
 
+/** Every valid Reporting Period from the first filing-frequency entry through a date, oldest first. */
+export function reportingPeriodsThrough(
+  throughDate: string,
+  history: readonly FilingFrequencyHistoryEntry[],
+): string[] {
+  const first = history.toSorted((a, b) =>
+    a.effectiveFrom.localeCompare(b.effectiveFrom),
+  )[0]?.effectiveFrom;
+  if (!first || !/^20\d{2}-\d{2}-\d{2}$/.test(throughDate)) return [];
+  const cursor = new Date(`${first.slice(0, 7)}-01T00:00:00Z`);
+  const through = `${throughDate.slice(0, 7)}-01`;
+  const periods = new Set<string>();
+  while (cursor.toISOString().slice(0, 10) <= through) {
+    const date = cursor.toISOString().slice(0, 10);
+    const period = reportingPeriodForDate(date, history);
+    if (period) periods.add(period);
+    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+  }
+  return [...periods];
+}
+
 export function validFilingEffectiveFrom(
   frequency: FilingFrequency,
   value: string,
