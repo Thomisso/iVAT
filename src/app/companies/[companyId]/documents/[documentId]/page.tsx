@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { approveDocumentAction, rejectDocumentAction } from "@/app/actions";
+import { approveDocumentAction, rejectDocumentAction, reprocessDocumentAction } from "@/app/actions";
 import { getCompany } from "@/application/companies";
 import { currentUserId } from "@/application/auth";
+import { documentQueueQuery, getDocumentQueuePosition } from "@/application/document-queue";
 import {
+  documentPeriodLocks,
   getDocument,
   isBeingExtracted,
   listDuplicateWarnings,
@@ -12,7 +14,6 @@ import {
   readDocumentRows,
 } from "@/application/documents";
 import { getSourceFile } from "@/application/source-files";
-import { AppSidebar } from "@/components/app-sidebar";
 import { CommandButton } from "@/components/command-button";
 import { RefreshWhile } from "@/components/refresh-while";
 import { requireUserClient } from "@/lib/supabase/server";
@@ -32,7 +33,8 @@ export default async function DocumentReviewPage({
   searchParams,
 }: PageProps<"/companies/[companyId]/documents/[documentId]">) {
   const { companyId, documentId } = await params;
-  const { version: requestedVersion } = await searchParams;
+  const search = await searchParams;
+  const requestedVersion = typeof search.version === "string" ? search.version : undefined;
   const client = await requireUserClient();
   const [company, document, versions, userId, duplicateWarnings] = await Promise.all([
     getCompany(client, companyId),
@@ -44,6 +46,17 @@ export default async function DocumentReviewPage({
   if (!company || !document) notFound();
   const file = await getSourceFile(client, companyId, document.sourceFileId);
   if (!file) notFound();
+  const position = await getDocumentQueuePosition(client, companyId, document.id, search);
+  const { queue, documents: queuedDocuments, index: queueIndex } = position;
+  const queueQuery = documentQueueQuery(queue);
+  const listHref = `/companies/${companyId}/documents?${queueQuery}#document-${document.id}`;
+  const reviewHref = (id: string, version?: number) => {
+    const query = new URLSearchParams(queueQuery);
+    if (version !== undefined) query.set("version", String(version));
+    return `/companies/${companyId}/documents/${id}?${query}`;
+  };
+  const locks = await documentPeriodLocks(client, companyId, [document.id]);
+  const lockedPeriod = locks[document.id];
   const t = await getTranslations();
   const sourceRows = document.rowSet
     ? await readDocumentRows(client, companyId, document.id)
@@ -52,7 +65,7 @@ export default async function DocumentReviewPage({
   const current = versions.at(-1);
   const shown =
     versions.find((v) => String(v.version) === requestedVersion) ?? current;
-  const reviewing = document.status === "needs_review" && current !== undefined;
+  const reviewing = document.status === "needs_review" && current !== undefined && !lockedPeriod;
   const contentUrl = `/companies/${companyId}/documents/${document.id}/content`;
   const sourceLocation = document.rowSet
     ? document.rowSet.firstRow === document.rowSet.lastRow
@@ -68,14 +81,16 @@ export default async function DocumentReviewPage({
 
   return (
     <>
-      <AppSidebar currentCompanyId={companyId} />
       <main className="review">
         <header className="review-header">
-          <p>
-            <Link href={`/companies/${companyId}`}>
-              {t("review.backToCompany")}
-            </Link>
-          </p>
+          <nav className="review-queue-nav" aria-label={t("review.queueNavigation")}>
+            <Link href={queueIndex >= 0 ? listHref : `/companies/${companyId}/documents`}>{t("review.backToDocuments")}</Link>
+            {queueIndex >= 0 && <span>{t("review.queuePosition", { current: queueIndex + 1, total: queuedDocuments.length })}</span>}
+            {queueIndex >= 0 && <span className="review-queue-steps">
+              {position.previousDocumentId ? <Link href={reviewHref(position.previousDocumentId)}>{t("review.previous")}</Link> : <span aria-disabled="true">{t("review.previous")}</span>}
+              {position.nextDocumentId ? <Link href={reviewHref(position.nextDocumentId)}>{t("review.next")}</Link> : <span aria-disabled="true">{t("review.next")}</span>}
+            </span>}
+          </nav>
           <h1>
             {t("review.title")}
             {current?.payload.documentNumber && (
@@ -99,6 +114,13 @@ export default async function DocumentReviewPage({
           {document.status === "rejected" && (
             <Notice>{t("review.rejectedNote")}</Notice>
           )}
+          {lockedPeriod && <Notice tone="warning" title={t("review.lockedTitle", { period: lockedPeriod })}>{t("review.lockedNote")}</Notice>}
+          {document.status === "failed" && !lockedPeriod && <CommandButton
+            variant="ai"
+            icon="marker"
+            action={reprocessDocumentAction}
+            fields={{ companyId, documentId: document.id }}
+          >{t("review.retryExtraction")}</CommandButton>}
           {!current && <Notice>{t("review.notReviewableNote")}</Notice>}
           {duplicateWarnings.map((warning) => (
             <Notice key={`${warning.kind}-${warning.matchedDocumentId}`} tone="warning">
@@ -131,7 +153,7 @@ export default async function DocumentReviewPage({
                 version: shown.version,
                 current: current.version,
               })}{" "}
-              <Link href={`/companies/${companyId}/documents/${document.id}`}>
+              <Link href={reviewHref(document.id)}>
                 {t("review.showCurrent")}
               </Link>
             </Notice>
@@ -162,7 +184,7 @@ export default async function DocumentReviewPage({
           ) : (
             <EmptyState icon="file" title={t("review.noExtraction")} />
           )}
-          {current?.payload.direction === "incoming" && (
+          {current?.payload.direction === "incoming" && !lockedPeriod && (
             <ReportingAssignmentForm
               companyId={companyId}
               documentId={document.id}
@@ -180,6 +202,8 @@ export default async function DocumentReviewPage({
                   companyId,
                   documentId: document.id,
                   version: String(current.version),
+                  nextDocumentId: position.continuationDocumentId ?? "",
+                  queueQuery,
                 }}
               >
                 {t("review.approve", { version: current.version })}
@@ -187,7 +211,7 @@ export default async function DocumentReviewPage({
               <CommandButton
                 variant="danger"
                 action={rejectDocumentAction}
-                fields={{ companyId, documentId: document.id }}
+                fields={{ companyId, documentId: document.id, nextDocumentId: position.continuationDocumentId ?? "", queueQuery }}
               >
                 {t("review.reject")}
               </CommandButton>
@@ -203,7 +227,7 @@ export default async function DocumentReviewPage({
                     aria-current={v === shown ? "true" : undefined}
                   >
                     <Link
-                      href={`/companies/${companyId}/documents/${document.id}?version=${v.version}`}
+                      href={reviewHref(document.id, v.version)}
                     >
                       {t("documents.version", {
                         version: v.version,

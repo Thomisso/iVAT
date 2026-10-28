@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
 import { mergeDocumentsAction, moveDocumentPageAction, reprocessDocumentAction, retrySplitAction } from "@/app/actions";
 import { getCompany, getMyCompanyRole } from "@/application/companies";
-import { isBeingExtracted, listDocuments, listExtractionVersions } from "@/application/documents";
+import { documentPeriodLocks, isBeingExtracted, listDocuments, listExtractionVersions } from "@/application/documents";
 import { getSourceFile } from "@/application/source-files";
 import { AppSidebar } from "@/components/app-sidebar";
 import { CommandButton } from "@/components/command-button";
@@ -34,6 +34,7 @@ export default async function SourceFilePage({
       current: (await listExtractionVersions(client, companyId, document.id)).at(-1),
     })),
   );
+  const lockedPeriods = await documentPeriodLocks(client, companyId, documents.map((document) => document.id));
   const t = await getTranslations();
   const format = await getFormatter();
   const contentUrl = `/companies/${companyId}/source-files/${file.id}/content`;
@@ -146,7 +147,9 @@ export default async function SourceFilePage({
                     const index = documents.findIndex((candidate) => candidate.id === document.id);
                     const previous = documents[index - 1];
                     const next = documents[index + 1];
-                    const correctable = !isBeingExtracted(document.status);
+                    const lockedPeriod = lockedPeriods[document.id];
+                    const correctable = !isBeingExtracted(document.status) && !lockedPeriod;
+                    if (lockedPeriod) return <span className="iv-muted">{t("documents.lockedPeriod", { period: lockedPeriod })}</span>;
                     return (
                       <div className="split-correction-actions">
                         {correctable && document.firstPage < document.lastPage && (
@@ -157,7 +160,7 @@ export default async function SourceFilePage({
                             lastPage={document.lastPage}
                           />
                         )}
-                        {correctable && next && !isBeingExtracted(next.status) && (
+                        {correctable && next && !isBeingExtracted(next.status) && !lockedPeriods[next.id] && (
                           <CommandButton
                             size="sm"
                             action={mergeDocumentsAction}
@@ -173,6 +176,7 @@ export default async function SourceFilePage({
                         {correctable &&
                           next &&
                           !isBeingExtracted(next.status) &&
+                          !lockedPeriods[next.id] &&
                           document.firstPage < document.lastPage && (
                             <CommandButton
                               size="sm"
@@ -192,6 +196,7 @@ export default async function SourceFilePage({
                         {correctable &&
                           previous &&
                           !isBeingExtracted(previous.status) &&
+                          !lockedPeriods[previous.id] &&
                           document.firstPage < document.lastPage && (
                             <CommandButton
                               size="sm"
@@ -215,8 +220,10 @@ export default async function SourceFilePage({
                 {
                   key: "actions",
                   header: t("documents.review"),
-                  render: (document) =>
-                    (document.status === "failed" || document.status === "needs_review") && (
+                  render: (document) => {
+                    const lockedPeriod = lockedPeriods[document.id];
+                    if (lockedPeriod) return <span className="iv-muted">{t("documents.lockedPeriod", { period: lockedPeriod })}</span>;
+                    return (document.status === "failed" || document.status === "needs_review") && (
                       <CommandButton
                         variant="ai"
                         icon="marker"
@@ -226,7 +233,8 @@ export default async function SourceFilePage({
                       >
                         {document.status === "failed" ? t("documents.retry") : t("documents.reprocess")}
                       </CommandButton>
-                    ),
+                    );
+                  },
                 },
               ]}
             />
