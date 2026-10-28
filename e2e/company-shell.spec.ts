@@ -35,13 +35,17 @@ async function createCompany(page: Page, name: string, ico: string) {
   await page.getByLabel("Company name").fill(name);
   await page.getByLabel("IČO").fill(ico);
   await page.getByLabel("VAT ID").fill(`CZ${ico}`);
-  await page.getByLabel("Street and number").fill("Na Příkopě 1");
+  await page.getByLabel("Street name").fill("Na Příkopě");
+  await page.getByLabel("House number").fill("1");
   await page.getByLabel("City").fill("Praha");
   await page.getByLabel("Postal code").fill("11000");
-  await page.getByLabel("Effective from").fill("2026-01-01");
   await page.getByRole("button", { name: "Create company" }).click();
+  await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+\/setup\/filing-frequency$/);
+  const companyId = new URL(page.url()).pathname.split("/")[2];
+  await page.getByLabel("Effective from").fill("2026-01-01");
+  await page.getByRole("button", { name: "Save and continue" }).click();
   await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+$/);
-  return new URL(page.url()).pathname.split("/").at(-1)!;
+  return companyId;
 }
 
 async function serviceClient() {

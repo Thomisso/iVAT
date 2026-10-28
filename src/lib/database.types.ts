@@ -65,14 +65,14 @@ isOneToOne: false
                   ]
                 },"company": {
                   Row: {
-                    "ai_processing_enabled": boolean,"ai_provider": string | null,"ai_region": string | null,"city": string,"created_at": string,"created_by": string | null,"data_revision": number,"deleted_at": string | null,"deleted_by": string | null,"ico": string,"id": string,"name": string,"organization_id": string,"person_type": Database["public"]['Enums']["person_type"],"postal_code": string,"street": string,"vat_id": string
+                    "ai_processing_enabled": boolean,"ai_provider": string | null,"ai_region": string | null,"city": string,"created_at": string,"created_by": string | null,"data_revision": number,"deleted_at": string | null,"deleted_by": string | null,"first_name": string | null,"house_number": string | null,"ico": string,"id": string,"last_name": string | null,"name": string,"organization_id": string,"orientation_number": string | null,"person_type": Database["public"]['Enums']["person_type"],"postal_code": string,"street": string,"street_name": string | null,"vat_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "ai_processing_enabled"?: boolean,"ai_provider"?: string | null,"ai_region"?: string | null,"city": string,"created_at"?: string,"created_by"?: string | null,"data_revision"?: number,"deleted_at"?: string | null,"deleted_by"?: string | null,"ico": string,"id"?: string,"name": string,"organization_id": string,"person_type"?: Database["public"]['Enums']["person_type"],"postal_code": string,"street": string,"vat_id": string
+                    "ai_processing_enabled"?: boolean,"ai_provider"?: string | null,"ai_region"?: string | null,"city": string,"created_at"?: string,"created_by"?: string | null,"data_revision"?: number,"deleted_at"?: string | null,"deleted_by"?: string | null,"first_name"?: string | null,"house_number"?: string | null,"ico": string,"id"?: string,"last_name"?: string | null,"name": string,"organization_id": string,"orientation_number"?: string | null,"person_type"?: Database["public"]['Enums']["person_type"],"postal_code": string,"street": string,"street_name"?: string | null,"vat_id": string
                   }
                   Update: {
-                    "ai_processing_enabled"?: boolean,"ai_provider"?: string | null,"ai_region"?: string | null,"city"?: string,"created_at"?: string,"created_by"?: string | null,"data_revision"?: number,"deleted_at"?: string | null,"deleted_by"?: string | null,"ico"?: string,"id"?: string,"name"?: string,"organization_id"?: string,"person_type"?: Database["public"]['Enums']["person_type"],"postal_code"?: string,"street"?: string,"vat_id"?: string
+                    "ai_processing_enabled"?: boolean,"ai_provider"?: string | null,"ai_region"?: string | null,"city"?: string,"created_at"?: string,"created_by"?: string | null,"data_revision"?: number,"deleted_at"?: string | null,"deleted_by"?: string | null,"first_name"?: string | null,"house_number"?: string | null,"ico"?: string,"id"?: string,"last_name"?: string | null,"name"?: string,"organization_id"?: string,"orientation_number"?: string | null,"person_type"?: Database["public"]['Enums']["person_type"],"postal_code"?: string,"street"?: string,"street_name"?: string | null,"vat_id"?: string
                   }
                   Relationships: [
                     {
@@ -117,6 +117,26 @@ isOneToOne: false
                   Relationships: [
                     {
       foreignKeyName: "company_filing_frequency_company_id_organization_id_fkey"
+      columns: ["company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "company"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
+                },"company_setup_step_state": {
+                  Row: {
+                    "changed_at": string,"changed_by": string | null,"company_id": string,"organization_id": string,"state": Database["public"]['Enums']["company_setup_state"],"step": Database["public"]['Enums']["company_setup_step"]
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "changed_at"?: string,"changed_by"?: string | null,"company_id": string,"organization_id": string,"state": Database["public"]['Enums']["company_setup_state"],"step": Database["public"]['Enums']["company_setup_step"]
+                  }
+                  Update: {
+                    "changed_at"?: string,"changed_by"?: string | null,"company_id"?: string,"organization_id"?: string,"state"?: Database["public"]['Enums']["company_setup_state"],"step"?: Database["public"]['Enums']["company_setup_step"]
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "company_setup_step_state_company_id_organization_id_fkey"
       columns: ["company_id","organization_id"]
 isOneToOne: false
       referencedRelation: "company"
@@ -544,6 +564,9 @@ isOneToOne: false
 "create_company_data_export":
 { Args: { "target_company_id": string }; Returns: Json
                            },
+"create_company_identity":
+{ Args: { "company_city": string,"company_first_name": string,"company_house_number": string,"company_ico": string,"company_last_name": string,"company_name": string,"company_orientation_number": string,"company_person_type": Database["public"]['Enums']["person_type"],"company_postal_code": string,"company_street_name": string,"company_vat_id": string,"target_organization_id": string }; Returns: string
+                           },
 "create_invitation":
 { Args: { "target_company_id": string,"target_email": string,"target_organization_id": string,"target_role": Database["public"]['Enums']["membership_role"] }; Returns: string
                            },
@@ -665,6 +688,9 @@ isOneToOne: false
 "save_vat_report":
 { Args: { "computed_result": Json,"expected_documents": Json,"target_company_id": string,"target_period": string }; Returns: string
                            },
+"set_company_filing_frequency":
+{ Args: { "filing_frequency_effective_from": string,"new_filing_frequency": Database["public"]['Enums']["filing_frequency"],"target_company_id": string }; Returns: undefined
+                           },
 "set_organization_mfa_required":
 { Args: { "required": boolean,"target_organization_id": string }; Returns: undefined
                            },
@@ -689,6 +715,9 @@ isOneToOne: false
 "update_company":
 { Args: { "company_city": string,"company_ico": string,"company_name": string,"company_person_type": Database["public"]['Enums']["person_type"],"company_postal_code": string,"company_street": string,"company_vat_id": string,"filing_frequency_effective_from": string,"new_filing_frequency": Database["public"]['Enums']["filing_frequency"],"target_company_id": string }; Returns: undefined
                            },
+"update_company_identity":
+{ Args: { "company_city": string,"company_first_name": string,"company_house_number": string,"company_ico": string,"company_last_name": string,"company_name": string,"company_orientation_number": string,"company_person_type": Database["public"]['Enums']["person_type"],"company_postal_code": string,"company_street_name": string,"company_vat_id": string,"target_company_id": string }; Returns: undefined
+                           },
 "update_document_reporting":
 { Args: { "new_claimed_reporting_period": string,"new_receipt_date": string,"target_document_id": string }; Returns: undefined
                            },
@@ -700,7 +729,7 @@ isOneToOne: false
                            }
           }
           Enums: {
-            "document_status": "uploaded"|"processing"|"needs_review"|"failed"|"approved"|"rejected","filing_frequency": "monthly"|"quarterly","membership_role": "administrator"|"user","person_type": "legal"|"natural","platform_role": "super_admin","source_file_format": "pdf"|"png"|"jpeg"|"xlsx"|"xls","source_file_status": "uploaded"|"processing"|"split"|"failed"
+            "company_setup_state": "completed"|"skipped","company_setup_step": "identity"|"filing_frequency"|"filing_defaults"|"ai_processing","document_status": "uploaded"|"processing"|"needs_review"|"failed"|"approved"|"rejected","filing_frequency": "monthly"|"quarterly","membership_role": "administrator"|"user","person_type": "legal"|"natural","platform_role": "super_admin","source_file_format": "pdf"|"png"|"jpeg"|"xlsx"|"xls","source_file_status": "uploaded"|"processing"|"split"|"failed"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -820,7 +849,7 @@ export const Constants = {
           }
         },"public": {
           Enums: {
-            "document_status": ["uploaded", "processing", "needs_review", "failed", "approved", "rejected"],"filing_frequency": ["monthly", "quarterly"],"membership_role": ["administrator", "user"],"person_type": ["legal", "natural"],"platform_role": ["super_admin"],"source_file_format": ["pdf", "png", "jpeg", "xlsx", "xls"],"source_file_status": ["uploaded", "processing", "split", "failed"]
+            "company_setup_state": ["completed", "skipped"],"company_setup_step": ["identity", "filing_frequency", "filing_defaults", "ai_processing"],"document_status": ["uploaded", "processing", "needs_review", "failed", "approved", "rejected"],"filing_frequency": ["monthly", "quarterly"],"membership_role": ["administrator", "user"],"person_type": ["legal", "natural"],"platform_role": ["super_admin"],"source_file_format": ["pdf", "png", "jpeg", "xlsx", "xls"],"source_file_status": ["uploaded", "processing", "split", "failed"]
           }
         }
 } as const

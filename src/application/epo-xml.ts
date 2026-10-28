@@ -52,7 +52,6 @@ function epoDate(iso: string): string {
 }
 function party(report: ComputedVatReport, details: ExportDetails): string {
   const c = report.company;
-  const address = /^(.*?)\s+(\d{1,6})(?:\/(\d{1,3}[a-zA-Z]?))?$/.exec(c.street);
   return element("VetaP", {
     c_ufo: details.taxOffice,
     ...(details.taxOffice === "13" ? { c_pracufo: "4000" } : {}),
@@ -60,10 +59,10 @@ function party(report: ComputedVatReport, details: ExportDetails): string {
     typ_ds: details.personType,
     ...(details.personType === "P"
       ? { zkrobchjm: c.name }
-      : { jmeno: details.firstName, prijmeni: details.lastName }),
-    ulice: address ? address[1] : c.street,
-    c_pop: address?.[2],
-    c_orient: address?.[3],
+      : { jmeno: c.firstName ?? undefined, prijmeni: c.lastName ?? undefined }),
+    ulice: c.streetName,
+    c_pop: c.houseNumber,
+    c_orient: c.orientationNumber ?? undefined,
     naz_obce: c.city,
     psc: c.postalCode.replace(/\s/g, ""),
     stat: "ČESKÁ REPUBLIKA",

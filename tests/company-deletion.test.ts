@@ -80,6 +80,17 @@ it("exports a Company's originals and Document data before retaining it as soft-
       ],
     }),
   ]);
+  expect(JSON.parse(strFromU8(archive["company.json"]))).toEqual(expect.objectContaining({
+    firstName: null,
+    lastName: null,
+    streetName: "Vinohradská",
+    houseNumber: "12",
+    orientationNumber: null,
+    setupSteps: expect.arrayContaining([
+      expect.objectContaining({ step: "identity", state: "completed" }),
+      expect.objectContaining({ step: "filing_frequency", state: "completed" }),
+    ]),
+  }));
   expect(await getCompany(company.client, company.companyId)).not.toBeNull();
   expect(
     await softDeleteCompany(company.client, {

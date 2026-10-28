@@ -37,9 +37,13 @@ const vatReturnLines: ComputedVatReport["vatReturn"] = [
 const report: ComputedVatReport = {
   company: {
     name: "Příliš žluťoučký kůň s.r.o.",
+    firstName: null,
+    lastName: null,
     ico: "12345678",
     vatId: "CZ12345678",
-    street: "Říční 1",
+    streetName: "Říční",
+    houseNumber: "1",
+    orientationNumber: null,
     city: "Brno",
     postalCode: "602 00",
     personType: "legal",

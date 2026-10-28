@@ -33,7 +33,7 @@ export type ExportDetails = {
       signatoryLastName: string;
       signatoryCapacity: string;
     }
-  | { personType: "F"; firstName: string; lastName: string }
+  | { personType: "F" }
 );
 
 /** Filing details are supplied per export until Company settings exist (#27). */
@@ -75,18 +75,12 @@ export function parseExportDetails(
       },
     };
   }
-  if (
-    value("personType") === "F" &&
-    bounded("firstName", 30) &&
-    bounded("lastName", 36)
-  )
+  if (value("personType") === "F")
     return {
       ok: true,
       value: {
         ...common,
         personType: "F",
-        firstName: value("firstName"),
-        lastName: value("lastName"),
       },
     };
   return refused;
