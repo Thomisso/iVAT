@@ -264,6 +264,24 @@ describe("correcting a Document", () => {
       payload: creditNote,
     })).toEqual({ ok: false, error: "invalid_credit_note_amount" });
   });
+
+  it("refuses an all-zero Credit Note correction", async () => {
+    const { client, companyId, documentId } = await documentInReview();
+    const creditNote: ExtractionPayload = {
+      ...SAMPLE_EXTRACTION,
+      documentType: "credit_note",
+      originalDocumentNumber: "FV-2026-0001",
+      rateBreakdown: [{ rate: 21, netAmount: "0.00", vatAmount: "0.00" }],
+      totals: { netAmount: "0.00", vatAmount: "0.00", grossAmount: "0.00" },
+    };
+
+    expect(await correctDocument(client, {
+      companyId,
+      documentId,
+      basedOnVersion: 1,
+      payload: creditNote,
+    })).toEqual({ ok: false, error: "invalid_credit_note_amount" });
+  });
 });
 
 describe("assigning an incoming Document to a Reporting Period", () => {
@@ -347,6 +365,21 @@ describe("approving and rejecting a Document", () => {
       ...SAMPLE_EXTRACTION,
       documentType: "credit_note",
       originalDocumentNumber: "FV-2026-0001",
+    });
+
+    expect(await approveDocument(document.client, { ...document, version: 1 })).toEqual({
+      ok: false,
+      error: "invalid_credit_note_amount",
+    });
+  });
+
+  it("refuses approval of an all-zero AI-proposed Credit Note", async () => {
+    const document = await documentInReview({
+      ...SAMPLE_EXTRACTION,
+      documentType: "credit_note",
+      originalDocumentNumber: "FV-2026-0001",
+      rateBreakdown: [{ rate: 21, netAmount: "0.00", vatAmount: "0.00" }],
+      totals: { netAmount: "0.00", vatAmount: "0.00", grossAmount: "0.00" },
     });
 
     expect(await approveDocument(document.client, { ...document, version: 1 })).toEqual({
