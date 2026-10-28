@@ -9,7 +9,13 @@ import {
   type ExtractionPayloadError,
 } from "./extraction-payload";
 import { extractJob, type JobQueue } from "./processing";
+import {
+  CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA,
+  validateDocument,
+  type ValidationFinding,
+} from "./document-validation";
 import { pdfPages, readSourceFile, SOURCE_FILE_MEDIA_TYPES } from "./source-files";
+import { workbookRowsToText, type WorkbookRowSet } from "./workbooks";
 
 export const DOCUMENT_STATUSES = ["uploaded", "processing", "needs_review", "approved", "rejected", "failed"] as const;
 export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number];
@@ -25,6 +31,10 @@ export type Document = {
   lastPage: number;
   status: DocumentStatus;
   createdAt: string;
+  /** Present only for a Document identified by workbook rows instead of pages. */
+  rowSet?: WorkbookRowSet;
+  /** Present and false for row-based Documents, which have no page image. */
+  hasDocumentImage?: false;
 };
 
 export type ExtractionVersionAuthor =
@@ -36,6 +46,7 @@ export type ExtractionVersion = {
   version: number;
   author: ExtractionVersionAuthor;
   payload: ExtractionPayload;
+  findings: ValidationFinding[];
   createdAt: string;
 };
 
@@ -61,6 +72,7 @@ export type DocumentOverview = {
   counterparty: Pick<Party, "name" | "vatId" | "ico"> | null;
   currency: string | null;
   grossAmount: string | null;
+  findingCount: number;
   eligibleForVatReport: boolean;
 };
 
@@ -98,6 +110,7 @@ export type DocumentFilters = {
   reportingPeriod?: string;
   /** Part of the counterparty's name, VAT ID or IČO, in any case. */
   counterparty?: string;
+  hasFindings?: boolean;
 };
 
 /** Escapes the characters LIKE treats specially, so a search term matches literally. */
@@ -113,7 +126,7 @@ export async function listCompanyDocuments(
   let query = client
     .from("document_overview")
     .select(
-      "id, source_file_id, first_page, last_page, status, created_at, version, document_number, direction, tax_point_date, reporting_period, counterparty_name, counterparty_vat_id, counterparty_ico, currency, gross_amount",
+      "id, source_file_id, first_page, last_page, status, created_at, version, document_number, direction, tax_point_date, reporting_period, counterparty_name, counterparty_vat_id, counterparty_ico, currency, gross_amount, finding_count",
     )
     .eq("company_id", companyId);
   if (filters.status) query = query.eq("status", filters.status);
@@ -121,6 +134,7 @@ export async function listCompanyDocuments(
   if (filters.reportingPeriod) query = query.eq("reporting_period", filters.reportingPeriod);
   const counterparty = filters.counterparty?.trim();
   if (counterparty) query = query.ilike("counterparty_search", `%${likeLiteral(counterparty)}%`);
+  if (filters.hasFindings) query = query.gt("finding_count", 0);
 
   const { data, error } = await query.order("created_at", { ascending: false }).order("first_page");
   if (error) throw error;
@@ -142,11 +156,12 @@ export async function listCompanyDocuments(
         : { name: d.counterparty_name, vatId: d.counterparty_vat_id, ico: d.counterparty_ico },
     currency: d.currency,
     grossAmount: d.gross_amount,
+    findingCount: d.finding_count ?? 0,
     eligibleForVatReport: isEligibleForVatReport(d.status),
   }));
 }
 
-const DOCUMENT_COLUMNS = "id, company_id, source_file_id, first_page, last_page, status, created_at";
+const DOCUMENT_COLUMNS = "id, company_id, source_file_id, first_page, last_page, source_sheet, first_row, last_row, has_document_image, status, created_at";
 
 function toDocument(d: {
   id: string;
@@ -154,10 +169,14 @@ function toDocument(d: {
   source_file_id: string;
   first_page: number;
   last_page: number;
+  source_sheet: string | null;
+  first_row: number | null;
+  last_row: number | null;
+  has_document_image: boolean;
   status: DocumentStatus;
   created_at: string;
 }): Document {
-  return {
+  const document: Document = {
     id: d.id,
     companyId: d.company_id,
     sourceFileId: d.source_file_id,
@@ -166,6 +185,11 @@ function toDocument(d: {
     status: d.status,
     createdAt: d.created_at,
   };
+  if (d.source_sheet !== null && d.first_row !== null && d.last_row !== null) {
+    document.rowSet = { sheetName: d.source_sheet, firstRow: d.first_row, lastRow: d.last_row };
+    document.hasDocumentImage = false;
+  }
+  return document;
 }
 
 /** The Documents a Source File of the Company was Split into, in page order. */
@@ -210,10 +234,28 @@ export async function readDocumentPages(
   const stored = await readSourceFile(client, companyId, document.sourceFileId);
   if (!stored) return null;
   const { file, bytes } = stored;
+  if (document.rowSet) return null;
   return {
     fileName: file.fileName,
     mediaType: SOURCE_FILE_MEDIA_TYPES[file.format],
     bytes: file.format === "pdf" ? await pdfPages(bytes, document) : bytes,
+  };
+}
+
+/** The row-numbered source table shown for a row-based Document in review. */
+export async function readDocumentRows(
+  client: AppClient,
+  companyId: string,
+  documentId: string,
+): Promise<(WorkbookRowSet & { fileName: string; text: string }) | null> {
+  const document = await getDocument(client, companyId, documentId);
+  if (!document?.rowSet) return null;
+  const stored = await readSourceFile(client, companyId, document.sourceFileId);
+  if (!stored) return null;
+  return {
+    fileName: stored.file.fileName,
+    ...document.rowSet,
+    text: workbookRowsToText(stored.bytes, document.rowSet),
   };
 }
 
@@ -226,7 +268,7 @@ export async function listExtractionVersions(
   if (!isUuid(companyId) || !isUuid(documentId)) return [];
   const { data, error } = await client
     .from("extraction_version")
-    .select("id, document_id, version, provider, model, author_user_id, payload, created_at")
+    .select("id, document_id, version, provider, model, author_user_id, payload, findings, created_at")
     .eq("company_id", companyId)
     .eq("document_id", documentId)
     .order("version");
@@ -239,6 +281,7 @@ export async function listExtractionVersions(
       ? { kind: "user", userId: v.author_user_id }
       : { kind: "ai", provider: v.provider!, model: v.model! },
     payload: v.payload as ExtractionPayload,
+    findings: v.findings as ValidationFinding[],
     createdAt: v.created_at,
   }));
 }
@@ -272,6 +315,10 @@ export async function correctDocument(
     target_document_id: document,
     based_on_version: input.basedOnVersion,
     payload,
+    findings: validateDocument(
+      payload,
+      CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA,
+    ),
   });
   if (error) return refusal(error, ["not_in_review", "stale_version"]);
   return { ok: true, value: { version } };
