@@ -164,6 +164,16 @@ it("returns blocker, warning and resolved Document groups without writing live d
   expect(readiness.value.snapshot).toBeNull();
   expect(await getVatReport(company.client, company.companyId, "2026-10")).toBeNull();
   expect(await listCompanyDocuments(company.client, company.companyId)).toEqual(before);
+
+  expect((await generateVatReport(company.client, {
+    companyId: company.companyId,
+    period: "2026-10",
+  })).ok).toBe(true);
+  const savedReadiness = await getReportingPeriodReadiness(company.client, {
+    companyId: company.companyId,
+    period: "2026-10",
+  });
+  expect(savedReadiness.ok && savedReadiness.value.snapshot?.freshness).toBe("current");
 });
 
 it("reports a saved source snapshot as current, then stale after a relevant unassigned Document arrives", async () => {
