@@ -22,6 +22,9 @@ export type SourceRange = PageRange | RowRange;
 
 export type AiCallContext = { organizationId: string };
 
+/** Token counts returned by a provider for one completed request. */
+export type AiUsage = { inputTokens: number; outputTokens: number };
+
 /** A provider/configuration refusal whose retryability is known. */
 export class AiProviderError extends Error {
   readonly code: string;
@@ -45,6 +48,6 @@ export interface AiProvider {
   readonly name: string;
   /** Where the provider processes the Documents it receives, as consented to by the Company. */
   readonly region: string;
-  split(input: AiInput, context?: AiCallContext): Promise<{ model: string; documents: SourceRange[] }>;
-  extract(input: AiInput, context?: AiCallContext): Promise<{ model: string; payload: ExtractionPayload }>;
+  split(input: AiInput, context?: AiCallContext): Promise<{ model: string; documents: SourceRange[]; usage?: AiUsage }>;
+  extract(input: AiInput, context?: AiCallContext): Promise<{ model: string; payload: ExtractionPayload; usage?: AiUsage }>;
 }

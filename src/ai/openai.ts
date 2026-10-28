@@ -1,4 +1,4 @@
-import { AiProviderError, type AiInput, type AiProvider } from "@/application/ai-provider";
+import { AiProviderError, type AiInput, type AiProvider, type AiUsage } from "@/application/ai-provider";
 import type { SystemClient } from "@/application/client";
 import { resolvePlatformAiProvider } from "@/application/platform-ai";
 import {
@@ -51,7 +51,7 @@ async function structuredResponse(
   prompt: string,
   schemaName: string,
   schema: object,
-): Promise<{ model: string; value: unknown }> {
+): Promise<{ model: string; value: unknown; usage?: AiUsage }> {
   let response: Response;
   try {
     response = await fetch(`${options.baseUrl ?? "https://api.openai.com/v1"}/responses`, {
@@ -84,6 +84,7 @@ async function structuredResponse(
     model?: unknown;
     status?: unknown;
     output?: { type?: unknown; content?: { type?: unknown; text?: unknown; refusal?: unknown }[] }[];
+    usage?: { input_tokens?: unknown; output_tokens?: unknown };
   };
   if (result.status !== undefined && result.status !== "completed") {
     throw new OpenAiProviderError(`OpenAI response did not complete (${String(result.status)})`, { transient: true });
@@ -94,7 +95,14 @@ async function structuredResponse(
   if (typeof text !== "string") {
     throw new OpenAiProviderError("OpenAI returned no structured output", { transient: false });
   }
-  return { model: typeof result.model === "string" ? result.model : model, value: JSON.parse(text) };
+  const usage = result.usage;
+  return {
+    model: typeof result.model === "string" ? result.model : model,
+    value: JSON.parse(text),
+    ...(typeof usage?.input_tokens === "number" && typeof usage.output_tokens === "number"
+      ? { usage: { inputTokens: usage.input_tokens, outputTokens: usage.output_tokens } }
+      : {}),
+  };
 }
 
 export function openAiProvider(options: OpenAiProviderOptions): AiProvider {
@@ -116,6 +124,7 @@ export function openAiProvider(options: OpenAiProviderOptions): AiProvider {
       return {
         model: result.model,
         documents: spreadsheet ? rowRanges("OpenAI", result.value) : pageRanges("OpenAI", result.value),
+        ...(result.usage ? { usage: result.usage } : {}),
       };
     },
     async extract(input) {
@@ -127,7 +136,11 @@ export function openAiProvider(options: OpenAiProviderOptions): AiProvider {
         "ivat_extraction",
         EXTRACTION_SCHEMA,
       );
-      return { model: result.model, payload: extractionPayload("OpenAI", result.value) };
+      return {
+        model: result.model,
+        payload: extractionPayload("OpenAI", result.value),
+        ...(result.usage ? { usage: result.usage } : {}),
+      };
     },
   };
 }
