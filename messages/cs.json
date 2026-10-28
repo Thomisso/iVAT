@@ -509,6 +509,7 @@
     "noEntries": "Žádné zahrnuté doklady.",
     "excluded": "Vyloučené doklady",
     "noExclusions": "V tomto období nejsou žádné vyloučené doklady.",
+    "downloadPdf": "Stáhnout PDF přiznání k DPH",
     "lines": {
       "1": "1 · Tuzemská plnění, základní sazba",
       "2": "2 · Tuzemská plnění, snížená sazba",
