@@ -30,6 +30,7 @@ export const SAMPLE_EXTRACTION: ExtractionPayload = {
   totals: { netAmount: "1000.00", vatAmount: "210.00", grossAmount: "1210.00" },
   payment: { variableSymbol: "20260001", bankAccount: "123456789/0100", iban: null },
   proposedVatRegime: "domestic",
+  reverseChargeCode: null,
   originalDocumentNumber: null,
   confidence: { documentNumber: 0.98, "rateBreakdown.0.vatAmount": 0.95 },
 };

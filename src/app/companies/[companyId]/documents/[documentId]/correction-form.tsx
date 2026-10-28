@@ -166,6 +166,9 @@ export function CorrectionForm({
             VAT_REGIMES,
             "vatRegime",
           )}
+          {text("reverseChargeCode", payload.reverseChargeCode, "reverseChargeCode", {
+            maxLength: 3,
+          })}
           {date("issueDate")}
           {date("taxPointDate")}
           {date("dueDate")}

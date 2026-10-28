@@ -165,6 +165,12 @@ export default async function VatReportsPage({
                       <p>
                         {entry.documentNumber} · {entry.counterpartyVatId} ·{" "}
                         {formatDocumentDate(entry.taxPointDate!)}
+                        {entry.reverseChargeCode && (
+                          <>
+                            {" "}· {t("review.fields.reverseChargeCode")}{" "}
+                            {entry.reverseChargeCode}
+                          </>
+                        )}
                       </p>
                     )}
                     <DataTable

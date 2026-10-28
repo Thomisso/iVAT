@@ -1,15 +1,27 @@
-# Domestic draft VAT Reports (#21)
+# VAT Rules Engine
 
 The pure Rules Engine in `src/application/vat-rules.ts` accepts Company details,
 a monthly Reporting Period (`YYYY-MM`) and Document snapshots. Only Approved
 Documents in that month of their Tax Point Date contribute. Incoming Receipt Date
 assignment and quarterly periods follow in #43.
 
-This slice supports domestic CZK supplies at 21% and 12%, with full input VAT
-deduction. It maps outgoing supplies to VAT Return lines 1/2 and incoming supplies
-to lines 40/41. The stored draft keeps exact decimal amounts; statutory XML
-formatting and rounding belong to #22. The totals are output VAT, input deduction,
-and the positive balance as VAT payable or excess deduction.
+The Rules Engine supports CZK amounts at 21% and 12% (including amounts derived
+from a stored ČNB conversion) with full input VAT deduction:
+
+| VAT Regime | Direction | VAT Return | Control Statement |
+| --- | --- | --- | --- |
+| Domestic | Outgoing | 1 / 2 | A.4 / A.5 |
+| Domestic | Incoming | 40 / 41 | B.2 / B.3 |
+| Domestic reverse charge | Outgoing | 25 | A.1 |
+| Domestic reverse charge | Incoming | 10 / 11 and deduction 43 / 44 | B.1 |
+| EU acquisition of goods | Incoming | 3 / 4 and deduction 43 / 44 | A.2 |
+| EU received service | Incoming | 5 / 6 and deduction 43 / 44 | A.2 |
+
+Self-assessed VAT is calculated deterministically from the CZK tax base and
+Czech rate; it is not copied from a foreign or reverse-charge invoice. Domestic
+reverse-charge Documents also carry the official subject code required by A.1
+and B.1. The stored draft keeps exact decimal amounts; statutory XML rounds VAT
+Return lines to whole CZK while Control Statement amounts remain unrounded.
 
 Control Statement classification uses the absolute **whole Document gross amount**,
 not individual rates: above CZK 10,000 → A.4 (outgoing) or B.2 (incoming), otherwise
@@ -18,11 +30,12 @@ counterparty VAT ID are aggregated in A.5 regardless of amount. Each A.4/B.2
 Document has its own entry; A.5/B.3 aggregate by rate. Each value retains its
 contributing Document ids, including summary totals through their Return lines.
 
-Missing reporting fields, unsupported rates/regimes and foreign currencies are
-listed as exclusions, as are non-Approved Documents with a Tax Point Date in the
-selected month. Documents with no assignable month remain in the Company's
-Document list. Comprehensive deterministic validations, currency conversion and
-additional VAT Regimes follow in #36, #40 and #41.
+Missing reporting fields, unsupported rates/regimes, unsupported Direction and
+VAT Regime combinations, and unconverted foreign currencies are listed as
+exclusions, as are non-Approved Documents with a Tax Point Date in the selected
+month. `other` and outgoing EU acquisitions/services require manual
+classification. Documents with no assignable month remain in the Company's
+Document list.
 
 ## Persistence
 
@@ -40,3 +53,5 @@ do not silently recompute after another approval.
 - [GFŘ guidance on vouchers](https://www.financnisprava.cz/assets/cs/prilohy/d-novinky/Informace-GFR-k-uplatnovani-DPH-u-poukazu-po-revizich-1-7-20.pdf), examples on page 6: domestic standard and reduced supplies map to 1/40 and 2/41.
 - [Financial Administration: Control Statement FAQ](https://financnisprava.gov.cz/cs/dane/dane/dan-z-pridane-hodnoty/kontrolni-hlaseni-dph/caste-dotazy-a-odpovedi), questions 2, 3 and 6: whole-document amount, aggregation and the exact CZK 10,000 boundary.
 - [Financial Administration: sections A.4 and A.5](https://app.fs.gov.cz/dotazy-verejnosti/dotaz/oddil-a4-a-a5-kontrolniho-hlaseni-1512): treatment of recipients without a domestic VAT ID.
+- [Financial Administration: Control Statement form](https://financnisprava.gov.cz/assets/cs/prilohy/d-seznam-dani/Formular-kontrolniho-hlaseni.pdf): A.1, A.2, B.1 and reconciliation to VAT Return lines.
+- [Financial Administration: Control Statement guidance](https://financnisprava.gov.cz/cs/dane/dane/dan-z-pridane-hodnoty/kontrolni-hlaseni-DPH/soubory-ke-stazeni): current filing guidance and reverse-charge subject-code requirements.

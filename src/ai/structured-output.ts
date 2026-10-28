@@ -73,7 +73,7 @@ export const EXTRACTION_SCHEMA = {
   required: [
     "schemaVersion", "documentType", "documentNumber", "issueDate", "taxPointDate", "dueDate", "direction",
     "supplier", "customer", "currency", "rateBreakdown", "totals", "payment", "proposedVatRegime",
-    "originalDocumentNumber",
+    "reverseChargeCode", "originalDocumentNumber",
   ],
   properties: {
     schemaVersion: { type: "integer", enum: [1] },
@@ -112,6 +112,7 @@ export const EXTRACTION_SCHEMA = {
       properties: { variableSymbol: nullableString, bankAccount: nullableString, iban: nullableString },
     },
     proposedVatRegime: nullableChoice(VAT_REGIMES),
+    reverseChargeCode: nullableString,
     originalDocumentNumber: nullableString,
   },
 } as const;
