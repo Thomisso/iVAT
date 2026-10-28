@@ -7,6 +7,10 @@ import {
 } from "@/application/extraction-payload";
 import type { PageRange, RowRange } from "@/application/ai-provider";
 
+export const EXTRACTION_PROMPT =
+  "Extract the Document fields exactly as shown. Use null when a field is not present; never infer tax treatment beyond the proposed VAT Regime. " +
+  "For a Credit Note, represent all monetary values as negative amounts and set originalDocumentNumber to the original Document number when it is shown.";
+
 export const SPLIT_SCHEMA = {
   type: "object",
   additionalProperties: false,
