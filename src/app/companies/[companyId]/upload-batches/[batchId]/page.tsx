@@ -35,7 +35,7 @@ export default async function UploadBatchPage({
   const failedDocuments = batch.sourceFiles.flatMap((source) =>
     source.documents.filter((document) => document.status === "failed"),
   );
-  const reviewHref = `/companies/${companyId}/documents?status=needs_review&batchId=${batch.id}`;
+  const reviewHref = `/companies/${companyId}/documents?view=review&batchId=${batch.id}`;
 
   return <main className="company-workspace upload-batch-workspace">
     <header className="company-page-header upload-batch-header">
