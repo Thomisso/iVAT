@@ -29,6 +29,7 @@ Judgement calls for review. CI already enforces typecheck, lint, tests, build, g
 
 - Every user-visible string goes through next-intl.
 - A form driven by `useActionState` gets back `FormState` holding the submitted values (passwords excluded) and renders them as `defaultValue`. React resets a form after its action runs, so this is what keeps a refused form's input.
+- A browser workflow waiting on a background job follows the server to a terminal state instead of guessing a timeout. It persists the workflow id when a reload must resume it, and aborts its active request when the owning component unmounts. Tests cover completion, terminal failure, resume and unmount.
 
 ## Language
 
