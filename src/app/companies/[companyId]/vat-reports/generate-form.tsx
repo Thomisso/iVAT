@@ -11,10 +11,12 @@ export function GenerateForm({
   companyId,
   period,
   exists,
+  locked,
 }: {
   companyId: string;
   period: string;
   exists: boolean;
+  locked: boolean;
 }) {
   const t = useTranslations("vatReports");
   const [state, action, pending] = useActionState(generateVatReportAction, {
@@ -33,7 +35,7 @@ export function GenerateForm({
         max="2099-12"
         defaultValue={state.values.period ?? period}
       />
-      <Button type="submit" disabled={pending}>
+      <Button type="submit" disabled={pending || locked}>
         {t(exists ? "regenerate" : "generate")}
       </Button>
       <FormError error={state.error} />
