@@ -610,6 +610,7 @@
     },
     "navigation": {
       "label": "Company navigation",
+      "sidebar": "Company context",
       "overview": "Overview",
       "upload": "Upload",
       "documents": "Documents",
@@ -620,6 +621,7 @@
     "overview": {
       "title": "Good morning, Jana",
       "description": "Work that needs your attention across Ateliér Novák.",
+      "summaryLabel": "Processing summary",
       "upload": "Upload documents",
       "ribbon": {
         "label": "Document processing path",
