@@ -2,13 +2,19 @@ import * as XLSX from "xlsx";
 import { expect, it } from "vitest";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { exportReportingPeriodWorkbook } from "@/application/reporting-period-excel";
-import { createCompany, enableAiProcessing } from "@/application/companies";
+import {
+  createCompany,
+  enableAiProcessing,
+  type FilingFrequency,
+  getCompany,
+  updateCompany,
+} from "@/application/companies";
 import { approveDocument, listDocuments } from "@/application/documents";
 import { uploadSourceFile } from "@/application/source-files";
 import { administratorWithCompany, companyDetails, companyMember } from "./support/fixtures";
 import { signedUpUser } from "./support/clients";
 import { fixtureFile } from "./support/files";
-import { systemClient, testWorker } from "./support/worker";
+import { testWorker } from "./support/worker";
 
 const COLUMNS = [
   "Document ID",
@@ -176,25 +182,25 @@ it("classifies a quarterly Company's Documents on VAT Return lines and Control S
 
 it("uses filing-frequency history beyond the API row limit for quarterly classification", async () => {
   const company = await administratorWithCompany("Long Filing History");
-  const monthlyHistory = Array.from({ length: 999 }, (_, index) => {
-    const effectiveFrom = new Date(Date.UTC(2027, 0, index + 1)).toISOString().slice(0, 10);
-    return {
-      company_id: company.companyId,
-      organization_id: company.organizationId,
+  const details = await getCompany(company.client, company.companyId);
+  if (!details) throw new Error("Company fixture is missing");
+  const changes: { frequency: FilingFrequency; effectiveFrom: string }[] = Array.from(
+    { length: 999 },
+    (_, index) => ({
       frequency: "monthly" as const,
-      effective_from: effectiveFrom,
-    };
-  });
-  const inserted = await systemClient().from("company_filing_frequency").insert([
-    ...monthlyHistory,
-    {
-      company_id: company.companyId,
-      organization_id: company.organizationId,
-      frequency: "quarterly",
-      effective_from: "2030-01-01",
-    },
-  ]);
-  if (inserted.error) throw inserted.error;
+      effectiveFrom: new Date(Date.UTC(2027, 0, index + 1)).toISOString().slice(0, 10),
+    }),
+  );
+  changes.push({ frequency: "quarterly", effectiveFrom: "2030-01-01" });
+  for (let offset = 0; offset < changes.length; offset += 25) {
+    const results = await Promise.all(changes.slice(offset, offset + 25).map((change) => updateCompany(company.client, {
+      ...details,
+      companyId: company.companyId,
+      filingFrequency: change.frequency,
+      filingFrequencyEffectiveFrom: change.effectiveFrom,
+    })));
+    expect(results).toEqual(results.map(() => ({ ok: true, value: null })));
+  }
   const worker = testWorker(fakeAiProvider({
     extract: () => ({ ...SAMPLE_EXTRACTION, taxPointDate: "2030-02-10" }),
   }));
@@ -229,7 +235,7 @@ it("uses filing-frequency history beyond the API row limit for quarterly classif
     "VAT Return line": "40",
     "Control Statement section": "B.3",
   }));
-});
+}, 60_000);
 
 it("refuses an invalid Reporting Period and another Organization", async () => {
   const company = await administratorWithCompany();
@@ -238,6 +244,10 @@ it("refuses an invalid Reporting Period and another Organization", async () => {
   expect(await exportReportingPeriodWorkbook(company.client, {
     companyId: company.companyId,
     period: "2026-13",
+  })).toEqual({ ok: false, error: "invalid_reporting_period" });
+  expect(await exportReportingPeriodWorkbook(company.client, {
+    companyId: company.companyId,
+    period: "2026-Q4",
   })).toEqual({ ok: false, error: "invalid_reporting_period" });
   expect(await exportReportingPeriodWorkbook(outsider.client, {
     companyId: company.companyId,

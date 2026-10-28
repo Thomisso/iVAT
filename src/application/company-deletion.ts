@@ -1,6 +1,6 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { zipSync, strToU8 } from "fflate";
-import { isUuid, type AppClient, type Result } from "./client";
+import { isUuid, type AppClient, type Result, type SystemClient } from "./client";
 import type { Company, FilingFrequencyHistoryEntry } from "./companies";
 import type { Document, ExtractionVersion } from "./documents";
 import { readSourceFile, type SourceFile } from "./source-files";
@@ -29,6 +29,13 @@ type CompanyExportSnapshot = {
   documents: (Document & { supersededAt: string | null; extractionVersions: ExtractionVersion[] })[];
 };
 
+type PendingCompanyExport = {
+  exportId: string;
+  fileName: string;
+  completionToken: string;
+  snapshot: CompanyExportSnapshot;
+};
+
 function json(value: unknown): Uint8Array {
   return strToU8(`${JSON.stringify(value, null, 2)}\n`);
 }
@@ -53,15 +60,17 @@ function isMissingStoredObject(error: unknown): boolean {
  */
 export async function exportCompanyData(
   client: AppClient,
+  receipts: SystemClient,
   input: { companyId: string },
 ): Promise<
   Result<CompanyDataExportDownload, ExportCompanyDataError>
 > {
   if (!isUuid(input.companyId)) return { ok: false, error: "forbidden" };
-  const snapshotResult = await client.rpc("company_export_snapshot", { target_company_id: input.companyId });
-  if (snapshotResult.error?.code === "42501") return { ok: false, error: "forbidden" };
-  if (snapshotResult.error) throw snapshotResult.error;
-  const snapshot = snapshotResult.data as unknown as CompanyExportSnapshot;
+  const started = await client.rpc("create_company_data_export", { target_company_id: input.companyId });
+  if (started.error?.code === "42501") return { ok: false, error: "forbidden" };
+  if (started.error) throw started.error;
+  const pending = started.data as unknown as PendingCompanyExport;
+  const snapshot = pending.snapshot;
   const { company, filingFrequencies, sourceFiles, documents } = snapshot;
   const archive: Record<string, Uint8Array> = {
     "company.json": json({ ...company, filingFrequencies }),
@@ -80,15 +89,11 @@ export async function exportCompanyData(
     archive[`source-files/${sourceFile.id}/${archiveLeaf(sourceFile.fileName)}`] = stored.bytes;
   }
   const bytes = zipSync(archive, { level: 6 });
-  const exportId = randomUUID();
-  const fileName = `iVAT-company-${company.ico}-${new Date().toISOString().slice(0, 10)}.zip`;
-  const { error } = await client.rpc("record_company_data_export", {
-    target_company_id: company.id,
-    target_export_id: exportId,
-    target_file_name: fileName,
+  const { error } = await receipts.rpc("complete_company_data_export", {
+    target_export_id: pending.exportId,
+    completion_token: pending.completionToken,
     target_byte_size: bytes.byteLength,
     target_sha256: createHash("sha256").update(bytes).digest("hex"),
-    expected_data_revision: snapshot.revision,
   });
   if (error) {
     if (error.code === "42501") return { ok: false, error: "forbidden" };
@@ -97,7 +102,7 @@ export async function exportCompanyData(
   }
   return {
     ok: true,
-    value: { bytes, exportId, fileName, mediaType: "application/zip" },
+    value: { bytes, exportId: pending.exportId, fileName: pending.fileName, mediaType: "application/zip" },
   };
 }
 
