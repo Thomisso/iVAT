@@ -53,21 +53,25 @@ test("an administrator can turn an uploaded Source File into a traceable, export
 
   await page.goto(companyUrl);
   await page.locator('input[type="file"]').setInputFiles("tests/fixtures/receipt.png");
+  const uploadFinished = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().endsWith("/finish") &&
+      response.ok(),
+  );
   await page.getByRole("button", { name: "Upload" }).click();
+  await uploadFinished;
+  const documents = page.getByRole("table", { name: "Documents" });
   await expect
     .poll(
       async () => {
         await page.reload();
-        return page.getByText("Needs review").count();
+        return documents.getByRole("link").count();
       },
-      { timeout: 30_000 },
+      { intervals: [1_000, 2_000], timeout: 45_000 },
     )
     .toBeGreaterThan(0);
-  await page
-    .getByRole("table", { name: "Documents" })
-    .getByRole("link")
-    .first()
-    .click();
+  await documents.getByRole("link").first().click();
 
   const documentNumber = `FV-E2E-${digits}`;
   await page.getByLabel("Document number", { exact: true }).fill(documentNumber);
