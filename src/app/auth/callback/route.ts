@@ -14,13 +14,20 @@ export async function GET(request: NextRequest) {
   const client = await createRequestClient();
 
   if (tokenHash && EMAIL_OTP_TYPES.includes(requestedType as EmailOtpType)) {
-    if (await verifyEmailOtp(client, tokenHash, requestedType as EmailOtpType)) {
+    const result = await verifyEmailOtp(client, tokenHash, requestedType as EmailOtpType);
+    if (result.ok) {
       return NextResponse.redirect(new URL(next, request.url));
+    }
+    if (result.error === "organization_blocked") {
+      return NextResponse.redirect(new URL("/login?error=organization_blocked", request.url));
     }
   }
   if (code) {
     const result = await completeGoogleSignIn(client, code);
     if (result.ok) return NextResponse.redirect(new URL("/", request.url));
+    if (result.error === "organization_blocked") {
+      return NextResponse.redirect(new URL("/login?error=organization_blocked", request.url));
+    }
   }
   return NextResponse.redirect(new URL(`/login${code ? "?error=google_sign_in_failed" : ""}`, request.url));
 }
