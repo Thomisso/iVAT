@@ -235,14 +235,14 @@ isOneToOne: false
                   ]
                 },"organization": {
                   Row: {
-                    "created_at": string,"id": string,"mfa_required": boolean,"name": string
+                    "blocked_at": string | null,"blocked_by": string | null,"created_at": string,"id": string,"mfa_required": boolean,"name": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "created_at"?: string,"id"?: string,"mfa_required"?: boolean,"name": string
+                    "blocked_at"?: string | null,"blocked_by"?: string | null,"created_at"?: string,"id"?: string,"mfa_required"?: boolean,"name": string
                   }
                   Update: {
-                    "created_at"?: string,"id"?: string,"mfa_required"?: boolean,"name"?: string
+                    "blocked_at"?: string | null,"blocked_by"?: string | null,"created_at"?: string,"id"?: string,"mfa_required"?: boolean,"name"?: string
                   }
                   Relationships: [
                     
@@ -510,6 +510,9 @@ isOneToOne: false
 "current_user_can_administrate_platform":
 { Args: Record<PropertyKey, never>; Returns: boolean
                            },
+"current_user_can_use_application":
+{ Args: Record<PropertyKey, never>; Returns: boolean
+                           },
 "finalize_vat_report":
 { Args: { "target_company_id": string,"target_period": string }; Returns: undefined
                            },
@@ -547,6 +550,11 @@ isOneToOne: false
               "input_tokens": number,"model": string,"organization_id": string,"organization_name": string,"output_tokens": number,"provider": string,"requests": number
             }[]
                            },
+"list_platform_organization_companies":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "company_ico": string,"company_id": string,"company_name": string,"organization_blocked": boolean,"organization_id": string,"organization_name": string
+            }[]
+                           },
 "list_platform_organizations":
 { Args: { "target_provider": string }; Returns: {
               "id": string,"name": string,"platform_key_enabled": boolean
@@ -560,6 +568,14 @@ isOneToOne: false
                            },
 "move_document_page":
 { Args: { "page": number,"source_document_id": string,"target_document_id": string }; Returns: (string)[]
+                           },
+"platform_upload_limits":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "max_source_file_bytes": number,"max_source_file_pages": number,"max_upload_batch_files": number
+            }[]
+                           },
+"prepare_processing_job_retry":
+{ Args: { "target_failed_job_id": string,"target_id": string,"target_job_name": string }; Returns: undefined
                            },
 "record_ai_extraction":
 { Args: { "findings": Json,"model": string,"payload": Json,"provider": string,"target_document_id": string,"target_extraction_request_id": string }; Returns: undefined
@@ -601,6 +617,12 @@ isOneToOne: false
                            },
 "set_organization_platform_ai_access":
 { Args: { "access_enabled": boolean,"target_organization_id": string,"target_provider": string }; Returns: undefined
+                           },
+"set_platform_organization_blocked":
+{ Args: { "organization_blocked": boolean,"target_organization_id": string }; Returns: undefined
+                           },
+"set_platform_upload_limits":
+{ Args: { "target_max_source_file_bytes": number,"target_max_source_file_pages": number,"target_max_upload_batch_files": number }; Returns: undefined
                            },
 "split_document":
 { Args: { "split_after_page": number,"target_document_id": string }; Returns: (string)[]

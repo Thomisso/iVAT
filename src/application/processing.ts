@@ -78,11 +78,11 @@ async function consentedProvider(
 ): Promise<AiProvider | null> {
   const { data, error } = await system
     .from("company")
-    .select("ai_processing_enabled, ai_provider, ai_region")
+    .select("ai_processing_enabled, ai_provider, ai_region, organization:organization_id (blocked_at)")
     .eq("id", companyId)
     .single();
   if (error) throw error;
-  if (!data.ai_processing_enabled || !data.ai_provider) return null;
+  if (data.organization?.blocked_at || !data.ai_processing_enabled || !data.ai_provider) return null;
   const provider = providers.get(data.ai_provider);
   return provider && provider.region === data.ai_region ? provider : null;
 }
