@@ -1,6 +1,10 @@
-import { AiProviderError, type AiInput, type AiProvider, type AiUsage } from "@/application/ai-provider";
-import type { SystemClient } from "@/application/client";
-import { resolvePlatformAiProvider } from "@/application/platform-ai";
+import {
+  AiProviderError,
+  type AiCallContext,
+  type AiInput,
+  type AiProvider,
+  type AiUsage,
+} from "@/application/ai-provider";
 import {
   EXTRACTION_PROMPT,
   EXTRACTION_SCHEMA,
@@ -148,30 +152,25 @@ export function openAiProvider(options: OpenAiProviderOptions): AiProvider {
 
 /** OpenAI provider whose encrypted configuration is resolved per Organization at call time. */
 export function platformOpenAiProvider(
-  system: SystemClient,
   options: { baseUrl?: string } = {},
 ): AiProvider {
-  async function configured(organizationId: string | undefined): Promise<AiProvider> {
-    if (!organizationId) {
-      throw new AiProviderError("organization_required", "Organization context is required", { transient: false });
-    }
-    const configuration = await resolvePlatformAiProvider(system, organizationId, "openai");
-    if (!configuration.ok) {
-      throw new AiProviderError(configuration.error, `OpenAI configuration error: ${configuration.error}`, {
+  function configured(context: AiCallContext | undefined): AiProvider {
+    if (!context?.configuration) {
+      throw new AiProviderError("worker_configuration_required", "OpenAI worker configuration is required", {
         transient: false,
       });
     }
-    return openAiProvider({ ...configuration.value, baseUrl: options.baseUrl });
+    return openAiProvider({ ...context.configuration, baseUrl: options.baseUrl });
   }
 
   return {
     name: "openai",
     region: "global",
     async split(input, context) {
-      return (await configured(context?.organizationId)).split(input, context);
+      return configured(context).split(input, context);
     },
     async extract(input, context) {
-      return (await configured(context?.organizationId)).extract(input, context);
+      return configured(context).extract(input, context);
     },
   };
 }

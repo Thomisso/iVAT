@@ -1,4 +1,12 @@
-import { AiProviderError, type AiInput, type AiProvider, type PageRange, type RowRange } from "./ai-provider";
+import {
+  AiProviderError,
+  type AiCredentialSource,
+  type AiInput,
+  type AiProvider,
+  type AiProviderConfiguration,
+  type PageRange,
+  type RowRange,
+} from "./ai-provider";
 import type { SystemClient } from "./client";
 import {
   CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA,
@@ -121,7 +129,41 @@ async function completeCompanyExport(
   });
 }
 
-type ProviderAvailability = { blocked: boolean; provider: AiProvider | null };
+type ProviderAvailability = {
+  blocked: boolean;
+  provider: AiProvider | null;
+  credentialSource: AiCredentialSource | null;
+  configuration: AiProviderConfiguration | null;
+};
+
+async function resolveCompanyAiConfiguration(
+  system: SystemClient,
+  organizationId: string,
+  provider: string,
+  credentialSource: Exclude<AiCredentialSource, "local">,
+): Promise<AiProviderConfiguration> {
+  const { data, error } = await system.rpc("resolve_company_ai_provider", {
+    target_organization_id: organizationId,
+    target_provider: provider,
+    target_credential_source: credentialSource,
+  });
+  if (error) {
+    const code = error.hint ?? "provider_configuration_failed";
+    throw new AiProviderError(code, `AI provider configuration error: ${code}`, { transient: false, cause: error });
+  }
+  const settings = data[0];
+  if (!settings) {
+    const code = credentialSource === "organization"
+      ? "organization_key_not_configured"
+      : "platform_key_not_configured";
+    throw new AiProviderError(code, `AI provider configuration error: ${code}`, { transient: false });
+  }
+  return {
+    apiKey: settings.api_key,
+    splitModel: settings.split_model,
+    extractModel: settings.extract_model,
+  };
+}
 
 /** The provider named by the Company's current consent, and whether platform blocking deferred it. */
 async function providerAvailability(
@@ -131,12 +173,16 @@ async function providerAvailability(
 ): Promise<ProviderAvailability> {
   const { data, error } = await system
     .from("company")
-    .select("ai_processing_enabled, ai_provider, ai_region, organization:organization_id (blocked_at)")
+    .select("organization_id, ai_processing_enabled, ai_provider, ai_region, ai_credential_source, organization:organization_id (blocked_at)")
     .eq("id", companyId)
     .single();
   if (error) throw error;
-  if (data.organization?.blocked_at) return { blocked: true, provider: null };
-  if (!data.ai_processing_enabled || !data.ai_provider) return { blocked: false, provider: null };
+  if (data.organization?.blocked_at) {
+    return { blocked: true, provider: null, credentialSource: null, configuration: null };
+  }
+  if (!data.ai_processing_enabled || !data.ai_provider || !data.ai_credential_source) {
+    return { blocked: false, provider: null, credentialSource: null, configuration: null };
+  }
   const provider = providers.get(data.ai_provider);
   if (!provider || provider.region !== data.ai_region) {
     throw new AiProviderError(
@@ -145,7 +191,20 @@ async function providerAvailability(
       { transient: true },
     );
   }
-  return { blocked: false, provider };
+  const configuration = data.ai_credential_source === "local"
+    ? null
+    : await resolveCompanyAiConfiguration(
+      system,
+      data.organization_id,
+      data.ai_provider,
+      data.ai_credential_source,
+    );
+  return {
+    blocked: false,
+    provider,
+    credentialSource: data.ai_credential_source,
+    configuration,
+  };
 }
 
 const BLOCKED_JOB_RECHECK_SECONDS = 60;
@@ -202,6 +261,8 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
       const input = sourceFileInput(file.format, bytes, file.page_count);
       const { documents, model, usage } = await ai.split(input, {
         organizationId: file.organization_id,
+        credentialSource: availability.credentialSource!,
+        ...(availability.configuration ? { configuration: availability.configuration } : {}),
       });
       assertWorkbookRanges(input, documents);
       const metered = await system.rpc("record_ai_usage", {
@@ -273,7 +334,11 @@ async function extractDocument(
       ? { firstPage: document.first_page, lastPage: document.last_page }
       : { sheetName: document.source_sheet!, firstRow: document.first_row, lastRow: document.last_row! };
     const input = await documentInput(document.source_file!.format, bytes, range);
-    const { model, payload: extractedPayload, usage } = await ai.extract(input, { organizationId: document.organization_id });
+    const { model, payload: extractedPayload, usage } = await ai.extract(input, {
+      organizationId: document.organization_id,
+      credentialSource: availability.credentialSource!,
+      ...(availability.configuration ? { configuration: availability.configuration } : {}),
+    });
     const { data: company, error: companyError } = await system
       .from("company")
       .select("ico, vat_id")
