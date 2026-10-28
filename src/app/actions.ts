@@ -8,7 +8,7 @@ import {
   generateVatReport,
   unlockReportingPeriod,
 } from "@/application/vat-reports";
-import { logIn, logOut, signUp, startGoogleSignIn } from "@/application/auth";
+import { currentUser, logIn, logOut, signUp, startGoogleSignIn } from "@/application/auth";
 import {
   beginTotpEnrollment,
   completeTotpEnrollment,
@@ -22,7 +22,7 @@ import {
 } from "@/application/mfa";
 import { mfaRedirectPath } from "@/application/mfa-routing";
 import { prefillCompanyFromAres } from "@/application/ares";
-import { createCompany, disableAiProcessing, enableAiProcessing, updateCompany } from "@/application/companies";
+import { createCompany, disableAiProcessing, enableAiProcessing, getCompany, updateCompany } from "@/application/companies";
 import { acceptInvitation, changeMembershipRole, inviteMember, removeMembership } from "@/application/memberships";
 import { supabaseInvitationMailer } from "@/application/supabase-invitation-mailer";
 import {
@@ -50,6 +50,7 @@ import { configuredExchangeRates } from "@/cnb";
 import { jobQueue } from "@/lib/jobs";
 import { createRequestClient, requireUserClient } from "@/lib/supabase/server";
 import { isLocale, localeCookie } from "@/i18n/locales";
+import { companyContextCookie, serializeCompanyContext } from "@/lib/company-context";
 
 /**
  * Form state: an error code that the form translates through the `errors`
@@ -59,6 +60,31 @@ import { isLocale, localeCookie } from "@/i18n/locales";
 export type FormState = { error: string | null; values: Record<string, string> };
 
 const field = (formData: FormData, name: string) => String(formData.get(name) ?? "");
+
+async function storeCompanyContext(companyId: string): Promise<boolean> {
+  const client = await requireUserClient();
+  const [user, company] = await Promise.all([
+    currentUser(client),
+    getCompany(client, companyId),
+  ]);
+  if (!user || !company) return false;
+  (await cookies()).set(
+    companyContextCookie,
+    serializeCompanyContext({ userId: user.id, companyId }),
+    { httpOnly: true, maxAge: 60 * 60 * 24 * 365, path: "/", sameSite: "lax" },
+  );
+  return true;
+}
+
+export async function rememberCompanyAction(companyId: string): Promise<void> {
+  await storeCompanyContext(companyId);
+}
+
+export async function selectCompanyAction(formData: FormData): Promise<void> {
+  const companyId = field(formData, "companyId");
+  if (await storeCompanyContext(companyId)) redirect(`/companies/${companyId}`);
+  redirect("/");
+}
 
 function refused(error: string, formData: FormData, fields: string[]): FormState {
   return { error, values: Object.fromEntries(fields.map((name) => [name, field(formData, name)])) };
@@ -203,6 +229,7 @@ export async function createCompanyAction(_state: FormState, formData: FormData)
   if (companyId) {
     const result = await updateCompany(client, { companyId, ...settings });
     if (!result.ok) return refused(result.error, formData, COMPANY_FIELDS);
+    await storeCompanyContext(companyId);
     redirect(`/companies/${companyId}`);
   }
   const result = await createCompany(client, {
@@ -210,6 +237,7 @@ export async function createCompanyAction(_state: FormState, formData: FormData)
     ...settings,
   });
   if (!result.ok) return refused(result.error, formData, COMPANY_FIELDS);
+  await storeCompanyContext(result.value.id);
   redirect(`/companies/${result.value.id}`);
 }
 

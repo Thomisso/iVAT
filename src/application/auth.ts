@@ -82,6 +82,12 @@ export async function currentUserId(client: AppClient): Promise<string | null> {
   return data.user?.id ?? null;
 }
 
+/** Identity fields safe to render in the signed-in User's account menu. */
+export async function currentUser(client: AppClient): Promise<{ id: string; email: string } | null> {
+  const { data } = await client.auth.getUser();
+  return data.user ? { id: data.user.id, email: data.user.email ?? "" } : null;
+}
+
 export async function logOut(client: AppClient): Promise<void> {
   await client.auth.signOut();
 }
