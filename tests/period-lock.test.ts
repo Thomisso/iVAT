@@ -115,6 +115,34 @@ it("only an Administrator finalizes and unlocks a stored VAT Report, and both tr
   ]);
 });
 
+it("finalizes a Reporting Period again after it was unlocked and audits every transition", async () => {
+  const company = await administratorWithCompany();
+  const input = { companyId: company.companyId, period: "2026-10" };
+  expect(await generateVatReport(company.client, input)).toEqual({
+    ok: true,
+    value: { id: expect.any(String) },
+  });
+
+  expect(await finalizeVatReport(company.client, input)).toEqual({ ok: true, value: null });
+  expect(await unlockReportingPeriod(company.client, input)).toEqual({ ok: true, value: null });
+  expect(await finalizeVatReport(company.client, input)).toEqual({ ok: true, value: null });
+  expect(await getPeriodLock(company.client, input.companyId, input.period)).toEqual(
+    expect.objectContaining({
+      companyId: input.companyId,
+      period: input.period,
+      lockedBy: company.userId,
+    }),
+  );
+
+  const transitions = (await listAuditEvents(company.client, company.organizationId))
+    .filter((event) => event.action === "vat_report.finalized" || event.action === "reporting_period.unlocked");
+  expect(transitions).toEqual([
+    expect.objectContaining({ action: "vat_report.finalized", payload: { period: input.period } }),
+    expect.objectContaining({ action: "reporting_period.unlocked", payload: { period: input.period } }),
+    expect.objectContaining({ action: "vat_report.finalized", payload: { period: input.period } }),
+  ]);
+});
+
 it("refuses correcting a Document assigned to a locked Reporting Period", async () => {
   const company = await lockedCompanyWithDocuments();
   const [version] = await listExtractionVersions(
