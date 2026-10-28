@@ -1,20 +1,9 @@
 import { PgBoss } from "pg-boss";
 import { PROCESSING_JOB_NAMES, type JobQueue } from "@/application/processing";
-import {
-  PROCESSING_JOB_RETRY_DELAY_MAX_SECONDS,
-  PROCESSING_JOB_RETRY_DELAY_SECONDS,
-  PROCESSING_JOB_RETRY_LIMIT,
-} from "@/lib/processing-policy";
+import { PROCESSING_JOB_QUEUE_OPTIONS } from "@/lib/processing-policy";
 
-// Transient provider errors are retried with backoff; when the retries run out,
-// the job's last attempt marks its Source File or Document Failed.
-const QUEUE_OPTIONS = {
-  retryLimit: PROCESSING_JOB_RETRY_LIMIT,
-  retryDelay: PROCESSING_JOB_RETRY_DELAY_SECONDS,
-  retryBackoff: true,
-  retryDelayMax: PROCESSING_JOB_RETRY_DELAY_MAX_SECONDS,
-};
-
+// Transient failures are retried with backoff; when retries run out, the last
+// attempt marks its Source File, Document, or export receipt Failed.
 function databaseUrl(): string {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("Missing environment variable DATABASE_URL. See .env.example.");
@@ -23,7 +12,7 @@ function databaseUrl(): string {
 
 /** Creates the processing queues if they don't exist yet. Both the web app and the worker call it. */
 export async function createProcessingQueues(boss: PgBoss): Promise<void> {
-  for (const name of PROCESSING_JOB_NAMES) await boss.createQueue(name, QUEUE_OPTIONS);
+  for (const name of PROCESSING_JOB_NAMES) await boss.createQueue(name, PROCESSING_JOB_QUEUE_OPTIONS);
 }
 
 export function createBoss(options: { supervise: boolean }): PgBoss {
