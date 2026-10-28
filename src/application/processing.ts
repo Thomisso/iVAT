@@ -115,10 +115,22 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
       if (!(await moveStatus("processing", ["uploaded", "processing"]))) return;
       const bytes = await download(system, file.company_id, file.id);
       const input = sourceFileInput(file.format, bytes, file.page_count);
-      const { documents } = await ai.split(input, {
+      const { documents, model, usage } = await ai.split(input, {
         organizationId: file.organization_id,
       });
       assertWorkbookRanges(input, documents);
+      const metered = await system.rpc("record_ai_usage", {
+        target_organization_id: file.organization_id,
+        target_company_id: file.company_id,
+        target_provider: ai.name,
+        target_model: model,
+        target_operation: "split",
+        target_input_tokens: usage?.inputTokens ?? 0,
+        target_output_tokens: usage?.outputTokens ?? 0,
+        target_job_name: "split-source-file",
+        target_job_id: file.id,
+      });
+      if (metered.error) throw metered.error;
       const { error } = await system.rpc("record_split", { target_source_file_id: file.id, source_ranges: documents });
       if (error) throw error;
     });
@@ -167,7 +179,19 @@ async function extractDocument({ system, providers }: Worker, documentId: string
       ? { firstPage: document.first_page, lastPage: document.last_page }
       : { sheetName: document.source_sheet!, firstRow: document.first_row, lastRow: document.last_row! };
     const input = await documentInput(document.source_file!.format, bytes, range);
-    const { model, payload } = await ai.extract(input, { organizationId: document.organization_id });
+    const { model, payload, usage } = await ai.extract(input, { organizationId: document.organization_id });
+    const metered = await system.rpc("record_ai_usage", {
+      target_organization_id: document.organization_id,
+      target_company_id: document.company_id,
+      target_provider: ai.name,
+      target_model: model,
+      target_operation: "extract",
+      target_input_tokens: usage?.inputTokens ?? 0,
+      target_output_tokens: usage?.outputTokens ?? 0,
+      target_job_name: "extract-document",
+      target_job_id: document.id,
+    });
+    if (metered.error) throw metered.error;
     const { error } = await system.rpc("record_ai_extraction", {
       target_document_id: document.id,
       target_extraction_request_id: document.extraction_request_id,

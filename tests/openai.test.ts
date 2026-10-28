@@ -33,6 +33,7 @@ describe("OpenAI provider", () => {
       response.end(JSON.stringify({
         model: "gpt-split",
         status: "completed",
+        usage: { input_tokens: 91, output_tokens: 12 },
         output: [{
           type: "message",
           content: [{ type: "output_text", text: JSON.stringify({ documents: [{ firstPage: 1, lastPage: 2 }] }) }],
@@ -54,6 +55,7 @@ describe("OpenAI provider", () => {
     })).resolves.toEqual({
       model: "gpt-split",
       documents: [{ firstPage: 1, lastPage: 2 }],
+      usage: { inputTokens: 91, outputTokens: 12 },
     });
     expect(received).toEqual({
       headers: expect.objectContaining({

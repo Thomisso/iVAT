@@ -33,6 +33,7 @@ describe("Anthropic AI provider", () => {
       response.end(JSON.stringify({
         model: "claude-sonnet-split",
         content: [{ type: "text", text: JSON.stringify({ documents: [{ firstPage: 1, lastPage: 2 }] }) }],
+        usage: { input_tokens: 123, output_tokens: 17 },
       }));
     });
     const provider = anthropicAiProvider({
@@ -50,6 +51,7 @@ describe("Anthropic AI provider", () => {
     })).resolves.toEqual({
       model: "claude-sonnet-split",
       documents: [{ firstPage: 1, lastPage: 2 }],
+      usage: { inputTokens: 123, outputTokens: 17 },
     });
     expect(received).toEqual({
       headers: expect.objectContaining({

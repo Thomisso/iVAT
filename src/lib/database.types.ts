@@ -1,10 +1,4 @@
-export type Json =
-  | string
-  | number
-  | boolean
-  | null
-  | { [key: string]: Json | undefined }
-  | Json[];
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type Database = {
   graphql_public: {
@@ -16,12 +10,7 @@ export type Database = {
     };
     Functions: {
       graphql: {
-        Args: {
-          extensions?: Json;
-          operationName?: string;
-          query?: string;
-          variables?: Json;
-        };
+        Args: { extensions?: Json; operationName?: string; query?: string; variables?: Json };
         Returns: Json;
       };
     };
@@ -34,6 +23,67 @@ export type Database = {
   };
   public: {
     Tables: {
+      ai_usage_event: {
+        Row: {
+          company_id: string;
+          created_at: string;
+          id: number;
+          input_tokens: number;
+          job_name: string;
+          job_target_id: string;
+          model: string;
+          operation: string;
+          organization_id: string;
+          output_tokens: number;
+          provider: string;
+          requests: number;
+        };
+        ComputedFields: never;
+        Insert: {
+          company_id: string;
+          created_at?: string;
+          id?: never;
+          input_tokens: number;
+          job_name: string;
+          job_target_id: string;
+          model: string;
+          operation: string;
+          organization_id: string;
+          output_tokens: number;
+          provider: string;
+          requests?: number;
+        };
+        Update: {
+          company_id?: string;
+          created_at?: string;
+          id?: never;
+          input_tokens?: number;
+          job_name?: string;
+          job_target_id?: string;
+          model?: string;
+          operation?: string;
+          organization_id?: string;
+          output_tokens?: number;
+          provider?: string;
+          requests?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "ai_usage_event_company_id_organization_id_fkey";
+            columns: ["company_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "company";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "ai_usage_event_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organization";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       audit_event: {
         Row: {
           action: string;
@@ -454,6 +504,55 @@ export type Database = {
         };
         Relationships: [];
       };
+      organization_ai_provider_key: {
+        Row: {
+          dpa_acknowledged_at: string;
+          dpa_acknowledged_by: string;
+          key_last_four: string;
+          key_secret_id: string;
+          organization_id: string;
+          provider: string;
+          updated_at: string;
+          updated_by: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          dpa_acknowledged_at: string;
+          dpa_acknowledged_by: string;
+          key_last_four: string;
+          key_secret_id: string;
+          organization_id: string;
+          provider: string;
+          updated_at?: string;
+          updated_by: string;
+        };
+        Update: {
+          dpa_acknowledged_at?: string;
+          dpa_acknowledged_by?: string;
+          key_last_four?: string;
+          key_secret_id?: string;
+          organization_id?: string;
+          provider?: string;
+          updated_at?: string;
+          updated_by?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "organization_ai_provider_key_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organization";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "organization_ai_provider_key_provider_fkey";
+            columns: ["provider"];
+            isOneToOne: false;
+            referencedRelation: "platform_ai_provider";
+            referencedColumns: ["provider"];
+          },
+        ];
+      };
       organization_platform_ai_access: {
         Row: {
           enabled: boolean;
@@ -770,10 +869,7 @@ export type Database = {
       };
     };
     Functions: {
-      accept_invitation: {
-        Args: { invitation_token: string };
-        Returns: undefined;
-      };
+      accept_invitation: { Args: { invitation_token: string }; Returns: undefined };
       approve_document: {
         Args: { reviewed_version: number; target_document_id: string };
         Returns: undefined;
@@ -782,10 +878,7 @@ export type Database = {
         Args: { selected_file_count: number; target_company_id: string };
         Returns: string;
       };
-      cancel_invitation: {
-        Args: { invitation_token: string };
-        Returns: undefined;
-      };
+      cancel_invitation: { Args: { invitation_token: string }; Returns: undefined };
       change_membership_role: {
         Args: {
           target_membership_id: string;
@@ -804,11 +897,7 @@ export type Database = {
         Returns: undefined;
       };
       correct_document: {
-        Args: {
-          based_on_version: number;
-          payload: Json;
-          target_document_id: string;
-        };
+        Args: { based_on_version: number; payload: Json; target_document_id: string };
         Returns: number;
       };
       create_company: {
@@ -847,23 +936,39 @@ export type Database = {
         Args: Record<PropertyKey, never>;
         Returns: boolean;
       };
-      finish_mfa_disenrollment: {
-        Args: Record<PropertyKey, never>;
-        Returns: undefined;
-      };
-      finish_mfa_enrollment: {
-        Args: Record<PropertyKey, never>;
-        Returns: string[];
-      };
-      finish_upload_batch: {
-        Args: { target_batch_id: string };
-        Returns: undefined;
-      };
+      finish_mfa_disenrollment: { Args: Record<PropertyKey, never>; Returns: undefined };
+      finish_mfa_enrollment: { Args: Record<PropertyKey, never>; Returns: string[] };
+      finish_upload_batch: { Args: { target_batch_id: string }; Returns: undefined };
       list_available_ai_providers: {
         Args: Record<PropertyKey, never>;
         Returns: {
           provider: string;
           region: string;
+        }[];
+      };
+      list_organization_ai_provider_keys: {
+        Args: { target_organization_id: string };
+        Returns: {
+          has_organization_key: boolean;
+          organization_key_last_four: string;
+          provider: string;
+        }[];
+      };
+      list_organization_ai_usage: {
+        Args: {
+          period_from: string;
+          period_to: string;
+          target_company_id?: string;
+          target_organization_id: string;
+        };
+        Returns: {
+          company_id: string;
+          company_name: string;
+          input_tokens: number;
+          model: string;
+          output_tokens: number;
+          provider: string;
+          requests: number;
         }[];
       };
       list_platform_ai_providers: {
@@ -875,6 +980,18 @@ export type Database = {
           platform_key_last_four: string;
           provider: string;
           split_model: string;
+        }[];
+      };
+      list_platform_ai_usage: {
+        Args: { period_from: string; period_to: string };
+        Returns: {
+          input_tokens: number;
+          model: string;
+          organization_id: string;
+          organization_name: string;
+          output_tokens: number;
+          provider: string;
+          requests: number;
         }[];
       };
       list_platform_organizations: {
@@ -889,16 +1006,9 @@ export type Database = {
         Args: { left_document_id: string; right_document_id: string };
         Returns: string[];
       };
-      mfa_recovery_codes_remaining: {
-        Args: Record<PropertyKey, never>;
-        Returns: number;
-      };
+      mfa_recovery_codes_remaining: { Args: Record<PropertyKey, never>; Returns: number };
       move_document_page: {
-        Args: {
-          page: number;
-          source_document_id: string;
-          target_document_id: string;
-        };
+        Args: { page: number; source_document_id: string; target_document_id: string };
         Returns: string[];
       };
       record_ai_extraction: {
@@ -911,22 +1021,31 @@ export type Database = {
         };
         Returns: undefined;
       };
+      record_ai_usage: {
+        Args: {
+          target_company_id: string;
+          target_input_tokens: number;
+          target_job_id: string;
+          target_job_name: string;
+          target_model: string;
+          target_operation: string;
+          target_organization_id: string;
+          target_output_tokens: number;
+          target_provider: string;
+        };
+        Returns: undefined;
+      };
       record_split: {
         Args: { source_ranges: Json; target_source_file_id: string };
         Returns: undefined;
       };
-      reject_document: {
-        Args: { target_document_id: string };
+      reject_document: { Args: { target_document_id: string }; Returns: undefined };
+      remove_membership: { Args: { target_membership_id: string }; Returns: undefined };
+      remove_organization_ai_provider_key: {
+        Args: { target_organization_id: string; target_provider: string };
         Returns: undefined;
       };
-      remove_membership: {
-        Args: { target_membership_id: string };
-        Returns: undefined;
-      };
-      reprocess_document: {
-        Args: { target_document_id: string };
-        Returns: undefined;
-      };
+      reprocess_document: { Args: { target_document_id: string }; Returns: undefined };
       resolve_platform_ai_provider: {
         Args: { target_organization_id: string; target_provider: string };
         Returns: {
@@ -935,8 +1054,14 @@ export type Database = {
           split_model: string;
         }[];
       };
-      retry_split: {
-        Args: { target_source_file_id: string };
+      retry_split: { Args: { target_source_file_id: string }; Returns: undefined };
+      save_organization_ai_provider_key: {
+        Args: {
+          dpa_acknowledged: boolean;
+          organization_key: string;
+          target_organization_id: string;
+          target_provider: string;
+        };
         Returns: undefined;
       };
       save_vat_report: {
@@ -953,11 +1078,7 @@ export type Database = {
         Returns: undefined;
       };
       set_organization_platform_ai_access: {
-        Args: {
-          access_enabled: boolean;
-          target_organization_id: string;
-          target_provider: string;
-        };
+        Args: { access_enabled: boolean; target_organization_id: string; target_provider: string };
         Returns: undefined;
       };
       split_document: {
@@ -983,10 +1104,7 @@ export type Database = {
         Args: { target_company_id: string; target_period: string };
         Returns: Json;
       };
-      verify_mfa_recovery_code: {
-        Args: { input_code: string };
-        Returns: boolean;
-      };
+      verify_mfa_recovery_code: { Args: { input_code: string }; Returns: boolean };
     };
     Enums: {
       document_status:
@@ -1011,34 +1129,27 @@ export type Database = {
 
 type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">;
 
-type DefaultSchema = DatabaseWithoutInternals[Extract<
-  keyof Database,
-  "public"
->];
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">];
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals;
-}
+    : never) = never,
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
   ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
       DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R;
     }
     ? R
     : never
-  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])
-    ? (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] & DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
         Row: infer R;
       }
       ? R
@@ -1049,14 +1160,12 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals;
-}
+    : never) = never,
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Insert: infer I;
     }
@@ -1074,14 +1183,12 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals;
-}
+    : never) = never,
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Update: infer U;
     }
@@ -1099,14 +1206,12 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
-> = DefaultSchemaEnumNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals;
-}
+    : never) = never,
+> = DefaultSchemaEnumNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
   ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
     ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
@@ -1116,14 +1221,12 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
-> = PublicCompositeTypeNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals;
-}
+    : never) = never,
+> = PublicCompositeTypeNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
   ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
     ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
@@ -1135,14 +1238,7 @@ export const Constants = {
   },
   public: {
     Enums: {
-      document_status: [
-        "uploaded",
-        "processing",
-        "needs_review",
-        "failed",
-        "approved",
-        "rejected",
-      ],
+      document_status: ["uploaded", "processing", "needs_review", "failed", "approved", "rejected"],
       filing_frequency: ["monthly", "quarterly"],
       membership_role: ["administrator", "user"],
       person_type: ["legal", "natural"],
