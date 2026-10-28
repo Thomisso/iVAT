@@ -17,11 +17,18 @@ const databaseFreeTests = new Set([
   path.resolve("tests/visual-prototype.test.ts"),
 ]);
 
+export function shouldSkipDatabaseSetup(argv: readonly string[]) {
+  const scope = argv.slice(2);
+  return scope.length === 2
+    && scope[0] === "run"
+    && databaseFreeTests.has(path.resolve(scope[1]));
+}
+
 export default function setup(project: TestProject) {
   // Vitest does not expose CLI file filters on TestProject during global setup.
-  // When every explicitly requested test is pure UI, do not require Supabase.
-  const requestedTests = process.argv.slice(2).filter((argument) => /\.test\.[cm]?[jt]sx?$/.test(argument));
-  if (requestedTests.length > 0 && requestedTests.every((file) => databaseFreeTests.has(path.resolve(file)))) {
+  // Only the exact `vitest run <allowlisted-file>` shape is safe to exempt:
+  // directories, mixed selectors and options all retain the database preflight.
+  if (shouldSkipDatabaseSetup(process.argv)) {
     return;
   }
 

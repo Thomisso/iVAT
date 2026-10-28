@@ -1,4 +1,14 @@
-import { expect, test } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
+import { expect, test, type BrowserContext } from "@playwright/test";
+
+async function setLocale(
+  context: BrowserContext,
+  baseURL: string | undefined,
+  value: "cs" | "en",
+) {
+  if (!baseURL) throw new Error("Playwright baseURL is required for prototype locale tests");
+  await context.addCookies([{ name: "NEXT_LOCALE", value, url: new URL(baseURL).origin }]);
+}
 
 const widths = [360, 720, 1024, 1440];
 const screens = [
@@ -14,10 +24,8 @@ const screens = [
 
 for (const width of widths) {
   for (const screen of screens) {
-    test(`${screen} composes without horizontal page overflow at ${width} CSS px`, async ({ context, page }) => {
-      await context.addCookies([
-        { name: "NEXT_LOCALE", value: "en", url: "http://127.0.0.1:3100" },
-      ]);
+    test(`${screen} composes without horizontal page overflow at ${width} CSS px`, async ({ baseURL, context, page }) => {
+      await setLocale(context, baseURL, "en");
       await page.setViewportSize({ width, height: 900 });
       await page.goto(`/prototype?screen=${screen}`);
 
@@ -27,10 +35,8 @@ for (const width of widths) {
   }
 }
 
-test("prototype has visible keyboard focus and stops processing motion when requested", async ({ context, page }) => {
-  await context.addCookies([
-    { name: "NEXT_LOCALE", value: "en", url: "http://127.0.0.1:3100" },
-  ]);
+test("prototype has visible keyboard focus and stops processing motion when requested", async ({ baseURL, context, page }) => {
+  await setLocale(context, baseURL, "en");
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/prototype?screen=overview");
 
@@ -41,10 +47,48 @@ test("prototype has visible keyboard focus and stops processing motion when requ
   await expect(animatedBar).toHaveCSS("animation-name", "none");
 });
 
-test("mobile VAT Return exposes its scroll region and keeps blocked finalization unavailable", async ({ context, page }) => {
-  await context.addCookies([
-    { name: "NEXT_LOCALE", value: "en", url: "http://127.0.0.1:3100" },
-  ]);
+test("Overview primary action keeps white-on-blue contrast", async ({ baseURL, context, page }) => {
+  await setLocale(context, baseURL, "en");
+  await page.goto("/prototype?screen=overview");
+
+  const action = page.getByRole("link", { name: "Add Source Files" });
+  await expect(action).toHaveCSS("background-color", "rgb(33, 98, 143)");
+  await expect(action).toHaveCSS("color", "rgb(255, 255, 255)");
+  const results = await new AxeBuilder({ page })
+    .include('a[href="/prototype?screen=upload"]')
+    .withRules(["color-contrast"])
+    .analyze();
+  expect(results.violations).toEqual([]);
+});
+
+test("structural counts and human capture controls do not use the AI ochre accent", async ({ baseURL, context, page }) => {
+  await setLocale(context, baseURL, "en");
+  await page.goto("/prototype?screen=upload");
+
+  const documentCount = page.locator('nav a[href="/prototype?screen=documents"] small');
+  await expect(documentCount).toHaveCSS("background-color", "rgb(231, 236, 235)");
+  await expect(documentCount).toHaveCSS("color", "rgb(69, 84, 92)");
+  const captureIcon = page.getByRole("heading", { name: "Add Source Files" }).locator("xpath=../preceding-sibling::span");
+  await expect(captureIcon).toHaveCSS("color", "rgb(154, 201, 229)");
+
+  await page.goto("/prototype?screen=documents");
+  const queueCount = page.getByRole("button", { name: /Needs review/ }).locator("span");
+  await expect(queueCount).toHaveCSS("background-color", "rgb(230, 240, 246)");
+  await expect(queueCount).toHaveCSS("color", "rgb(33, 98, 143)");
+});
+
+test("Documents and review have no axe violations at desktop width", async ({ baseURL, context, page }) => {
+  await setLocale(context, baseURL, "en");
+  await page.setViewportSize({ width: 1440, height: 900 });
+  for (const screen of ["documents", "review"]) {
+    await page.goto(`/prototype?screen=${screen}`);
+    const results = await new AxeBuilder({ page }).analyze();
+    expect(results.violations, `${screen} accessibility violations`).toEqual([]);
+  }
+});
+
+test("mobile VAT Return exposes its scroll region and keeps blocked finalization unavailable", async ({ baseURL, context, page }) => {
+  await setLocale(context, baseURL, "en");
   await page.setViewportSize({ width: 360, height: 800 });
   await page.goto("/prototype?screen=vat-output");
 
@@ -52,14 +96,12 @@ test("mobile VAT Return exposes its scroll region and keeps blocked finalization
   await expect(page.getByRole("button", { name: "Finalize and create final XML" })).toBeDisabled();
 });
 
-test("the Company chooser is keyboard operable and preserves Company identity on mobile review", async ({ context, page }) => {
-  await context.addCookies([
-    { name: "NEXT_LOCALE", value: "en", url: "http://127.0.0.1:3100" },
-  ]);
+test("the Company chooser is keyboard operable and preserves Company identity on mobile review", async ({ baseURL, context, page }) => {
+  await setLocale(context, baseURL, "en");
   await page.setViewportSize({ width: 360, height: 800 });
   await page.goto("/prototype?screen=review");
 
-  const chooser = page.getByRole("button", { name: "Choose Company, Ateliér Novák s.r.o." });
+  const chooser = page.getByRole("button", { name: /Choose Company.*Ateliér Novák s\.r\.o\./ });
   await expect(chooser).toBeVisible();
   await expect(chooser).toContainText("Ateliér Novák s.r.o.");
   await chooser.focus();
@@ -71,10 +113,8 @@ test("the Company chooser is keyboard operable and preserves Company identity on
   await expect(chooser).toBeFocused();
 });
 
-test("mobile capture shows photo controls before an active batch and keeps the human action blue", async ({ context, page }) => {
-  await context.addCookies([
-    { name: "NEXT_LOCALE", value: "en", url: "http://127.0.0.1:3100" },
-  ]);
+test("mobile capture shows photo controls before an active batch and keeps the human action blue", async ({ baseURL, context, page }) => {
+  await setLocale(context, baseURL, "en");
   await page.setViewportSize({ width: 360, height: 800 });
   await page.goto("/prototype?screen=upload");
 
@@ -87,10 +127,8 @@ test("mobile capture shows photo controls before an active batch and keeps the h
   await expect(page.getByRole("button", { name: "Take document photo" })).toHaveCSS("background-color", "rgb(33, 98, 143)");
 });
 
-test("Control Statement has its own destination and output", async ({ context, page }) => {
-  await context.addCookies([
-    { name: "NEXT_LOCALE", value: "en", url: "http://127.0.0.1:3100" },
-  ]);
+test("Control Statement has its own destination and output", async ({ baseURL, context, page }) => {
+  await setLocale(context, baseURL, "en");
   await page.goto("/prototype?screen=vat-output");
 
   const statement = page.getByRole("link", { name: "Control Statement" });
@@ -101,17 +139,13 @@ test("Control Statement has its own destination and output", async ({ context, p
   await expect(page.getByText("DRAFT_DPHKH1_2026-09.xml")).toBeVisible();
 });
 
-test("Czech Upload and English review preserve the same workflow", async ({ context, page }) => {
-  await context.addCookies([
-    { name: "NEXT_LOCALE", value: "cs", url: "http://127.0.0.1:3100" },
-  ]);
+test("Czech Upload and English review preserve the same workflow", async ({ baseURL, context, page }) => {
+  await setLocale(context, baseURL, "cs");
   await page.goto("/prototype?screen=upload");
   await expect(page.getByRole("button", { name: "Vyfotit doklad" })).toBeVisible();
   await expect(page.getByRole("status").filter({ hasText: "Probíhá vytěžení" })).toBeVisible();
 
-  await context.addCookies([
-    { name: "NEXT_LOCALE", value: "en", url: "http://127.0.0.1:3100" },
-  ]);
+  await setLocale(context, baseURL, "en");
   await page.goto("/prototype?screen=review");
   await expect(page.getByRole("button", { name: "Approve document" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Next document" })).toBeVisible();

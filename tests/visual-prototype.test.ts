@@ -8,6 +8,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
 import { NextIntlClientProvider } from "next-intl";
 import { VisualPrototype } from "@/components/visual-prototype";
+import { shouldSkipDatabaseSetup } from "./support/global-setup";
+import czechMessages from "../messages/cs.json";
 import messages from "../messages/en.json";
 
 type TestProviderProps = Omit<
@@ -74,4 +76,34 @@ test("the representative screens show truthful work states without invented AI e
   const statement = render("vat-statement");
   expect(statement).toContain("Control Statement · September 2026");
   expect(statement).toContain("DRAFT_DPHKH1_2026-09.xml");
+});
+
+test("English screens preserve Czech statutory date and money formatting", () => {
+  const documents = render("documents");
+  expect(documents).toContain("14. 10. 2026");
+  expect(documents).toContain("24 200,00 Kč");
+  expect(documents).not.toMatch(/14 Oct 2026|24,200\.00 CZK/);
+
+  const review = render("review");
+  expect(review).toContain("14. 10. 2026");
+  expect(review).toContain("TOTAL 24 200,00 Kč");
+
+  const output = render("vat-output");
+  expect(output).toContain("122 640,00 Kč");
+  expect(output).not.toMatch(/122,640\.00 CZK/);
+});
+
+test("Source File actions do not call files Documents or Uploads", () => {
+  expect(messages.prototype.overview.upload).toBe("Add Source Files");
+  expect(messages.prototype.overview.empty.detail).toBe("New Source Files will appear here.");
+  expect(czechMessages.prototype.overview.upload).toBe("Přidat zdrojové soubory");
+  expect(czechMessages.prototype.overview.empty.detail).toBe("Nové zdrojové soubory se zobrazí zde.");
+});
+
+test("database setup is skipped only for an exact allowlisted Vitest scope", () => {
+  const vitest = ["node", "vitest", "run"];
+  expect(shouldSkipDatabaseSetup([...vitest, "tests/visual-prototype.test.ts"])).toBe(true);
+  expect(shouldSkipDatabaseSetup([...vitest, "tests", "tests/visual-prototype.test.ts"])).toBe(false);
+  expect(shouldSkipDatabaseSetup([...vitest, "tests/visual-prototype.test.ts", "tests/period-lock.test.ts"])).toBe(false);
+  expect(shouldSkipDatabaseSetup(vitest)).toBe(false);
 });

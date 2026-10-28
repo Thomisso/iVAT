@@ -48,14 +48,14 @@ export function PrototypeCompanyChooser({
       <button
         aria-expanded={open}
         aria-haspopup="menu"
-        aria-label={`${chooserLabel}, ${name}`}
         className={styles.company}
         onClick={() => setOpen((value) => !value)}
         ref={triggerRef}
         type="button"
       >
-        <span className={styles.companyInitial}>{initial}</span>
-        <span><strong>{name}</strong><small>{meta}</small></span>
+        <span className={styles.visuallyHidden}>{chooserLabel}</span>
+        <span aria-hidden="true" className={styles.companyInitial}>{initial}</span>
+        <span className={styles.companyIdentity}><strong>{name}</strong><small>{meta}</small></span>
         <svg aria-hidden="true" className={styles.icon} viewBox="0 0 24 24"><path d="m9 6 6 6-6 6" /></svg>
       </button>
       {open && (

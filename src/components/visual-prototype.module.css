@@ -3,7 +3,6 @@
   --prototype-blue: #21628f;
   --prototype-blue-soft: #e6f0f6;
   --prototype-paper: #fbfbf7;
-  --prototype-ochre: #9a6400;
   --prototype-muted: #536168;
   min-height: 100dvh;
   display: grid;
@@ -17,6 +16,7 @@
 .shell :where(button, input, select) { font: inherit; }
 .shell :where(a, button, input, select):focus-visible { outline: 3px solid #21628f; outline-offset: 3px; box-shadow: none; }
 .icon { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; }
+.visuallyHidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); border: 0; white-space: nowrap; }
 .skipLink { position: fixed; z-index: 50; top: 8px; left: 8px; padding: 10px 14px; transform: translateY(-160%); background: white; color: var(--prototype-navy); font-weight: 700; }
 .skipLink:focus { transform: translateY(0); }
 
@@ -26,9 +26,9 @@
 .markPaper { fill: var(--prototype-navy); stroke: none; }
 .markCheck { fill: none; stroke: #e3ad39; stroke-linecap: round; stroke-linejoin: round; stroke-width: 3; }
 .companyPicker { position: relative; margin-top: 24px; }
-.company { width: 100%; padding: 9px; display: grid; grid-template-columns: 32px minmax(0, 1fr) 18px; align-items: center; gap: 9px; border: 1px solid #d8dedb; border-radius: 8px; background: white; color: #17232d; text-align: left; cursor: pointer; }
+.company { position: relative; width: 100%; padding: 9px; display: grid; grid-template-columns: 32px minmax(0, 1fr) 18px; align-items: center; gap: 9px; border: 1px solid #d8dedb; border-radius: 8px; background: white; color: #17232d; text-align: left; cursor: pointer; }
 .companyInitial { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 6px; background: var(--prototype-navy); color: white; font-weight: 700; }
-.company > span:nth-child(2), .profile > span:nth-child(2), .task > span:nth-child(2), .fileRow > span:nth-child(2), .findingList li > span:nth-child(2), .settingsGrid a > span:nth-child(2) { min-width: 0; display: flex; flex-direction: column; }
+.companyIdentity, .profile > span:nth-child(2), .task > span:nth-child(2), .fileRow > span:nth-child(2), .findingList li > span:nth-child(2), .settingsGrid a > span:nth-child(2) { min-width: 0; display: flex; flex-direction: column; }
 .company strong, .profile strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 .company small, .profile small { color: var(--prototype-muted); font-size: 11px; }
 .company > .icon { width: 14px; color: #66727a; }
@@ -39,7 +39,7 @@
 .navigation a { min-height: 40px; padding: 0 10px; display: flex; align-items: center; gap: 10px; border-radius: 7px; color: #34434e; font-weight: 570; text-decoration: none; }
 .navigation a:hover { background: white; }
 .navigation a[aria-current="page"] { background: var(--prototype-blue-soft); color: var(--prototype-blue); box-shadow: inset 3px 0 var(--prototype-blue); }
-.navigation small { margin-left: auto; min-width: 24px; padding: 1px 6px; border-radius: 999px; background: #f2e5c8; color: #6f4800; font: 600 11px/18px var(--font-mono); text-align: center; }
+.navigation small { margin-left: auto; min-width: 24px; padding: 1px 6px; border-radius: 999px; background: #e7eceb; color: #45545c; font: 600 11px/18px var(--font-mono); text-align: center; }
 .profile { margin-top: auto; padding: 12px 8px 0; display: grid; grid-template-columns: 32px minmax(0, 1fr); align-items: center; gap: 9px; border-top: 1px solid #d8dedb; }
 .profile > span:first-child { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; background: #dfe7e4; color: var(--prototype-navy); font-size: 11px; font-weight: 700; }
 .mobileHeader { display: none; }
@@ -49,9 +49,9 @@
 .pageHeader p { max-width: 66ch; color: #66727a; font-size: 15px; }
 .primaryButton, .secondaryButton, .textButton, .iconButton { border: 0; cursor: pointer; }
 .primaryButton, .secondaryButton { min-height: 40px; padding: 0 15px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 6px; font-weight: 650; text-decoration: none; }
-.primaryButton { background: var(--prototype-blue); color: white; }
-.primaryButton:hover { background: #184e73; }
-.primaryButton:disabled { background: #b9c0c3; cursor: not-allowed; }
+.shell .primaryButton { background: var(--prototype-blue); color: white; }
+.shell .primaryButton:hover { background: #184e73; }
+.shell .primaryButton:disabled { background: #b9c0c3; cursor: not-allowed; }
 .secondaryButton { border: 1px solid #aab4b7; background: white; color: #263944; }
 .textButton { display: inline-flex; align-items: center; gap: 5px; background: transparent; color: var(--prototype-blue); font-weight: 650; }
 .iconButton { width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid #cbd2d2; border-radius: 6px; background: white; color: #34434e; }
@@ -105,7 +105,7 @@
 
 .capturePanel { margin-bottom: 24px; padding: 24px; display: flex; align-items: center; justify-content: space-between; gap: 24px; border-radius: 12px; background: var(--prototype-navy); color: white; }
 .captureCopy { display: flex; align-items: center; gap: 16px; }
-.captureIcon { width: 50px; height: 50px; display: grid; place-items: center; border-radius: 10px; background: #ffffff17; color: #e8bc54; }
+.captureIcon { width: 50px; height: 50px; display: grid; place-items: center; border-radius: 10px; background: #ffffff17; color: #9ac9e5; }
 .captureIcon .icon { width: 27px; height: 27px; }
 .captureCopy h2 { font-size: 21px; }
 .captureCopy p { margin-top: 4px; color: #d4dde2; }
@@ -140,11 +140,12 @@
 .tabs { margin-bottom: 18px; display: flex; gap: 3px; overflow-x: auto; border-bottom: 1px solid #cfd8d5; }
 .tabs button { padding: 9px 12px; display: flex; align-items: center; gap: 6px; border: 0; border-bottom: 3px solid transparent; background: transparent; color: #5d6c73; font-weight: 600; white-space: nowrap; cursor: pointer; }
 .tabs button[aria-current="page"] { border-bottom-color: var(--prototype-blue); color: var(--prototype-blue); }
-.tabs span { padding: 0 6px; border-radius: 99px; background: #eee2c6; color: #6f4900; font: 600 11px/18px var(--font-mono); }
+.tabs span { padding: 0 6px; border-radius: 99px; background: var(--prototype-blue-soft); color: var(--prototype-blue); font: 600 11px/18px var(--font-mono); }
 .tablePanel { max-width: 100%; overflow-x: auto; overflow-y: hidden; }
 .tablePanel table, .returnPanel table { width: 100%; border-collapse: collapse; }
 .tablePanel th, .tablePanel td, .returnPanel th, .returnPanel td { padding: 12px 15px; border-bottom: 1px solid #e3e8e6; text-align: left; }
 .tablePanel th, .returnPanel th { background: #f4f6f4; color: var(--prototype-muted); font-size: 11px; font-weight: 650; }
+.tablePanel th:last-child { position: relative; }
 .tablePanel td { font-size: 13px; }
 .tablePanel tbody tr:hover { background: #f8faf9; }
 .tablePanel td:first-child, .returnPanel td:first-child { display: flex; flex-direction: column; }
@@ -156,7 +157,7 @@
 
 .reviewShell { grid-template-columns: 74px minmax(0, 1fr); }
 .reviewShell .sidebar { align-items: center; padding-inline: 10px; }
-.reviewShell .brand span, .reviewShell .company > span:not(.companyInitial), .reviewShell .company > .icon, .reviewShell .navigation span, .reviewShell .navigation small, .reviewShell .profile > span:last-child { display: none; }
+.reviewShell .brand span, .reviewShell .companyIdentity, .reviewShell .company > .icon, .reviewShell .navigation span, .reviewShell .navigation small, .reviewShell .profile > span:last-child { display: none; }
 .reviewShell .brand { padding: 0; }
 .reviewShell .companyPicker { width: 46px; }
 .reviewShell .company { grid-template-columns: 1fr; padding: 6px; }
@@ -289,7 +290,7 @@
   .mobileHeader .company strong { font-size: 11px; }
   .mobileHeader .company small { display: none; }
   .reviewShell .mobileHeader .company { grid-template-columns: 28px minmax(0, 1fr) 14px; }
-  .reviewShell .mobileHeader .company > span:nth-child(2) { display: flex; }
+  .reviewShell .mobileHeader .companyIdentity { display: flex; }
   .reviewShell .mobileHeader .company > .icon { display: block; }
   .main { padding: 22px 14px 28px; }
   .pageHeader { margin-bottom: 22px; }
