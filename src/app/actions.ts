@@ -341,6 +341,7 @@ function payloadFromForm(formData: FormData): ExtractionPayload {
       iban: optionalField(formData, "payment.iban"),
     },
     proposedVatRegime: optionalField(formData, "proposedVatRegime") as ExtractionPayload["proposedVatRegime"],
+    reverseChargeCode: optionalField(formData, "reverseChargeCode"),
     originalDocumentNumber: optionalField(formData, "originalDocumentNumber"),
   };
 }

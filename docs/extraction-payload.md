@@ -29,6 +29,7 @@ The payload is a proposal (ADR-0003). Nothing in it counts towards a VAT Report 
 | `totals` | `{ netAmount, vatAmount, grossAmount }` | Document totals as printed |
 | `payment` | `{ variableSymbol, bankAccount, iban }` | Payment details |
 | `proposedVatRegime` | `domestic` · `domestic_reverse_charge` · `eu_acquisition_of_goods` · `eu_received_service` · `other` | Proposed VAT Regime. `other` leads to Manual Classification Required |
+| `reverseChargeCode` | string | Official Control Statement subject code for `domestic_reverse_charge`; otherwise `null` |
 | `originalDocumentNumber` | string | For a Credit Note, the number of the Document it corrects |
 | `czkConversion` | object, optional | Derived CZK rate breakdown/totals plus original currency, ČNB rate, quoted unit, actual fixing date and source. Printed amounts stay unchanged. |
 | `confidence` | `{ [fieldPath]: number }`, optional | The provider's confidence from 0 to 1, keyed by field path (`documentNumber`, `supplier.vatId`, `rateBreakdown.0.vatAmount`). Only for fields the provider reports on |
@@ -55,6 +56,7 @@ Line items are not part of the MVP schema (#11).
   "totals": { "netAmount": "1000.00", "vatAmount": "210.00", "grossAmount": "1210.00" },
   "payment": { "variableSymbol": "20260001", "bankAccount": "123456789/0100", "iban": null },
   "proposedVatRegime": "domestic",
+  "reverseChargeCode": null,
   "originalDocumentNumber": null,
   "confidence": { "documentNumber": 0.98, "rateBreakdown.0.vatAmount": 0.95 }
 }

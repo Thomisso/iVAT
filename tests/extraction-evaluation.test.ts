@@ -42,6 +42,7 @@ const expectedExtraction: ExtractionPayload = {
   totals: { netAmount: "1000.00", vatAmount: "210.00", grossAmount: "1210.00" },
   payment: { variableSymbol: "100", bankAccount: null, iban: null },
   proposedVatRegime: "domestic",
+  reverseChargeCode: null,
   originalDocumentNumber: null,
 };
 
