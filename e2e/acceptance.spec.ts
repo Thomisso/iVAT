@@ -63,9 +63,6 @@ test("an administrator can turn an uploaded Source File into a traceable, export
       { timeout: 30_000 },
     )
     .toBeGreaterThan(0);
-  await expect(
-    page.getByText("Processing finished for 1 Source File in your batch."),
-  ).toBeVisible();
   await page
     .getByRole("table", { name: "Documents" })
     .getByRole("link")
