@@ -1,4 +1,5 @@
 import { softDeleteCompany } from "@/application/company-deletion";
+import { refusalResponse, successfulCommandResponse } from "@/lib/route-responses";
 import { requireUserClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -13,18 +14,8 @@ export async function POST(
     companyId,
     exportId: typeof body?.exportId === "string" ? body.exportId : "",
   });
-  const headers = {
-    "Cache-Control": "private, no-store",
-    "X-Content-Type-Options": "nosniff",
-  };
   if (!result.ok) {
-    return Response.json(
-      { error: result.error },
-      {
-        status: result.error === "forbidden" ? 404 : 422,
-        headers,
-      },
-    );
+    return refusalResponse(result.error);
   }
-  return new Response(null, { status: 204, headers });
+  return successfulCommandResponse();
 }

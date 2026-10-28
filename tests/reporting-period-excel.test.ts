@@ -2,10 +2,10 @@ import * as XLSX from "xlsx";
 import { expect, it } from "vitest";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { exportReportingPeriodWorkbook } from "@/application/reporting-period-excel";
-import { enableAiProcessing } from "@/application/companies";
+import { createCompany, enableAiProcessing } from "@/application/companies";
 import { approveDocument, listDocuments } from "@/application/documents";
 import { uploadSourceFile } from "@/application/source-files";
-import { administratorWithCompany, companyMember } from "./support/fixtures";
+import { administratorWithCompany, companyDetails, companyMember } from "./support/fixtures";
 import { signedUpUser } from "./support/clients";
 import { fixtureFile } from "./support/files";
 import { testWorker } from "./support/worker";
@@ -127,6 +127,51 @@ it("exports the Reporting Period overview with approved and attention sheets", a
     }),
   ]));
   expect(attention).toHaveLength(2);
+});
+
+it("classifies a quarterly Company's Documents on VAT Return lines and Control Statement sections", async () => {
+  const owner = await signedUpUser("Quarterly Organization");
+  const created = await createCompany(owner.client, {
+    organizationId: owner.organizationId,
+    ...companyDetails({
+      filingFrequency: "quarterly",
+      filingFrequencyEffectiveFrom: "2027-01-01",
+    }),
+  });
+  if (!created.ok) throw new Error(created.error);
+  const worker = testWorker(fakeAiProvider({
+    extract: () => ({ ...SAMPLE_EXTRACTION, taxPointDate: "2027-02-10" }),
+  }));
+  await enableAiProcessing(owner.client, worker.jobs, {
+    companyId: created.value.id,
+    provider: worker.ai,
+  });
+  const uploaded = await uploadSourceFile(owner.client, worker.jobs, {
+    companyId: created.value.id,
+    fileName: "quarterly.png",
+    bytes: fixtureFile("receipt.png"),
+    preselectedDirection: "incoming",
+  });
+  if (!uploaded.ok) throw new Error(uploaded.error);
+  expect(await worker.runJobs()).toEqual([]);
+  const [document] = await listDocuments(owner.client, created.value.id, uploaded.value.id);
+  expect(await approveDocument(owner.client, {
+    companyId: created.value.id,
+    documentId: document.id,
+    version: 1,
+  })).toEqual({ ok: true, value: null });
+
+  const result = await exportReportingPeriodWorkbook(owner.client, {
+    companyId: created.value.id,
+    period: "2027-Q1",
+  });
+  if (!result.ok) throw new Error(result.error);
+  const workbook = XLSX.read(result.value.bytes, { type: "array" });
+  const [row] = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets.Included);
+  expect(row).toEqual(expect.objectContaining({
+    "VAT Return line": "40",
+    "Control Statement section": "B.3",
+  }));
 });
 
 it("refuses an invalid Reporting Period and another Organization", async () => {

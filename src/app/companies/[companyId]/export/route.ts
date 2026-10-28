@@ -1,4 +1,5 @@
 import { exportCompanyData } from "@/application/company-deletion";
+import { downloadResponse, refusalResponse } from "@/lib/route-responses";
 import { requireUserClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -11,25 +12,8 @@ export async function POST(
   const result = await exportCompanyData(await requireUserClient(), {
     companyId,
   });
-  const headers = {
-    "Cache-Control": "private, no-store",
-    "X-Content-Type-Options": "nosniff",
-  };
   if (!result.ok) {
-    return Response.json(
-      { error: result.error },
-      {
-        status: result.error === "forbidden" ? 404 : 422,
-        headers,
-      },
-    );
+    return refusalResponse(result.error);
   }
-  return new Response(Buffer.from(result.value.bytes), {
-    headers: {
-      ...headers,
-      "Content-Type": result.value.mediaType,
-      "Content-Disposition": `attachment; filename="${result.value.fileName}"`,
-      "X-Company-Export-Id": result.value.exportId,
-    },
-  });
+  return downloadResponse(result.value, { "X-Company-Export-Id": result.value.exportId });
 }
