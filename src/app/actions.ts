@@ -52,6 +52,7 @@ import {
 } from "@/application/platform-administration";
 import { retryFailedProcessingJob } from "@/application/processing-administration";
 import { removeOrganizationAiProviderKey, saveOrganizationAiProviderKey } from "@/application/organization-ai";
+import { markUploadNotificationRead } from "@/application/upload-batches";
 import { configuredAresRegistry } from "@/ares";
 import { configuredExchangeRates } from "@/cnb";
 import { jobQueue } from "@/lib/jobs";
@@ -324,6 +325,18 @@ export async function reprocessDocumentAction(_state: FormState, formData: FormD
       companyId: field(formData, "companyId"),
       documentId: field(formData, "documentId"),
     }),
+  );
+}
+
+export async function markUploadNotificationReadAction(
+  _state: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  return settled(
+    await markUploadNotificationRead(
+      await requireUserClient(),
+      field(formData, "notificationId"),
+    ),
   );
 }
 

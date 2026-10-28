@@ -154,3 +154,40 @@ export async function companyWithWaitingDocuments(count: number) {
   }
   return admin;
 }
+
+/** A real-user Upload Batch with more Documents than one PostgREST page.
+ * Worker-only split setup stays inside test support; assertions use Application queries. */
+export async function uploadBatchWithWaitingDocuments(count: number) {
+  const { PDFDocument } = await import("pdf-lib");
+  const { beginUploadBatch, finishUploadBatch } = await import("@/application/upload-batches");
+  const { uploadSourceFile } = await import("@/application/source-files");
+  const admin = await administratorWithCompany("Paged upload batch");
+  const fileCount = Math.ceil(count / 50);
+  const batch = await beginUploadBatch(admin.client, { companyId: admin.companyId, fileCount });
+  if (!batch.ok) throw new Error(batch.error);
+  const pdf = await PDFDocument.create();
+  for (let page = 0; page < 50; page++) pdf.addPage();
+  const bytes = await pdf.save();
+  let created = 0;
+  for (let fileIndex = 0; fileIndex < fileCount; fileIndex++) {
+    const uploaded = await uploadSourceFile(admin.client, { async send() {} }, {
+      companyId: admin.companyId,
+      batchId: batch.value.id,
+      fileName: `large-${fileIndex}.pdf`,
+      bytes,
+    });
+    if (!uploaded.ok) throw new Error(uploaded.error);
+    const documentsInFile = Math.min(50, count - created);
+    const split = await systemClient().rpc("record_split", {
+      target_source_file_id: uploaded.value.id,
+      source_ranges: Array.from({ length: documentsInFile }, (_, page) => ({
+        firstPage: page + 1,
+        lastPage: page + 1,
+      })),
+    });
+    if (split.error) throw split.error;
+    created += documentsInFile;
+  }
+  await finishUploadBatch(admin.client, batch.value.id);
+  return { ...admin, batchId: batch.value.id };
+}

@@ -158,7 +158,9 @@ export function SourceFileUploadForm({
       await finishBrowserUploadBatch(companyId, started.value.id);
       form.current?.reset();
       setDirection("");
-      router.refresh();
+      router.push(
+        `/companies/${encodeURIComponent(companyId)}/upload-batches/${encodeURIComponent(started.value.id)}`,
+      );
     } catch {
       setError("upload_failed");
     } finally {
