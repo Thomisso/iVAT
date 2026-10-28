@@ -12,12 +12,15 @@ import {
 import { useTranslations } from "next-intl";
 import {
   logOutAction,
+  markUploadNotificationReadAction,
   rememberCompanyAction,
   selectCompanyAction,
   setLocaleAction,
 } from "@/app/actions";
 import type { CompanySummary } from "@/application/companies";
 import type { OrganizationSummary } from "@/application/organizations";
+import type { UploadNotification } from "@/application/upload-batches";
+import { CommandButton } from "@/components/command-button";
 
 type Destination = "overview" | "upload" | "documents" | "vat" | "settings";
 
@@ -139,7 +142,26 @@ function AdministrationMenu({ companyId, companyRole, organizations, superAdmin 
   </Menu>;
 }
 
-export function CompanyShell({ children, companies, company, companyRole, email, organizations, superAdmin }: {
+function UploadNotifications({ notifications }: { notifications: UploadNotification[] }) {
+  const t = useTranslations("uploadWorkspace");
+  if (!notifications.length) return null;
+  return <section aria-label={t("notifications")} className="upload-notifications">
+    {notifications.map((notification) => <aside className={`upload-notification upload-notification-${notification.outcome}`} key={notification.id} role="status">
+      <div>
+        <strong>{t(`notification.${notification.outcome}.title`)}</strong>
+        <p>{t(`notification.${notification.outcome}.body`, {
+          count: notification.fileCount,
+          review: notification.reviewCount,
+          failures: notification.failureCount,
+        })}</p>
+        <Link href={`/companies/${notification.companyId}/upload-batches/${notification.batchId}`}>{t("openBatch")}</Link>
+      </div>
+      <CommandButton action={markUploadNotificationReadAction} fields={{ notificationId: notification.id }} size="sm" variant="ghost">{t("markRead")}</CommandButton>
+    </aside>)}
+  </section>;
+}
+
+export function CompanyShell({ children, companies, company, companyRole, email, organizations, superAdmin, uploadNotifications }: {
   children: ReactNode;
   companies: CompanySummary[];
   company: CompanySummary & { ico: string };
@@ -147,6 +169,7 @@ export function CompanyShell({ children, companies, company, companyRole, email,
   companyRole: "administrator" | "user" | null;
   organizations: OrganizationSummary[];
   superAdmin: boolean;
+  uploadNotifications: UploadNotification[];
 }) {
   const t = useTranslations("shell");
   const app = useTranslations("app");
@@ -167,7 +190,7 @@ export function CompanyShell({ children, companies, company, companyRole, email,
       </aside>
       <header className="company-mobile-header"><Link aria-label={app("name")} className="company-brand" href="/"><BrandMark /></Link><CompanyMenu companies={companies} current={company} /><div className="company-mobile-actions"><AdministrationMenu companyId={company.id} companyRole={companyRole} organizations={organizations} superAdmin={superAdmin} /><AccountMenu email={email} /></div></header>
       {navigation}
-      <div className="company-shell-content" id="main-content" tabIndex={-1}>{children}</div>
+      <div className="company-shell-content" id="main-content" tabIndex={-1}><UploadNotifications notifications={uploadNotifications} />{children}</div>
     </div>
   </>;
 }

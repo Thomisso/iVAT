@@ -194,6 +194,97 @@
       "outgoing": "Outgoing"
     }
   },
+  "uploadWorkspace": {
+    "newBatch": "Add Source Files",
+    "newBatchHint": "Transport runs first. Split and Extraction continue in the background and stay visible in this workspace.",
+    "history": "Batch history",
+    "historyHint": "Every batch remains available after refresh and navigation.",
+    "batchCount": "{count, plural, one {# batch} other {# batches}}",
+    "historyPage": "Page {page}",
+    "historyPagination": "Batch history pages",
+    "newerBatches": "← Newer batches",
+    "olderBatches": "Older batches →",
+    "batchFiles": "{count} of {planned} selected Source Files stored",
+    "batchSummary": "{waiting} processing · {review} ready for review · {failures} failed",
+    "noBatches": "No batches yet. Add Source Files to start one.",
+    "outcome": {
+      "processing": "Processing",
+      "success": "Finished",
+      "partial": "Finished with failures",
+      "failure": "Failed"
+    },
+    "backToUpload": "← Back to Upload",
+    "backToBatch": "← Back to batch",
+    "batchTitle": "Batch from {date}",
+    "waitingForAi": "Waiting for AI setup",
+    "waitingForAiHint": "The originals and Documents are stored safely. Waiting Split or Extraction work starts after an administrator enables AI processing.",
+    "configureAi": "Set up AI processing",
+    "lifecycle": "Batch lifecycle",
+    "phase": {
+      "transport": "Transport",
+      "waiting": "Waiting",
+      "split": "Split",
+      "extraction": "Extraction",
+      "review": "Review"
+    },
+    "phaseHint": {
+      "transport": "Store originals",
+      "waiting": "Queued for Split or Extraction",
+      "split": "Create Documents",
+      "extraction": "Read each Document",
+      "review": "Human decision"
+    },
+    "reviewReadyTitle": "Documents ready for review",
+    "reviewReadyHint": "{count, plural, one {# Document needs a decision.} other {# Documents need a decision.}}",
+    "reviewAction": "Review {count, plural, one {# Document} other {# Documents}}",
+    "failuresTitle": "Failures and recovery",
+    "failuresHint": "Retry the exact unit that failed. Successful Documents remain available.",
+    "transportFailures": "{count, plural, one {# selected file was not stored during transport. Upload it again in a new batch.} other {# selected files were not stored during transport. Upload them again in a new batch.}}",
+    "splitFailed": "Split failed",
+    "retrySplit": "Retry Split",
+    "extractionFailed": "Extraction failed",
+    "retryExtraction": "Retry Extraction",
+    "sourceFilesTitle": "Source Files and their Documents",
+    "sourceFilesHint": "A Source File is the stored original. Each nested row is a separate Document created by Split.",
+    "documentPages": "Document · pages {first}–{last}",
+    "sourceStatus": {
+      "uploaded": "Waiting",
+      "processing": "Splitting",
+      "split": "Split complete",
+      "failed": "Split failed"
+    },
+    "documentStatus": {
+      "uploaded": "Waiting for Extraction",
+      "processing": "Extracting",
+      "needs_review": "Needs review",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "failed": "Extraction failed"
+    },
+    "noDocumentsFailed": "Split did not create any Documents.",
+    "noDocumentsYet": "Documents appear here after Split.",
+    "filteredQueue": "{count, plural, one {# Document from this batch} other {# Documents from this batch}}",
+    "document": "Document",
+    "status": "Status",
+    "noQueueDocuments": "No Documents match this batch queue.",
+    "notifications": "Upload notifications",
+    "notification": {
+      "success": {
+        "title": "Batch processing finished",
+        "body": "{count, plural, one {# Source File finished processing.} other {# Source Files finished processing.}} {review, plural, =0 {No Documents need review.} one {# Document is ready for review.} other {# Documents are ready for review.}}"
+      },
+      "partial": {
+        "title": "Batch finished with failures",
+        "body": "{review, plural, one {# Document is ready for review} other {# Documents are ready for review}} and {failures, plural, one {# item failed.} other {# items failed.}}"
+      },
+      "failure": {
+        "title": "Batch processing failed",
+        "body": "{failures, plural, one {# item needs recovery.} other {# items need recovery.}} Open the batch to retry the failed step."
+      }
+    },
+    "openBatch": "Open batch",
+    "markRead": "Mark as read"
+  },
   "errors": {
     "organization_name_required": "Enter the name of your organization.",
     "email_taken": "An account with this email already exists.",

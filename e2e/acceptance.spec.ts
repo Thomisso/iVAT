@@ -39,13 +39,18 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+\/setup\/filing-frequency$/);
   await page.getByLabel("Effective from").fill("2026-01-01");
   await page.getByRole("button", { name: "Save and continue" }).click();
-  await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+$/);
-  const companyUrl = page.url();
-
+  await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+\/setup\/ai-processing$/);
+  const companyUrl = page.url().replace(/\/setup\/ai-processing$/, "");
+  await page.getByRole("radio").first().check();
+  await page.getByRole("checkbox", { name: /I consent to sending this Company's documents/ }).check();
   await page.getByRole("button", { name: "Enable AI processing" }).click();
-  await expect(page.getByText(/AI processing is on/)).toBeVisible();
+  await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+$/);
+  const aiSetup = page.getByRole("listitem").filter({
+    has: page.getByText("AI processing", { exact: true }),
+  });
+  await expect(aiSetup.getByText("Completed", { exact: true })).toBeVisible();
 
-  await page.getByRole("link", { name: "Members" }).click();
+  await page.goto(`${companyUrl}/members`);
   await page.getByLabel("Email").fill(`user-${run}@example.test`);
   await page.getByLabel("Role").selectOption("user");
   await page.getByRole("button", { name: "Send invitation" }).click();
@@ -54,7 +59,7 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   });
   await expect(page.getByLabel("Email")).toHaveValue("");
 
-  await page.goto(companyUrl);
+  await page.goto(`${companyUrl}/upload`);
   await page.locator('input[type="file"]').setInputFiles("tests/fixtures/receipt.png");
   const uploadFinished = page.waitForResponse(
     (response) =>
@@ -64,16 +69,15 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   );
   await page.getByRole("button", { name: "Upload" }).click();
   await uploadFinished;
+  await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+\/upload-batches\/[0-9a-f-]+$/);
+  const reviewBatch = page.getByRole("link", { name: "Review 1 Document" });
+  await expect(reviewBatch).toBeVisible({ timeout: 45_000 });
+  await page.reload();
+  await expect(reviewBatch).toBeVisible();
+  await reviewBatch.click();
+  await expect(page).toHaveURL(/\/documents\?status=needs_review&batchId=[0-9a-f-]+$/);
   const documents = page.getByRole("table", { name: "Documents" });
-  await expect
-    .poll(
-      async () => {
-        await page.reload();
-        return documents.getByRole("link").count();
-      },
-      { intervals: [1_000, 2_000], timeout: 45_000 },
-    )
-    .toBeGreaterThan(0);
+  await expect(documents.getByRole("link")).toHaveCount(1);
   await documents.getByRole("link").first().click();
 
   const documentNumber = `FV-E2E-${digits}`;
@@ -85,7 +89,7 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   await approve.click();
   await expect(page.getByText("Approved. The document counts towards VAT reports.")).toBeVisible();
 
-  await page.getByRole("link", { name: "VAT Reports" }).click();
+  await page.goto(`${companyUrl}/vat-reports`);
   const generate = page.locator("form").filter({
     has: page.getByRole("button", { name: "Generate draft" }),
   });
@@ -130,7 +134,7 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   await page.getByRole("button", { name: "Export and delete Company" }).click();
   const archive = await companyExport;
   expect(archive.suggestedFilename()).toMatch(/^iVAT-company-.*\.zip$/);
-  await expect(page).toHaveURL(/\/companies\/new$/, { timeout: 30_000 });
+  await expect(page).toHaveURL(/\/$/, { timeout: 30_000 });
   await expect(page.getByText(companyName, { exact: true })).toHaveCount(0);
   expect(externalRequests).toEqual([]);
 });

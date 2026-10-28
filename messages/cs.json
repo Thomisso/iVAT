@@ -194,6 +194,97 @@
       "outgoing": "Vydaný"
     }
   },
+  "uploadWorkspace": {
+    "newBatch": "Přidat zdrojové soubory",
+    "newBatchHint": "Nejprve proběhne přenos. Rozdělení a vytěžení pokračují na pozadí a zůstávají viditelné v této pracovní ploše.",
+    "history": "Historie dávek",
+    "historyHint": "Každá dávka zůstane dostupná po obnovení stránky i běžné navigaci.",
+    "batchCount": "{count, plural, one {# dávka} few {# dávky} other {# dávek}}",
+    "historyPage": "Strana {page}",
+    "historyPagination": "Stránky historie dávek",
+    "newerBatches": "← Novější dávky",
+    "olderBatches": "Starší dávky →",
+    "batchFiles": "Uloženo {count} z {planned} vybraných zdrojových souborů",
+    "batchSummary": "{waiting} se zpracovává · {review} ke kontrole · {failures} selhalo",
+    "noBatches": "Zatím tu není žádná dávka. Začněte přidáním zdrojových souborů.",
+    "outcome": {
+      "processing": "Zpracovává se",
+      "success": "Dokončeno",
+      "partial": "Dokončeno s chybami",
+      "failure": "Selhalo"
+    },
+    "backToUpload": "← Zpět na Nahrání",
+    "backToBatch": "← Zpět na dávku",
+    "batchTitle": "Dávka z {date}",
+    "waitingForAi": "Čeká na nastavení AI",
+    "waitingForAiHint": "Originály i doklady jsou bezpečně uložené. Čekající rozdělení nebo vytěžení začne, až administrátor zapne zpracování pomocí AI.",
+    "configureAi": "Nastavit zpracování pomocí AI",
+    "lifecycle": "Průběh dávky",
+    "phase": {
+      "transport": "Přenos",
+      "waiting": "Čekání",
+      "split": "Rozdělení",
+      "extraction": "Vytěžení",
+      "review": "Kontrola"
+    },
+    "phaseHint": {
+      "transport": "Uložení originálů",
+      "waiting": "Ve frontě na rozdělení nebo vytěžení",
+      "split": "Vznik dokladů",
+      "extraction": "Čtení každého dokladu",
+      "review": "Rozhodnutí člověka"
+    },
+    "reviewReadyTitle": "Doklady připravené ke kontrole",
+    "reviewReadyHint": "{count, plural, one {# doklad čeká na rozhodnutí.} few {# doklady čekají na rozhodnutí.} other {# dokladů čeká na rozhodnutí.}}",
+    "reviewAction": "Zkontrolovat {count, plural, one {# doklad} few {# doklady} other {# dokladů}}",
+    "failuresTitle": "Chyby a náprava",
+    "failuresHint": "Opakujte přesně ten krok, který selhal. Úspěšné doklady zůstávají dostupné.",
+    "transportFailures": "{count, plural, one {# vybraný soubor se při přenosu neuložil. Nahrajte jej znovu v nové dávce.} few {# vybrané soubory se při přenosu neuložily. Nahrajte je znovu v nové dávce.} other {# vybraných souborů se při přenosu neuložilo. Nahrajte je znovu v nové dávce.}}",
+    "splitFailed": "Rozdělení selhalo",
+    "retrySplit": "Opakovat rozdělení",
+    "extractionFailed": "Vytěžení selhalo",
+    "retryExtraction": "Opakovat vytěžení",
+    "sourceFilesTitle": "Zdrojové soubory a jejich doklady",
+    "sourceFilesHint": "Zdrojový soubor je uložený originál. Každý vnořený řádek je samostatný doklad vzniklý rozdělením.",
+    "documentPages": "Doklad · strany {first}–{last}",
+    "sourceStatus": {
+      "uploaded": "Čeká",
+      "processing": "Rozděluje se",
+      "split": "Rozděleno",
+      "failed": "Rozdělení selhalo"
+    },
+    "documentStatus": {
+      "uploaded": "Čeká na vytěžení",
+      "processing": "Vytěžuje se",
+      "needs_review": "Ke kontrole",
+      "approved": "Schváleno",
+      "rejected": "Zamítnuto",
+      "failed": "Vytěžení selhalo"
+    },
+    "noDocumentsFailed": "Při rozdělení nevznikl žádný doklad.",
+    "noDocumentsYet": "Doklady se zde objeví po rozdělení.",
+    "filteredQueue": "{count, plural, one {# doklad z této dávky} few {# doklady z této dávky} other {# dokladů z této dávky}}",
+    "document": "Doklad",
+    "status": "Stav",
+    "noQueueDocuments": "Tomuto filtru dávky neodpovídají žádné doklady.",
+    "notifications": "Oznámení o nahrání",
+    "notification": {
+      "success": {
+        "title": "Zpracování dávky skončilo",
+        "body": "{count, plural, one {Zpracování # zdrojového souboru skončilo.} few {Zpracování # zdrojových souborů skončilo.} other {Zpracování # zdrojových souborů skončilo.}} {review, plural, =0 {Žádný doklad nečeká na kontrolu.} one {# doklad je připraven ke kontrole.} few {# doklady jsou připravené ke kontrole.} other {# dokladů je připraveno ke kontrole.}}"
+      },
+      "partial": {
+        "title": "Dávka skončila s chybami",
+        "body": "{review, plural, one {# doklad je připraven ke kontrole} few {# doklady jsou připravené ke kontrole} other {# dokladů je připraveno ke kontrole}} a {failures, plural, one {# položka selhala.} few {# položky selhaly.} other {# položek selhalo.}}"
+      },
+      "failure": {
+        "title": "Zpracování dávky selhalo",
+        "body": "{failures, plural, one {# položka vyžaduje nápravu.} few {# položky vyžadují nápravu.} other {# položek vyžaduje nápravu.}} Otevřete dávku a zopakujte neúspěšný krok."
+      }
+    },
+    "openBatch": "Otevřít dávku",
+    "markRead": "Označit jako přečtené"
+  },
   "errors": {
     "organization_name_required": "Zadejte název organizace.",
     "email_taken": "Účet s tímto e-mailem už existuje.",
