@@ -358,8 +358,13 @@ body {
   display: flex;
   gap: var(--space-1);
 }
-.iv-field.is-invalid .iv-input {
+.iv-field.is-invalid .iv-input,
+.iv-field.is-invalid select,
+.validation-cell.is-invalid .iv-input {
   border-color: var(--danger);
+}
+.validation-cell .iv-field-error {
+  margin-top: var(--space-1);
 }
 
 /* Badge */
