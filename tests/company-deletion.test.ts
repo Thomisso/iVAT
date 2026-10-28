@@ -309,6 +309,42 @@ it("refuses deletion when Company data changed after its completed export", asyn
   expect(await getCompany(company.client, company.companyId)).not.toBeNull();
 });
 
+it("refuses an export receipt when Company data changes after its snapshot", async () => {
+  const company = await administratorWithCompany();
+  let announceSnapshot!: () => void;
+  let releaseSnapshot!: () => void;
+  const snapshotReady = new Promise<void>((resolve) => { announceSnapshot = resolve; });
+  const snapshotGate = new Promise<void>((resolve) => { releaseSnapshot = resolve; });
+  const delayedClient = new Proxy(company.client, {
+    get(target, property, receiver) {
+      if (property === "rpc") {
+        return async (...args: unknown[]) => {
+          const result = await Reflect.apply(target.rpc, target, args);
+          if (args[0] === "company_export_snapshot") {
+            announceSnapshot();
+            await snapshotGate;
+          }
+          return result;
+        };
+      }
+      const value = Reflect.get(target, property, receiver);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  }) as AppClient;
+  const exporting = exportCompanyData(delayedClient, { companyId: company.companyId });
+  await snapshotReady;
+  const changed = await uploadSourceFile(company.client, { async send() {} }, {
+    companyId: company.companyId,
+    fileName: "changed-after-snapshot.png",
+    bytes: fixtureFile("receipt.png"),
+  });
+  releaseSnapshot();
+  if (!changed.ok) throw new Error(changed.error);
+
+  expect(await exporting).toEqual({ ok: false, error: "stale_export" });
+  expect(await getCompany(company.client, company.companyId)).not.toBeNull();
+});
+
 it("throws unexpected Company export failures", async () => {
   const brokenClient = {
     rpc() {
@@ -333,7 +369,7 @@ it("does not expose Company export receipts through direct table reads or writes
   ];
   for (const read of reads) expect(read.error?.code).toBe("42501");
   const attempts = [
-    await company.client.from("company_data_export").insert({
+    await outsider.client.from("company_data_export").insert({
       id: "00000000-0000-4000-8000-000000000099",
       company_id: company.companyId,
       organization_id: company.organizationId,
@@ -342,8 +378,8 @@ it("does not expose Company export receipts through direct table reads or writes
       byte_size: 1,
       sha256: "0".repeat(64),
     }),
-    await company.client.from("company_data_export").update({ file_name: "changed.zip" }).eq("id", exported.value.exportId),
-    await company.client.from("company_data_export").delete().eq("id", exported.value.exportId),
+    await outsider.client.from("company_data_export").update({ file_name: "changed.zip" }).eq("id", exported.value.exportId),
+    await outsider.client.from("company_data_export").delete().eq("id", exported.value.exportId),
   ];
   for (const attempt of attempts) expect(attempt.error?.code).toBe("42501");
 });
