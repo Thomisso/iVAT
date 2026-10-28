@@ -7,6 +7,7 @@ import {
 import type { SystemClient } from "@/application/client";
 import { resolvePlatformAiProvider } from "@/application/platform-ai";
 import {
+  EXTRACTION_PROMPT,
   EXTRACTION_SCHEMA,
   extractionPayload,
   pageRanges,
@@ -118,7 +119,7 @@ export function anthropicAiProvider(options: AnthropicAiProviderOptions): AiProv
         options,
         options.extractModel,
         input,
-        "Extract the Document fields exactly as shown. Use null when a field is not present; never infer tax treatment beyond the proposed VAT Regime.",
+        EXTRACTION_PROMPT,
         EXTRACTION_SCHEMA,
       );
       return {
