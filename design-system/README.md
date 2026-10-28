@@ -1,5 +1,11 @@
 # iVAT design system
 
+> Redesign note: for specification #73, the validated direction in
+> `docs/design/visual-direction.md` supersedes this artifact's brand, layout,
+> motion and AI-evidence guidance. Existing tokens and components remain useful
+> migration input, but confidence, source highlighting and the placeholder
+> wordmark must not be carried into the redesign without real supporting data.
+
 The visual language for the iVAT app: tokens, usage rules and reference components. It is a reference for building the Next.js UI; nothing in `src/` imports it directly. The live, browsable version is the artifact at https://claude.ai/artifact/RRacoci1FeuFoymcxj3pR6.
 
 ## Files
