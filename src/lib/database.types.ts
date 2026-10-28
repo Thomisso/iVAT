@@ -2,7 +2,7 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
 
 export type Database = {
-
+  
   "graphql_public": {
           Tables: {
             [_ in never]: never
@@ -61,7 +61,7 @@ isOneToOne: false
                     "action"?: string,"actor_user_id"?: string | null,"company_id"?: string | null,"id"?: never,"occurred_at"?: string,"organization_id"?: string,"payload"?: NonNullable<Json>,"target_id"?: string | null,"target_type"?: string
                   }
                   Relationships: [
-
+                    
                   ]
                 },"company": {
                   Row: {
@@ -141,6 +141,12 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "document"
       referencedColumns: ["id","company_id","organization_id"]
+    },{
+      foreignKeyName: "extraction_version_document_id_company_id_organization_id_fkey"
+      columns: ["document_id","company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "document_duplicate_warning"
+      referencedColumns: ["document_id","company_id","organization_id"]
     },{
       foreignKeyName: "extraction_version_document_id_company_id_organization_id_fkey"
       columns: ["document_id","company_id","organization_id"]
@@ -239,7 +245,7 @@ isOneToOne: false
                     "created_at"?: string,"id"?: string,"mfa_required"?: boolean,"name"?: string
                   }
                   Relationships: [
-
+                    
                   ]
                 },"organization_ai_provider_key": {
                   Row: {
@@ -305,7 +311,7 @@ isOneToOne: false
                     "available"?: boolean,"extract_model"?: string,"platform_key_last_four"?: string | null,"platform_key_secret_id"?: string | null,"provider"?: string,"split_model"?: string,"updated_at"?: string,"updated_by"?: string | null
                   }
                   Relationships: [
-
+                    
                   ]
                 },"platform_settings": {
                   Row: {
@@ -319,7 +325,7 @@ isOneToOne: false
                     "max_source_file_bytes"?: number,"max_source_file_pages"?: number,"max_upload_batch_files"?: number,"singleton"?: boolean
                   }
                   Relationships: [
-
+                    
                   ]
                 },"platform_user": {
                   Row: {
@@ -333,7 +339,7 @@ isOneToOne: false
                     "created_at"?: string,"role"?: Database["public"]['Enums']["platform_role"],"user_id"?: string
                   }
                   Relationships: [
-
+                    
                   ]
                 },"source_file": {
                   Row: {
@@ -410,7 +416,15 @@ isOneToOne: false
                 }
           }
           Views: {
-            "document_overview": {
+            "document_duplicate_warning": {
+                  Row: {
+                    "company_id": string,"document_id": string,"kind": string | null,"matched_document_id": string | null,"organization_id": string
+                  }
+                  ComputedFields: never
+                  Relationships: [
+                    
+                  ]
+                },"document_overview": {
                   Row: {
                     "company_id": string,"counterparty_ico": string | null,"counterparty_name": string | null,"counterparty_search": string | null,"counterparty_vat_id": string | null,"created_at": string,"currency": string | null,"direction": string | null,"document_number": string | null,"first_page": number,"gross_amount": string | null,"id": string,"last_page": number,"organization_id": string,"reporting_period": string | null,"source_file_id": string,"status": Database["public"]['Enums']["document_status"],"tax_point_date": string | null,"version": number | null
                   }
@@ -430,7 +444,7 @@ isOneToOne: false
                   }
                   ComputedFields: never
                   Relationships: [
-
+                    
                   ]
                 }
           }
@@ -689,7 +703,7 @@ export type CompositeTypes<
 export const Constants = {
   "graphql_public": {
           Enums: {
-
+            
           }
         },"public": {
           Enums: {
