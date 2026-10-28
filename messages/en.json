@@ -169,6 +169,7 @@
     "invalid_date": "Enter dates that exist.",
     "invalid_currency": "The currency must be a three-letter code, such as CZK.",
     "invalid_country": "The country must be a two-letter code, such as CZ.",
+    "invalid_reverse_charge_code": "The reverse-charge subject code must contain one to three digits.",
     "one_file_required": "Choose one Source File to upload.",
     "invalid_reporting_period": "Select a valid month (2000–2099).",
     "stale_report": "Documents changed during generation. Generate the draft again.",
@@ -368,7 +369,9 @@
       "unpublished_bank_account": "The payment account is not published for this supplier in the VAT payer registry.",
       "vat_registry_check_not_performed": "The VAT payer registry was unavailable, so the supplier and payment account check was not performed.",
       "direction_unknown": "Direction could not be detected from the Company identity. Set it before approval.",
-      "currency_conversion_not_performed": "The ČNB exchange rate was unavailable, so CZK amounts could not be calculated."
+      "currency_conversion_not_performed": "The ČNB exchange rate was unavailable, so CZK amounts could not be calculated.",
+      "manual_classification_required": "This VAT treatment is outside the supported regimes and requires manual classification.",
+      "reverse_charge_code_required": "Enter the official reverse-charge subject code."
     },
     "noDocumentImage": "This Document came from spreadsheet rows and has no document image.",
     "sections": {
@@ -388,6 +391,7 @@
       "direction": "Direction",
       "vatRegime": "VAT regime",
       "currency": "Currency",
+      "reverseChargeCode": "Reverse-charge subject code",
       "originalDocumentNumber": "Corrected document number",
       "name": "Name",
       "ico": "IČO",
@@ -459,7 +463,7 @@
     "generate": "Generate draft",
     "regenerate": "Generate / regenerate draft",
     "none": "No draft for this Reporting Period",
-    "scope": "Monthly domestic supplies in CZK at 21% and 12%. Other Documents are listed as excluded.",
+    "scope": "Monthly domestic, reverse-charge and supported EU supplies at 21% and 12%. Other Documents are listed as excluded.",
     "draft": "Draft · {period}",
     "generated": "Generated {date}",
     "snapshot": "Saved snapshot. Later approvals appear after regeneration. Expand an amount to see its contributing Documents.",
@@ -481,8 +485,17 @@
     "lines": {
       "1": "1 · Domestic output, standard rate",
       "2": "2 · Domestic output, reduced rate",
+      "3": "3 · EU goods acquisition, standard rate",
+      "4": "4 · EU goods acquisition, reduced rate",
+      "5": "5 · EU received service, standard rate",
+      "6": "6 · EU received service, reduced rate",
+      "10": "10 · Domestic reverse charge received, standard rate",
+      "11": "11 · Domestic reverse charge received, reduced rate",
+      "25": "25 · Domestic reverse charge supplied",
       "40": "40 · Domestic input, standard rate",
-      "41": "41 · Domestic input, reduced rate"
+      "41": "41 · Domestic input, reduced rate",
+      "43": "43 · Self-assessed input deduction, standard rate",
+      "44": "44 · Self-assessed input deduction, reduced rate"
     },
     "reasons": {
       "not_approved": "Not Approved",

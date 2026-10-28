@@ -111,7 +111,11 @@ function identifierFindings(payload: ExtractionPayload): ValidationFinding[] {
       }
     }
     if (party.vatId) {
-      const result = validateCzechVatId(party.vatId);
+      const result = party.vatId.startsWith("CZ")
+        ? validateCzechVatId(party.vatId)
+        : /^[A-Z]{2}[A-Z0-9+*.]{2,12}$/.test(party.vatId)
+          ? "valid"
+          : "invalid_format";
       if (result !== "valid") {
         findings.push(
           error(
@@ -153,6 +157,14 @@ function requiredFieldFindings(payload: ExtractionPayload): ValidationFinding[] 
       ),
     );
   }
+  if (
+    payload.proposedVatRegime === "domestic_reverse_charge" &&
+    !payload.reverseChargeCode
+  ) {
+    findings.push(
+      error("reverseChargeCode", "reverse_charge_code_required"),
+    );
+  }
   return findings;
 }
 
@@ -167,6 +179,16 @@ export function validateDocument(
   ];
   if (payload.direction === null) {
     findings.push(warning("direction", "direction_unknown"));
+  }
+  if (
+    payload.proposedVatRegime === "other" ||
+    ((payload.proposedVatRegime === "eu_acquisition_of_goods" ||
+      payload.proposedVatRegime === "eu_received_service") &&
+      payload.direction === "outgoing")
+  ) {
+    findings.push(
+      warning("proposedVatRegime", "manual_classification_required"),
+    );
   }
   const validRates = payload.taxPointDate
     ? referenceData.vatRates.find(
@@ -198,11 +220,12 @@ export function validateDocument(
     }
     rateNetCents += netCents;
     rateVatCents += vatCents;
+    const selfAssessed =
+      payload.proposedVatRegime === "domestic_reverse_charge" ||
+      payload.proposedVatRegime === "eu_acquisition_of_goods" ||
+      payload.proposedVatRegime === "eu_received_service";
     const expectedVatCents = Math.round((netCents * line.rate) / 100);
-    if (
-      Math.abs(expectedVatCents - vatCents) >
-      referenceData.roundingToleranceCents
-    ) {
+    if (!selfAssessed && Math.abs(expectedVatCents - vatCents) > referenceData.roundingToleranceCents) {
       findings.push(
         error(
           `rateBreakdown.${index}.vatAmount`,

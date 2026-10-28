@@ -104,7 +104,7 @@ describe("Document validation", () => {
     ).toEqual([]);
   });
 
-  it("checks the format and checksum of IČO and Czech VAT IDs", () => {
+  it("checks IČO and Czech VAT ID checksums without rejecting foreign VAT IDs", () => {
     const payload = {
       ...SAMPLE_EXTRACTION,
       supplier: {
@@ -136,11 +136,6 @@ describe("Document validation", () => {
         field: "customer.ico",
         severity: "error",
         code: "invalid_ico_format",
-      },
-      {
-        field: "customer.vatId",
-        severity: "error",
-        code: "invalid_vat_id_format",
       },
     ]);
   });
@@ -201,5 +196,52 @@ describe("Document validation", () => {
         CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA,
       ),
     ).toEqual([]);
+  });
+
+  it("accepts an EU supplier VAT ID for an EU acquisition", () => {
+    expect(
+      validateDocument(
+        {
+          ...SAMPLE_EXTRACTION,
+          proposedVatRegime: "eu_acquisition_of_goods",
+          supplier: {
+            ...SAMPLE_EXTRACTION.supplier,
+            vatId: "DE123456789",
+            country: "DE",
+          },
+        },
+        CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA,
+      ),
+    ).not.toContainEqual(
+      expect.objectContaining({ code: "invalid_vat_id_format" }),
+    );
+  });
+
+  it("flags unsupported VAT treatment and a missing reverse-charge subject code in review", () => {
+    expect(
+      validateDocument(
+        { ...SAMPLE_EXTRACTION, proposedVatRegime: "other" },
+        CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA,
+      ),
+    ).toContainEqual({
+      field: "proposedVatRegime",
+      severity: "warning",
+      code: "manual_classification_required",
+    });
+    expect(
+      validateDocument(
+        {
+          ...SAMPLE_EXTRACTION,
+          proposedVatRegime: "domestic_reverse_charge",
+          direction: "outgoing",
+          reverseChargeCode: null,
+        },
+        CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA,
+      ),
+    ).toContainEqual({
+      field: "reverseChargeCode",
+      severity: "error",
+      code: "reverse_charge_code_required",
+    });
   });
 });

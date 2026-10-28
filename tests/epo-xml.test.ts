@@ -53,6 +53,88 @@ function domesticReport() {
     ),
   );
 }
+function regimesReport() {
+  const cases = [
+    {
+      proposedVatRegime: "domestic_reverse_charge",
+      direction: "outgoing",
+      rate: 21,
+      netAmount: "1000.00",
+      supplierVatId: "CZ27082440",
+      supplierCountry: "CZ",
+      customerVatId: "CZ45274649",
+      customerCountry: "CZ",
+      reverseChargeCode: "4",
+    },
+    {
+      proposedVatRegime: "domestic_reverse_charge",
+      direction: "incoming",
+      rate: 12,
+      netAmount: "500.00",
+      supplierVatId: "CZ45274649",
+      supplierCountry: "CZ",
+      customerVatId: "CZ27082440",
+      customerCountry: "CZ",
+      reverseChargeCode: "4",
+    },
+    {
+      proposedVatRegime: "eu_acquisition_of_goods",
+      direction: "incoming",
+      rate: 21,
+      netAmount: "200.00",
+      supplierVatId: "DE123456789",
+      supplierCountry: "DE",
+      customerVatId: "CZ27082440",
+      customerCountry: "CZ",
+      reverseChargeCode: null,
+    },
+    {
+      proposedVatRegime: "eu_received_service",
+      direction: "incoming",
+      rate: 12,
+      netAmount: "300.00",
+      supplierVatId: "SK2021234567",
+      supplierCountry: "SK",
+      customerVatId: "CZ27082440",
+      customerCountry: "CZ",
+      reverseChargeCode: null,
+    },
+  ] as const;
+  return computeVatReport(
+    company,
+    "2026-10",
+    cases.map((entry, index): ReportDocument => ({
+      id: `regime-${index + 1}`,
+      extractionVersionId: `regime-version-${index + 1}`,
+      status: "approved",
+      payload: {
+        ...SAMPLE_EXTRACTION,
+        proposedVatRegime: entry.proposedVatRegime,
+        direction: entry.direction,
+        documentNumber: `RC-${index + 1}`,
+        reverseChargeCode: entry.reverseChargeCode,
+        supplier: {
+          ...SAMPLE_EXTRACTION.supplier,
+          vatId: entry.supplierVatId,
+          country: entry.supplierCountry,
+        },
+        customer: {
+          ...SAMPLE_EXTRACTION.customer,
+          vatId: entry.customerVatId,
+          country: entry.customerCountry,
+        },
+        rateBreakdown: [
+          { rate: entry.rate, netAmount: entry.netAmount, vatAmount: "0.00" },
+        ],
+        totals: {
+          netAmount: entry.netAmount,
+          vatAmount: "0.00",
+          grossAmount: entry.netAmount,
+        },
+      },
+    })),
+  );
+}
 it("exports the saved domestic VAT Return, with rounded lines, reconciled totals and the Company header", async () => {
   const result = await createEpoXml(domesticReport(), "dphdp3", details);
   expect(result).toEqual({
@@ -73,6 +155,19 @@ it("exports individual and aggregate Control Statement sections with unrounded a
     ),
   });
 });
+it.each(["dphdp3", "dphkh1"] as const)(
+  "exports reverse-charge and EU regimes as XSD-valid golden %s XML",
+  async (format) => {
+    const result = await createEpoXml(regimesReport(), format, details);
+    expect(result).toEqual({
+      ok: true,
+      value: fs.readFileSync(
+        path.join(__dirname, `fixtures/epo/regimes-${format}.xml`),
+        "utf8",
+      ),
+    });
+  },
+);
 it.each(["dphdp3", "dphkh1"] as const)(
   "blocks %s whose Company header violates the official XSD",
   async (format) => {

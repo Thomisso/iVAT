@@ -47,6 +47,7 @@ const CORRECTED: ExtractionPayload = {
   documentNumber: "FV-2026-0002",
   direction: "outgoing",
   proposedVatRegime: "domestic_reverse_charge",
+  reverseChargeCode: "4",
   rateBreakdown: [
     { rate: 21, netAmount: "1000.00", vatAmount: "210.00" },
     { rate: 12, netAmount: "500.00", vatAmount: "60.00" },
