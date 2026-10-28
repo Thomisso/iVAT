@@ -341,15 +341,40 @@ describe("AI-processing consent", () => {
     ]);
   });
 
-  it("covers only the provider and region it was given for", async () => {
+  it("retries Split on a provider-region mismatch, then marks the Source File failed", async () => {
     const worker = testWorker(fakeAiProvider());
     const { client, companyId } = await administratorWithCompany();
     await enableAiProcessing(client, worker.jobs, { companyId, provider: { name: "fake", region: "elsewhere" } });
 
     const sourceFileId = await upload({ client, companyId }, worker);
-    await worker.runJobs();
-
+    await expect(worker.runJobs({ final: false })).resolves.toEqual([
+      expect.objectContaining({
+        message: 'AI provider "fake" in region "elsewhere" is not configured on this worker',
+      }),
+    ]);
     expect((await getSourceFile(client, companyId, sourceFileId))?.status).toBe("uploaded");
+
+    worker.queued.push({ name: "split-source-file", data: { sourceFileId } });
+    await expect(worker.runJobs()).resolves.toHaveLength(1);
+    expect((await getSourceFile(client, companyId, sourceFileId))?.status).toBe("failed");
+  });
+
+  it("retries Split when this worker does not have the Company's selected provider, then fails clearly", async () => {
+    const configured = testWorker();
+    const unavailable = testWorker([]);
+    const { client, companyId } = await companyWithAiProcessing(configured);
+    const sourceFileId = await upload({ client, companyId }, unavailable, "receipt.png");
+
+    await expect(unavailable.runJobs({ final: false })).resolves.toEqual([
+      expect.objectContaining({
+        message: 'AI provider "fake" in region "local" is not configured on this worker',
+      }),
+    ]);
+    expect((await getSourceFile(client, companyId, sourceFileId))?.status).toBe("uploaded");
+
+    unavailable.queued.push({ name: "split-source-file", data: { sourceFileId } });
+    await expect(unavailable.runJobs()).resolves.toHaveLength(1);
+    expect((await getSourceFile(client, companyId, sourceFileId))?.status).toBe("failed");
   });
 
   it("uses and audits the provider selected in the Company's consent", async () => {
@@ -678,6 +703,27 @@ describe("Split", () => {
 });
 
 describe("Extraction", () => {
+  it("retries when this worker does not have the Company's selected provider, then fails the Document clearly", async () => {
+    const configured = testWorker();
+    const unavailable = testWorker([]);
+    const { client, companyId } = await companyWithAiProcessing(configured);
+    const sourceFileId = await upload({ client, companyId }, configured, "receipt.png");
+    await configured.runNextJob();
+    const [document] = await listDocuments(client, companyId, sourceFileId);
+    unavailable.queued.push({ name: "extract-document", data: { documentId: document.id } });
+
+    await expect(unavailable.runJobs({ final: false })).resolves.toEqual([
+      expect.objectContaining({
+        message: 'AI provider "fake" in region "local" is not configured on this worker',
+      }),
+    ]);
+    expect((await listDocuments(client, companyId, sourceFileId))[0].status).toBe("uploaded");
+
+    unavailable.queued.push({ name: "extract-document", data: { documentId: document.id } });
+    await expect(unavailable.runJobs()).resolves.toHaveLength(1);
+    expect((await listDocuments(client, companyId, sourceFileId))[0].status).toBe("failed");
+  });
+
   it("fails only the Document whose Extraction failed, and can be retried", async () => {
     let failing = true;
     let calls = 0;
