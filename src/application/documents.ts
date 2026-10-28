@@ -332,14 +332,14 @@ export async function correctDocument(
 export async function approveDocument(
   client: AppClient,
   input: { companyId: string; documentId: string; version: number },
-): Promise<Result<null, "not_in_review" | "stale_version" | "forbidden">> {
+): Promise<Result<null, "not_in_review" | "stale_version" | "direction_required" | "forbidden">> {
   const document = await findDocumentId(client, input.companyId, input.documentId);
   if (!document) return { ok: false, error: "forbidden" };
   const { error } = await client.rpc("approve_document", {
     target_document_id: document,
     reviewed_version: input.version,
   });
-  if (error) return refusal(error, ["not_in_review", "stale_version"]);
+  if (error) return refusal(error, ["not_in_review", "stale_version", "direction_required"]);
   return { ok: true, value: null };
 }
 

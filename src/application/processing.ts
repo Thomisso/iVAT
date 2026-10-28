@@ -18,6 +18,8 @@ import {
   vatRegistryFindings,
   type VatPayerRegistry,
 } from "./vat-registry";
+import { detectDocumentDirection } from "./direction-detection";
+import type { Direction } from "./extraction-payload";
 
 // Background processing (ADR-0004): Split per Source File, then Extract per
 // Document. Jobs carry only ids; the state lives in the database, which makes
@@ -168,7 +170,7 @@ async function extractDocument(
 ) {
   const { data: document, error } = await system
     .from("document")
-    .select("id, organization_id, company_id, source_file_id, first_page, last_page, source_sheet, first_row, last_row, status, superseded_at, extraction_request_id, source_file (format)")
+    .select("id, organization_id, company_id, source_file_id, first_page, last_page, source_sheet, first_row, last_row, status, superseded_at, extraction_request_id, source_file (format, preselected_direction)")
     .eq("id", documentId)
     .single();
   if (error) throw error;
@@ -196,7 +198,21 @@ async function extractDocument(
       ? { firstPage: document.first_page, lastPage: document.last_page }
       : { sheetName: document.source_sheet!, firstRow: document.first_row, lastRow: document.last_row! };
     const input = await documentInput(document.source_file!.format, bytes, range);
-    const { model, payload, usage } = await ai.extract(input, { organizationId: document.organization_id });
+    const { model, payload: extractedPayload, usage } = await ai.extract(input, { organizationId: document.organization_id });
+    const { data: company, error: companyError } = await system
+      .from("company")
+      .select("ico, vat_id")
+      .eq("id", document.company_id)
+      .single();
+    if (companyError) throw companyError;
+    const payload = {
+      ...extractedPayload,
+      direction: detectDocumentDirection(
+        extractedPayload,
+        { ico: company.ico, vatId: company.vat_id },
+        document.source_file!.preselected_direction as Direction | null,
+      ),
+    };
     const metered = await system.rpc("record_ai_usage", {
       target_organization_id: document.organization_id,
       target_company_id: document.company_id,

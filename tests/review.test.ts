@@ -32,6 +32,7 @@ async function documentInReview(extraction: ExtractionPayload = SAMPLE_EXTRACTIO
     companyId: admin.companyId,
     fileName: "receipt.png",
     bytes: fixtureFile("receipt.png"),
+    preselectedDirection: extraction.direction ?? undefined,
   });
   if (!uploaded.ok) throw new Error(uploaded.error);
   await worker.runJobs();
@@ -208,6 +209,42 @@ describe("correcting a Document", () => {
 });
 
 describe("approving and rejecting a Document", () => {
+  it("refuses approval while Direction is unknown", async () => {
+    const document = await documentInReview({
+      ...SAMPLE_EXTRACTION,
+      direction: null,
+    });
+
+    expect(
+      await approveDocument(document.client, { ...document, version: 1 }),
+    ).toEqual({ ok: false, error: "direction_required" });
+    expect(
+      (await listDocuments(
+        document.client,
+        document.companyId,
+        document.sourceFileId,
+      ))[0].status,
+    ).toBe("needs_review");
+  });
+
+  it("allows approval after a User sets the unknown Direction", async () => {
+    const document = await documentInReview({
+      ...SAMPLE_EXTRACTION,
+      direction: null,
+    });
+
+    expect(
+      await correctDocument(document.client, {
+        ...document,
+        basedOnVersion: 1,
+        payload: SAMPLE_EXTRACTION,
+      }),
+    ).toEqual({ ok: true, value: { version: 2 } });
+    expect(
+      await approveDocument(document.client, { ...document, version: 2 }),
+    ).toEqual({ ok: true, value: null });
+  });
+
   it("lets a User of the Company approve the version they reviewed, and audits it", async () => {
     const document = await documentInReview();
     const member = await companyMember(document);
@@ -311,6 +348,7 @@ describe("the Document list", () => {
         companyId: admin.companyId,
         fileName: "receipt.png",
         bytes: fixtureFile("receipt.png"),
+        preselectedDirection: extractions[i].direction ?? undefined,
       });
       if (!uploaded.ok) throw new Error(uploaded.error);
       sourceFileIds.push(uploaded.value.id);
