@@ -23,12 +23,29 @@ describe("Source File upload", () => {
         byteSize: 1303,
         sha256: "79ae60b6a1040a3eaf64d441f2fa48f627a18d1e5c1ad831ba6919e9e9c663ea",
         pageCount: 2,
+        preselectedDirection: null,
         status: "uploaded",
         uploadedAt: expect.any(String),
       },
     ]);
     const stored = await readSourceFile(client, companyId, result.value.id);
     expect(stored?.bytes).toEqual(pdf);
+  });
+
+  it("stores an optional Direction preselection with the Source File", async () => {
+    const { client, companyId } = await administratorWithCompany();
+
+    const result = await uploadSourceFile(client, testWorker().jobs, {
+      companyId,
+      fileName: "receipt.png",
+      bytes: fixtureFile("receipt.png"),
+      preselectedDirection: "outgoing",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(await listSourceFiles(client, companyId)).toEqual([
+      expect.objectContaining({ preselectedDirection: "outgoing" }),
+    ]);
   });
 
   it.each([
