@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
 import { mergeDocumentsAction, moveDocumentPageAction, reprocessDocumentAction, retrySplitAction } from "@/app/actions";
-import { getCompany } from "@/application/companies";
+import { getCompany, getMyCompanyRole } from "@/application/companies";
 import { isBeingExtracted, listDocuments, listExtractionVersions } from "@/application/documents";
 import { getSourceFile } from "@/application/source-files";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -22,9 +22,10 @@ export default async function SourceFilePage({
 }: PageProps<"/companies/[companyId]/source-files/[sourceFileId]">) {
   const { companyId, sourceFileId } = await params;
   const client = await requireUserClient();
-  const [company, file] = await Promise.all([
+  const [company, file, role] = await Promise.all([
     getCompany(client, companyId),
     getSourceFile(client, companyId, sourceFileId),
+    getMyCompanyRole(client, companyId),
   ]);
   if (!company || !file) notFound();
   const documents = await Promise.all(
@@ -73,8 +74,11 @@ export default async function SourceFilePage({
             <StatusBadge status={statusBadgeState(file.status, "source-file")}>
               {t(`sourceFileStatus.${file.status}`)}
             </StatusBadge>
-            {!company.aiProcessing && <span className="iv-muted"> · {t("aiProcessing.waiting")}</span>}
+            {!company.aiProcessing && <span className="iv-muted"> · {t("aiProcessing.waitingTitle")}</span>}
           </p>
+          {!company.aiProcessing && role === "administrator" && <p>
+            <Link href={`/companies/${companyId}/settings`}>{t("aiProcessing.configureAction")}</Link>
+          </p>}
           {file.status === "failed" && (
             <CommandButton
               variant="ai"

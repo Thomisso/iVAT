@@ -313,7 +313,11 @@ describe("AI-processing consent", () => {
     expect(await enableAiProcessing(client, worker.jobs, { companyId, provider: ai })).toEqual({ ok: true, value: null });
     await worker.runJobs();
 
-    expect((await getCompany(client, companyId))?.aiProcessing).toEqual({ provider: "fake", region: "local" });
+    expect((await getCompany(client, companyId))?.aiProcessing).toEqual({
+      provider: "fake",
+      region: "local",
+      credentialSource: "local",
+    });
     expect(calls).toEqual({ split: 1, extract: 2 });
     expect((await listDocuments(client, companyId, sourceFileId)).map((d) => d.status)).toEqual([
       "needs_review",
@@ -342,14 +346,17 @@ describe("AI-processing consent", () => {
   });
 
   it("retries Split on a provider-region mismatch, then marks the Source File failed", async () => {
-    const worker = testWorker(fakeAiProvider());
+    const worker = testWorker({ ...fakeAiProvider(), region: "elsewhere" });
     const { client, companyId } = await administratorWithCompany();
-    await enableAiProcessing(client, worker.jobs, { companyId, provider: { name: "fake", region: "elsewhere" } });
+    await enableAiProcessing(client, worker.jobs, {
+      companyId,
+      provider: { name: "fake", region: "local" },
+    });
 
     const sourceFileId = await upload({ client, companyId }, worker);
     await expect(worker.runJobs({ final: false })).resolves.toEqual([
       expect.objectContaining({
-        message: 'AI provider "fake" in region "elsewhere" is not configured on this worker',
+        message: 'AI provider "fake" in region "local" is not configured on this worker',
       }),
     ]);
     expect((await getSourceFile(client, companyId, sourceFileId))?.status).toBe("uploaded");
@@ -377,25 +384,16 @@ describe("AI-processing consent", () => {
     expect((await getSourceFile(client, companyId, sourceFileId))?.status).toBe("failed");
   });
 
-  it("uses and audits the provider selected in the Company's consent", async () => {
+  it("uses and audits the explicitly selected credential boundary", async () => {
     let fakeCalls = 0;
-    let openAiCalls = 0;
     const fake = fakeAiProvider({
       split: () => (++fakeCalls, [{ firstPage: 1, lastPage: 1 }]),
       extract: () => (++fakeCalls, SAMPLE_EXTRACTION),
     });
-    const openai = {
-      ...fakeAiProvider({
-        split: () => (++openAiCalls, [{ firstPage: 1, lastPage: 1 }]),
-        extract: () => (++openAiCalls, SAMPLE_EXTRACTION),
-      }),
-      name: "openai",
-      region: "global",
-    };
-    const worker = testWorker([fake, openai]);
+    const worker = testWorker(fake);
     const { client, userId, organizationId, companyId } = await administratorWithCompany();
 
-    expect(await enableAiProcessing(client, worker.jobs, { companyId, provider: openai })).toEqual({
+    expect(await enableAiProcessing(client, worker.jobs, { companyId, provider: fake })).toEqual({
       ok: true,
       value: null,
     });
@@ -403,40 +401,33 @@ describe("AI-processing consent", () => {
     await worker.runJobs();
 
     const [document] = await listDocuments(client, companyId, sourceFileId);
-    expect(fakeCalls).toBe(0);
-    expect(openAiCalls).toBe(2);
+    expect(fakeCalls).toBe(2);
     expect((await listExtractionVersions(client, companyId, document.id))[0].author).toEqual({
       kind: "ai",
-      provider: "openai",
+      provider: "fake",
       model: "fake-extract",
     });
-    expect(await enableAiProcessing(client, worker.jobs, { companyId, provider: fake })).toEqual({
-      ok: true,
-      value: null,
+    expect((await getCompany(client, companyId))?.aiProcessing).toEqual({
+      provider: "fake",
+      region: "local",
+      credentialSource: "local",
     });
-    expect((await getCompany(client, companyId))?.aiProcessing).toEqual({ provider: "fake", region: "local" });
     await disableAiProcessing(client, companyId);
 
     const aiConsentEvents = (await listAuditEvents(client, organizationId))
       .filter((event) => event.action.startsWith("company.ai_processing_"));
-    expect(aiConsentEvents.slice(-3)).toEqual([
+    expect(aiConsentEvents.slice(-2)).toEqual([
       expect.objectContaining({
         action: "company.ai_processing_enabled",
         actorUserId: userId,
         companyId,
-        payload: { provider: "openai", region: "global" },
-      }),
-      expect.objectContaining({
-        action: "company.ai_processing_enabled",
-        actorUserId: userId,
-        companyId,
-        payload: { provider: "fake", region: "local" },
+        payload: { provider: "fake", region: "local", credential_source: "local" },
       }),
       expect.objectContaining({
         action: "company.ai_processing_disabled",
         actorUserId: userId,
         companyId,
-        payload: { provider: "fake", region: "local" },
+        payload: { provider: "fake", region: "local", credential_source: "local" },
       }),
     ]);
   });
@@ -454,7 +445,8 @@ describe("AI-processing consent", () => {
       .select("id");
 
     expect(enabled).toEqual({ ok: false, error: "forbidden" });
-    expect(direct.data).toEqual([]);
+    expect(direct.error?.code).toBe("42501");
+    expect(direct.data).toBeNull();
     expect((await getCompany(a.client, a.companyId))?.aiProcessing).toBeNull();
   });
 });
