@@ -1,20 +1,32 @@
-import { createElement } from "react";
+import {
+  createElement,
+  type ComponentProps,
+  type ComponentType,
+  type ReactNode,
+} from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
 import { NextIntlClientProvider } from "next-intl";
 import { VisualPrototype } from "@/components/visual-prototype";
 import messages from "../messages/en.json";
 
+type TestProviderProps = Omit<
+  ComponentProps<typeof NextIntlClientProvider>,
+  "children"
+> & { children?: ReactNode };
+
+const TestProvider = NextIntlClientProvider as ComponentType<TestProviderProps>;
+
 function render(screen: Parameters<typeof VisualPrototype>[0]["screen"]) {
   return renderToStaticMarkup(
     createElement(
-      NextIntlClientProvider,
+      TestProvider,
       {
         locale: "en",
         messages,
         timeZone: "Europe/Prague",
-        children: createElement(VisualPrototype, { screen }),
       },
+      createElement(VisualPrototype, { screen }),
     ),
   );
 }

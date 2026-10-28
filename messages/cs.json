@@ -610,6 +610,7 @@
     },
     "navigation": {
       "label": "Navigace společnosti",
+      "sidebar": "Kontext společnosti",
       "overview": "Přehled",
       "upload": "Nahrání",
       "documents": "Doklady",
@@ -620,6 +621,7 @@
     "overview": {
       "title": "Dobré ráno, Jano",
       "description": "Práce, která čeká na vaši pozornost ve společnosti Ateliér Novák.",
+      "summaryLabel": "Souhrn zpracování",
       "upload": "Nahrát doklady",
       "ribbon": {
         "label": "Cesta zpracování dokladů",
