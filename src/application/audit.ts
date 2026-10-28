@@ -32,6 +32,7 @@ export type AuditEventFilters = {
 export type AuditEventPageInput = AuditEventFilters & { page?: number; pageSize?: number };
 
 export type AuditActor = { userId: string; email: string };
+export type AuditCompany = { id: string; name: string };
 
 function auditDate(value: string | undefined): Date | null {
   if (!value || !/^20\d{2}-\d{2}-\d{2}$/.test(value)) return null;
@@ -70,6 +71,15 @@ export async function listAuditActors(client: AppClient, organizationId: string)
   if (error?.code === "42501") return [];
   if (error) throw error;
   return data.map((actor) => ({ userId: actor.user_id, email: actor.email }));
+}
+
+/** Active and soft-deleted Companies that can be selected in the Organization audit filter. */
+export async function listAuditCompanies(client: AppClient, organizationId: string): Promise<AuditCompany[]> {
+  if (!isUuid(organizationId)) return [];
+  const { data, error } = await client.rpc("audit_companies", { target_organization_id: organizationId });
+  if (error?.code === "42501") return [];
+  if (error) throw error;
+  return data.map((company) => ({ id: company.id, name: company.name }));
 }
 
 /** A newest-first page of an Organization's audit events. RLS limits this to Organization Administrators. */

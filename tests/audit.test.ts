@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { listAuditActors, listAuditEventPage, listAuditEvents } from "@/application/audit";
+import { listAuditActors, listAuditCompanies, listAuditEventPage, listAuditEvents } from "@/application/audit";
+import { listMyCompanies } from "@/application/companies";
+import { exportCompanyData, softDeleteCompany } from "@/application/company-deletion";
 import { listMyOrganizations } from "@/application/organizations";
 import { uploadSourceFile } from "@/application/source-files";
 import { listMemberships, removeMembership } from "@/application/memberships";
 import { anonymousClient, signedUpUser, uniqueEmail } from "./support/clients";
 import { fixtureFile } from "./support/files";
-import { testWorker } from "./support/worker";
+import { systemClient, testWorker } from "./support/worker";
 import { administratorWithCompany, companyMember } from "./support/fixtures";
 
 describe("audit log", () => {
@@ -112,6 +114,30 @@ describe("audit log", () => {
     expect(filtered.events).toContainEqual(expect.objectContaining({
       action: "source_file.uploaded",
       targetId: uploaded.value.id,
+    }));
+  });
+
+  it("keeps a soft-deleted Company's name available to historical filters", async () => {
+    const company = await administratorWithCompany("Historical Company Organization");
+    const exported = await exportCompanyData(company.client, systemClient(), {
+      companyId: company.companyId,
+    });
+    if (!exported.ok) throw new Error(exported.error);
+    expect(await softDeleteCompany(company.client, {
+      companyId: company.companyId,
+      exportId: exported.value.exportId,
+    })).toEqual({ ok: true, value: expect.any(Object) });
+
+    expect(await listMyCompanies(company.client)).toEqual([]);
+    expect(await listAuditCompanies(company.client, company.organizationId)).toContainEqual({
+      id: company.companyId,
+      name: "Novák s.r.o.",
+    });
+    expect((await listAuditEventPage(company.client, company.organizationId, {
+      companyId: company.companyId,
+    })).events).toContainEqual(expect.objectContaining({
+      action: "company.deleted",
+      companyId: company.companyId,
     }));
   });
 
