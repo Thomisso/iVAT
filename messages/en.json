@@ -482,6 +482,7 @@
     "noEntries": "No included Documents.",
     "excluded": "Excluded Documents",
     "noExclusions": "No excluded Documents in this period.",
+    "downloadPdf": "Download VAT Return PDF",
     "lines": {
       "1": "1 · Domestic output, standard rate",
       "2": "2 · Domestic output, reduced rate",
