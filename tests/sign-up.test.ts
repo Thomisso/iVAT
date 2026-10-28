@@ -21,7 +21,9 @@ function googleCallbackBoundary(error: { message: string } | null): AppClient {
   return {
     auth: {
       exchangeCodeForSession: async () => ({ data: { session: null, user: null }, error }),
+      signOut: async () => ({ error: null }),
     },
+    rpc: async () => ({ data: true, error: null }),
   } as unknown as AppClient;
 }
 
