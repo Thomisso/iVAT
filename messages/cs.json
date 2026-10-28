@@ -356,7 +356,10 @@
       "invalid_ico_checksum": "Kontrolní součet IČO není platný.",
       "invalid_vat_id_format": "Formát DIČ není platný.",
       "invalid_vat_id_checksum": "Kontrolní součet DIČ není platný.",
-      "counterparty_vat_id_required": "Pro tento režim DPH je DIČ protistrany povinné."
+      "counterparty_vat_id_required": "Pro tento režim DPH je DIČ protistrany povinné.",
+      "unreliable_vat_payer": "Dodavatel je v registru veden jako nespolehlivý plátce DPH.",
+      "unpublished_bank_account": "Platební účet není u tohoto dodavatele zveřejněn v registru plátců DPH.",
+      "vat_registry_check_not_performed": "Registr plátců DPH nebyl dostupný, proto nebyla provedena kontrola dodavatele a platebního účtu."
     },
     "noDocumentImage": "Tento doklad vznikl z řádků tabulky a nemá obraz dokladu.",
     "sections": {

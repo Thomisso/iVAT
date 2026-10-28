@@ -135,6 +135,16 @@ export default async function DocumentReviewPage({
               </Link>
             </Notice>
           )}
+          {shown?.findings
+            .filter((finding) => finding.severity === "warning")
+            .map((finding) => (
+              <Notice
+                key={`${finding.field}-${finding.code}`}
+                tone="warning"
+              >
+                {t(`review.findings.${finding.code}`)}
+              </Notice>
+            ))}
           {shown ? (
             <CorrectionForm
               key={shown.id}
