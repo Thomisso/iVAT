@@ -212,6 +212,21 @@ it.each(["dphdp3", "dphkh1"] as const)(
     });
   },
 );
+it.each(["dphdp3", "dphkh1"] as const)(
+  "exports quarterly Reporting Period metadata for %s",
+  async (format) => {
+    const report = computeVatReport(company, "2026-Q4", [], [
+      { frequency: "quarterly", effectiveFrom: "2026-01-01" },
+    ]);
+
+    const result = await createEpoXml(report, format, details);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value).toContain('rok="2026" ctvrt="4"');
+    expect(result.value).not.toContain('mesic="');
+  },
+);
 it("preserves XML-special characters in document numbers without creating attributes", async () => {
   const report = domesticReport();
   report.controlStatement[0].documentNumber = 'INV-"<&';

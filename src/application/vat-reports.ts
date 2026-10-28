@@ -1,5 +1,10 @@
 import { isUuid, type AppClient, type Result } from "./client";
-import { getCompany, type CompanyDetails } from "./companies";
+import {
+  getCompany,
+  getFilingFrequencyForPeriod,
+  listCompanyFilingFrequencies,
+  type CompanyDetails,
+} from "./companies";
 import {
   computeVatReport,
   isReportingPeriod,
@@ -19,7 +24,7 @@ export type VatReport = {
 export type GenerateVatReportError =
   "forbidden" | "invalid_reporting_period" | "stale_report";
 
-/** Generates or replaces a monthly draft from the current, human-reviewed data. */
+/** Generates or replaces a draft for a valid monthly or quarterly Reporting Period. */
 export async function generateVatReport(
   client: AppClient,
   input: { companyId: string; period: string },
@@ -28,6 +33,18 @@ export async function generateVatReport(
     return { ok: false, error: "invalid_reporting_period" };
   const company = await getCompany(client, input.companyId);
   if (!company) return { ok: false, error: "forbidden" };
+  const frequency = await getFilingFrequencyForPeriod(
+    client,
+    company.id,
+    input.period,
+  );
+  if (
+    frequency === null ||
+    (input.period.includes("-Q") ? frequency !== "quarterly" : frequency !== "monthly")
+  ) {
+    return { ok: false, error: "invalid_reporting_period" };
+  }
+  const filingFrequencies = await listCompanyFilingFrequencies(client, company.id);
   const { data, error } = await client.rpc("vat_report_documents", {
     target_company_id: company.id,
     target_period: input.period,
@@ -43,7 +60,12 @@ export async function generateVatReport(
     postalCode: company.postalCode,
     personType: company.personType,
   };
-  const result = computeVatReport(details, input.period, documents);
+  const result = computeVatReport(
+    details,
+    input.period,
+    documents,
+    filingFrequencies,
+  );
   const saved = await client.rpc("save_vat_report", {
     target_company_id: company.id,
     target_period: input.period,
