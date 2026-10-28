@@ -11,6 +11,7 @@
     "dev": "next dev",
     "worker": "tsx watch --env-file=.env.local worker/index.ts",
     "dev:seed": "tsx --env-file=.env.local scripts/dev-seed.ts",
+    "bootstrap:superadmin": "tsx --env-file=.env.local scripts/bootstrap-superadmin.ts",
     "demo": "node scripts/demo.mjs",
     "build": "next build",
     "start": "next start",
