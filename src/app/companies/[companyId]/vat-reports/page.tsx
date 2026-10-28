@@ -143,7 +143,12 @@ export default async function VatReportsPage({
               </p>
               <p className="iv-muted">{t("vatReports.snapshot")}</p>
               {role === "administrator" && (
-                <PeriodLockForm companyId={companyId} period={period} locked={!!periodLock} />
+                <PeriodLockForm
+                  key={`${period}:${periodLock ? "locked" : "unlocked"}`}
+                  companyId={companyId}
+                  period={period}
+                  locked={!!periodLock}
+                />
               )}
               <DataTable
                 caption={t("vatReports.vatReturn")}
