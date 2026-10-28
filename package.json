@@ -20,6 +20,7 @@
     "test:watch": "vitest",
     "test:contract:ares": "ARES_CONTRACT_TEST=1 vitest run tests/contract/ares.test.ts",
     "test:contract:adis": "ADIS_CONTRACT_TEST=1 vitest run tests/contract/adis-vat-registry.test.ts",
+    "test:contract:cnb": "CNB_CONTRACT_TEST=1 vitest run tests/contract/cnb-rates.test.ts",
     "test:contract:anthropic": "ANTHROPIC_CONTRACT_TEST=1 vitest run tests/contract/anthropic.test.ts",
     "test:contract:openai": "OPENAI_CONTRACT_TEST=1 vitest run tests/contract/openai.test.ts",
     "evaluate:extraction": "tsx scripts/evaluate-extraction.ts"

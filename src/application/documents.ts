@@ -16,6 +16,9 @@ import {
 } from "./document-validation";
 import { pdfPages, readSourceFile, SOURCE_FILE_MEDIA_TYPES } from "./source-files";
 import { workbookRowsToText, type WorkbookRowSet } from "./workbooks";
+import { applyCnbConversion, type ExchangeRateProvider } from "./exchange-rates";
+
+const unavailableExchangeRates: ExchangeRateProvider = { rateFor: async () => null };
 
 export const DOCUMENT_STATUSES = ["uploaded", "processing", "needs_review", "approved", "rejected", "failed"] as const;
 export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number];
@@ -303,22 +306,25 @@ export async function correctDocument(
     basedOnVersion: number;
     payload: ExtractionPayload;
   },
+  exchangeRates: ExchangeRateProvider = unavailableExchangeRates,
 ): Promise<Result<{ version: number }, CorrectDocumentError>> {
-  const payload = normalizeExtractionPayload(input.payload);
+  let payload = normalizeExtractionPayload(input.payload);
   const invalid = validateExtractionPayload(payload);
   if (invalid) return { ok: false, error: invalid };
   const document = await findDocumentId(client, input.companyId, input.documentId);
   if (!document) return { ok: false, error: "forbidden" };
   delete payload.confidence;
+  const conversion = await applyCnbConversion(payload, exchangeRates);
+  payload = conversion.payload;
 
   const { data: version, error } = await client.rpc("correct_document", {
     target_document_id: document,
     based_on_version: input.basedOnVersion,
     payload,
-    findings: validateDocument(
-      payload,
-      CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA,
-    ),
+    findings: [
+      ...validateDocument(payload, CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA),
+      ...conversion.findings,
+    ],
   });
   if (error) return refusal(error, ["not_in_review", "stale_version"]);
   return { ok: true, value: { version } };

@@ -42,6 +42,18 @@ export type RateBreakdownLine = {
   vatAmount: string;
 };
 
+export type CzkConversion = {
+  originalCurrency: string;
+  /** CZK quoted for `unit` units of the original currency. */
+  rate: string;
+  unit: number;
+  /** Actual fixing date returned by ČNB (may precede a weekend/holiday DUZP). */
+  rateDate: string;
+  source: "CNB";
+  rateBreakdown: RateBreakdownLine[];
+  totals: { netAmount: string | null; vatAmount: string | null; grossAmount: string | null };
+};
+
 export type ExtractionPayload = {
   schemaVersion: 1;
   documentType: DocumentType | null;
@@ -60,6 +72,8 @@ export type ExtractionPayload = {
   proposedVatRegime: VatRegime | null;
   /** For a Credit Note: the number of the Document it corrects. */
   originalDocumentNumber: string | null;
+  /** Derived CZK values; the printed currency and amounts above stay unchanged. */
+  czkConversion?: CzkConversion;
   /**
    * How sure the provider is of a field, from 0 to 1, keyed by the field's path
    * ("documentNumber", "supplier.vatId", "rateBreakdown.0.vatAmount"). Optional,

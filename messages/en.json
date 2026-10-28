@@ -367,7 +367,8 @@
       "unreliable_vat_payer": "The supplier is listed as an unreliable VAT payer.",
       "unpublished_bank_account": "The payment account is not published for this supplier in the VAT payer registry.",
       "vat_registry_check_not_performed": "The VAT payer registry was unavailable, so the supplier and payment account check was not performed.",
-      "direction_unknown": "Direction could not be detected from the Company identity. Set it before approval."
+      "direction_unknown": "Direction could not be detected from the Company identity. Set it before approval.",
+      "currency_conversion_not_performed": "The ČNB exchange rate was unavailable, so CZK amounts could not be calculated."
     },
     "noDocumentImage": "This Document came from spreadsheet rows and has no document image.",
     "sections": {
@@ -375,6 +376,7 @@
       "supplier": "Supplier",
       "customer": "Customer",
       "amounts": "Rate breakdown and totals",
+      "czkConversion": "CZK conversion",
       "payment": "Payment"
     },
     "fields": {
@@ -397,12 +399,18 @@
       "rate": "Rate (%)",
       "netAmount": "Net",
       "vatAmount": "VAT",
+      "netAmountCzk": "Net (CZK)",
+      "vatAmountCzk": "VAT (CZK)",
       "totalNet": "Total net",
       "totalVat": "Total VAT",
       "totalGross": "Total incl. VAT",
       "variableSymbol": "Variable symbol",
       "bankAccount": "Bank account",
       "iban": "IBAN"
+    },
+    "czkConversion": {
+      "rate": "{unit} {currency} = {rate} CZK · valid for {date} · {source}",
+      "totals": "CZK totals: net {net}, VAT {vat}, incl. VAT {gross}"
     },
     "documentType": {
       "invoice": "Invoice",

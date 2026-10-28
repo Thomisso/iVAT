@@ -138,6 +138,45 @@ it("never counts unapproved, unsupported or incomplete Documents and ignores oth
     true,
   );
 });
+
+it("uses stored CZK conversion amounts while preserving foreign originals", () => {
+  const foreign = document({
+    currency: "EUR",
+    rateBreakdown: [
+      { rate: 21, netAmount: "10.00", vatAmount: "2.10" },
+    ],
+    totals: {
+      netAmount: "10.00",
+      vatAmount: "2.10",
+      grossAmount: "12.10",
+    },
+    czkConversion: {
+      originalCurrency: "EUR",
+      rate: "24.340",
+      unit: 1,
+      rateDate: "2026-10-01",
+      source: "CNB",
+      rateBreakdown: [
+        { rate: 21, netAmount: "243.40", vatAmount: "51.11" },
+      ],
+      totals: {
+        netAmount: "243.40",
+        vatAmount: "51.11",
+        grossAmount: "294.51",
+      },
+    },
+  });
+
+  const report = computeVatReport(company, period, [foreign]);
+
+  expect(foreign.payload?.totals.grossAmount).toBe("12.10");
+  expect(report.vatReturn.find((line) => line.line === "40")).toEqual({
+    line: "40",
+    netAmount: "243.40",
+    vatAmount: "51.11",
+    documentIds: ["doc-1"],
+  });
+});
 it("keeps separate high-value Documents, and outgoing supplies without a Czech VAT ID go to A.5", () => {
   const data = {
     direction: "outgoing" as const,
