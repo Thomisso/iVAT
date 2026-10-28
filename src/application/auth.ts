@@ -32,9 +32,23 @@ export async function signUp(
 
 export type LogInInput = { email: string; password: string };
 
-export async function logIn(client: AppClient, input: LogInInput): Promise<Result<null, "invalid_credentials">> {
+async function applicationAccessAllowed(client: AppClient): Promise<boolean> {
+  const { data, error } = await client.rpc("current_user_can_use_application");
+  if (error) throw error;
+  if (data) return true;
+  await client.auth.signOut();
+  return false;
+}
+
+export async function logIn(
+  client: AppClient,
+  input: LogInInput,
+): Promise<Result<null, "invalid_credentials" | "organization_blocked">> {
   const { error } = await client.auth.signInWithPassword({ email: input.email.trim(), password: input.password });
   if (error) return { ok: false, error: "invalid_credentials" };
+  if (!(await applicationAccessAllowed(client))) {
+    return { ok: false, error: "organization_blocked" };
+  }
   return { ok: true, value: null };
 }
 
@@ -53,9 +67,12 @@ export async function startGoogleSignIn(
 export async function completeGoogleSignIn(
   client: AppClient,
   code: string,
-): Promise<Result<null, "google_sign_in_failed">> {
+): Promise<Result<null, "google_sign_in_failed" | "organization_blocked">> {
   const { error } = await client.auth.exchangeCodeForSession(code);
   if (error) return { ok: false, error: "google_sign_in_failed" };
+  if (!(await applicationAccessAllowed(client))) {
+    return { ok: false, error: "organization_blocked" };
+  }
   return { ok: true, value: null };
 }
 
@@ -70,7 +87,13 @@ export async function logOut(client: AppClient): Promise<void> {
 }
 
 /** Establishes a session from a cross-browser email link token. */
-export async function verifyEmailOtp(client: AppClient, tokenHash: string, type: EmailOtpType): Promise<boolean> {
+export async function verifyEmailOtp(
+  client: AppClient,
+  tokenHash: string,
+  type: EmailOtpType,
+): Promise<Result<null, "email_otp_failed" | "organization_blocked">> {
   const { error } = await client.auth.verifyOtp({ token_hash: tokenHash, type });
-  return !error;
+  if (error) return { ok: false, error: "email_otp_failed" };
+  if (!(await applicationAccessAllowed(client))) return { ok: false, error: "organization_blocked" };
+  return { ok: true, value: null };
 }
