@@ -91,6 +91,14 @@ export default async function VatReportsPage({
             period={period}
             exists={!!report}
           />
+          <p className="iv-muted">{t("vatReports.excelOverviewHint")}</p>
+          <a
+            className="iv-btn iv-btn-secondary iv-btn-md"
+            href={`/companies/${companyId}/vat-reports/${period}/xlsx`}
+            download
+          >
+            {t("vatReports.excelOverview")}
+          </a>
         </section>
         {!report || !result || !preview ? (
           <EmptyState icon="report" title={t("vatReports.none")} />
