@@ -3,7 +3,11 @@
 import { refresh } from "next/cache";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { generateVatReport } from "@/application/vat-reports";
+import {
+  finalizeVatReport,
+  generateVatReport,
+  unlockReportingPeriod,
+} from "@/application/vat-reports";
 import { logIn, logOut, signUp, startGoogleSignIn } from "@/application/auth";
 import {
   beginTotpEnrollment,
@@ -427,6 +431,26 @@ export async function generateVatReportAction(_state: FormState, formData: FormD
   });
   if (!result.ok) return refused(result.error, formData, ["period"]);
   redirect(`/companies/${companyId}/vat-reports?period=${encodeURIComponent(period)}`);
+}
+
+export async function finalizeVatReportAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const result = await finalizeVatReport(await requireUserClient(), {
+    companyId: field(formData, "companyId"),
+    period: field(formData, "period"),
+  });
+  if (!result.ok) return refused(result.error, formData, []);
+  refresh();
+  return { error: null, values: {} };
+}
+
+export async function unlockReportingPeriodAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const result = await unlockReportingPeriod(await requireUserClient(), {
+    companyId: field(formData, "companyId"),
+    period: field(formData, "period"),
+  });
+  if (!result.ok) return refused(result.error, formData, []);
+  refresh();
+  return { error: null, values: {} };
 }
 
 export async function inviteMemberAction(_state: FormState, formData: FormData): Promise<FormState> {
