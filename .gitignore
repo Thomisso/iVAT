@@ -45,3 +45,6 @@ next-env.d.ts
 
 # per-worktree Supabase workdir (scripts/supabase.mjs)
 /.supabase-worktree/
+
+# demo server logs (scripts/demo.mjs)
+/.demo/
