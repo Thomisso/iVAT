@@ -182,6 +182,41 @@ export async function listCompanyDocuments(
   }
 }
 
+/** Active Reporting Period locks for Documents, keyed by Document id. */
+export async function documentPeriodLocks(
+  client: AppClient,
+  companyId: string,
+  documentIds: string[],
+): Promise<Record<string, string>> {
+  if (!isUuid(companyId) || documentIds.length === 0 || documentIds.some((id) => !isUuid(id))) return {};
+  const { data: documents, error: documentError } = await client
+    .from("document_overview")
+    .select("id, reporting_period")
+    .eq("company_id", companyId)
+    .in("id", documentIds);
+  if (documentError) throw documentError;
+  const periods = [...new Set(
+    documents
+      .map((document) => document.reporting_period)
+      .filter((period): period is string => period !== null),
+  )];
+  if (periods.length === 0) return {};
+  const { data: locks, error: lockError } = await client
+    .from("period_lock")
+    .select("period")
+    .eq("company_id", companyId)
+    .in("period", periods);
+  if (lockError) throw lockError;
+  const lockedPeriods = new Set(locks.map((lock) => lock.period));
+  return Object.fromEntries(
+    documents.flatMap((document) =>
+      document.reporting_period && lockedPeriods.has(document.reporting_period)
+        ? [[document.id, document.reporting_period]]
+        : [],
+    ),
+  );
+}
+
 const DOCUMENT_COLUMNS = "id, company_id, source_file_id, first_page, last_page, source_sheet, first_row, last_row, has_document_image, status, created_at, receipt_date, claimed_reporting_period";
 
 function toDocument(d: {

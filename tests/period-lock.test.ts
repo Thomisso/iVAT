@@ -3,6 +3,7 @@ import { listAuditEvents } from "@/application/audit";
 import {
   approveDocument,
   correctDocument,
+  documentPeriodLocks,
   listDocuments,
   listExtractionVersions,
   mergeDocuments,
@@ -60,6 +61,15 @@ async function lockedCompanyWithDocuments({
   expect(await finalizeVatReport(company.client, report)).toEqual({ ok: true, value: null });
   return { ...company, documents, worker };
 }
+
+it("identifies every Document whose Reporting Period is locked for the workspace", async () => {
+  const company = await lockedCompanyWithDocuments();
+  expect(await documentPeriodLocks(
+    company.client,
+    company.companyId,
+    company.documents.map((document) => document.id),
+  )).toEqual(Object.fromEntries(company.documents.map((document) => [document.id, "2026-10"])));
+});
 
 it("only an Administrator finalizes and unlocks a stored VAT Report, and both transitions are audited", async () => {
   const company = await administratorWithCompany();

@@ -59,6 +59,8 @@ import { jobQueue } from "@/lib/jobs";
 import { createRequestClient, requireUserClient } from "@/lib/supabase/server";
 import { isLocale, localeCookie } from "@/i18n/locales";
 import { companyContextCookie, serializeCompanyContext } from "@/lib/company-context";
+import { normalizeDocumentQueueQuery } from "@/application/document-queue";
+import { isUuid } from "@/application/client";
 
 /**
  * Form state: an error code that the form translates through the `errors`
@@ -448,22 +450,30 @@ export async function correctDocumentAction(_state: FormState, formData: FormDat
 }
 
 export async function approveDocumentAction(_state: FormState, formData: FormData): Promise<FormState> {
-  return settled(
-    await approveDocument(await requireUserClient(), {
-      companyId: field(formData, "companyId"),
-      documentId: field(formData, "documentId"),
-      version: Number(field(formData, "version")),
-    }),
-  );
+  const companyId = field(formData, "companyId");
+  const documentId = field(formData, "documentId");
+  const result = await approveDocument(await requireUserClient(), {
+    companyId,
+    documentId,
+    version: Number(field(formData, "version")),
+  });
+  if (!result.ok) return settled(result);
+  redirectAfterDocumentDecision(formData, companyId, documentId);
 }
 
 export async function rejectDocumentAction(_state: FormState, formData: FormData): Promise<FormState> {
-  return settled(
-    await rejectDocument(await requireUserClient(), {
-      companyId: field(formData, "companyId"),
-      documentId: field(formData, "documentId"),
-    }),
-  );
+  const companyId = field(formData, "companyId");
+  const documentId = field(formData, "documentId");
+  const result = await rejectDocument(await requireUserClient(), { companyId, documentId });
+  if (!result.ok) return settled(result);
+  redirectAfterDocumentDecision(formData, companyId, documentId);
+}
+
+function redirectAfterDocumentDecision(formData: FormData, companyId: string, documentId: string): never {
+  const query = normalizeDocumentQueueQuery(field(formData, "queueQuery"));
+  const nextDocumentId = field(formData, "nextDocumentId");
+  if (isUuid(nextDocumentId)) redirect(`/companies/${companyId}/documents/${nextDocumentId}?${query}`);
+  redirect(`/companies/${companyId}/documents?${query}#document-${documentId}`);
 }
 
 export async function updateDocumentReportingAction(
