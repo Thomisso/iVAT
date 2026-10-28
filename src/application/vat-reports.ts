@@ -13,13 +13,19 @@ import {
   type ReportDocument,
 } from "./vat-rules";
 import type { Json } from "@/lib/database.types";
+import {
+  getReportingPeriodReadiness,
+  type ReportingPeriodReadinessSource,
+} from "./reporting-period-readiness";
 
 export type VatReport = {
   id: string;
   companyId: string;
   period: string;
   generatedAt: string;
-  result: ComputedVatReport;
+  result: ComputedVatReport & {
+    readinessSource?: ReportingPeriodReadinessSource[];
+  };
   documents: ReportDocument[];
 };
 export type GenerateVatReportError =
@@ -133,6 +139,8 @@ export async function generateVatReport(
   ) {
     return { ok: false, error: "invalid_reporting_period" };
   }
+  const readiness = await getReportingPeriodReadiness(client, input);
+  if (!readiness.ok) return readiness;
   const filingFrequencies = await listCompanyFilingFrequencies(client, company.id);
   const { data, error } = await client.rpc("vat_report_documents", {
     target_company_id: company.id,
@@ -153,12 +161,15 @@ export async function generateVatReport(
     postalCode: company.postalCode,
     personType: company.personType,
   };
-  const result = computeVatReport(
-    details,
-    input.period,
-    documents,
-    filingFrequencies,
-  );
+  const result = {
+    ...computeVatReport(
+      details,
+      input.period,
+      documents,
+      filingFrequencies,
+    ),
+    readinessSource: readiness.value.source,
+  };
   const saved = await client.rpc("save_vat_report", {
     target_company_id: company.id,
     target_period: input.period,

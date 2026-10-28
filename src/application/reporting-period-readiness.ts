@@ -54,11 +54,20 @@ export type ReportingPeriodReadiness = {
     rejected: string[];
     approved: string[];
   };
+  source: ReportingPeriodReadinessSource[];
   snapshot: {
     reportId: string;
     generatedAt: string;
     freshness: "current" | "stale";
   } | null;
+};
+
+export type ReportingPeriodReadinessSource = {
+  documentId: string;
+  status: ReportDocument["status"];
+  extractionVersionId: string | null;
+  receiptDate: string | null;
+  claimedReportingPeriod: string | null;
 };
 
 export type ReportingPeriodReadinessError =
@@ -70,6 +79,7 @@ type SavedSourceSnapshot = {
   id: string;
   generatedAt: string;
   documents: ReportDocument[];
+  readinessSource: ReportingPeriodReadinessSource[] | null;
 };
 
 function canonical(value: unknown): string {
@@ -91,11 +101,27 @@ function snapshotIsCurrent(
   report: SavedSourceSnapshot,
   assigned: ReportDocument[],
   relevant: ReportDocument[],
+  source: ReportingPeriodReadinessSource[],
 ) {
+  if (report.readinessSource) {
+    return canonical(report.readinessSource) === canonical(source);
+  }
   const assignedIds = new Set(assigned.map((document) => document.id));
   return sameSourceSnapshot(report, assigned) && relevant.every((document) =>
     assignedIds.has(document.id) || document.status === "rejected",
   );
+}
+
+function readinessSource(
+  documents: ReportDocument[],
+): ReportingPeriodReadinessSource[] {
+  return documents.map((document) => ({
+    documentId: document.id,
+    status: document.status,
+    extractionVersionId: document.extractionVersionId,
+    receiptDate: document.receiptDate ?? null,
+    claimedReportingPeriod: document.claimedReportingPeriod ?? null,
+  }));
 }
 
 async function getSavedSourceSnapshot(
@@ -105,16 +131,21 @@ async function getSavedSourceSnapshot(
 ): Promise<SavedSourceSnapshot | null> {
   const { data, error } = await client
     .from("vat_report")
-    .select("id, generated_at, documents")
+    .select("id, generated_at, documents, result")
     .eq("company_id", companyId)
     .eq("period", period)
     .maybeSingle();
   if (error) throw error;
-  return data ? {
+  if (!data) return null;
+  const result = data.result as { readinessSource?: unknown };
+  return {
     id: data.id,
     generatedAt: data.generated_at,
     documents: data.documents as unknown as ReportDocument[],
-  } : null;
+    readinessSource: Array.isArray(result.readinessSource)
+      ? result.readinessSource as ReportingPeriodReadinessSource[]
+      : null,
+  };
 }
 
 /** Lists the Company's valid Reporting Periods and identifies the oldest period without a lock. */
@@ -262,6 +293,7 @@ export async function getReportingPeriodReadiness(
     getSavedSourceSnapshot(client, input.companyId, input.period),
   ]);
   const byVersion = await findingsByVersion(client, relevant);
+  const source = readinessSource(relevant);
   const documents: LiveDocument[] = relevant.map((document) => ({
     ...document,
     findings: document.extractionVersionId
@@ -329,11 +361,12 @@ export async function getReportingPeriodReadiness(
       blockers,
       warnings,
       groups,
+      source,
       snapshot: report
         ? {
             reportId: report.id,
             generatedAt: report.generatedAt,
-            freshness: snapshotIsCurrent(report, assigned, relevant) ? "current" : "stale",
+            freshness: snapshotIsCurrent(report, assigned, relevant, source) ? "current" : "stale",
           }
         : null,
     },
