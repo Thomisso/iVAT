@@ -23,7 +23,33 @@ export type Database = {
           }
         },"public": {
           Tables: {
-            "audit_event": {
+            "ai_usage_event": {
+                  Row: {
+                    "company_id": string,"created_at": string,"id": number,"input_tokens": number,"job_name": string,"job_target_id": string,"model": string,"operation": string,"organization_id": string,"output_tokens": number,"provider": string,"requests": number
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "company_id": string,"created_at"?: string,"id"?: never,"input_tokens": number,"job_name": string,"job_target_id": string,"model": string,"operation": string,"organization_id": string,"output_tokens": number,"provider": string,"requests"?: number
+                  }
+                  Update: {
+                    "company_id"?: string,"created_at"?: string,"id"?: never,"input_tokens"?: number,"job_name"?: string,"job_target_id"?: string,"model"?: string,"operation"?: string,"organization_id"?: string,"output_tokens"?: number,"provider"?: string,"requests"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "ai_usage_event_company_id_organization_id_fkey"
+      columns: ["company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "company"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "ai_usage_event_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organization"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"audit_event": {
                   Row: {
                     "action": string,"actor_user_id": string | null,"company_id": string | null,"id": number,"occurred_at": string,"organization_id": string,"payload": NonNullable<Json>,"target_id": string | null,"target_type": string
                   }
@@ -79,14 +105,14 @@ isOneToOne: false
                   ]
                 },"document": {
                   Row: {
-                    "company_id": string,"created_at": string,"extraction_request_id": string,"first_page": number,"id": string,"last_page": number,"organization_id": string,"source_file_id": string,"status": Database["public"]['Enums']["document_status"],"superseded_at": string | null
+                    "company_id": string,"created_at": string,"extraction_request_id": string,"first_page": number,"first_row": number | null,"has_document_image": boolean,"id": string,"last_page": number,"last_row": number | null,"organization_id": string,"source_file_id": string,"source_sheet": string | null,"status": Database["public"]['Enums']["document_status"],"superseded_at": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "company_id": string,"created_at"?: string,"extraction_request_id"?: string,"first_page": number,"id"?: string,"last_page": number,"organization_id": string,"source_file_id": string,"status"?: Database["public"]['Enums']["document_status"],"superseded_at"?: string | null
+                    "company_id": string,"created_at"?: string,"extraction_request_id"?: string,"first_page": number,"first_row"?: number | null,"has_document_image"?: boolean,"id"?: string,"last_page": number,"last_row"?: number | null,"organization_id": string,"source_file_id": string,"source_sheet"?: string | null,"status"?: Database["public"]['Enums']["document_status"],"superseded_at"?: string | null
                   }
                   Update: {
-                    "company_id"?: string,"created_at"?: string,"extraction_request_id"?: string,"first_page"?: number,"id"?: string,"last_page"?: number,"organization_id"?: string,"source_file_id"?: string,"status"?: Database["public"]['Enums']["document_status"],"superseded_at"?: string | null
+                    "company_id"?: string,"created_at"?: string,"extraction_request_id"?: string,"first_page"?: number,"first_row"?: number | null,"has_document_image"?: boolean,"id"?: string,"last_page"?: number,"last_row"?: number | null,"organization_id"?: string,"source_file_id"?: string,"source_sheet"?: string | null,"status"?: Database["public"]['Enums']["document_status"],"superseded_at"?: string | null
                   }
                   Relationships: [
                     {
@@ -463,9 +489,19 @@ isOneToOne: false
               "has_organization_key": boolean,"organization_key_last_four": string,"provider": string
             }[]
                            },
+"list_organization_ai_usage":
+{ Args: { "period_from": string,"period_to": string,"target_company_id"?: string,"target_organization_id": string }; Returns: {
+              "company_id": string,"company_name": string,"input_tokens": number,"model": string,"output_tokens": number,"provider": string,"requests": number
+            }[]
+                           },
 "list_platform_ai_providers":
 { Args: Record<PropertyKey, never>; Returns: {
               "available": boolean,"extract_model": string,"has_platform_key": boolean,"platform_key_last_four": string,"provider": string,"split_model": string
+            }[]
+                           },
+"list_platform_ai_usage":
+{ Args: { "period_from": string,"period_to": string }; Returns: {
+              "input_tokens": number,"model": string,"organization_id": string,"organization_name": string,"output_tokens": number,"provider": string,"requests": number
             }[]
                            },
 "list_platform_organizations":
@@ -485,8 +521,11 @@ isOneToOne: false
 "record_ai_extraction":
 { Args: { "findings": Json,"model": string,"payload": Json,"provider": string,"target_document_id": string,"target_extraction_request_id": string }; Returns: undefined
                            },
+"record_ai_usage":
+{ Args: { "target_company_id": string,"target_input_tokens": number,"target_job_id": string,"target_job_name": string,"target_model": string,"target_operation": string,"target_organization_id": string,"target_output_tokens": number,"target_provider": string }; Returns: undefined
+                           },
 "record_split":
-{ Args: { "page_ranges": Json,"target_source_file_id": string }; Returns: undefined
+{ Args: { "source_ranges": Json,"target_source_file_id": string }; Returns: undefined
                            },
 "reject_document":
 { Args: { "target_document_id": string }; Returns: undefined
@@ -534,7 +573,7 @@ isOneToOne: false
                            }
           }
           Enums: {
-            "document_status": "uploaded"|"processing"|"needs_review"|"failed"|"approved"|"rejected","filing_frequency": "monthly"|"quarterly","membership_role": "administrator"|"user","person_type": "legal"|"natural","platform_role": "super_admin","source_file_format": "pdf"|"png"|"jpeg","source_file_status": "uploaded"|"processing"|"split"|"failed"
+            "document_status": "uploaded"|"processing"|"needs_review"|"failed"|"approved"|"rejected","filing_frequency": "monthly"|"quarterly","membership_role": "administrator"|"user","person_type": "legal"|"natural","platform_role": "super_admin","source_file_format": "pdf"|"png"|"jpeg"|"xlsx"|"xls","source_file_status": "uploaded"|"processing"|"split"|"failed"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -654,7 +693,7 @@ export const Constants = {
           }
         },"public": {
           Enums: {
-            "document_status": ["uploaded", "processing", "needs_review", "failed", "approved", "rejected"],"filing_frequency": ["monthly", "quarterly"],"membership_role": ["administrator", "user"],"person_type": ["legal", "natural"],"platform_role": ["super_admin"],"source_file_format": ["pdf", "png", "jpeg"],"source_file_status": ["uploaded", "processing", "split", "failed"]
+            "document_status": ["uploaded", "processing", "needs_review", "failed", "approved", "rejected"],"filing_frequency": ["monthly", "quarterly"],"membership_role": ["administrator", "user"],"person_type": ["legal", "natural"],"platform_role": ["super_admin"],"source_file_format": ["pdf", "png", "jpeg", "xlsx", "xls"],"source_file_status": ["uploaded", "processing", "split", "failed"]
           }
         }
 } as const

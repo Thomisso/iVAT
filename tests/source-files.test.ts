@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createCompany } from "@/application/companies";
 import { getSourceFile, listSourceFiles, readSourceFile, uploadSourceFile } from "@/application/source-files";
 import { administratorWithCompany, companyDetails } from "./support/fixtures";
-import { fixtureFile } from "./support/files";
+import { fixtureFile, workbookFile } from "./support/files";
 import { testWorker } from "./support/worker";
 
 describe("Source File upload", () => {
@@ -49,8 +49,30 @@ describe("Source File upload", () => {
     expect((await readSourceFile(client, companyId, result.value.id))?.bytes).toEqual(image);
   });
 
+  it.each(["xlsx", "xls"] as const)("stores a genuine .%s workbook unchanged", async (format) => {
+    const { client, companyId } = await administratorWithCompany();
+    const workbook = workbookFile(format, [
+      ["Document number", "Issue date", "Gross amount"],
+      ["FV-1", new Date("2026-10-01T00:00:00.000Z"), 1210],
+    ]);
+
+    const result = await uploadSourceFile(client, testWorker().jobs, {
+      companyId,
+      fileName: `invoices.${format}`,
+      bytes: workbook,
+    });
+
+    expect(result).toEqual({ ok: true, value: { id: expect.any(String) } });
+    if (!result.ok) return;
+    expect(await listSourceFiles(client, companyId)).toEqual([
+      expect.objectContaining({ id: result.value.id, format, pageCount: 1 }),
+    ]);
+    const storedWorkbook = (await readSourceFile(client, companyId, result.value.id))?.bytes;
+    expect(storedWorkbook && Buffer.from(storedWorkbook)).toEqual(Buffer.from(workbook));
+  });
+
   it.each([
-    ["an unsupported extension", "invoices.xlsx", fixtureFile("two-invoices.pdf"), "unsupported_format"],
+    ["an unsupported extension", "invoices.csv", fixtureFile("two-invoices.pdf"), "unsupported_format"],
     ["no extension", "invoice", fixtureFile("two-invoices.pdf"), "unsupported_format"],
     ["content that does not match the extension", "receipt.jpg", fixtureFile("receipt.png"), "content_does_not_match_format"],
     ["a PDF that cannot be read", "invoice.pdf", new TextEncoder().encode("%PDF-1.7\nnot really a PDF"), "unreadable_file"],
