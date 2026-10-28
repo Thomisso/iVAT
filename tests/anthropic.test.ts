@@ -113,7 +113,12 @@ describe("Anthropic AI provider", () => {
             type: "image",
             source: { type: "base64", media_type: "image/png", data: "iVBORw==" },
           },
-          expect.objectContaining({ type: "text" }),
+          expect.objectContaining({
+            type: "text",
+            text: expect.stringMatching(
+              /Credit Note[\s\S]*negative amounts[\s\S]*original Document number/i,
+            ),
+          }),
         ]),
       }],
       output_config: {
