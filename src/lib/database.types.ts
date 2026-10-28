@@ -65,14 +65,14 @@ isOneToOne: false
                   ]
                 },"company": {
                   Row: {
-                    "ai_processing_enabled": boolean,"ai_provider": string | null,"ai_region": string | null,"city": string,"created_at": string,"created_by": string | null,"data_revision": number,"deleted_at": string | null,"deleted_by": string | null,"first_name": string | null,"house_number": string | null,"ico": string,"id": string,"last_name": string | null,"name": string,"organization_id": string,"orientation_number": string | null,"person_type": Database["public"]['Enums']["person_type"],"postal_code": string,"street": string,"street_name": string | null,"vat_id": string
+                    "ai_credential_source": Database["public"]['Enums']["ai_credential_source"] | null,"ai_processing_enabled": boolean,"ai_provider": string | null,"ai_region": string | null,"city": string,"created_at": string,"created_by": string | null,"data_revision": number,"deleted_at": string | null,"deleted_by": string | null,"first_name": string | null,"house_number": string | null,"ico": string,"id": string,"last_name": string | null,"name": string,"organization_id": string,"orientation_number": string | null,"person_type": Database["public"]['Enums']["person_type"],"postal_code": string,"street": string,"street_name": string | null,"vat_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "ai_processing_enabled"?: boolean,"ai_provider"?: string | null,"ai_region"?: string | null,"city": string,"created_at"?: string,"created_by"?: string | null,"data_revision"?: number,"deleted_at"?: string | null,"deleted_by"?: string | null,"first_name"?: string | null,"house_number"?: string | null,"ico": string,"id"?: string,"last_name"?: string | null,"name": string,"organization_id": string,"orientation_number"?: string | null,"person_type"?: Database["public"]['Enums']["person_type"],"postal_code": string,"street": string,"street_name"?: string | null,"vat_id": string
+                    "ai_credential_source"?: Database["public"]['Enums']["ai_credential_source"] | null,"ai_processing_enabled"?: boolean,"ai_provider"?: string | null,"ai_region"?: string | null,"city": string,"created_at"?: string,"created_by"?: string | null,"data_revision"?: number,"deleted_at"?: string | null,"deleted_by"?: string | null,"first_name"?: string | null,"house_number"?: string | null,"ico": string,"id"?: string,"last_name"?: string | null,"name": string,"organization_id": string,"orientation_number"?: string | null,"person_type"?: Database["public"]['Enums']["person_type"],"postal_code": string,"street": string,"street_name"?: string | null,"vat_id": string
                   }
                   Update: {
-                    "ai_processing_enabled"?: boolean,"ai_provider"?: string | null,"ai_region"?: string | null,"city"?: string,"created_at"?: string,"created_by"?: string | null,"data_revision"?: number,"deleted_at"?: string | null,"deleted_by"?: string | null,"first_name"?: string | null,"house_number"?: string | null,"ico"?: string,"id"?: string,"last_name"?: string | null,"name"?: string,"organization_id"?: string,"orientation_number"?: string | null,"person_type"?: Database["public"]['Enums']["person_type"],"postal_code"?: string,"street"?: string,"street_name"?: string | null,"vat_id"?: string
+                    "ai_credential_source"?: Database["public"]['Enums']["ai_credential_source"] | null,"ai_processing_enabled"?: boolean,"ai_provider"?: string | null,"ai_region"?: string | null,"city"?: string,"created_at"?: string,"created_by"?: string | null,"data_revision"?: number,"deleted_at"?: string | null,"deleted_by"?: string | null,"first_name"?: string | null,"house_number"?: string | null,"ico"?: string,"id"?: string,"last_name"?: string | null,"name"?: string,"organization_id"?: string,"orientation_number"?: string | null,"person_type"?: Database["public"]['Enums']["person_type"],"postal_code"?: string,"street"?: string,"street_name"?: string | null,"vat_id"?: string
                   }
                   Relationships: [
                     {
@@ -552,6 +552,9 @@ isOneToOne: false
 "complete_company_data_export":
 { Args: { "target_byte_size": number,"target_export_id": string,"target_sha256": string }; Returns: undefined
                            },
+"configure_company_ai_processing":
+{ Args: { "target_company_id": string,"target_credential_source": Database["public"]['Enums']["ai_credential_source"],"target_provider": string,"target_region": string }; Returns: undefined
+                           },
 "configure_platform_ai_provider":
 { Args: { "platform_key"?: string,"provider_available": boolean,"target_extract_model": string,"target_provider": string,"target_split_model": string }; Returns: undefined
                            },
@@ -581,6 +584,9 @@ isOneToOne: false
 "current_user_can_use_application":
 { Args: Record<PropertyKey, never>; Returns: boolean
                            },
+"disable_company_ai_processing":
+{ Args: { "target_company_id": string }; Returns: undefined
+                           },
 "fail_company_data_export":
 { Args: { "target_export_id": string }; Returns: undefined
                            },
@@ -599,6 +605,11 @@ isOneToOne: false
 "list_available_ai_providers":
 { Args: Record<PropertyKey, never>; Returns: {
               "provider": string,"region": string
+            }[]
+                           },
+"list_company_ai_options":
+{ Args: { "target_company_id": string }; Returns: {
+              "credential_source": Database["public"]['Enums']["ai_credential_source"],"provider": string,"region": string
             }[]
                            },
 "list_failed_processing_jobs":
@@ -671,6 +682,11 @@ isOneToOne: false
 "reprocess_document":
 { Args: { "target_document_id": string }; Returns: undefined
                            },
+"resolve_company_ai_provider":
+{ Args: { "target_credential_source": Database["public"]['Enums']["ai_credential_source"],"target_organization_id": string,"target_provider": string }; Returns: {
+              "api_key": string,"extract_model": string,"split_model": string
+            }[]
+                           },
 "resolve_platform_ai_provider":
 { Args: { "target_organization_id": string,"target_provider": string }; Returns: {
               "api_key": string,"extract_model": string,"split_model": string
@@ -729,7 +745,7 @@ isOneToOne: false
                            }
           }
           Enums: {
-            "company_setup_state": "completed"|"skipped","company_setup_step": "identity"|"filing_frequency"|"filing_defaults"|"ai_processing","document_status": "uploaded"|"processing"|"needs_review"|"failed"|"approved"|"rejected","filing_frequency": "monthly"|"quarterly","membership_role": "administrator"|"user","person_type": "legal"|"natural","platform_role": "super_admin","source_file_format": "pdf"|"png"|"jpeg"|"xlsx"|"xls","source_file_status": "uploaded"|"processing"|"split"|"failed"
+            "ai_credential_source": "platform"|"organization"|"local","company_setup_state": "completed"|"skipped","company_setup_step": "identity"|"filing_frequency"|"filing_defaults"|"ai_processing","document_status": "uploaded"|"processing"|"needs_review"|"failed"|"approved"|"rejected","filing_frequency": "monthly"|"quarterly","membership_role": "administrator"|"user","person_type": "legal"|"natural","platform_role": "super_admin","source_file_format": "pdf"|"png"|"jpeg"|"xlsx"|"xls","source_file_status": "uploaded"|"processing"|"split"|"failed"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -849,7 +865,7 @@ export const Constants = {
           }
         },"public": {
           Enums: {
-            "company_setup_state": ["completed", "skipped"],"company_setup_step": ["identity", "filing_frequency", "filing_defaults", "ai_processing"],"document_status": ["uploaded", "processing", "needs_review", "failed", "approved", "rejected"],"filing_frequency": ["monthly", "quarterly"],"membership_role": ["administrator", "user"],"person_type": ["legal", "natural"],"platform_role": ["super_admin"],"source_file_format": ["pdf", "png", "jpeg", "xlsx", "xls"],"source_file_status": ["uploaded", "processing", "split", "failed"]
+            "ai_credential_source": ["platform", "organization", "local"],"company_setup_state": ["completed", "skipped"],"company_setup_step": ["identity", "filing_frequency", "filing_defaults", "ai_processing"],"document_status": ["uploaded", "processing", "needs_review", "failed", "approved", "rejected"],"filing_frequency": ["monthly", "quarterly"],"membership_role": ["administrator", "user"],"person_type": ["legal", "natural"],"platform_role": ["super_admin"],"source_file_format": ["pdf", "png", "jpeg", "xlsx", "xls"],"source_file_status": ["uploaded", "processing", "split", "failed"]
           }
         }
 } as const

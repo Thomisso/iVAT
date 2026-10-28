@@ -24,8 +24,9 @@ import { mfaRedirectPath } from "@/application/mfa-routing";
 import { prefillCompanyFromAres } from "@/application/ares";
 import {
   createCompanyIdentity,
+  parseCompanyAiOptionValue,
+  configureCompanyAiProcessing,
   disableAiProcessing,
-  enableAiProcessing,
   getCompany,
   setCompanyFilingFrequency,
   updateCompanyIdentity,
@@ -51,7 +52,6 @@ import {
 } from "@/application/platform-administration";
 import { retryFailedProcessingJob } from "@/application/processing-administration";
 import { removeOrganizationAiProviderKey, saveOrganizationAiProviderKey } from "@/application/organization-ai";
-import { availableCompanyAiProviders } from "@/ai";
 import { configuredAresRegistry } from "@/ares";
 import { configuredExchangeRates } from "@/cnb";
 import { jobQueue } from "@/lib/jobs";
@@ -260,7 +260,7 @@ export async function setCompanyFilingFrequencyAction(_state: FormState, formDat
     filingFrequencyEffectiveFrom: field(formData, "filingFrequencyEffectiveFrom"),
   });
   if (!result.ok) return refused(result.error, formData, ["filingFrequency", "filingFrequencyEffectiveFrom"]);
-  redirect(`/companies/${companyId}`);
+  redirect(`/companies/${companyId}/setup/ai-processing`);
 }
 
 export async function uploadSourceFileAction(_state: FormState, formData: FormData): Promise<FormState> {
@@ -287,19 +287,26 @@ function settled(result: { ok: true } | { ok: false; error: string }): FormState
 
 export async function enableAiProcessingAction(_state: FormState, formData: FormData): Promise<FormState> {
   const client = await requireUserClient();
-  const providerName = field(formData, "provider");
-  const provider = (await availableCompanyAiProviders(client)).find((candidate) => candidate.name === providerName);
-  if (!provider) return refused("unknown_provider", formData, ["provider"]);
-  return settled(
-    await enableAiProcessing(client, jobQueue, {
-      companyId: field(formData, "companyId"),
-      provider,
-    }),
-  );
+  const companyId = field(formData, "companyId");
+  const option = parseCompanyAiOptionValue(field(formData, "option"));
+  if (!option) return refused("provider_unavailable", formData, ["option", "consent"]);
+  const result = await configureCompanyAiProcessing(client, jobQueue, {
+    companyId,
+    option,
+    consent: field(formData, "consent") === "yes",
+  });
+  if (!result.ok) return refused(result.error, formData, ["option", "consent"]);
+  const returnTo = field(formData, "returnTo");
+  if (returnTo === "company") redirect(`/companies/${companyId}`);
+  return settled(result);
 }
 
 export async function disableAiProcessingAction(_state: FormState, formData: FormData): Promise<FormState> {
-  return settled(await disableAiProcessing(await requireUserClient(), field(formData, "companyId")));
+  const companyId = field(formData, "companyId");
+  const result = await disableAiProcessing(await requireUserClient(), companyId);
+  if (!result.ok) return settled(result);
+  if (field(formData, "returnTo") === "company") redirect(`/companies/${companyId}`);
+  return settled(result);
 }
 
 export async function retrySplitAction(_state: FormState, formData: FormData): Promise<FormState> {

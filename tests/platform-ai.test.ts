@@ -2,9 +2,8 @@ import { createHmac } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { beforeAll, describe, expect, it } from "vitest";
 import { inject } from "vitest";
-import { AiProviderError } from "@/application/ai-provider";
 import { asUserClient } from "@/application/client";
-import { enableAiProcessing } from "@/application/companies";
+import { enableAiProcessing, listCompanyAiOptions } from "@/application/companies";
 import {
   configurePlatformAiProvider,
   listAvailableAiProviders,
@@ -149,7 +148,7 @@ describe("platform AI provider settings", () => {
     });
   });
 
-  it("fails processing clearly without sending a Document when platform-key access is disabled", async () => {
+  it("does not offer or accept a platform key while Organization access is disabled", async () => {
     const target = await administratorWithCompany("Disabled Organization");
     const superAdministrator = sharedSuperAdministrator;
     await configurePlatformAiProvider(superAdministrator.client, {
@@ -159,8 +158,17 @@ describe("platform AI provider settings", () => {
       extractModel: "claude-sonnet-extract",
       apiKey: "sk-ant-platform-secret",
     });
-    const worker = testWorker(platformAnthropicAiProvider(systemClient(), { baseUrl: "http://127.0.0.1:9" }));
-    await enableAiProcessing(target.client, worker.jobs, { companyId: target.companyId, provider: worker.ai });
+    const worker = testWorker(platformAnthropicAiProvider({ baseUrl: "http://127.0.0.1:9" }));
+    expect(await listCompanyAiOptions(target.client, target.companyId)).not.toContainEqual({
+      provider: "anthropic",
+      region: "global",
+      credentialSource: "platform",
+    });
+    expect(await enableAiProcessing(target.client, worker.jobs, {
+      companyId: target.companyId,
+      provider: worker.ai,
+      credentialSource: "platform",
+    })).toEqual({ ok: false, error: "provider_unavailable" });
     const uploaded = await uploadSourceFile(target.client, worker.jobs, {
       companyId: target.companyId,
       fileName: "receipt.png",
@@ -168,10 +176,7 @@ describe("platform AI provider settings", () => {
     });
     if (!uploaded.ok) throw new Error(uploaded.error);
 
-    const [error] = await worker.runJobs({ final: false });
-
-    expect(error).toBeInstanceOf(AiProviderError);
-    expect(error).toMatchObject({ code: "platform_key_not_enabled", transient: false });
-    expect((await getSourceFile(target.client, target.companyId, uploaded.value.id))?.status).toBe("failed");
+    expect(await worker.runJobs({ final: false })).toEqual([]);
+    expect((await getSourceFile(target.client, target.companyId, uploaded.value.id))?.status).toBe("uploaded");
   });
 });
