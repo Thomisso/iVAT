@@ -108,13 +108,15 @@ describe("SuperAdmin organization console", () => {
     })).toEqual({ ok: false, error: "organization_blocked" });
 
     expect(await worker.runJobs()).toEqual([]);
-    expect(await systemClient().from("source_file").select("status").eq("id", uploaded.value.id).single())
-      .toEqual(expect.objectContaining({ data: { status: "uploaded" } }));
 
     expect(await setPlatformOrganizationBlocked(superAdmin.client, {
       organizationId: target.organizationId,
       blocked: false,
     })).toEqual({ ok: true, value: null });
+    expect(await listSourceFiles(target.client, target.companyId)).toContainEqual(expect.objectContaining({
+      id: uploaded.value.id,
+      status: "uploaded",
+    }));
     worker.releaseDelayedJobs();
     expect(await worker.runJobs()).toEqual([]);
     expect(await listSourceFiles(target.client, target.companyId)).toContainEqual(expect.objectContaining({

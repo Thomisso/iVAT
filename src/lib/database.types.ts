@@ -85,14 +85,14 @@ isOneToOne: false
                   ]
                 },"company_data_export": {
                   Row: {
-                    "byte_size": number | null,"company_id": string,"completed_at": string | null,"completion_token_hash": string | null,"created_at": string,"created_by": string,"data_revision": number,"file_name": string,"id": string,"organization_id": string,"sha256": string | null,"used_at": string | null
+                    "byte_size": number | null,"company_id": string,"completed_at": string | null,"created_at": string,"created_by": string,"data_revision": number,"file_name": string,"id": string,"organization_id": string,"sha256": string | null,"used_at": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "byte_size"?: number | null,"company_id": string,"completed_at"?: string | null,"completion_token_hash"?: string | null,"created_at"?: string,"created_by": string,"data_revision"?: number,"file_name": string,"id": string,"organization_id": string,"sha256"?: string | null,"used_at"?: string | null
+                    "byte_size"?: number | null,"company_id": string,"completed_at"?: string | null,"created_at"?: string,"created_by": string,"data_revision"?: number,"file_name": string,"id": string,"organization_id": string,"sha256"?: string | null,"used_at"?: string | null
                   }
                   Update: {
-                    "byte_size"?: number | null,"company_id"?: string,"completed_at"?: string | null,"completion_token_hash"?: string | null,"created_at"?: string,"created_by"?: string,"data_revision"?: number,"file_name"?: string,"id"?: string,"organization_id"?: string,"sha256"?: string | null,"used_at"?: string | null
+                    "byte_size"?: number | null,"company_id"?: string,"completed_at"?: string | null,"created_at"?: string,"created_by"?: string,"data_revision"?: number,"file_name"?: string,"id"?: string,"organization_id"?: string,"sha256"?: string | null,"used_at"?: string | null
                   }
                   Relationships: [
                     {
@@ -520,11 +520,14 @@ isOneToOne: false
 "change_membership_role":
 { Args: { "target_membership_id": string,"target_role": Database["public"]['Enums']["membership_role"] }; Returns: undefined
                            },
+"company_data_export_status":
+{ Args: { "target_company_id": string,"target_export_id": string }; Returns: string
+                           },
 "company_export_snapshot":
 { Args: { "target_company_id": string }; Returns: Json
                            },
 "complete_company_data_export":
-{ Args: { "completion_token": string,"target_byte_size": number,"target_export_id": string,"target_sha256": string }; Returns: undefined
+{ Args: { "target_byte_size": number,"target_export_id": string,"target_sha256": string }; Returns: undefined
                            },
 "configure_platform_ai_provider":
 { Args: { "platform_key"?: string,"provider_available": boolean,"target_extract_model": string,"target_provider": string,"target_split_model": string }; Returns: undefined

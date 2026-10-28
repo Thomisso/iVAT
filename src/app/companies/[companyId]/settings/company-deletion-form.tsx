@@ -10,6 +10,21 @@ function downloadName(disposition: string | null): string {
   return disposition?.match(/filename="([^"]+)"/)?.[1] ?? "iVAT-company-export.zip";
 }
 
+async function waitForCompletedExport(companyId: string, exportId: string): Promise<void> {
+  for (let attempt = 0; attempt < 120; attempt++) {
+    const response = await fetch(
+      `/companies/${encodeURIComponent(companyId)}/exports/${encodeURIComponent(exportId)}`,
+      { cache: "no-store" },
+    );
+    if (!response.ok) throw new Error("Company export status failed");
+    const status = await response.json() as "pending" | "completed" | "stale";
+    if (status === "completed") return;
+    if (status === "stale") throw new Error("Company export became stale");
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error("Company export completion timed out");
+}
+
 export function CompanyDeletionForm({ companyId }: { companyId: string }) {
   const t = useTranslations("company");
   const router = useRouter();
@@ -35,6 +50,7 @@ export function CompanyDeletionForm({ companyId }: { companyId: string }) {
       anchor.download = downloadName(response.headers.get("Content-Disposition"));
       anchor.click();
       setTimeout(() => URL.revokeObjectURL(url), 0);
+      await waitForCompletedExport(companyId, exportId);
       const deleted = await fetch(`/companies/${companyId}/delete`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

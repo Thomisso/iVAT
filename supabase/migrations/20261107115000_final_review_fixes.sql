@@ -3,7 +3,6 @@
 alter table public.company_data_export
   alter column byte_size drop not null,
   alter column sha256 drop not null,
-  add column completion_token_hash bytea,
   add column completed_at timestamptz;
 
 update public.company_data_export
@@ -14,13 +13,11 @@ alter table public.company_data_export
   add constraint company_data_export_completion_state check (
     (
       completed_at is null
-      and completion_token_hash is not null
       and byte_size is null
       and sha256 is null
     )
     or (
       completed_at is not null
-      and completion_token_hash is null
       and byte_size is not null
       and sha256 is not null
     )
@@ -35,7 +32,6 @@ as $$
 declare
   target public.company;
   export_id uuid := gen_random_uuid();
-  completion_token text := encode(extensions.gen_random_bytes(32), 'hex');
   export_file_name text;
   snapshot jsonb;
 begin
@@ -53,17 +49,15 @@ begin
   export_file_name := 'iVAT-company-' || target.ico || '-' || current_date || '.zip';
   insert into public.company_data_export (
     id, company_id, organization_id, created_by, file_name,
-    byte_size, sha256, data_revision, completion_token_hash
+    byte_size, sha256, data_revision
   ) values (
     export_id, target.id, target.organization_id, auth.uid(), export_file_name,
-    null, null, target.data_revision,
-    extensions.digest(completion_token, 'sha256')
+    null, null, target.data_revision
   );
 
   return jsonb_build_object(
     'exportId', export_id,
     'fileName', export_file_name,
-    'completionToken', completion_token,
     'snapshot', snapshot
   );
 end;
@@ -71,7 +65,6 @@ $$;
 
 create function public.complete_company_data_export(
   target_export_id uuid,
-  completion_token text,
   target_byte_size bigint,
   target_sha256 text
 )
@@ -87,13 +80,17 @@ begin
   end if;
   select * into pending
   from public.company_data_export
-  where id = target_export_id and completed_at is null
+  where id = target_export_id
   for update;
-  if not found
-    or pending.completion_token_hash is null
-    or pending.completion_token_hash <> extensions.digest(completion_token, 'sha256')
-  then
+  if not found then
     raise exception 'export is not completable'
+      using errcode = 'P0001', hint = 'export_failed';
+  end if;
+  if pending.completed_at is not null then
+    if pending.byte_size = target_byte_size and pending.sha256 = target_sha256 then
+      return;
+    end if;
+    raise exception 'export was completed with different metadata'
       using errcode = 'P0001', hint = 'export_failed';
   end if;
   select data_revision into current_revision
@@ -106,7 +103,6 @@ begin
   update public.company_data_export
   set byte_size = target_byte_size,
       sha256 = target_sha256,
-      completion_token_hash = null,
       completed_at = clock_timestamp()
   where id = pending.id;
 
@@ -121,6 +117,35 @@ begin
     ),
     pending.created_by
   );
+end;
+$$;
+
+create function public.company_data_export_status(
+  target_company_id uuid,
+  target_export_id uuid
+)
+returns text
+language plpgsql stable security definer set search_path = ''
+as $$
+declare
+  receipt_row public.company_data_export;
+  current_revision bigint;
+begin
+  select receipt.* into receipt_row
+  from public.company_data_export receipt
+  join public.company company on company.id = receipt.company_id
+  where receipt.id = target_export_id
+    and receipt.company_id = target_company_id
+    and receipt.created_by = auth.uid()
+    and private.can_administrate_company(company.id, company.organization_id);
+  if not found then
+    raise exception 'not allowed' using errcode = '42501';
+  end if;
+  if receipt_row.completed_at is not null then return 'completed'; end if;
+  select data_revision into current_revision
+  from public.company where id = receipt_row.company_id;
+  if receipt_row.data_revision <> current_revision then return 'stale'; end if;
+  return 'pending';
 end;
 $$;
 
@@ -195,10 +220,12 @@ $$;
 
 revoke execute on function public.company_export_snapshot(uuid),
   public.create_company_data_export(uuid),
-  public.complete_company_data_export(uuid, text, bigint, text)
+  public.complete_company_data_export(uuid, bigint, text),
+  public.company_data_export_status(uuid, uuid)
   from public, anon, authenticated, service_role;
 grant execute on function public.create_company_data_export(uuid) to authenticated;
-grant execute on function public.complete_company_data_export(uuid, text, bigint, text) to service_role;
+grant execute on function public.company_data_export_status(uuid, uuid) to authenticated;
+grant execute on function public.complete_company_data_export(uuid, bigint, text) to service_role;
 
 -- Historical Companies stay hidden from ordinary Company queries, but an
 -- Organization Administrator can resolve them for audit display and filters.

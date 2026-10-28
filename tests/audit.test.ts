@@ -7,7 +7,7 @@ import { uploadSourceFile } from "@/application/source-files";
 import { listMemberships, removeMembership } from "@/application/memberships";
 import { anonymousClient, signedUpUser, uniqueEmail } from "./support/clients";
 import { fixtureFile } from "./support/files";
-import { systemClient, testWorker } from "./support/worker";
+import { testWorker } from "./support/worker";
 import { administratorWithCompany, companyMember } from "./support/fixtures";
 
 describe("audit log", () => {
@@ -119,10 +119,12 @@ describe("audit log", () => {
 
   it("keeps a soft-deleted Company's name available to historical filters", async () => {
     const company = await administratorWithCompany("Historical Company Organization");
-    const exported = await exportCompanyData(company.client, systemClient(), {
+    const worker = testWorker();
+    const exported = await exportCompanyData(company.client, worker.jobs, {
       companyId: company.companyId,
     });
     if (!exported.ok) throw new Error(exported.error);
+    expect(await worker.runJobs()).toEqual([]);
     expect(await softDeleteCompany(company.client, {
       companyId: company.companyId,
       exportId: exported.value.exportId,
