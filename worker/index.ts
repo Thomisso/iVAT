@@ -5,6 +5,7 @@ import { asSystemClient } from "@/application/client";
 import { PROCESSING_JOB_NAMES, runJob, type ProcessingJob, type Worker } from "@/application/processing";
 import { configuredAiProviders } from "@/ai";
 import { createBoss, createProcessingQueues, pgBossJobQueue } from "@/lib/jobs";
+import { configuredVatPayerRegistry } from "@/vat-registry";
 
 // Background job runner (ADR-0002). The handlers live in the application layer
 // so tests can run them directly; here they run against pg-boss, acting as the
@@ -29,6 +30,7 @@ const worker: Worker = {
   system,
   providers: { get: (name) => providers.find((provider) => provider.name === name) },
   jobs: pgBossJobQueue(boss),
+  vatRegistry: configuredVatPayerRegistry(),
 };
 
 async function main() {

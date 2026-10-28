@@ -45,7 +45,10 @@ export function CorrectionForm({
     payload.rateBreakdown.map((_, i) => i),
   );
   const nextLine = Math.max(-1, ...lines) + 1;
-  const finding = (field: string) => findings.find((item) => item.field === field);
+  const finding = (field: string) =>
+    findings.find(
+      (item) => item.field === field && item.severity === "error",
+    );
   const findingMessage = (field: string) => {
     const item = finding(field);
     return item ? t(`findings.${item.code}`) : undefined;

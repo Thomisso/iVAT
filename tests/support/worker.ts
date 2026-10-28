@@ -4,6 +4,8 @@ import type { AiProvider } from "@/application/ai-provider";
 import { asSystemClient, type SystemClient } from "@/application/client";
 import { runJob, type JobQueue, type ProcessingJob } from "@/application/processing";
 import { fakeAiProvider } from "@/ai/fake";
+import type { VatPayerRegistry } from "@/application/vat-registry";
+import { fakeVatPayerRegistry } from "@/vat-registry/fake";
 
 /** A client acting as the worker, as `worker/index.ts` creates it. */
 export function systemClient(): SystemClient {
@@ -20,7 +22,10 @@ export function systemClient(): SystemClient {
  * the jobs they enqueue, and collects the errors a job throws (the worker would
  * log them and let pg-boss retry).
  */
-export function testWorker(aiOrProviders: AiProvider | AiProvider[] = fakeAiProvider()) {
+export function testWorker(
+  aiOrProviders: AiProvider | AiProvider[] = fakeAiProvider(),
+  vatRegistry: VatPayerRegistry = fakeVatPayerRegistry(),
+) {
   const providers = Array.isArray(aiOrProviders) ? aiOrProviders : [aiOrProviders];
   const ai = providers[0];
   const queued: ProcessingJob[] = [];
@@ -33,6 +38,7 @@ export function testWorker(aiOrProviders: AiProvider | AiProvider[] = fakeAiProv
     system: systemClient(),
     providers: { get: (name: string) => providers.find((provider) => provider.name === name) },
     jobs,
+    vatRegistry,
   };
   return {
     jobs,

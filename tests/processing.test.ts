@@ -79,6 +79,73 @@ describe("processing a Source File", () => {
   });
 });
 
+describe("VAT payer registry checks", () => {
+  it("stores unreliable-payer and unpublished-account warnings on the Extraction Version", async () => {
+    const worker = testWorker(fakeAiProvider(), {
+      check: async () => ({
+        outcome: "checked",
+        unreliable: true,
+        publishedAccounts: ["19-2000145399/0800"],
+      }),
+    });
+    const { client, companyId } = await companyWithAiProcessing(worker);
+    const sourceFileId = await upload(
+      { client, companyId },
+      worker,
+      "receipt.png",
+    );
+
+    expect(await worker.runJobs()).toEqual([]);
+
+    const [document] = await listDocuments(client, companyId, sourceFileId);
+    expect(document.status).toBe("needs_review");
+    const [version] = await listExtractionVersions(
+      client,
+      companyId,
+      document.id,
+    );
+    expect(version.findings).toEqual([
+      {
+        field: "supplier.vatId",
+        severity: "warning",
+        code: "unreliable_vat_payer",
+      },
+      {
+        field: "payment.bankAccount",
+        severity: "warning",
+        code: "unpublished_bank_account",
+      },
+    ]);
+  });
+
+  it("finishes processing and records that an unavailable registry check was not performed", async () => {
+    const worker = testWorker(fakeAiProvider(), {
+      check: async () => ({ outcome: "unavailable" }),
+    });
+    const { client, companyId } = await companyWithAiProcessing(worker);
+    const sourceFileId = await upload(
+      { client, companyId },
+      worker,
+      "receipt.png",
+    );
+
+    expect(await worker.runJobs()).toEqual([]);
+
+    const [document] = await listDocuments(client, companyId, sourceFileId);
+    expect(document.status).toBe("needs_review");
+    const [version] = await listExtractionVersions(
+      client,
+      companyId,
+      document.id,
+    );
+    expect(version.findings).toContainEqual({
+      field: "supplier.vatId",
+      severity: "warning",
+      code: "vat_registry_check_not_performed",
+    });
+  });
+});
+
 describe("AI-processing consent", () => {
   /** A fake provider that counts the calls it receives. */
   function countingProvider() {
