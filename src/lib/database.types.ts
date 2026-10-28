@@ -85,14 +85,14 @@ isOneToOne: false
                   ]
                 },"company_data_export": {
                   Row: {
-                    "byte_size": number | null,"company_id": string,"completed_at": string | null,"created_at": string,"created_by": string,"data_revision": number,"file_name": string,"id": string,"organization_id": string,"sha256": string | null,"used_at": string | null
+                    "byte_size": number | null,"company_id": string,"completed_at": string | null,"created_at": string,"created_by": string,"data_revision": number,"failed_at": string | null,"file_name": string,"id": string,"organization_id": string,"sha256": string | null,"snapshot": NonNullable<Json>,"status": string,"used_at": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "byte_size"?: number | null,"company_id": string,"completed_at"?: string | null,"created_at"?: string,"created_by": string,"data_revision"?: number,"file_name": string,"id": string,"organization_id": string,"sha256"?: string | null,"used_at"?: string | null
+                    "byte_size"?: number | null,"company_id": string,"completed_at"?: string | null,"created_at"?: string,"created_by": string,"data_revision"?: number,"failed_at"?: string | null,"file_name": string,"id": string,"organization_id": string,"sha256"?: string | null,"snapshot": NonNullable<Json>,"status"?: string,"used_at"?: string | null
                   }
                   Update: {
-                    "byte_size"?: number | null,"company_id"?: string,"completed_at"?: string | null,"created_at"?: string,"created_by"?: string,"data_revision"?: number,"file_name"?: string,"id"?: string,"organization_id"?: string,"sha256"?: string | null,"used_at"?: string | null
+                    "byte_size"?: number | null,"company_id"?: string,"completed_at"?: string | null,"created_at"?: string,"created_by"?: string,"data_revision"?: number,"failed_at"?: string | null,"file_name"?: string,"id"?: string,"organization_id"?: string,"sha256"?: string | null,"snapshot"?: NonNullable<Json>,"status"?: string,"used_at"?: string | null
                   }
                   Relationships: [
                     {
@@ -520,6 +520,9 @@ isOneToOne: false
 "change_membership_role":
 { Args: { "target_membership_id": string,"target_role": Database["public"]['Enums']["membership_role"] }; Returns: undefined
                            },
+"company_data_export_for_completion":
+{ Args: { "target_export_id": string }; Returns: Json
+                           },
 "company_data_export_status":
 { Args: { "target_company_id": string,"target_export_id": string }; Returns: string
                            },
@@ -554,6 +557,9 @@ isOneToOne: false
                            },
 "current_user_can_use_application":
 { Args: Record<PropertyKey, never>; Returns: boolean
+                           },
+"fail_company_data_export":
+{ Args: { "target_export_id": string }; Returns: undefined
                            },
 "finalize_vat_report":
 { Args: { "target_company_id": string,"target_period": string }; Returns: undefined

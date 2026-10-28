@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { strFromU8, unzipSync } from "fflate";
 import { expect, it } from "vitest";
 import type { AppClient } from "@/application/client";
@@ -115,6 +116,16 @@ it("exports a Company's originals and Document data before retaining it as soft-
       },
     }),
   );
+  expect((await listAuditEvents(company.client, company.organizationId)).find((event) => (
+    event.action === "company.data_exported"
+  ))).toEqual(expect.objectContaining({
+    payload: {
+      byte_size: result.value.bytes.byteLength,
+      export_id: result.value.exportId,
+      file_name: result.value.fileName,
+      sha256: createHash("sha256").update(result.value.bytes).digest("hex"),
+    },
+  }));
 });
 
 it("allows a Company Administrator, but refuses a User and another tenant", async () => {
@@ -204,9 +215,19 @@ it("refuses a forged export receipt through an authenticated RPC", async () => {
       expected_data_revision: 0,
     },
   ]) as { error: unknown };
+  const workerSnapshot = await Reflect.apply(company.client.rpc, company.client, [
+    "company_data_export_for_completion",
+    { target_export_id: pending.exportId },
+  ]) as { error: { code?: string } | null };
+  const forcedFailure = await Reflect.apply(company.client.rpc, company.client, [
+    "fail_company_data_export",
+    { target_export_id: pending.exportId },
+  ]) as { error: { code?: string } | null };
 
   expect(forged.error?.code).toBe("42501");
   expect(removedPath.error).not.toBeNull();
+  expect(workerSnapshot.error?.code).toBe("42501");
+  expect(forcedFailure.error?.code).toBe("42501");
   expect(await softDeleteCompany(company.client, {
     companyId: company.companyId,
     exportId: pending.exportId,
@@ -220,6 +241,10 @@ it("completes an export idempotently when the worker runs the job twice at once"
     companyId: company.companyId,
   });
   if (!exported.ok) throw new Error(exported.error);
+  expect(worker.queued).toEqual([{
+    name: "complete-company-export",
+    data: { exportId: exported.value.exportId },
+  }]);
   expect(await getCompanyDataExportStatus(company.client, {
     companyId: company.companyId,
     exportId: exported.value.exportId,
@@ -245,6 +270,36 @@ it("completes an export idempotently when the worker runs the job twice at once"
     companyId: company.companyId,
     exportId: exported.value.exportId,
   })).toEqual({ ok: true, value: expect.any(Object) });
+});
+
+it("marks a terminal export worker failure instead of leaving the receipt pending", async () => {
+  const company = await administratorWithCompany();
+  const worker = testWorker();
+  const original = fixtureFile("receipt.png");
+  const uploaded = await uploadSourceFile(company.client, { async send() {} }, {
+    companyId: company.companyId,
+    fileName: "receipt.png",
+    bytes: original,
+  });
+  if (!uploaded.ok) throw new Error(uploaded.error);
+  const exported = await exportCompanyData(company.client, worker.jobs, { companyId: company.companyId });
+  if (!exported.ok) throw new Error(exported.error);
+  const [completionJob] = worker.queued;
+  const objectPath = `${company.companyId}/${uploaded.value.id}`;
+  expect((await systemClient().storage.from("source-files").remove([objectPath])).error).toBeNull();
+
+  expect(await worker.runJobs({ final: false })).toHaveLength(1);
+  expect(await getCompanyDataExportStatus(company.client, {
+    companyId: company.companyId,
+    exportId: exported.value.exportId,
+  })).toEqual({ ok: true, value: "pending" });
+  worker.queued.push(completionJob);
+  expect(await worker.runJobs({ final: true })).toHaveLength(1);
+  expect(await getCompanyDataExportStatus(company.client, {
+    companyId: company.companyId,
+    exportId: exported.value.exportId,
+  })).toEqual({ ok: true, value: "failed" });
+
 });
 
 it("keeps a Company active when any Source File cannot be exported", async () => {
@@ -381,6 +436,11 @@ it("refuses deletion when Company data changed after its completed export", asyn
   });
   if (!changed.ok) throw new Error(changed.error);
 
+  expect(await getCompanyDataExportStatus(company.client, {
+    companyId: company.companyId,
+    exportId: exported.value.exportId,
+  })).toEqual({ ok: true, value: "stale" });
+
   expect(await softDeleteCompany(company.client, {
     companyId: company.companyId,
     exportId: exported.value.exportId,
@@ -463,6 +523,7 @@ it("does not expose Company export receipts through direct table reads or writes
       file_name: "forged.zip",
       byte_size: 1,
       sha256: "0".repeat(64),
+      snapshot: {},
     }),
     await outsider.client.from("company_data_export").update({ file_name: "changed.zip" }).eq("id", exported.value.exportId),
     await outsider.client.from("company_data_export").delete().eq("id", exported.value.exportId),

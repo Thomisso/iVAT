@@ -5,22 +5,31 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/button";
 import { Notice } from "@/components/notice";
+import { PROCESSING_JOB_RETRY_WINDOW_MS } from "@/lib/processing-policy";
+
+type TerminalExportStatus = "failed" | "stale";
+
+const EXPORT_POLL_INTERVAL_MS = 500;
+const EXPORT_POLL_TIMEOUT_MS = PROCESSING_JOB_RETRY_WINDOW_MS + 60_000;
 
 function downloadName(disposition: string | null): string {
   return disposition?.match(/filename="([^"]+)"/)?.[1] ?? "iVAT-company-export.zip";
 }
 
-async function waitForCompletedExport(companyId: string, exportId: string): Promise<void> {
-  for (let attempt = 0; attempt < 120; attempt++) {
+async function waitForCompletedExport(
+  companyId: string,
+  exportId: string,
+): Promise<"completed" | TerminalExportStatus> {
+  const deadline = Date.now() + EXPORT_POLL_TIMEOUT_MS;
+  while (Date.now() < deadline) {
     const response = await fetch(
       `/companies/${encodeURIComponent(companyId)}/exports/${encodeURIComponent(exportId)}`,
       { cache: "no-store" },
     );
     if (!response.ok) throw new Error("Company export status failed");
-    const status = await response.json() as "pending" | "completed" | "stale";
-    if (status === "completed") return;
-    if (status === "stale") throw new Error("Company export became stale");
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    const status = await response.json() as "pending" | "completed" | TerminalExportStatus;
+    if (status !== "pending") return status;
+    await new Promise((resolve) => setTimeout(resolve, EXPORT_POLL_INTERVAL_MS));
   }
   throw new Error("Company export completion timed out");
 }
@@ -29,13 +38,13 @@ export function CompanyDeletionForm({ companyId }: { companyId: string }) {
   const t = useTranslations("company");
   const router = useRouter();
   const [pending, setPending] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [failure, setFailure] = useState<"technical" | TerminalExportStatus | null>(null);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!window.confirm(t("deleteConfirm"))) return;
     setPending(true);
-    setFailed(false);
+    setFailure(null);
     try {
       const response = await fetch(`/companies/${companyId}/export`, {
         method: "POST",
@@ -50,7 +59,12 @@ export function CompanyDeletionForm({ companyId }: { companyId: string }) {
       anchor.download = downloadName(response.headers.get("Content-Disposition"));
       anchor.click();
       setTimeout(() => URL.revokeObjectURL(url), 0);
-      await waitForCompletedExport(companyId, exportId);
+      const status = await waitForCompletedExport(companyId, exportId);
+      if (status !== "completed") {
+        setFailure(status);
+        setPending(false);
+        return;
+      }
       const deleted = await fetch(`/companies/${companyId}/delete`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -59,7 +73,7 @@ export function CompanyDeletionForm({ companyId }: { companyId: string }) {
       if (!deleted.ok) throw new Error("Company deletion failed");
       router.replace("/");
     } catch {
-      setFailed(true);
+      setFailure("technical");
       setPending(false);
     }
   }
@@ -73,7 +87,11 @@ export function CompanyDeletionForm({ companyId }: { companyId: string }) {
           {t(pending ? "deletePreparing" : "deleteButton")}
         </Button>
       </form>
-      {failed && <Notice tone="danger">{t("deleteFailed")}</Notice>}
+      {failure && (
+        <Notice tone="danger">
+          {t(failure === "stale" ? "deleteStale" : failure === "failed" ? "deleteWorkerFailed" : "deleteFailed")}
+        </Notice>
+      )}
     </section>
   );
 }
