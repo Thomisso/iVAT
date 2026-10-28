@@ -138,7 +138,14 @@ async function providerAvailability(
   if (data.organization?.blocked_at) return { blocked: true, provider: null };
   if (!data.ai_processing_enabled || !data.ai_provider) return { blocked: false, provider: null };
   const provider = providers.get(data.ai_provider);
-  return { blocked: false, provider: provider && provider.region === data.ai_region ? provider : null };
+  if (!provider || provider.region !== data.ai_region) {
+    throw new AiProviderError(
+      "provider_unavailable_on_worker",
+      `AI provider "${data.ai_provider}" in region "${data.ai_region}" is not configured on this worker`,
+      { transient: true },
+    );
+  }
+  return { blocked: false, provider };
 }
 
 const BLOCKED_JOB_RECHECK_SECONDS = 60;
@@ -171,13 +178,6 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
   if (file.status === "failed") return;
 
   if (file.status !== "split") {
-    const availability = await providerAvailability(system, file.company_id, providers);
-    if (availability.blocked) {
-      await jobs.send(splitJob(file.id), { startAfterSeconds: BLOCKED_JOB_RECHECK_SECONDS });
-      return;
-    }
-    const ai = availability.provider;
-    if (!ai) return;
     // Moves the status only from the given ones, so a job that read a stale status cannot undo another's result.
     const moveStatus = async (to: SourceFileStatus, from: SourceFileStatus[]) => {
       const { data, error } = await system
@@ -189,7 +189,14 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
       if (error) throw error;
       return data.length > 0;
     };
-    await failOnFinalAttempt(attempt, () => moveStatus("failed", ["processing"]).then(() => undefined), async () => {
+    await failOnFinalAttempt(attempt, () => moveStatus("failed", ["uploaded", "processing"]).then(() => undefined), async () => {
+      const availability = await providerAvailability(system, file.company_id, providers);
+      if (availability.blocked) {
+        await jobs.send(splitJob(file.id), { startAfterSeconds: BLOCKED_JOB_RECHECK_SECONDS });
+        return;
+      }
+      const ai = availability.provider;
+      if (!ai) return;
       if (!(await moveStatus("processing", ["uploaded", "processing"]))) return;
       const bytes = await download(system, file.company_id, file.id);
       const input = sourceFileInput(file.format, bytes, file.page_count);
@@ -238,13 +245,6 @@ async function extractDocument(
     .single();
   if (error) throw error;
   if (document.superseded_at !== null || (document.status !== "uploaded" && document.status !== "processing")) return;
-  const availability = await providerAvailability(system, document.company_id, providers);
-  if (availability.blocked) {
-    await jobs.send(extractJob(document.id), { startAfterSeconds: BLOCKED_JOB_RECHECK_SECONDS });
-    return;
-  }
-  const ai = availability.provider;
-  if (!ai) return;
 
   // Moves the status of this Extraction request only from the given ones (see splitSourceFile).
   const moveStatus = async (to: DocumentStatus, from: DocumentStatus[]) => {
@@ -259,7 +259,14 @@ async function extractDocument(
     return data.length > 0;
   };
 
-  await failOnFinalAttempt(attempt, () => moveStatus("failed", ["processing"]).then(() => undefined), async () => {
+  await failOnFinalAttempt(attempt, () => moveStatus("failed", ["uploaded", "processing"]).then(() => undefined), async () => {
+    const availability = await providerAvailability(system, document.company_id, providers);
+    if (availability.blocked) {
+      await jobs.send(extractJob(document.id), { startAfterSeconds: BLOCKED_JOB_RECHECK_SECONDS });
+      return;
+    }
+    const ai = availability.provider;
+    if (!ai) return;
     if (!(await moveStatus("processing", ["uploaded", "processing"]))) return;
     const bytes = await download(system, document.company_id, document.source_file_id);
     const range = document.first_row === null
