@@ -72,6 +72,26 @@ test("Overview primary action keeps white-on-blue contrast", async ({ baseURL, c
   expect(results.violations).toEqual([]);
 });
 
+test("inactive ledger stages keep neutral text contrast at mobile and desktop widths", async ({ baseURL, context, page }) => {
+  await setLocale(context, baseURL, "en");
+
+  for (const width of [360, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/prototype?screen=overview");
+    const inactiveMarkers = page.getByRole("list", { name: "Document processing path" }).locator("li:nth-child(n+3) > span:first-child");
+    await expect(inactiveMarkers).toHaveCount(2);
+    for (const marker of await inactiveMarkers.all()) {
+      await expect(marker).toHaveCSS("color", "rgb(92, 107, 114)");
+      await expect(marker).toHaveCSS("background-color", "rgb(243, 245, 243)");
+    }
+    const results = await new AxeBuilder({ page })
+      .include('ol[aria-label="Document processing path"] li:nth-child(n+3)')
+      .withRules(["color-contrast"])
+      .analyze();
+    expect(results.violations, `${width}px inactive ledger contrast`).toEqual([]);
+  }
+});
+
 test("structural counts and human capture controls do not use the AI ochre accent", async ({ baseURL, context, page }) => {
   await setLocale(context, baseURL, "en");
   await page.goto("/prototype?screen=upload");
