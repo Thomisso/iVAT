@@ -46,8 +46,11 @@ async function freePort(from) {
   fail(`no free port in ${from}–${from + 99}`);
 }
 
-/** Starts a long-running npm script, logs it to .demo/<name>.log, and resolves with the first log match of `ready`. */
-function startServer(name, script, args, ready) {
+/**
+ * Starts a long-running npm script, logs it to .demo/<name>.log, and resolves with the first log match of `ready`.
+ * Output matching `crashed` fails the demo, for a process that stays up after a crash (such as `tsx watch`).
+ */
+function startServer(name, script, args, ready, crashed) {
   const logFile = path.join(logDir, `${name}.log`);
   const log = fs.createWriteStream(logFile);
   // Its own process group, so stopping it also stops the processes npm spawns.
@@ -62,6 +65,9 @@ function startServer(name, script, args, ready) {
     const onData = (chunk) => {
       log.write(chunk);
       output += chunk.toString().replace(/\x1b\[[0-9;]*m/g, "");
+      if (crashed?.test(output)) {
+        fail(`${name} failed to start; see ${path.relative(root, logFile)}:\n${output.trim().split("\n").slice(0, 8).join("\n")}`);
+      }
       const match = output.match(ready);
       if (match) {
         output = "";
@@ -89,8 +95,19 @@ function stopChildren() {
   }
 }
 
+/** Whether node_modules lacks a dependency of package.json, as after pulling a change that added one. */
+function dependenciesMissing() {
+  return spawnSync("npm", ["ls", "--depth=0"], { cwd: root, stdio: "ignore" }).status !== 0;
+}
+
 async function main() {
   fs.mkdirSync(logDir, { recursive: true });
+
+  if (dependenciesMissing()) {
+    console.log("Installing dependencies…");
+    const { status } = spawnSync("npm", ["install"], { cwd: root, stdio: ["ignore", "ignore", "inherit"] });
+    if (status !== 0) fail("npm install failed");
+  }
 
   console.log("Starting Supabase…");
   run("db:start");
@@ -101,7 +118,8 @@ async function main() {
   const port = await freePort(3000);
   const [[, appUrl]] = await Promise.all([
     startServer("next", "dev", ["-p", String(port)], /Local:\s+(\S+)[\s\S]*Ready/),
-    startServer("worker", "worker", [], /waiting for jobs/),
+    // tsx watch keeps running after the worker crashes, waiting for a file change.
+    startServer("worker", "worker", [], /waiting for jobs/, /\[worker\] failed to start|^Node\.js v\d/m),
   ]);
 
   console.log("Seeding a demo account…");
