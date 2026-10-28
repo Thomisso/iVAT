@@ -2,6 +2,7 @@ import { isUuid, type AppClient, type Result } from "./client";
 import { buildCompanyDataArchive, type CompanyExportSnapshot } from "./company-data-export";
 import { completeCompanyExportJob, type JobQueue } from "./processing";
 import { readSourceFile } from "./source-files";
+import type { CompanyDataExportStatus } from "@/lib/company-data-export-status";
 
 export type CompanyDataExportDownload = {
   bytes: Uint8Array;
@@ -12,7 +13,6 @@ export type CompanyDataExportDownload = {
 
 export type ExportCompanyDataError = "forbidden" | "export_failed";
 export type SoftDeleteCompanyError = "forbidden" | "export_required" | "stale_export";
-export type CompanyDataExportStatus = "pending" | "completed" | "failed" | "stale";
 export type CompanyDeletionReceipt = {
   sourceFileCount: number;
   documentCount: number;
