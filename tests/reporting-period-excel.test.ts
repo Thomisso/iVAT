@@ -8,7 +8,7 @@ import { uploadSourceFile } from "@/application/source-files";
 import { administratorWithCompany, companyDetails, companyMember } from "./support/fixtures";
 import { signedUpUser } from "./support/clients";
 import { fixtureFile } from "./support/files";
-import { testWorker } from "./support/worker";
+import { systemClient, testWorker } from "./support/worker";
 
 const COLUMNS = [
   "Document ID",
@@ -169,6 +169,63 @@ it("classifies a quarterly Company's Documents on VAT Return lines and Control S
   const workbook = XLSX.read(result.value.bytes, { type: "array" });
   const [row] = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets.Included);
   expect(row).toEqual(expect.objectContaining({
+    "VAT Return line": "40",
+    "Control Statement section": "B.3",
+  }));
+});
+
+it("uses filing-frequency history beyond the API row limit for quarterly classification", async () => {
+  const company = await administratorWithCompany("Long Filing History");
+  const monthlyHistory = Array.from({ length: 999 }, (_, index) => {
+    const effectiveFrom = new Date(Date.UTC(2027, 0, index + 1)).toISOString().slice(0, 10);
+    return {
+      company_id: company.companyId,
+      organization_id: company.organizationId,
+      frequency: "monthly" as const,
+      effective_from: effectiveFrom,
+    };
+  });
+  const inserted = await systemClient().from("company_filing_frequency").insert([
+    ...monthlyHistory,
+    {
+      company_id: company.companyId,
+      organization_id: company.organizationId,
+      frequency: "quarterly",
+      effective_from: "2030-01-01",
+    },
+  ]);
+  if (inserted.error) throw inserted.error;
+  const worker = testWorker(fakeAiProvider({
+    extract: () => ({ ...SAMPLE_EXTRACTION, taxPointDate: "2030-02-10" }),
+  }));
+  await enableAiProcessing(company.client, worker.jobs, {
+    companyId: company.companyId,
+    provider: worker.ai,
+  });
+  const uploaded = await uploadSourceFile(company.client, worker.jobs, {
+    companyId: company.companyId,
+    fileName: "late-quarterly.png",
+    bytes: fixtureFile("receipt.png"),
+    preselectedDirection: "incoming",
+  });
+  if (!uploaded.ok) throw new Error(uploaded.error);
+  expect(await worker.runJobs()).toEqual([]);
+  const [document] = await listDocuments(company.client, company.companyId, uploaded.value.id);
+  expect(await approveDocument(company.client, {
+    companyId: company.companyId,
+    documentId: document.id,
+    version: 1,
+  })).toEqual({ ok: true, value: null });
+
+  const result = await exportReportingPeriodWorkbook(company.client, {
+    companyId: company.companyId,
+    period: "2030-Q1",
+  });
+  if (!result.ok) throw new Error(result.error);
+  const workbook = XLSX.read(result.value.bytes, { type: "array" });
+  const [row] = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets.Included);
+  expect(row).toEqual(expect.objectContaining({
+    "Document ID": document.id,
     "VAT Return line": "40",
     "Control Statement section": "B.3",
   }));

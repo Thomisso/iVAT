@@ -175,13 +175,20 @@ export async function listCompanyFilingFrequencies(
   companyId: string,
 ): Promise<FilingFrequencyHistoryEntry[]> {
   if (!isUuid(companyId)) return [];
-  const { data, error } = await client
-    .from("company_filing_frequency")
-    .select("frequency, effective_from")
-    .eq("company_id", companyId)
-    .order("effective_from");
-  if (error) throw error;
-  return data.map((entry) => ({
+  const pageSize = 1_000;
+  const history: { frequency: FilingFrequency; effective_from: string }[] = [];
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await client
+      .from("company_filing_frequency")
+      .select("frequency, effective_from")
+      .eq("company_id", companyId)
+      .order("effective_from")
+      .range(offset, offset + pageSize - 1);
+    if (error) throw error;
+    history.push(...data);
+    if (data.length < pageSize) break;
+  }
+  return history.map((entry) => ({
     frequency: entry.frequency,
     effectiveFrom: entry.effective_from,
   }));

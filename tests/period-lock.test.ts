@@ -260,9 +260,9 @@ it("isolates Period Lock reads and refuses direct user writes", async () => {
 
   const row = own.data!;
   const attempts = [
-    await company.client.from("period_lock").insert(row),
-    await company.client.from("period_lock").update({ period: "2026-11" }).eq("company_id", company.companyId),
-    await company.client.from("period_lock").delete().eq("company_id", company.companyId),
+    await outsider.client.from("period_lock").insert(row),
+    await outsider.client.from("period_lock").update({ period: "2026-11" }).eq("company_id", company.companyId),
+    await outsider.client.from("period_lock").delete().eq("company_id", company.companyId),
   ];
   for (const attempt of attempts) expect(attempt.error?.code).toBe("42501");
   expect(await getPeriodLock(company.client, company.companyId, "2026-10")).not.toBeNull();
