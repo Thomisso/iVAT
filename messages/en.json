@@ -68,7 +68,9 @@
     "deleteButton": "Export and delete Company",
     "deletePreparing": "Preparing export…",
     "deleteConfirm": "Export and delete this Company for every member? The Company cannot be restored in the app.",
-    "deleteFailed": "The export could not be completed, so the Company was not deleted. Try again."
+    "deleteFailed": "The export could not be completed, so the Company was not deleted. Try again.",
+    "deleteWorkerFailed": "Export processing failed after all retries. The Company was not deleted.",
+    "deleteStale": "Company data changed after the export started. The Company was not deleted; start a new export."
   },
   "members": {
     "nav": "Members",

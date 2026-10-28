@@ -1,7 +1,12 @@
 import * as XLSX from "xlsx";
 import type { ValidationFinding } from "./document-validation";
 import type { ExtractionPayload, RateBreakdownLine } from "./extraction-payload";
-import { type CompanyDetails, getCompany, listCompanyFilingFrequencies } from "./companies";
+import {
+  type CompanyDetails,
+  getCompany,
+  getFilingFrequencyForPeriod,
+  listCompanyFilingFrequencies,
+} from "./companies";
 import type { AppClient, Result } from "./client";
 import { computeVatReport, isReportingPeriod, type ReportDocument } from "./vat-rules";
 
@@ -125,6 +130,13 @@ export async function exportReportingPeriodWorkbook(
   if (!isReportingPeriod(input.period)) return { ok: false, error: "invalid_reporting_period" };
   const company = await getCompany(client, input.companyId);
   if (!company) return { ok: false, error: "forbidden" };
+  const frequency = await getFilingFrequencyForPeriod(client, company.id, input.period);
+  if (
+    frequency === null
+    || (input.period.includes("-Q") ? frequency !== "quarterly" : frequency !== "monthly")
+  ) {
+    return { ok: false, error: "invalid_reporting_period" };
+  }
   const [{ data, error }, filingFrequencies] = await Promise.all([
     client.rpc("vat_report_documents", {
       target_company_id: company.id,

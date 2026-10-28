@@ -34,3 +34,7 @@ export function refusalResponse(
 export function successfulCommandResponse(): Response {
   return new Response(null, { status: 204, headers: PRIVATE_RESPONSE_HEADERS });
 }
+
+export function successfulJsonResponse(value: unknown): Response {
+  return Response.json(value, { headers: PRIVATE_RESPONSE_HEADERS });
+}

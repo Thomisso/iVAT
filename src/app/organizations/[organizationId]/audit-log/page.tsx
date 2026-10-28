@@ -1,8 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
-import { listAuditActors, listAuditEventPage, type AuditEventFilters } from "@/application/audit";
-import { listMyCompanies } from "@/application/companies";
+import {
+  listAuditActors,
+  listAuditCompanies,
+  listAuditEventPage,
+  type AuditEventFilters,
+} from "@/application/audit";
 import { listMyOrganizations } from "@/application/organizations";
 import { AppSidebar } from "@/components/app-sidebar";
 import { Button } from "@/components/button";
@@ -45,16 +49,15 @@ export default async function OrganizationAuditLogPage({
   const { organizationId } = await params;
   const query = await searchParams;
   const client = await requireUserClient();
-  const [organizations, allCompanies, t, format] = await Promise.all([
+  const [organizations, companies, t, format] = await Promise.all([
     listMyOrganizations(client),
-    listMyCompanies(client),
+    listAuditCompanies(client, organizationId),
     getTranslations("auditLog"),
     getFormatter(),
   ]);
   const organization = organizations.find((item) => item.id === organizationId && item.role === "administrator");
   if (!organization) notFound();
 
-  const companies = allCompanies.filter((company) => company.organizationId === organizationId);
   const actors = await listAuditActors(client, organizationId);
   const requestedCompanyId = single(query.companyId);
   const requestedActorUserId = single(query.actorUserId);
