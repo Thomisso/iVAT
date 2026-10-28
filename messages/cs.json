@@ -367,7 +367,8 @@
       "unreliable_vat_payer": "Dodavatel je v registru veden jako nespolehlivý plátce DPH.",
       "unpublished_bank_account": "Platební účet není u tohoto dodavatele zveřejněn v registru plátců DPH.",
       "vat_registry_check_not_performed": "Registr plátců DPH nebyl dostupný, proto nebyla provedena kontrola dodavatele a platebního účtu.",
-      "direction_unknown": "Směr se nepodařilo určit podle identity firmy. Před schválením jej nastavte."
+      "direction_unknown": "Směr se nepodařilo určit podle identity firmy. Před schválením jej nastavte.",
+      "currency_conversion_not_performed": "Kurz ČNB nebyl dostupný, proto nebylo možné vypočítat částky v CZK."
     },
     "noDocumentImage": "Tento doklad vznikl z řádků tabulky a nemá obraz dokladu.",
     "sections": {
@@ -375,6 +376,7 @@
       "supplier": "Dodavatel",
       "customer": "Odběratel",
       "amounts": "Rozpis podle sazeb a součty",
+      "czkConversion": "Přepočet na CZK",
       "payment": "Platba"
     },
     "fields": {
@@ -397,12 +399,18 @@
       "rate": "Sazba (%)",
       "netAmount": "Základ",
       "vatAmount": "DPH",
+      "netAmountCzk": "Základ (CZK)",
+      "vatAmountCzk": "DPH (CZK)",
       "totalNet": "Základ celkem",
       "totalVat": "DPH celkem",
       "totalGross": "Celkem s DPH",
       "variableSymbol": "Variabilní symbol",
       "bankAccount": "Bankovní účet",
       "iban": "IBAN"
+    },
+    "czkConversion": {
+      "rate": "{unit} {currency} = {rate} CZK · platný pro {date} · {source}",
+      "totals": "Součty v CZK: základ {net}, DPH {vat}, celkem {gross}"
     },
     "documentType": {
       "invoice": "Faktura",

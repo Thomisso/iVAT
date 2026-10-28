@@ -6,6 +6,8 @@ import { runJob, type JobQueue, type ProcessingJob } from "@/application/process
 import { fakeAiProvider } from "@/ai/fake";
 import type { VatPayerRegistry } from "@/application/vat-registry";
 import { fakeVatPayerRegistry } from "@/vat-registry/fake";
+import type { ExchangeRateProvider } from "@/application/exchange-rates";
+import { fakeExchangeRates } from "@/cnb/fake";
 
 /** A client acting as the worker, as `worker/index.ts` creates it. */
 export function systemClient(): SystemClient {
@@ -25,6 +27,7 @@ export function systemClient(): SystemClient {
 export function testWorker(
   aiOrProviders: AiProvider | AiProvider[] = fakeAiProvider(),
   vatRegistry: VatPayerRegistry = fakeVatPayerRegistry(),
+  exchangeRates: ExchangeRateProvider = fakeExchangeRates(),
 ) {
   const providers = Array.isArray(aiOrProviders) ? aiOrProviders : [aiOrProviders];
   const ai = providers[0];
@@ -39,6 +42,7 @@ export function testWorker(
     providers: { get: (name: string) => providers.find((provider) => provider.name === name) },
     jobs,
     vatRegistry,
+    exchangeRates,
   };
   return {
     jobs,

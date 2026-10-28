@@ -94,13 +94,28 @@ function exclusion(document: ReportDocument): ExclusionReason | null {
     p.rateBreakdown.some((r) => r.rate !== 21 && r.rate !== 12)
   )
     return "manual_classification_required";
-  if (p.currency !== "CZK") return "currency_conversion_required";
+  if (
+    p.currency !== "CZK" &&
+    (!p.czkConversion ||
+      p.czkConversion.originalCurrency !== p.currency ||
+      p.czkConversion.rateDate > p.taxPointDate)
+  ) return "currency_conversion_required";
   if (
     p.direction === "incoming" &&
     !/^CZ[0-9]{8,10}$/.test(p.supplier.vatId ?? "")
   )
     return "incomplete_data";
   return null;
+}
+
+function czkPayload(payload: ExtractionPayload): ExtractionPayload {
+  if (payload.currency === "CZK" || !payload.czkConversion) return payload;
+  return {
+    ...payload,
+    currency: "CZK",
+    rateBreakdown: payload.czkConversion.rateBreakdown,
+    totals: payload.czkConversion.totals,
+  };
 }
 
 /**
@@ -126,7 +141,7 @@ export function computeVatReport(
       excludedDocuments.push({ documentId: document.id, reason });
       continue;
     }
-    const p = payload;
+    const p = czkPayload(payload);
     const vatId = (p.direction === "incoming" ? p.supplier : p.customer).vatId;
     const gross = halers(p.totals.grossAmount!);
     const individual =

@@ -21,6 +21,7 @@ import { signedUpUser } from "./support/clients";
 import { fixtureFile } from "./support/files";
 import { administratorWithCompany, companyMember } from "./support/fixtures";
 import { testWorker } from "./support/worker";
+import { fakeExchangeRates } from "@/cnb/fake";
 
 /** An Administrator whose Company holds one Document in NeedsReview, Extracted as `extraction`. */
 async function documentInReview(extraction: ExtractionPayload = SAMPLE_EXTRACTION) {
@@ -54,6 +55,28 @@ const CORRECTED: ExtractionPayload = {
 };
 
 describe("correcting a Document", () => {
+  it("re-applies the ČNB rate when currency and Tax Point Date change", async () => {
+    const foreign = { ...SAMPLE_EXTRACTION, currency: "EUR", taxPointDate: "2026-10-01" };
+    const { client, companyId, documentId } = await documentInReview(foreign);
+
+    await correctDocument(
+      client,
+      {
+        companyId, documentId, basedOnVersion: 1,
+        payload: { ...foreign, currency: "USD", taxPointDate: "2026-10-02" },
+      },
+      fakeExchangeRates("20.00"),
+    );
+
+    const versions = await listExtractionVersions(client, companyId, documentId);
+    expect(versions[0].payload.czkConversion).toEqual(
+      expect.objectContaining({ originalCurrency: "EUR", rate: "25.00", rateDate: "2026-10-01" }),
+    );
+    expect(versions[1].payload.czkConversion).toEqual(
+      expect.objectContaining({ originalCurrency: "USD", rate: "20.00", rateDate: "2026-10-02" }),
+    );
+  });
+
   it("stores deterministic findings with each immutable Extraction Version", async () => {
     const invalid = {
       ...SAMPLE_EXTRACTION,
