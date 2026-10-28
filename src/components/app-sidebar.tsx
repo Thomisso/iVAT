@@ -132,6 +132,7 @@ export async function AppSidebar({
           ))}
           {superAdmin && <Link href="/platform/ai-settings">{t("platformAi.nav")}</Link>}
           {superAdmin && <Link href="/platform/ai-usage">{t("aiUsage.platformNav")}</Link>}
+          {superAdmin && <Link href="/platform/administration">{t("platformAdministration.nav")}</Link>}
           <LanguageSwitcher />
           <Link href="/settings/security">{t("nav.security")}</Link>
           <form action={logOutAction}>

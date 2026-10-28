@@ -1,0 +1,292 @@
+import { createHmac } from "node:crypto";
+import { createClient } from "@supabase/supabase-js";
+import { inject, describe, expect, it } from "vitest";
+import { asUserClient } from "@/application/client";
+import { logIn } from "@/application/auth";
+import { listAuditEvents } from "@/application/audit";
+import { enableAiProcessing } from "@/application/companies";
+import {
+  listPlatformOrganizationCompanies,
+  getPlatformUploadLimits,
+  setPlatformUploadLimits,
+  setPlatformOrganizationBlocked,
+} from "@/application/platform-administration";
+import {
+  listFailedProcessingJobs,
+  retryFailedProcessingJob,
+} from "@/application/processing-administration";
+import { uploadSourceFile } from "@/application/source-files";
+import { beginUploadBatch } from "@/application/upload-batches";
+import {
+  createBoss,
+  createProcessingQueues,
+  pgBossProcessingJobAdministration,
+} from "@/lib/jobs";
+import { administratorWithCompany } from "./support/fixtures";
+import { anonymousClient, signedUpUser } from "./support/clients";
+import { fixtureFile } from "./support/files";
+import { systemClient, testWorker } from "./support/worker";
+
+function aal2Client(userId: string) {
+  const encode = (value: object) => Buffer.from(JSON.stringify(value)).toString("base64url");
+  const now = Math.floor(Date.now() / 1000);
+  const unsigned = `${encode({ alg: "HS256", typ: "JWT" })}.${encode({
+    aud: "authenticated",
+    exp: now + 3600,
+    iat: now,
+    sub: userId,
+    role: "authenticated",
+    aal: "aal2",
+    session_id: `platform-administration-test-${userId}`,
+  })}`;
+  const signature = createHmac("sha256", inject("supabaseJwtSecret")).update(unsigned).digest("base64url");
+  return asUserClient(createClient(inject("supabaseUrl"), inject("supabaseAnonKey"), {
+    accessToken: async () => `${unsigned}.${signature}`,
+    auth: { persistSession: false, autoRefreshToken: false },
+  }));
+}
+
+async function superAdministrator() {
+  const user = await signedUpUser("Platform Administration");
+  const { error } = await systemClient().from("platform_user").insert({
+    user_id: user.userId,
+    role: "super_admin",
+  });
+  if (error) throw error;
+  return { ...user, client: aal2Client(user.userId) };
+}
+
+describe("SuperAdmin organization console", () => {
+  it("lists every Organization and Company only for a SuperAdmin", async () => {
+    const target = await administratorWithCompany("Accounting Office");
+    const ordinary = await signedUpUser("Ordinary Organization");
+    const superAdmin = await superAdministrator();
+
+    expect(await listPlatformOrganizationCompanies(ordinary.client)).toEqual({
+      ok: false,
+      error: "forbidden",
+    });
+    expect(await listPlatformOrganizationCompanies(superAdmin.client)).toEqual(expect.objectContaining({
+      ok: true,
+      value: expect.arrayContaining([{
+        id: target.organizationId,
+        name: "Accounting Office",
+        blocked: false,
+        companies: [{ id: target.companyId, name: "Novák s.r.o.", ico: expect.any(String) }],
+      }]),
+    }));
+  });
+
+  it("blocks login and processing until a SuperAdmin unblocks the Organization, with an audit trail", async () => {
+    const target = await administratorWithCompany("Blocked Organization");
+    const worker = testWorker();
+    await enableAiProcessing(target.client, worker.jobs, {
+      companyId: target.companyId,
+      provider: worker.ai,
+    });
+    const uploaded = await uploadSourceFile(target.client, worker.jobs, {
+      companyId: target.companyId,
+      fileName: "receipt.png",
+      bytes: fixtureFile("receipt.png"),
+    });
+    if (!uploaded.ok) throw new Error(uploaded.error);
+    const ordinary = await signedUpUser("Ordinary Organization");
+    const superAdmin = await superAdministrator();
+
+    expect(await setPlatformOrganizationBlocked(ordinary.client, {
+      organizationId: target.organizationId,
+      blocked: true,
+    })).toEqual({ ok: false, error: "forbidden" });
+    expect(await setPlatformOrganizationBlocked(superAdmin.client, {
+      organizationId: target.organizationId,
+      blocked: true,
+    })).toEqual({ ok: true, value: null });
+    expect(await logIn(anonymousClient(), {
+      email: target.email,
+      password: "correct-horse-battery",
+    })).toEqual({ ok: false, error: "organization_blocked" });
+
+    expect(await worker.runJobs()).toEqual([]);
+    expect(await systemClient().from("source_file").select("status").eq("id", uploaded.value.id).single())
+      .toEqual(expect.objectContaining({ data: { status: "uploaded" } }));
+
+    expect(await setPlatformOrganizationBlocked(superAdmin.client, {
+      organizationId: target.organizationId,
+      blocked: false,
+    })).toEqual({ ok: true, value: null });
+    expect(await logIn(anonymousClient(), {
+      email: target.email,
+      password: "correct-horse-battery",
+    })).toEqual({ ok: true, value: null });
+    expect((await listAuditEvents(target.client, target.organizationId)).filter((event) => (
+      event.action === "organization.platform_block_changed"
+    ))).toEqual([
+      expect.objectContaining({ targetId: target.organizationId, payload: { blocked: true } }),
+      expect.objectContaining({ targetId: target.organizationId, payload: { blocked: false } }),
+    ]);
+  });
+
+  it("lets only a SuperAdmin edit upload limits and applies them to uploads", async () => {
+    const target = await administratorWithCompany("Limited Organization");
+    const ordinary = await signedUpUser("Ordinary Organization");
+    const superAdmin = await superAdministrator();
+    const defaultMaxFileBytes = 20 * 1024 * 1024;
+    const editedMaxFileBytes = defaultMaxFileBytes + 1024;
+
+    expect(await getPlatformUploadLimits(ordinary.client)).toEqual({ ok: false, error: "forbidden" });
+    expect(await setPlatformUploadLimits(ordinary.client, {
+      maxFileBytes: 1,
+      maxFilePages: 1,
+      maxBatchFiles: 1,
+    })).toEqual({ ok: false, error: "forbidden" });
+    expect(await setPlatformUploadLimits(superAdmin.client, {
+      maxFileBytes: editedMaxFileBytes,
+      maxFilePages: 51,
+      maxBatchFiles: 101,
+    })).toEqual({ ok: true, value: null });
+    expect(await getPlatformUploadLimits(superAdmin.client)).toEqual({
+      ok: true,
+      value: {
+        maxFileBytes: editedMaxFileBytes,
+        maxFilePages: 51,
+        maxBatchFiles: 101,
+      },
+    });
+    expect(await setPlatformUploadLimits(superAdmin.client, {
+      maxFileBytes: defaultMaxFileBytes,
+      maxFilePages: 50,
+      maxBatchFiles: 100,
+    })).toEqual({ ok: true, value: null });
+
+    const oversized = new Uint8Array(defaultMaxFileBytes + 1);
+    oversized.set(fixtureFile("receipt.png"));
+
+    expect(await uploadSourceFile(target.client, testWorker().jobs, {
+      companyId: target.companyId,
+      fileName: "receipt.png",
+      bytes: oversized,
+    })).toEqual({ ok: false, error: "file_too_large" });
+    expect(await beginUploadBatch(target.client, {
+      companyId: target.companyId,
+      fileCount: 101,
+    })).toEqual({ ok: false, error: "too_many_files" });
+  });
+
+  it("lists a terminal pg-boss failure and retries its stuck processing target once", async () => {
+    const target = await administratorWithCompany("Failed Jobs Organization");
+    const superAdmin = await superAdministrator();
+    await setPlatformUploadLimits(superAdmin.client, {
+      maxFileBytes: 20 * 1024 * 1024,
+      maxFilePages: 50,
+      maxBatchFiles: 100,
+    });
+    const queued = testWorker();
+    const uploaded = await uploadSourceFile(target.client, queued.jobs, {
+      companyId: target.companyId,
+      fileName: "receipt.png",
+      bytes: fixtureFile("receipt.png"),
+    });
+    if (!uploaded.ok) throw new Error(uploaded.error);
+    const moved = await systemClient().from("source_file")
+      .update({ status: "processing" })
+      .eq("id", uploaded.value.id);
+    if (moved.error) throw moved.error;
+    const documentFile = await uploadSourceFile(target.client, queued.jobs, {
+      companyId: target.companyId,
+      fileName: "document.png",
+      bytes: fixtureFile("receipt.png"),
+    });
+    if (!documentFile.ok) throw new Error(documentFile.error);
+    const split = await systemClient().rpc("record_split", {
+      target_source_file_id: documentFile.value.id,
+      source_ranges: [{ firstPage: 1, lastPage: 1 }],
+    });
+    if (split.error) throw split.error;
+    const { data: document, error: documentError } = await systemClient().from("document")
+      .select("id, extraction_request_id")
+      .eq("source_file_id", documentFile.value.id)
+      .single();
+    if (documentError) throw documentError;
+    const documentMoved = await systemClient().from("document")
+      .update({ status: "processing" })
+      .eq("id", document.id);
+    if (documentMoved.error) throw documentMoved.error;
+    const ordinary = await signedUpUser("Ordinary Organization");
+    process.loadEnvFile(".env.local");
+    const boss = createBoss({ supervise: false });
+    await boss.start();
+    await createProcessingQueues(boss);
+    try {
+      for (const name of ["split-source-file", "extract-document"] as const) {
+        await boss.deleteAllJobs(name);
+      }
+      const jobId = await boss.send(
+        "split-source-file",
+        { sourceFileId: uploaded.value.id },
+        { retryLimit: 0 },
+      );
+      if (!jobId) throw new Error("Failed to enqueue the fixture job");
+      const [claimed] = await boss.fetch("split-source-file", { includeMetadata: true });
+      await boss.fail("split-source-file", claimed, { message: "worker expired on its final attempt" });
+      const documentJobId = await boss.send(
+        "extract-document",
+        { documentId: document.id },
+        { retryLimit: 0 },
+      );
+      if (!documentJobId) throw new Error("Failed to enqueue the Document fixture job");
+      const [claimedDocument] = await boss.fetch("extract-document", { includeMetadata: true });
+      await boss.fail("extract-document", claimedDocument, { message: "worker crashed" });
+      const jobs = pgBossProcessingJobAdministration(boss);
+
+      expect(await listFailedProcessingJobs(ordinary.client, jobs)).toEqual({
+        ok: false,
+        error: "forbidden",
+      });
+      expect(await listFailedProcessingJobs(superAdmin.client, jobs)).toEqual(expect.objectContaining({
+        ok: true,
+        value: expect.arrayContaining([
+          expect.objectContaining({
+            id: jobId,
+            name: "split-source-file",
+            targetId: uploaded.value.id,
+            error: "worker expired on its final attempt",
+          }),
+          expect.objectContaining({
+            id: documentJobId,
+            name: "extract-document",
+            targetId: document.id,
+            error: "worker crashed",
+          }),
+        ]),
+      }));
+      expect(await retryFailedProcessingJob(superAdmin.client, jobs, jobId)).toEqual({
+        ok: true,
+        value: null,
+      });
+      expect(await systemClient().from("source_file").select("status").eq("id", uploaded.value.id).single())
+        .toEqual(expect.objectContaining({ data: { status: "uploaded" } }));
+      expect(await boss.getJobById("split-source-file", jobId)).toEqual(expect.objectContaining({
+        state: "retry",
+      }));
+      expect(await retryFailedProcessingJob(superAdmin.client, jobs, jobId)).toEqual({
+        ok: false,
+        error: "not_retryable",
+      });
+      expect(await retryFailedProcessingJob(superAdmin.client, jobs, documentJobId)).toEqual({
+        ok: true,
+        value: null,
+      });
+      const retriedDocument = await systemClient().from("document")
+        .select("status, extraction_request_id")
+        .eq("id", document.id)
+        .single();
+      expect(retriedDocument.data?.status).toBe("uploaded");
+      expect(retriedDocument.data?.extraction_request_id).not.toBe(document.extraction_request_id);
+      expect(await boss.getJobById("extract-document", documentJobId)).toEqual(expect.objectContaining({
+        state: "retry",
+      }));
+    } finally {
+      await boss.stop();
+    }
+  });
+});
