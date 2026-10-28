@@ -601,7 +601,11 @@
     "company": {
       "initial": "A",
       "name": "Ateliér Novák s.r.o.",
-      "meta": "CZ 05861324"
+      "meta": "CZ 05861324",
+      "chooserLabel": "Choose Company",
+      "menuLabel": "Companies",
+      "current": "(current)",
+      "other": "Dvořák Studio s.r.o."
     },
     "profile": {
       "initials": "JN",
@@ -654,6 +658,7 @@
         "camera": "Take document photo",
         "files": "Choose files"
       },
+      "preview": { "label": "Photo preview", "title": "Ready to add", "filename": "receipt_2026-10-28.jpg", "remove": "Remove photo", "retake": "Retake photo" },
       "batch": {
         "title": "October receipts",
         "meta": "8 Source Files · started today at 09:42",
@@ -733,6 +738,13 @@
       "summary": { "output": "Output VAT", "outputValue": "122,640.00 CZK", "input": "Input VAT", "inputValue": "54,220.00 CZK", "payable": "VAT payable", "payableValue": "68,420.00 CZK" },
       "table": { "caption": "VAT Return lines", "line": "Return line", "base": "Tax base", "vat": "VAT", "lineOne": "Line 1", "lineOneDetail": "Domestic supplies · standard rate", "lineOneBase": "584,000.00", "lineOneVat": "122,640.00", "lineTwo": "Line 40", "lineTwoDetail": "Input deduction · standard rate", "lineTwoBase": "258,190.00", "lineTwoVat": "54,220.00" },
       "export": { "status": "Working export", "title": "Draft XML", "detail": "This XML is for checking only. It is not a final artifact.", "filename": "DRAFT_DPHDP3_2026-09.xml", "download": "Download draft XML", "finalizeTitle": "Finalize Reporting Period", "finalizeDetail": "Finalization becomes available when current data has no blockers.", "finalize": "Finalize and create final XML" }
+    },
+    "controlStatement": {
+      "title": "Control Statement · September 2026",
+      "description": "Saved draft output for the Control Statement. Current live data still has blockers.",
+      "summary": { "received": "Received supplies", "receivedValue": "18", "issued": "Issued supplies", "issuedValue": "13", "sections": "Populated sections", "sectionsValue": "4" },
+      "table": { "caption": "Control Statement sections", "section": "Section", "documents": "Documents", "base": "Tax base", "first": "A.4", "firstDetail": "Taxable supplies over the reporting threshold", "firstDocuments": "13", "firstBase": "584,000.00", "second": "B.2", "secondDetail": "Received taxable supplies over the reporting threshold", "secondDocuments": "18", "secondBase": "258,190.00" },
+      "export": { "status": "Working export", "title": "Draft Control Statement XML", "detail": "This XML is for checking only. It is not a final artifact.", "filename": "DRAFT_DPHKH1_2026-09.xml", "download": "Download draft XML" }
     },
     "settings": {
       "title": "Settings",

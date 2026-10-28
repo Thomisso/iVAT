@@ -1,15 +1,20 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { PrototypeCompanyChooser } from "./prototype-company-chooser";
 import styles from "./visual-prototype.module.css";
 
-export type PrototypeScreen =
-  | "overview"
-  | "upload"
-  | "documents"
-  | "review"
-  | "vat"
-  | "vat-output"
-  | "settings";
+export const prototypeScreens = [
+  "overview",
+  "upload",
+  "documents",
+  "review",
+  "vat",
+  "vat-output",
+  "vat-statement",
+  "settings",
+] as const;
+
+export type PrototypeScreen = (typeof prototypeScreens)[number];
 
 type IconName =
   | "alert"
@@ -85,7 +90,7 @@ function PageHeader({ action, description, title }: { action?: React.ReactNode; 
 
 function CompanyHeader() {
   const t = useTranslations("prototype");
-  return <div className={styles.company}><span className={styles.companyInitial}>{t("company.initial")}</span><span><strong>{t("company.name")}</strong><small>{t("company.meta")}</small></span><Icon name="chevron" /></div>;
+  return <PrototypeCompanyChooser chooserLabel={t("company.chooserLabel")} currentLabel={t("company.current")} initial={t("company.initial")} menuLabel={t("company.menuLabel")} meta={t("company.meta")} name={t("company.name")} otherCompany={t("company.other")} />;
 }
 
 function LedgerRibbon() {
@@ -115,6 +120,7 @@ function Pipeline() {
 function UploadScreen() {
   const t = useTranslations("prototype.upload");
   return <><PageHeader description={t("description")} title={t("title")} /><section className={styles.capturePanel}><div className={styles.captureCopy}><span className={styles.captureIcon}><Icon name="camera" /></span><div><h2>{t("capture.title")}</h2><p>{t("capture.detail")}</p></div></div><div className={styles.captureActions}><button className={styles.primaryButton} type="button"><Icon name="camera" />{t("capture.camera")}</button><button className={styles.secondaryButton} type="button"><Icon name="upload" />{t("capture.files")}</button></div></section>
+    <section aria-label={t("preview.label")} className={styles.mobilePhotoPreview}><span className={styles.photoThumbnail}><Icon name="document" /></span><span><strong>{t("preview.title")}</strong><small>{t("preview.filename")}</small></span><div><button className={styles.textButton} type="button">{t("preview.remove")}</button><button className={styles.secondaryButton} type="button"><Icon name="camera" />{t("preview.retake")}</button></div></section>
     <div className={styles.uploadGrid}><section className={styles.batchCard} role="status"><div className={styles.sectionHeading}><div><h2>{t("batch.title")}</h2><p>{t("batch.meta")}</p></div><Status icon="clock" label={t("batch.active")} tone="active" /></div><Pipeline /><div className={styles.batchFooter}><span>{t("batch.footer")}</span><Link href="/prototype?screen=documents">{t("batch.review")}</Link></div></section>
     <section className={styles.fileList}><h2>{t("files.title")}</h2><article className={styles.fileRow}><span className={styles.filePreview}><Icon name="document" /></span><span><strong>{t("files.success.name")}</strong><small>{t("files.success.detail")}</small></span><Status icon="check" label={t("files.success.status")} tone="success" /></article><article className={styles.fileRow}><span className={styles.filePreview}><Icon name="document" /></span><span><strong>{t("files.error.name")}</strong><small>{t("files.error.detail")}</small></span><Status icon="alert" label={t("files.error.status")} tone="danger" /><button className={styles.textButton} type="button"><Icon name="refresh" />{t("files.error.retry")}</button></article></section></div>
   </>;
@@ -129,7 +135,7 @@ function QueueTabs() {
 function DocumentsScreen() {
   const t = useTranslations("prototype.documents");
   const rows = ["first", "second", "third", "failed"] as const;
-  return <><PageHeader action={<span className={styles.queueProgress}>{t("progress")}</span>} description={t("description")} title={t("title")} /><QueueTabs /><section className={styles.tablePanel}><table><caption className="sr-only">{t("table.caption")}</caption><thead><tr><th>{t("table.counterparty")}</th><th>{t("table.number")}</th><th>{t("table.date")}</th><th>{t("table.amount")}</th><th>{t("table.status")}</th><th><span className="sr-only">{t("table.action")}</span></th></tr></thead><tbody>{rows.map((row, index) => <tr key={row}><td data-label={t("table.counterparty")}><strong>{t(`rows.${row}.counterparty`)}</strong><small>{t(`rows.${row}.direction`)}</small></td><td className={styles.mono} data-label={t("table.number")}>{t(`rows.${row}.number`)}</td><td data-label={t("table.date")}>{t(`rows.${row}.date`)}</td><td className={styles.amount} data-label={t("table.amount")}>{t(`rows.${row}.amount`)}</td><td data-label={t("table.status")}><Status icon={index === 3 ? "alert" : "clock"} label={t(`rows.${row}.status`)} tone={index === 3 ? "danger" : "warning"} /></td><td><Link aria-label={t("table.open", { counterparty: t(`rows.${row}.counterparty`) })} href={index === 0 ? "/prototype?screen=review" : "/prototype?screen=documents"}><Icon name="chevron" /></Link></td></tr>)}</tbody></table></section></>;
+  return <><PageHeader action={<span className={styles.queueProgress}>{t("progress")}</span>} description={t("description")} title={t("title")} /><QueueTabs /><section className={styles.tablePanel}><table><caption className="sr-only">{t("table.caption")}</caption><thead><tr><th>{t("table.counterparty")}</th><th>{t("table.number")}</th><th>{t("table.date")}</th><th>{t("table.amount")}</th><th>{t("table.status")}</th><th aria-label={t("table.action")} /></tr></thead><tbody>{rows.map((row, index) => <tr key={row}><td data-label={t("table.counterparty")}><strong>{t(`rows.${row}.counterparty`)}</strong><small>{t(`rows.${row}.direction`)}</small></td><td className={styles.mono} data-label={t("table.number")}>{t(`rows.${row}.number`)}</td><td data-label={t("table.date")}>{t(`rows.${row}.date`)}</td><td className={styles.amount} data-label={t("table.amount")}>{t(`rows.${row}.amount`)}</td><td data-label={t("table.status")}><Status icon={index === 3 ? "alert" : "clock"} label={t(`rows.${row}.status`)} tone={index === 3 ? "danger" : "warning"} /></td><td><Link aria-label={t("table.open", { counterparty: t(`rows.${row}.counterparty`) })} href={index === 0 ? "/prototype?screen=review" : "/prototype?screen=documents"}><Icon name="chevron" /></Link></td></tr>)}</tbody></table></section></>;
 }
 
 function ReviewScreen() {
@@ -137,14 +143,14 @@ function ReviewScreen() {
   const items = ["alpha", "beta", "gamma", "delta"] as const;
   return <div className={styles.reviewScreen}><header className={styles.reviewHeader}><Link className={styles.backLink} href="/prototype?screen=documents"><Icon name="arrow" />{t("back")}</Link><strong>{t("progress")}</strong><div className={styles.reviewNavigation}><button aria-label={t("previous")} className={styles.iconButton} type="button"><Icon name="chevron" /></button><button aria-label={t("next")} className={styles.iconButton} type="button"><Icon name="chevron" /></button></div></header>
     <aside aria-label={t("queue")} className={styles.reviewQueue}><h2>{t("queue")}</h2>{items.map((item, index) => <button aria-current={index === 0 ? "true" : undefined} key={item} type="button"><span><strong>{t(`items.${item}.name`)}</strong><small>{t(`items.${item}.number`)}</small></span><span className={styles.amount}>{t(`items.${item}.amount`)}</span></button>)}</aside>
-    <section aria-label={t("preview.label")} className={styles.documentDesk}><div className={styles.documentPage}><span className={styles.invoiceLabel}>{t("preview.invoice")}</span><strong className={styles.invoiceBrand}>{t("preview.supplier")}</strong><div className={styles.invoiceRule} /><dl><div><dt>{t("preview.numberLabel")}</dt><dd>{t("preview.number")}</dd></div><div><dt>{t("preview.dateLabel")}</dt><dd>{t("preview.date")}</dd></div><div><dt>{t("preview.customerLabel")}</dt><dd>{t("preview.customer")}</dd></div></dl><div className={styles.invoiceLines}><span>{t("preview.item")}</span><strong>{t("preview.net")}</strong><span>{t("preview.vat")}</span><strong>{t("preview.vatAmount")}</strong></div><p className={styles.invoiceTotal}>{t("preview.total")}</p></div></section>
+    <section aria-label={t("preview.label")} className={styles.sourceFileDesk}><div className={styles.sourceFilePage}><span className={styles.invoiceLabel}>{t("preview.invoice")}</span><strong className={styles.invoiceBrand}>{t("preview.supplier")}</strong><div className={styles.invoiceRule} /><dl><div><dt>{t("preview.numberLabel")}</dt><dd>{t("preview.number")}</dd></div><div><dt>{t("preview.dateLabel")}</dt><dd>{t("preview.date")}</dd></div><div><dt>{t("preview.customerLabel")}</dt><dd>{t("preview.customer")}</dd></div></dl><div className={styles.invoiceLines}><span>{t("preview.item")}</span><strong>{t("preview.net")}</strong><span>{t("preview.vat")}</span><strong>{t("preview.vatAmount")}</strong></div><p className={styles.invoiceTotal}>{t("preview.total")}</p></div></section>
     <aside aria-label={t("title")} className={styles.reviewForm}><div className={styles.sectionHeading}><div><h1>{t("title")}</h1><p>{t("subtitle")}</p></div><Status icon="clock" label={t("status")} tone="warning" /></div><label><span>{t("fields.direction")}</span><select defaultValue="incoming"><option value="incoming">{t("fields.incoming")}</option></select></label><label><span>{t("fields.counterparty")}</span><input defaultValue={t("fields.counterpartyValue")} /></label><div className={styles.formPair}><label><span>{t("fields.vatId")}</span><input className={styles.mono} defaultValue={t("fields.vatIdValue")} /></label><label><span>{t("fields.date")}</span><input defaultValue={t("fields.dateValue")} /></label></div><label><span>{t("fields.regime")}</span><select defaultValue="domestic"><option value="domestic">{t("fields.regimeValue")}</option></select></label><section className={styles.warningBox}><Icon name="alert" /><div><strong>{t("warning.title")}</strong><p>{t("warning.detail")}</p></div></section><div className={styles.reviewActions}><button className={styles.secondaryButton} type="button">{t("reject")}</button><button className={styles.primaryButton} type="button"><Icon name="check" />{t("approve")}</button></div></aside>
   </div>;
 }
 
-function VatSubnav({ active }: { active: "output" | "processing" }) {
+function VatSubnav({ active }: { active: "processing" | "return" | "statement" }) {
   const t = useTranslations("prototype.vat.subnav");
-  return <nav aria-label={t("label")} className={styles.subnav}><Link aria-current={active === "processing" ? "page" : undefined} href="/prototype?screen=vat">{t("processing")}</Link><Link aria-current={active === "output" ? "page" : undefined} href="/prototype?screen=vat-output">{t("return")}</Link><Link href="/prototype?screen=vat-output">{t("statement")}</Link></nav>;
+  return <nav aria-label={t("label")} className={styles.subnav}><Link aria-current={active === "processing" ? "page" : undefined} href="/prototype?screen=vat">{t("processing")}</Link><Link aria-current={active === "return" ? "page" : undefined} href="/prototype?screen=vat-output">{t("return")}</Link><Link aria-current={active === "statement" ? "page" : undefined} href="/prototype?screen=vat-statement">{t("statement")}</Link></nav>;
 }
 
 function VatScreen() {
@@ -158,7 +164,12 @@ function VatScreen() {
 
 function VatOutputScreen() {
   const t = useTranslations("prototype.vatOutput");
-  return <><PageHeader description={t("description")} title={t("title")} /><VatSubnav active="output" /><div className={styles.outputGrid}><section className={styles.returnPanel}><div className={styles.returnSummary}><span><small>{t("summary.output")}</small><strong>{t("summary.outputValue")}</strong></span><span><small>{t("summary.input")}</small><strong>{t("summary.inputValue")}</strong></span><span><small>{t("summary.payable")}</small><strong>{t("summary.payableValue")}</strong></span></div><table><caption className="sr-only">{t("table.caption")}</caption><thead><tr><th>{t("table.line")}</th><th>{t("table.base")}</th><th>{t("table.vat")}</th></tr></thead><tbody><tr><td><strong>{t("table.lineOne")}</strong><small>{t("table.lineOneDetail")}</small></td><td className={styles.amount}>{t("table.lineOneBase")}</td><td className={styles.amount}>{t("table.lineOneVat")}</td></tr><tr><td><strong>{t("table.lineTwo")}</strong><small>{t("table.lineTwoDetail")}</small></td><td className={styles.amount}>{t("table.lineTwoBase")}</td><td className={styles.amount}>{t("table.lineTwoVat")}</td></tr></tbody></table></section><aside aria-label={t("export.title")} className={styles.exportCard}><Status icon="alert" label={t("export.status")} tone="warning" /><h2>{t("export.title")}</h2><p>{t("export.detail")}</p><code>{t("export.filename")}</code><button className={styles.secondaryButton} type="button"><Icon name="document" />{t("export.download")}</button><div className={styles.exportRule} /><strong>{t("export.finalizeTitle")}</strong><p>{t("export.finalizeDetail")}</p><button className={styles.primaryButton} type="button"><Icon name="check" />{t("export.finalize")}</button></aside></div></>;
+  return <><PageHeader description={t("description")} title={t("title")} /><VatSubnav active="return" /><div className={styles.outputGrid}><section aria-label={t("table.caption")} className={styles.returnPanel} tabIndex={0}><div className={styles.returnSummary}><span><small>{t("summary.output")}</small><strong>{t("summary.outputValue")}</strong></span><span><small>{t("summary.input")}</small><strong>{t("summary.inputValue")}</strong></span><span><small>{t("summary.payable")}</small><strong>{t("summary.payableValue")}</strong></span></div><table><caption className="sr-only">{t("table.caption")}</caption><thead><tr><th>{t("table.line")}</th><th>{t("table.base")}</th><th>{t("table.vat")}</th></tr></thead><tbody><tr><td><strong>{t("table.lineOne")}</strong><small>{t("table.lineOneDetail")}</small></td><td className={styles.amount}>{t("table.lineOneBase")}</td><td className={styles.amount}>{t("table.lineOneVat")}</td></tr><tr><td><strong>{t("table.lineTwo")}</strong><small>{t("table.lineTwoDetail")}</small></td><td className={styles.amount}>{t("table.lineTwoBase")}</td><td className={styles.amount}>{t("table.lineTwoVat")}</td></tr></tbody></table></section><aside aria-label={t("export.title")} className={styles.exportCard}><Status icon="alert" label={t("export.status")} tone="warning" /><h2>{t("export.title")}</h2><p>{t("export.detail")}</p><code>{t("export.filename")}</code><button className={styles.secondaryButton} type="button"><Icon name="document" />{t("export.download")}</button><div className={styles.exportRule} /><strong>{t("export.finalizeTitle")}</strong><p>{t("export.finalizeDetail")}</p><button className={styles.primaryButton} disabled type="button"><Icon name="check" />{t("export.finalize")}</button></aside></div></>;
+}
+
+function ControlStatementScreen() {
+  const t = useTranslations("prototype.controlStatement");
+  return <><PageHeader description={t("description")} title={t("title")} /><VatSubnav active="statement" /><div className={styles.outputGrid}><section aria-label={t("table.caption")} className={styles.returnPanel} tabIndex={0}><div className={styles.returnSummary}><span><small>{t("summary.received")}</small><strong>{t("summary.receivedValue")}</strong></span><span><small>{t("summary.issued")}</small><strong>{t("summary.issuedValue")}</strong></span><span><small>{t("summary.sections")}</small><strong>{t("summary.sectionsValue")}</strong></span></div><table><caption className="sr-only">{t("table.caption")}</caption><thead><tr><th>{t("table.section")}</th><th>{t("table.documents")}</th><th>{t("table.base")}</th></tr></thead><tbody><tr><td><strong>{t("table.first")}</strong><small>{t("table.firstDetail")}</small></td><td className={styles.amount}>{t("table.firstDocuments")}</td><td className={styles.amount}>{t("table.firstBase")}</td></tr><tr><td><strong>{t("table.second")}</strong><small>{t("table.secondDetail")}</small></td><td className={styles.amount}>{t("table.secondDocuments")}</td><td className={styles.amount}>{t("table.secondBase")}</td></tr></tbody></table></section><aside aria-label={t("export.title")} className={styles.exportCard}><Status icon="alert" label={t("export.status")} tone="warning" /><h2>{t("export.title")}</h2><p>{t("export.detail")}</p><code>{t("export.filename")}</code><button className={styles.secondaryButton} type="button"><Icon name="document" />{t("export.download")}</button></aside></div></>;
 }
 
 function SettingsScreen() {
@@ -169,12 +180,12 @@ function SettingsScreen() {
 
 function destinationFor(screen: PrototypeScreen) {
   if (screen === "review") return "documents";
-  if (screen === "vat-output") return "vat";
+  if (screen === "vat-output" || screen === "vat-statement") return "vat";
   return screen;
 }
 
 export function VisualPrototype({ screen }: { screen: PrototypeScreen }) {
   const t = useTranslations("prototype");
   const destination = destinationFor(screen);
-  return <div className={`${styles.shell} ${screen === "review" ? styles.reviewShell : ""}`}><a className={styles.skipLink} href="#main-content">{t("skip")}</a><aside aria-label={t("navigation.sidebar")} className={styles.sidebar}><Link aria-label={t("brandLabel")} className={styles.brand} href="/prototype?screen=overview"><BrandMark /><span>{t("brand")}</span></Link><CompanyHeader /><nav aria-label={t("navigation.label")} className={styles.navigation}>{primaryScreens.map((item) => <Link aria-current={destination === item ? "page" : undefined} aria-label={t(`navigation.${item}`)} href={`/prototype?screen=${item}`} key={item}><Icon name={navIcons[item]} /><span>{t(`navigation.${item}`)}</span>{item === "documents" && <small>{t("navigation.documentCount")}</small>}</Link>)}</nav><div className={styles.profile}><span>{t("profile.initials")}</span><span><strong>{t("profile.name")}</strong><small>{t("profile.role")}</small></span></div></aside><header className={styles.mobileHeader}><Link aria-label={t("brandLabel")} className={styles.brand} href="/prototype?screen=overview"><BrandMark /><span>{t("brand")}</span></Link><CompanyHeader /></header><main className={screen === "review" ? styles.mainReview : styles.main} id="main-content">{screen === "overview" && <OverviewScreen />}{screen === "upload" && <UploadScreen />}{screen === "documents" && <DocumentsScreen />}{screen === "review" && <ReviewScreen />}{screen === "vat" && <VatScreen />}{screen === "vat-output" && <VatOutputScreen />}{screen === "settings" && <SettingsScreen />}</main></div>;
+  return <div className={`${styles.shell} ${screen === "review" ? styles.reviewShell : ""}`}><a className={styles.skipLink} href="#main-content">{t("skip")}</a><aside aria-label={t("navigation.sidebar")} className={styles.sidebar}><Link aria-label={t("brandLabel")} className={styles.brand} href="/prototype?screen=overview"><BrandMark /><span>{t("brand")}</span></Link><CompanyHeader /><nav aria-label={t("navigation.label")} className={styles.navigation}>{primaryScreens.map((item) => <Link aria-current={destination === item ? "page" : undefined} aria-label={t(`navigation.${item}`)} href={`/prototype?screen=${item}`} key={item}><Icon name={navIcons[item]} /><span>{t(`navigation.${item}`)}</span>{item === "documents" && <small>{t("navigation.documentCount")}</small>}</Link>)}</nav><div className={styles.profile}><span>{t("profile.initials")}</span><span><strong>{t("profile.name")}</strong><small>{t("profile.role")}</small></span></div></aside><header className={styles.mobileHeader}><Link aria-label={t("brandLabel")} className={styles.brand} href="/prototype?screen=overview"><BrandMark /><span>{t("brand")}</span></Link><CompanyHeader /></header><main className={screen === "review" ? styles.mainReview : styles.main} id="main-content">{screen === "overview" && <OverviewScreen />}{screen === "upload" && <UploadScreen />}{screen === "documents" && <DocumentsScreen />}{screen === "review" && <ReviewScreen />}{screen === "vat" && <VatScreen />}{screen === "vat-output" && <VatOutputScreen />}{screen === "vat-statement" && <ControlStatementScreen />}{screen === "settings" && <SettingsScreen />}</main></div>;
 }

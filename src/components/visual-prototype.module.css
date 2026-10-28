@@ -25,12 +25,16 @@
 .mark { width: 30px; height: 30px; overflow: visible; }
 .markPaper { fill: var(--prototype-navy); stroke: none; }
 .markCheck { fill: none; stroke: #e3ad39; stroke-linecap: round; stroke-linejoin: round; stroke-width: 3; }
-.company { margin-top: 24px; padding: 9px; display: grid; grid-template-columns: 32px minmax(0, 1fr) 18px; align-items: center; gap: 9px; border: 1px solid #d8dedb; border-radius: 8px; background: white; }
+.companyPicker { position: relative; margin-top: 24px; }
+.company { width: 100%; padding: 9px; display: grid; grid-template-columns: 32px minmax(0, 1fr) 18px; align-items: center; gap: 9px; border: 1px solid #d8dedb; border-radius: 8px; background: white; color: #17232d; text-align: left; cursor: pointer; }
 .companyInitial { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 6px; background: var(--prototype-navy); color: white; font-weight: 700; }
 .company > span:nth-child(2), .profile > span:nth-child(2), .task > span:nth-child(2), .fileRow > span:nth-child(2), .findingList li > span:nth-child(2), .settingsGrid a > span:nth-child(2) { min-width: 0; display: flex; flex-direction: column; }
 .company strong, .profile strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 .company small, .profile small { color: var(--prototype-muted); font-size: 11px; }
 .company > .icon { width: 14px; color: #66727a; }
+.companyMenu { position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; width: max(100%, 210px); padding: 5px; display: grid; gap: 2px; border: 1px solid #cdd5d3; border-radius: 8px; background: white; box-shadow: 0 8px 24px #12304a24; }
+.companyMenu button { padding: 9px 10px; border: 0; border-radius: 5px; background: transparent; color: #243842; text-align: left; cursor: pointer; }
+.companyMenu button:hover, .companyMenu button:focus-visible { background: var(--prototype-blue-soft); }
 .navigation { display: grid; gap: 3px; margin-top: 22px; }
 .navigation a { min-height: 40px; padding: 0 10px; display: flex; align-items: center; gap: 10px; border-radius: 7px; color: #34434e; font-weight: 570; text-decoration: none; }
 .navigation a:hover { background: white; }
@@ -106,7 +110,7 @@
 .captureCopy h2 { font-size: 21px; }
 .captureCopy p { margin-top: 4px; color: #d4dde2; }
 .captureActions { display: flex; gap: 8px; }
-.capturePanel .primaryButton { background: #e3ad39; color: #26313a; }
+.mobilePhotoPreview { display: none; }
 .uploadGrid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(300px, .8fr); gap: 22px; }
 .batchCard { padding: 22px; }
 .pipeline { margin: 28px 0 22px; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); list-style: none; }
@@ -137,7 +141,7 @@
 .tabs button { padding: 9px 12px; display: flex; align-items: center; gap: 6px; border: 0; border-bottom: 3px solid transparent; background: transparent; color: #5d6c73; font-weight: 600; white-space: nowrap; cursor: pointer; }
 .tabs button[aria-current="page"] { border-bottom-color: var(--prototype-blue); color: var(--prototype-blue); }
 .tabs span { padding: 0 6px; border-radius: 99px; background: #eee2c6; color: #6f4900; font: 600 11px/18px var(--font-mono); }
-.tablePanel { overflow: hidden; }
+.tablePanel { max-width: 100%; overflow-x: auto; overflow-y: hidden; }
 .tablePanel table, .returnPanel table { width: 100%; border-collapse: collapse; }
 .tablePanel th, .tablePanel td, .returnPanel th, .returnPanel td { padding: 12px 15px; border-bottom: 1px solid #e3e8e6; text-align: left; }
 .tablePanel th, .returnPanel th { background: #f4f6f4; color: var(--prototype-muted); font-size: 11px; font-weight: 650; }
@@ -154,7 +158,8 @@
 .reviewShell .sidebar { align-items: center; padding-inline: 10px; }
 .reviewShell .brand span, .reviewShell .company > span:not(.companyInitial), .reviewShell .company > .icon, .reviewShell .navigation span, .reviewShell .navigation small, .reviewShell .profile > span:last-child { display: none; }
 .reviewShell .brand { padding: 0; }
-.reviewShell .company { width: 46px; grid-template-columns: 1fr; padding: 6px; }
+.reviewShell .companyPicker { width: 46px; }
+.reviewShell .company { grid-template-columns: 1fr; padding: 6px; }
 .reviewShell .navigation a { width: 42px; justify-content: center; padding: 0; }
 .reviewShell .profile { grid-template-columns: 1fr; padding-inline: 0; }
 .mainReview { min-width: 0; }
@@ -173,15 +178,15 @@
 .reviewQueue button strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .reviewQueue button small { color: var(--prototype-muted); font: 11px var(--font-mono); }
 .reviewQueue .amount { font-size: 11px; }
-.documentDesk { padding: clamp(20px, 3vw, 50px); display: grid; place-items: center; overflow: auto; background: #dfe3df; }
-.documentPage { width: min(100%, 520px); min-width: 280px; aspect-ratio: 210 / 297; padding: 8%; position: relative; background: #fffffb; color: #28343b; box-shadow: 0 5px 24px #24384324; }
+.sourceFileDesk { padding: clamp(20px, 3vw, 50px); display: grid; place-items: center; overflow: auto; background: #dfe3df; }
+.sourceFilePage { width: min(100%, 520px); min-width: 280px; aspect-ratio: 210 / 297; padding: 8%; position: relative; background: #fffffb; color: #28343b; box-shadow: 0 5px 24px #24384324; }
 .invoiceLabel { color: var(--prototype-muted); font: 10px var(--font-mono); }
 .invoiceBrand { display: block; margin-top: 8px; color: #183e5b; font-size: clamp(18px, 2.5vw, 30px); }
 .invoiceRule { height: 5px; margin: 14px 0 24px; background: #183e5b; }
-.documentPage dl { display: grid; gap: 12px; }
-.documentPage dl div { display: flex; justify-content: space-between; gap: 20px; }
-.documentPage dt { color: var(--prototype-muted); font-size: 10px; }
-.documentPage dd { font: 11px var(--font-mono); }
+.sourceFilePage dl { display: grid; gap: 12px; }
+.sourceFilePage dl div { display: flex; justify-content: space-between; gap: 20px; }
+.sourceFilePage dt { color: var(--prototype-muted); font-size: 10px; }
+.sourceFilePage dd { font: 11px var(--font-mono); }
 .invoiceLines { margin-top: 12%; padding: 14px 0; display: grid; grid-template-columns: 1fr auto; gap: 12px; border-block: 1px solid #b8c0bf; font-size: 11px; }
 .invoiceTotal { margin-top: 20px !important; color: #183e5b; font: 700 clamp(16px, 2vw, 24px) var(--font-mono); text-align: right; }
 .reviewForm { padding: 22px; display: flex; flex-direction: column; gap: 15px; overflow-y: auto; border-left: 1px solid #d7dfdc; background: white; }
@@ -257,10 +262,18 @@
   .reviewQueue { visibility: hidden; }
 }
 
+@media (max-width: 900px) {
+  .settingsGrid { grid-template-columns: 1fr; }
+}
+
+@media (min-width: 720px) and (max-width: 900px) {
+  .tabs { flex-wrap: wrap; overflow-x: visible; }
+}
+
 @media (max-width: 719px) {
   .shell, .reviewShell { display: block; padding-bottom: 70px; }
   .sidebar { position: fixed; z-index: 20; inset: auto 0 0; width: auto; height: 68px; padding: 7px 8px; display: block; border-top: 1px solid #ccd5d3; border-right: 0; background: #fffffff5; backdrop-filter: blur(10px); }
-  .sidebar > .brand, .sidebar > .company, .sidebar > .profile { display: none; }
+  .sidebar > .brand, .sidebar > .companyPicker, .sidebar > .profile { display: none; }
   .navigation { height: 100%; margin: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; }
   .navigation a, .reviewShell .navigation a { width: auto; min-width: 0; height: 54px; padding: 4px 1px; flex-direction: column; justify-content: center; gap: 2px; border-radius: 6px; font-size: 10px; }
   .navigation a[aria-current="page"] { box-shadow: inset 0 -3px var(--prototype-blue); }
@@ -270,10 +283,14 @@
   .mobileHeader { height: 61px; padding: 8px 14px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #d7dfdc; background: #fafbf8; }
   .mobileHeader .brand { padding: 0; font-size: 18px; }
   .mobileHeader .mark { width: 27px; }
-  .mobileHeader .company { width: min(58vw, 240px); margin: 0; padding: 5px 7px; grid-template-columns: 28px minmax(0, 1fr) 14px; }
+  .mobileHeader .companyPicker { width: min(58vw, 240px); margin: 0; }
+  .mobileHeader .company { padding: 5px 7px; grid-template-columns: 28px minmax(0, 1fr) 14px; }
   .mobileHeader .companyInitial { width: 28px; height: 28px; }
   .mobileHeader .company strong { font-size: 11px; }
   .mobileHeader .company small { display: none; }
+  .reviewShell .mobileHeader .company { grid-template-columns: 28px minmax(0, 1fr) 14px; }
+  .reviewShell .mobileHeader .company > span:nth-child(2) { display: flex; }
+  .reviewShell .mobileHeader .company > .icon { display: block; }
   .main { padding: 22px 14px 28px; }
   .pageHeader { margin-bottom: 22px; }
   .pageHeader h1 { font-size: 28px; }
@@ -294,6 +311,12 @@
   .captureCopy p { font-size: 12px; }
   .captureActions { margin-top: 18px; display: grid; }
   .captureActions button { width: 100%; }
+  .mobilePhotoPreview { margin: -10px 0 20px; padding: 14px; display: grid; grid-template-columns: 54px minmax(0, 1fr); align-items: center; gap: 12px; border: 1px solid #cbd6d3; border-radius: 10px; background: white; }
+  .photoThumbnail { width: 54px; height: 66px; display: grid; place-items: center; border: 1px solid #cbd3d1; border-radius: 4px; background: linear-gradient(145deg, #f7f3e8, #e9eee9); color: #53676f; }
+  .mobilePhotoPreview > span:nth-child(2) { min-width: 0; display: flex; flex-direction: column; }
+  .mobilePhotoPreview strong { color: var(--prototype-navy); }
+  .mobilePhotoPreview small { overflow: hidden; color: var(--prototype-muted); text-overflow: ellipsis; white-space: nowrap; }
+  .mobilePhotoPreview > div { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .uploadGrid { display: flex; flex-direction: column; }
   .pipeline { grid-template-columns: 1fr; gap: 0; }
   .pipeline li { min-height: 58px; padding-left: 42px; justify-content: center; }
@@ -322,8 +345,8 @@
   .reviewHeader .backLink { font-size: 0; }
   .reviewHeader .backLink .icon { width: 21px; height: 21px; }
   .reviewQueue { display: none; }
-  .documentDesk { min-height: 410px; padding: 22px; order: 2; }
-  .documentPage { width: 280px; min-width: 0; }
+  .sourceFileDesk { min-height: 410px; padding: 22px; order: 2; }
+  .sourceFilePage { width: 280px; min-width: 0; }
   .reviewForm { padding: 20px 14px 28px; order: 3; overflow: visible; border: 0; }
   .formPair { grid-template-columns: 1fr; }
   .periodGrid, .outputGrid { display: flex; flex-direction: column; }
