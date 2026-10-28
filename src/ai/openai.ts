@@ -1,7 +1,14 @@
 import { AiProviderError, type AiInput, type AiProvider } from "@/application/ai-provider";
 import type { SystemClient } from "@/application/client";
 import { resolvePlatformAiProvider } from "@/application/platform-ai";
-import { EXTRACTION_SCHEMA, extractionPayload, pageRanges, SPLIT_SCHEMA } from "./structured-output";
+import {
+  EXTRACTION_SCHEMA,
+  extractionPayload,
+  pageRanges,
+  rowRanges,
+  SPREADSHEET_SPLIT_SCHEMA,
+  SPLIT_SCHEMA,
+} from "./structured-output";
 
 export type OpenAiProviderOptions = {
   apiKey: string;
@@ -21,6 +28,7 @@ export class OpenAiProviderError extends AiProviderError {
 }
 
 function nativeContent(input: AiInput) {
+  if (input.text !== undefined) return { type: "input_text", text: input.text };
   const base64 = Buffer.from(input.bytes).toString("base64");
   if (input.format === "pdf") {
     return {
@@ -94,15 +102,21 @@ export function openAiProvider(options: OpenAiProviderOptions): AiProvider {
     name: "openai",
     region: "global",
     async split(input) {
+      const spreadsheet = input.text !== undefined;
       const result = await structuredResponse(
         options,
         options.splitModel,
         input,
-        `Identify the inclusive page range of every Document in this ${input.pageCount}-page Source File.`,
+        spreadsheet
+          ? "Identify every Document in this workbook table. A list normally has one Document per data row; a single invoice may span several rows. Return each inclusive row set and its sheet name."
+          : `Identify the inclusive page range of every Document in this ${input.pageCount}-page Source File.`,
         "ivat_split",
-        SPLIT_SCHEMA,
+        spreadsheet ? SPREADSHEET_SPLIT_SCHEMA : SPLIT_SCHEMA,
       );
-      return { model: result.model, documents: pageRanges("OpenAI", result.value) };
+      return {
+        model: result.model,
+        documents: spreadsheet ? rowRanges("OpenAI", result.value) : pageRanges("OpenAI", result.value),
+      };
     },
     async extract(input) {
       const result = await structuredResponse(

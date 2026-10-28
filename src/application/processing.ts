@@ -1,4 +1,4 @@
-import { AiProviderError, type AiInput, type AiProvider, type PageRange } from "./ai-provider";
+import { AiProviderError, type AiInput, type AiProvider, type PageRange, type RowRange } from "./ai-provider";
 import type { SystemClient } from "./client";
 import type { DocumentStatus } from "./documents";
 import {
@@ -9,6 +9,7 @@ import {
   type SourceFileFormat,
   type SourceFileStatus,
 } from "./source-files";
+import { workbookRowsToText, workbookToText } from "./workbooks";
 
 // Background processing (ADR-0004): Split per Source File, then Extract per
 // Document. Jobs carry only ids; the state lives in the database, which makes
@@ -113,10 +114,12 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
     await failOnFinalAttempt(attempt, () => moveStatus("failed", ["processing"]).then(() => undefined), async () => {
       if (!(await moveStatus("processing", ["uploaded", "processing"]))) return;
       const bytes = await download(system, file.company_id, file.id);
-      const { documents } = await ai.split(aiInput(file.format, bytes, file.page_count), {
+      const input = sourceFileInput(file.format, bytes, file.page_count);
+      const { documents } = await ai.split(input, {
         organizationId: file.organization_id,
       });
-      const { error } = await system.rpc("record_split", { target_source_file_id: file.id, page_ranges: documents });
+      assertWorkbookRanges(input, documents);
+      const { error } = await system.rpc("record_split", { target_source_file_id: file.id, source_ranges: documents });
       if (error) throw error;
     });
   }
@@ -136,7 +139,7 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
 async function extractDocument({ system, providers }: Worker, documentId: string, attempt: Attempt) {
   const { data: document, error } = await system
     .from("document")
-    .select("id, organization_id, company_id, source_file_id, first_page, last_page, status, superseded_at, extraction_request_id, source_file (format)")
+    .select("id, organization_id, company_id, source_file_id, first_page, last_page, source_sheet, first_row, last_row, status, superseded_at, extraction_request_id, source_file (format)")
     .eq("id", documentId)
     .single();
   if (error) throw error;
@@ -160,7 +163,9 @@ async function extractDocument({ system, providers }: Worker, documentId: string
   await failOnFinalAttempt(attempt, () => moveStatus("failed", ["processing"]).then(() => undefined), async () => {
     if (!(await moveStatus("processing", ["uploaded", "processing"]))) return;
     const bytes = await download(system, document.company_id, document.source_file_id);
-    const range = { firstPage: document.first_page, lastPage: document.last_page };
+    const range = document.first_row === null
+      ? { firstPage: document.first_page, lastPage: document.last_page }
+      : { sheetName: document.source_sheet!, firstRow: document.first_row, lastRow: document.last_row! };
     const input = await documentInput(document.source_file!.format, bytes, range);
     const { model, payload } = await ai.extract(input, { organizationId: document.organization_id });
     const { error } = await system.rpc("record_ai_extraction", {
@@ -174,12 +179,43 @@ async function extractDocument({ system, providers }: Worker, documentId: string
   });
 }
 
-function aiInput(format: SourceFileFormat, bytes: Uint8Array, pageCount: number): AiInput {
+function binaryAiInput(format: SourceFileFormat, bytes: Uint8Array, pageCount: number): AiInput {
   return { format, mediaType: SOURCE_FILE_MEDIA_TYPES[format], bytes, pageCount };
 }
 
+function textAiInput(format: SourceFileFormat, text: string, workbookRowSets?: RowRange[]): AiInput {
+  const bytes = new TextEncoder().encode(text);
+  return { format, mediaType: "text/plain; charset=utf-8", bytes, pageCount: 1, text, workbookRowSets };
+}
+
+function sourceFileInput(format: SourceFileFormat, bytes: Uint8Array, pageCount: number): AiInput {
+  if (format !== "xlsx" && format !== "xls") return binaryAiInput(format, bytes, pageCount);
+  const workbook = workbookToText(bytes);
+  return textAiInput(format, workbook.text, workbook.rowSets);
+}
+
+function assertWorkbookRanges(input: AiInput, ranges: (PageRange | RowRange)[]) {
+  if (!input.workbookRowSets) return;
+  const previousLastRow = new Map<string, number>();
+  for (const range of ranges) {
+    if (!("firstRow" in range)) throw new Error("A workbook Split must return row sets");
+    const sheet = input.workbookRowSets.find(({ sheetName }) => sheetName === range.sheetName);
+    if (
+      !sheet ||
+      range.firstRow < sheet.firstRow ||
+      range.lastRow < range.firstRow ||
+      range.lastRow > sheet.lastRow ||
+      range.firstRow <= (previousLastRow.get(range.sheetName) ?? 0)
+    ) {
+      throw new Error("Workbook row sets must be ascending, disjoint, and within their worksheets");
+    }
+    previousLastRow.set(range.sheetName, range.lastRow);
+  }
+}
+
 /** The Document's own pages: a PDF of just its range, or the whole image. */
-async function documentInput(format: SourceFileFormat, bytes: Uint8Array, range: PageRange): Promise<AiInput> {
-  if (format !== "pdf") return aiInput(format, bytes, 1);
-  return aiInput(format, await pdfPages(bytes, range), range.lastPage - range.firstPage + 1);
+async function documentInput(format: SourceFileFormat, bytes: Uint8Array, range: PageRange | RowRange): Promise<AiInput> {
+  if ("firstRow" in range) return textAiInput(format, workbookRowsToText(bytes, range));
+  if (format !== "pdf") return binaryAiInput(format, bytes, 1);
+  return binaryAiInput(format, await pdfPages(bytes, range), range.lastPage - range.firstPage + 1);
 }

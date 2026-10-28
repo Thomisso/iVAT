@@ -1,7 +1,14 @@
 import { AiProviderError, type AiInput, type AiProvider } from "@/application/ai-provider";
 import type { SystemClient } from "@/application/client";
 import { resolvePlatformAiProvider } from "@/application/platform-ai";
-import { EXTRACTION_SCHEMA, extractionPayload, pageRanges, SPLIT_SCHEMA } from "./structured-output";
+import {
+  EXTRACTION_SCHEMA,
+  extractionPayload,
+  pageRanges,
+  rowRanges,
+  SPREADSHEET_SPLIT_SCHEMA,
+  SPLIT_SCHEMA,
+} from "./structured-output";
 
 export type AnthropicAiProviderOptions = {
   apiKey: string;
@@ -21,6 +28,7 @@ export class AnthropicProviderError extends AiProviderError {
 }
 
 function nativeContent(input: AiInput) {
+  if (input.text !== undefined) return { type: "text", text: input.text };
   const source = {
     type: "base64",
     media_type: input.mediaType,
@@ -73,14 +81,20 @@ export function anthropicAiProvider(options: AnthropicAiProviderOptions): AiProv
     name: "anthropic",
     region: "global",
     async split(input) {
+      const spreadsheet = input.text !== undefined;
       const result = await structuredMessage(
         options,
         options.splitModel,
         input,
-        `Identify the inclusive page range of every Document in this ${input.pageCount}-page Source File.`,
-        SPLIT_SCHEMA,
+        spreadsheet
+          ? "Identify every Document in this workbook table. A list normally has one Document per data row; a single invoice may span several rows. Return each inclusive row set and its sheet name."
+          : `Identify the inclusive page range of every Document in this ${input.pageCount}-page Source File.`,
+        spreadsheet ? SPREADSHEET_SPLIT_SCHEMA : SPLIT_SCHEMA,
       );
-      return { model: result.model, documents: pageRanges("Anthropic", result.value) };
+      return {
+        model: result.model,
+        documents: spreadsheet ? rowRanges("Anthropic", result.value) : pageRanges("Anthropic", result.value),
+      };
     },
     async extract(input) {
       const result = await structuredMessage(

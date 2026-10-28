@@ -3,8 +3,11 @@ import { PDFDocument } from "pdf-lib";
 import { isUuid, type AppClient, type Result } from "./client";
 import { getCompany } from "./companies";
 import { splitJob, type JobQueue } from "./processing";
+import { workbookToText } from "./workbooks";
 
-export type SourceFileFormat = "pdf" | "png" | "jpeg";
+export type SourceFileFormat = "pdf" | "png" | "jpeg" | "xlsx" | "xls";
+export type ImageSourceFileFormat = "pdf" | "png" | "jpeg";
+export type SpreadsheetSourceFileFormat = "xlsx" | "xls";
 
 /** Where the Split of a Source File stands; its Documents carry their own status. */
 export type SourceFileStatus = "uploaded" | "processing" | "split" | "failed";
@@ -37,15 +40,26 @@ export const SOURCE_FILE_MEDIA_TYPES: Record<SourceFileFormat, string> = {
   pdf: "application/pdf",
   png: "image/png",
   jpeg: "image/jpeg",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  xls: "application/vnd.ms-excel",
 };
 
-const FORMAT_BY_EXTENSION: Record<string, SourceFileFormat> = { pdf: "pdf", png: "png", jpg: "jpeg", jpeg: "jpeg" };
+const FORMAT_BY_EXTENSION: Record<string, SourceFileFormat> = {
+  pdf: "pdf",
+  png: "png",
+  jpg: "jpeg",
+  jpeg: "jpeg",
+  xlsx: "xlsx",
+  xls: "xls",
+};
 
 // The bytes each format's content starts with.
 const SIGNATURES: Record<SourceFileFormat, number[]> = {
   pdf: [0x25, 0x50, 0x44, 0x46, 0x2d], // %PDF-
   png: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
   jpeg: [0xff, 0xd8, 0xff],
+  xlsx: [0x50, 0x4b, 0x03, 0x04],
+  xls: [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1],
 };
 
 export type UploadLimits = {
@@ -79,6 +93,14 @@ function contentMatches(format: SourceFileFormat, bytes: Uint8Array): boolean {
 }
 
 async function countPages(format: SourceFileFormat, bytes: Uint8Array): Promise<number | null> {
+  if (format === "xlsx" || format === "xls") {
+    try {
+      workbookToText(bytes);
+      return 1;
+    } catch {
+      return null;
+    }
+  }
   if (format !== "pdf") return 1;
   try {
     const pdf = await PDFDocument.load(bytes, { ignoreEncryption: true, updateMetadata: false });
