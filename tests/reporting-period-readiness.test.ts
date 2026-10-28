@@ -219,6 +219,48 @@ it("reports a saved source snapshot as current, then stale after a relevant unas
   expect(await getVatReport(company.client, company.companyId, "2026-10")).toEqual(saved);
 });
 
+it("keeps a new snapshot current when unassigned rejected Documents are resolved", async () => {
+  const company = await administratorWithCompany();
+  const worker = testWorker(fakeAiProvider({
+    extract: () => ({
+      ...SAMPLE_EXTRACTION,
+      direction: null,
+      taxPointDate: null,
+    }),
+  }));
+  await enableAiProcessing(company.client, worker.jobs, {
+    companyId: company.companyId,
+    provider: worker.ai,
+  });
+  const uploaded = await uploadSourceFile(company.client, worker.jobs, {
+    companyId: company.companyId,
+    fileName: "rejected-unassigned.pdf",
+    bytes: fixtureFile("two-invoices.pdf"),
+  });
+  if (!uploaded.ok) throw new Error(uploaded.error);
+  expect(await worker.runJobs()).toEqual([]);
+  const documents = await listDocuments(company.client, company.companyId, uploaded.value.id);
+  for (const document of documents) {
+    expect(await rejectDocument(company.client, {
+      companyId: company.companyId,
+      documentId: document.id,
+    })).toEqual({ ok: true, value: null });
+  }
+  expect((await generateVatReport(company.client, {
+    companyId: company.companyId,
+    period: "2026-10",
+  })).ok).toBe(true);
+  const readiness = await getReportingPeriodReadiness(company.client, {
+    companyId: company.companyId,
+    period: "2026-10",
+  });
+  expect(readiness.ok).toBe(true);
+  if (!readiness.ok) throw new Error(readiness.error);
+  expect(readiness.value.ready).toBe(true);
+  expect(readiness.value.groups.rejected).toHaveLength(2);
+  expect(readiness.value.snapshot?.freshness).toBe("current");
+});
+
 it("counts every relevant Document beyond the API row cap", async () => {
   const company = await companyWithManyReportDocuments(1001);
   const readiness = await getReportingPeriodReadiness(company.client, {
