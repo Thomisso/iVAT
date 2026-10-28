@@ -569,6 +569,7 @@
     "allStatuses": "Všechny stavy",
     "allDirections": "Přijaté i vydané",
     "reportingPeriod": "Zdaňovací období",
+    "reportingPeriodPlaceholder": "2026-10",
     "counterparty": "Protistrana",
     "counterpartyHint": "Název, DIČ nebo IČO",
     "findingsOnly": "Pouze doklady s nálezy",
