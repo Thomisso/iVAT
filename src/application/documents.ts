@@ -189,25 +189,33 @@ export async function documentPeriodLocks(
   documentIds: string[],
 ): Promise<Record<string, string>> {
   if (!isUuid(companyId) || documentIds.length === 0 || documentIds.some((id) => !isUuid(id))) return {};
-  const { data: documents, error: documentError } = await client
-    .from("document_overview")
-    .select("id, reporting_period")
-    .eq("company_id", companyId)
-    .in("id", documentIds);
-  if (documentError) throw documentError;
+  const documents: { id: string; reporting_period: string | null }[] = [];
+  const uniqueDocumentIds = [...new Set(documentIds)];
+  for (let offset = 0; offset < uniqueDocumentIds.length; offset += 100) {
+    const { data, error } = await client
+      .from("document_overview")
+      .select("id, reporting_period")
+      .eq("company_id", companyId)
+      .in("id", uniqueDocumentIds.slice(offset, offset + 100));
+    if (error) throw error;
+    documents.push(...data);
+  }
   const periods = [...new Set(
     documents
       .map((document) => document.reporting_period)
       .filter((period): period is string => period !== null),
   )];
   if (periods.length === 0) return {};
-  const { data: locks, error: lockError } = await client
-    .from("period_lock")
-    .select("period")
-    .eq("company_id", companyId)
-    .in("period", periods);
-  if (lockError) throw lockError;
-  const lockedPeriods = new Set(locks.map((lock) => lock.period));
+  const lockedPeriods = new Set<string>();
+  for (let offset = 0; offset < periods.length; offset += 100) {
+    const { data, error } = await client
+      .from("period_lock")
+      .select("period")
+      .eq("company_id", companyId)
+      .in("period", periods.slice(offset, offset + 100));
+    if (error) throw error;
+    data.forEach((lock) => lockedPeriods.add(lock.period));
+  }
   return Object.fromEntries(
     documents.flatMap((document) =>
       document.reporting_period && lockedPeriods.has(document.reporting_period)

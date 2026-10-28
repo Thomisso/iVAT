@@ -2,13 +2,12 @@ import Link from "next/link";
 import { getFormatter, getTranslations } from "next-intl/server";
 import {
   DOCUMENT_SAVED_VIEWS,
-  documentQueueFilters,
   documentQueueQuery,
+  getDocumentQueue,
   parseDocumentQueue,
   type DocumentSavedView,
 } from "@/application/document-queue";
-import { DOCUMENT_STATUSES, listCompanyDocuments } from "@/application/documents";
-import { getUploadBatch } from "@/application/upload-batches";
+import { DOCUMENT_STATUSES } from "@/application/documents";
 import { DataTable } from "@/components/data-table";
 import { StatusBadge } from "@/components/status-badge";
 import { statusBadgeState } from "@/components/status-badge-state";
@@ -17,11 +16,9 @@ import { requireUserClient } from "@/lib/supabase/server";
 
 export default async function DocumentsPage({ params, searchParams }: PageProps<"/companies/[companyId]/documents">) {
   const { companyId } = await params;
-  const queue = parseDocumentQueue(await searchParams);
+  const search = await searchParams;
   const client = await requireUserClient();
-  const batch = queue.batchId ? await getUploadBatch(client, companyId, queue.batchId) : null;
-  const sourceFileIds = queue.batchId ? (batch?.sourceFiles.map((source) => source.id) ?? []) : undefined;
-  const documents = await listCompanyDocuments(client, companyId, documentQueueFilters(queue, sourceFileIds));
+  const { queue, batch, documents } = await getDocumentQueue(client, companyId, search);
   const queueQuery = documentQueueQuery(queue);
   const t = await getTranslations();
   const format = await getFormatter();

@@ -4,18 +4,16 @@ import { getTranslations } from "next-intl/server";
 import { approveDocumentAction, rejectDocumentAction, reprocessDocumentAction } from "@/app/actions";
 import { getCompany } from "@/application/companies";
 import { currentUserId } from "@/application/auth";
-import { documentQueueFilters, documentQueueQuery, parseDocumentQueue } from "@/application/document-queue";
+import { documentQueueQuery, getDocumentQueuePosition } from "@/application/document-queue";
 import {
   documentPeriodLocks,
   getDocument,
   isBeingExtracted,
-  listCompanyDocuments,
   listDuplicateWarnings,
   listExtractionVersions,
   readDocumentRows,
 } from "@/application/documents";
 import { getSourceFile } from "@/application/source-files";
-import { getUploadBatch } from "@/application/upload-batches";
 import { CommandButton } from "@/components/command-button";
 import { RefreshWhile } from "@/components/refresh-while";
 import { requireUserClient } from "@/lib/supabase/server";
@@ -37,9 +35,6 @@ export default async function DocumentReviewPage({
   const { companyId, documentId } = await params;
   const search = await searchParams;
   const requestedVersion = typeof search.version === "string" ? search.version : undefined;
-  const queue = parseDocumentQueue(search);
-  const hasQueueContext = ["view", "status", "direction", "reportingPeriod", "counterparty", "hasFindings", "batchId"]
-    .some((key) => typeof search[key] === "string");
   const client = await requireUserClient();
   const [company, document, versions, userId, duplicateWarnings] = await Promise.all([
     getCompany(client, companyId),
@@ -51,16 +46,8 @@ export default async function DocumentReviewPage({
   if (!company || !document) notFound();
   const file = await getSourceFile(client, companyId, document.sourceFileId);
   if (!file) notFound();
-  const batch = queue.batchId ? await getUploadBatch(client, companyId, queue.batchId) : null;
-  const queuedDocuments = hasQueueContext
-    ? await listCompanyDocuments(client, companyId, documentQueueFilters(
-        queue,
-        queue.batchId ? (batch?.sourceFiles.map((source) => source.id) ?? []) : undefined,
-      ))
-    : [];
-  const queueIndex = queuedDocuments.findIndex((candidate) => candidate.id === document.id);
-  const previousDocument = queueIndex > 0 ? queuedDocuments[queueIndex - 1] : undefined;
-  const nextDocument = queueIndex >= 0 ? queuedDocuments[queueIndex + 1] : undefined;
+  const position = await getDocumentQueuePosition(client, companyId, document.id, search);
+  const { queue, documents: queuedDocuments, index: queueIndex } = position;
   const queueQuery = documentQueueQuery(queue);
   const listHref = `/companies/${companyId}/documents?${queueQuery}#document-${document.id}`;
   const reviewHref = (id: string, version?: number) => {
@@ -97,11 +84,11 @@ export default async function DocumentReviewPage({
       <main className="review">
         <header className="review-header">
           <nav className="review-queue-nav" aria-label={t("review.queueNavigation")}>
-            <Link href={hasQueueContext ? listHref : `/companies/${companyId}/documents`}>{t("review.backToDocuments")}</Link>
+            <Link href={queueIndex >= 0 ? listHref : `/companies/${companyId}/documents`}>{t("review.backToDocuments")}</Link>
             {queueIndex >= 0 && <span>{t("review.queuePosition", { current: queueIndex + 1, total: queuedDocuments.length })}</span>}
             {queueIndex >= 0 && <span className="review-queue-steps">
-              {previousDocument ? <Link href={reviewHref(previousDocument.id)}>{t("review.previous")}</Link> : <span aria-disabled="true">{t("review.previous")}</span>}
-              {nextDocument ? <Link href={reviewHref(nextDocument.id)}>{t("review.next")}</Link> : <span aria-disabled="true">{t("review.next")}</span>}
+              {position.previousDocumentId ? <Link href={reviewHref(position.previousDocumentId)}>{t("review.previous")}</Link> : <span aria-disabled="true">{t("review.previous")}</span>}
+              {position.nextDocumentId ? <Link href={reviewHref(position.nextDocumentId)}>{t("review.next")}</Link> : <span aria-disabled="true">{t("review.next")}</span>}
             </span>}
           </nav>
           <h1>
@@ -215,7 +202,7 @@ export default async function DocumentReviewPage({
                   companyId,
                   documentId: document.id,
                   version: String(current.version),
-                  nextDocumentId: nextDocument?.id ?? "",
+                  nextDocumentId: position.continuationDocumentId ?? "",
                   queueQuery,
                 }}
               >
@@ -224,7 +211,7 @@ export default async function DocumentReviewPage({
               <CommandButton
                 variant="danger"
                 action={rejectDocumentAction}
-                fields={{ companyId, documentId: document.id, nextDocumentId: nextDocument?.id ?? "", queueQuery }}
+                fields={{ companyId, documentId: document.id, nextDocumentId: position.continuationDocumentId ?? "", queueQuery }}
               >
                 {t("review.reject")}
               </CommandButton>

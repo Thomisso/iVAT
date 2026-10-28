@@ -4,6 +4,7 @@ import {
   approveDocument,
   correctDocument,
   documentPeriodLocks,
+  listCompanyDocuments,
   listDocuments,
   listExtractionVersions,
   mergeDocuments,
@@ -21,7 +22,7 @@ import {
   getPeriodLock,
   unlockReportingPeriod,
 } from "@/application/vat-reports";
-import { administratorWithCompany, companyMember } from "./support/fixtures";
+import { administratorWithCompany, companyMember, companyWithManyReportDocuments } from "./support/fixtures";
 import { fixtureFile } from "./support/files";
 import { systemClient, testWorker } from "./support/worker";
 
@@ -69,6 +70,24 @@ it("identifies every Document whose Reporting Period is locked for the workspace
     company.companyId,
     company.documents.map((document) => document.id),
   )).toEqual(Object.fromEntries(company.documents.map((document) => [document.id, "2026-10"])));
+});
+
+it("identifies locks beyond the configured PostgREST row limit", async () => {
+  const company = await companyWithManyReportDocuments(1001);
+  const input = { companyId: company.companyId, period: "2026-10" };
+  expect((await generateVatReport(company.client, input)).ok).toBe(true);
+  expect(await finalizeVatReport(company.client, input)).toEqual({ ok: true, value: null });
+  const documents = await listCompanyDocuments(company.client, company.companyId);
+
+  const locks = await documentPeriodLocks(
+    company.client,
+    company.companyId,
+    documents.map((document) => document.id),
+  );
+
+  expect(documents).toHaveLength(1001);
+  expect(Object.keys(locks)).toHaveLength(1001);
+  expect(new Set(Object.values(locks))).toEqual(new Set(["2026-10"]));
 });
 
 it("only an Administrator finalizes and unlocks a stored VAT Report, and both transitions are audited", async () => {
