@@ -1132,6 +1132,21 @@ select {
   height: auto;
   border-radius: var(--radius-sm);
 }
+.workbook-source {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  color: var(--ink);
+}
+.workbook-source pre {
+  max-width: 100%;
+  margin: 0;
+  overflow: auto;
+  white-space: pre;
+  font: 13px/1.6 var(--font-mono);
+  color: var(--ink);
+}
 .iv-page-content {
   color: var(--ink-on-mark);
 }
