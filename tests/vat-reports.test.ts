@@ -7,12 +7,13 @@ import {
 } from "@/application/documents";
 import {
   enableAiProcessing,
+  createCompanyIdentity,
   getCompany,
   updateCompany,
 } from "@/application/companies";
 import { listAuditEvents } from "@/application/audit";
 import { uploadSourceFile } from "@/application/source-files";
-import { administratorWithCompany, companyMember, companyWithManyReportDocuments } from "./support/fixtures";
+import { administratorWithCompany, companyDetails, companyMember, companyWithManyReportDocuments } from "./support/fixtures";
 import { signedUpUser } from "./support/clients";
 import { fixtureFile } from "./support/files";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
@@ -216,6 +217,49 @@ it("refuses invalid months without changing a report", async () => {
       period: "2026-13",
     }),
   ).toEqual({ ok: false, error: "invalid_reporting_period" });
+});
+
+it("refuses generation until required Company onboarding is complete", async () => {
+  const user = await signedUpUser();
+  const created = await createCompanyIdentity(user.client, {
+    organizationId: user.organizationId,
+    ...companyDetails(),
+  });
+  if (!created.ok) throw new Error(created.error);
+
+  expect(await generateVatReport(user.client, {
+    companyId: created.value.id,
+    period: "2026-10",
+  })).toEqual({ ok: false, error: "company_setup_incomplete" });
+});
+
+it("stores canonical structured Company identity in an immutable VAT Report snapshot", async () => {
+  const company = await administratorWithCompany();
+  expect((await generateVatReport(company.client, {
+    companyId: company.companyId,
+    period: "2026-10",
+  })).ok).toBe(true);
+  const before = (await getVatReport(company.client, company.companyId, "2026-10"))!;
+  expect(before.result.company).toEqual(expect.objectContaining({
+    firstName: null,
+    lastName: null,
+    streetName: "Vinohradská",
+    houseNumber: "12",
+    orientationNumber: null,
+  }));
+  const identity = await getCompany(company.client, company.companyId);
+  if (!identity) throw new Error("Company not found");
+  await updateCompany(company.client, {
+    ...identity,
+    companyId: company.companyId,
+    streetName: "Nová ulice",
+    houseNumber: "99",
+    filingFrequency: "monthly",
+    filingFrequencyEffectiveFrom: "2026-01-01",
+  });
+
+  expect((await getVatReport(company.client, company.companyId, "2026-10"))!.result.company)
+    .toEqual(before.result.company);
 });
 it("refuses a stale source snapshot and direct writes to a stored report", async () => {
   const a = await companyWithReportDocuments();

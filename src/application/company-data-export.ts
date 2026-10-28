@@ -6,6 +6,11 @@ import type { SourceFile } from "./source-files";
 export type CompanyExportSnapshot = {
   revision: number;
   company: Company;
+  setupSteps: {
+    step: "identity" | "filing_frequency" | "filing_defaults" | "ai_processing";
+    state: "completed" | "skipped";
+    changedAt: string;
+  }[];
   filingFrequencies: FilingFrequencyHistoryEntry[];
   sourceFiles: SourceFile[];
   documents: (Document & { supersededAt: string | null; extractionVersions: ExtractionVersion[] })[];
@@ -25,9 +30,9 @@ export async function buildCompanyDataArchive(
   snapshot: CompanyExportSnapshot,
   readOriginal: (sourceFile: SourceFile) => Promise<Uint8Array | null>,
 ): Promise<Uint8Array | null> {
-  const { company, filingFrequencies, sourceFiles, documents } = snapshot;
+  const { company, setupSteps, filingFrequencies, sourceFiles, documents } = snapshot;
   const archive: Record<string, Uint8Array> = {
-    "company.json": json({ ...company, filingFrequencies }),
+    "company.json": json({ ...company, setupSteps, filingFrequencies }),
     "source-files.json": json(sourceFiles),
     "documents.json": json(documents),
   };

@@ -4,9 +4,7 @@ import { getTranslations } from "next-intl/server";
 import {
   getCompany,
   getMyCompanyRole,
-  listCompanyFilingFrequencies,
 } from "@/application/companies";
-import { AppSidebar } from "@/components/app-sidebar";
 import { requireUserClient } from "@/lib/supabase/server";
 import { CompanyForm } from "../../new/company-form";
 import { CompanyDeletionForm } from "./company-deletion-form";
@@ -16,18 +14,14 @@ export default async function CompanySettingsPage({
 }: PageProps<"/companies/[companyId]/settings">) {
   const { companyId } = await params;
   const client = await requireUserClient();
-  const [company, history, role, t] = await Promise.all([
+  const [company, role, t] = await Promise.all([
     getCompany(client, companyId),
-    listCompanyFilingFrequencies(client, companyId),
     getMyCompanyRole(client, companyId),
     getTranslations("company"),
   ]);
   if (!company) notFound();
-  const current = history.at(-1);
   return (
-    <>
-      <AppSidebar currentCompanyId={company.id} />
-      <main className="company-create">
+      <main className="company-workspace company-create">
         <div className="panel">
           <Link href={`/companies/${company.id}`}>{t("backToCompany")}</Link>
           <h1>{t("settingsTitle")}</h1>
@@ -37,25 +31,23 @@ export default async function CompanySettingsPage({
             companyId={company.id}
             initialValues={{
               name: company.name,
+              firstName: company.firstName ?? "",
+              lastName: company.lastName ?? "",
               ico: company.ico,
               vatId: company.vatId,
-              street: company.street,
+              streetName: company.streetName ?? "",
+              houseNumber: company.houseNumber ?? "",
+              orientationNumber: company.orientationNumber ?? "",
               city: company.city,
               postalCode: company.postalCode,
               personType: company.personType,
-              filingFrequency: current?.frequency ?? "monthly",
-              filingFrequencyEffectiveFrom:
-                current?.effectiveFrom ??
-                new Intl.DateTimeFormat("sv-SE", {
-                  timeZone: "Europe/Prague",
-                }).format(new Date()),
             }}
           />
+          <Link href={`/companies/${company.id}/setup/filing-frequency`}>{t("editFilingFrequency")}</Link>
           {role === "administrator" && (
             <CompanyDeletionForm companyId={company.id} />
           )}
         </div>
       </main>
-    </>
   );
 }

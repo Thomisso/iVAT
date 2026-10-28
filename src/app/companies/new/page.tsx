@@ -23,11 +23,6 @@ export default async function NewCompanyPage() {
                 organizationId={organization.id}
                 initialValues={{
                   personType: "legal",
-                  filingFrequency: "monthly",
-                  filingFrequencyEffectiveFrom: new Intl.DateTimeFormat(
-                    "sv-SE",
-                    { timeZone: "Europe/Prague" },
-                  ).format(new Date()),
                 }}
               />
             </>

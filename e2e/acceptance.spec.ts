@@ -31,11 +31,14 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   await page.getByLabel("Company name").fill(companyName);
   await page.getByLabel("IČO").fill(digits);
   await page.getByLabel("VAT ID").fill(`CZ${digits}`);
-  await page.getByLabel("Street and number").fill("Na Příkopě 1");
+  await page.getByLabel("Street name").fill("Na Příkopě");
+  await page.getByLabel("House number").fill("1");
   await page.getByLabel("City").fill("Praha");
   await page.getByLabel("Postal code").fill("11000");
-  await page.getByLabel("Effective from").fill("2026-01-01");
   await page.getByRole("button", { name: "Create company" }).click();
+  await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+\/setup\/filing-frequency$/);
+  await page.getByLabel("Effective from").fill("2026-01-01");
+  await page.getByRole("button", { name: "Save and continue" }).click();
   await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+$/);
   const companyUrl = page.url();
 

@@ -16,9 +16,13 @@ export function companyDetails(
   ).slice(0, 8);
   return {
     name: "Novák s.r.o.",
+    firstName: "",
+    lastName: "",
     ico,
     vatId: `CZ${ico}`,
-    street: "Vinohradská 12",
+    streetName: "Vinohradská",
+    houseNumber: "12",
+    orientationNumber: "",
     city: "Praha",
     postalCode: "120 00",
     personType: "legal",

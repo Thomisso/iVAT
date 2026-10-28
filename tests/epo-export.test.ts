@@ -98,7 +98,7 @@ it("uses the saved Company's person type for the XML header", async () => {
   const a = await signedUpUser();
   const company = await createCompany(a.client, {
     organizationId: a.organizationId,
-    ...companyDetails({ personType: "natural" }),
+    ...companyDetails({ personType: "natural", firstName: "Jan", lastName: "Novák" }),
   });
   if (!company.ok) throw new Error(company.error);
   const input = {
@@ -108,8 +108,8 @@ it("uses the saved Company's person type for the XML header", async () => {
     details: {
       ...details,
       personType: "P",
-      firstName: "Jan",
-      lastName: "Novák",
+      firstName: "Injected",
+      lastName: "Override",
     },
   };
   await generateVatReport(a.client, input);
@@ -128,7 +128,7 @@ it.each(["dphdp3", "dphkh1"])(
     const a = await signedUpUser();
     const company = await createCompany(a.client, {
       organizationId: a.organizationId,
-      ...companyDetails({ name: "x".repeat(256) }),
+      ...companyDetails({ streetName: "x".repeat(39) }),
     });
     if (!company.ok) throw new Error(company.error);
     const input = {

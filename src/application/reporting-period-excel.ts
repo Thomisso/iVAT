@@ -4,6 +4,7 @@ import type { ExtractionPayload, RateBreakdownLine } from "./extraction-payload"
 import {
   type CompanyDetails,
   getCompany,
+  getCompanySetupChecklist,
   getFilingFrequencyForPeriod,
   listCompanyFilingFrequencies,
 } from "./companies";
@@ -16,7 +17,7 @@ export type ReportingPeriodWorkbookDownload = {
   mediaType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 };
 
-export type ExportReportingPeriodWorkbookError = "forbidden" | "invalid_reporting_period";
+export type ExportReportingPeriodWorkbookError = "forbidden" | "company_setup_incomplete" | "invalid_reporting_period";
 
 type WorkbookDocument = ReportDocument & { findings: ValidationFinding[] };
 
@@ -130,6 +131,10 @@ export async function exportReportingPeriodWorkbook(
   if (!isReportingPeriod(input.period)) return { ok: false, error: "invalid_reporting_period" };
   const company = await getCompany(client, input.companyId);
   if (!company) return { ok: false, error: "forbidden" };
+  const setup = await getCompanySetupChecklist(client, company.id);
+  if (setup.some((item) => (item.step === "identity" || item.step === "filing_frequency") && item.state !== "completed")) {
+    return { ok: false, error: "company_setup_incomplete" };
+  }
   const frequency = await getFilingFrequencyForPeriod(client, company.id, input.period);
   if (
     frequency === null
@@ -153,9 +158,13 @@ export async function exportReportingPeriodWorkbook(
   }));
   const companyDetails: CompanyDetails = {
     name: company.name,
+    firstName: company.firstName,
+    lastName: company.lastName,
     ico: company.ico,
     vatId: company.vatId,
-    street: company.street,
+    streetName: company.streetName,
+    houseNumber: company.houseNumber,
+    orientationNumber: company.orientationNumber,
     city: company.city,
     postalCode: company.postalCode,
     personType: company.personType,
