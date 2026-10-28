@@ -68,7 +68,9 @@
     "deleteButton": "Exportovat a smazat firmu",
     "deletePreparing": "Připravuji export…",
     "deleteConfirm": "Exportovat a smazat tuto firmu všem členům? V aplikaci ji nebude možné obnovit.",
-    "deleteFailed": "Export se nepodařilo dokončit, proto firma nebyla smazána. Zkuste to znovu."
+    "deleteFailed": "Export se nepodařilo dokončit, proto firma nebyla smazána. Zkuste to znovu.",
+    "deleteWorkerFailed": "Zpracování exportu selhalo po všech pokusech. Firma nebyla smazána.",
+    "deleteStale": "Po zahájení exportu se změnila data firmy. Firma nebyla smazána; spusťte nový export."
   },
   "members": {
     "nav": "Členové",

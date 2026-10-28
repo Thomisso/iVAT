@@ -1,10 +1,12 @@
 import { createHmac } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { inject, describe, expect, it } from "vitest";
+import { fakeAiProvider } from "@/ai/fake";
 import { asUserClient } from "@/application/client";
 import { logIn } from "@/application/auth";
 import { listAuditEvents } from "@/application/audit";
 import { enableAiProcessing } from "@/application/companies";
+import { exportCompanyData, getCompanyDataExportStatus } from "@/application/company-deletion";
 import { listDocuments } from "@/application/documents";
 import {
   listPlatformOrganizationCompanies,
@@ -107,13 +109,15 @@ describe("SuperAdmin organization console", () => {
     })).toEqual({ ok: false, error: "organization_blocked" });
 
     expect(await worker.runJobs()).toEqual([]);
-    expect(await systemClient().from("source_file").select("status").eq("id", uploaded.value.id).single())
-      .toEqual(expect.objectContaining({ data: { status: "uploaded" } }));
 
     expect(await setPlatformOrganizationBlocked(superAdmin.client, {
       organizationId: target.organizationId,
       blocked: false,
     })).toEqual({ ok: true, value: null });
+    expect(await listSourceFiles(target.client, target.companyId)).toContainEqual(expect.objectContaining({
+      id: uploaded.value.id,
+      status: "uploaded",
+    }));
     worker.releaseDelayedJobs();
     expect(await worker.runJobs()).toEqual([]);
     expect(await listSourceFiles(target.client, target.companyId)).toContainEqual(expect.objectContaining({
@@ -233,44 +237,47 @@ describe("SuperAdmin organization console", () => {
       maxFilePages: 50,
       maxBatchFiles: 100,
     });
-    const queued = testWorker();
-    const uploaded = await uploadSourceFile(target.client, queued.jobs, {
+    const splitStuck = testWorker(fakeAiProvider({
+      split: () => { throw new Error("split provider timed out"); },
+    }));
+    await enableAiProcessing(target.client, splitStuck.jobs, {
+      companyId: target.companyId,
+      provider: splitStuck.ai,
+    });
+    const uploadedBytes = fixtureFile("receipt.png");
+    const uploaded = await uploadSourceFile(target.client, splitStuck.jobs, {
       companyId: target.companyId,
       fileName: "receipt.png",
-      bytes: fixtureFile("receipt.png"),
+      bytes: uploadedBytes,
     });
     if (!uploaded.ok) throw new Error(uploaded.error);
-    const moved = await systemClient().from("source_file")
-      .update({ status: "processing" })
-      .eq("id", uploaded.value.id);
-    if (moved.error) throw moved.error;
-    const documentFile = await uploadSourceFile(target.client, queued.jobs, {
+    expect(await splitStuck.runJobs({ final: false })).toHaveLength(1);
+    expect(await listSourceFiles(target.client, target.companyId)).toContainEqual(expect.objectContaining({
+      id: uploaded.value.id,
+      status: "processing",
+    }));
+
+    const extractStuck = testWorker(fakeAiProvider({
+      extract: () => { throw new Error("extract provider timed out"); },
+    }));
+    const documentFile = await uploadSourceFile(target.client, extractStuck.jobs, {
       companyId: target.companyId,
       fileName: "document.png",
       bytes: fixtureFile("receipt.png"),
     });
     if (!documentFile.ok) throw new Error(documentFile.error);
-    const split = await systemClient().rpc("record_split", {
-      target_source_file_id: documentFile.value.id,
-      source_ranges: [{ firstPage: 1, lastPage: 1 }],
-    });
-    if (split.error) throw split.error;
-    const { data: document, error: documentError } = await systemClient().from("document")
-      .select("id, extraction_request_id")
-      .eq("source_file_id", documentFile.value.id)
-      .single();
-    if (documentError) throw documentError;
-    const documentMoved = await systemClient().from("document")
-      .update({ status: "processing" })
-      .eq("id", document.id);
-    if (documentMoved.error) throw documentMoved.error;
+    await extractStuck.runNextJob({ final: false });
+    const [document] = await listDocuments(target.client, target.companyId, documentFile.value.id);
+    expect(await extractStuck.runJobs({ final: false })).toHaveLength(1);
+    expect((await listDocuments(target.client, target.companyId, documentFile.value.id))[0].status)
+      .toBe("processing");
     const ordinary = await signedUpUser("Ordinary Organization");
     process.loadEnvFile(".env.local");
     const boss = createBoss({ supervise: false });
     await boss.start();
     await createProcessingQueues(boss);
     try {
-      for (const name of ["split-source-file", "extract-document"] as const) {
+      for (const name of ["split-source-file", "extract-document", "complete-company-export"] as const) {
         await boss.deleteAllJobs(name);
       }
       const jobId = await boss.send(
@@ -289,6 +296,34 @@ describe("SuperAdmin organization console", () => {
       if (!documentJobId) throw new Error("Failed to enqueue the Document fixture job");
       const [claimedDocument] = await boss.fetch("extract-document", { includeMetadata: true });
       await boss.fail("extract-document", claimedDocument, { message: "worker crashed" });
+      const exportTarget = await administratorWithCompany("Failed Export Organization");
+      const exportUploaded = await uploadSourceFile(exportTarget.client, { async send() {} }, {
+        companyId: exportTarget.companyId,
+        fileName: "receipt.png",
+        bytes: uploadedBytes,
+      });
+      if (!exportUploaded.ok) throw new Error(exportUploaded.error);
+      const exportWorker = testWorker();
+      const exported = await exportCompanyData(exportTarget.client, exportWorker.jobs, {
+        companyId: exportTarget.companyId,
+      });
+      if (!exported.ok) throw new Error(exported.error);
+      const [completionJob] = exportWorker.queued;
+      const originalPath = `${exportTarget.companyId}/${exportUploaded.value.id}`;
+      expect((await systemClient().storage.from("source-files").remove([originalPath])).error).toBeNull();
+      expect(await exportWorker.runJobs({ final: true })).toHaveLength(1);
+      expect(await getCompanyDataExportStatus(exportTarget.client, {
+        companyId: exportTarget.companyId,
+        exportId: exported.value.exportId,
+      })).toEqual({ ok: true, value: "failed" });
+      const exportJobId = await boss.send(
+        "complete-company-export",
+        { exportId: exported.value.exportId },
+        { retryLimit: 0 },
+      );
+      if (!exportJobId) throw new Error("Failed to enqueue the export fixture job");
+      const [claimedExport] = await boss.fetch("complete-company-export", { includeMetadata: true });
+      await boss.fail("complete-company-export", claimedExport, { message: "storage was unavailable" });
       expect(await listFailedProcessingJobs(ordinary.client)).toEqual({
         ok: false,
         error: "forbidden",
@@ -308,6 +343,12 @@ describe("SuperAdmin organization console", () => {
             targetId: document.id,
             error: "worker crashed",
           }),
+          expect.objectContaining({
+            id: exportJobId,
+            name: "complete-company-export",
+            targetId: exported.value.exportId,
+            error: "storage was unavailable",
+          }),
           ]),
       }));
       expect(await retryFailedProcessingJob(ordinary.client, jobId)).toEqual({
@@ -324,8 +365,10 @@ describe("SuperAdmin organization console", () => {
         { ok: false, error: "not_retryable" },
         { ok: true, value: null },
       ]);
-      expect(await systemClient().from("source_file").select("status").eq("id", uploaded.value.id).single())
-        .toEqual(expect.objectContaining({ data: { status: "uploaded" } }));
+      expect(await listSourceFiles(target.client, target.companyId)).toContainEqual(expect.objectContaining({
+        id: uploaded.value.id,
+        status: "uploaded",
+      }));
       expect(await boss.getJobById("split-source-file", jobId)).toEqual(expect.objectContaining({
         state: "retry",
       }));
@@ -333,27 +376,44 @@ describe("SuperAdmin organization console", () => {
         ok: true,
         value: null,
       });
-      const retriedDocument = await systemClient().from("document")
-        .select("status, extraction_request_id")
-        .eq("id", document.id)
-        .single();
-      expect(retriedDocument.data?.status).toBe("uploaded");
-      expect(retriedDocument.data?.extraction_request_id).not.toBe(document.extraction_request_id);
+      expect((await listDocuments(target.client, target.companyId, documentFile.value.id))[0].status)
+        .toBe("uploaded");
       expect(await boss.getJobById("extract-document", documentJobId)).toEqual(expect.objectContaining({
         state: "retry",
       }));
+      expect((await Promise.all([
+        retryFailedProcessingJob(superAdmin.client, exportJobId),
+        retryFailedProcessingJob(superAdmin.client, exportJobId),
+      ])).sort((a, b) => Number(a.ok) - Number(b.ok))).toEqual([
+        { ok: false, error: "not_retryable" },
+        { ok: true, value: null },
+      ]);
+      expect(await getCompanyDataExportStatus(exportTarget.client, {
+        companyId: exportTarget.companyId,
+        exportId: exported.value.exportId,
+      })).toEqual({ ok: true, value: "pending" });
+      expect(await boss.getJobById("complete-company-export", exportJobId)).toEqual(expect.objectContaining({
+        state: "retry",
+      }));
+      expect((await systemClient().storage.from("source-files").upload(originalPath, uploadedBytes, {
+        contentType: "image/png",
+        upsert: true,
+      })).error).toBeNull();
+      exportWorker.queued.push(completionJob);
+      expect(await exportWorker.runJobs()).toEqual([]);
+      expect(await getCompanyDataExportStatus(exportTarget.client, {
+        companyId: exportTarget.companyId,
+        exportId: exported.value.exportId,
+      })).toEqual({ ok: true, value: "completed" });
 
-      const settledFile = await uploadSourceFile(target.client, queued.jobs, {
+      const settledWorker = testWorker();
+      const settledFile = await uploadSourceFile(target.client, settledWorker.jobs, {
         companyId: target.companyId,
         fileName: "already-split.png",
         bytes: fixtureFile("receipt.png"),
       });
       if (!settledFile.ok) throw new Error(settledFile.error);
-      const settledSplit = await systemClient().rpc("record_split", {
-        target_source_file_id: settledFile.value.id,
-        source_ranges: [{ firstPage: 1, lastPage: 1 }],
-      });
-      if (settledSplit.error) throw settledSplit.error;
+      expect(await settledWorker.runJobs()).toEqual([]);
       await boss.deleteAllJobs("split-source-file");
       const nonRetryableJobId = await boss.send(
         "split-source-file",
