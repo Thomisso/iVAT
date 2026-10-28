@@ -21,6 +21,8 @@ import {
 import { detectDocumentDirection } from "./direction-detection";
 import type { Direction } from "./extraction-payload";
 import { applyCnbConversion, type ExchangeRateProvider } from "./exchange-rates";
+import { createHash } from "node:crypto";
+import { buildCompanyDataArchive, type CompanyExportSnapshot } from "./company-data-export";
 
 // Background processing (ADR-0004): Split per Source File, then Extract per
 // Document. Jobs carry only ids; the state lives in the database, which makes
@@ -29,10 +31,7 @@ import { applyCnbConversion, type ExchangeRateProvider } from "./exchange-rates"
 export type ProcessingJob =
   | { name: "split-source-file"; data: { sourceFileId: string } }
   | { name: "extract-document"; data: { documentId: string } }
-  | {
-      name: "complete-company-export";
-      data: { exportId: string; byteSize: number; sha256: string };
-    };
+  | { name: "complete-company-export"; data: { exportId: string } };
 
 export const splitJob = (sourceFileId: string): ProcessingJob => ({
   name: "split-source-file",
@@ -42,13 +41,9 @@ export const extractJob = (documentId: string): ProcessingJob => ({
   name: "extract-document",
   data: { documentId },
 });
-export const completeCompanyExportJob = (
-  exportId: string,
-  byteSize: number,
-  sha256: string,
-): ProcessingJob => ({
+export const completeCompanyExportJob = (exportId: string): ProcessingJob => ({
   name: "complete-company-export",
-  data: { exportId, byteSize, sha256 },
+  data: { exportId },
 });
 
 export const PROCESSING_JOB_NAMES: ProcessingJob["name"][] = [
@@ -84,23 +79,45 @@ export async function runJob(worker: Worker, job: ProcessingJob, attempt: Attemp
     case "extract-document":
       return extractDocument(worker, job.data.documentId, attempt);
     case "complete-company-export":
-      return completeCompanyExport(worker.system, job.data);
+      return completeCompanyExport(worker.system, job.data.exportId, attempt);
   }
 }
 
 async function completeCompanyExport(
   system: SystemClient,
-  input: { exportId: string; byteSize: number; sha256: string },
+  exportId: string,
+  attempt: Attempt,
 ): Promise<void> {
-  const { error } = await system.rpc("complete_company_data_export", {
-    target_export_id: input.exportId,
-    target_byte_size: input.byteSize,
-    target_sha256: input.sha256,
+  await failOnFinalAttempt(attempt, async () => {
+    const failed = await system.rpc("fail_company_data_export", { target_export_id: exportId });
+    if (failed.error) throw failed.error;
+  }, async () => {
+    const loaded = await system.rpc("company_data_export_for_completion", { target_export_id: exportId });
+    if (loaded.error) throw loaded.error;
+    const receipt = loaded.data as unknown as {
+      status: "pending" | "completed" | "failed" | "stale";
+      companyId: string;
+      snapshot: CompanyExportSnapshot;
+    };
+    if (receipt.status !== "pending") return;
+    const bytes = await buildCompanyDataArchive(receipt.snapshot, async (sourceFile) => {
+      const stored = await system.storage
+        .from(SOURCE_FILE_BUCKET)
+        .download(sourceFileObjectPath(receipt.companyId, sourceFile.id));
+      if (stored.error) throw stored.error;
+      return new Uint8Array(await stored.data.arrayBuffer());
+    });
+    if (!bytes) throw new Error("Company export source file is missing");
+    const completed = await system.rpc("complete_company_data_export", {
+      target_export_id: exportId,
+      target_byte_size: bytes.byteLength,
+      target_sha256: createHash("sha256").update(bytes).digest("hex"),
+    });
+    // A concurrent Company change permanently makes this snapshot stale. The
+    // authenticated status query exposes that terminal state to the browser.
+    if (completed.error?.code === "P0001" && completed.error.hint === "stale_export") return;
+    if (completed.error) throw completed.error;
   });
-  // A concurrent Company change permanently makes this snapshot stale. The
-  // authenticated status query exposes that terminal state to the browser.
-  if (error?.code === "P0001" && error.hint === "stale_export") return;
-  if (error) throw error;
 }
 
 type ProviderAvailability = { blocked: boolean; provider: AiProvider | null };

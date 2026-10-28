@@ -1,25 +1,42 @@
 -- Final review hardening: a user can begin an export, but only the trusted
--- server can complete its receipt after every original has been archived.
+-- worker can complete its receipt after independently rebuilding the archive.
 alter table public.company_data_export
   alter column byte_size drop not null,
   alter column sha256 drop not null,
-  add column completed_at timestamptz;
+  add column snapshot jsonb,
+  add column status text not null default 'pending',
+  add column completed_at timestamptz,
+  add column failed_at timestamptz;
 
 update public.company_data_export
-set completed_at = created_at
+set completed_at = created_at,
+    status = 'completed',
+    snapshot = '{}'::jsonb
 where byte_size is not null and sha256 is not null;
 
 alter table public.company_data_export
+  alter column snapshot set not null,
   add constraint company_data_export_completion_state check (
     (
-      completed_at is null
+      status = 'pending'
+      and completed_at is null
+      and failed_at is null
       and byte_size is null
       and sha256 is null
     )
     or (
-      completed_at is not null
+      status = 'completed'
+      and completed_at is not null
+      and failed_at is null
       and byte_size is not null
       and sha256 is not null
+    )
+    or (
+      status = 'failed'
+      and completed_at is null
+      and failed_at is not null
+      and byte_size is null
+      and sha256 is null
     )
   );
 
@@ -49,16 +66,52 @@ begin
   export_file_name := 'iVAT-company-' || target.ico || '-' || current_date || '.zip';
   insert into public.company_data_export (
     id, company_id, organization_id, created_by, file_name,
-    byte_size, sha256, data_revision
+    byte_size, sha256, data_revision, snapshot
   ) values (
     export_id, target.id, target.organization_id, auth.uid(), export_file_name,
-    null, null, target.data_revision
+    null, null, target.data_revision, snapshot
   );
 
   return jsonb_build_object(
     'exportId', export_id,
     'fileName', export_file_name,
     'snapshot', snapshot
+  );
+end;
+$$;
+
+-- Only the worker can read the authoritative snapshot retained for an export
+-- completion. The browser receives the same snapshot only as the result of its
+-- own create command; it cannot replace what the worker later verifies.
+create function public.company_data_export_for_completion(target_export_id uuid)
+returns jsonb
+language plpgsql stable security definer set search_path = ''
+as $$
+declare
+  receipt public.company_data_export;
+  current_revision bigint;
+  receipt_status text;
+begin
+  if auth.role() <> 'service_role' then
+    raise exception 'worker role required' using errcode = '42501';
+  end if;
+  select export.* into receipt
+  from public.company_data_export export
+  where export.id = target_export_id;
+  if not found then
+    raise exception 'export is not completable'
+      using errcode = 'P0001', hint = 'export_failed';
+  end if;
+  select data_revision into current_revision
+  from public.company where id = receipt.company_id;
+  receipt_status := case
+    when receipt.data_revision <> current_revision then 'stale'
+    else receipt.status
+  end;
+  return jsonb_build_object(
+    'status', receipt_status,
+    'companyId', receipt.company_id,
+    'snapshot', receipt.snapshot
   );
 end;
 $$;
@@ -86,11 +139,15 @@ begin
     raise exception 'export is not completable'
       using errcode = 'P0001', hint = 'export_failed';
   end if;
-  if pending.completed_at is not null then
+  if pending.status = 'completed' then
     if pending.byte_size = target_byte_size and pending.sha256 = target_sha256 then
       return;
     end if;
     raise exception 'export was completed with different metadata'
+      using errcode = 'P0001', hint = 'export_failed';
+  end if;
+  if pending.status <> 'pending' then
+    raise exception 'export is not completable'
       using errcode = 'P0001', hint = 'export_failed';
   end if;
   select data_revision into current_revision
@@ -101,7 +158,8 @@ begin
   end if;
 
   update public.company_data_export
-  set byte_size = target_byte_size,
+  set status = 'completed',
+      byte_size = target_byte_size,
       sha256 = target_sha256,
       completed_at = clock_timestamp()
   where id = pending.id;
@@ -117,6 +175,20 @@ begin
     ),
     pending.created_by
   );
+end;
+$$;
+
+create function public.fail_company_data_export(target_export_id uuid)
+returns void
+language plpgsql security definer set search_path = ''
+as $$
+begin
+  if auth.role() <> 'service_role' then
+    raise exception 'worker role required' using errcode = '42501';
+  end if;
+  update public.company_data_export
+  set status = 'failed', failed_at = clock_timestamp()
+  where id = target_export_id and status = 'pending';
 end;
 $$;
 
@@ -141,11 +213,10 @@ begin
   if not found then
     raise exception 'not allowed' using errcode = '42501';
   end if;
-  if receipt_row.completed_at is not null then return 'completed'; end if;
   select data_revision into current_revision
   from public.company where id = receipt_row.company_id;
   if receipt_row.data_revision <> current_revision then return 'stale'; end if;
-  return 'pending';
+  return receipt_row.status;
 end;
 $$;
 
@@ -176,7 +247,7 @@ begin
   where export.id = target_export_id
     and export.company_id = target.id
     and export.created_by = auth.uid()
-    and export.completed_at is not null
+    and export.status = 'completed'
     and export.used_at is null
   for update;
   if not found then
@@ -220,12 +291,16 @@ $$;
 
 revoke execute on function public.company_export_snapshot(uuid),
   public.create_company_data_export(uuid),
+  public.company_data_export_for_completion(uuid),
   public.complete_company_data_export(uuid, bigint, text),
+  public.fail_company_data_export(uuid),
   public.company_data_export_status(uuid, uuid)
   from public, anon, authenticated, service_role;
 grant execute on function public.create_company_data_export(uuid) to authenticated;
 grant execute on function public.company_data_export_status(uuid, uuid) to authenticated;
-grant execute on function public.complete_company_data_export(uuid, bigint, text) to service_role;
+grant execute on function public.company_data_export_for_completion(uuid),
+  public.complete_company_data_export(uuid, bigint, text),
+  public.fail_company_data_export(uuid) to service_role;
 
 -- Historical Companies stay hidden from ordinary Company queries, but an
 -- Organization Administrator can resolve them for audit display and filters.
@@ -244,7 +319,7 @@ revoke execute on function public.audit_companies(uuid) from public, anon;
 grant execute on function public.audit_companies(uuid) to authenticated;
 
 -- One canonical extraction of a processing target id is shared by listing and
--- retry. Transitions remain explicit because the two aggregates have different
+-- retry. Transitions remain explicit because the aggregates have different
 -- statutory state and extraction-request rules.
 create function private.processing_job_target_id(job_name text, job_data jsonb)
 returns uuid
@@ -256,6 +331,7 @@ begin
   data_key := case job_name
     when 'split-source-file' then 'sourceFileId'
     when 'extract-document' then 'documentId'
+    when 'complete-company-export' then 'exportId'
   end;
   if data_key is null or coalesce(job_data ->> data_key, '') !~*
     '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
@@ -319,9 +395,14 @@ begin
     update public.source_file set status = 'uploaded'
     where id = target_id and status in ('processing', 'failed')
     returning organization_id, company_id into target_organization_id, target_company_id;
-  else
+  elsif job_name = 'extract-document' then
     update public.document set status = 'uploaded', extraction_request_id = gen_random_uuid()
     where id = target_id and superseded_at is null and status in ('processing', 'failed')
+    returning organization_id, company_id into target_organization_id, target_company_id;
+  else
+    update public.company_data_export
+    set status = 'pending', failed_at = null
+    where id = target_id and status = 'failed' and used_at is null
     returning organization_id, company_id into target_organization_id, target_company_id;
   end if;
   if not found then

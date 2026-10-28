@@ -1,9 +1,19 @@
 import { PgBoss } from "pg-boss";
 import { PROCESSING_JOB_NAMES, type JobQueue } from "@/application/processing";
+import {
+  PROCESSING_JOB_RETRY_DELAY_MAX_SECONDS,
+  PROCESSING_JOB_RETRY_DELAY_SECONDS,
+  PROCESSING_JOB_RETRY_LIMIT,
+} from "@/lib/processing-policy";
 
 // Transient provider errors are retried with backoff; when the retries run out,
 // the job's last attempt marks its Source File or Document Failed.
-const QUEUE_OPTIONS = { retryLimit: 3, retryDelay: 10, retryBackoff: true, retryDelayMax: 300 };
+const QUEUE_OPTIONS = {
+  retryLimit: PROCESSING_JOB_RETRY_LIMIT,
+  retryDelay: PROCESSING_JOB_RETRY_DELAY_SECONDS,
+  retryBackoff: true,
+  retryDelayMax: PROCESSING_JOB_RETRY_DELAY_MAX_SECONDS,
+};
 
 function databaseUrl(): string {
   const url = process.env.DATABASE_URL;

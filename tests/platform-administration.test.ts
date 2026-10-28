@@ -6,6 +6,7 @@ import { asUserClient } from "@/application/client";
 import { logIn } from "@/application/auth";
 import { listAuditEvents } from "@/application/audit";
 import { enableAiProcessing } from "@/application/companies";
+import { exportCompanyData, getCompanyDataExportStatus } from "@/application/company-deletion";
 import { listDocuments } from "@/application/documents";
 import {
   listPlatformOrganizationCompanies,
@@ -243,10 +244,11 @@ describe("SuperAdmin organization console", () => {
       companyId: target.companyId,
       provider: splitStuck.ai,
     });
+    const uploadedBytes = fixtureFile("receipt.png");
     const uploaded = await uploadSourceFile(target.client, splitStuck.jobs, {
       companyId: target.companyId,
       fileName: "receipt.png",
-      bytes: fixtureFile("receipt.png"),
+      bytes: uploadedBytes,
     });
     if (!uploaded.ok) throw new Error(uploaded.error);
     expect(await splitStuck.runJobs({ final: false })).toHaveLength(1);
@@ -275,7 +277,7 @@ describe("SuperAdmin organization console", () => {
     await boss.start();
     await createProcessingQueues(boss);
     try {
-      for (const name of ["split-source-file", "extract-document"] as const) {
+      for (const name of ["split-source-file", "extract-document", "complete-company-export"] as const) {
         await boss.deleteAllJobs(name);
       }
       const jobId = await boss.send(
@@ -294,6 +296,34 @@ describe("SuperAdmin organization console", () => {
       if (!documentJobId) throw new Error("Failed to enqueue the Document fixture job");
       const [claimedDocument] = await boss.fetch("extract-document", { includeMetadata: true });
       await boss.fail("extract-document", claimedDocument, { message: "worker crashed" });
+      const exportTarget = await administratorWithCompany("Failed Export Organization");
+      const exportUploaded = await uploadSourceFile(exportTarget.client, { async send() {} }, {
+        companyId: exportTarget.companyId,
+        fileName: "receipt.png",
+        bytes: uploadedBytes,
+      });
+      if (!exportUploaded.ok) throw new Error(exportUploaded.error);
+      const exportWorker = testWorker();
+      const exported = await exportCompanyData(exportTarget.client, exportWorker.jobs, {
+        companyId: exportTarget.companyId,
+      });
+      if (!exported.ok) throw new Error(exported.error);
+      const [completionJob] = exportWorker.queued;
+      const originalPath = `${exportTarget.companyId}/${exportUploaded.value.id}`;
+      expect((await systemClient().storage.from("source-files").remove([originalPath])).error).toBeNull();
+      expect(await exportWorker.runJobs({ final: true })).toHaveLength(1);
+      expect(await getCompanyDataExportStatus(exportTarget.client, {
+        companyId: exportTarget.companyId,
+        exportId: exported.value.exportId,
+      })).toEqual({ ok: true, value: "failed" });
+      const exportJobId = await boss.send(
+        "complete-company-export",
+        { exportId: exported.value.exportId },
+        { retryLimit: 0 },
+      );
+      if (!exportJobId) throw new Error("Failed to enqueue the export fixture job");
+      const [claimedExport] = await boss.fetch("complete-company-export", { includeMetadata: true });
+      await boss.fail("complete-company-export", claimedExport, { message: "storage was unavailable" });
       expect(await listFailedProcessingJobs(ordinary.client)).toEqual({
         ok: false,
         error: "forbidden",
@@ -312,6 +342,12 @@ describe("SuperAdmin organization console", () => {
             name: "extract-document",
             targetId: document.id,
             error: "worker crashed",
+          }),
+          expect.objectContaining({
+            id: exportJobId,
+            name: "complete-company-export",
+            targetId: exported.value.exportId,
+            error: "storage was unavailable",
           }),
           ]),
       }));
@@ -345,6 +381,30 @@ describe("SuperAdmin organization console", () => {
       expect(await boss.getJobById("extract-document", documentJobId)).toEqual(expect.objectContaining({
         state: "retry",
       }));
+      expect((await Promise.all([
+        retryFailedProcessingJob(superAdmin.client, exportJobId),
+        retryFailedProcessingJob(superAdmin.client, exportJobId),
+      ])).sort((a, b) => Number(a.ok) - Number(b.ok))).toEqual([
+        { ok: false, error: "not_retryable" },
+        { ok: true, value: null },
+      ]);
+      expect(await getCompanyDataExportStatus(exportTarget.client, {
+        companyId: exportTarget.companyId,
+        exportId: exported.value.exportId,
+      })).toEqual({ ok: true, value: "pending" });
+      expect(await boss.getJobById("complete-company-export", exportJobId)).toEqual(expect.objectContaining({
+        state: "retry",
+      }));
+      expect((await systemClient().storage.from("source-files").upload(originalPath, uploadedBytes, {
+        contentType: "image/png",
+        upsert: true,
+      })).error).toBeNull();
+      exportWorker.queued.push(completionJob);
+      expect(await exportWorker.runJobs()).toEqual([]);
+      expect(await getCompanyDataExportStatus(exportTarget.client, {
+        companyId: exportTarget.companyId,
+        exportId: exported.value.exportId,
+      })).toEqual({ ok: true, value: "completed" });
 
       const settledWorker = testWorker();
       const settledFile = await uploadSourceFile(target.client, settledWorker.jobs, {
