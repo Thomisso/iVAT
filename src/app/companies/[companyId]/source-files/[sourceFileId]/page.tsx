@@ -36,6 +36,7 @@ export default async function SourceFilePage({
   const t = await getTranslations();
   const format = await getFormatter();
   const contentUrl = `/companies/${companyId}/source-files/${file.id}/content`;
+  const workbook = file.format === "xlsx" || file.format === "xls";
   // Nothing moves until the Company enables AI processing.
   const processing =
     company.aiProcessing !== null &&
@@ -53,7 +54,7 @@ export default async function SourceFilePage({
           </p>
           <h1>{file.fileName}</h1>
           <p className="iv-muted">
-            {file.format.toUpperCase()} · {t("sourceFiles.pageCount", { count: file.pageCount })} ·{" "}
+            {file.format.toUpperCase()} · {workbook ? t("sourceFiles.workbook") : t("sourceFiles.pageCount", { count: file.pageCount })} ·{" "}
             {format.number(file.byteSize / 1000, {
               style: "unit",
               unit: "kilobyte",
@@ -91,13 +92,21 @@ export default async function SourceFilePage({
               columns={[
                 {
                   key: "pages",
-                  header: t("documents.pages"),
+                  header: workbook ? t("documents.rows") : t("documents.pages"),
                   mono: true,
                   render: (document) => (
                     <Link href={`/companies/${companyId}/documents/${document.id}`}>
-                      {document.firstPage === document.lastPage
-                        ? document.firstPage
-                        : `${document.firstPage}–${document.lastPage}`}
+                      {document.rowSet
+                        ? document.rowSet.firstRow === document.rowSet.lastRow
+                          ? t("documents.row", { sheet: document.rowSet.sheetName, row: document.rowSet.firstRow })
+                          : t("documents.rowRange", {
+                              sheet: document.rowSet.sheetName,
+                              first: document.rowSet.firstRow,
+                              last: document.rowSet.lastRow,
+                            })
+                        : document.firstPage === document.lastPage
+                          ? document.firstPage
+                          : `${document.firstPage}–${document.lastPage}`}
                     </Link>
                   ),
                 },
@@ -129,6 +138,7 @@ export default async function SourceFilePage({
                   key: "splitCorrection",
                   header: t("documents.correctSplit"),
                   render: (document) => {
+                    if (document.rowSet) return null;
                     const index = documents.findIndex((candidate) => candidate.id === document.id);
                     const previous = documents[index - 1];
                     const next = documents[index + 1];
@@ -221,7 +231,12 @@ export default async function SourceFilePage({
           )}
         </section>
         <DocumentViewer label={file.fileName}>
-          {file.format === "pdf" ? (
+          {workbook ? (
+            <div className="workbook-source">
+              <p>{t("sourceFiles.workbookPreview")}</p>
+              <a href={contentUrl}>{t("sourceFiles.downloadOriginal")}</a>
+            </div>
+          ) : file.format === "pdf" ? (
             <iframe src={contentUrl} title={file.fileName} />
           ) : (
             // eslint-disable-next-line @next/next/no-img-element -- the original is shown as stored, not optimized

@@ -8,6 +8,7 @@ import {
   getDocument,
   isBeingExtracted,
   listExtractionVersions,
+  readDocumentRows,
 } from "@/application/documents";
 import { getSourceFile } from "@/application/source-files";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -41,19 +42,26 @@ export default async function DocumentReviewPage({
   const file = await getSourceFile(client, companyId, document.sourceFileId);
   if (!file) notFound();
   const t = await getTranslations();
+  const sourceRows = document.rowSet
+    ? await readDocumentRows(client, companyId, document.id)
+    : null;
 
   const current = versions.at(-1);
   const shown =
     versions.find((v) => String(v.version) === requestedVersion) ?? current;
   const reviewing = document.status === "needs_review" && current !== undefined;
   const contentUrl = `/companies/${companyId}/documents/${document.id}/content`;
-  const pages =
-    document.firstPage === document.lastPage
+  const sourceLocation = document.rowSet
+    ? document.rowSet.firstRow === document.rowSet.lastRow
+      ? t("review.row", { sheet: document.rowSet.sheetName, row: document.rowSet.firstRow })
+      : t("review.rowRange", {
+          sheet: document.rowSet.sheetName,
+          first: document.rowSet.firstRow,
+          last: document.rowSet.lastRow,
+        })
+    : document.firstPage === document.lastPage
       ? t("review.page", { page: document.firstPage })
-      : t("review.pageRange", {
-          first: document.firstPage,
-          last: document.lastPage,
-        });
+      : t("review.pageRange", { first: document.firstPage, last: document.lastPage });
 
   return (
     <>
@@ -73,7 +81,7 @@ export default async function DocumentReviewPage({
           </h1>
           <p className="iv-muted">
             <Link href={`/companies/${companyId}/source-files/${file.id}`}>
-              {t("review.sourceFile", { fileName: file.fileName, pages })}
+              {t("review.sourceFile", { fileName: file.fileName, pages: sourceLocation })}
             </Link>
           </p>
           <p>
@@ -92,7 +100,12 @@ export default async function DocumentReviewPage({
         </header>
         <section className="review-original">
           <DocumentViewer label={file.fileName}>
-            {file.format === "pdf" ? (
+            {document.rowSet ? (
+              <div className="workbook-source">
+                <Notice>{t("review.noDocumentImage")}</Notice>
+                <pre>{sourceRows?.text}</pre>
+              </div>
+            ) : file.format === "pdf" ? (
               <iframe src={contentUrl} title={file.fileName} />
             ) : (
               // eslint-disable-next-line @next/next/no-img-element -- the original is shown as stored, not optimized
