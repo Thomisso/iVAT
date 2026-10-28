@@ -356,7 +356,10 @@
       "invalid_ico_checksum": "The IČO checksum is invalid.",
       "invalid_vat_id_format": "The VAT ID format is invalid.",
       "invalid_vat_id_checksum": "The VAT ID checksum is invalid.",
-      "counterparty_vat_id_required": "The counterparty VAT ID is required for this VAT treatment."
+      "counterparty_vat_id_required": "The counterparty VAT ID is required for this VAT treatment.",
+      "unreliable_vat_payer": "The supplier is listed as an unreliable VAT payer.",
+      "unpublished_bank_account": "The payment account is not published for this supplier in the VAT payer registry.",
+      "vat_registry_check_not_performed": "The VAT payer registry was unavailable, so the supplier and payment account check was not performed."
     },
     "noDocumentImage": "This Document came from spreadsheet rows and has no document image.",
     "sections": {

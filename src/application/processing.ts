@@ -14,6 +14,10 @@ import {
   type SourceFileStatus,
 } from "./source-files";
 import { workbookRowsToText, workbookToText } from "./workbooks";
+import {
+  vatRegistryFindings,
+  type VatPayerRegistry,
+} from "./vat-registry";
 
 // Background processing (ADR-0004): Split per Source File, then Extract per
 // Document. Jobs carry only ids; the state lives in the database, which makes
@@ -42,7 +46,12 @@ export interface AiProviderRegistry {
   get(provider: string): AiProvider | undefined;
 }
 
-export type Worker = { system: SystemClient; providers: AiProviderRegistry; jobs: JobQueue };
+export type Worker = {
+  system: SystemClient;
+  providers: AiProviderRegistry;
+  jobs: JobQueue;
+  vatRegistry: VatPayerRegistry;
+};
 
 /** Whether this is the job's last attempt; a technical failure then marks its target Failed. */
 export type Attempt = { final: boolean };
@@ -152,7 +161,11 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
   for (const document of documents) await jobs.send(extractJob(document.id));
 }
 
-async function extractDocument({ system, providers }: Worker, documentId: string, attempt: Attempt) {
+async function extractDocument(
+  { system, providers, vatRegistry }: Worker,
+  documentId: string,
+  attempt: Attempt,
+) {
   const { data: document, error } = await system
     .from("document")
     .select("id, organization_id, company_id, source_file_id, first_page, last_page, source_sheet, first_row, last_row, status, superseded_at, extraction_request_id, source_file (format)")
@@ -196,16 +209,20 @@ async function extractDocument({ system, providers }: Worker, documentId: string
       target_job_id: document.id,
     });
     if (metered.error) throw metered.error;
+    const findings = [
+      ...validateDocument(
+        payload,
+        CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA,
+      ),
+      ...(await vatRegistryFindings(vatRegistry, payload)),
+    ];
     const { error } = await system.rpc("record_ai_extraction", {
       target_document_id: document.id,
       target_extraction_request_id: document.extraction_request_id,
       provider: ai.name,
       model,
       payload,
-      findings: validateDocument(
-        payload,
-        CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA,
-      ),
+      findings,
     });
     if (error) throw error;
   });
