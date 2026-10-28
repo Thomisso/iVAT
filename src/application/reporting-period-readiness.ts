@@ -163,7 +163,7 @@ async function relevantDocuments(
   companyId: string,
   period: string,
   history: Awaited<ReturnType<typeof listCompanyFilingFrequencies>>,
-): Promise<{ assigned: ReportDocument[]; relevant: ReportDocument[] }> {
+): Promise<ReportDocument[]> {
   const { data, error } = await client.rpc("vat_report_documents", {
     target_company_id: companyId,
     target_period: period,
@@ -196,7 +196,7 @@ async function relevantDocuments(
       claimedReportingPeriod: row.claimed_reporting_period,
     })));
   }
-  return { assigned, relevant: [...assigned, ...candidates].toSorted((a, b) => a.id.localeCompare(b.id)) };
+  return [...assigned, ...candidates].toSorted((a, b) => a.id.localeCompare(b.id));
 }
 
 /** Reads live readiness and saved-snapshot freshness without writing Documents or VAT Reports. */
@@ -220,7 +220,7 @@ export async function getReportingPeriodReadiness(
   ) {
     return { ok: false, error: "invalid_reporting_period" };
   }
-  const [{ assigned, relevant }, report] = await Promise.all([
+  const [relevant, report] = await Promise.all([
     relevantDocuments(client, input.companyId, input.period, history),
     getVatReport(client, input.companyId, input.period),
   ]);
@@ -296,7 +296,7 @@ export async function getReportingPeriodReadiness(
         ? {
             reportId: report.id,
             generatedAt: report.generatedAt,
-            freshness: sameSourceSnapshot(report, assigned) ? "current" : "stale",
+            freshness: sameSourceSnapshot(report, relevant) ? "current" : "stale",
           }
         : null,
     },
