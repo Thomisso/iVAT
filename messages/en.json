@@ -592,6 +592,173 @@
       "incomplete_data": "Incomplete or invalid reporting data"
     }
   },
+  "prototype": {
+    "brand": "iVAT",
+    "brandLabel": "iVAT overview",
+    "metaTitle": "iVAT visual direction prototype",
+    "metaDescription": "Representative visual prototype for the redesigned iVAT accounting workspace.",
+    "skip": "Skip to content",
+    "company": {
+      "initial": "A",
+      "name": "Ateliér Novák s.r.o.",
+      "meta": "CZ 05861324",
+      "chooserLabel": "Choose Company",
+      "menuLabel": "Companies",
+      "current": "(current)",
+      "other": "Dvořák Studio s.r.o.",
+      "otherInitial": "D",
+      "otherMeta": "CZ 07194216"
+    },
+    "profile": {
+      "initials": "JN",
+      "name": "Jana Nováková",
+      "role": "Administrator"
+    },
+    "navigation": {
+      "label": "Company navigation",
+      "sidebar": "Company context",
+      "overview": "Overview",
+      "upload": "Upload",
+      "documents": "Documents",
+      "vat": "VAT",
+      "settings": "Settings",
+      "documentCount": "12"
+    },
+    "overview": {
+      "title": "Good morning, Jana",
+      "description": "Work that needs your attention across Ateliér Novák.",
+      "summaryLabel": "Processing summary",
+      "upload": "Add Source Files",
+      "ribbon": {
+        "label": "Document processing path",
+        "captured": { "title": "Captured", "detail": "18 Source Files" },
+        "reading": { "title": "AI is reading", "detail": "3 Source Files" },
+        "review": { "title": "Human review", "detail": "12 Documents" },
+        "report": { "title": "VAT Report", "detail": "September open" }
+      },
+      "work": {
+        "title": "Needs attention",
+        "count": "3 tasks",
+        "review": { "title": "Documents waiting for review", "detail": "Oldest received 4 days ago", "count": "12" },
+        "failed": { "title": "Extraction failed", "detail": "Receipt_1842.heic can be retried", "count": "1" },
+        "period": { "title": "September 2026 is not ready", "detail": "2 blockers and 1 warning" }
+      },
+      "processing": {
+        "title": "Active processing",
+        "status": "AI processing",
+        "batch": "October receipts",
+        "detail": "Extraction is reading 3 of 8 Source Files."
+      },
+      "empty": { "title": "No other active batches", "detail": "New Source Files will appear here." }
+    },
+    "upload": {
+      "title": "Upload",
+      "description": "Capture Source Files and follow them until their Documents are ready for review.",
+      "capture": {
+        "title": "Add Source Files",
+        "detail": "Keep the original file. PDF, PNG, JPEG, HEIC or HEIF.",
+        "camera": "Take document photo",
+        "files": "Choose files"
+      },
+      "preview": { "label": "Photo preview", "title": "Ready to add", "filename": "receipt_2026-10-28.jpg", "remove": "Remove photo", "retake": "Retake photo" },
+      "batch": {
+        "title": "October receipts",
+        "meta": "8 Source Files · started today at 09:42",
+        "active": "Extraction in progress",
+        "footer": "5 Documents ready · 3 Source Files still processing",
+        "review": "Review ready Documents"
+      },
+      "pipeline": {
+        "label": "Batch processing stages",
+        "received": { "title": "Received", "detail": "8 Source Files" },
+        "split": { "title": "Split complete", "detail": "8 Source Files" },
+        "extraction": { "title": "Extraction", "detail": "3 in progress" },
+        "review": { "title": "Review", "detail": "5 Documents ready" }
+      },
+      "files": {
+        "title": "Source Files",
+        "success": { "name": "invoice_alpine.pdf", "detail": "2 Documents created", "status": "Ready" },
+        "error": { "name": "receipt_1842.heic", "detail": "The provider did not return data. The original is safe.", "status": "Failed", "retry": "Retry extraction" }
+      }
+    },
+    "documents": {
+      "title": "Documents",
+      "description": "Review the queue first, then use saved views to find completed work.",
+      "progress": "3 of 12",
+      "tabs": { "label": "Saved document views", "review": "Needs review", "incoming": "Incoming", "outgoing": "Outgoing", "failed": "Failed", "approved": "Approved", "all": "All", "count": "12" },
+      "table": { "caption": "Documents needing review", "counterparty": "Counterparty", "number": "Document number", "date": "Tax Point Date", "amount": "Gross amount", "status": "Status", "action": "Open", "open": "Review {counterparty}" },
+      "rows": {
+        "first": { "counterparty": "Alpine Office s.r.o.", "direction": "Incoming", "number": "2026-1048", "date": "14. 10. 2026", "amount": "24 200,00 Kč", "status": "Needs review" },
+        "second": { "counterparty": "Metroservis a.s.", "direction": "Incoming", "number": "FV-55982", "date": "12. 10. 2026", "amount": "8 712,00 Kč", "status": "Needs review" },
+        "third": { "counterparty": "Kavárna Dva mlýnky", "direction": "Incoming receipt", "number": "PB-4182", "date": "11. 10. 2026", "amount": "486,00 Kč", "status": "Needs review" },
+        "failed": { "counterparty": "Counterparty not read", "direction": "Direction unresolved", "number": "—", "date": "—", "amount": "—", "status": "Extraction failed" }
+      }
+    },
+    "review": {
+      "back": "Back to Documents",
+      "progress": "3 of 12",
+      "previous": "Previous document",
+      "next": "Next document",
+      "queue": "Needs review",
+      "items": {
+        "alpha": { "name": "Alpine Office s.r.o.", "number": "2026-1048", "amount": "24 200,00" },
+        "beta": { "name": "Metroservis a.s.", "number": "FV-55982", "amount": "8 712,00" },
+        "gamma": { "name": "Kavárna Dva mlýnky", "number": "PB-4182", "amount": "486,00" },
+        "delta": { "name": "Datalink Europe", "number": "INV-9081", "amount": "1 280,00" }
+      },
+      "preview": { "label": "Source File preview", "invoice": "TAX DOCUMENT", "supplier": "ALPINE OFFICE", "numberLabel": "Document number", "number": "2026-1048", "dateLabel": "Tax Point Date", "date": "14. 10. 2026", "customerLabel": "Customer", "customer": "Ateliér Novák s.r.o.", "item": "Office chairs", "net": "20 000,00 Kč", "vat": "VAT 21 %", "vatAmount": "4 200,00 Kč", "total": "TOTAL 24 200,00 Kč" },
+      "title": "Review document",
+      "subtitle": "Check the extracted values against the Source File.",
+      "status": "Needs review",
+      "fields": { "direction": "Direction", "incoming": "Incoming", "counterparty": "Counterparty", "counterpartyValue": "Alpine Office s.r.o.", "vatId": "VAT ID", "vatIdValue": "CZ28471930", "date": "Tax Point Date", "dateValue": "14. 10. 2026", "regime": "VAT Regime", "regimeValue": "Domestic supply" },
+      "warning": { "title": "Check the Reporting Period", "detail": "The receipt date has not been entered yet." },
+      "reject": "Reject document",
+      "approve": "Approve document"
+    },
+    "vat": {
+      "title": "Reporting periods",
+      "description": "Resolve live-data blockers before creating or finalizing a saved VAT Report.",
+      "previous": "Previous period",
+      "next": "Next period",
+      "currentPeriod": "September 2026",
+      "subnav": { "label": "Reporting Period sections", "processing": "Processing", "return": "VAT Return", "statement": "Control Statement" },
+      "readiness": {
+        "title": "Current data is not ready",
+        "detail": "Resolve blockers before saving a fresh VAT Report.",
+        "blockers": "2 blockers",
+        "open": "Open",
+        "unreviewed": { "title": "4 Documents need review", "detail": "They are not included in the VAT Report." },
+        "failed": { "title": "1 Extraction failed", "detail": "Retry it or resolve the Document manually." },
+        "warning": { "title": "1 rejected Document", "detail": "It is resolved and will remain visible in the summary.", "label": "Warning" }
+      },
+      "snapshot": { "label": "SAVED SNAPSHOT", "title": "Draft from 18. 10. 2026", "detail": "Live Documents changed after this snapshot was created.", "documents": "Approved Documents", "documentsValue": "31", "output": "VAT payable", "outputValue": "68 420,00 Kč", "status": "Freshness", "statusValue": "Out of date", "action": "Refresh after resolving blockers" },
+      "history": { "title": "Previous periods", "all": "View VAT Return", "august": "August 2026", "augustDetail": "Finalized 20. 9. 2026", "july": "July 2026", "julyDetail": "Finalized 21. 8. 2026", "finalized": "Finalized", "augustAmount": "54 180,00 Kč", "julyAmount": "61 904,00 Kč" }
+    },
+    "vatOutput": {
+      "title": "VAT Return · September 2026",
+      "description": "Saved draft output. Current live data still has blockers.",
+      "summary": { "output": "Output VAT", "outputValue": "122 640,00 Kč", "input": "Input VAT", "inputValue": "54 220,00 Kč", "payable": "VAT payable", "payableValue": "68 420,00 Kč" },
+      "table": { "caption": "VAT Return lines", "line": "Return line", "base": "Tax base", "vat": "VAT", "lineOne": "Line 1", "lineOneDetail": "Domestic supplies · standard rate", "lineOneBase": "584 000,00", "lineOneVat": "122 640,00", "lineTwo": "Line 40", "lineTwoDetail": "Input deduction · standard rate", "lineTwoBase": "258 190,00", "lineTwoVat": "54 220,00" },
+      "export": { "status": "Working export", "title": "Draft XML", "detail": "This XML is for checking only. It is not a final artifact.", "filename": "DRAFT_DPHDP3_2026-09.xml", "download": "Download draft XML", "finalizeTitle": "Finalize Reporting Period", "finalizeDetail": "Finalization becomes available when current data has no blockers.", "finalize": "Finalize and create final XML" }
+    },
+    "controlStatement": {
+      "title": "Control Statement · September 2026",
+      "description": "Saved draft output for the Control Statement. Current live data still has blockers.",
+      "summary": { "received": "Received supplies", "receivedValue": "18", "issued": "Issued supplies", "issuedValue": "13", "sections": "Populated sections", "sectionsValue": "4" },
+      "table": { "caption": "Control Statement sections", "section": "Section", "documents": "Documents", "base": "Tax base", "first": "A.4", "firstDetail": "Taxable supplies over the reporting threshold", "firstDocuments": "13", "firstBase": "584 000,00", "second": "B.2", "secondDetail": "Received taxable supplies over the reporting threshold", "secondDocuments": "18", "secondBase": "258 190,00" },
+      "export": { "status": "Working export", "title": "Draft Control Statement XML", "detail": "This XML is for checking only. It is not a final artifact.", "filename": "DRAFT_DPHKH1_2026-09.xml", "download": "Download draft XML" }
+    },
+    "settings": {
+      "title": "Settings",
+      "description": "Company configuration is separate from everyday document work.",
+      "complete": "Complete",
+      "attention": "Needs attention",
+      "profile": { "title": "Company profile", "detail": "Identity, VAT ID and registered address" },
+      "export": { "title": "Tax office and export", "detail": "Filing defaults and EPO address" },
+      "processing": { "title": "Processing", "detail": "AI provider, consent and region" },
+      "users": { "title": "Users", "detail": "Active access and pending invitations" }
+    }
+  },
   "epoExport": {
     "title": "Tax portal export",
     "description": "Enter the details for an ordinary filing. VAT ID, name and address come from the saved draft.",
