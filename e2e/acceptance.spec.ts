@@ -27,7 +27,8 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   await page.getByRole("button", { name: "Sign up" }).click();
   await expect(page).toHaveURL(/\/companies\/new$/);
 
-  await page.getByLabel("Company name").fill(`E2E Company ${run}`);
+  const companyName = `E2E Company ${run}`;
+  await page.getByLabel("Company name").fill(companyName);
   await page.getByLabel("IČO").fill(digits);
   await page.getByLabel("VAT ID").fill(`CZ${digits}`);
   await page.getByLabel("Street and number").fill("Na Příkopě 1");
@@ -70,11 +71,13 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   ).toBeVisible();
   await page
     .getByRole("table", { name: "Documents" })
-    .getByRole("link", { name: "Review" })
+    .getByRole("link")
+    .first()
     .click();
 
   const documentNumber = `FV-E2E-${digits}`;
   await page.getByLabel("Document number", { exact: true }).fill(documentNumber);
+  await page.getByLabel("Direction", { exact: true }).selectOption("incoming");
   await page.getByRole("button", { name: "Save corrections" }).click();
   const approve = page.getByRole("button", { name: "Approve version 2" });
   await expect(approve).toBeEnabled();
@@ -108,5 +111,19 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   expect(path).not.toBeNull();
   const xml = await fs.readFile(path!, "utf8");
   expect(await validateEpoXml(xml, "dphdp3")).toBe(true);
+
+  await page.getByRole("button", { name: "Finalize and lock period" }).click();
+  await expect(page.getByRole("button", { name: "Unlock period" })).toBeVisible();
+  await expect(page.getByText("Period locked", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Generate / regenerate draft" })).toBeDisabled();
+
+  await page.goto(`${companyUrl}/settings`);
+  page.once("dialog", (dialog) => void dialog.accept());
+  const companyExport = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export and delete Company" }).click();
+  const archive = await companyExport;
+  expect(archive.suggestedFilename()).toMatch(/^iVAT-company-.*\.zip$/);
+  await expect(page).toHaveURL(/\/companies\/new$/, { timeout: 30_000 });
+  await expect(page.getByText(companyName, { exact: true })).toHaveCount(0);
   expect(externalRequests).toEqual([]);
 });

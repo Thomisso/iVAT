@@ -10,6 +10,21 @@ How the engineering skills should consume this repo's domain documentation when 
 
 If any of these files don't exist, **proceed silently**. Don't flag their absence; don't suggest creating them upfront. The `/domain-modeling` skill (reached via `/grill-with-docs` and `/improve-codebase-architecture`) creates them lazily when terms or decisions actually get resolved.
 
+## Decision map
+
+Read the ADR named by the branch you are changing:
+
+- Organization, Company, Membership or tenant isolation → `0001-organization-tenant-with-shared-postgres-rls.md`
+- stack, Supabase or local development → `0002-typescript-supabase-stack-local-first.md`
+- AI proposals or deterministic tax outcomes → `0003-ai-extracts-rules-engine-computes.md`
+- Split/Extract jobs or processing order → `0004-split-then-extract-with-multimodal-llms.md`
+- Extraction Versions → `0005-immutable-extraction-versions.md`
+- AI consent, provider selection or credentials → `0006-ai-credentials-and-data-sharing-consent.md`
+- Finalization or Period Locks → `0007-finalization-locks-reporting-period.md`
+- Roles, authorization, RLS or security-definer RPCs → `0008-database-is-the-authority-for-access-and-roles.md`
+- audit payloads or User identity → `0009-audit-log-holds-no-personal-data-of-users.md`
+- worker privileges, `SystemClient`, idempotency or job payloads → `0010-worker-acts-as-service-role-through-narrow-grants.md`
+
 ## File structure
 
 Single-context repo (most repos):
