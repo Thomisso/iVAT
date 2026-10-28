@@ -36,6 +36,7 @@ import { configurePlatformAiProvider, setOrganizationPlatformAiAccess } from "@/
 import { removeOrganizationAiProviderKey, saveOrganizationAiProviderKey } from "@/application/organization-ai";
 import { availableCompanyAiProviders } from "@/ai";
 import { configuredAresRegistry } from "@/ares";
+import { configuredExchangeRates } from "@/cnb";
 import { jobQueue } from "@/lib/jobs";
 import { createRequestClient, requireUserClient } from "@/lib/supabase/server";
 import { isLocale, localeCookie } from "@/i18n/locales";
@@ -345,12 +346,16 @@ function payloadFromForm(formData: FormData): ExtractionPayload {
 }
 
 export async function correctDocumentAction(_state: FormState, formData: FormData): Promise<FormState> {
-  const result = await correctDocument(await requireUserClient(), {
-    companyId: field(formData, "companyId"),
-    documentId: field(formData, "documentId"),
-    basedOnVersion: Number(field(formData, "basedOnVersion")),
-    payload: payloadFromForm(formData),
-  });
+  const result = await correctDocument(
+    await requireUserClient(),
+    {
+      companyId: field(formData, "companyId"),
+      documentId: field(formData, "documentId"),
+      basedOnVersion: Number(field(formData, "basedOnVersion")),
+      payload: payloadFromForm(formData),
+    },
+    configuredExchangeRates(),
+  );
   if (!result.ok) {
     const values = [...formData.entries()].filter(
       ([name, value]) => !name.startsWith("$") && typeof value === "string",

@@ -20,6 +20,7 @@ import {
 } from "./vat-registry";
 import { detectDocumentDirection } from "./direction-detection";
 import type { Direction } from "./extraction-payload";
+import { applyCnbConversion, type ExchangeRateProvider } from "./exchange-rates";
 
 // Background processing (ADR-0004): Split per Source File, then Extract per
 // Document. Jobs carry only ids; the state lives in the database, which makes
@@ -53,6 +54,7 @@ export type Worker = {
   providers: AiProviderRegistry;
   jobs: JobQueue;
   vatRegistry: VatPayerRegistry;
+  exchangeRates: ExchangeRateProvider;
 };
 
 /** Whether this is the job's last attempt; a technical failure then marks its target Failed. */
@@ -164,7 +166,7 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
 }
 
 async function extractDocument(
-  { system, providers, vatRegistry }: Worker,
+  { system, providers, vatRegistry, exchangeRates }: Worker,
   documentId: string,
   attempt: Attempt,
 ) {
@@ -205,7 +207,7 @@ async function extractDocument(
       .eq("id", document.company_id)
       .single();
     if (companyError) throw companyError;
-    const payload = {
+    const directedPayload = {
       ...extractedPayload,
       direction: detectDocumentDirection(
         extractedPayload,
@@ -213,6 +215,8 @@ async function extractDocument(
         document.source_file!.preselected_direction as Direction | null,
       ),
     };
+    const conversion = await applyCnbConversion(directedPayload, exchangeRates);
+    const payload = conversion.payload;
     const metered = await system.rpc("record_ai_usage", {
       target_organization_id: document.organization_id,
       target_company_id: document.company_id,
@@ -231,6 +235,7 @@ async function extractDocument(
         CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA,
       ),
       ...(await vatRegistryFindings(vatRegistry, payload)),
+      ...conversion.findings,
     ];
     const { error } = await system.rpc("record_ai_extraction", {
       target_document_id: document.id,

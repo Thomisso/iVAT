@@ -237,6 +237,31 @@ describe("automatic Direction detection", () => {
   });
 });
 
+describe("foreign currency conversion", () => {
+  it("stores original amounts and the ČNB-derived CZK amounts on the Extraction Version", async () => {
+    const foreign = {
+      ...SAMPLE_EXTRACTION,
+      currency: "EUR",
+      rateBreakdown: [{ rate: 21, netAmount: "10.00", vatAmount: "2.10" }],
+      totals: { netAmount: "10.00", vatAmount: "2.10", grossAmount: "12.10" },
+    };
+    const worker = testWorker(fakeAiProvider({ extract: () => foreign }));
+    const { client, companyId } = await companyWithAiProcessing(worker);
+    const sourceFileId = await upload({ client, companyId }, worker, "receipt.png");
+
+    await worker.runJobs();
+
+    const [document] = await listDocuments(client, companyId, sourceFileId);
+    const [version] = await listExtractionVersions(client, companyId, document.id);
+    expect(version.payload.totals).toEqual(foreign.totals);
+    expect(version.payload.czkConversion).toEqual({
+      originalCurrency: "EUR", rate: "25.00", unit: 1, rateDate: "2026-10-01", source: "CNB",
+      rateBreakdown: [{ rate: 21, netAmount: "250.00", vatAmount: "52.50" }],
+      totals: { netAmount: "250.00", vatAmount: "52.50", grossAmount: "302.50" },
+    });
+  });
+});
+
 describe("AI-processing consent", () => {
   /** A fake provider that counts the calls it receives. */
   function countingProvider() {
