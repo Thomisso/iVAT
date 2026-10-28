@@ -11,10 +11,12 @@ export function GenerateForm({
   companyId,
   period,
   exists,
+  locked,
 }: {
   companyId: string;
   period: string;
   exists: boolean;
+  locked: boolean;
 }) {
   const t = useTranslations("vatReports");
   const [state, action, pending] = useActionState(generateVatReportAction, {
@@ -26,14 +28,15 @@ export function GenerateForm({
       <input type="hidden" name="companyId" value={companyId} />
       <TextField
         label={t("period")}
-        type="month"
+        type="text"
         name="period"
         required
-        min="2000-01"
-        max="2099-12"
+        pattern="20[0-9]{2}-(0[1-9]|1[0-2]|Q[1-4])"
+        placeholder={t("periodPlaceholder")}
+        hint={t("periodHint")}
         defaultValue={state.values.period ?? period}
       />
-      <Button type="submit" disabled={pending}>
+      <Button type="submit" disabled={pending || locked}>
         {t(exists ? "regenerate" : "generate")}
       </Button>
       <FormError error={state.error} />

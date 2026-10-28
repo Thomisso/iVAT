@@ -123,12 +123,16 @@ export async function AppSidebar({
                   <Link href={`/organizations/${organization.id}/ai-usage`}>
                     {t("aiUsage.organizationNav", { organization: organization.name })}
                   </Link>
+                  <Link href={`/organizations/${organization.id}/audit-log`}>
+                    {t("auditLog.organizationNav", { organization: organization.name })}
+                  </Link>
                 </>
               )}
             </Fragment>
           ))}
           {superAdmin && <Link href="/platform/ai-settings">{t("platformAi.nav")}</Link>}
           {superAdmin && <Link href="/platform/ai-usage">{t("aiUsage.platformNav")}</Link>}
+          {superAdmin && <Link href="/platform/administration">{t("platformAdministration.nav")}</Link>}
           <LanguageSwitcher />
           <Link href="/settings/security">{t("nav.security")}</Link>
           <form action={logOutAction}>

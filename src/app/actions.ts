@@ -3,7 +3,11 @@
 import { refresh } from "next/cache";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { generateVatReport } from "@/application/vat-reports";
+import {
+  finalizeVatReport,
+  generateVatReport,
+  unlockReportingPeriod,
+} from "@/application/vat-reports";
 import { logIn, logOut, signUp, startGoogleSignIn } from "@/application/auth";
 import {
   beginTotpEnrollment,
@@ -29,10 +33,16 @@ import {
   rejectDocument,
   reprocessDocument,
   splitDocument,
+  updateDocumentReporting,
 } from "@/application/documents";
 import type { ExtractionPayload, Party } from "@/application/extraction-payload";
 import { retrySplit, uploadSourceFile } from "@/application/source-files";
 import { configurePlatformAiProvider, setOrganizationPlatformAiAccess } from "@/application/platform-ai";
+import {
+  setPlatformOrganizationBlocked,
+  setPlatformUploadLimits,
+} from "@/application/platform-administration";
+import { retryFailedProcessingJob } from "@/application/processing-administration";
 import { removeOrganizationAiProviderKey, saveOrganizationAiProviderKey } from "@/application/organization-ai";
 import { availableCompanyAiProviders } from "@/ai";
 import { configuredAresRegistry } from "@/ares";
@@ -386,6 +396,26 @@ export async function rejectDocumentAction(_state: FormState, formData: FormData
   );
 }
 
+export async function updateDocumentReportingAction(
+  _state: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const result = await updateDocumentReporting(await requireUserClient(), {
+    companyId: field(formData, "companyId"),
+    documentId: field(formData, "documentId"),
+    receiptDate: field(formData, "receiptDate"),
+    claimedReportingPeriod: optionalField(formData, "claimedReportingPeriod"),
+  });
+  if (!result.ok) {
+    return refused(result.error, formData, [
+      "receiptDate",
+      "claimedReportingPeriod",
+    ]);
+  }
+  refresh();
+  return { error: null, values: {} };
+}
+
 export async function setLocaleAction(formData: FormData): Promise<void> {
   const locale = formData.get("locale");
   if (isLocale(locale)) {
@@ -406,6 +436,26 @@ export async function generateVatReportAction(_state: FormState, formData: FormD
   });
   if (!result.ok) return refused(result.error, formData, ["period"]);
   redirect(`/companies/${companyId}/vat-reports?period=${encodeURIComponent(period)}`);
+}
+
+export async function finalizeVatReportAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const result = await finalizeVatReport(await requireUserClient(), {
+    companyId: field(formData, "companyId"),
+    period: field(formData, "period"),
+  });
+  if (!result.ok) return refused(result.error, formData, []);
+  refresh();
+  return { error: null, values: {} };
+}
+
+export async function unlockReportingPeriodAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const result = await unlockReportingPeriod(await requireUserClient(), {
+    companyId: field(formData, "companyId"),
+    period: field(formData, "period"),
+  });
+  if (!result.ok) return refused(result.error, formData, []);
+  refresh();
+  return { error: null, values: {} };
 }
 
 export async function inviteMemberAction(_state: FormState, formData: FormData): Promise<FormState> {
@@ -470,6 +520,40 @@ export async function setOrganizationPlatformAiAccessAction(
     provider: field(formData, "provider"),
     enabled: field(formData, "enabled") === "true",
   }));
+}
+
+export async function setPlatformOrganizationBlockedAction(
+  _state: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  return settled(await setPlatformOrganizationBlocked(await requireUserClient(), {
+    organizationId: field(formData, "organizationId"),
+    blocked: field(formData, "blocked") === "true",
+  }));
+}
+
+export async function setPlatformUploadLimitsAction(
+  _state: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const result = await setPlatformUploadLimits(await requireUserClient(), {
+    maxFileBytes: Number(field(formData, "maxFileBytes")),
+    maxFilePages: Number(field(formData, "maxFilePages")),
+    maxBatchFiles: Number(field(formData, "maxBatchFiles")),
+  });
+  if (!result.ok) return refused(result.error, formData, ["maxFileBytes", "maxFilePages", "maxBatchFiles"]);
+  refresh();
+  return { error: null, values: {} };
+}
+
+export async function retryFailedProcessingJobAction(
+  _state: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  return settled(await retryFailedProcessingJob(
+    await requireUserClient(),
+    field(formData, "jobId"),
+  ));
 }
 
 export async function saveOrganizationAiProviderKeyAction(

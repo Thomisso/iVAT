@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { computeVatReport, type ReportDocument } from "@/application/vat-rules";
+import {
+  computeVatReport,
+  reportingPeriodForDocument,
+  type ReportDocument,
+} from "@/application/vat-rules";
 import { SAMPLE_EXTRACTION } from "@/ai/fake";
 
 const company = {
@@ -12,6 +16,7 @@ const company = {
   personType: "legal" as const,
 };
 const period = "2026-10";
+const monthly = [{ frequency: "monthly", effectiveFrom: "2026-01-01" }] as const;
 function document(
   overrides: Partial<typeof SAMPLE_EXTRACTION> = {},
 ): ReportDocument {
@@ -22,6 +27,82 @@ function document(
     payload: { ...SAMPLE_EXTRACTION, ...overrides },
   };
 }
+
+it.each([
+  ["2026-10-05", "2026-10"],
+  ["2026-11-05", "2026-11"],
+] as const)(
+  "assigns an incoming Document received on %s without claiming before its Tax Point Date",
+  (receiptDate, expectedPeriod) => {
+    expect(
+      reportingPeriodForDocument(
+        {
+          direction: "incoming",
+          taxPointDate: "2026-10-20",
+          receiptDate,
+          claimedReportingPeriod: null,
+        },
+        monthly,
+      ),
+    ).toBe(expectedPeriod);
+  },
+);
+
+it("computes a quarterly Company's Documents across all three months", () => {
+  const reports = ["2027-01-15", "2027-03-15"].map((taxPointDate, index) => ({
+    ...document({ taxPointDate }),
+    id: `doc-${index + 1}`,
+  }));
+
+  const report = computeVatReport(company, "2027-Q1", reports, [
+    { frequency: "quarterly", effectiveFrom: "2027-01-01" },
+  ]);
+
+  expect(report.vatReturn.find((entry) => entry.line === "40")).toEqual({
+    line: "40",
+    netAmount: "2000.00",
+    vatAmount: "420.00",
+    documentIds: ["doc-1", "doc-2"],
+  });
+});
+
+it("moves an incoming input VAT claim to the explicitly chosen later Reporting Period", () => {
+  expect(
+    reportingPeriodForDocument(
+      {
+        direction: "incoming",
+        taxPointDate: "2026-10-20",
+        receiptDate: "2026-10-25",
+        claimedReportingPeriod: "2026-12",
+      },
+      monthly,
+    ),
+  ).toBe("2026-12");
+});
+
+it.each([
+  ["2026-12-15", "2026-12"],
+  ["2027-01-15", "2027-Q1"],
+  ["2027-04-15", "2027-Q2"],
+] as const)(
+  "uses the filing frequency in force for %s when assigning Reporting Period %s",
+  (taxPointDate, expectedPeriod) => {
+    expect(
+      reportingPeriodForDocument(
+        {
+          direction: "outgoing",
+          taxPointDate,
+          receiptDate: "2026-10-28",
+          claimedReportingPeriod: null,
+        },
+        [
+          { frequency: "monthly", effectiveFrom: "2026-01-01" },
+          { frequency: "quarterly", effectiveFrom: "2027-01-01" },
+        ],
+      ),
+    ).toBe(expectedPeriod);
+  },
+);
 
 describe("domestic Rules Engine", () => {
   it.each([
@@ -265,44 +346,137 @@ it("keeps separate high-value Documents, and outgoing supplies without a Czech V
     ["A.5", ["consumer"]],
   ]);
 });
-it("uses the absolute whole-Document amount for mixed-rate and negative entries", () => {
-  const payload = {
-    direction: "outgoing" as const,
-    customer: SAMPLE_EXTRACTION.supplier,
-    totals: {
-      netAmount: "-10000.00",
-      vatAmount: "-1650.00",
-      grossAmount: "-11650.00",
+describe("Credit Notes", () => {
+  it.each([
+    ["domestic", "outgoing", ["1"], "A.5"],
+    ["domestic", "incoming", ["40"], "B.3"],
+    ["domestic_reverse_charge", "outgoing", ["25"], "A.1"],
+    ["domestic_reverse_charge", "incoming", ["10", "43"], "B.1"],
+    ["eu_acquisition_of_goods", "incoming", ["3", "43"], "A.2"],
+    ["eu_received_service", "incoming", ["5", "43"], "A.2"],
+  ] as const)(
+    "subtracts %s %s amounts from Return lines %j and Control Statement %s",
+    (proposedVatRegime, direction, lines, section) => {
+      const selfAssessed = proposedVatRegime !== "domestic";
+      const eu = proposedVatRegime.startsWith("eu_");
+      const report = computeVatReport(company, period, [
+        document({
+          documentType: "credit_note",
+          originalDocumentNumber: "ORIGINAL-1",
+          proposedVatRegime,
+          direction,
+          supplier: eu
+            ? { ...SAMPLE_EXTRACTION.supplier, vatId: "DE123456789", country: "DE" }
+            : SAMPLE_EXTRACTION.supplier,
+          customer: SAMPLE_EXTRACTION.supplier,
+          reverseChargeCode:
+            proposedVatRegime === "domestic_reverse_charge" ? "4" : null,
+          rateBreakdown: [
+            {
+              rate: 21,
+              netAmount: "-1000.00",
+              vatAmount: selfAssessed ? "0.00" : "-210.00",
+            },
+          ],
+          totals: {
+            netAmount: "-1000.00",
+            vatAmount: selfAssessed ? "0.00" : "-210.00",
+            grossAmount: selfAssessed ? "-1000.00" : "-1210.00",
+          },
+        }),
+      ]);
+
+      for (const line of lines) {
+        expect(report.vatReturn.find((entry) => entry.line === line)).toEqual({
+          line,
+          netAmount: "-1000.00",
+          vatAmount: line === "25" ? "0.00" : "-210.00",
+          documentIds: ["doc-1"],
+        });
+      }
+      expect(report.controlStatement).toEqual([
+        expect.objectContaining({
+          section,
+          documentIds: ["doc-1"],
+          rateBreakdown: [
+            expect.objectContaining({
+              rate: 21,
+              netAmount: "-1000.00",
+              vatAmount: section === "A.1" ? "0.00" : "-210.00",
+            }),
+          ],
+        }),
+      ]);
     },
-    rateBreakdown: [
-      { rate: 21, netAmount: "-5000.00", vatAmount: "-1050.00" },
-      { rate: 12, netAmount: "-5000.00", vatAmount: "-600.00" },
-    ],
-  };
-  const report = computeVatReport(company, period, [document(payload)]);
-  expect(report.controlStatement).toEqual([
-    expect.objectContaining({
-      section: "A.4",
-      documentIds: ["doc-1"],
+  );
+
+  it.each([
+    ["outgoing", "-10000.00", "A.5"],
+    ["outgoing", "-10000.01", "A.4"],
+    ["incoming", "-10000.00", "B.3"],
+    ["incoming", "-10000.01", "B.2"],
+  ] as const)(
+    "uses the absolute Credit Note gross amount for %s %s in %s",
+    (direction, grossAmount, section) => {
+      const aboveThreshold = grossAmount === "-10000.01";
+      const report = computeVatReport(company, period, [
+        document({
+          documentType: "credit_note",
+          originalDocumentNumber: "ORIGINAL-1",
+          direction,
+          customer: SAMPLE_EXTRACTION.supplier,
+          rateBreakdown: [
+            { rate: 21, netAmount: "-5000.00", vatAmount: "-1050.00" },
+            {
+              rate: 12,
+              netAmount: "-3526.79",
+              vatAmount: aboveThreshold ? "-423.22" : "-423.21",
+            },
+          ],
+          totals: {
+            netAmount: "-8526.79",
+            vatAmount: aboveThreshold ? "-1473.22" : "-1473.21",
+            grossAmount,
+          },
+        }),
+      ]);
+
+      expect(report.controlStatement).toEqual([
+        expect.objectContaining({ section, documentIds: ["doc-1"] }),
+      ]);
+    },
+  );
+
+  it("reports a Credit Note in the Reporting Period of its own Tax Point Date", () => {
+    const creditNote = document({
+      documentType: "credit_note",
+      originalDocumentNumber: "ORIGINAL-FROM-SEPTEMBER",
+      taxPointDate: "2026-10-15",
       rateBreakdown: [
-        expect.objectContaining({
-          rate: 21,
-          netAmount: "-5000.00",
-          vatAmount: "-1050.00",
-        }),
-        expect.objectContaining({
-          rate: 12,
-          netAmount: "-5000.00",
-          vatAmount: "-600.00",
-        }),
+        { rate: 21, netAmount: "-100.00", vatAmount: "-21.00" },
       ],
-    }),
-  ]);
-  expect(report.totals).toEqual({
-    outputVat: "-1650.00",
-    inputVat: "0.00",
-    payable: "0.00",
-    excessDeduction: "1650.00",
+      totals: {
+        netAmount: "-100.00",
+        vatAmount: "-21.00",
+        grossAmount: "-121.00",
+      },
+    });
+
+    expect(
+      computeVatReport(company, "2026-09", [creditNote]).vatReturn.every(
+        (line) => line.documentIds.length === 0,
+      ),
+    ).toBe(true);
+    expect(
+      computeVatReport(company, "2026-10", [creditNote]).vatReturn.find(
+        (line) => line.line === "40",
+      ),
+    ).toEqual({
+      line: "40",
+      netAmount: "-100.00",
+      vatAmount: "-21.00",
+      documentIds: ["doc-1"],
+    });
   });
 });
 

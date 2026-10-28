@@ -125,7 +125,12 @@ describe("OpenAI provider", () => {
             image_url: "data:image/png;base64,iVBORw==",
             detail: "high",
           },
-          expect.objectContaining({ type: "input_text" }),
+          expect.objectContaining({
+            type: "input_text",
+            text: expect.stringMatching(
+              /Credit Note[\s\S]*negative amounts[\s\S]*original Document number/i,
+            ),
+          }),
         ]),
       }],
       text: {
