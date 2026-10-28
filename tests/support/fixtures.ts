@@ -88,7 +88,7 @@ export async function companyWithManyReportDocuments(count: number) {
     if (!file.ok) throw new Error(file.error);
     const split = await system.rpc("record_split", {
       target_source_file_id: file.value.id,
-      page_ranges: Array.from({ length: pageCount }, (_, i) => ({
+      source_ranges: Array.from({ length: pageCount }, (_, i) => ({
         firstPage: i + 1,
         lastPage: i + 1,
       })),
@@ -111,6 +111,7 @@ export async function companyWithManyReportDocuments(count: number) {
           provider: "fake",
           model: "fake-extract",
           payload: SAMPLE_EXTRACTION,
+          findings: [],
         });
         if (result.error) throw result.error;
       }),

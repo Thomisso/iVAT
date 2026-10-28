@@ -53,6 +53,33 @@ const CORRECTED: ExtractionPayload = {
 };
 
 describe("correcting a Document", () => {
+  it("stores deterministic findings with each immutable Extraction Version", async () => {
+    const invalid = {
+      ...SAMPLE_EXTRACTION,
+      supplier: { ...SAMPLE_EXTRACTION.supplier, vatId: "CZ27082441" },
+    };
+    const { client, companyId, documentId } = await documentInReview(invalid);
+
+    await correctDocument(client, {
+      companyId,
+      documentId,
+      basedOnVersion: 1,
+      payload: SAMPLE_EXTRACTION,
+    });
+
+    const versions = await listExtractionVersions(client, companyId, documentId);
+    expect(versions.map((version) => version.findings)).toEqual([
+      [
+        {
+          field: "supplier.vatId",
+          severity: "error",
+          code: "invalid_vat_id_checksum",
+        },
+      ],
+      [],
+    ]);
+  });
+
   it("saves the corrections as a new Extraction Version authored by the User, without the AI's confidence, keeping the AI one", async () => {
     const { client, userId, companyId, documentId } = await documentInReview();
 
@@ -378,6 +405,27 @@ describe("the Document list", () => {
     expect(await ids({ direction: "incoming", status: "needs_review" })).toEqual([]);
   });
 
+  it("filters the Document list to current Extraction Versions with findings", async () => {
+    const invalid = {
+      ...PURCHASE,
+      documentNumber: "FP-invalid",
+      supplier: { ...PURCHASE.supplier, ico: "27082441" },
+    };
+    const company = await companyWithDocuments(PURCHASE, invalid);
+    const [, invalidDocument] = company.documentIds;
+
+    expect(
+      await listCompanyDocuments(company.client, company.companyId, {
+        hasFindings: true,
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        id: invalidDocument,
+        findingCount: 1,
+      }),
+    ]);
+  });
+
   it("still lists a Document whose AI Extraction read a malformed date, without a Reporting Period", async () => {
     const company = await companyWithDocuments({ ...PURCHASE, taxPointDate: "27.10.2026" });
 
@@ -444,7 +492,12 @@ describe("the review workspace", () => {
     for (const attempt of [
       await b.client.rpc("approve_document", { target_document_id: a.documentId, reviewed_version: 1 }),
       await b.client.rpc("reject_document", { target_document_id: a.documentId }),
-      await b.client.rpc("correct_document", { target_document_id: a.documentId, based_on_version: 1, payload: {} }),
+      await b.client.rpc("correct_document", {
+        target_document_id: a.documentId,
+        based_on_version: 1,
+        payload: {},
+        findings: [],
+      }),
     ]) {
       expect(attempt.error?.code).toBe("42501");
     }
