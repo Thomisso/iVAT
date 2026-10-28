@@ -7,6 +7,7 @@ import { currentUserId } from "@/application/auth";
 import {
   getDocument,
   isBeingExtracted,
+  listDuplicateWarnings,
   listExtractionVersions,
   readDocumentRows,
 } from "@/application/documents";
@@ -32,11 +33,12 @@ export default async function DocumentReviewPage({
   const { companyId, documentId } = await params;
   const { version: requestedVersion } = await searchParams;
   const client = await requireUserClient();
-  const [company, document, versions, userId] = await Promise.all([
+  const [company, document, versions, userId, duplicateWarnings] = await Promise.all([
     getCompany(client, companyId),
     getDocument(client, companyId, documentId),
     listExtractionVersions(client, companyId, documentId),
     currentUserId(client),
+    listDuplicateWarnings(client, companyId, documentId),
   ]);
   if (!company || !document) notFound();
   const file = await getSourceFile(client, companyId, document.sourceFileId);
@@ -97,6 +99,14 @@ export default async function DocumentReviewPage({
             <Notice>{t("review.rejectedNote")}</Notice>
           )}
           {!current && <Notice>{t("review.notReviewableNote")}</Notice>}
+          {duplicateWarnings.map((warning) => (
+            <Notice key={`${warning.kind}-${warning.matchedDocumentId}`} tone="warning">
+              {t(`duplicateWarning.${warning.kind}`)}{" "}
+              <Link href={`/companies/${companyId}/documents/${warning.matchedDocumentId}`}>
+                {t("duplicateWarning.openMatch")}
+              </Link>
+            </Notice>
+          ))}
         </header>
         <section className="review-original">
           <DocumentViewer label={file.fileName}>

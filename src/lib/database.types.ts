@@ -145,6 +145,12 @@ isOneToOne: false
       foreignKeyName: "extraction_version_document_id_company_id_organization_id_fkey"
       columns: ["document_id","company_id","organization_id"]
 isOneToOne: false
+      referencedRelation: "document_duplicate_warning"
+      referencedColumns: ["document_id","company_id","organization_id"]
+    },{
+      foreignKeyName: "extraction_version_document_id_company_id_organization_id_fkey"
+      columns: ["document_id","company_id","organization_id"]
+isOneToOne: false
       referencedRelation: "document_overview"
       referencedColumns: ["id","company_id","organization_id"]
     },{
@@ -410,7 +416,15 @@ isOneToOne: false
                 }
           }
           Views: {
-            "document_overview": {
+            "document_duplicate_warning": {
+                  Row: {
+                    "company_id": string,"document_id": string,"kind": string | null,"matched_document_id": string | null,"organization_id": string
+                  }
+                  ComputedFields: never
+                  Relationships: [
+                    
+                  ]
+                },"document_overview": {
                   Row: {
                     "company_id": string,"counterparty_ico": string | null,"counterparty_name": string | null,"counterparty_search": string | null,"counterparty_vat_id": string | null,"created_at": string,"currency": string | null,"direction": string | null,"document_number": string | null,"finding_count": number | null,"first_page": number,"gross_amount": string | null,"id": string,"last_page": number,"organization_id": string,"reporting_period": string | null,"source_file_id": string,"status": Database["public"]['Enums']["document_status"],"tax_point_date": string | null,"version": number | null
                   }

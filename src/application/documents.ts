@@ -76,6 +76,33 @@ export type DocumentOverview = {
   eligibleForVatReport: boolean;
 };
 
+export type DuplicateWarning = {
+  kind: "document_identity" | "source_file_hash";
+  matchedDocumentId: string;
+};
+
+/**
+ * A Document's Duplicate Warning, if it matches an earlier Document in the
+ * same Company. The warning is informational and never affects approval.
+ */
+export async function listDuplicateWarnings(
+  client: AppClient,
+  companyId: string,
+  documentId: string,
+): Promise<DuplicateWarning[]> {
+  if (!isUuid(companyId) || !isUuid(documentId)) return [];
+  const { data, error } = await client
+    .from("document_duplicate_warning")
+    .select("matched_document_id, kind")
+    .eq("company_id", companyId)
+    .eq("document_id", documentId);
+  if (error) throw error;
+  return data.map((warning) => ({
+    kind: warning.kind as DuplicateWarning["kind"],
+    matchedDocumentId: warning.matched_document_id!,
+  }));
+}
+
 export type DocumentFilters = {
   status?: DocumentStatus;
   direction?: Direction;
