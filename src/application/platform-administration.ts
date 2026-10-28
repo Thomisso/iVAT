@@ -1,4 +1,5 @@
 import type { AppClient, Result } from "./client";
+import { MAX_SOURCE_FILE_BYTES } from "@/lib/upload-policy";
 
 export type PlatformCompany = { id: string; name: string; ico: string };
 export type PlatformOrganizationCompanyList = {
@@ -80,7 +81,7 @@ export async function setPlatformUploadLimits(
   input: PlatformUploadLimits,
 ): Promise<Result<null, "forbidden" | "invalid_upload_limits">> {
   if (
-    !Number.isSafeInteger(input.maxFileBytes) || input.maxFileBytes <= 0
+    !Number.isSafeInteger(input.maxFileBytes) || input.maxFileBytes <= 0 || input.maxFileBytes > MAX_SOURCE_FILE_BYTES
     || !Number.isSafeInteger(input.maxFilePages) || input.maxFilePages <= 0
     || !Number.isSafeInteger(input.maxBatchFiles) || input.maxBatchFiles <= 0
   ) return { ok: false, error: "invalid_upload_limits" };

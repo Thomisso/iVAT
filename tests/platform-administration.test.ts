@@ -15,12 +15,11 @@ import {
   listFailedProcessingJobs,
   retryFailedProcessingJob,
 } from "@/application/processing-administration";
-import { uploadSourceFile } from "@/application/source-files";
+import { listSourceFiles, uploadSourceFile } from "@/application/source-files";
 import { beginUploadBatch } from "@/application/upload-batches";
 import {
   createBoss,
   createProcessingQueues,
-  pgBossProcessingJobAdministration,
 } from "@/lib/jobs";
 import { administratorWithCompany } from "./support/fixtures";
 import { anonymousClient, signedUpUser } from "./support/clients";
@@ -114,6 +113,12 @@ describe("SuperAdmin organization console", () => {
       organizationId: target.organizationId,
       blocked: false,
     })).toEqual({ ok: true, value: null });
+    worker.releaseDelayedJobs();
+    expect(await worker.runJobs()).toEqual([]);
+    expect(await listSourceFiles(target.client, target.companyId)).toContainEqual(expect.objectContaining({
+      id: uploaded.value.id,
+      status: "split",
+    }));
     expect(await logIn(anonymousClient(), {
       email: target.email,
       password: "correct-horse-battery",
@@ -131,7 +136,7 @@ describe("SuperAdmin organization console", () => {
     const ordinary = await signedUpUser("Ordinary Organization");
     const superAdmin = await superAdministrator();
     const defaultMaxFileBytes = 20 * 1024 * 1024;
-    const editedMaxFileBytes = defaultMaxFileBytes + 1024;
+    const editedMaxFileBytes = 22 * 1024 * 1024;
 
     expect(await getPlatformUploadLimits(ordinary.client)).toEqual({ ok: false, error: "forbidden" });
     expect(await setPlatformUploadLimits(ordinary.client, {
@@ -152,6 +157,18 @@ describe("SuperAdmin organization console", () => {
         maxBatchFiles: 101,
       },
     });
+    const acceptedAboveFormerTransportCeiling = new Uint8Array(21 * 1024 * 1024 + 1);
+    acceptedAboveFormerTransportCeiling.set(fixtureFile("receipt.png"));
+    expect(await uploadSourceFile(target.client, testWorker().jobs, {
+      companyId: target.companyId,
+      fileName: "large-receipt.png",
+      bytes: acceptedAboveFormerTransportCeiling,
+    })).toEqual({ ok: true, value: { id: expect.any(String) } });
+    expect(await setPlatformUploadLimits(superAdmin.client, {
+      maxFileBytes: 50 * 1024 * 1024 + 1,
+      maxFilePages: 51,
+      maxBatchFiles: 101,
+    })).toEqual({ ok: false, error: "invalid_upload_limits" });
     expect(await setPlatformUploadLimits(superAdmin.client, {
       maxFileBytes: defaultMaxFileBytes,
       maxFilePages: 50,
@@ -236,13 +253,11 @@ describe("SuperAdmin organization console", () => {
       if (!documentJobId) throw new Error("Failed to enqueue the Document fixture job");
       const [claimedDocument] = await boss.fetch("extract-document", { includeMetadata: true });
       await boss.fail("extract-document", claimedDocument, { message: "worker crashed" });
-      const jobs = pgBossProcessingJobAdministration(boss);
-
-      expect(await listFailedProcessingJobs(ordinary.client, jobs)).toEqual({
+      expect(await listFailedProcessingJobs(ordinary.client)).toEqual({
         ok: false,
         error: "forbidden",
       });
-      expect(await listFailedProcessingJobs(superAdmin.client, jobs)).toEqual(expect.objectContaining({
+      expect(await listFailedProcessingJobs(superAdmin.client)).toEqual(expect.objectContaining({
         ok: true,
         value: expect.arrayContaining([
           expect.objectContaining({
@@ -259,20 +274,19 @@ describe("SuperAdmin organization console", () => {
           }),
         ]),
       }));
-      expect(await retryFailedProcessingJob(superAdmin.client, jobs, jobId)).toEqual({
-        ok: true,
-        value: null,
-      });
+      expect((await Promise.all([
+        retryFailedProcessingJob(superAdmin.client, jobId),
+        retryFailedProcessingJob(superAdmin.client, jobId),
+      ])).sort((a, b) => Number(a.ok) - Number(b.ok))).toEqual([
+        { ok: false, error: "not_retryable" },
+        { ok: true, value: null },
+      ]);
       expect(await systemClient().from("source_file").select("status").eq("id", uploaded.value.id).single())
         .toEqual(expect.objectContaining({ data: { status: "uploaded" } }));
       expect(await boss.getJobById("split-source-file", jobId)).toEqual(expect.objectContaining({
         state: "retry",
       }));
-      expect(await retryFailedProcessingJob(superAdmin.client, jobs, jobId)).toEqual({
-        ok: false,
-        error: "not_retryable",
-      });
-      expect(await retryFailedProcessingJob(superAdmin.client, jobs, documentJobId)).toEqual({
+      expect(await retryFailedProcessingJob(superAdmin.client, documentJobId)).toEqual({
         ok: true,
         value: null,
       });
@@ -284,6 +298,39 @@ describe("SuperAdmin organization console", () => {
       expect(retriedDocument.data?.extraction_request_id).not.toBe(document.extraction_request_id);
       expect(await boss.getJobById("extract-document", documentJobId)).toEqual(expect.objectContaining({
         state: "retry",
+      }));
+
+      const settledFile = await uploadSourceFile(target.client, queued.jobs, {
+        companyId: target.companyId,
+        fileName: "already-split.png",
+        bytes: fixtureFile("receipt.png"),
+      });
+      if (!settledFile.ok) throw new Error(settledFile.error);
+      const settledSplit = await systemClient().rpc("record_split", {
+        target_source_file_id: settledFile.value.id,
+        source_ranges: [{ firstPage: 1, lastPage: 1 }],
+      });
+      if (settledSplit.error) throw settledSplit.error;
+      await boss.deleteAllJobs("split-source-file");
+      const nonRetryableJobId = await boss.send(
+        "split-source-file",
+        { sourceFileId: settledFile.value.id },
+        { retryLimit: 0 },
+      );
+      if (!nonRetryableJobId) throw new Error("Failed to enqueue the settled fixture job");
+      const [claimedSettled] = await boss.fetch("split-source-file", { includeMetadata: true });
+      await boss.fail("split-source-file", claimedSettled, { message: "late worker failure" });
+
+      expect(await retryFailedProcessingJob(superAdmin.client, nonRetryableJobId)).toEqual({
+        ok: false,
+        error: "not_retryable",
+      });
+      expect(await listSourceFiles(target.client, target.companyId)).toContainEqual(expect.objectContaining({
+        id: settledFile.value.id,
+        status: "split",
+      }));
+      expect(await boss.getJobById("split-source-file", nonRetryableJobId)).toEqual(expect.objectContaining({
+        state: "failed",
       }));
     } finally {
       await boss.stop();

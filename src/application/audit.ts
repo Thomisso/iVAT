@@ -63,19 +63,13 @@ function auditEvent(row: {
   };
 }
 
-/** Current Organization members that can be selected as audit actors. */
+/** Current and historical Organization actors that can be selected in the audit filter. */
 export async function listAuditActors(client: AppClient, organizationId: string): Promise<AuditActor[]> {
   if (!isUuid(organizationId)) return [];
-  const { data, error } = await client
-    .from("membership")
-    .select("user_id, email")
-    .eq("organization_id", organizationId)
-    .order("email");
+  const { data, error } = await client.rpc("audit_actors", { target_organization_id: organizationId });
+  if (error?.code === "42501") return [];
   if (error) throw error;
-  return [...new Map(data.map((membership) => [
-    membership.user_id,
-    { userId: membership.user_id, email: membership.email },
-  ])).values()];
+  return data.map((actor) => ({ userId: actor.user_id, email: actor.email }));
 }
 
 /** A newest-first page of an Organization's audit events. RLS limits this to Organization Administrators. */

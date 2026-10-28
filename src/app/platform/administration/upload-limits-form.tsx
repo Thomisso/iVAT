@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { useTranslations } from "next-intl";
 import { setPlatformUploadLimitsAction, type FormState } from "@/app/actions";
 import type { PlatformUploadLimits } from "@/application/platform-administration";
+import { MAX_SOURCE_FILE_BYTES } from "@/lib/upload-policy";
 import { Button } from "@/components/button";
 import { FormError } from "@/components/form-error";
 import { TextField } from "@/components/text-field";
@@ -20,6 +21,7 @@ export function UploadLimitsForm({ limits }: { limits: PlatformUploadLimits }) {
         name="maxFileBytes"
         type="number"
         min="1"
+        max={MAX_SOURCE_FILE_BYTES}
         step="1"
         required
         label={t("maxFileBytes")}

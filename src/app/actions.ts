@@ -47,7 +47,7 @@ import { removeOrganizationAiProviderKey, saveOrganizationAiProviderKey } from "
 import { availableCompanyAiProviders } from "@/ai";
 import { configuredAresRegistry } from "@/ares";
 import { configuredExchangeRates } from "@/cnb";
-import { jobQueue, processingJobAdministration } from "@/lib/jobs";
+import { jobQueue } from "@/lib/jobs";
 import { createRequestClient, requireUserClient } from "@/lib/supabase/server";
 import { isLocale, localeCookie } from "@/i18n/locales";
 
@@ -552,7 +552,6 @@ export async function retryFailedProcessingJobAction(
 ): Promise<FormState> {
   return settled(await retryFailedProcessingJob(
     await requireUserClient(),
-    await processingJobAdministration(),
     field(formData, "jobId"),
   ));
 }
