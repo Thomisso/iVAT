@@ -41,6 +41,7 @@ Uploaded Source Files wait until the Company enables AI processing and chooses a
 | `npm run dev` | Next.js dev server |
 | `npm run worker` | Worker process (restarts on change) |
 | `npm run dev:seed` | Create a fresh QA account with a Company and an uploaded Source File; prints its sign-in details |
+| `npm run bootstrap:superadmin -- --email <email>` | Create or reuse one local Auth User and grant SuperAdmin; a password is generated for a new User unless `--password-stdin` is used |
 | `npm run demo` | Start Supabase and apply new migrations, start the dev server on a free port and the worker, seed a demo account, and print the URL, login and password. Ctrl+C stops the servers |
 | `npm run typecheck` | Generate Next route types, then run `tsc` |
 | `npm run lint` | ESLint |
@@ -62,6 +63,27 @@ supabase/          CLI config and SQL migrations (schema, RLS policies, audit tr
 worker/            background job runner
 tests/             application-layer tests against the local database
 ```
+
+## Local SuperAdmin bootstrap
+
+`npm run db:reset` applies an intentionally empty seed: it does not preserve or
+create a QA dataset, Auth User or SuperAdmin. Create the platform operator only
+when needed:
+
+```bash
+npm run bootstrap:superadmin -- --email operator@example.test
+```
+
+For a new Auth User, the command prints a generated password once. To supply a
+password without putting it in the process arguments, pipe it on standard input
+and add `--password-stdin`. To promote an existing identity without creating
+one, use `--user-id <auth-user-uuid>`; a missing UUID is rejected. Repeating the
+command is safe and leaves exactly one SuperAdmin record.
+
+The command accepts only a localhost Supabase URL and reads the secret key from
+the gitignored `.env.local` written by `db:start`; it never prints that key.
+MFA is not seeded. After signing in, the SuperAdmin follows the normal product
+flow to enroll TOTP. QA/demo data remains a separate, explicit `dev:seed` step.
 
 ## Tenancy, security and audit
 
