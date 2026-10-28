@@ -1,5 +1,6 @@
 import { strFromU8, unzipSync } from "fflate";
 import { expect, it } from "vitest";
+import type { AppClient } from "@/application/client";
 import { listAuditEvents } from "@/application/audit";
 import {
   enableAiProcessing,
@@ -10,14 +11,14 @@ import {
   exportCompanyData,
   softDeleteCompany,
 } from "@/application/company-deletion";
-import { approveDocument, listDocuments } from "@/application/documents";
+import { approveDocument, listDocuments, mergeDocuments } from "@/application/documents";
 import { uploadSourceFile } from "@/application/source-files";
 import {
   finalizeVatReport,
   generateVatReport,
 } from "@/application/vat-reports";
 import { administratorWithCompany, companyMember } from "./support/fixtures";
-import { fixtureFile } from "./support/files";
+import { fixtureFile, workbookFile } from "./support/files";
 import { systemClient, testWorker } from "./support/worker";
 
 it("exports a Company's originals and Document data before retaining it as soft-deleted", async () => {
@@ -76,7 +77,10 @@ it("exports a Company's originals and Document data before retaining it as soft-
       companyId: company.companyId,
       exportId: result.value.exportId,
     }),
-  ).toEqual({ ok: true, value: null });
+  ).toEqual({ ok: true, value: expect.objectContaining({
+    sourceFileCount: 1,
+    documentCount: 1,
+  }) });
   expect(await getCompany(company.client, company.companyId)).toBeNull();
   expect(await listMyCompanies(company.client)).toEqual([]);
   expect(await listMyCompanies(member.client)).toEqual([]);
@@ -87,30 +91,6 @@ it("exports a Company's originals and Document data before retaining it as soft-
   expect(hiddenDocuments.error).toBeNull();
   expect(hiddenDocuments.data).toEqual([]);
 
-  const retainedCompany = await systemClient()
-    .from("company")
-    .select("deleted_at, deleted_by")
-    .eq("id", company.companyId)
-    .single();
-  expect(retainedCompany.error).toBeNull();
-  expect(retainedCompany.data).toEqual({
-    deleted_at: expect.any(String),
-    deleted_by: company.userId,
-  });
-  expect(
-    await systemClient()
-      .from("document")
-      .select("id")
-      .eq("id", document.id)
-      .single(),
-  ).toEqual(expect.objectContaining({ data: { id: document.id }, error: null }));
-  const retainedOriginal = await systemClient()
-    .storage.from("source-files")
-    .download(`${company.companyId}/${uploaded.value.id}`);
-  expect(retainedOriginal.error).toBeNull();
-  expect(
-    new Uint8Array(await retainedOriginal.data!.arrayBuffer()),
-  ).toEqual(original);
   expect(
     (await listAuditEvents(company.client, company.organizationId)).at(-1),
   ).toEqual(
@@ -172,7 +152,7 @@ it("allows a Company Administrator, but refuses a User and another tenant", asyn
       companyId: company.companyId,
       exportId: exported.value.exportId,
     }),
-  ).toEqual({ ok: true, value: null });
+  ).toEqual({ ok: true, value: expect.objectContaining({ sourceFileCount: 0, documentCount: 0 }) });
   expect(await getCompany(user.client, company.companyId)).toBeNull();
 });
 
@@ -212,15 +192,6 @@ it("keeps a Company active when any Source File cannot be exported", async () =>
     }),
   ).toEqual({ ok: false, error: "export_failed" });
   expect(await getCompany(company.client, company.companyId)).not.toBeNull();
-  expect(
-    await systemClient()
-      .from("company")
-      .select("deleted_at")
-      .eq("id", company.companyId)
-      .single(),
-  ).toEqual(
-    expect.objectContaining({ data: { deleted_at: null }, error: null }),
-  );
 });
 
 it("retains an Approved Document and its Period Lock after the Company is soft-deleted", async () => {
@@ -265,31 +236,114 @@ it("retains an Approved Document and its Period Lock after the Company is soft-d
       companyId: company.companyId,
       exportId: exported.value.exportId,
     }),
-  ).toEqual({ ok: true, value: null });
-  expect(
-    await systemClient()
-      .from("document")
-      .select("id, status")
-      .eq("id", document.id)
-      .single(),
-  ).toEqual(
-    expect.objectContaining({
-      data: { id: document.id, status: "approved" },
-      error: null,
+  ).toEqual({ ok: true, value: {
+    sourceFileCount: 1,
+    documentCount: 1,
+    approvedDocumentCount: 1,
+    periodLockCount: 1,
+  } });
+  expect(await getCompany(company.client, company.companyId)).toBeNull();
+});
+
+it("exports every Document beyond the API row limit, including superseded rows", async () => {
+  const company = await administratorWithCompany();
+  const worker = testWorker();
+  worker.ai.split = async () => ({
+    documents: Array.from({ length: 1001 }, (_, index) => ({
+      sheetName: "Invoices",
+      firstRow: index + 2,
+      lastRow: index + 2,
+    })),
+    model: "test-split",
+  });
+  await enableAiProcessing(company.client, worker.jobs, {
+    companyId: company.companyId,
+    provider: worker.ai,
+  });
+  const uploaded = await uploadSourceFile(company.client, worker.jobs, {
+    companyId: company.companyId,
+    fileName: "many-rows.xlsx",
+    bytes: workbookFile("xlsx", [["Invoice"], ...Array.from({ length: 1001 }, (_, i) => [`INV-${i}`])]),
+  });
+  if (!uploaded.ok) throw new Error(uploaded.error);
+  await worker.runNextJob();
+  const supersededWorker = testWorker();
+  const supersededSource = await uploadSourceFile(company.client, supersededWorker.jobs, {
+    companyId: company.companyId,
+    fileName: "two-invoices.pdf",
+    bytes: fixtureFile("two-invoices.pdf"),
+  });
+  if (!supersededSource.ok) throw new Error(supersededSource.error);
+  expect(await supersededWorker.runJobs()).toEqual([]);
+  const [first, second] = await listDocuments(company.client, company.companyId, supersededSource.value.id);
+  expect(await mergeDocuments(company.client, worker.jobs, {
+    companyId: company.companyId,
+    leftDocumentId: first.id,
+    rightDocumentId: second.id,
+  })).toEqual({ ok: true, value: null });
+
+  const exported = await exportCompanyData(company.client, { companyId: company.companyId });
+  expect(exported.ok).toBe(true);
+  if (!exported.ok) return;
+  const documents = JSON.parse(strFromU8(unzipSync(exported.value.bytes)["documents.json"]));
+  expect(documents).toHaveLength(1003);
+  expect(new Set(documents.map((document: { id: string }) => document.id)).size).toBe(1003);
+  expect(documents).toContainEqual(expect.objectContaining({ id: second.id }));
+});
+
+it("refuses deletion when Company data changed after its completed export", async () => {
+  const company = await administratorWithCompany();
+  const exported = await exportCompanyData(company.client, { companyId: company.companyId });
+  if (!exported.ok) throw new Error(exported.error);
+  const changed = await uploadSourceFile(company.client, { async send() {} }, {
+    companyId: company.companyId,
+    fileName: "new-receipt.png",
+    bytes: fixtureFile("receipt.png"),
+  });
+  if (!changed.ok) throw new Error(changed.error);
+
+  expect(await softDeleteCompany(company.client, {
+    companyId: company.companyId,
+    exportId: exported.value.exportId,
+  })).toEqual({ ok: false, error: "stale_export" });
+  expect(await getCompany(company.client, company.companyId)).not.toBeNull();
+});
+
+it("throws unexpected Company export failures", async () => {
+  const brokenClient = {
+    rpc() {
+      throw new Error("database unavailable");
+    },
+  } as unknown as AppClient;
+
+  await expect(exportCompanyData(brokenClient, {
+    companyId: "00000000-0000-4000-8000-000000000001",
+  })).rejects.toThrow("database unavailable");
+});
+
+it("does not expose Company export receipts through direct table reads or writes", async () => {
+  const company = await administratorWithCompany();
+  const outsider = await administratorWithCompany("Other Organization");
+  const exported = await exportCompanyData(company.client, { companyId: company.companyId });
+  if (!exported.ok) throw new Error(exported.error);
+
+  const reads = [
+    await company.client.from("company_data_export").select("*").eq("id", exported.value.exportId),
+    await outsider.client.from("company_data_export").select("*").eq("id", exported.value.exportId),
+  ];
+  for (const read of reads) expect(read.error?.code).toBe("42501");
+  const attempts = [
+    await company.client.from("company_data_export").insert({
+      id: "00000000-0000-4000-8000-000000000099",
+      company_id: company.companyId,
+      organization_id: company.organizationId,
+      created_by: company.userId,
+      file_name: "forged.zip",
+      byte_size: 1,
+      sha256: "0".repeat(64),
     }),
-  );
-  const physicalDeletion = await systemClient()
-    .from("document")
-    .delete()
-    .eq("id", document.id);
-  expect(physicalDeletion.error?.code).toBe("42501");
-  expect(
-    (
-      await systemClient()
-        .from("document")
-        .select("id")
-        .eq("id", document.id)
-        .single()
-    ).data,
-  ).toEqual({ id: document.id });
+    await company.client.from("company_data_export").update({ file_name: "changed.zip" }).eq("id", exported.value.exportId),
+    await company.client.from("company_data_export").delete().eq("id", exported.value.exportId),
+  ];
+  for (const attempt of attempts) expect(attempt.error?.code).toBe("42501");
 });

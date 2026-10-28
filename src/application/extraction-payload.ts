@@ -87,6 +87,7 @@ export type ExtractionPayload = {
 export type ExtractionPayloadError =
   | "invalid_choice"
   | "invalid_amount"
+  | "invalid_credit_note_amount"
   | "invalid_rate"
   | "invalid_date"
   | "invalid_currency"
@@ -156,6 +157,11 @@ export function validateExtractionPayload(payload: ExtractionPayload): Extractio
     payload.totals.grossAmount,
   ];
   if (amounts.some((amount) => amount !== null && !AMOUNT.test(amount))) return "invalid_amount";
+  if (
+    payload.documentType === "credit_note"
+    && (amounts.some((amount) => amount !== null && Number(amount) > 0)
+      || !amounts.some((amount) => amount !== null && Number(amount) < 0))
+  ) return "invalid_credit_note_amount";
   if (payload.rateBreakdown.some((line) => !Number.isFinite(line.rate) || line.rate < 0 || line.rate > 100)) {
     return "invalid_rate";
   }

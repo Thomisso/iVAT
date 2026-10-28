@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { listAuditActors, listAuditEventPage, listAuditEvents } from "@/application/audit";
 import { listMyOrganizations } from "@/application/organizations";
 import { uploadSourceFile } from "@/application/source-files";
+import { listMemberships, removeMembership } from "@/application/memberships";
 import { anonymousClient, signedUpUser, uniqueEmail } from "./support/clients";
 import { fixtureFile } from "./support/files";
 import { testWorker } from "./support/worker";
@@ -83,6 +84,35 @@ describe("audit log", () => {
       { userId: administrator.userId, email: administrator.email },
       { userId: member.userId, email: member.email },
     ].sort((a, b) => a.email.localeCompare(b.email)));
+  });
+
+  it("keeps removed event actors available to the user filter", async () => {
+    const administrator = await administratorWithCompany();
+    const member = await companyMember(administrator);
+    const uploaded = await uploadSourceFile(member.client, testWorker().jobs, {
+      companyId: administrator.companyId,
+      fileName: "receipt.png",
+      bytes: fixtureFile("receipt.png"),
+    });
+    if (!uploaded.ok) throw new Error(uploaded.error);
+    const memberships = await listMemberships(administrator.client, {
+      organizationId: administrator.organizationId,
+      companyId: administrator.companyId,
+    });
+    const membership = memberships.find((candidate) => candidate.userId === member.userId)!;
+    expect(await removeMembership(administrator.client, membership.id)).toEqual({ ok: true, value: null });
+
+    expect(await listAuditActors(administrator.client, administrator.organizationId)).toContainEqual({
+      userId: member.userId,
+      email: member.email,
+    });
+    const filtered = await listAuditEventPage(administrator.client, administrator.organizationId, {
+      actorUserId: member.userId,
+    });
+    expect(filtered.events).toContainEqual(expect.objectContaining({
+      action: "source_file.uploaded",
+      targetId: uploaded.value.id,
+    }));
   });
 
   it("records the sign-up without the User's personal data", async () => {

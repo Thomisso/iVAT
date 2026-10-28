@@ -13,7 +13,6 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { CommandButton } from "@/components/command-button";
 import { DataTable } from "@/components/data-table";
 import { StatusBadge } from "@/components/status-badge";
-import { processingJobAdministration } from "@/lib/jobs";
 import { requireUserClient } from "@/lib/supabase/server";
 import { UploadLimitsForm } from "./upload-limits-form";
 
@@ -23,7 +22,7 @@ export default async function PlatformAdministrationPage() {
   if (!organizations.ok) notFound();
   const [limits, jobs, t] = await Promise.all([
     getPlatformUploadLimits(client),
-    processingJobAdministration().then((store) => listFailedProcessingJobs(client, store)),
+    listFailedProcessingJobs(client),
     getTranslations("platformAdministration"),
   ]);
   if (!limits.ok || !jobs.ok) notFound();

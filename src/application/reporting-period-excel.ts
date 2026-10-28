@@ -1,7 +1,7 @@
 import * as XLSX from "xlsx";
 import type { ValidationFinding } from "./document-validation";
 import type { ExtractionPayload, RateBreakdownLine } from "./extraction-payload";
-import { type CompanyDetails, getCompany } from "./companies";
+import { type CompanyDetails, getCompany, listCompanyFilingFrequencies } from "./companies";
 import type { AppClient, Result } from "./client";
 import { computeVatReport, isReportingPeriod, type ReportDocument } from "./vat-rules";
 
@@ -125,10 +125,13 @@ export async function exportReportingPeriodWorkbook(
   if (!isReportingPeriod(input.period)) return { ok: false, error: "invalid_reporting_period" };
   const company = await getCompany(client, input.companyId);
   if (!company) return { ok: false, error: "forbidden" };
-  const { data, error } = await client.rpc("vat_report_documents", {
-    target_company_id: company.id,
-    target_period: input.period,
-  });
+  const [{ data, error }, filingFrequencies] = await Promise.all([
+    client.rpc("vat_report_documents", {
+      target_company_id: company.id,
+      target_period: input.period,
+    }),
+    listCompanyFilingFrequencies(client, company.id),
+  ]);
   if (error) throw error;
   const reportDocuments = data as unknown as ReportDocument[];
   const findingsByVersion = await currentFindings(client, reportDocuments);
@@ -145,7 +148,7 @@ export async function exportReportingPeriodWorkbook(
     postalCode: company.postalCode,
     personType: company.personType,
   };
-  const report = computeVatReport(companyDetails, input.period, documents);
+  const report = computeVatReport(companyDetails, input.period, documents, filingFrequencies);
   const returnLines = new Map(documents.map((document) => [
     document.id,
     report.vatReturn.filter((line) => line.documentIds.includes(document.id)).map((line) => line.line).join(", "),
