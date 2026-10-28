@@ -245,7 +245,8 @@ export async function createEpoXml(
   const parsed = parseExportDetails(details);
   if (!parsed.ok) return parsed;
   details = parsed.value;
-  const [year, month] = report.period.split("-");
+  const [year, periodPart] = report.period.split("-");
+  const quarter = /^Q([1-4])$/.exec(periodPart)?.[1];
   const isReturn = format === "dphdp3";
   const name = isReturn ? "DPHDP3" : "DPHKH1";
   const xml = [
@@ -259,7 +260,9 @@ export async function createEpoXml(
         ? { dapdph_forma: "B", typ_platce: "P" }
         : { khdph_forma: "B" }),
       rok: year,
-      mesic: String(Number(month)),
+      ...(quarter
+        ? { ctvrt: quarter }
+        : { mesic: String(Number(periodPart)) }),
       d_poddp: epoDate(details.preparedOn),
       ...(isReturn
         ? {

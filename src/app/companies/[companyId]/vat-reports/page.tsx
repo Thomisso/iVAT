@@ -1,8 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
-import { getCompany } from "@/application/companies";
-import { getVatReport } from "@/application/vat-reports";
+import {
+  getCompany,
+  getFilingFrequencyForPeriod,
+  getMyCompanyRole,
+} from "@/application/companies";
+import { getPeriodLock, getVatReport } from "@/application/vat-reports";
+import { vatReturnPreviewData } from "@/application/vat-return-preview";
 import { isReportingPeriod } from "@/application/vat-rules";
 import { requireUserClient } from "@/lib/supabase/server";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -11,9 +16,11 @@ import { EmptyState } from "@/components/empty-state";
 import { Money } from "@/components/money";
 import { TextField } from "@/components/text-field";
 import { Button } from "@/components/button";
+import { StatusBadge } from "@/components/status-badge";
 import { formatDocumentDate } from "@/lib/format-date";
 import { GenerateForm } from "./generate-form";
 import { ExportForm } from "./export-form";
+import { PeriodLockForm } from "./period-lock-form";
 
 export default async function VatReportsPage({
   params,
@@ -21,15 +28,29 @@ export default async function VatReportsPage({
 }: PageProps<"/companies/[companyId]/vat-reports">) {
   const { companyId } = await params;
   const query = await searchParams;
-  const period =
+  const requestedPeriod =
     typeof query.period === "string" && isReportingPeriod(query.period)
       ? query.period
-      : new Date().toISOString().slice(0, 7);
+      : null;
   const client = await requireUserClient();
   const company = await getCompany(client, companyId);
   if (!company) notFound();
-  const [report, t, locale] = await Promise.all([
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const currentFrequency = await getFilingFrequencyForPeriod(
+    client,
+    companyId,
+    currentMonth,
+  );
+  const month = Number(currentMonth.slice(5, 7));
+  const period =
+    requestedPeriod ??
+    (currentFrequency === "quarterly"
+      ? `${currentMonth.slice(0, 4)}-Q${Math.ceil(month / 3)}`
+      : currentMonth);
+  const [report, periodLock, role, t, locale] = await Promise.all([
     getVatReport(client, companyId, period),
+    getPeriodLock(client, companyId, period),
+    getMyCompanyRole(client, companyId),
     getTranslations(),
     getLocale(),
   ]);
@@ -56,6 +77,7 @@ export default async function VatReportsPage({
       <Money amount={Number(amount)} currency="CZK" locale={locale} />
     );
   const result = report?.result;
+  const preview = result ? vatReturnPreviewData(result) : null;
   return (
     <>
       <AppSidebar currentCompanyId={companyId} activeReport />
@@ -72,11 +94,12 @@ export default async function VatReportsPage({
           >
             <TextField
               label={t("vatReports.period")}
-              type="month"
+              type="text"
               name="period"
               required
-              min="2000-01"
-              max="2099-12"
+              pattern="20[0-9]{2}-(0[1-9]|1[0-2]|Q[1-4])"
+              placeholder={t("vatReports.periodPlaceholder")}
+              hint={t("vatReports.periodHint")}
               defaultValue={period}
             />
             <Button type="submit" variant="secondary">
@@ -88,20 +111,30 @@ export default async function VatReportsPage({
             companyId={companyId}
             period={period}
             exists={!!report}
+            locked={!!periodLock}
           />
+          <p className="iv-muted">{t("vatReports.excelOverviewHint")}</p>
+          <a
+            className="iv-btn iv-btn-secondary iv-btn-md"
+            href={`/companies/${companyId}/vat-reports/${period}/xlsx`}
+            download
+          >
+            {t("vatReports.excelOverview")}
+          </a>
         </section>
-        {!report || !result ? (
+        {!report || !result || !preview ? (
           <EmptyState icon="report" title={t("vatReports.none")} />
         ) : (
           <>
             <section>
-              <h2>{t("vatReports.draft", { period })}</h2>
+              <h2>{t("vatReports.draft", { period: preview.period })}</h2>
+              {periodLock && <StatusBadge status="locked" />}
               <p>
-                {result.company.name} · {result.company.vatId}
+                {preview.company.name} · {preview.company.vatId}
               </p>
               <p className="iv-muted">
-                {result.company.street}, {result.company.postalCode}{" "}
-                {result.company.city}
+                {preview.company.street}, {preview.company.postalCode}{" "}
+                {preview.company.city}
               </p>
               <p className="iv-muted">
                 {t("vatReports.generated", {
@@ -109,9 +142,12 @@ export default async function VatReportsPage({
                 })}
               </p>
               <p className="iv-muted">{t("vatReports.snapshot")}</p>
+              {role === "administrator" && (
+                <PeriodLockForm companyId={companyId} period={period} locked={!!periodLock} />
+              )}
               <DataTable
                 caption={t("vatReports.vatReturn")}
-                rows={result.vatReturn.map((r) => ({ ...r, id: r.line }))}
+                rows={preview.lines.map((r) => ({ ...r, id: r.line }))}
                 columns={[
                   {
                     key: "line",
@@ -146,10 +182,17 @@ export default async function VatReportsPage({
                 ).map(([key, ids]) => (
                   <div key={key}>
                     <dt>{t(`vatReports.${key}`)}</dt>
-                    <dd>{drilldown(result.totals[key], [...ids])}</dd>
+                    <dd>{drilldown(preview.totals[key], [...ids])}</dd>
                   </div>
                 ))}
               </dl>
+              <a
+                className="iv-btn iv-btn-secondary iv-btn-md"
+                href={`/companies/${companyId}/vat-reports/${period}/pdf`}
+                download={`DPHDP3-${period}.pdf`}
+              >
+                {t("vatReports.downloadPdf")}
+              </a>
             </section>
             <section>
               <h2>{t("vatReports.controlStatement")}</h2>

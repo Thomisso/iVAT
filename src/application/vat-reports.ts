@@ -1,5 +1,10 @@
 import { isUuid, type AppClient, type Result } from "./client";
-import { getCompany, type CompanyDetails } from "./companies";
+import {
+  getCompany,
+  getFilingFrequencyForPeriod,
+  listCompanyFilingFrequencies,
+  type CompanyDetails,
+} from "./companies";
 import {
   computeVatReport,
   isReportingPeriod,
@@ -17,9 +22,93 @@ export type VatReport = {
   documents: ReportDocument[];
 };
 export type GenerateVatReportError =
-  "forbidden" | "invalid_reporting_period" | "stale_report";
+  "forbidden" | "invalid_reporting_period" | "stale_report" | "period_locked";
 
-/** Generates or replaces a monthly draft from the current, human-reviewed data. */
+export type PeriodLock = {
+  companyId: string;
+  period: string;
+  vatReportId: string;
+  lockedBy: string;
+  lockedAt: string;
+};
+
+export type FinalizeVatReportError =
+  | "forbidden"
+  | "invalid_reporting_period"
+  | "report_not_found";
+export type UnlockReportingPeriodError =
+  | "forbidden"
+  | "invalid_reporting_period"
+  | "not_locked";
+
+function periodTransitionRefusal<E extends string>(
+  error: { code?: string; hint?: string },
+  codes: E[],
+): Result<never, E | "forbidden"> {
+  if (error.code === "42501") return { ok: false, error: "forbidden" };
+  const code = codes.find((candidate) => candidate === error.hint);
+  if (code) return { ok: false, error: code };
+  throw error;
+}
+
+/** Finalizes the stored VAT Report and locks its Reporting Period (ADR-0007). */
+export async function finalizeVatReport(
+  client: AppClient,
+  input: { companyId: string; period: string },
+): Promise<Result<null, FinalizeVatReportError>> {
+  if (!isUuid(input.companyId)) return { ok: false, error: "forbidden" };
+  if (!isReportingPeriod(input.period))
+    return { ok: false, error: "invalid_reporting_period" };
+  const { error } = await client.rpc("finalize_vat_report", {
+    target_company_id: input.companyId,
+    target_period: input.period,
+  });
+  if (error) return periodTransitionRefusal(error, ["report_not_found"]);
+  return { ok: true, value: null };
+}
+
+/** Removes a Period Lock so the Company's Documents can be corrected again. */
+export async function unlockReportingPeriod(
+  client: AppClient,
+  input: { companyId: string; period: string },
+): Promise<Result<null, UnlockReportingPeriodError>> {
+  if (!isUuid(input.companyId)) return { ok: false, error: "forbidden" };
+  if (!isReportingPeriod(input.period))
+    return { ok: false, error: "invalid_reporting_period" };
+  const { error } = await client.rpc("unlock_reporting_period", {
+    target_company_id: input.companyId,
+    target_period: input.period,
+  });
+  if (error) return periodTransitionRefusal(error, ["not_locked"]);
+  return { ok: true, value: null };
+}
+
+/** The active lock for a Reporting Period, visible to Company members. */
+export async function getPeriodLock(
+  client: AppClient,
+  companyId: string,
+  period: string,
+): Promise<PeriodLock | null> {
+  if (!isUuid(companyId) || !isReportingPeriod(period)) return null;
+  const { data, error } = await client
+    .from("period_lock")
+    .select("company_id, period, vat_report_id, locked_by, locked_at")
+    .eq("company_id", companyId)
+    .eq("period", period)
+    .maybeSingle();
+  if (error) throw error;
+  return data
+    ? {
+        companyId: data.company_id,
+        period: data.period,
+        vatReportId: data.vat_report_id,
+        lockedBy: data.locked_by,
+        lockedAt: data.locked_at,
+      }
+    : null;
+}
+
+/** Generates or replaces a draft for a valid monthly or quarterly Reporting Period. */
 export async function generateVatReport(
   client: AppClient,
   input: { companyId: string; period: string },
@@ -28,6 +117,18 @@ export async function generateVatReport(
     return { ok: false, error: "invalid_reporting_period" };
   const company = await getCompany(client, input.companyId);
   if (!company) return { ok: false, error: "forbidden" };
+  const frequency = await getFilingFrequencyForPeriod(
+    client,
+    company.id,
+    input.period,
+  );
+  if (
+    frequency === null ||
+    (input.period.includes("-Q") ? frequency !== "quarterly" : frequency !== "monthly")
+  ) {
+    return { ok: false, error: "invalid_reporting_period" };
+  }
+  const filingFrequencies = await listCompanyFilingFrequencies(client, company.id);
   const { data, error } = await client.rpc("vat_report_documents", {
     target_company_id: company.id,
     target_period: input.period,
@@ -43,7 +144,12 @@ export async function generateVatReport(
     postalCode: company.postalCode,
     personType: company.personType,
   };
-  const result = computeVatReport(details, input.period, documents);
+  const result = computeVatReport(
+    details,
+    input.period,
+    documents,
+    filingFrequencies,
+  );
   const saved = await client.rpc("save_vat_report", {
     target_company_id: company.id,
     target_period: input.period,
@@ -54,6 +160,8 @@ export async function generateVatReport(
     if (saved.error.code === "42501") return { ok: false, error: "forbidden" };
     if (saved.error.code === "P0001" && saved.error.hint === "stale_report")
       return { ok: false, error: "stale_report" };
+    if (saved.error.code === "P0001" && saved.error.hint === "period_locked")
+      return { ok: false, error: "period_locked" };
     throw saved.error;
   }
   return { ok: true, value: { id: saved.data } };

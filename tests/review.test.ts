@@ -12,6 +12,7 @@ import {
   readDocumentPages,
   rejectDocument,
   reprocessDocument,
+  updateDocumentReporting,
   type DocumentFilters,
 } from "@/application/documents";
 import type { ExtractionPayload } from "@/application/extraction-payload";
@@ -229,10 +230,181 @@ describe("correcting a Document", () => {
       ok: true,
       value: { version: 2 },
     });
+    expect((await listExtractionVersions(client, companyId, documentId))[1].payload).toEqual(
+      expect.objectContaining({
+        documentType: "credit_note",
+        originalDocumentNumber: "FV-2026-0001",
+        rateBreakdown: [{ rate: 21, netAmount: "-100.00", vatAmount: "-21.00" }],
+      }),
+    );
+
+    expect(
+      await correctDocument(client, {
+        companyId,
+        documentId,
+        basedOnVersion: 2,
+        payload: { ...creditNote, originalDocumentNumber: null },
+      }),
+    ).toEqual({ ok: true, value: { version: 3 } });
+    expect((await listExtractionVersions(client, companyId, documentId))[2].payload.originalDocumentNumber).toBeNull();
+  });
+
+  it("refuses a Credit Note whose entered amounts are not negative", async () => {
+    const { client, companyId, documentId } = await documentInReview();
+    const creditNote: ExtractionPayload = {
+      ...SAMPLE_EXTRACTION,
+      documentType: "credit_note",
+      originalDocumentNumber: "FV-2026-0001",
+    };
+
+    expect(await correctDocument(client, {
+      companyId,
+      documentId,
+      basedOnVersion: 1,
+      payload: creditNote,
+    })).toEqual({ ok: false, error: "invalid_credit_note_amount" });
+  });
+
+  it("refuses an all-zero Credit Note correction", async () => {
+    const { client, companyId, documentId } = await documentInReview();
+    const creditNote: ExtractionPayload = {
+      ...SAMPLE_EXTRACTION,
+      documentType: "credit_note",
+      originalDocumentNumber: "FV-2026-0001",
+      rateBreakdown: [{ rate: 21, netAmount: "0.00", vatAmount: "0.00" }],
+      totals: { netAmount: "0.00", vatAmount: "0.00", grossAmount: "0.00" },
+    };
+
+    expect(await correctDocument(client, {
+      companyId,
+      documentId,
+      basedOnVersion: 1,
+      payload: creditNote,
+    })).toEqual({ ok: false, error: "invalid_credit_note_amount" });
+  });
+});
+
+describe("assigning an incoming Document to a Reporting Period", () => {
+  it("stores Receipt Date and a later claimed period, and audits the change", async () => {
+    const document = await documentInReview();
+    const member = await companyMember(document);
+
+    expect(
+      await updateDocumentReporting(member.client, {
+        companyId: document.companyId,
+        documentId: document.documentId,
+        receiptDate: "2026-11-05",
+        claimedReportingPeriod: "2026-12",
+      }),
+    ).toEqual({ ok: true, value: null });
+
+    expect(
+      await getDocument(member.client, document.companyId, document.documentId),
+    ).toEqual(
+      expect.objectContaining({
+        receiptDate: "2026-11-05",
+        claimedReportingPeriod: "2026-12",
+      }),
+    );
+    expect(
+      (await listAuditEvents(document.client, document.organizationId)).at(-1),
+    ).toEqual(
+      expect.objectContaining({
+        action: "document.reporting_assignment_changed",
+        actorUserId: member.userId,
+        targetId: document.documentId,
+        payload: expect.objectContaining({
+          receipt_date: expect.objectContaining({ to: "2026-11-05" }),
+          claimed_reporting_period: { from: null, to: "2026-12" },
+        }),
+      }),
+    );
+  });
+
+  it("refuses a claimed period that is not later than the Receipt Date's period", async () => {
+    const document = await documentInReview();
+
+    expect(
+      await updateDocumentReporting(document.client, {
+        companyId: document.companyId,
+        documentId: document.documentId,
+        receiptDate: "2026-11-05",
+        claimedReportingPeriod: "2026-10",
+      }),
+    ).toEqual({ ok: false, error: "claimed_period_not_later" });
+    expect(
+      await getDocument(
+        document.client,
+        document.companyId,
+        document.documentId,
+      ),
+    ).toEqual(
+      expect.objectContaining({
+        claimedReportingPeriod: null,
+      }),
+    );
+  });
+
+  it("refuses Receipt Date assignment for an outgoing Document", async () => {
+    const document = await documentInReview(CORRECTED);
+
+    expect(
+      await updateDocumentReporting(document.client, {
+        companyId: document.companyId,
+        documentId: document.documentId,
+        receiptDate: "2026-11-05",
+        claimedReportingPeriod: null,
+      }),
+    ).toEqual({ ok: false, error: "incoming_required" });
   });
 });
 
 describe("approving and rejecting a Document", () => {
+  it("refuses approval of an AI-proposed Credit Note with non-negative amounts", async () => {
+    const document = await documentInReview({
+      ...SAMPLE_EXTRACTION,
+      documentType: "credit_note",
+      originalDocumentNumber: "FV-2026-0001",
+    });
+
+    expect(await approveDocument(document.client, { ...document, version: 1 })).toEqual({
+      ok: false,
+      error: "invalid_credit_note_amount",
+    });
+  });
+
+  it("refuses approval of an all-zero AI-proposed Credit Note", async () => {
+    const document = await documentInReview({
+      ...SAMPLE_EXTRACTION,
+      documentType: "credit_note",
+      originalDocumentNumber: "FV-2026-0001",
+      rateBreakdown: [{ rate: 21, netAmount: "0.00", vatAmount: "0.00" }],
+      totals: { netAmount: "0.00", vatAmount: "0.00", grossAmount: "0.00" },
+    });
+
+    expect(await approveDocument(document.client, { ...document, version: 1 })).toEqual({
+      ok: false,
+      error: "invalid_credit_note_amount",
+    });
+  });
+
+  it("allows zero VAT on an otherwise negative self-assessed Credit Note", async () => {
+    const document = await documentInReview({
+      ...SAMPLE_EXTRACTION,
+      documentType: "credit_note",
+      originalDocumentNumber: "FV-2026-0001",
+      proposedVatRegime: "domestic_reverse_charge",
+      reverseChargeCode: "4",
+      rateBreakdown: [{ rate: 21, netAmount: "-100.00", vatAmount: "0.00" }],
+      totals: { netAmount: "-100.00", vatAmount: "0.00", grossAmount: "-100.00" },
+    });
+
+    expect(await approveDocument(document.client, { ...document, version: 1 })).toEqual({
+      ok: true,
+      value: null,
+    });
+  });
+
   it("refuses approval while Direction is unknown", async () => {
     const document = await documentInReview({
       ...SAMPLE_EXTRACTION,

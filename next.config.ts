@@ -1,10 +1,10 @@
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
+import { UPLOAD_BODY_LIMIT } from "./src/lib/upload-policy";
 
-// Source Files are uploaded through a Server Action and pass the proxy, so both
-// must accept a file of the platform's 20 MB upload limit (enforced with #33),
-// plus the multipart overhead. Their 1 MB and 10 MB defaults would cut uploads off.
-const UPLOAD_BODY_LIMIT = "21mb";
+// Source Files are uploaded through a Server Action and pass the proxy. The
+// configurable database limit cannot exceed the Storage service's static limit;
+// this adds room for multipart overhead so every accepted setting is transportable.
 
 const nextConfig: NextConfig = {
   // Keep the validator's WASM module beside its Node entry point.
