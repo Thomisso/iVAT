@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { createCompany, enableAiProcessing, getCompany, listMyCompanies } from "@/application/companies";
 import { listMyOrganizations } from "@/application/organizations";
-import { listDocuments, listExtractionVersions, reprocessDocument } from "@/application/documents";
+import {
+  listDocuments,
+  listExtractionVersions,
+  reprocessDocument,
+  updateDocumentReporting,
+} from "@/application/documents";
 import { getSourceFile, listSourceFiles, readSourceFile, retrySplit, uploadSourceFile } from "@/application/source-files";
 import { anonymousClient, signedUpUser } from "./support/clients";
 import { fixtureFile } from "./support/files";
@@ -172,11 +177,24 @@ describe("tenant isolation", () => {
       const retry = await retrySplit(b.client, a.worker.jobs, { companyId: a.companyId, sourceFileId: a.sourceFileId });
       const directReprocess = await b.client.rpc("reprocess_document", { target_document_id: a.documentId });
       const directRetry = await b.client.rpc("retry_split", { target_source_file_id: a.sourceFileId });
+      const reporting = await updateDocumentReporting(b.client, {
+        companyId: a.companyId,
+        documentId: a.documentId,
+        receiptDate: "2026-11-05",
+        claimedReportingPeriod: null,
+      });
+      const directReporting = await b.client.rpc("update_document_reporting", {
+        target_document_id: a.documentId,
+        new_receipt_date: "2026-11-05",
+        new_claimed_reporting_period: null as unknown as string,
+      });
 
       expect(reprocess).toEqual({ ok: false, error: "forbidden" });
       expect(retry).toEqual({ ok: false, error: "forbidden" });
       expect(directReprocess.error?.code).toBe("42501");
       expect(directRetry.error?.code).toBe("42501");
+      expect(reporting).toEqual({ ok: false, error: "forbidden" });
+      expect(directReporting.error?.code).toBe("42501");
       expect(a.worker.queued).toEqual([]);
       expect((await listDocuments(a.client, a.companyId, a.sourceFileId))[0].status).toBe("needs_review");
     });
@@ -194,6 +212,7 @@ describe("tenant isolation", () => {
           source_file_id: a.sourceFileId,
           first_page: 1,
           last_page: 1,
+          receipt_date: "2026-10-28",
         }),
         await a.client.from("extraction_version").update({ payload: {} }).eq("id", version.id),
         await a.client.from("extraction_version").delete().eq("id", version.id),

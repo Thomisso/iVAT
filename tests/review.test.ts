@@ -12,6 +12,7 @@ import {
   readDocumentPages,
   rejectDocument,
   reprocessDocument,
+  updateDocumentReporting,
   type DocumentFilters,
 } from "@/application/documents";
 import type { ExtractionPayload } from "@/application/extraction-payload";
@@ -246,6 +247,81 @@ describe("correcting a Document", () => {
       }),
     ).toEqual({ ok: true, value: { version: 3 } });
     expect((await listExtractionVersions(client, companyId, documentId))[2].payload.originalDocumentNumber).toBeNull();
+  });
+});
+
+describe("assigning an incoming Document to a Reporting Period", () => {
+  it("stores Receipt Date and a later claimed period, and audits the change", async () => {
+    const document = await documentInReview();
+    const member = await companyMember(document);
+
+    expect(
+      await updateDocumentReporting(member.client, {
+        companyId: document.companyId,
+        documentId: document.documentId,
+        receiptDate: "2026-11-05",
+        claimedReportingPeriod: "2026-12",
+      }),
+    ).toEqual({ ok: true, value: null });
+
+    expect(
+      await getDocument(member.client, document.companyId, document.documentId),
+    ).toEqual(
+      expect.objectContaining({
+        receiptDate: "2026-11-05",
+        claimedReportingPeriod: "2026-12",
+      }),
+    );
+    expect(
+      (await listAuditEvents(document.client, document.organizationId)).at(-1),
+    ).toEqual(
+      expect.objectContaining({
+        action: "document.reporting_assignment_changed",
+        actorUserId: member.userId,
+        targetId: document.documentId,
+        payload: expect.objectContaining({
+          receipt_date: expect.objectContaining({ to: "2026-11-05" }),
+          claimed_reporting_period: { from: null, to: "2026-12" },
+        }),
+      }),
+    );
+  });
+
+  it("refuses a claimed period that is not later than the Receipt Date's period", async () => {
+    const document = await documentInReview();
+
+    expect(
+      await updateDocumentReporting(document.client, {
+        companyId: document.companyId,
+        documentId: document.documentId,
+        receiptDate: "2026-11-05",
+        claimedReportingPeriod: "2026-10",
+      }),
+    ).toEqual({ ok: false, error: "claimed_period_not_later" });
+    expect(
+      await getDocument(
+        document.client,
+        document.companyId,
+        document.documentId,
+      ),
+    ).toEqual(
+      expect.objectContaining({
+        claimedReportingPeriod: null,
+      }),
+    );
+  });
+
+  it("refuses Receipt Date assignment for an outgoing Document", async () => {
+    const document = await documentInReview(CORRECTED);
+
+    expect(
+      await updateDocumentReporting(document.client, {
+        companyId: document.companyId,
+        documentId: document.documentId,
+        receiptDate: "2026-11-05",
+        claimedReportingPeriod: null,
+      }),
+    ).toEqual({ ok: false, error: "incoming_required" });
   });
 });
 

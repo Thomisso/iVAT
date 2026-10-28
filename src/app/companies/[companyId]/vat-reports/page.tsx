@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
-import { getCompany, getMyCompanyRole } from "@/application/companies";
+import {
+  getCompany,
+  getFilingFrequencyForPeriod,
+  getMyCompanyRole,
+} from "@/application/companies";
 import { getPeriodLock, getVatReport } from "@/application/vat-reports";
 import { vatReturnPreviewData } from "@/application/vat-return-preview";
 import { isReportingPeriod } from "@/application/vat-rules";
@@ -24,13 +28,25 @@ export default async function VatReportsPage({
 }: PageProps<"/companies/[companyId]/vat-reports">) {
   const { companyId } = await params;
   const query = await searchParams;
-  const period =
+  const requestedPeriod =
     typeof query.period === "string" && isReportingPeriod(query.period)
       ? query.period
-      : new Date().toISOString().slice(0, 7);
+      : null;
   const client = await requireUserClient();
   const company = await getCompany(client, companyId);
   if (!company) notFound();
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const currentFrequency = await getFilingFrequencyForPeriod(
+    client,
+    companyId,
+    currentMonth,
+  );
+  const month = Number(currentMonth.slice(5, 7));
+  const period =
+    requestedPeriod ??
+    (currentFrequency === "quarterly"
+      ? `${currentMonth.slice(0, 4)}-Q${Math.ceil(month / 3)}`
+      : currentMonth);
   const [report, periodLock, role, t, locale] = await Promise.all([
     getVatReport(client, companyId, period),
     getPeriodLock(client, companyId, period),
@@ -78,11 +94,12 @@ export default async function VatReportsPage({
           >
             <TextField
               label={t("vatReports.period")}
-              type="month"
+              type="text"
               name="period"
               required
-              min="2000-01"
-              max="2099-12"
+              pattern="20[0-9]{2}-(0[1-9]|1[0-2]|Q[1-4])"
+              placeholder={t("vatReports.periodPlaceholder")}
+              hint={t("vatReports.periodHint")}
               defaultValue={period}
             />
             <Button type="submit" variant="secondary">
@@ -96,6 +113,14 @@ export default async function VatReportsPage({
             exists={!!report}
             locked={!!periodLock}
           />
+          <p className="iv-muted">{t("vatReports.excelOverviewHint")}</p>
+          <a
+            className="iv-btn iv-btn-secondary iv-btn-md"
+            href={`/companies/${companyId}/vat-reports/${period}/xlsx`}
+            download
+          >
+            {t("vatReports.excelOverview")}
+          </a>
         </section>
         {!report || !result || !preview ? (
           <EmptyState icon="report" title={t("vatReports.none")} />
