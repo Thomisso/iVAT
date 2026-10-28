@@ -62,7 +62,13 @@
     "settingsTitle": "Nastavení firmy",
     "settingsIntro": "Upravte identifikační údaje firmy a přidejte frekvenci podávání platnou od zadaného data.",
     "backToCompany": "← Zpět na firmu",
-    "noOrganization": "Nejste administrátorem žádné organizace, proto nemůžete přidávat firmy."
+    "noOrganization": "Nejste administrátorem žádné organizace, proto nemůžete přidávat firmy.",
+    "deleteTitle": "Smazat firmu",
+    "deleteIntro": "iVAT nejprve stáhne ZIP se všemi původními zdrojovými soubory a údaji dokladů. Firma pak zmizí všem členům, ale uchovávané záznamy zůstanou chráněné.",
+    "deleteButton": "Exportovat a smazat firmu",
+    "deletePreparing": "Připravuji export…",
+    "deleteConfirm": "Exportovat a smazat tuto firmu všem členům? V aplikaci ji nebude možné obnovit.",
+    "deleteFailed": "Export se nepodařilo dokončit, proto firma nebyla smazána. Zkuste to znovu."
   },
   "members": {
     "nav": "Členové",

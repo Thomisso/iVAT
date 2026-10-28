@@ -62,7 +62,13 @@
     "settingsTitle": "Company settings",
     "settingsIntro": "Update the Company's identity and add an effective-dated filing frequency.",
     "backToCompany": "← Back to company",
-    "noOrganization": "You are not an administrator of any organization, so you cannot add companies."
+    "noOrganization": "You are not an administrator of any organization, so you cannot add companies.",
+    "deleteTitle": "Delete Company",
+    "deleteIntro": "iVAT first downloads a ZIP containing every original Source File and all Document data. The Company then disappears for every member, while its retained records remain protected.",
+    "deleteButton": "Export and delete Company",
+    "deletePreparing": "Preparing export…",
+    "deleteConfirm": "Export and delete this Company for every member? The Company cannot be restored in the app.",
+    "deleteFailed": "The export could not be completed, so the Company was not deleted. Try again."
   },
   "members": {
     "nav": "Members",
