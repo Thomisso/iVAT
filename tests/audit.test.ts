@@ -1,13 +1,90 @@
 import { describe, expect, it } from "vitest";
-import { listAuditEvents } from "@/application/audit";
+import { listAuditActors, listAuditEventPage, listAuditEvents } from "@/application/audit";
 import { listMyOrganizations } from "@/application/organizations";
 import { uploadSourceFile } from "@/application/source-files";
 import { anonymousClient, signedUpUser, uniqueEmail } from "./support/clients";
 import { fixtureFile } from "./support/files";
 import { testWorker } from "./support/worker";
-import { administratorWithCompany } from "./support/fixtures";
+import { administratorWithCompany, companyMember } from "./support/fixtures";
 
 describe("audit log", () => {
+  it("paginates an Organization's events newest first", async () => {
+    const { client, organizationId } = await administratorWithCompany();
+
+    const first = await listAuditEventPage(client, organizationId, { page: 1, pageSize: 2 });
+    const second = await listAuditEventPage(client, organizationId, { page: 2, pageSize: 2 });
+
+    expect(first).toEqual({
+      events: [
+        expect.objectContaining({ action: "company.filing_frequency_changed" }),
+        expect.objectContaining({ action: "company.created" }),
+      ],
+      page: 1,
+      pageSize: 2,
+      total: 3,
+      pageCount: 2,
+    });
+    expect(second).toEqual({
+      events: [expect.objectContaining({ action: "user.signed_up" })],
+      page: 2,
+      pageSize: 2,
+      total: 3,
+      pageCount: 2,
+    });
+  });
+
+  it("filters events by Company, user, action and date", async () => {
+    const administrator = await administratorWithCompany();
+    const member = await companyMember(administrator);
+    const upload = await uploadSourceFile(member.client, testWorker().jobs, {
+      companyId: administrator.companyId,
+      fileName: "two-invoices.pdf",
+      bytes: fixtureFile("two-invoices.pdf"),
+    });
+    if (!upload.ok) throw new Error(upload.error);
+
+    const today = new Date();
+    const yesterday = new Date(today.valueOf() - 86_400_000).toISOString().slice(0, 10);
+    const tomorrow = new Date(today.valueOf() + 86_400_000).toISOString().slice(0, 10);
+    const filtered = await listAuditEventPage(administrator.client, administrator.organizationId, {
+      companyId: administrator.companyId,
+      actorUserId: member.userId,
+      action: "source_file.uploaded",
+      from: yesterday,
+      to: tomorrow,
+    });
+
+    expect(filtered.events).toEqual([
+      expect.objectContaining({
+        actorUserId: member.userId,
+        companyId: administrator.companyId,
+        action: "source_file.uploaded",
+        targetId: upload.value.id,
+      }),
+    ]);
+    expect(filtered.total).toBe(1);
+    expect((await listAuditEventPage(administrator.client, administrator.organizationId, {
+      from: "2099-01-01",
+      to: "2099-01-31",
+    })).events).toEqual([]);
+  });
+
+  it("ignores malformed date filters", async () => {
+    const { client, organizationId } = await administratorWithCompany();
+
+    expect((await listAuditEventPage(client, organizationId, { to: "2026-99-99" })).total).toBe(3);
+  });
+
+  it("lists the Organization's users for the actor filter without duplicates", async () => {
+    const administrator = await administratorWithCompany();
+    const member = await companyMember(administrator);
+
+    expect(await listAuditActors(administrator.client, administrator.organizationId)).toEqual([
+      { userId: administrator.userId, email: administrator.email },
+      { userId: member.userId, email: member.email },
+    ].sort((a, b) => a.email.localeCompare(b.email)));
+  });
+
   it("records the sign-up without the User's personal data", async () => {
     const { client, userId, organizationId } = await signedUpUser("Novák s.r.o.");
 
@@ -112,5 +189,18 @@ describe("audit log", () => {
     const b = await signedUpUser("Organization B");
 
     expect(await listAuditEvents(b.client, a.organizationId)).toEqual([]);
+  });
+
+  it("is not readable by a Company User in the same Organization", async () => {
+    const administrator = await administratorWithCompany();
+    const user = await companyMember(administrator);
+
+    expect(await listAuditEventPage(user.client, administrator.organizationId)).toEqual({
+      events: [],
+      page: 1,
+      pageSize: 50,
+      total: 0,
+      pageCount: 1,
+    });
   });
 });

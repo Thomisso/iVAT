@@ -229,6 +229,23 @@ describe("correcting a Document", () => {
       ok: true,
       value: { version: 2 },
     });
+    expect((await listExtractionVersions(client, companyId, documentId))[1].payload).toEqual(
+      expect.objectContaining({
+        documentType: "credit_note",
+        originalDocumentNumber: "FV-2026-0001",
+        rateBreakdown: [{ rate: 21, netAmount: "-100.00", vatAmount: "-21.00" }],
+      }),
+    );
+
+    expect(
+      await correctDocument(client, {
+        companyId,
+        documentId,
+        basedOnVersion: 2,
+        payload: { ...creditNote, originalDocumentNumber: null },
+      }),
+    ).toEqual({ ok: true, value: { version: 3 } });
+    expect((await listExtractionVersions(client, companyId, documentId))[2].payload.originalDocumentNumber).toBeNull();
   });
 });
 
