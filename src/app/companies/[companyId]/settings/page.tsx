@@ -3,20 +3,23 @@ import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import {
   getCompany,
+  getMyCompanyRole,
   listCompanyFilingFrequencies,
 } from "@/application/companies";
 import { AppSidebar } from "@/components/app-sidebar";
 import { requireUserClient } from "@/lib/supabase/server";
 import { CompanyForm } from "../../new/company-form";
+import { CompanyDeletionForm } from "./company-deletion-form";
 
 export default async function CompanySettingsPage({
   params,
 }: PageProps<"/companies/[companyId]/settings">) {
   const { companyId } = await params;
   const client = await requireUserClient();
-  const [company, history, t] = await Promise.all([
+  const [company, history, role, t] = await Promise.all([
     getCompany(client, companyId),
     listCompanyFilingFrequencies(client, companyId),
+    getMyCompanyRole(client, companyId),
     getTranslations("company"),
   ]);
   if (!company) notFound();
@@ -48,6 +51,9 @@ export default async function CompanySettingsPage({
                 }).format(new Date()),
             }}
           />
+          {role === "administrator" && (
+            <CompanyDeletionForm companyId={company.id} />
+          )}
         </div>
       </main>
     </>
