@@ -603,7 +603,7 @@
     "next": "Následující →",
     "retryExtraction": "Zkusit vytěžení znovu",
     "lockedTitle": "Zdaňovací období {period} je uzamčeno.",
-    "lockedNote": "Opravy, rozhodnutí, opakované vytěžení a změny rozdělení jsou vypnuté, aby se podané období nemohlo změnit.",
+    "lockedNote": "Opravy, rozhodnutí, opakované vytěžení a změny rozdělení jsou vypnuté, dokud je toto zdaňovací období finalizované a uzamčené.",
     "sourceFile": "Zdrojový soubor {fileName}, {pages}",
     "page": "strana {page}",
     "pageRange": "strany {first}–{last}",

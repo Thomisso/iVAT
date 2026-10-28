@@ -61,6 +61,8 @@ test("saved views preserve queue context while review decisions advance through 
   await expect(page.getByText("Document 2 of 2", { exact: true })).toBeVisible();
   await page.getByRole("link", { name: "← Previous" }).click();
   await expect(page.getByText("Document 1 of 2", { exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Next →" }).click();
+  await expect(page.getByText("Document 2 of 2", { exact: true })).toBeVisible();
 
   await page.getByLabel("Document number", { exact: true }).fill(`QUEUE-${Date.now()}`);
   await page.getByLabel("Direction", { exact: true }).selectOption("incoming");

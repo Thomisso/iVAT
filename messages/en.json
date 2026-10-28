@@ -603,7 +603,7 @@
     "next": "Next →",
     "retryExtraction": "Retry extraction",
     "lockedTitle": "Reporting period {period} is locked.",
-    "lockedNote": "Corrections, decisions, extraction retries, and split changes are disabled so the filed period cannot change.",
+    "lockedNote": "Corrections, decisions, extraction retries, and split changes are disabled while this Reporting Period is finalized and locked.",
     "sourceFile": "Source file {fileName}, {pages}",
     "page": "page {page}",
     "pageRange": "pages {first}–{last}",

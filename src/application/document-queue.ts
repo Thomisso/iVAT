@@ -1,9 +1,13 @@
 import {
   DOCUMENT_STATUSES,
+  listCompanyDocuments,
   type DocumentFilters,
+  type DocumentOverview,
   type DocumentStatus,
 } from "./documents";
 import type { Direction } from "./extraction-payload";
+import type { AppClient } from "./client";
+import { getUploadBatch, type UploadBatchWorkspace } from "./upload-batches";
 
 export const DOCUMENT_SAVED_VIEWS = [
   "review",
@@ -26,6 +30,22 @@ export type DocumentQueue = {
   hasFindings: boolean;
   batchId?: string;
 };
+
+export type ResolvedDocumentQueue = {
+  queue: DocumentQueue;
+  batch: UploadBatchWorkspace | null;
+  documents: DocumentOverview[];
+};
+
+const QUEUE_CONTEXT_KEYS = [
+  "view",
+  "status",
+  "direction",
+  "reportingPeriod",
+  "counterparty",
+  "hasFindings",
+  "batchId",
+] as const;
 
 const one = (value: string | string[] | undefined) =>
   typeof value === "string" ? value : undefined;
@@ -73,6 +93,10 @@ export function parseDocumentQueue(search: DocumentQueueSearch): DocumentQueue {
   };
 }
 
+export function hasDocumentQueueContext(search: DocumentQueueSearch): boolean {
+  return QUEUE_CONTEXT_KEYS.some((key) => typeof search[key] === "string");
+}
+
 /** The Application filters represented by a queue, plus its optional upload batch. */
 export function documentQueueFilters(
   queue: DocumentQueue,
@@ -110,3 +134,47 @@ export function normalizeDocumentQueueQuery(query: string): string {
   return documentQueueQuery(parseDocumentQueue(Object.fromEntries(params)));
 }
 
+/** Resolves a list route's filters, optional upload batch, and complete queue. */
+export async function getDocumentQueue(
+  client: AppClient,
+  companyId: string,
+  search: DocumentQueueSearch,
+): Promise<ResolvedDocumentQueue> {
+  const queue = parseDocumentQueue(search);
+  const batch = queue.batchId ? await getUploadBatch(client, companyId, queue.batchId) : null;
+  const sourceFileIds = queue.batchId ? (batch?.sourceFiles.map((source) => source.id) ?? []) : undefined;
+  const documents = await listCompanyDocuments(client, companyId, documentQueueFilters(queue, sourceFileIds));
+  return { queue, batch, documents };
+}
+
+export type DocumentQueuePosition = ResolvedDocumentQueue & {
+  index: number;
+  previousDocumentId?: string;
+  nextDocumentId?: string;
+  /** The next remaining item after a decision: forward first, then wrap backward. */
+  continuationDocumentId?: string;
+};
+
+/** Resolves navigation around one Document; direct links intentionally have no implicit queue. */
+export async function getDocumentQueuePosition(
+  client: AppClient,
+  companyId: string,
+  documentId: string,
+  search: DocumentQueueSearch,
+): Promise<DocumentQueuePosition> {
+  const queue = parseDocumentQueue(search);
+  if (!hasDocumentQueueContext(search)) {
+    return { queue, batch: null, documents: [], index: -1 };
+  }
+  const resolved = await getDocumentQueue(client, companyId, search);
+  const index = resolved.documents.findIndex((document) => document.id === documentId);
+  const previousDocumentId = index > 0 ? resolved.documents[index - 1].id : undefined;
+  const nextDocumentId = index >= 0 ? resolved.documents[index + 1]?.id : undefined;
+  return {
+    ...resolved,
+    index,
+    previousDocumentId,
+    nextDocumentId,
+    continuationDocumentId: nextDocumentId ?? previousDocumentId,
+  };
+}
