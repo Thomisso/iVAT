@@ -4,6 +4,10 @@ import type { AiProvider } from "@/application/ai-provider";
 import { asSystemClient, type SystemClient } from "@/application/client";
 import { runJob, type JobQueue, type ProcessingJob } from "@/application/processing";
 import { fakeAiProvider } from "@/ai/fake";
+import type { VatPayerRegistry } from "@/application/vat-registry";
+import { fakeVatPayerRegistry } from "@/vat-registry/fake";
+import type { ExchangeRateProvider } from "@/application/exchange-rates";
+import { fakeExchangeRates } from "@/cnb/fake";
 
 /** A client acting as the worker, as `worker/index.ts` creates it. */
 export function systemClient(): SystemClient {
@@ -20,14 +24,26 @@ export function systemClient(): SystemClient {
  * the jobs they enqueue, and collects the errors a job throws (the worker would
  * log them and let pg-boss retry).
  */
-export function testWorker(ai: AiProvider = fakeAiProvider()) {
+export function testWorker(
+  aiOrProviders: AiProvider | AiProvider[] = fakeAiProvider(),
+  vatRegistry: VatPayerRegistry = fakeVatPayerRegistry(),
+  exchangeRates: ExchangeRateProvider = fakeExchangeRates(),
+) {
+  const providers = Array.isArray(aiOrProviders) ? aiOrProviders : [aiOrProviders];
+  const ai = providers[0];
   const queued: ProcessingJob[] = [];
   const jobs: JobQueue = {
     async send(job) {
       queued.push(job);
     },
   };
-  const worker = { system: systemClient(), ai, jobs };
+  const worker = {
+    system: systemClient(),
+    providers: { get: (name: string) => providers.find((provider) => provider.name === name) },
+    jobs,
+    vatRegistry,
+    exchangeRates,
+  };
   return {
     jobs,
     ai,

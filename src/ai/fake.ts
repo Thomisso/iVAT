@@ -1,8 +1,8 @@
-import type { AiInput, AiProvider, PageRange } from "@/application/ai-provider";
+import type { AiInput, AiProvider, SourceRange } from "@/application/ai-provider";
 import type { ExtractionPayload } from "@/application/extraction-payload";
 
 export type FakeAiScript = {
-  split?: (input: AiInput) => PageRange[] | Promise<PageRange[]>;
+  split?: (input: AiInput) => SourceRange[] | Promise<SourceRange[]>;
   extract?: (input: AiInput) => ExtractionPayload | Promise<ExtractionPayload>;
 };
 
@@ -30,6 +30,7 @@ export const SAMPLE_EXTRACTION: ExtractionPayload = {
   totals: { netAmount: "1000.00", vatAmount: "210.00", grossAmount: "1210.00" },
   payment: { variableSymbol: "20260001", bankAccount: "123456789/0100", iban: null },
   proposedVatRegime: "domestic",
+  reverseChargeCode: null,
   originalDocumentNumber: null,
   confidence: { documentNumber: 0.98, "rateBreakdown.0.vatAmount": 0.95 },
 };
@@ -46,7 +47,9 @@ export function fakeAiProvider(script: FakeAiScript = {}): AiProvider {
     async split(input) {
       const documents = script.split
         ? await script.split(input)
-        : Array.from({ length: input.pageCount }, (_, i) => ({ firstPage: i + 1, lastPage: i + 1 }));
+        : input.workbookRowSets
+          ? input.workbookRowSets
+          : Array.from({ length: input.pageCount }, (_, i) => ({ firstPage: i + 1, lastPage: i + 1 }));
       return { model: "fake-split", documents };
     },
     async extract(input) {

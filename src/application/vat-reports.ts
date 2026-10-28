@@ -41,6 +41,7 @@ export async function generateVatReport(
     street: company.street,
     city: company.city,
     postalCode: company.postalCode,
+    personType: company.personType,
   };
   const result = computeVatReport(details, input.period, documents);
   const saved = await client.rpc("save_vat_report", {

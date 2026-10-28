@@ -17,6 +17,17 @@ import path from "node:path";
 const git = (...args) => execFileSync("git", args, { encoding: "utf8" }).trim();
 
 const root = git("rev-parse", "--show-toplevel");
+const dotenv = path.join(root, ".env");
+if (fs.existsSync(dotenv)) process.loadEnvFile(dotenv);
+const supabaseEnv = {
+  ...process.env,
+  // Keep the local stack usable before a developer opts into Google. Real
+  // credentials in the gitignored .env replace these non-secret placeholders.
+  SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID:
+    process.env.SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID || "local-google-client-id-not-configured",
+  SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET:
+    process.env.SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET || "local-google-client-secret-not-configured",
+};
 const isLinkedWorktree =
   fs.realpathSync(path.resolve(root, git("rev-parse", "--git-dir"))) !==
   fs.realpathSync(path.resolve(root, git("rev-parse", "--git-common-dir")));
@@ -37,7 +48,13 @@ function prepareWorktreeWorkdir(slot) {
 
   for (const entry of fs.readdirSync(source)) {
     if (entry === "config.toml" || entry.startsWith(".")) continue;
-    fs.symlinkSync(path.join(source, entry), path.join(target, entry));
+    // The CLI rejects email template symlinks that resolve outside the generated
+    // worktree project root; copy templates while migrations and fixtures remain shared.
+    if (entry === "templates") {
+      fs.cpSync(path.join(source, entry), path.join(target, entry), { recursive: true });
+    } else {
+      fs.symlinkSync(path.join(source, entry), path.join(target, entry));
+    }
   }
 
   let section = "";
@@ -63,7 +80,11 @@ const workdirArgs = isLinkedWorktree ? ["--workdir", prepareWorktreeWorkdir(work
 const supabase = path.join(root, "node_modules", ".bin", "supabase");
 const args = process.argv.slice(2);
 
-const { status } = spawnSync(supabase, [...args, ...workdirArgs], { stdio: "inherit", cwd: root });
+const { status } = spawnSync(supabase, [...args, ...workdirArgs], {
+  stdio: "inherit",
+  cwd: root,
+  env: supabaseEnv,
+});
 if (status !== 0) process.exit(status ?? 1);
 
 if (args[0] === "start") writeEnvLocal();
@@ -72,6 +93,7 @@ function writeEnvLocal() {
   const stack = JSON.parse(
     execFileSync(supabase, ["status", "-o", "json", ...workdirArgs], {
       cwd: root,
+      env: supabaseEnv,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
     }),

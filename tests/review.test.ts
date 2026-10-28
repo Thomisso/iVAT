@@ -21,6 +21,7 @@ import { signedUpUser } from "./support/clients";
 import { fixtureFile } from "./support/files";
 import { administratorWithCompany, companyMember } from "./support/fixtures";
 import { testWorker } from "./support/worker";
+import { fakeExchangeRates } from "@/cnb/fake";
 
 /** An Administrator whose Company holds one Document in NeedsReview, Extracted as `extraction`. */
 async function documentInReview(extraction: ExtractionPayload = SAMPLE_EXTRACTION) {
@@ -32,6 +33,7 @@ async function documentInReview(extraction: ExtractionPayload = SAMPLE_EXTRACTIO
     companyId: admin.companyId,
     fileName: "receipt.png",
     bytes: fixtureFile("receipt.png"),
+    preselectedDirection: extraction.direction ?? undefined,
   });
   if (!uploaded.ok) throw new Error(uploaded.error);
   await worker.runJobs();
@@ -45,6 +47,7 @@ const CORRECTED: ExtractionPayload = {
   documentNumber: "FV-2026-0002",
   direction: "outgoing",
   proposedVatRegime: "domestic_reverse_charge",
+  reverseChargeCode: "4",
   rateBreakdown: [
     { rate: 21, netAmount: "1000.00", vatAmount: "210.00" },
     { rate: 12, netAmount: "500.00", vatAmount: "60.00" },
@@ -53,6 +56,55 @@ const CORRECTED: ExtractionPayload = {
 };
 
 describe("correcting a Document", () => {
+  it("re-applies the ČNB rate when currency and Tax Point Date change", async () => {
+    const foreign = { ...SAMPLE_EXTRACTION, currency: "EUR", taxPointDate: "2026-10-01" };
+    const { client, companyId, documentId } = await documentInReview(foreign);
+
+    await correctDocument(
+      client,
+      {
+        companyId, documentId, basedOnVersion: 1,
+        payload: { ...foreign, currency: "USD", taxPointDate: "2026-10-02" },
+      },
+      fakeExchangeRates("20.00"),
+    );
+
+    const versions = await listExtractionVersions(client, companyId, documentId);
+    expect(versions[0].payload.czkConversion).toEqual(
+      expect.objectContaining({ originalCurrency: "EUR", rate: "25.00", rateDate: "2026-10-01" }),
+    );
+    expect(versions[1].payload.czkConversion).toEqual(
+      expect.objectContaining({ originalCurrency: "USD", rate: "20.00", rateDate: "2026-10-02" }),
+    );
+  });
+
+  it("stores deterministic findings with each immutable Extraction Version", async () => {
+    const invalid = {
+      ...SAMPLE_EXTRACTION,
+      supplier: { ...SAMPLE_EXTRACTION.supplier, vatId: "CZ27082441" },
+    };
+    const { client, companyId, documentId } = await documentInReview(invalid);
+
+    await correctDocument(client, {
+      companyId,
+      documentId,
+      basedOnVersion: 1,
+      payload: SAMPLE_EXTRACTION,
+    });
+
+    const versions = await listExtractionVersions(client, companyId, documentId);
+    expect(versions.map((version) => version.findings)).toEqual([
+      [
+        {
+          field: "supplier.vatId",
+          severity: "error",
+          code: "invalid_vat_id_checksum",
+        },
+      ],
+      [],
+    ]);
+  });
+
   it("saves the corrections as a new Extraction Version authored by the User, without the AI's confidence, keeping the AI one", async () => {
     const { client, userId, companyId, documentId } = await documentInReview();
 
@@ -181,6 +233,42 @@ describe("correcting a Document", () => {
 });
 
 describe("approving and rejecting a Document", () => {
+  it("refuses approval while Direction is unknown", async () => {
+    const document = await documentInReview({
+      ...SAMPLE_EXTRACTION,
+      direction: null,
+    });
+
+    expect(
+      await approveDocument(document.client, { ...document, version: 1 }),
+    ).toEqual({ ok: false, error: "direction_required" });
+    expect(
+      (await listDocuments(
+        document.client,
+        document.companyId,
+        document.sourceFileId,
+      ))[0].status,
+    ).toBe("needs_review");
+  });
+
+  it("allows approval after a User sets the unknown Direction", async () => {
+    const document = await documentInReview({
+      ...SAMPLE_EXTRACTION,
+      direction: null,
+    });
+
+    expect(
+      await correctDocument(document.client, {
+        ...document,
+        basedOnVersion: 1,
+        payload: SAMPLE_EXTRACTION,
+      }),
+    ).toEqual({ ok: true, value: { version: 2 } });
+    expect(
+      await approveDocument(document.client, { ...document, version: 2 }),
+    ).toEqual({ ok: true, value: null });
+  });
+
   it("lets a User of the Company approve the version they reviewed, and audits it", async () => {
     const document = await documentInReview();
     const member = await companyMember(document);
@@ -284,6 +372,7 @@ describe("the Document list", () => {
         companyId: admin.companyId,
         fileName: "receipt.png",
         bytes: fixtureFile("receipt.png"),
+        preselectedDirection: extractions[i].direction ?? undefined,
       });
       if (!uploaded.ok) throw new Error(uploaded.error);
       sourceFileIds.push(uploaded.value.id);
@@ -378,6 +467,27 @@ describe("the Document list", () => {
     expect(await ids({ direction: "incoming", status: "needs_review" })).toEqual([]);
   });
 
+  it("filters the Document list to current Extraction Versions with findings", async () => {
+    const invalid = {
+      ...PURCHASE,
+      documentNumber: "FP-invalid",
+      supplier: { ...PURCHASE.supplier, ico: "27082441" },
+    };
+    const company = await companyWithDocuments(PURCHASE, invalid);
+    const [, invalidDocument] = company.documentIds;
+
+    expect(
+      await listCompanyDocuments(company.client, company.companyId, {
+        hasFindings: true,
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        id: invalidDocument,
+        findingCount: 1,
+      }),
+    ]);
+  });
+
   it("still lists a Document whose AI Extraction read a malformed date, without a Reporting Period", async () => {
     const company = await companyWithDocuments({ ...PURCHASE, taxPointDate: "27.10.2026" });
 
@@ -444,7 +554,12 @@ describe("the review workspace", () => {
     for (const attempt of [
       await b.client.rpc("approve_document", { target_document_id: a.documentId, reviewed_version: 1 }),
       await b.client.rpc("reject_document", { target_document_id: a.documentId }),
-      await b.client.rpc("correct_document", { target_document_id: a.documentId, based_on_version: 1, payload: {} }),
+      await b.client.rpc("correct_document", {
+        target_document_id: a.documentId,
+        based_on_version: 1,
+        payload: {},
+        findings: [],
+      }),
     ]) {
       expect(attempt.error?.code).toBe("42501");
     }

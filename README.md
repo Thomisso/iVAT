@@ -25,7 +25,10 @@ npm run worker               # background worker, in a second terminal
 
 Open http://localhost:3000/signup. Signing up creates your Organization, makes you its Administrator, and takes you to create your first Company. Local email confirmation is off, so you are signed in right away. Supabase Studio runs at http://127.0.0.1:54323.
 
-Uploaded Source Files wait until the Company enables AI processing on its page. Locally, `AI_PROVIDER=fake` (the default `db:start` writes) Splits every page into its own Document and returns a sample Extraction, so no Document leaves your machine.
+Email/password sign-in works without third-party credentials. To enable Google
+sign-in locally, follow [`docs/google-sign-in.md`](docs/google-sign-in.md).
+
+Uploaded Source Files wait until the Company enables AI processing and chooses a provider on its page. Locally, `AI_PROVIDER=fake` (the default `db:start` writes) Splits every page into its own Document and returns a sample Extraction, so no Document leaves your machine. Set `AI_PROVIDER=platform` for per-Company Anthropic/OpenAI routing through the SuperAdmin settings.
 
 ## Scripts
 
@@ -40,6 +43,7 @@ Uploaded Source Files wait until the Company enables AI processing on its page. 
 | `npm run typecheck` | Generate Next route types, then run `tsc` |
 | `npm run lint` | ESLint |
 | `npm test` | Application-layer tests; requires `npm run db:start` |
+| `npm run evaluate:extraction` | Run the manual real-provider golden-set accuracy harness (not CI) |
 | `npm run build` | Production build |
 
 ## Layout
@@ -83,6 +87,26 @@ Tests exercise the application layer as real users against the local Postgres wi
 npm run db:start
 npm test
 ```
+
+The end-to-end smoke test starts this worktree's Supabase stack, resets its
+database, starts Next.js and the worker with the fake AI provider, and walks the
+acceptance scenario in headless Chromium. Install Chromium once after `npm ci`,
+then run the whole scenario with one command:
+
+```bash
+npx playwright install chromium
+npm run test:e2e
+```
+
+It signs up a unique local user, creates a Company, sends a local invitation,
+uploads and approves a Document, generates a VAT Report, checks its drill-down,
+and validates the downloaded EPO XML against the vendored official XSD. The
+test does not call an external AI or other external network service.
+
+The real-provider extraction evaluation is a separate manual command. Its
+versioned golden-set format, credentials, model overrides, scoring rules, and
+illustrative fixtures are documented in
+[`evaluation/golden-set/README.md`](evaluation/golden-set/README.md).
 
 ## CI
 

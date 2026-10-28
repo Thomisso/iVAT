@@ -1,7 +1,10 @@
 import Link from "next/link";
+import { Fragment } from "react";
 import { getTranslations } from "next-intl/server";
 import { logOutAction } from "@/app/actions";
-import { getCompany, listMyCompanies } from "@/application/companies";
+import { getCompany, getMyCompanyRole, listMyCompanies } from "@/application/companies";
+import { listMyOrganizations } from "@/application/organizations";
+import { isSuperAdmin } from "@/application/platform-ai";
 import { requireUserClient } from "@/lib/supabase/server";
 import { Sidebar, type SidebarItem } from "./sidebar";
 import { Icon } from "./icon";
@@ -12,15 +15,20 @@ export async function AppSidebar({
   currentCompanyId,
   activeDirection,
   activeReport = false,
+  activeMembers = false,
 }: {
   currentCompanyId?: string;
   activeDirection?: "incoming" | "outgoing";
   activeReport?: boolean;
+  activeMembers?: boolean;
 }) {
   const client = await requireUserClient();
-  const [companies, current, t] = await Promise.all([
+  const [companies, current, role, organizations, superAdmin, t] = await Promise.all([
     listMyCompanies(client),
     currentCompanyId ? getCompany(client, currentCompanyId) : null,
+    currentCompanyId ? getMyCompanyRole(client, currentCompanyId) : null,
+    listMyOrganizations(client),
+    isSuperAdmin(client),
     getTranslations(),
   ]);
   const items: SidebarItem[] = currentCompanyId
@@ -30,7 +38,7 @@ export async function AppSidebar({
           label: t("nav.allDocuments"),
           icon: "inbox",
           href: `/companies/${currentCompanyId}`,
-          current: !activeDirection && !activeReport,
+          current: !activeDirection && !activeReport && !activeMembers,
         },
         {
           label: t("nav.received"),
@@ -51,6 +59,12 @@ export async function AppSidebar({
           href: `/companies/${currentCompanyId}/vat-reports`,
           current: activeReport,
         },
+        ...(role === "administrator" ? [{
+          label: t("members.nav"),
+          icon: "building" as const,
+          href: `/companies/${currentCompanyId}/members`,
+          current: activeMembers,
+        }] : []),
       ]
     : [];
   return (
@@ -96,7 +110,27 @@ export async function AppSidebar({
       userMenu={
         <details>
           <summary>{t("nav.userMenu")}</summary>
+          {organizations.map((organization) => (
+            <Fragment key={organization.id}>
+              <Link href={`/organizations/${organization.id}/members`}>
+                {t("members.organizationNav", { organization: organization.name })}
+              </Link>
+              {organization.role === "administrator" && (
+                <>
+                  <Link href={`/organizations/${organization.id}/ai-settings`}>
+                    {t("organizationAi.nav", { organization: organization.name })}
+                  </Link>
+                  <Link href={`/organizations/${organization.id}/ai-usage`}>
+                    {t("aiUsage.organizationNav", { organization: organization.name })}
+                  </Link>
+                </>
+              )}
+            </Fragment>
+          ))}
+          {superAdmin && <Link href="/platform/ai-settings">{t("platformAi.nav")}</Link>}
+          {superAdmin && <Link href="/platform/ai-usage">{t("aiUsage.platformNav")}</Link>}
           <LanguageSwitcher />
+          <Link href="/settings/security">{t("nav.security")}</Link>
           <form action={logOutAction}>
             <Button type="submit" variant="ghost">
               {t("nav.logOut")}

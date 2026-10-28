@@ -9,6 +9,7 @@ import {
   VAT_REGIMES,
   type ExtractionPayload,
 } from "@/application/extraction-payload";
+import type { ValidationFinding } from "@/application/document-validation";
 import { Button } from "@/components/button";
 import { TextField } from "@/components/text-field";
 import { FormError } from "@/components/form-error";
@@ -23,6 +24,7 @@ export function CorrectionForm({
   documentId,
   version,
   payload,
+  findings,
   editable,
   aiProposed,
 }: {
@@ -30,6 +32,7 @@ export function CorrectionForm({
   documentId: string;
   version: number;
   payload: ExtractionPayload;
+  findings: ValidationFinding[];
   editable: boolean;
   aiProposed?: boolean;
 }) {
@@ -42,6 +45,14 @@ export function CorrectionForm({
     payload.rateBreakdown.map((_, i) => i),
   );
   const nextLine = Math.max(-1, ...lines) + 1;
+  const finding = (field: string) =>
+    findings.find(
+      (item) => item.field === field && item.severity === "error",
+    );
+  const findingMessage = (field: string) => {
+    const item = finding(field);
+    return item ? t(`findings.${item.code}`) : undefined;
+  };
 
   // A refused form shows what was submitted; otherwise the version's own value.
   const value = (name: string, saved: string | number | null) =>
@@ -59,6 +70,7 @@ export function CorrectionForm({
       name={name}
       defaultValue={value(name, saved)}
       disabled={!editable}
+      error={findingMessage(name)}
       mono={/ico|vatId|[Nn]umber|[Aa]mount|[Ss]ymbol|iban|bankAccount/.test(
         name,
       )}
@@ -76,12 +88,17 @@ export function CorrectionForm({
     options: readonly string[],
     namespace: string,
   ) => (
-    <label className="iv-field-label" key={name}>
-      {t(`fields.${label}`)}
+    <div className={`iv-field ${finding(name) ? "is-invalid" : ""}`} key={name}>
+      <label className="iv-field-label" htmlFor={`field-${name}`}>
+        {t(`fields.${label}`)}
+      </label>
       <select
+        id={`field-${name}`}
         name={name}
         defaultValue={value(name, saved)}
         disabled={!editable}
+        aria-invalid={finding(name) ? true : undefined}
+        aria-describedby={finding(name) ? `finding-${name}` : undefined}
       >
         <option value="">{t("notSet")}</option>
         {options.map((option) => (
@@ -90,7 +107,12 @@ export function CorrectionForm({
           </option>
         ))}
       </select>
-    </label>
+      {finding(name) && (
+        <span id={`finding-${name}`} className="iv-field-error" role="alert">
+          {findingMessage(name)}
+        </span>
+      )}
+    </div>
   );
   const party = (prefix: "supplier" | "customer") => (
     <fieldset>
@@ -144,6 +166,9 @@ export function CorrectionForm({
             VAT_REGIMES,
             "vatRegime",
           )}
+          {text("reverseChargeCode", payload.reverseChargeCode, "reverseChargeCode", {
+            maxLength: 3,
+          })}
           {date("issueDate")}
           {date("taxPointDate")}
           {date("dueDate")}
@@ -167,21 +192,32 @@ export function CorrectionForm({
           <tbody>
             {lines.map((line) => {
               const saved = payload.rateBreakdown[line];
-              const cell = (name: "rate" | "netAmount" | "vatAmount") => (
-                <td>
+              const cell = (name: "rate" | "netAmount" | "vatAmount") => {
+                const field = `rateBreakdown.${line}.${name}`;
+                const message = findingMessage(field);
+                return (
+                <td className={message ? "validation-cell is-invalid" : "validation-cell"}>
                   <input
-                    name={`rateBreakdown.${line}.${name}`}
+                    name={field}
                     defaultValue={value(
-                      `rateBreakdown.${line}.${name}`,
+                      field,
                       saved?.[name] ?? null,
                     )}
                     aria-label={t(`fields.${name}`)}
+                    aria-invalid={message ? true : undefined}
+                    aria-describedby={message ? `finding-${field}` : undefined}
                     inputMode="decimal"
                     className="iv-input amount"
                     disabled={!editable}
                   />
+                  {message && (
+                    <span id={`finding-${field}`} className="iv-field-error" role="alert">
+                      {message}
+                    </span>
+                  )}
                 </td>
-              );
+                );
+              };
               return (
                 <tr key={line}>
                   {cell("rate")}
@@ -224,6 +260,37 @@ export function CorrectionForm({
           )}
         </div>
       </fieldset>
+      {payload.czkConversion && (
+        <fieldset>
+          <legend>{t("sections.czkConversion")}</legend>
+          <p>
+            {t("czkConversion.rate", {
+              unit: payload.czkConversion.unit,
+              currency: payload.czkConversion.originalCurrency,
+              rate: payload.czkConversion.rate,
+              date: payload.czkConversion.rateDate,
+              source: payload.czkConversion.source,
+            })}
+          </p>
+          <table className="rate-breakdown">
+            <thead><tr><th>{t("fields.rate")}</th><th>{t("fields.netAmountCzk")}</th><th>{t("fields.vatAmountCzk")}</th></tr></thead>
+            <tbody>
+              {payload.czkConversion.rateBreakdown.map((line, index) => (
+                <tr key={`${line.rate}-${index}`}>
+                  <td>{line.rate}</td><td className="iv-mono">{line.netAmount}</td><td className="iv-mono">{line.vatAmount}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="iv-mono">
+            {t("czkConversion.totals", {
+              net: payload.czkConversion.totals.netAmount ?? t("notSet"),
+              vat: payload.czkConversion.totals.vatAmount ?? t("notSet"),
+              gross: payload.czkConversion.totals.grossAmount ?? t("notSet"),
+            })}
+          </p>
+        </fieldset>
+      )}
       <fieldset>
         <legend>{t("sections.payment")}</legend>
         <div className="fields">

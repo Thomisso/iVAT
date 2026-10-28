@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "documentType": null,
+  "documentNumber": null,
+  "issueDate": null,
+  "taxPointDate": null,
+  "dueDate": null,
+  "direction": null,
+  "supplier": {
+    "name": null,
+    "ico": null,
+    "vatId": null,
+    "street": null,
+    "city": null,
+    "postalCode": null,
+    "country": null
+  },
+  "customer": {
+    "name": null,
+    "ico": null,
+    "vatId": null,
+    "street": null,
+    "city": null,
+    "postalCode": null,
+    "country": null
+  },
+  "currency": null,
+  "rateBreakdown": [],
+  "totals": {
+    "netAmount": null,
+    "vatAmount": null,
+    "grossAmount": null
+  },
+  "payment": {
+    "variableSymbol": null,
+    "bankAccount": null,
+    "iban": null
+  },
+  "proposedVatRegime": null,
+  "reverseChargeCode": null,
+  "originalDocumentNumber": null
+}

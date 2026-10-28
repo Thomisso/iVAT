@@ -42,6 +42,18 @@ export type RateBreakdownLine = {
   vatAmount: string;
 };
 
+export type CzkConversion = {
+  originalCurrency: string;
+  /** CZK quoted for `unit` units of the original currency. */
+  rate: string;
+  unit: number;
+  /** Actual fixing date returned by ČNB (may precede a weekend/holiday DUZP). */
+  rateDate: string;
+  source: "CNB";
+  rateBreakdown: RateBreakdownLine[];
+  totals: { netAmount: string | null; vatAmount: string | null; grossAmount: string | null };
+};
+
 export type ExtractionPayload = {
   schemaVersion: 1;
   documentType: DocumentType | null;
@@ -58,8 +70,12 @@ export type ExtractionPayload = {
   totals: { netAmount: string | null; vatAmount: string | null; grossAmount: string | null };
   payment: { variableSymbol: string | null; bankAccount: string | null; iban: string | null };
   proposedVatRegime: VatRegime | null;
+  /** Official Control Statement subject code for domestic reverse charge. */
+  reverseChargeCode: string | null;
   /** For a Credit Note: the number of the Document it corrects. */
   originalDocumentNumber: string | null;
+  /** Derived CZK values; the printed currency and amounts above stay unchanged. */
+  czkConversion?: CzkConversion;
   /**
    * How sure the provider is of a field, from 0 to 1, keyed by the field's path
    * ("documentNumber", "supplier.vatId", "rateBreakdown.0.vatAmount"). Optional,
@@ -74,7 +90,8 @@ export type ExtractionPayloadError =
   | "invalid_rate"
   | "invalid_date"
   | "invalid_currency"
-  | "invalid_country";
+  | "invalid_country"
+  | "invalid_reverse_charge_code";
 
 /** Whether a value is null or one of the choices. */
 const isChoice = (choices: readonly string[], value: string | null) => value === null || choices.includes(value);
@@ -109,6 +126,7 @@ export function normalizeExtractionPayload(payload: ExtractionPayload): Extracti
   return {
     ...payload,
     currency: normalizeCode(payload.currency),
+    reverseChargeCode: payload.reverseChargeCode?.trim() || null,
     supplier: party(payload.supplier),
     customer: party(payload.customer),
     rateBreakdown: payload.rateBreakdown
@@ -144,6 +162,10 @@ export function validateExtractionPayload(payload: ExtractionPayload): Extractio
   const dates = [payload.issueDate, payload.taxPointDate, payload.dueDate];
   if (dates.some((date) => date !== null && !isIsoDate(date))) return "invalid_date";
   if (payload.currency !== null && !/^[A-Z]{3}$/.test(payload.currency)) return "invalid_currency";
+  const reverseChargeCode = payload.reverseChargeCode ?? null;
+  if (reverseChargeCode !== null && !/^\d{1,3}$/.test(reverseChargeCode)) {
+    return "invalid_reverse_charge_code";
+  }
   const countries = [payload.supplier.country, payload.customer.country];
   if (countries.some((country) => country !== null && !/^[A-Z]{2}$/.test(country))) return "invalid_country";
   return null;

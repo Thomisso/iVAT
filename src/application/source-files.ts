@@ -3,8 +3,15 @@ import { PDFDocument } from "pdf-lib";
 import { isUuid, type AppClient, type Result } from "./client";
 import { getCompany } from "./companies";
 import { splitJob, type JobQueue } from "./processing";
+import { workbookToText } from "./workbooks";
+import {
+  DIRECTIONS,
+  type Direction,
+} from "./extraction-payload";
 
-export type SourceFileFormat = "pdf" | "png" | "jpeg";
+export type SourceFileFormat = "pdf" | "png" | "jpeg" | "xlsx" | "xls";
+export type ImageSourceFileFormat = "pdf" | "png" | "jpeg";
+export type SpreadsheetSourceFileFormat = "xlsx" | "xls";
 
 /** Where the Split of a Source File stands; its Documents carry their own status. */
 export type SourceFileStatus = "uploaded" | "processing" | "split" | "failed";
@@ -17,16 +24,26 @@ export type SourceFile = {
   byteSize: number;
   sha256: string;
   pageCount: number;
+  preselectedDirection: Direction | null;
   status: SourceFileStatus;
   uploadedAt: string;
 };
 
-export type UploadSourceFileInput = { companyId: string; fileName: string; bytes: Uint8Array };
+export type UploadSourceFileInput = {
+  companyId: string;
+  batchId?: string;
+  fileName: string;
+  bytes: Uint8Array;
+  preselectedDirection?: Direction;
+};
 export type UploadSourceFileError =
   | "file_required"
+  | "file_too_large"
+  | "too_many_pages"
   | "unsupported_format"
   | "content_does_not_match_format"
   | "unreadable_file"
+  | "invalid_choice"
   | "forbidden";
 
 export const SOURCE_FILE_BUCKET = "source-files";
@@ -35,16 +52,47 @@ export const SOURCE_FILE_MEDIA_TYPES: Record<SourceFileFormat, string> = {
   pdf: "application/pdf",
   png: "image/png",
   jpeg: "image/jpeg",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  xls: "application/vnd.ms-excel",
 };
 
-const FORMAT_BY_EXTENSION: Record<string, SourceFileFormat> = { pdf: "pdf", png: "png", jpg: "jpeg", jpeg: "jpeg" };
+const FORMAT_BY_EXTENSION: Record<string, SourceFileFormat> = {
+  pdf: "pdf",
+  png: "png",
+  jpg: "jpeg",
+  jpeg: "jpeg",
+  xlsx: "xlsx",
+  xls: "xls",
+};
 
 // The bytes each format's content starts with.
 const SIGNATURES: Record<SourceFileFormat, number[]> = {
   pdf: [0x25, 0x50, 0x44, 0x46, 0x2d], // %PDF-
   png: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
   jpeg: [0xff, 0xd8, 0xff],
+  xlsx: [0x50, 0x4b, 0x03, 0x04],
+  xls: [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1],
 };
+
+export type UploadLimits = {
+  maxFileBytes: number;
+  maxFilePages: number;
+  maxBatchFiles: number;
+};
+
+/** Public, non-secret platform limits applied to Source File uploads. */
+export async function getUploadLimits(client: AppClient): Promise<UploadLimits> {
+  const { data, error } = await client
+    .from("platform_settings")
+    .select("max_source_file_bytes, max_source_file_pages, max_upload_batch_files")
+    .single();
+  if (error) throw error;
+  return {
+    maxFileBytes: Number(data.max_source_file_bytes),
+    maxFilePages: data.max_source_file_pages,
+    maxBatchFiles: data.max_upload_batch_files,
+  };
+}
 
 /** The format named by the file's extension. */
 function formatOf(fileName: string): SourceFileFormat | null {
@@ -57,6 +105,14 @@ function contentMatches(format: SourceFileFormat, bytes: Uint8Array): boolean {
 }
 
 async function countPages(format: SourceFileFormat, bytes: Uint8Array): Promise<number | null> {
+  if (format === "xlsx" || format === "xls") {
+    try {
+      workbookToText(bytes);
+      return 1;
+    } catch {
+      return null;
+    }
+  }
   if (format !== "pdf") return 1;
   try {
     const pdf = await PDFDocument.load(bytes, { ignoreEncryption: true, updateMetadata: false });
@@ -90,11 +146,21 @@ export async function uploadSourceFile(
 ): Promise<Result<{ id: string }, UploadSourceFileError>> {
   const fileName = input.fileName.trim();
   if (!fileName || input.bytes.length === 0) return { ok: false, error: "file_required" };
+  if (input.batchId !== undefined && !isUuid(input.batchId)) return { ok: false, error: "forbidden" };
+  if (
+    input.preselectedDirection !== undefined &&
+    !DIRECTIONS.includes(input.preselectedDirection)
+  ) {
+    return { ok: false, error: "invalid_choice" };
+  }
+  const limits = await getUploadLimits(client);
+  if (input.bytes.length > limits.maxFileBytes) return { ok: false, error: "file_too_large" };
   const format = formatOf(fileName);
   if (!format) return { ok: false, error: "unsupported_format" };
   if (!contentMatches(format, input.bytes)) return { ok: false, error: "content_does_not_match_format" };
   const pageCount = await countPages(format, input.bytes);
   if (!pageCount) return { ok: false, error: "unreadable_file" };
+  if (pageCount > limits.maxFilePages) return { ok: false, error: "too_many_pages" };
 
   // Only for the Organization of the row; RLS hides Companies the user cannot access.
   const company = await getCompany(client, input.companyId);
@@ -113,11 +179,13 @@ export async function uploadSourceFile(
     id,
     organization_id: company.organizationId,
     company_id: company.id,
+    upload_batch_id: input.batchId ?? null,
     file_name: fileName,
     format,
     byte_size: input.bytes.length,
     sha256: createHash("sha256").update(input.bytes).digest("hex"),
     page_count: pageCount,
+    preselected_direction: input.preselectedDirection ?? null,
   });
   if (error) {
     if (error.code === "42501") return { ok: false, error: "forbidden" };
@@ -127,7 +195,7 @@ export async function uploadSourceFile(
   return { ok: true, value: { id } };
 }
 
-const COLUMNS = "id, company_id, file_name, format, byte_size, sha256, page_count, status, uploaded_at";
+const COLUMNS = "id, company_id, file_name, format, byte_size, sha256, page_count, preselected_direction, status, uploaded_at";
 
 type SourceFileRow = {
   id: string;
@@ -137,6 +205,7 @@ type SourceFileRow = {
   byte_size: number;
   sha256: string;
   page_count: number;
+  preselected_direction: string | null;
   status: SourceFileStatus;
   uploaded_at: string;
 };
@@ -150,6 +219,7 @@ function toSourceFile(row: SourceFileRow): SourceFile {
     byteSize: row.byte_size,
     sha256: row.sha256,
     pageCount: row.page_count,
+    preselectedDirection: row.preselected_direction as Direction | null,
     status: row.status,
     uploadedAt: row.uploaded_at,
   };

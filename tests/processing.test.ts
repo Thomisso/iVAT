@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import type { AiInput } from "@/application/ai-provider";
 import { listAuditEvents } from "@/application/audit";
 import { disableAiProcessing, enableAiProcessing, getCompany } from "@/application/companies";
-import { listDocuments, listExtractionVersions, reprocessDocument } from "@/application/documents";
-import type { ExtractionPayload } from "@/application/extraction-payload";
+import { listDocuments, listExtractionVersions, readDocumentRows, reprocessDocument } from "@/application/documents";
+import type { Direction, ExtractionPayload } from "@/application/extraction-payload";
 import { getSourceFile, retrySplit, uploadSourceFile } from "@/application/source-files";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { signedUpUser } from "./support/clients";
-import { fixtureFile } from "./support/files";
+import { fixtureFile, workbookFile } from "./support/files";
 import { administratorWithCompany } from "./support/fixtures";
 import { testWorker } from "./support/worker";
 
@@ -29,8 +29,14 @@ async function upload(
   { client, companyId }: { client: Awaited<ReturnType<typeof administratorWithCompany>>["client"]; companyId: string },
   worker: ReturnType<typeof testWorker>,
   fixture = "two-invoices.pdf",
+  preselectedDirection: Direction | null = "incoming",
 ) {
-  const result = await uploadSourceFile(client, worker.jobs, { companyId, fileName: fixture, bytes: fixtureFile(fixture) });
+  const result = await uploadSourceFile(client, worker.jobs, {
+    companyId,
+    fileName: fixture,
+    bytes: fixtureFile(fixture),
+    preselectedDirection: preselectedDirection ?? undefined,
+  });
   if (!result.ok) throw new Error(result.error);
   return result.value.id;
 }
@@ -71,10 +77,188 @@ describe("processing a Source File", () => {
         version: 1,
         author: { kind: "ai", provider: "fake", model: "fake-extract" },
         payload: INVOICE_1,
+        findings: [],
         createdAt: expect.any(String),
       },
     ]);
     expect((await listExtractionVersions(client, companyId, documents[1].id)).map((v) => v.payload)).toEqual([INVOICE_2]);
+  });
+});
+
+describe("VAT payer registry checks", () => {
+  it("stores unreliable-payer and unpublished-account warnings on the Extraction Version", async () => {
+    const worker = testWorker(fakeAiProvider(), {
+      check: async () => ({
+        outcome: "checked",
+        unreliable: true,
+        publishedAccounts: ["19-2000145399/0800"],
+      }),
+    });
+    const { client, companyId } = await companyWithAiProcessing(worker);
+    const sourceFileId = await upload(
+      { client, companyId },
+      worker,
+      "receipt.png",
+    );
+
+    expect(await worker.runJobs()).toEqual([]);
+
+    const [document] = await listDocuments(client, companyId, sourceFileId);
+    expect(document.status).toBe("needs_review");
+    const [version] = await listExtractionVersions(
+      client,
+      companyId,
+      document.id,
+    );
+    expect(version.findings).toEqual([
+      {
+        field: "supplier.vatId",
+        severity: "warning",
+        code: "unreliable_vat_payer",
+      },
+      {
+        field: "payment.bankAccount",
+        severity: "warning",
+        code: "unpublished_bank_account",
+      },
+    ]);
+  });
+
+  it("finishes processing and records that an unavailable registry check was not performed", async () => {
+    const worker = testWorker(fakeAiProvider(), {
+      check: async () => ({ outcome: "unavailable" }),
+    });
+    const { client, companyId } = await companyWithAiProcessing(worker);
+    const sourceFileId = await upload(
+      { client, companyId },
+      worker,
+      "receipt.png",
+    );
+
+    expect(await worker.runJobs()).toEqual([]);
+
+    const [document] = await listDocuments(client, companyId, sourceFileId);
+    expect(document.status).toBe("needs_review");
+    const [version] = await listExtractionVersions(
+      client,
+      companyId,
+      document.id,
+    );
+    expect(version.findings).toContainEqual({
+      field: "supplier.vatId",
+      severity: "warning",
+      code: "vat_registry_check_not_performed",
+    });
+  });
+});
+
+describe("automatic Direction detection", () => {
+  it.each([
+    ["supplier", "outgoing"],
+    ["customer", "incoming"],
+  ] as const)("uses a Company identity match on the %s", async (party, direction) => {
+    const companyIdentity = { ico: "", vatId: "" };
+    const worker = testWorker(
+      fakeAiProvider({
+        extract: () => ({
+          ...SAMPLE_EXTRACTION,
+          direction: direction === "incoming" ? "outgoing" : "incoming",
+          [party]: {
+            ...SAMPLE_EXTRACTION[party],
+            ico: companyIdentity.ico,
+            vatId: companyIdentity.vatId,
+          },
+        }),
+      }),
+    );
+    const { client, companyId } = await companyWithAiProcessing(worker);
+    const company = await getCompany(client, companyId);
+    if (!company) throw new Error("Company missing");
+    Object.assign(companyIdentity, company);
+    const sourceFileId = await upload(
+      { client, companyId },
+      worker,
+      "receipt.png",
+      null,
+    );
+
+    await worker.runJobs();
+
+    const [document] = await listDocuments(client, companyId, sourceFileId);
+    const [version] = await listExtractionVersions(
+      client,
+      companyId,
+      document.id,
+    );
+    expect(version.payload.direction).toBe(direction);
+    expect(version.findings).not.toContainEqual(
+      expect.objectContaining({ code: "direction_unknown" }),
+    );
+  });
+
+  it("lets an upload preselection win", async () => {
+    const worker = testWorker();
+    const { client, companyId } = await companyWithAiProcessing(worker);
+    const uploaded = await uploadSourceFile(client, worker.jobs, {
+      companyId,
+      fileName: "receipt.png",
+      bytes: fixtureFile("receipt.png"),
+      preselectedDirection: "outgoing",
+    });
+    if (!uploaded.ok) throw new Error(uploaded.error);
+
+    await worker.runJobs();
+
+    const [document] = await listDocuments(client, companyId, uploaded.value.id);
+    const [version] = await listExtractionVersions(client, companyId, document.id);
+    expect(version.payload.direction).toBe("outgoing");
+  });
+
+  it("sets no Direction and records a warning when neither party matches", async () => {
+    const worker = testWorker();
+    const { client, companyId } = await companyWithAiProcessing(worker);
+    const sourceFileId = await upload(
+      { client, companyId },
+      worker,
+      "receipt.png",
+      null,
+    );
+
+    await worker.runJobs();
+
+    const [document] = await listDocuments(client, companyId, sourceFileId);
+    const [version] = await listExtractionVersions(client, companyId, document.id);
+    expect(version.payload.direction).toBeNull();
+    expect(version.findings).toContainEqual({
+      field: "direction",
+      severity: "warning",
+      code: "direction_unknown",
+    });
+  });
+});
+
+describe("foreign currency conversion", () => {
+  it("stores original amounts and the ČNB-derived CZK amounts on the Extraction Version", async () => {
+    const foreign = {
+      ...SAMPLE_EXTRACTION,
+      currency: "EUR",
+      rateBreakdown: [{ rate: 21, netAmount: "10.00", vatAmount: "2.10" }],
+      totals: { netAmount: "10.00", vatAmount: "2.10", grossAmount: "12.10" },
+    };
+    const worker = testWorker(fakeAiProvider({ extract: () => foreign }));
+    const { client, companyId } = await companyWithAiProcessing(worker);
+    const sourceFileId = await upload({ client, companyId }, worker, "receipt.png");
+
+    await worker.runJobs();
+
+    const [document] = await listDocuments(client, companyId, sourceFileId);
+    const [version] = await listExtractionVersions(client, companyId, document.id);
+    expect(version.payload.totals).toEqual(foreign.totals);
+    expect(version.payload.czkConversion).toEqual({
+      originalCurrency: "EUR", rate: "25.00", unit: 1, rateDate: "2026-10-01", source: "CNB",
+      rateBreakdown: [{ rate: 21, netAmount: "250.00", vatAmount: "52.50" }],
+      totals: { netAmount: "250.00", vatAmount: "52.50", grossAmount: "302.50" },
+    });
   });
 });
 
@@ -158,20 +342,59 @@ describe("AI-processing consent", () => {
     expect((await getSourceFile(client, companyId, sourceFileId))?.status).toBe("uploaded");
   });
 
-  it("is audited with the provider and region when enabled and disabled", async () => {
-    const worker = testWorker();
-    const { client, userId, organizationId, companyId } = await companyWithAiProcessing(worker);
+  it("uses and audits the provider selected in the Company's consent", async () => {
+    let fakeCalls = 0;
+    let openAiCalls = 0;
+    const fake = fakeAiProvider({
+      split: () => (++fakeCalls, [{ firstPage: 1, lastPage: 1 }]),
+      extract: () => (++fakeCalls, SAMPLE_EXTRACTION),
+    });
+    const openai = {
+      ...fakeAiProvider({
+        split: () => (++openAiCalls, [{ firstPage: 1, lastPage: 1 }]),
+        extract: () => (++openAiCalls, SAMPLE_EXTRACTION),
+      }),
+      name: "openai",
+      region: "global",
+    };
+    const worker = testWorker([fake, openai]);
+    const { client, userId, organizationId, companyId } = await administratorWithCompany();
+
+    expect(await enableAiProcessing(client, worker.jobs, { companyId, provider: openai })).toEqual({
+      ok: true,
+      value: null,
+    });
+    const sourceFileId = await upload({ client, companyId }, worker, "receipt.png");
+    await worker.runJobs();
+
+    const [document] = await listDocuments(client, companyId, sourceFileId);
+    expect(fakeCalls).toBe(0);
+    expect(openAiCalls).toBe(2);
+    expect((await listExtractionVersions(client, companyId, document.id))[0].author).toEqual({
+      kind: "ai",
+      provider: "openai",
+      model: "fake-extract",
+    });
+    expect(await enableAiProcessing(client, worker.jobs, { companyId, provider: fake })).toEqual({
+      ok: true,
+      value: null,
+    });
+    expect((await getCompany(client, companyId))?.aiProcessing).toEqual({ provider: "fake", region: "local" });
     await disableAiProcessing(client, companyId);
 
-    const events = await listAuditEvents(client, organizationId);
-
-    expect(events.slice(-2)).toEqual([
+    const aiConsentEvents = (await listAuditEvents(client, organizationId))
+      .filter((event) => event.action.startsWith("company.ai_processing_"));
+    expect(aiConsentEvents.slice(-3)).toEqual([
       expect.objectContaining({
         action: "company.ai_processing_enabled",
         actorUserId: userId,
         companyId,
-        targetType: "company",
-        targetId: companyId,
+        payload: { provider: "openai", region: "global" },
+      }),
+      expect.objectContaining({
+        action: "company.ai_processing_enabled",
+        actorUserId: userId,
+        companyId,
         payload: { provider: "fake", region: "local" },
       }),
       expect.objectContaining({
@@ -202,6 +425,122 @@ describe("AI-processing consent", () => {
 });
 
 describe("Split", () => {
+  it.each(["xlsx", "xls"] as const)("converts a .%s invoice list to text and creates one row-based Document per invoice", async (format) => {
+    const splitInputs: AiInput[] = [];
+    const extracted: AiInput[] = [];
+    const worker = testWorker(fakeAiProvider({
+      split: (input) => {
+        splitInputs.push(input);
+        return [
+          { sheetName: "Invoices", firstRow: 2, lastRow: 2 },
+          { sheetName: "Invoices", firstRow: 3, lastRow: 3 },
+        ];
+      },
+      extract: (input) => {
+        extracted.push(input);
+        return extracted.length === 1 ? INVOICE_1 : INVOICE_2;
+      },
+    }));
+    const { client, companyId } = await companyWithAiProcessing(worker);
+    const bytes = workbookFile(format, [
+      ["Document number", "Issue date", "Gross amount"],
+      ["FV-1", new Date("2026-10-01T00:00:00.000Z"), 1210],
+      ["FV-2", new Date("2026-10-02T00:00:00.000Z"), 2420.5],
+    ]);
+    const uploaded = await uploadSourceFile(client, worker.jobs, {
+      companyId,
+      fileName: `invoice-list.${format}`,
+      bytes,
+    });
+    if (!uploaded.ok) throw new Error(uploaded.error);
+
+    expect(await worker.runJobs()).toEqual([]);
+
+    expect(new TextDecoder().decode(splitInputs[0].bytes)).toContain(
+      '[Sheet "Invoices"]\n1\tDocument number\tIssue date\tGross amount\n2\tFV-1\t2026-10-01\t1210',
+    );
+    expect(extracted.map((input) => new TextDecoder().decode(input.bytes))).toEqual([
+      '[Sheet "Invoices"]\n1\tDocument number\tIssue date\tGross amount\n2\tFV-1\t2026-10-01\t1210',
+      '[Sheet "Invoices"]\n1\tDocument number\tIssue date\tGross amount\n3\tFV-2\t2026-10-02\t2420.5',
+    ]);
+    const documents = await listDocuments(client, companyId, uploaded.value.id);
+    expect(documents).toEqual([
+      expect.objectContaining({
+        rowSet: { sheetName: "Invoices", firstRow: 2, lastRow: 2 },
+        hasDocumentImage: false,
+        status: "needs_review",
+      }),
+      expect.objectContaining({
+        rowSet: { sheetName: "Invoices", firstRow: 3, lastRow: 3 },
+        hasDocumentImage: false,
+        status: "needs_review",
+      }),
+    ]);
+    expect(await readDocumentRows(client, companyId, documents[1].id)).toEqual({
+      fileName: `invoice-list.${format}`,
+      sheetName: "Invoices",
+      firstRow: 3,
+      lastRow: 3,
+      text: '[Sheet "Invoices"]\n1\tDocument number\tIssue date\tGross amount\n3\tFV-2\t2026-10-02\t2420.5',
+    });
+  });
+
+  it("creates one Document when Split identifies a single invoice workbook", async () => {
+    const worker = testWorker(fakeAiProvider({
+      split: () => [{ sheetName: "Invoice", firstRow: 1, lastRow: 4 }],
+    }));
+    const { client, companyId } = await companyWithAiProcessing(worker);
+    const bytes = workbookFile("xlsx", [
+      ["Invoice number", "FV-100"],
+      ["Issue date", new Date("2026-10-01T00:00:00.000Z")],
+      ["Net", 1000],
+      ["VAT", 210],
+    ], "Invoice");
+    const uploaded = await uploadSourceFile(client, worker.jobs, {
+      companyId,
+      fileName: "invoice.xlsx",
+      bytes,
+    });
+    if (!uploaded.ok) throw new Error(uploaded.error);
+
+    expect(await worker.runJobs()).toEqual([]);
+    expect(await listDocuments(client, companyId, uploaded.value.id)).toEqual([
+      expect.objectContaining({
+        rowSet: { sheetName: "Invoice", firstRow: 1, lastRow: 4 },
+        hasDocumentImage: false,
+        status: "needs_review",
+      }),
+    ]);
+  });
+
+  it.each([
+    ["an unknown sheet", [{ sheetName: "Missing", firstRow: 2, lastRow: 2 }]],
+    ["a row past the worksheet", [{ sheetName: "Invoices", firstRow: 4, lastRow: 4 }]],
+    ["overlapping row sets", [
+      { sheetName: "Invoices", firstRow: 2, lastRow: 3 },
+      { sheetName: "Invoices", firstRow: 3, lastRow: 3 },
+    ]],
+    ["a page range", [{ firstPage: 1, lastPage: 1 }]],
+  ])("fails a workbook when the provider returns %s", async (_case, ranges) => {
+    const worker = testWorker(fakeAiProvider({ split: () => ranges }));
+    const { client, companyId } = await companyWithAiProcessing(worker);
+    const bytes = workbookFile("xlsx", [
+      ["Document number"],
+      ["FV-1"],
+      ["FV-2"],
+    ]);
+    const uploaded = await uploadSourceFile(client, worker.jobs, {
+      companyId,
+      fileName: "invoice-list.xlsx",
+      bytes,
+    });
+    if (!uploaded.ok) throw new Error(uploaded.error);
+
+    expect(await worker.runJobs()).toHaveLength(1);
+    expect((await getSourceFile(client, companyId, uploaded.value.id))?.status).toBe("failed");
+    expect(await listDocuments(client, companyId, uploaded.value.id)).toEqual([]);
+  });
+
   it("records each Document with the page range the provider found", async () => {
     const extracted: AiInput[] = [];
     const worker = testWorker(

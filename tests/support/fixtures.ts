@@ -1,4 +1,7 @@
-import { createCompany, type CompanyDetails } from "@/application/companies";
+import {
+  createCompany,
+  type CompanySettingsInput,
+} from "@/application/companies";
 import { signedUpUser } from "./clients";
 import { systemClient } from "./worker";
 
@@ -6,8 +9,8 @@ let icoCounter = 0;
 
 /** A random but well-formed set of Company details. */
 export function companyDetails(
-  overrides: Partial<CompanyDetails> = {},
-): CompanyDetails {
+  overrides: Partial<CompanySettingsInput> = {},
+): CompanySettingsInput {
   const ico = String(
     10_000_000 + ((Date.now() + icoCounter++) % 89_999_999),
   ).slice(0, 8);
@@ -18,6 +21,9 @@ export function companyDetails(
     street: "Vinohradská 12",
     city: "Praha",
     postalCode: "120 00",
+    personType: "legal",
+    filingFrequency: "monthly",
+    filingFrequencyEffectiveFrom: "2026-01-01",
     ...overrides,
   };
 }
@@ -50,40 +56,45 @@ export async function companyMember(
       user_id: user.userId,
       organization_id: organizationId,
       company_id: companyId,
+      email: user.email,
       role,
     });
   if (error) throw error;
   return user;
 }
 
-/** Large report fixture. Uses the worker's narrow write functions to avoid 1001
- * full PDF extraction jobs; application tests still generate/read as a User. */
+/** Large report fixture. Uses platform-sized Source Files and the worker's narrow
+ * write functions to avoid 1001 full PDF extraction jobs; application tests still
+ * generate/read as a User. */
 export async function companyWithManyReportDocuments(count: number) {
   const { PDFDocument } = await import("pdf-lib");
   const { uploadSourceFile } = await import("@/application/source-files");
   const { SAMPLE_EXTRACTION } = await import("@/ai/fake");
   const admin = await administratorWithCompany();
-  const pdf = await PDFDocument.create();
-  for (let i = 0; i < count; i++) pdf.addPage();
-  const file = await uploadSourceFile(
-    admin.client,
-    { async send() {} },
-    {
-      companyId: admin.companyId,
-      fileName: "many.pdf",
-      bytes: await pdf.save(),
-    },
-  );
-  if (!file.ok) throw new Error(file.error);
   const system = systemClient();
-  const split = await system.rpc("record_split", {
-    target_source_file_id: file.value.id,
-    page_ranges: Array.from({ length: count }, (_, i) => ({
-      firstPage: i + 1,
-      lastPage: i + 1,
-    })),
-  });
-  if (split.error) throw split.error;
+  for (let first = 0; first < count; first += 50) {
+    const pageCount = Math.min(50, count - first);
+    const pdf = await PDFDocument.create();
+    for (let page = 0; page < pageCount; page++) pdf.addPage();
+    const file = await uploadSourceFile(
+      admin.client,
+      { async send() {} },
+      {
+        companyId: admin.companyId,
+        fileName: `many-${first / 50 + 1}.pdf`,
+        bytes: await pdf.save(),
+      },
+    );
+    if (!file.ok) throw new Error(file.error);
+    const split = await system.rpc("record_split", {
+      target_source_file_id: file.value.id,
+      source_ranges: Array.from({ length: pageCount }, (_, i) => ({
+        firstPage: i + 1,
+        lastPage: i + 1,
+      })),
+    });
+    if (split.error) throw split.error;
+  }
   for (let offset = 0; offset < count; offset += 100) {
     const { data, error } = await system
       .from("document")
@@ -100,6 +111,7 @@ export async function companyWithManyReportDocuments(count: number) {
           provider: "fake",
           model: "fake-extract",
           payload: SAMPLE_EXTRACTION,
+          findings: [],
         });
         if (result.error) throw result.error;
       }),
