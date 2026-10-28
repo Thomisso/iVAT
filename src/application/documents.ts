@@ -300,7 +300,12 @@ export async function listExtractionVersions(
   }));
 }
 
-export type CorrectDocumentError = ExtractionPayloadError | "not_in_review" | "stale_version" | "forbidden";
+export type CorrectDocumentError =
+  | ExtractionPayloadError
+  | "not_in_review"
+  | "stale_version"
+  | "period_locked"
+  | "forbidden";
 
 /**
  * Saves a User's corrections of a Document in review as its next Extraction
@@ -337,7 +342,7 @@ export async function correctDocument(
       ...conversion.findings,
     ],
   });
-  if (error) return refusal(error, ["not_in_review", "stale_version"]);
+  if (error) return refusal(error, ["not_in_review", "stale_version", "period_locked"]);
   return { ok: true, value: { version } };
 }
 
@@ -349,14 +354,14 @@ export async function correctDocument(
 export async function approveDocument(
   client: AppClient,
   input: { companyId: string; documentId: string; version: number },
-): Promise<Result<null, "not_in_review" | "stale_version" | "direction_required" | "forbidden">> {
+): Promise<Result<null, "not_in_review" | "stale_version" | "direction_required" | "period_locked" | "forbidden">> {
   const document = await findDocumentId(client, input.companyId, input.documentId);
   if (!document) return { ok: false, error: "forbidden" };
   const { error } = await client.rpc("approve_document", {
     target_document_id: document,
     reviewed_version: input.version,
   });
-  if (error) return refusal(error, ["not_in_review", "stale_version", "direction_required"]);
+  if (error) return refusal(error, ["not_in_review", "stale_version", "direction_required", "period_locked"]);
   return { ok: true, value: null };
 }
 
@@ -364,11 +369,11 @@ export async function approveDocument(
 export async function rejectDocument(
   client: AppClient,
   input: { companyId: string; documentId: string },
-): Promise<Result<null, "not_in_review" | "forbidden">> {
+): Promise<Result<null, "not_in_review" | "period_locked" | "forbidden">> {
   const document = await findDocumentId(client, input.companyId, input.documentId);
   if (!document) return { ok: false, error: "forbidden" };
   const { error } = await client.rpc("reject_document", { target_document_id: document });
-  if (error) return refusal(error, ["not_in_review"]);
+  if (error) return refusal(error, ["not_in_review", "period_locked"]);
   return { ok: true, value: null };
 }
 
@@ -378,6 +383,7 @@ export type UpdateDocumentReportingError =
   | "invalid_reporting_period"
   | "claimed_period_not_later"
   | "incoming_required"
+  | "period_locked"
   | "forbidden";
 
 function validDate(value: string): boolean {
@@ -421,6 +427,7 @@ export async function updateDocumentReporting(
       "invalid_reporting_period",
       "claimed_period_not_later",
       "incoming_required",
+      "period_locked",
     ]);
   }
   return { ok: true, value: null };
@@ -456,16 +463,16 @@ export async function reprocessDocument(
   client: AppClient,
   jobs: JobQueue,
   input: { companyId: string; documentId: string },
-): Promise<Result<null, "not_reprocessable" | "forbidden">> {
+): Promise<Result<null, "not_reprocessable" | "period_locked" | "forbidden">> {
   const document = await findDocumentId(client, input.companyId, input.documentId);
   if (!document) return { ok: false, error: "forbidden" };
   const { error } = await client.rpc("reprocess_document", { target_document_id: document });
-  if (error) return refusal(error, ["not_reprocessable"]);
+  if (error) return refusal(error, ["not_reprocessable", "period_locked"]);
   await jobs.send(extractJob(document));
   return { ok: true, value: null };
 }
 
-export type CorrectSplitError = "not_correctable" | "invalid_split_boundary" | "forbidden";
+export type CorrectSplitError = "not_correctable" | "invalid_split_boundary" | "period_locked" | "forbidden";
 
 async function enqueueCorrectedDocuments(jobs: JobQueue, documentIds: string[]) {
   for (const documentId of documentIds) await jobs.send(extractJob(documentId));
@@ -486,7 +493,7 @@ export async function mergeDocuments(
     left_document_id: left,
     right_document_id: right,
   });
-  if (error) return refusal(error, ["not_correctable", "invalid_split_boundary"]);
+  if (error) return refusal(error, ["not_correctable", "invalid_split_boundary", "period_locked"]);
   await enqueueCorrectedDocuments(jobs, data);
   return { ok: true, value: null };
 }
@@ -503,7 +510,7 @@ export async function splitDocument(
     target_document_id: document,
     split_after_page: input.splitAfterPage,
   });
-  if (error) return refusal(error, ["not_correctable", "invalid_split_boundary"]);
+  if (error) return refusal(error, ["not_correctable", "invalid_split_boundary", "period_locked"]);
   await enqueueCorrectedDocuments(jobs, data);
   return { ok: true, value: null };
 }
@@ -524,7 +531,7 @@ export async function moveDocumentPage(
     target_document_id: target,
     page: input.page,
   });
-  if (error) return refusal(error, ["not_correctable", "invalid_split_boundary"]);
+  if (error) return refusal(error, ["not_correctable", "invalid_split_boundary", "period_locked"]);
   await enqueueCorrectedDocuments(jobs, data);
   return { ok: true, value: null };
 }

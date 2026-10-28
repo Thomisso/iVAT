@@ -299,6 +299,32 @@ isOneToOne: false
       referencedColumns: ["provider"]
     }
                   ]
+                },"period_lock": {
+                  Row: {
+                    "company_id": string,"locked_at": string,"locked_by": string,"organization_id": string,"period": string,"vat_report_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "company_id": string,"locked_at"?: string,"locked_by": string,"organization_id": string,"period": string,"vat_report_id": string
+                  }
+                  Update: {
+                    "company_id"?: string,"locked_at"?: string,"locked_by"?: string,"organization_id"?: string,"period"?: string,"vat_report_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "period_lock_company_id_organization_id_fkey"
+      columns: ["company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "company"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "period_lock_vat_report_id_fkey"
+      columns: ["vat_report_id"]
+isOneToOne: false
+      referencedRelation: "vat_report"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"platform_ai_provider": {
                   Row: {
                     "available": boolean,"extract_model": string,"platform_key_last_four": string | null,"platform_key_secret_id": string | null,"provider": string,"split_model": string,"updated_at": string,"updated_by": string | null
@@ -487,6 +513,9 @@ isOneToOne: false
 "current_user_can_use_application":
 { Args: Record<PropertyKey, never>; Returns: boolean
                            },
+"finalize_vat_report":
+{ Args: { "target_company_id": string,"target_period": string }; Returns: undefined
+                           },
 "finish_mfa_disenrollment":
 { Args: Record<PropertyKey, never>; Returns: undefined
                            },
@@ -597,6 +626,9 @@ isOneToOne: false
                            },
 "split_document":
 { Args: { "split_after_page": number,"target_document_id": string }; Returns: (string)[]
+                           },
+"unlock_reporting_period":
+{ Args: { "target_company_id": string,"target_period": string }; Returns: undefined
                            },
 "update_company":
 { Args: { "company_city": string,"company_ico": string,"company_name": string,"company_person_type": Database["public"]['Enums']["person_type"],"company_postal_code": string,"company_street": string,"company_vat_id": string,"filing_frequency_effective_from": string,"new_filing_frequency": Database["public"]['Enums']["filing_frequency"],"target_company_id": string }; Returns: undefined
