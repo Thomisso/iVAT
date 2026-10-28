@@ -10,6 +10,7 @@ import {
   rejectDocument,
   reprocessDocument,
   splitDocument,
+  updateDocumentReporting,
 } from "@/application/documents";
 import { enableAiProcessing } from "@/application/companies";
 import { uploadSourceFile } from "@/application/source-files";
@@ -23,7 +24,13 @@ import { administratorWithCompany, companyMember } from "./support/fixtures";
 import { fixtureFile } from "./support/files";
 import { systemClient, testWorker } from "./support/worker";
 
-async function lockedCompanyWithDocuments({ approveFirst = false } = {}) {
+async function lockedCompanyWithDocuments({
+  approveFirst = false,
+  period = "2026-10",
+}: {
+  approveFirst?: boolean;
+  period?: string;
+} = {}) {
   const company = await administratorWithCompany();
   const worker = testWorker();
   await enableAiProcessing(company.client, worker.jobs, {
@@ -48,7 +55,7 @@ async function lockedCompanyWithDocuments({ approveFirst = false } = {}) {
       }),
     ).toEqual({ ok: true, value: null });
   }
-  const report = { companyId: company.companyId, period: "2026-10" };
+  const report = { companyId: company.companyId, period };
   expect((await generateVatReport(company.client, report)).ok).toBe(true);
   expect(await finalizeVatReport(company.client, report)).toEqual({ ok: true, value: null });
   return { ...company, documents, worker };
@@ -197,6 +204,30 @@ it("keeps the finalized VAT Report snapshot fixed until the period is unlocked",
     await generateVatReport(company.client, {
       companyId: company.companyId,
       period: "2026-10",
+    }),
+  ).toEqual({ ok: false, error: "period_locked" });
+});
+
+it("refuses moving a Document out of a locked Reporting Period", async () => {
+  const company = await lockedCompanyWithDocuments();
+  expect(
+    await updateDocumentReporting(company.client, {
+      companyId: company.companyId,
+      documentId: company.documents[0].id,
+      receiptDate: company.documents[0].receiptDate,
+      claimedReportingPeriod: "2026-11",
+    }),
+  ).toEqual({ ok: false, error: "period_locked" });
+});
+
+it("refuses moving a Document into a locked Reporting Period", async () => {
+  const company = await lockedCompanyWithDocuments({ period: "2026-11" });
+  expect(
+    await updateDocumentReporting(company.client, {
+      companyId: company.companyId,
+      documentId: company.documents[0].id,
+      receiptDate: company.documents[0].receiptDate,
+      claimedReportingPeriod: "2026-11",
     }),
   ).toEqual({ ok: false, error: "period_locked" });
 });

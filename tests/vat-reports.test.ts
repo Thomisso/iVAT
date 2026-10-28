@@ -1,7 +1,15 @@
 import { expect, it } from "vitest";
 import { generateVatReport, getVatReport } from "@/application/vat-reports";
-import { approveDocument, listDocuments } from "@/application/documents";
-import { enableAiProcessing } from "@/application/companies";
+import {
+  approveDocument,
+  listDocuments,
+  updateDocumentReporting,
+} from "@/application/documents";
+import {
+  enableAiProcessing,
+  getCompany,
+  updateCompany,
+} from "@/application/companies";
 import { listAuditEvents } from "@/application/audit";
 import { uploadSourceFile } from "@/application/source-files";
 import { administratorWithCompany, companyMember, companyWithManyReportDocuments } from "./support/fixtures";
@@ -86,6 +94,82 @@ it("a Company User generates a stored draft, with exclusions, source versions an
   expect(
     events.filter((e) => e.action === "vat_report.generated"),
   ).toHaveLength(2);
+});
+
+it("includes an incoming Document only in its Receipt Date or explicitly later claimed period", async () => {
+  const company = await companyWithReportDocuments();
+  const documentId = company.documents[0].id;
+
+  expect(
+    await updateDocumentReporting(company.client, {
+      companyId: company.companyId,
+      documentId,
+      receiptDate: "2026-11-05",
+      claimedReportingPeriod: null,
+    }),
+  ).toEqual({ ok: true, value: null });
+  await generateVatReport(company.client, {
+    companyId: company.companyId,
+    period: "2026-10",
+  });
+  await generateVatReport(company.client, {
+    companyId: company.companyId,
+    period: "2026-11",
+  });
+  expect(
+    (await getVatReport(company.client, company.companyId, "2026-10"))!.result
+      .vatReturn.find((line) => line.line === "40")!.documentIds,
+  ).toEqual([]);
+  expect(
+    (await getVatReport(company.client, company.companyId, "2026-11"))!.result
+      .vatReturn.find((line) => line.line === "40")!.documentIds,
+  ).toEqual([documentId]);
+
+  await updateDocumentReporting(company.client, {
+    companyId: company.companyId,
+    documentId,
+    receiptDate: "2026-11-05",
+    claimedReportingPeriod: "2026-12",
+  });
+  await generateVatReport(company.client, {
+    companyId: company.companyId,
+    period: "2026-12",
+  });
+  expect(
+    (await getVatReport(company.client, company.companyId, "2026-12"))!.result
+      .vatReturn.find((line) => line.line === "40")!.documentIds,
+  ).toEqual([documentId]);
+});
+
+it("generates quarterly Reporting Periods when the Company's filing frequency changes", async () => {
+  const company = await companyWithReportDocuments();
+  const details = await getCompany(company.client, company.companyId);
+  if (!details) throw new Error("Company not found");
+  expect(
+    await updateCompany(company.client, {
+      companyId: company.companyId,
+      ...details,
+      filingFrequency: "quarterly",
+      filingFrequencyEffectiveFrom: "2026-01-01",
+    }),
+  ).toEqual({ ok: true, value: null });
+
+  expect(
+    await generateVatReport(company.client, {
+      companyId: company.companyId,
+      period: "2026-10",
+    }),
+  ).toEqual({ ok: false, error: "invalid_reporting_period" });
+  expect(
+    await generateVatReport(company.client, {
+      companyId: company.companyId,
+      period: "2026-Q4",
+    }),
+  ).toEqual({ ok: true, value: { id: expect.any(String) } });
+  expect(
+    (await getVatReport(company.client, company.companyId, "2026-Q4"))!.result
+      .vatReturn.find((line) => line.line === "40")!.documentIds,
+  ).toEqual([company.documents[0].id]);
 });
 it("isolates stored reports and generation from another Organization, including direct database access", async () => {
   const a = await companyWithReportDocuments();

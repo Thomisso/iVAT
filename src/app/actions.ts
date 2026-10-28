@@ -33,6 +33,7 @@ import {
   rejectDocument,
   reprocessDocument,
   splitDocument,
+  updateDocumentReporting,
 } from "@/application/documents";
 import type { ExtractionPayload, Party } from "@/application/extraction-payload";
 import { retrySplit, uploadSourceFile } from "@/application/source-files";
@@ -388,6 +389,26 @@ export async function rejectDocumentAction(_state: FormState, formData: FormData
       documentId: field(formData, "documentId"),
     }),
   );
+}
+
+export async function updateDocumentReportingAction(
+  _state: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const result = await updateDocumentReporting(await requireUserClient(), {
+    companyId: field(formData, "companyId"),
+    documentId: field(formData, "documentId"),
+    receiptDate: field(formData, "receiptDate"),
+    claimedReportingPeriod: optionalField(formData, "claimedReportingPeriod"),
+  });
+  if (!result.ok) {
+    return refused(result.error, formData, [
+      "receiptDate",
+      "claimedReportingPeriod",
+    ]);
+  }
+  refresh();
+  return { error: null, values: {} };
 }
 
 export async function setLocaleAction(formData: FormData): Promise<void> {

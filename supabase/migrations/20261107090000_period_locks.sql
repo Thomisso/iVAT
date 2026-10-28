@@ -98,31 +98,38 @@ revoke execute on function public.finalize_vat_report, public.unlock_reporting_p
 grant execute on function public.finalize_vat_report(uuid, text),
   public.unlock_reporting_period(uuid, text) to authenticated;
 
--- The assigned period is derived from the latest immutable Extraction Version.
--- Ticket #43 replaces this body with Receipt Date / claimed-period semantics;
--- the lock guards below deliberately depend on this one private seam.
+-- Keep every lock guard on the same effective-dated assignment seam used by
+-- document_overview and VAT Report generation (#43).
+create function private.document_reporting_period_for(
+  doc public.document,
+  payload jsonb
+)
+returns text
+language sql stable security definer set search_path = ''
+as $$
+  select private.document_reporting_period(
+    ($1).company_id,
+    $2 ->> 'direction',
+    $2 ->> 'taxPointDate',
+    ($1).receipt_date,
+    ($1).claimed_reporting_period
+  );
+$$;
+
 create function private.document_current_reporting_period(target_document_id uuid)
 returns text
 language sql stable security definer set search_path = ''
 as $$
-  select case
-    when v.payload ->> 'taxPointDate' ~ '^20\d{2}-(0[1-9]|1[0-2])-\d{2}$'
-      then left(v.payload ->> 'taxPointDate', 7)
-  end
-  from public.extraction_version v
-  where v.document_id = target_document_id
-  order by v.version desc
-  limit 1;
-$$;
-
-create function private.payload_reporting_period(payload jsonb)
-returns text
-language sql immutable security definer set search_path = ''
-as $$
-  select case
-    when payload ->> 'taxPointDate' ~ '^20\d{2}-(0[1-9]|1[0-2])-\d{2}$'
-      then left(payload ->> 'taxPointDate', 7)
-  end;
+  select private.document_reporting_period_for(d, v.payload)
+  from public.document d
+  left join lateral (
+    select version.payload
+    from public.extraction_version version
+    where version.document_id = d.id
+    order by version.version desc
+    limit 1
+  ) v on true
+  where d.id = target_document_id;
 $$;
 
 create function private.refuse_locked_document_change()
@@ -130,11 +137,23 @@ returns trigger
 language plpgsql security definer set search_path = ''
 as $$
 declare
-  assigned_period text;
+  payload jsonb;
+  old_period text;
+  new_period text;
 begin
-  assigned_period := private.document_current_reporting_period(old.id);
-  if assigned_period is not null
-    and private.is_reporting_period_locked(old.company_id, assigned_period) then
+  select version.payload into payload
+  from public.extraction_version version
+  where version.document_id = old.id
+  order by version.version desc
+  limit 1;
+  old_period := private.document_reporting_period_for(old, payload);
+  if tg_op = 'DELETE' then
+    new_period := old_period;
+  else
+    new_period := private.document_reporting_period_for(new, payload);
+  end if;
+  if (old_period is not null and private.is_reporting_period_locked(old.company_id, old_period))
+    or (new_period is not null and private.is_reporting_period_locked(old.company_id, new_period)) then
     raise exception 'the Reporting Period is locked'
       using errcode = 'P0001', hint = 'period_locked';
   end if;
@@ -154,11 +173,13 @@ returns trigger
 language plpgsql security definer set search_path = ''
 as $$
 declare
+  doc public.document;
   old_period text;
   new_period text;
 begin
-  old_period := private.document_current_reporting_period(new.document_id);
-  new_period := private.payload_reporting_period(new.payload);
+  select * into doc from public.document where id = new.document_id;
+  old_period := private.document_current_reporting_period(doc.id);
+  new_period := private.document_reporting_period_for(doc, new.payload);
   if (old_period is not null and private.is_reporting_period_locked(new.company_id, old_period))
     or (new_period is not null and private.is_reporting_period_locked(new.company_id, new_period)) then
     raise exception 'the Reporting Period is locked'
@@ -213,7 +234,7 @@ begin
 end;
 $$;
 
-revoke execute on function private.document_current_reporting_period(uuid),
-  private.payload_reporting_period(jsonb), private.refuse_locked_document_change(),
+revoke execute on function private.document_reporting_period_for(public.document, jsonb),
+  private.document_current_reporting_period(uuid), private.refuse_locked_document_change(),
   private.refuse_locked_extraction_version(), private.refuse_locked_vat_report_change()
   from public;
