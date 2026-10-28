@@ -47,6 +47,17 @@ test("prototype has visible keyboard focus and stops processing motion when requ
   await expect(animatedBar).toHaveCSS("animation-name", "none");
 });
 
+test("the skip link bypasses Company navigation and continues within main content", async ({ baseURL, context, page }) => {
+  await setLocale(context, baseURL, "en");
+  await page.goto("/prototype?screen=overview");
+
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Enter");
+  await expect(page.locator("main#main-content")).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("link", { name: "Add Source Files" })).toBeFocused();
+});
+
 test("Overview primary action keeps white-on-blue contrast", async ({ baseURL, context, page }) => {
   await setLocale(context, baseURL, "en");
   await page.goto("/prototype?screen=overview");
@@ -111,6 +122,58 @@ test("the Company chooser is keyboard operable and preserves Company identity on
   await page.keyboard.press("Escape");
   await expect(page.getByRole("menu", { name: "Companies" })).toBeHidden();
   await expect(chooser).toBeFocused();
+});
+
+test("the Company menu supports traversal, selection, and Tab dismissal", async ({ baseURL, context, page }) => {
+  await setLocale(context, baseURL, "en");
+  await page.goto("/prototype?screen=overview");
+
+  const chooser = page.getByRole("button", { name: /Choose Company/ });
+  await chooser.focus();
+  await page.keyboard.press("ArrowDown");
+  const current = page.getByRole("menuitem", { name: "Ateliér Novák s.r.o. (current)" });
+  const other = page.getByRole("menuitem", { name: "Dvořák Studio s.r.o." });
+  await expect(current).toBeFocused();
+  const menuAudit = await new AxeBuilder({ page }).include('[role="menu"]').analyze();
+  expect(menuAudit.violations).toEqual([]);
+
+  await page.keyboard.press("ArrowUp");
+  await expect(other).toBeFocused();
+  await page.keyboard.press("Home");
+  await expect(current).toBeFocused();
+  await page.keyboard.press("End");
+  await expect(other).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("menu", { name: "Companies" })).toBeHidden();
+  await expect(chooser).toBeFocused();
+  await expect(chooser).toContainText("Dvořák Studio s.r.o.");
+
+  await page.keyboard.press("Space");
+  await expect(other).toBeFocused();
+  await page.keyboard.press("ArrowUp");
+  await expect(page.getByRole("menuitem", { name: "Ateliér Novák s.r.o.", exact: true })).toBeFocused();
+  await page.keyboard.press("Space");
+  await expect(chooser).toContainText("Ateliér Novák s.r.o.");
+
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("menu", { name: "Companies" })).toBeHidden();
+  await expect(page.getByRole("link", { name: "Overview", exact: true })).toBeFocused();
+});
+
+test("statutory output scrollers have a visible keyboard focus treatment", async ({ baseURL, context, page }) => {
+  await setLocale(context, baseURL, "en");
+  await page.setViewportSize({ width: 360, height: 800 });
+
+  for (const [screen, name] of [["vat-output", "VAT Return lines"], ["vat-statement", "Control Statement sections"]]) {
+    await page.goto(`/prototype?screen=${screen}`);
+    const scroller = page.getByRole("region", { name });
+    await scroller.focus();
+    await expect(scroller).toBeFocused();
+    await expect(scroller).toHaveCSS("outline-color", "rgb(33, 98, 143)");
+    await expect(scroller).toHaveCSS("outline-style", "solid");
+    await expect(scroller).toHaveCSS("outline-width", "3px");
+  }
 });
 
 test("mobile capture shows photo controls before an active batch and keeps the human action blue", async ({ baseURL, context, page }) => {

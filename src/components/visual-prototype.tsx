@@ -3,18 +3,29 @@ import { useTranslations } from "next-intl";
 import { PrototypeCompanyChooser } from "./prototype-company-chooser";
 import styles from "./visual-prototype.module.css";
 
-export const prototypeScreens = [
+const primaryScreens = [
   "overview",
   "upload",
   "documents",
-  "review",
   "vat",
-  "vat-output",
-  "vat-statement",
   "settings",
 ] as const;
 
-export type PrototypeScreen = (typeof prototypeScreens)[number];
+type PrimaryScreen = (typeof primaryScreens)[number];
+
+export const prototypeScreenMetadata = {
+  overview: { destination: "overview", layout: "standard" },
+  upload: { destination: "upload", layout: "standard" },
+  documents: { destination: "documents", layout: "standard" },
+  review: { destination: "documents", layout: "review" },
+  vat: { destination: "vat", layout: "standard" },
+  "vat-output": { destination: "vat", layout: "standard" },
+  "vat-statement": { destination: "vat", layout: "standard" },
+  settings: { destination: "settings", layout: "standard" },
+} as const satisfies Record<string, { destination: PrimaryScreen; layout: "review" | "standard" }>;
+
+export type PrototypeScreen = keyof typeof prototypeScreenMetadata;
+export const prototypeScreens = Object.keys(prototypeScreenMetadata) as PrototypeScreen[];
 
 type IconName =
   | "alert"
@@ -30,15 +41,7 @@ type IconName =
   | "upload"
   | "vat";
 
-const primaryScreens = [
-  "overview",
-  "upload",
-  "documents",
-  "vat",
-  "settings",
-] as const;
-
-const navIcons: Record<(typeof primaryScreens)[number], IconName> = {
+const navIcons: Record<PrimaryScreen, IconName> = {
   overview: "home",
   upload: "upload",
   documents: "document",
@@ -90,7 +93,7 @@ function PageHeader({ action, description, title }: { action?: React.ReactNode; 
 
 function CompanyHeader() {
   const t = useTranslations("prototype");
-  return <PrototypeCompanyChooser chooserLabel={t("company.chooserLabel")} currentLabel={t("company.current")} initial={t("company.initial")} menuLabel={t("company.menuLabel")} meta={t("company.meta")} name={t("company.name")} otherCompany={t("company.other")} />;
+  return <PrototypeCompanyChooser chooserLabel={t("company.chooserLabel")} currentLabel={t("company.current")} initial={t("company.initial")} menuLabel={t("company.menuLabel")} meta={t("company.meta")} name={t("company.name")} otherCompany={t("company.other")} otherInitial={t("company.otherInitial")} otherMeta={t("company.otherMeta")} />;
 }
 
 function LedgerRibbon() {
@@ -153,6 +156,36 @@ function VatSubnav({ active }: { active: "processing" | "return" | "statement" }
   return <nav aria-label={t("label")} className={styles.subnav}><Link aria-current={active === "processing" ? "page" : undefined} href="/prototype?screen=vat">{t("processing")}</Link><Link aria-current={active === "return" ? "page" : undefined} href="/prototype?screen=vat-output">{t("return")}</Link><Link aria-current={active === "statement" ? "page" : undefined} href="/prototype?screen=vat-statement">{t("statement")}</Link></nav>;
 }
 
+type StatutoryOutputProps = {
+  active: "return" | "statement";
+  description: string;
+  exportCard: {
+    detail: string;
+    download: string;
+    filename: string;
+    finalize?: { detail: string; label: string; title: string };
+    status: string;
+    title: string;
+  };
+  summary: Array<{ label: string; value: string }>;
+  table: {
+    caption: string;
+    headers: [string, string, string];
+    rows: Array<{ detail: string; label: string; values: [string, string] }>;
+  };
+  title: string;
+};
+
+function StatutoryOutput({ active, description, exportCard, summary, table, title }: StatutoryOutputProps) {
+  return <><PageHeader description={description} title={title} /><VatSubnav active={active} /><div className={styles.outputGrid}>
+    <section aria-label={table.caption} className={styles.returnPanel} tabIndex={0}>
+      <div className={styles.returnSummary}>{summary.map((item) => <span key={item.label}><small>{item.label}</small><strong>{item.value}</strong></span>)}</div>
+      <table><caption className="sr-only">{table.caption}</caption><thead><tr>{table.headers.map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{table.rows.map((row) => <tr key={row.label}><td><strong>{row.label}</strong><small>{row.detail}</small></td>{row.values.map((value) => <td className={styles.amount} key={value}>{value}</td>)}</tr>)}</tbody></table>
+    </section>
+    <aside aria-label={exportCard.title} className={styles.exportCard}><Status icon="alert" label={exportCard.status} tone="warning" /><h2>{exportCard.title}</h2><p>{exportCard.detail}</p><code>{exportCard.filename}</code><button className={styles.secondaryButton} type="button"><Icon name="document" />{exportCard.download}</button>{exportCard.finalize && <><div className={styles.exportRule} /><strong>{exportCard.finalize.title}</strong><p>{exportCard.finalize.detail}</p><button className={styles.primaryButton} disabled type="button"><Icon name="check" />{exportCard.finalize.label}</button></>}</aside>
+  </div></>;
+}
+
 function VatScreen() {
   const t = useTranslations("prototype.vat");
   return <><PageHeader description={t("description")} title={t("title")} /><VatSubnav active="processing" /><div className={styles.periodControls}><button aria-label={t("previous")} className={styles.iconButton} type="button"><Icon name="chevron" /></button><strong>{t("currentPeriod")}</strong><button aria-label={t("next")} className={styles.iconButton} type="button"><Icon name="chevron" /></button></div><div className={styles.periodGrid}>
@@ -164,12 +197,12 @@ function VatScreen() {
 
 function VatOutputScreen() {
   const t = useTranslations("prototype.vatOutput");
-  return <><PageHeader description={t("description")} title={t("title")} /><VatSubnav active="return" /><div className={styles.outputGrid}><section aria-label={t("table.caption")} className={styles.returnPanel} tabIndex={0}><div className={styles.returnSummary}><span><small>{t("summary.output")}</small><strong>{t("summary.outputValue")}</strong></span><span><small>{t("summary.input")}</small><strong>{t("summary.inputValue")}</strong></span><span><small>{t("summary.payable")}</small><strong>{t("summary.payableValue")}</strong></span></div><table><caption className="sr-only">{t("table.caption")}</caption><thead><tr><th>{t("table.line")}</th><th>{t("table.base")}</th><th>{t("table.vat")}</th></tr></thead><tbody><tr><td><strong>{t("table.lineOne")}</strong><small>{t("table.lineOneDetail")}</small></td><td className={styles.amount}>{t("table.lineOneBase")}</td><td className={styles.amount}>{t("table.lineOneVat")}</td></tr><tr><td><strong>{t("table.lineTwo")}</strong><small>{t("table.lineTwoDetail")}</small></td><td className={styles.amount}>{t("table.lineTwoBase")}</td><td className={styles.amount}>{t("table.lineTwoVat")}</td></tr></tbody></table></section><aside aria-label={t("export.title")} className={styles.exportCard}><Status icon="alert" label={t("export.status")} tone="warning" /><h2>{t("export.title")}</h2><p>{t("export.detail")}</p><code>{t("export.filename")}</code><button className={styles.secondaryButton} type="button"><Icon name="document" />{t("export.download")}</button><div className={styles.exportRule} /><strong>{t("export.finalizeTitle")}</strong><p>{t("export.finalizeDetail")}</p><button className={styles.primaryButton} disabled type="button"><Icon name="check" />{t("export.finalize")}</button></aside></div></>;
+  return <StatutoryOutput active="return" description={t("description")} exportCard={{ detail: t("export.detail"), download: t("export.download"), filename: t("export.filename"), finalize: { detail: t("export.finalizeDetail"), label: t("export.finalize"), title: t("export.finalizeTitle") }, status: t("export.status"), title: t("export.title") }} summary={[{ label: t("summary.output"), value: t("summary.outputValue") }, { label: t("summary.input"), value: t("summary.inputValue") }, { label: t("summary.payable"), value: t("summary.payableValue") }]} table={{ caption: t("table.caption"), headers: [t("table.line"), t("table.base"), t("table.vat")], rows: [{ detail: t("table.lineOneDetail"), label: t("table.lineOne"), values: [t("table.lineOneBase"), t("table.lineOneVat")] }, { detail: t("table.lineTwoDetail"), label: t("table.lineTwo"), values: [t("table.lineTwoBase"), t("table.lineTwoVat")] }] }} title={t("title")} />;
 }
 
 function ControlStatementScreen() {
   const t = useTranslations("prototype.controlStatement");
-  return <><PageHeader description={t("description")} title={t("title")} /><VatSubnav active="statement" /><div className={styles.outputGrid}><section aria-label={t("table.caption")} className={styles.returnPanel} tabIndex={0}><div className={styles.returnSummary}><span><small>{t("summary.received")}</small><strong>{t("summary.receivedValue")}</strong></span><span><small>{t("summary.issued")}</small><strong>{t("summary.issuedValue")}</strong></span><span><small>{t("summary.sections")}</small><strong>{t("summary.sectionsValue")}</strong></span></div><table><caption className="sr-only">{t("table.caption")}</caption><thead><tr><th>{t("table.section")}</th><th>{t("table.documents")}</th><th>{t("table.base")}</th></tr></thead><tbody><tr><td><strong>{t("table.first")}</strong><small>{t("table.firstDetail")}</small></td><td className={styles.amount}>{t("table.firstDocuments")}</td><td className={styles.amount}>{t("table.firstBase")}</td></tr><tr><td><strong>{t("table.second")}</strong><small>{t("table.secondDetail")}</small></td><td className={styles.amount}>{t("table.secondDocuments")}</td><td className={styles.amount}>{t("table.secondBase")}</td></tr></tbody></table></section><aside aria-label={t("export.title")} className={styles.exportCard}><Status icon="alert" label={t("export.status")} tone="warning" /><h2>{t("export.title")}</h2><p>{t("export.detail")}</p><code>{t("export.filename")}</code><button className={styles.secondaryButton} type="button"><Icon name="document" />{t("export.download")}</button></aside></div></>;
+  return <StatutoryOutput active="statement" description={t("description")} exportCard={{ detail: t("export.detail"), download: t("export.download"), filename: t("export.filename"), status: t("export.status"), title: t("export.title") }} summary={[{ label: t("summary.received"), value: t("summary.receivedValue") }, { label: t("summary.issued"), value: t("summary.issuedValue") }, { label: t("summary.sections"), value: t("summary.sectionsValue") }]} table={{ caption: t("table.caption"), headers: [t("table.section"), t("table.documents"), t("table.base")], rows: [{ detail: t("table.firstDetail"), label: t("table.first"), values: [t("table.firstDocuments"), t("table.firstBase")] }, { detail: t("table.secondDetail"), label: t("table.second"), values: [t("table.secondDocuments"), t("table.secondBase")] }] }} title={t("title")} />;
 }
 
 function SettingsScreen() {
@@ -178,14 +211,21 @@ function SettingsScreen() {
   return <><PageHeader description={t("description")} title={t("title")} /><div className={styles.settingsGrid}>{sections.map((section, index) => <Link href="/prototype?screen=settings" key={section}><span className={styles.settingIcon}><Icon name={index === 2 ? "gear" : index === 3 ? "home" : "document"} /></span><span><strong>{t(`${section}.title`)}</strong><small>{t(`${section}.detail`)}</small></span><Status icon={index < 2 ? "check" : "clock"} label={t(index < 2 ? "complete" : "attention")} tone={index < 2 ? "success" : "warning"} /><Icon name="chevron" /></Link>)}</div></>;
 }
 
-function destinationFor(screen: PrototypeScreen) {
-  if (screen === "review") return "documents";
-  if (screen === "vat-output" || screen === "vat-statement") return "vat";
-  return screen;
-}
+const prototypeScreenComponents = {
+  overview: OverviewScreen,
+  upload: UploadScreen,
+  documents: DocumentsScreen,
+  review: ReviewScreen,
+  vat: VatScreen,
+  "vat-output": VatOutputScreen,
+  "vat-statement": ControlStatementScreen,
+  settings: SettingsScreen,
+} satisfies Record<PrototypeScreen, () => React.ReactNode>;
 
 export function VisualPrototype({ screen }: { screen: PrototypeScreen }) {
   const t = useTranslations("prototype");
-  const destination = destinationFor(screen);
-  return <div className={`${styles.shell} ${screen === "review" ? styles.reviewShell : ""}`}><a className={styles.skipLink} href="#main-content">{t("skip")}</a><aside aria-label={t("navigation.sidebar")} className={styles.sidebar}><Link aria-label={t("brandLabel")} className={styles.brand} href="/prototype?screen=overview"><BrandMark /><span>{t("brand")}</span></Link><CompanyHeader /><nav aria-label={t("navigation.label")} className={styles.navigation}>{primaryScreens.map((item) => <Link aria-current={destination === item ? "page" : undefined} aria-label={screen === "review" ? t(`navigation.${item}`) : undefined} href={`/prototype?screen=${item}`} key={item}><Icon name={navIcons[item]} /><span>{t(`navigation.${item}`)}</span>{item === "documents" && <small>{t("navigation.documentCount")}</small>}</Link>)}</nav><div className={styles.profile}><span>{t("profile.initials")}</span><span><strong>{t("profile.name")}</strong><small>{t("profile.role")}</small></span></div></aside><header className={styles.mobileHeader}><Link aria-label={t("brandLabel")} className={styles.brand} href="/prototype?screen=overview"><BrandMark /><span>{t("brand")}</span></Link><CompanyHeader /></header><main className={screen === "review" ? styles.mainReview : styles.main} id="main-content">{screen === "overview" && <OverviewScreen />}{screen === "upload" && <UploadScreen />}{screen === "documents" && <DocumentsScreen />}{screen === "review" && <ReviewScreen />}{screen === "vat" && <VatScreen />}{screen === "vat-output" && <VatOutputScreen />}{screen === "vat-statement" && <ControlStatementScreen />}{screen === "settings" && <SettingsScreen />}</main></div>;
+  const metadata = prototypeScreenMetadata[screen];
+  const Screen = prototypeScreenComponents[screen];
+  const reviewLayout = metadata.layout === "review";
+  return <div className={`${styles.shell} ${reviewLayout ? styles.reviewShell : ""}`}><a className={styles.skipLink} href="#main-content">{t("skip")}</a><aside aria-label={t("navigation.sidebar")} className={styles.sidebar}><Link aria-label={t("brandLabel")} className={styles.brand} href="/prototype?screen=overview"><BrandMark /><span>{t("brand")}</span></Link><CompanyHeader /><nav aria-label={t("navigation.label")} className={styles.navigation}>{primaryScreens.map((item) => <Link aria-current={metadata.destination === item ? "page" : undefined} aria-label={reviewLayout ? t(`navigation.${item}`) : undefined} href={`/prototype?screen=${item}`} key={item}><Icon name={navIcons[item]} /><span>{t(`navigation.${item}`)}</span>{item === "documents" && <small>{t("navigation.documentCount")}</small>}</Link>)}</nav><div className={styles.profile}><span>{t("profile.initials")}</span><span><strong>{t("profile.name")}</strong><small>{t("profile.role")}</small></span></div></aside><header className={styles.mobileHeader}><Link aria-label={t("brandLabel")} className={styles.brand} href="/prototype?screen=overview"><BrandMark /><span>{t("brand")}</span></Link><CompanyHeader /></header><main className={reviewLayout ? styles.mainReview : styles.main} id="main-content" tabIndex={-1}><Screen /></main></div>;
 }

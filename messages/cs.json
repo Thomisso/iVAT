@@ -605,7 +605,9 @@
       "chooserLabel": "Vybrat společnost",
       "menuLabel": "Společnosti",
       "current": "(aktuální)",
-      "other": "Dvořák Studio s.r.o."
+      "other": "Dvořák Studio s.r.o.",
+      "otherInitial": "D",
+      "otherMeta": "CZ 07194216"
     },
     "profile": {
       "initials": "JN",
@@ -684,7 +686,7 @@
       "description": "Nejdřív zpracujte frontu ke kontrole, potom najděte hotovou práci v uložených pohledech.",
       "progress": "3 z 12",
       "tabs": { "label": "Uložené pohledy dokladů", "review": "Ke kontrole", "incoming": "Přijaté", "outgoing": "Vydané", "failed": "Selhané", "approved": "Schválené", "all": "Vše", "count": "12" },
-      "table": { "caption": "Doklady ke kontrole", "counterparty": "Protistrana", "number": "Číslo dokladu", "date": "DUZP", "amount": "Celkem", "status": "Stav", "action": "Otevřít", "open": "Zkontrolovat {counterparty}" },
+      "table": { "caption": "Doklady ke kontrole", "counterparty": "Protistrana", "number": "Číslo dokladu", "date": "Datum uskutečnění zdanitelného plnění", "amount": "Celkem", "status": "Stav", "action": "Otevřít", "open": "Zkontrolovat {counterparty}" },
       "rows": {
         "first": { "counterparty": "Alpine Office s.r.o.", "direction": "Přijatý", "number": "2026-1048", "date": "14. 10. 2026", "amount": "24 200,00 Kč", "status": "Ke kontrole" },
         "second": { "counterparty": "Metroservis a.s.", "direction": "Přijatý", "number": "FV-55982", "date": "12. 10. 2026", "amount": "8 712,00 Kč", "status": "Ke kontrole" },
@@ -708,7 +710,7 @@
       "title": "Kontrola dokladu",
       "subtitle": "Porovnejte vytěžené hodnoty se zdrojovým souborem.",
       "status": "Ke kontrole",
-      "fields": { "direction": "Směr", "incoming": "Přijatý", "counterparty": "Protistrana", "counterpartyValue": "Alpine Office s.r.o.", "vatId": "DIČ", "vatIdValue": "CZ28471930", "date": "DUZP", "dateValue": "14. 10. 2026", "regime": "Režim DPH", "regimeValue": "Tuzemské plnění" },
+      "fields": { "direction": "Směr", "incoming": "Přijatý", "counterparty": "Protistrana", "counterpartyValue": "Alpine Office s.r.o.", "vatId": "Daňové identifikační číslo", "vatIdValue": "CZ28471930", "date": "Datum uskutečnění zdanitelného plnění", "dateValue": "14. 10. 2026", "regime": "Režim DPH", "regimeValue": "Tuzemské plnění" },
       "warning": { "title": "Zkontrolujte zdaňovací období", "detail": "Datum přijetí zatím není doplněné." },
       "reject": "Zamítnout doklad",
       "approve": "Schválit doklad"
@@ -751,7 +753,7 @@
       "description": "Konfigurace společnosti je oddělená od každodenní práce s doklady.",
       "complete": "Hotovo",
       "attention": "Vyžaduje pozornost",
-      "profile": { "title": "Profil společnosti", "detail": "Identita, DIČ a sídlo" },
+      "profile": { "title": "Profil společnosti", "detail": "Identita, daňové identifikační číslo a sídlo" },
       "export": { "title": "Finanční úřad a export", "detail": "Výchozí údaje podání a adresa EPO" },
       "processing": { "title": "Zpracování", "detail": "Poskytovatel AI, souhlas a oblast" },
       "users": { "title": "Uživatelé", "detail": "Aktivní přístup a čekající pozvánky" }

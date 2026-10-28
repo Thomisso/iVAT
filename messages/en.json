@@ -605,7 +605,9 @@
       "chooserLabel": "Choose Company",
       "menuLabel": "Companies",
       "current": "(current)",
-      "other": "Dvořák Studio s.r.o."
+      "other": "Dvořák Studio s.r.o.",
+      "otherInitial": "D",
+      "otherMeta": "CZ 07194216"
     },
     "profile": {
       "initials": "JN",
