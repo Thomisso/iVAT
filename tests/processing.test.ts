@@ -63,8 +63,18 @@ describe("processing a Source File", () => {
     expect((await getSourceFile(client, companyId, sourceFileId))?.status).toBe("split");
     const documents = await listDocuments(client, companyId, sourceFileId);
     expect(documents).toEqual([
-      { id: expect.any(String), companyId, sourceFileId, firstPage: 1, lastPage: 1, status: "needs_review", createdAt: expect.any(String) },
-      { id: expect.any(String), companyId, sourceFileId, firstPage: 2, lastPage: 2, status: "needs_review", createdAt: expect.any(String) },
+      {
+        id: expect.any(String), companyId, sourceFileId,
+        firstPage: 1, lastPage: 1, status: "needs_review",
+        createdAt: expect.any(String), receiptDate: expect.any(String),
+        claimedReportingPeriod: null,
+      },
+      {
+        id: expect.any(String), companyId, sourceFileId,
+        firstPage: 2, lastPage: 2, status: "needs_review",
+        createdAt: expect.any(String), receiptDate: expect.any(String),
+        claimedReportingPeriod: null,
+      },
     ]);
     expect(extracted.map((input) => [input.format, input.pageCount])).toEqual([
       ["pdf", 1],
