@@ -13,12 +13,10 @@ export function PeriodLockForm({
   companyId,
   period,
   locked,
-  disabled = false,
 }: {
   companyId: string;
   period: string;
   locked: boolean;
-  disabled?: boolean;
 }) {
   const t = useTranslations("vatReports");
   const [state, action, pending] = useActionState(
@@ -29,7 +27,7 @@ export function PeriodLockForm({
     <form action={action} className="form filters">
       <input type="hidden" name="companyId" value={companyId} />
       <input type="hidden" name="period" value={period} />
-      <Button type="submit" variant={locked ? "secondary" : "primary"} disabled={pending || disabled}>
+      <Button type="submit" variant={locked ? "secondary" : "primary"} disabled={pending}>
         {t(locked ? "unlock" : "finalize")}
       </Button>
       <FormError error={state.error} />
