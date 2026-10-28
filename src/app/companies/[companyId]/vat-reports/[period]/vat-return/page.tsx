@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getCompany } from "@/application/companies";
@@ -12,6 +13,14 @@ import { formatDocumentDate } from "@/lib/format-date";
 import { ExportForm } from "../../export-form";
 import { PeriodNavigation } from "../../period-navigation";
 import { ReportAmount, ReportIssues } from "../../report-output";
+
+export async function generateMetadata({
+  params,
+}: PageProps<"/companies/[companyId]/vat-reports/[period]/vat-return">): Promise<Metadata> {
+  const { period } = await params;
+  const t = await getTranslations("vatReports");
+  return { title: t("vatReturnTitle", { period }) };
+}
 
 export default async function VatReturnPage({
   params,
