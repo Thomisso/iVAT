@@ -128,7 +128,6 @@ export default async function VatReportsPage({
                 period={period}
                 exists={!!report}
                 locked={!!periodLock}
-                disabled={!readiness.ready}
               />
               <div>
                 <strong>{t("vatReports.liveWorkbook")}</strong>
@@ -181,7 +180,6 @@ export default async function VatReportsPage({
                   companyId={companyId}
                   period={period}
                   locked={!!periodLock}
-                  disabled={!readiness.ready && !periodLock}
                 />
               )}
               <DataTable

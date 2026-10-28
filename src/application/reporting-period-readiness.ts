@@ -12,7 +12,6 @@ import {
   reportingPeriodForDate,
   reportingPeriodsThrough,
 } from "./reporting-periods";
-import { getVatReport, type VatReport } from "./vat-reports";
 import type { ReportDocument } from "./vat-rules";
 
 export type ReportingPeriodSummary = {
@@ -67,6 +66,11 @@ export type ReportingPeriodReadinessError =
   | "invalid_reporting_period";
 
 type LiveDocument = ReportDocument & { findings: ValidationFinding[] };
+type SavedSourceSnapshot = {
+  id: string;
+  generatedAt: string;
+  documents: ReportDocument[];
+};
 
 function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
@@ -79,12 +83,12 @@ function canonical(value: unknown): string {
   return JSON.stringify(value);
 }
 
-function sameSourceSnapshot(report: VatReport, documents: ReportDocument[]) {
+function sameSourceSnapshot(report: SavedSourceSnapshot, documents: ReportDocument[]) {
   return canonical(report.documents) === canonical(documents);
 }
 
 function snapshotIsCurrent(
-  report: VatReport,
+  report: SavedSourceSnapshot,
   assigned: ReportDocument[],
   relevant: ReportDocument[],
 ) {
@@ -92,6 +96,25 @@ function snapshotIsCurrent(
   return sameSourceSnapshot(report, assigned) && relevant.every((document) =>
     assignedIds.has(document.id) || document.status === "rejected",
   );
+}
+
+async function getSavedSourceSnapshot(
+  client: AppClient,
+  companyId: string,
+  period: string,
+): Promise<SavedSourceSnapshot | null> {
+  const { data, error } = await client
+    .from("vat_report")
+    .select("id, generated_at, documents")
+    .eq("company_id", companyId)
+    .eq("period", period)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? {
+    id: data.id,
+    generatedAt: data.generated_at,
+    documents: data.documents as unknown as ReportDocument[],
+  } : null;
 }
 
 /** Lists the Company's valid Reporting Periods and identifies the oldest period without a lock. */
@@ -236,7 +259,7 @@ export async function getReportingPeriodReadiness(
   }
   const [{ assigned, relevant }, report] = await Promise.all([
     relevantDocuments(client, input.companyId, input.period, history),
-    getVatReport(client, input.companyId, input.period),
+    getSavedSourceSnapshot(client, input.companyId, input.period),
   ]);
   const byVersion = await findingsByVersion(client, relevant);
   const documents: LiveDocument[] = relevant.map((document) => ({
