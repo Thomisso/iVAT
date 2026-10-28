@@ -1,0 +1,2 @@
+-- Clean local resets intentionally contain no Users or QA/demo data.
+-- Use scripts/dev-seed.ts or scripts/bootstrap-superadmin.ts explicitly after reset.
