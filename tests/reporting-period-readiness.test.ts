@@ -166,7 +166,7 @@ it("returns blocker, warning and resolved Document groups without writing live d
   expect(await listCompanyDocuments(company.client, company.companyId)).toEqual(before);
 });
 
-it("reports a saved source snapshot as current, then stale after a relevant live change", async () => {
+it("reports a saved source snapshot as current, then stale after a relevant unassigned Document arrives", async () => {
   const company = await administratorWithCompany();
   const worker = testWorker();
   await enableAiProcessing(company.client, worker.jobs, {
@@ -202,16 +202,20 @@ it("reports a saved source snapshot as current, then stale after a relevant live
     freshness: "current",
   }));
 
-  expect(await approveDocument(company.client, {
+  const laterUpload = await uploadSourceFile(company.client, worker.jobs, {
     companyId: company.companyId,
-    documentId: documents[1].id,
-    version: 1,
-  })).toEqual({ ok: true, value: null });
+    fileName: "later.pdf",
+    bytes: fixtureFile("two-invoices.pdf"),
+    preselectedDirection: "incoming",
+  });
+  if (!laterUpload.ok) throw new Error(laterUpload.error);
+  await worker.runNextJob();
   const stale = await getReportingPeriodReadiness(company.client, {
     companyId: company.companyId,
     period: "2026-10",
   });
   expect(stale.ok && stale.value.snapshot?.freshness).toBe("stale");
+  expect(stale.ok && stale.value.groups.processing).toHaveLength(2);
   expect(await getVatReport(company.client, company.companyId, "2026-10")).toEqual(saved);
 });
 
