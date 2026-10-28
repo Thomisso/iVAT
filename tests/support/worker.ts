@@ -32,9 +32,10 @@ export function testWorker(
   const providers = Array.isArray(aiOrProviders) ? aiOrProviders : [aiOrProviders];
   const ai = providers[0];
   const queued: ProcessingJob[] = [];
+  const delayed: ProcessingJob[] = [];
   const jobs: JobQueue = {
-    async send(job) {
-      queued.push(job);
+    async send(job, options) {
+      (options?.startAfterSeconds === undefined ? queued : delayed).push(job);
     },
   };
   const worker = {
@@ -48,6 +49,15 @@ export function testWorker(
     jobs,
     ai,
     queued,
+    delayed,
+    releaseDelayedJobs() {
+      queued.push(...delayed.splice(0));
+    },
+    /** Runs just the next queued job, leaving follow-up jobs queued. */
+    async runNextJob({ final = true } = {}): Promise<void> {
+      const job = queued.shift();
+      if (job) await runJob(worker, job, { final });
+    },
     /** Runs every queued job; `final: false` runs them as attempts that pg-boss will retry. */
     async runJobs({ final = true } = {}): Promise<unknown[]> {
       const errors: unknown[] = [];

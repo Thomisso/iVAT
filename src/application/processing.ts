@@ -42,7 +42,7 @@ export const extractJob = (documentId: string): ProcessingJob => ({
 export const PROCESSING_JOB_NAMES: ProcessingJob["name"][] = ["split-source-file", "extract-document"];
 
 export interface JobQueue {
-  send(job: ProcessingJob): Promise<void>;
+  send(job: ProcessingJob, options?: { startAfterSeconds?: number }): Promise<void>;
 }
 
 export interface AiProviderRegistry {
@@ -70,22 +70,27 @@ export async function runJob(worker: Worker, job: ProcessingJob, attempt: Attemp
   }
 }
 
-/** The provider named by the Company's current consent, when this worker can serve it. */
-async function consentedProvider(
+type ProviderAvailability = { blocked: boolean; provider: AiProvider | null };
+
+/** The provider named by the Company's current consent, and whether platform blocking deferred it. */
+async function providerAvailability(
   system: SystemClient,
   companyId: string,
   providers: AiProviderRegistry,
-): Promise<AiProvider | null> {
+): Promise<ProviderAvailability> {
   const { data, error } = await system
     .from("company")
     .select("ai_processing_enabled, ai_provider, ai_region, organization:organization_id (blocked_at)")
     .eq("id", companyId)
     .single();
   if (error) throw error;
-  if (data.organization?.blocked_at || !data.ai_processing_enabled || !data.ai_provider) return null;
+  if (data.organization?.blocked_at) return { blocked: true, provider: null };
+  if (!data.ai_processing_enabled || !data.ai_provider) return { blocked: false, provider: null };
   const provider = providers.get(data.ai_provider);
-  return provider && provider.region === data.ai_region ? provider : null;
+  return { blocked: false, provider: provider && provider.region === data.ai_region ? provider : null };
 }
+
+const BLOCKED_JOB_RECHECK_SECONDS = 60;
 
 async function download(system: SystemClient, companyId: string, sourceFileId: string): Promise<Uint8Array> {
   const { data, error } = await system.storage
@@ -115,7 +120,12 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
   if (file.status === "failed") return;
 
   if (file.status !== "split") {
-    const ai = await consentedProvider(system, file.company_id, providers);
+    const availability = await providerAvailability(system, file.company_id, providers);
+    if (availability.blocked) {
+      await jobs.send(splitJob(file.id), { startAfterSeconds: BLOCKED_JOB_RECHECK_SECONDS });
+      return;
+    }
+    const ai = availability.provider;
     if (!ai) return;
     // Moves the status only from the given ones, so a job that read a stale status cannot undo another's result.
     const moveStatus = async (to: SourceFileStatus, from: SourceFileStatus[]) => {
@@ -166,7 +176,7 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
 }
 
 async function extractDocument(
-  { system, providers, vatRegistry, exchangeRates }: Worker,
+  { system, providers, jobs, vatRegistry, exchangeRates }: Worker,
   documentId: string,
   attempt: Attempt,
 ) {
@@ -177,7 +187,12 @@ async function extractDocument(
     .single();
   if (error) throw error;
   if (document.superseded_at !== null || (document.status !== "uploaded" && document.status !== "processing")) return;
-  const ai = await consentedProvider(system, document.company_id, providers);
+  const availability = await providerAvailability(system, document.company_id, providers);
+  if (availability.blocked) {
+    await jobs.send(extractJob(document.id), { startAfterSeconds: BLOCKED_JOB_RECHECK_SECONDS });
+    return;
+  }
+  const ai = availability.provider;
   if (!ai) return;
 
   // Moves the status of this Extraction request only from the given ones (see splitSourceFile).

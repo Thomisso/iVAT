@@ -65,14 +65,14 @@ isOneToOne: false
                   ]
                 },"company": {
                   Row: {
-                    "ai_processing_enabled": boolean,"ai_provider": string | null,"ai_region": string | null,"city": string,"created_at": string,"created_by": string | null,"deleted_at": string | null,"deleted_by": string | null,"ico": string,"id": string,"name": string,"organization_id": string,"person_type": Database["public"]['Enums']["person_type"],"postal_code": string,"street": string,"vat_id": string
+                    "ai_processing_enabled": boolean,"ai_provider": string | null,"ai_region": string | null,"city": string,"created_at": string,"created_by": string | null,"data_revision": number,"deleted_at": string | null,"deleted_by": string | null,"ico": string,"id": string,"name": string,"organization_id": string,"person_type": Database["public"]['Enums']["person_type"],"postal_code": string,"street": string,"vat_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "ai_processing_enabled"?: boolean,"ai_provider"?: string | null,"ai_region"?: string | null,"city": string,"created_at"?: string,"created_by"?: string | null,"deleted_at"?: string | null,"deleted_by"?: string | null,"ico": string,"id"?: string,"name": string,"organization_id": string,"person_type"?: Database["public"]['Enums']["person_type"],"postal_code": string,"street": string,"vat_id": string
+                    "ai_processing_enabled"?: boolean,"ai_provider"?: string | null,"ai_region"?: string | null,"city": string,"created_at"?: string,"created_by"?: string | null,"data_revision"?: number,"deleted_at"?: string | null,"deleted_by"?: string | null,"ico": string,"id"?: string,"name": string,"organization_id": string,"person_type"?: Database["public"]['Enums']["person_type"],"postal_code": string,"street": string,"vat_id": string
                   }
                   Update: {
-                    "ai_processing_enabled"?: boolean,"ai_provider"?: string | null,"ai_region"?: string | null,"city"?: string,"created_at"?: string,"created_by"?: string | null,"deleted_at"?: string | null,"deleted_by"?: string | null,"ico"?: string,"id"?: string,"name"?: string,"organization_id"?: string,"person_type"?: Database["public"]['Enums']["person_type"],"postal_code"?: string,"street"?: string,"vat_id"?: string
+                    "ai_processing_enabled"?: boolean,"ai_provider"?: string | null,"ai_region"?: string | null,"city"?: string,"created_at"?: string,"created_by"?: string | null,"data_revision"?: number,"deleted_at"?: string | null,"deleted_by"?: string | null,"ico"?: string,"id"?: string,"name"?: string,"organization_id"?: string,"person_type"?: Database["public"]['Enums']["person_type"],"postal_code"?: string,"street"?: string,"vat_id"?: string
                   }
                   Relationships: [
                     {
@@ -85,14 +85,14 @@ isOneToOne: false
                   ]
                 },"company_data_export": {
                   Row: {
-                    "byte_size": number,"company_id": string,"created_at": string,"created_by": string,"file_name": string,"id": string,"organization_id": string,"sha256": string,"used_at": string | null
+                    "byte_size": number,"company_id": string,"created_at": string,"created_by": string,"data_revision": number,"file_name": string,"id": string,"organization_id": string,"sha256": string,"used_at": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "byte_size": number,"company_id": string,"created_at"?: string,"created_by": string,"file_name": string,"id": string,"organization_id": string,"sha256": string,"used_at"?: string | null
+                    "byte_size": number,"company_id": string,"created_at"?: string,"created_by": string,"data_revision"?: number,"file_name": string,"id": string,"organization_id": string,"sha256": string,"used_at"?: string | null
                   }
                   Update: {
-                    "byte_size"?: number,"company_id"?: string,"created_at"?: string,"created_by"?: string,"file_name"?: string,"id"?: string,"organization_id"?: string,"sha256"?: string,"used_at"?: string | null
+                    "byte_size"?: number,"company_id"?: string,"created_at"?: string,"created_by"?: string,"data_revision"?: number,"file_name"?: string,"id"?: string,"organization_id"?: string,"sha256"?: string,"used_at"?: string | null
                   }
                   Relationships: [
                     {
@@ -501,6 +501,11 @@ isOneToOne: false
 "approve_document":
 { Args: { "reviewed_version": number,"target_document_id": string }; Returns: undefined
                            },
+"audit_actors":
+{ Args: { "target_organization_id": string }; Returns: {
+              "email": string,"user_id": string
+            }[]
+                           },
 "begin_upload_batch":
 { Args: { "selected_file_count": number,"target_company_id": string }; Returns: string
                            },
@@ -509,6 +514,9 @@ isOneToOne: false
                            },
 "change_membership_role":
 { Args: { "target_membership_id": string,"target_role": Database["public"]['Enums']["membership_role"] }; Returns: undefined
+                           },
+"company_export_snapshot":
+{ Args: { "target_company_id": string }; Returns: Json
                            },
 "configure_platform_ai_provider":
 { Args: { "platform_key"?: string,"provider_available": boolean,"target_extract_model": string,"target_provider": string,"target_split_model": string }; Returns: undefined
@@ -548,6 +556,11 @@ isOneToOne: false
 "list_available_ai_providers":
 { Args: Record<PropertyKey, never>; Returns: {
               "provider": string,"region": string
+            }[]
+                           },
+"list_failed_processing_jobs":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "error": string,"failed_at": string,"id": string,"name": string,"target_id": string
             }[]
                            },
 "list_organization_ai_provider_keys":
@@ -594,9 +607,6 @@ isOneToOne: false
               "max_source_file_bytes": number,"max_source_file_pages": number,"max_upload_batch_files": number
             }[]
                            },
-"prepare_processing_job_retry":
-{ Args: { "target_failed_job_id": string,"target_id": string,"target_job_name": string }; Returns: undefined
-                           },
 "record_ai_extraction":
 { Args: { "findings": Json,"model": string,"payload": Json,"provider": string,"target_document_id": string,"target_extraction_request_id": string }; Returns: undefined
                            },
@@ -604,7 +614,7 @@ isOneToOne: false
 { Args: { "target_company_id": string,"target_input_tokens": number,"target_job_id": string,"target_job_name": string,"target_model": string,"target_operation": string,"target_organization_id": string,"target_output_tokens": number,"target_provider": string }; Returns: undefined
                            },
 "record_company_data_export":
-{ Args: { "target_byte_size": number,"target_company_id": string,"target_export_id": string,"target_file_name": string,"target_sha256": string }; Returns: undefined
+{ Args: { "expected_data_revision": number,"target_byte_size": number,"target_company_id": string,"target_export_id": string,"target_file_name": string,"target_sha256": string }; Returns: undefined
                            },
 "record_split":
 { Args: { "source_ranges": Json,"target_source_file_id": string }; Returns: undefined
@@ -625,6 +635,9 @@ isOneToOne: false
 { Args: { "target_organization_id": string,"target_provider": string }; Returns: {
               "api_key": string,"extract_model": string,"split_model": string
             }[]
+                           },
+"retry_failed_processing_job":
+{ Args: { "target_failed_job_id": string }; Returns: undefined
                            },
 "retry_split":
 { Args: { "target_source_file_id": string }; Returns: undefined
@@ -648,7 +661,7 @@ isOneToOne: false
 { Args: { "target_max_source_file_bytes": number,"target_max_source_file_pages": number,"target_max_upload_batch_files": number }; Returns: undefined
                            },
 "soft_delete_company":
-{ Args: { "target_company_id": string,"target_export_id": string }; Returns: undefined
+{ Args: { "target_company_id": string,"target_export_id": string }; Returns: Json
                            },
 "split_document":
 { Args: { "split_after_page": number,"target_document_id": string }; Returns: (string)[]

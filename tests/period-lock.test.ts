@@ -247,3 +247,23 @@ it("refuses deleting an Approved Document in a locked Reporting Period even to t
     ),
   ).toContainEqual(expect.objectContaining({ id: company.documents[0].id, status: "approved" }));
 });
+
+it("isolates Period Lock reads and refuses direct user writes", async () => {
+  const company = await lockedCompanyWithDocuments();
+  const outsider = await administratorWithCompany("Other Organization");
+  const own = await company.client.from("period_lock").select("*").eq("company_id", company.companyId).single();
+  expect(own.error).toBeNull();
+  expect(own.data).toEqual(expect.objectContaining({ company_id: company.companyId, period: "2026-10" }));
+  const hidden = await outsider.client.from("period_lock").select("*").eq("company_id", company.companyId);
+  expect(hidden.error).toBeNull();
+  expect(hidden.data).toEqual([]);
+
+  const row = own.data!;
+  const attempts = [
+    await company.client.from("period_lock").insert(row),
+    await company.client.from("period_lock").update({ period: "2026-11" }).eq("company_id", company.companyId),
+    await company.client.from("period_lock").delete().eq("company_id", company.companyId),
+  ];
+  for (const attempt of attempts) expect(attempt.error?.code).toBe("42501");
+  expect(await getPeriodLock(company.client, company.companyId, "2026-10")).not.toBeNull();
+});

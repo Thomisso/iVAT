@@ -248,6 +248,22 @@ describe("correcting a Document", () => {
     ).toEqual({ ok: true, value: { version: 3 } });
     expect((await listExtractionVersions(client, companyId, documentId))[2].payload.originalDocumentNumber).toBeNull();
   });
+
+  it("refuses a Credit Note whose entered amounts are not negative", async () => {
+    const { client, companyId, documentId } = await documentInReview();
+    const creditNote: ExtractionPayload = {
+      ...SAMPLE_EXTRACTION,
+      documentType: "credit_note",
+      originalDocumentNumber: "FV-2026-0001",
+    };
+
+    expect(await correctDocument(client, {
+      companyId,
+      documentId,
+      basedOnVersion: 1,
+      payload: creditNote,
+    })).toEqual({ ok: false, error: "invalid_credit_note_amount" });
+  });
 });
 
 describe("assigning an incoming Document to a Reporting Period", () => {
@@ -326,6 +342,36 @@ describe("assigning an incoming Document to a Reporting Period", () => {
 });
 
 describe("approving and rejecting a Document", () => {
+  it("refuses approval of an AI-proposed Credit Note with non-negative amounts", async () => {
+    const document = await documentInReview({
+      ...SAMPLE_EXTRACTION,
+      documentType: "credit_note",
+      originalDocumentNumber: "FV-2026-0001",
+    });
+
+    expect(await approveDocument(document.client, { ...document, version: 1 })).toEqual({
+      ok: false,
+      error: "invalid_credit_note_amount",
+    });
+  });
+
+  it("allows zero VAT on an otherwise negative self-assessed Credit Note", async () => {
+    const document = await documentInReview({
+      ...SAMPLE_EXTRACTION,
+      documentType: "credit_note",
+      originalDocumentNumber: "FV-2026-0001",
+      proposedVatRegime: "domestic_reverse_charge",
+      reverseChargeCode: "4",
+      rateBreakdown: [{ rate: 21, netAmount: "-100.00", vatAmount: "0.00" }],
+      totals: { netAmount: "-100.00", vatAmount: "0.00", grossAmount: "-100.00" },
+    });
+
+    expect(await approveDocument(document.client, { ...document, version: 1 })).toEqual({
+      ok: true,
+      value: null,
+    });
+  });
+
   it("refuses approval while Direction is unknown", async () => {
     const document = await documentInReview({
       ...SAMPLE_EXTRACTION,
