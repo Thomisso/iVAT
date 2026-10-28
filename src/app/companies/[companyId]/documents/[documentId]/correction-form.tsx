@@ -257,6 +257,37 @@ export function CorrectionForm({
           )}
         </div>
       </fieldset>
+      {payload.czkConversion && (
+        <fieldset>
+          <legend>{t("sections.czkConversion")}</legend>
+          <p>
+            {t("czkConversion.rate", {
+              unit: payload.czkConversion.unit,
+              currency: payload.czkConversion.originalCurrency,
+              rate: payload.czkConversion.rate,
+              date: payload.czkConversion.rateDate,
+              source: payload.czkConversion.source,
+            })}
+          </p>
+          <table className="rate-breakdown">
+            <thead><tr><th>{t("fields.rate")}</th><th>{t("fields.netAmountCzk")}</th><th>{t("fields.vatAmountCzk")}</th></tr></thead>
+            <tbody>
+              {payload.czkConversion.rateBreakdown.map((line, index) => (
+                <tr key={`${line.rate}-${index}`}>
+                  <td>{line.rate}</td><td className="iv-mono">{line.netAmount}</td><td className="iv-mono">{line.vatAmount}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="iv-mono">
+            {t("czkConversion.totals", {
+              net: payload.czkConversion.totals.netAmount ?? t("notSet"),
+              vat: payload.czkConversion.totals.vatAmount ?? t("notSet"),
+              gross: payload.czkConversion.totals.grossAmount ?? t("notSet"),
+            })}
+          </p>
+        </fieldset>
+      )}
       <fieldset>
         <legend>{t("sections.payment")}</legend>
         <div className="fields">
