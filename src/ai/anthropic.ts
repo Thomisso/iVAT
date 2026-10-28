@@ -1,11 +1,10 @@
 import {
   AiProviderError,
+  type AiCallContext,
   type AiInput,
   type AiProvider,
   type AiUsage,
 } from "@/application/ai-provider";
-import type { SystemClient } from "@/application/client";
-import { resolvePlatformAiProvider } from "@/application/platform-ai";
 import {
   EXTRACTION_PROMPT,
   EXTRACTION_SCHEMA,
@@ -133,30 +132,25 @@ export function anthropicAiProvider(options: AnthropicAiProviderOptions): AiProv
 
 /** Anthropic provider whose encrypted configuration is resolved per Organization at call time. */
 export function platformAnthropicAiProvider(
-  system: SystemClient,
   options: { baseUrl?: string } = {},
 ): AiProvider {
-  async function configured(organizationId: string | undefined): Promise<AiProvider> {
-    if (!organizationId) {
-      throw new AiProviderError("organization_required", "Organization context is required", { transient: false });
-    }
-    const configuration = await resolvePlatformAiProvider(system, organizationId, "anthropic");
-    if (!configuration.ok) {
-      throw new AiProviderError(configuration.error, `Anthropic configuration error: ${configuration.error}`, {
+  function configured(context: AiCallContext | undefined): AiProvider {
+    if (!context?.configuration) {
+      throw new AiProviderError("worker_configuration_required", "Anthropic worker configuration is required", {
         transient: false,
       });
     }
-    return anthropicAiProvider({ ...configuration.value, baseUrl: options.baseUrl });
+    return anthropicAiProvider({ ...context.configuration, baseUrl: options.baseUrl });
   }
 
   return {
     name: "anthropic",
     region: "global",
     async split(input, context) {
-      return (await configured(context?.organizationId)).split(input, context);
+      return configured(context).split(input, context);
     },
     async extract(input, context) {
-      return (await configured(context?.organizationId)).extract(input, context);
+      return configured(context).extract(input, context);
     },
   };
 }

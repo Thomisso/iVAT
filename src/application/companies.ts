@@ -1,7 +1,21 @@
-import type { AiProvider } from "./ai-provider";
+import type { AiProcessingConsent } from "./company-ai";
 import { isUuid, type AppClient, type Result } from "./client";
-import { extractJob, splitJob, type JobQueue } from "./processing";
 import { reportingPeriodStart, validFilingEffectiveFrom } from "./reporting-periods";
+
+export {
+  configureCompanyAiProcessing,
+  companyAiOptionValue,
+  disableAiProcessing,
+  enableAiProcessing,
+  listCompanyAiOptions,
+  parseCompanyAiOptionValue,
+} from "./company-ai";
+export type {
+  AiCredentialSource,
+  AiProcessingConsent,
+  CompanyAiConfigurationError,
+  CompanyAiOption,
+} from "./company-ai";
 
 export type CompanyDetails = {
   name: string;
@@ -49,9 +63,6 @@ export type FilingFrequencyHistoryEntry = {
 
 export type CompanySetupStep = "identity" | "filing_frequency" | "filing_defaults" | "ai_processing";
 export type CompanySetupItem = { step: CompanySetupStep; state: "completed" | "skipped" | "blocking" };
-
-/** The provider and region a Company has consented to send its Documents to; null while AI processing is off. */
-export type AiProcessingConsent = { provider: string; region: string } | null;
 
 export type Company = CompanyDetails & {
   id: string;
@@ -286,7 +297,7 @@ export async function getCompany(client: AppClient, companyId: string): Promise<
   if (!isUuid(companyId)) return null;
   const { data, error } = await client
     .from("company")
-    .select("id, organization_id, name, first_name, last_name, ico, vat_id, street, street_name, house_number, orientation_number, city, postal_code, person_type, ai_processing_enabled, ai_provider, ai_region")
+    .select("id, organization_id, name, first_name, last_name, ico, vat_id, street, street_name, house_number, orientation_number, city, postal_code, person_type, ai_processing_enabled, ai_provider, ai_region, ai_credential_source")
     .eq("id", companyId)
     .maybeSingle();
   if (error) throw error;
@@ -310,7 +321,11 @@ export async function getCompany(client: AppClient, companyId: string): Promise<
     city: data.city,
     postalCode: data.postal_code,
     personType: data.person_type,
-    aiProcessing: data.ai_processing_enabled ? { provider: data.ai_provider!, region: data.ai_region! } : null,
+    aiProcessing: data.ai_processing_enabled ? {
+      provider: data.ai_provider!,
+      region: data.ai_region!,
+      credentialSource: data.ai_credential_source!,
+    } : null,
   };
 }
 
@@ -398,50 +413,4 @@ export async function getMyCompanyRole(client: AppClient, companyId: string): Pr
     return "administrator";
   }
   return data.find((membership) => membership.company_id === companyId)?.role ?? null;
-}
-
-/**
- * Consents to sending the Company's Documents to the provider, in its region
- * (ADR-0006), and starts the processing that waited for it. Administrators only;
- * the database audits the change.
- */
-export async function enableAiProcessing(
-  client: AppClient,
-  jobs: JobQueue,
-  input: { companyId: string; provider: Pick<AiProvider, "name" | "region"> },
-): Promise<Result<null, "forbidden">> {
-  const consent = { ai_processing_enabled: true, ai_provider: input.provider.name, ai_region: input.provider.region };
-  const updated = await updateAiProcessing(client, input.companyId, consent);
-  if (!updated.ok) return updated;
-
-  const [sourceFiles, documents] = await Promise.all([
-    client.from("source_file").select("id").eq("company_id", input.companyId).in("status", ["uploaded", "processing"]),
-    client.from("document").select("id").eq("company_id", input.companyId).in("status", ["uploaded", "processing"]),
-  ]);
-  if (sourceFiles.error) throw sourceFiles.error;
-  if (documents.error) throw documents.error;
-  for (const file of sourceFiles.data) await jobs.send(splitJob(file.id));
-  for (const document of documents.data) await jobs.send(extractJob(document.id));
-  return updated;
-}
-
-/** Withdraws the consent; no further Document is sent to an AI provider. Administrators only. */
-export async function disableAiProcessing(client: AppClient, companyId: string): Promise<Result<null, "forbidden">> {
-  return updateAiProcessing(client, companyId, { ai_processing_enabled: false, ai_provider: null, ai_region: null });
-}
-
-async function updateAiProcessing(
-  client: AppClient,
-  companyId: string,
-  consent: { ai_processing_enabled: boolean; ai_provider: string | null; ai_region: string | null },
-): Promise<Result<null, "forbidden">> {
-  if (!isUuid(companyId)) return { ok: false, error: "forbidden" };
-  // RLS turns a refused update into one that matches no row.
-  const { data, error } = await client.from("company").update(consent).eq("id", companyId).select("id");
-  if (error) {
-    if (error.code === "42501") return { ok: false, error: "forbidden" };
-    throw error;
-  }
-  if (data.length === 0) return { ok: false, error: "forbidden" };
-  return { ok: true, value: null };
 }

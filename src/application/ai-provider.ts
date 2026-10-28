@@ -20,7 +20,17 @@ export type PageRange = { firstPage: number; lastPage: number };
 export type RowRange = WorkbookRowSet;
 export type SourceRange = PageRange | RowRange;
 
-export type AiCallContext = { organizationId: string };
+export const AI_CREDENTIAL_SOURCES = ["platform", "organization", "local"] as const;
+export type AiCredentialSource = (typeof AI_CREDENTIAL_SOURCES)[number];
+export type AiProviderConfiguration = { apiKey: string; splitModel: string; extractModel: string };
+
+export type AiCallContext = {
+  organizationId: string;
+  /** The credential boundary explicitly selected by the Company Administrator. */
+  credentialSource: AiCredentialSource;
+  /** Resolved inside the worker handler; browser/application callers never receive it. */
+  configuration?: AiProviderConfiguration;
+};
 
 /** Token counts returned by a provider for one completed request. */
 export type AiUsage = { inputTokens: number; outputTokens: number };

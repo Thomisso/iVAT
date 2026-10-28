@@ -228,6 +228,8 @@
     "ares_unavailable": "ARES je dočasně nedostupný. Zadejte údaje firmy ručně nebo to zkuste znovu.",
     "ico_taken": "Firma s tímto IČO už ve vaší organizaci existuje.",
     "forbidden": "K této akci nemáte oprávnění.",
+    "provider_unavailable": "Tato možnost poskytovatele AI už není dostupná. Vyberte některou z aktuálních možností.",
+    "consent_required": "Před zapnutím zpracování pomocí AI potvrďte souhlas.",
     "invalid_invitation": "Zadejte platný e-mail, roli a rozsah pozvánky.",
     "invitation_failed": "E-mail s pozvánkou se nepodařilo odeslat. Zkuste to znovu.",
     "invitation_invalid": "Tento odkaz s pozvánkou je neplatný.",
@@ -408,6 +410,8 @@
   },
   "aiProcessing": {
     "title": "Zpracování pomocí AI",
+    "setupTitle": "Zvolte zpracování pomocí AI",
+    "setupIntro": "Zvolte, jak mohou být doklady této firmy zpracovány, nebo zatím pokračujte bez AI.",
     "off": "Zpracování pomocí AI je vypnuté. Nahrané soubory čekají, dokud ho administrátor nezapne.",
     "consent": "Vyberte poskytovatele a region, do kterého smějí být doklady této společnosti odesílány k rozdělení a vytěžení.",
     "on": "Zpracování pomocí AI je zapnuté. Doklady se odesílají poskytovateli AI {provider} (region {region}).",
@@ -416,7 +420,19 @@
     "noneAvailable": "Žádný poskytovatel AI nyní není dostupný. Požádejte správce platformy o jeho nastavení.",
     "enable": "Zapnout zpracování pomocí AI",
     "disable": "Vypnout zpracování pomocí AI",
-    "waiting": "čeká na zapnutí zpracování pomocí AI"
+    "skip": "Pokračovat bez AI",
+    "waiting": "čeká na zapnutí zpracování pomocí AI",
+    "waitingTitle": "Čeká na nastavení AI",
+    "waitingReason": "Původní soubory jsou bezpečně uložené. Rozdělení a vytěžení začne, až administrátor nastaví zpracování pomocí AI.",
+    "configureAction": "Nastavit zpracování pomocí AI",
+    "explicitConsent": "Souhlasím s odesláním dokladů této firmy zvolenému poskytovateli do uvedeného regionu zpracování.",
+    "manageOrganizationKeys": "Spravovat AI klíče organizace",
+    "administratorOnly": "Toto nastavení může změnit administrátor. Žádné tajné klíče se zde nezobrazují.",
+    "source": {
+      "platform": "Klíč poskytnutý platformou",
+      "organization": "Vlastní klíč organizace",
+      "local": "Lokální testovací poskytovatel"
+    }
   },
   "sourceFileStatus": {
     "uploaded": "Čeká",

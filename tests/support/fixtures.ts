@@ -123,3 +123,34 @@ export async function companyWithManyReportDocuments(count: number) {
   }
   return admin;
 }
+
+/** A Company with more than one PostgREST page of uploaded Documents waiting for Extraction. */
+export async function companyWithWaitingDocuments(count: number) {
+  const { PDFDocument } = await import("pdf-lib");
+  const { uploadSourceFile } = await import("@/application/source-files");
+  const admin = await administratorWithCompany("Paged AI resume");
+  const pageCount = Math.min(50, count);
+  const pdf = await PDFDocument.create();
+  for (let page = 0; page < pageCount; page++) pdf.addPage();
+  const bytes = await pdf.save();
+  let created = 0;
+  while (created < count) {
+    const documentsInFile = Math.min(pageCount, count - created);
+    const uploaded = await uploadSourceFile(admin.client, { async send() {} }, {
+      companyId: admin.companyId,
+      fileName: `waiting-${created / pageCount + 1}.pdf`,
+      bytes,
+    });
+    if (!uploaded.ok) throw new Error(uploaded.error);
+    const split = await systemClient().rpc("record_split", {
+      target_source_file_id: uploaded.value.id,
+      source_ranges: Array.from({ length: documentsInFile }, (_, page) => ({
+        firstPage: page + 1,
+        lastPage: page + 1,
+      })),
+    });
+    if (split.error) throw split.error;
+    created += documentsInFile;
+  }
+  return admin;
+}
