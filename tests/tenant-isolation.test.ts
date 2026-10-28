@@ -204,6 +204,7 @@ describe("tenant isolation", () => {
           provider: "fake",
           model: "forged",
           payload: {},
+          findings: [],
         }),
         await a.client.from("source_file").update({ status: "uploaded" }).eq("id", a.sourceFileId),
         await a.client.from("company").update({ name: "Renamed" }).eq("id", a.companyId),

@@ -1,5 +1,9 @@
 import { AiProviderError, type AiInput, type AiProvider, type PageRange } from "./ai-provider";
 import type { SystemClient } from "./client";
+import {
+  CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA,
+  validateDocument,
+} from "./document-validation";
 import type { DocumentStatus } from "./documents";
 import {
   pdfPages,
@@ -169,6 +173,10 @@ async function extractDocument({ system, providers }: Worker, documentId: string
       provider: ai.name,
       model,
       payload,
+      findings: validateDocument(
+        payload,
+        CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA,
+      ),
     });
     if (error) throw error;
   });
