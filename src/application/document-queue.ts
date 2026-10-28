@@ -47,7 +47,7 @@ const QUEUE_CONTEXT_KEYS = [
   "batchId",
 ] as const;
 
-const one = (value: string | string[] | undefined) =>
+const stringParam = (value: string | string[] | undefined) =>
   typeof value === "string" ? value : undefined;
 
 const fixedStatus: Partial<Record<DocumentSavedView, DocumentStatus>> = {
@@ -63,32 +63,32 @@ const fixedDirection: Partial<Record<DocumentSavedView, Direction>> = {
 
 /** Turns route search params into one canonical Documents queue context. */
 export function parseDocumentQueue(search: DocumentQueueSearch): DocumentQueue {
-  const requestedView = one(search.view);
+  const requestedView = stringParam(search.view);
   const view = DOCUMENT_SAVED_VIEWS.includes(requestedView as DocumentSavedView)
     ? requestedView as DocumentSavedView
     : "review";
-  const requestedStatus = one(search.status);
+  const requestedStatus = stringParam(search.status);
   const status = fixedStatus[view] ?? (
     DOCUMENT_STATUSES.includes(requestedStatus as DocumentStatus)
       ? requestedStatus as DocumentStatus
       : undefined
   );
-  const requestedDirection = one(search.direction);
+  const requestedDirection = stringParam(search.direction);
   const direction = fixedDirection[view] ?? (
     requestedDirection === "incoming" || requestedDirection === "outgoing"
       ? requestedDirection
       : undefined
   );
-  const reportingPeriod = one(search.reportingPeriod)?.trim() || undefined;
-  const counterparty = one(search.counterparty)?.trim() || undefined;
-  const batchId = one(search.batchId)?.trim() || undefined;
+  const reportingPeriod = stringParam(search.reportingPeriod)?.trim() || undefined;
+  const counterparty = stringParam(search.counterparty)?.trim() || undefined;
+  const batchId = stringParam(search.batchId)?.trim() || undefined;
   return {
     view,
     status,
     direction,
     reportingPeriod,
     counterparty,
-    hasFindings: one(search.hasFindings) === "1",
+    hasFindings: stringParam(search.hasFindings) === "1",
     batchId,
   };
 }

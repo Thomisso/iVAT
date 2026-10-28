@@ -569,6 +569,7 @@
     "allStatuses": "All statuses",
     "allDirections": "All directions",
     "reportingPeriod": "Reporting period",
+    "reportingPeriodPlaceholder": "2026-10",
     "counterparty": "Counterparty",
     "counterpartyHint": "Name, VAT ID or IČO",
     "findingsOnly": "Only documents with findings",
