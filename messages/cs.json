@@ -310,6 +310,7 @@
     "documentPages": "Doklad · strany {first}–{last}",
     "sourceStatus": {
       "uploaded": "Čeká",
+      "waiting_for_platform": "Čeká na zásah správce platformy",
       "processing": "Rozděluje se",
       "split": "Rozděleno",
       "failed": "Rozdělení selhalo"
@@ -317,6 +318,7 @@
     "documentStatus": {
       "uploaded": "Čeká na vytěžení",
       "waiting_for_allowance": "Dosažen limit počtu zpracovaných dokladů, kontaktujte super administrátora.",
+      "waiting_for_platform": "Zpracování AI čeká na zásah správce platformy.",
       "processing": "Vytěžuje se",
       "needs_review": "Ke kontrole",
       "approved": "Schváleno",
@@ -631,6 +633,7 @@
   },
   "sourceFileStatus": {
     "uploaded": "Čeká",
+    "waiting_for_platform": "Čeká na zásah správce platformy",
     "processing": "Rozděluje se",
     "split": "Rozděleno",
     "failed": "Selhalo"
@@ -638,6 +641,7 @@
   "documentStatus": {
     "uploaded": "Čeká",
     "waiting_for_allowance": "Dosažen limit počtu zpracovaných dokladů, kontaktujte super administrátora.",
+    "waiting_for_platform": "Zpracování AI čeká na zásah správce platformy.",
     "processing": "Zpracovává se",
     "needs_review": "Ke kontrole",
     "failed": "Selhalo",
@@ -833,6 +837,7 @@
   "statusBadge": {
     "uploaded": "Nahráno",
     "waiting-for-allowance": "Dosažen limit počtu zpracovaných dokladů, kontaktujte super administrátora.",
+    "waiting-for-platform": "Zpracování AI čeká na zásah správce platformy.",
     "splitting": "Rozděluje se",
     "extracting": "Vytěžuje se",
     "proposed": "Návrh AI",

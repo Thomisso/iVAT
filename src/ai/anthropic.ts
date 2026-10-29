@@ -3,6 +3,7 @@ import {
   type AiCallContext,
   type AiInput,
   type AiProvider,
+  type AiProcessingIssueClassification,
   type AiUsage,
 } from "@/application/ai-provider";
 import {
@@ -25,8 +26,19 @@ export type AnthropicAiProviderOptions = {
 export class AnthropicProviderError extends AiProviderError {
   readonly status: number | null;
 
-  constructor(message: string, options: { transient: boolean; status?: number; cause?: unknown }) {
-    super("anthropic_request_failed", message, { transient: options.transient, cause: options.cause });
+  constructor(message: string, options: {
+    transient: boolean;
+    status?: number;
+    classification?: AiProcessingIssueClassification;
+    platformIntervention?: boolean;
+    cause?: unknown;
+  }) {
+    super("anthropic_request_failed", message, {
+      transient: options.transient,
+      classification: options.classification,
+      platformIntervention: options.platformIntervention,
+      cause: options.cause,
+    });
     this.name = "AnthropicProviderError";
     this.status = options.status ?? null;
   }
@@ -69,10 +81,21 @@ async function structuredMessage(
     throw new AnthropicProviderError("Anthropic could not be reached", { transient: true, cause });
   }
   if (!response.ok) {
-    const transient = response.status === 408 || response.status === 409 || response.status === 429 || response.status >= 500;
+    const body = await response.json().catch(() => null) as { error?: { type?: unknown } } | null;
+    const errorType = body?.error?.type;
+    const classification = response.status === 401 || errorType === "authentication_error"
+      ? "invalid_credentials"
+      : response.status === 402 || errorType === "billing_error"
+        ? "provider_credits_exhausted"
+        : undefined;
+    const platformIntervention = classification !== undefined;
+    const transient = !platformIntervention
+      && (response.status === 408 || response.status === 409 || response.status === 429 || response.status >= 500);
     throw new AnthropicProviderError(`Anthropic request failed (${response.status})`, {
       transient,
       status: response.status,
+      classification,
+      platformIntervention,
     });
   }
   const result = await response.json() as {

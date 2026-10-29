@@ -204,4 +204,33 @@ describe("Anthropic AI provider", () => {
     expect(error).toBeInstanceOf(AnthropicProviderError);
     expect(error).toMatchObject({ status, transient });
   });
+
+  it.each([
+    [401, "authentication_error", "invalid_credentials"],
+    [402, "billing_error", "provider_credits_exhausted"],
+  ] as const)("classifies HTTP %i as %s platform intervention", async (status, type, classification) => {
+    const baseUrl = await anthropicStandIn((_request, _body, response) => {
+      response.writeHead(status, { "content-type": "application/json" });
+      response.end(JSON.stringify({ type: "error", error: { type, message: "operator-only detail" } }));
+    });
+    const provider = anthropicAiProvider({
+      apiKey: "test-secret",
+      splitModel: "claude-sonnet-split",
+      extractModel: "claude-sonnet-extract",
+      baseUrl,
+    });
+
+    const error = await provider.split({
+      format: "pdf",
+      mediaType: "application/pdf",
+      bytes: new Uint8Array([37, 80, 68, 70]),
+      pageCount: 1,
+    }).catch((caught: unknown) => caught);
+
+    expect(error).toMatchObject({
+      transient: false,
+      platformIntervention: true,
+      classification,
+    });
+  });
 });
