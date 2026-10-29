@@ -38,6 +38,7 @@ import {
   mergeDocuments,
   moveDocumentPage,
   rejectDocument,
+  returnDocumentToReview,
   reprocessDocument,
   splitDocument,
   updateDocumentReporting,
@@ -537,6 +538,15 @@ export async function rejectDocumentAction(_state: FormState, formData: FormData
   const result = await rejectDocument(await requireUserClient(), { companyId, documentId });
   if (!result.ok) return settled(result);
   redirectAfterDocumentDecision(formData, companyId, documentId);
+}
+
+export async function returnDocumentToReviewAction(_state: FormState, formData: FormData): Promise<FormState> {
+  return settled(
+    await returnDocumentToReview(await requireUserClient(), {
+      companyId: field(formData, "companyId"),
+      documentId: field(formData, "documentId"),
+    }),
+  );
 }
 
 function redirectAfterDocumentDecision(formData: FormData, companyId: string, documentId: string): never {
