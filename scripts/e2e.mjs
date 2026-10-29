@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { createServer as createNetServer } from "node:net";
 import { setTimeout as delay } from "node:timers/promises";
 
@@ -100,12 +100,22 @@ function stopManagedProcesses() {
 async function main() {
   if (!baseUrl) baseUrl = `http://localhost:${await availablePort()}`;
   environment.PLAYWRIGHT_BASE_URL = baseUrl;
+  environment.APP_ORIGIN = new URL(baseUrl).origin;
+  environment.AUTH_REDIRECT_ALLOWLIST = `${environment.APP_ORIGIN}/auth/callback`;
+  environment.SUPABASE_E2E_REDIRECT_URL = `${environment.AUTH_REDIRECT_ALLOWLIST}?**`;
   const port = new URL(baseUrl).port;
   const aresPort = await availablePort();
   environment.ARES_BASE_URL = `http://127.0.0.1:${aresPort}/ares/ekonomicke-subjekty-v-be/rest/ekonomicke-subjekty`;
   console.log(`Running the acceptance stack at ${baseUrl}`);
+  await command("npm", ["run", "db:stop"]);
   await command("npm", ["run", "db:start"]);
   await command("npm", ["run", "db:reset"]);
+  const localStack = JSON.parse(execFileSync(
+    process.execPath,
+    ["scripts/supabase.mjs", "status", "-o", "json"],
+    { cwd: process.cwd(), env: environment, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
+  ));
+  environment.MAILPIT_URL = localStack.MAILPIT_URL;
 
   const ares = start("postman", [
     "simulation", "run", "postman/simulations/ares/ares.sim.yaml",
