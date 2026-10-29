@@ -23,7 +23,8 @@ export type ExportVatReportError =
   | "epo_address_required"
   | "forbidden"
   | "stale_report"
-  | "report_finalized";
+  | "report_finalized"
+  | "report_not_finalized";
 export type EpoDownload = {
   artifactId: string;
   xml: string;
@@ -90,8 +91,7 @@ async function resolveExportDetails(
   };
 }
 
-/** RLS scopes the saved draft; only a validated XML candidate becomes a download. */
-export async function exportVatReport(
+async function exportVatReportArtifact(
   client: AppClient,
   input: {
     companyId: string;
@@ -99,6 +99,7 @@ export async function exportVatReport(
     format: string;
     details: Record<string, string>;
   },
+  kind: "draft" | "final",
 ): Promise<Result<EpoDownload, ExportVatReportError>> {
   const report = await getVatReport(client, input.companyId, input.period);
   if (!report) return { ok: false, error: "report_not_found" };
@@ -120,8 +121,9 @@ export async function exportVatReport(
   const result = await createEpoXml(report.result, input.format, details.value);
   if (!result.ok) return result;
   const bytes = new TextEncoder().encode(result.value);
-  const fileName = `DRAFT_${input.format.toUpperCase()}_${input.period}.xml`;
-  const stored = await client.rpc("create_draft_vat_report_artifact", {
+  const prefix = kind === "draft" ? "DRAFT_" : "";
+  const fileName = `${prefix}${input.format.toUpperCase()}_${input.period}.xml`;
+  const rpcInput = {
     target_company_id: report.companyId,
     target_vat_report_id: report.id,
     target_report_generated_at: report.generatedAt,
@@ -131,13 +133,18 @@ export async function exportVatReport(
     target_resolved_details: details.value as unknown as Json,
     target_schema_version: EPO_SCHEMA_VERSIONS[input.format],
     target_serializer_version: EPO_SERIALIZER_VERSION,
-  });
+  };
+  const stored = kind === "draft"
+    ? await client.rpc("create_draft_vat_report_artifact", rpcInput)
+    : await client.rpc("create_final_vat_report_artifact", rpcInput);
   if (stored.error) {
     if (stored.error.code === "42501") return { ok: false, error: "forbidden" };
     if (stored.error.code === "P0001" && stored.error.hint === "stale_report")
       return { ok: false, error: "stale_report" };
     if (stored.error.code === "P0001" && stored.error.hint === "report_finalized")
       return { ok: false, error: "report_finalized" };
+    if (stored.error.code === "P0001" && stored.error.hint === "report_not_finalized")
+      return { ok: false, error: "report_not_finalized" };
     if (stored.error.code === "P0001" && stored.error.hint === "invalid_export_details")
       return { ok: false, error: "invalid_export_details" };
     throw stored.error;
@@ -152,6 +159,32 @@ export async function exportVatReport(
       mediaType: "application/xml; charset=utf-8",
     },
   };
+}
+
+/** Saves a validated working XML artifact for an unlocked VAT Report snapshot. */
+export function exportVatReport(
+  client: AppClient,
+  input: {
+    companyId: string;
+    period: string;
+    format: string;
+    details: Record<string, string>;
+  },
+): Promise<Result<EpoDownload, ExportVatReportError>> {
+  return exportVatReportArtifact(client, input, "draft");
+}
+
+/** Saves a new validated final XML artifact for the actively locked snapshot. */
+export function exportFinalVatReport(
+  client: AppClient,
+  input: {
+    companyId: string;
+    period: string;
+    format: string;
+    details: Record<string, string>;
+  },
+): Promise<Result<EpoDownload, ExportVatReportError>> {
+  return exportVatReportArtifact(client, input, "final");
 }
 
 /** Every immutable XML artifact for the Reporting Period, newest first. */

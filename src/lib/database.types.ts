@@ -647,6 +647,9 @@ isOneToOne: false
 "create_draft_vat_report_artifact":
 { Args: { "target_company_id": string,"target_file_name": string,"target_format": string,"target_report_generated_at": string,"target_resolved_details": Json,"target_schema_version": string,"target_serializer_version": string,"target_vat_report_id": string,"target_xml_base64": string }; Returns: string
                            },
+"create_final_vat_report_artifact":
+{ Args: { "target_company_id": string,"target_file_name": string,"target_format": string,"target_report_generated_at": string,"target_resolved_details": Json,"target_schema_version": string,"target_serializer_version": string,"target_vat_report_id": string,"target_xml_base64": string }; Returns: string
+                           },
 "create_invitation":
 { Args: { "target_company_id": string,"target_email": string,"target_organization_id": string,"target_role": Database["public"]['Enums']["membership_role"] }; Returns: string
                            },

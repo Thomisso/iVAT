@@ -170,6 +170,35 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   await expect(page.getByText("Period locked", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Generate / regenerate draft" })).toBeDisabled();
 
+  await page
+    .getByRole("navigation", { name: "Reporting Period destinations" })
+    .getByRole("link", { name: "VAT Return" })
+    .click();
+  const finalExport = page.locator("article").filter({
+    has: page.getByRole("heading", { name: "VAT Return (DPHDP3)" }),
+  });
+  await expect(finalExport.getByText("Final XML artifact", { exact: true })).toBeVisible();
+  await finalExport.getByLabel("Tax office").selectOption("451");
+  await finalExport.getByLabel("First name").fill("Jana");
+  await finalExport.getByLabel("Last name").fill("Nováková");
+  await finalExport.getByLabel("Capacity").fill("jednatelka");
+  await finalExport.getByLabel("Email").fill(`final-${run}@example.test`);
+  const finalDownloadPromise = page.waitForEvent("download");
+  await finalExport.getByRole("button", { name: "Download XML" }).click();
+  const finalDownload = await finalDownloadPromise;
+  expect(finalDownload.suggestedFilename()).toBe("DPHDP3_2026-10.xml");
+  const finalPath = await finalDownload.path();
+  expect(finalPath).not.toBeNull();
+  expect(await validateEpoXml(await fs.readFile(finalPath!, "utf8"), "dphdp3")).toBe(true);
+  await page
+    .getByRole("navigation", { name: "Reporting Period destinations" })
+    .getByRole("link", { name: "Export history" })
+    .click();
+  const artifactHistory = page.getByRole("table", { name: "Stored XML artifacts" });
+  await expect(artifactHistory.getByText("Final", { exact: true })).toBeVisible();
+  await expect(artifactHistory.getByText("Working", { exact: true })).toBeVisible();
+  await expect(artifactHistory.getByText(`final-${run}@example.test`, { exact: true })).toBeVisible();
+
   const userContext = await browser.newContext();
   await userContext.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseUrl }]);
   const userPage = await userContext.newPage();

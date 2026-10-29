@@ -1,5 +1,6 @@
 import { getTranslations } from "next-intl/server";
-import { exportVatReport } from "@/application/epo-export";
+import { exportFinalVatReport, exportVatReport } from "@/application/epo-export";
+import { getPeriodLock } from "@/application/vat-reports";
 import { requireUserClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -29,7 +30,10 @@ export async function POST(
       typeof value === "string" ? [[key, value]] : [],
     ),
   );
-  const result = await exportVatReport(client, {
+  const exporter = await getPeriodLock(client, companyId, period)
+    ? exportFinalVatReport
+    : exportVatReport;
+  const result = await exporter(client, {
     companyId,
     period,
     format: details.format ?? "",
