@@ -43,9 +43,16 @@ export default async function DocumentsPage({ params, searchParams }: PageProps<
     <nav className="document-saved-views" aria-label={t("documents.savedViewsLabel")}>
       {DOCUMENT_SAVED_VIEWS.map((view) => <Link key={view} href={`/companies/${companyId}/documents?${tabQueue(view)}`} aria-current={queue.view === view ? "page" : undefined}>{t(`documents.savedViews.${view}`)}</Link>)}
     </nav>
+    {queue.readiness && queue.reportingPeriod && <p className="document-readiness-filter" role="status">
+      {t(`documents.readinessFilters.${queue.readiness}`, {
+        count: documents.length,
+        period: queue.reportingPeriod,
+      })}
+    </p>}
     <form action={`/companies/${companyId}/documents`} aria-label={t("documents.filters")} className="document-queue-filters">
       <input type="hidden" name="view" value={queue.view} />
       {queue.batchId && <input type="hidden" name="batchId" value={queue.batchId} />}
+      {queue.readiness && <input type="hidden" name="readiness" value={queue.readiness} />}
       {!(["review", "failed", "approved"] as string[]).includes(queue.view) && <label><span>{t("documents.status")}</span><select className="iv-input" name="status" defaultValue={queue.status ?? ""}><option value="">{t("documents.allStatuses")}</option>{DOCUMENT_STATUSES.map((status) => <option key={status} value={status}>{t(`documentStatus.${status}`)}</option>)}</select></label>}
       {!(["incoming", "outgoing"] as string[]).includes(queue.view) && <label><span>{t("documents.direction")}</span><select className="iv-input" name="direction" defaultValue={queue.direction ?? ""}><option value="">{t("documents.allDirections")}</option><option value="incoming">{t("review.direction.incoming")}</option><option value="outgoing">{t("review.direction.outgoing")}</option></select></label>}
       <label><span>{t("documents.reportingPeriod")}</span><input className="iv-input" name="reportingPeriod" defaultValue={queue.reportingPeriod} placeholder={t("documents.reportingPeriodPlaceholder")} /></label>
