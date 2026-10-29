@@ -748,6 +748,9 @@ isOneToOne: false
 "current_user_can_use_application":
 { Args: Record<PropertyKey, never>; Returns: boolean
                            },
+"delete_upload_batch":
+{ Args: { "target_batch_id": string }; Returns: (string)[]
+                           },
 "dismiss_company_upload_notifications":
 { Args: { "target_company_id": string }; Returns: undefined
                            },
@@ -814,6 +817,9 @@ isOneToOne: false
                            },
 "mark_company_upload_notifications_read":
 { Args: { "target_company_id": string }; Returns: undefined
+                           },
+"mark_upload_batch_notification_read":
+{ Args: { "target_batch_id": string }; Returns: undefined
                            },
 "mark_upload_notification_read":
 { Args: { "target_notification_id": string }; Returns: undefined

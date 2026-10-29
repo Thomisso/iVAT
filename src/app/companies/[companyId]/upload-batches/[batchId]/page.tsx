@@ -3,27 +3,34 @@ import { notFound } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
 import { reprocessDocumentAction, retrySplitAction } from "@/app/actions";
 import { getCompany, getMyCompanyRole } from "@/application/companies";
-import { getUploadBatch } from "@/application/upload-batches";
+import { currentUserId } from "@/application/auth";
+import { getUploadBatch, getUploadBatchDeletionPreview } from "@/application/upload-batches";
 import { CommandButton } from "@/components/command-button";
 import { RefreshWhile } from "@/components/refresh-while";
 import { StatusBadge } from "@/components/status-badge";
 import { statusBadgeState } from "@/components/status-badge-state";
 import { PageLayout } from "@/components/app-shell";
 import { requireUserClient } from "@/lib/supabase/server";
+import { BatchDeletionForm } from "./batch-deletion-form";
+import { MarkBatchNotificationRead } from "./mark-batch-notification-read";
 
 export default async function UploadBatchPage({
   params,
 }: PageProps<"/companies/[companyId]/upload-batches/[batchId]">) {
   const { companyId, batchId } = await params;
   const client = await requireUserClient();
-  const [company, role, batch, t, format] = await Promise.all([
+  const [company, role, userId, batch, deletion, t, format] = await Promise.all([
     getCompany(client, companyId),
     getMyCompanyRole(client, companyId),
+    currentUserId(client),
     getUploadBatch(client, companyId, batchId),
+    getUploadBatchDeletionPreview(client, companyId, batchId),
     getTranslations("uploadWorkspace"),
     getFormatter(),
   ]);
   if (!company || !batch) notFound();
+  // The database decides who may delete; the Role only decides whether to offer it.
+  const mayOfferDeletion = deletion && (role === "administrator" || deletion.createdBy === userId);
 
   const phases = [
     { key: "transport", count: batch.actualFileCount, active: !batch.uploadFinishedAt },
@@ -92,6 +99,8 @@ export default async function UploadBatchPage({
         </ol> : <p className="iv-muted">{source.status === "failed" ? t("noDocumentsFailed") : t("noDocumentsYet")}</p>}
       </article>)}
     </section>
+    {mayOfferDeletion && <BatchDeletionForm companyId={companyId} preview={deletion} />}
     <RefreshWhile active={batch.outcome === "processing"} />
+    <MarkBatchNotificationRead batchId={batch.id} finished={batch.outcome !== "processing"} />
   </PageLayout>;
 }
