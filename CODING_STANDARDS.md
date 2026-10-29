@@ -24,6 +24,7 @@ Judgement calls for review. CI already enforces typecheck, lint, tests, build, g
 - Tests call `src/application/` as real users, using the fixtures in `tests/support/`. They assert on what that user observes through queries. A direct table query belongs in a test only to prove that the database itself refuses something under the user's identity (isolation, audit).
 - Every new tenant-owned table gets an isolation test: a user of another Organization can neither read nor modify its rows, including through direct queries.
 - Expected values are literals from the spec or a worked example, never recomputed the way the code computes them.
+- An end-to-end remediation test proves the retried entity reached its durable terminal state before it treats a cleared alert or healthy dashboard as success. A transient UI state is not evidence that background recovery completed.
 
 ## UI
 

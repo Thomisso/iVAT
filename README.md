@@ -113,20 +113,25 @@ npm run db:start
 npm test
 ```
 
-The end-to-end smoke test starts this worktree's Supabase stack, resets its
-database, starts Next.js and the worker with the fake AI provider, and walks the
-acceptance scenario in headless Chromium. Install Chromium once after `npm ci`,
-then run the whole scenario with one command:
+The end-to-end acceptance suite stops this worktree's existing Supabase stack
+without retaining its data, starts only the services needed by the browser
+tests, builds the production Next.js application, and runs it with the worker
+and fake AI provider. Install Chromium once after `npm ci`, then run the same
+production-mode suite used by CI:
 
 ```bash
 npx playwright install chromium
 npm run test:e2e
 ```
 
-It signs up a unique local user, creates a Company, sends a local invitation,
-uploads and approves a Document, generates a VAT Report, checks its drill-down,
-and validates the downloaded EPO XML against the vendored official XSD. The
-test does not call an external AI or other external network service.
+For a faster local loop that uses `next dev` and skips the production build,
+run `npm run test:e2e:dev`; use the production-mode command for final
+verification. The suite covers authentication and invitations, Company and
+Platform administration, uploads and background remediation, reporting and
+exports, responsive shell behavior, and accessibility. It does not call a real
+AI provider or another external network service. On failure, Playwright traces
+and separate Next.js, worker, and Postman logs are retained under
+`test-results/`.
 
 The real-provider extraction evaluation is a separate manual command. Its
 versioned golden-set format, credentials, model overrides, scoring rules, and

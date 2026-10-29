@@ -1,16 +1,35 @@
 #!/usr/bin/env node
 
 import { execFileSync, spawn } from "node:child_process";
+import fs from "node:fs";
 import { createServer as createNetServer } from "node:net";
+import os from "node:os";
+import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
 let baseUrl = process.env.PLAYWRIGHT_BASE_URL;
-const useProductionServer = process.env.E2E_PRODUCTION_SERVER === "1";
+const cliArguments = process.argv.slice(2);
+const useDevelopmentServer = cliArguments.includes("--dev-server");
+const playwrightArguments = cliArguments.filter((argument) => argument !== "--dev-server");
 const environment = {
   ...process.env,
   AI_PROVIDER: "fake",
 };
 const managed = [];
+const serviceLogDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "ivat-e2e-"));
+
+async function phase(label, operation) {
+  const startedAt = performance.now();
+  console.log(`[e2e] ${label} started`);
+  try {
+    const result = await operation();
+    console.log(`[e2e] ${label} completed in ${((performance.now() - startedAt) / 1_000).toFixed(1)}s`);
+    return result;
+  } catch (error) {
+    console.error(`[e2e] ${label} failed after ${((performance.now() - startedAt) / 1_000).toFixed(1)}s`);
+    throw error;
+  }
+}
 
 function command(name, args, options = {}) {
   return new Promise((resolve, reject) => {
@@ -28,14 +47,18 @@ function command(name, args, options = {}) {
   });
 }
 
-function start(name, args) {
+function start(name, args, label) {
+  const logPath = path.join(serviceLogDirectory, `${label}.log`);
+  const log = fs.createWriteStream(logPath, { flags: "a" });
   const child = spawn(name, args, {
     cwd: process.cwd(),
     env: environment,
-    stdio: "inherit",
+    stdio: ["ignore", "pipe", "pipe"],
     detached: process.platform !== "win32",
   });
-  managed.push(child);
+  child.stdout.on("data", (chunk) => log.write(chunk));
+  child.stderr.on("data", (chunk) => log.write(chunk));
+  managed.push({ child, label, log, logPath });
   return child;
 }
 
@@ -86,8 +109,8 @@ async function waitForDependency(child, url, label) {
   throw new Error(`Timed out waiting for ${label}`);
 }
 
-function stopManagedProcesses() {
-  for (const child of managed.reverse()) {
+async function stopManagedProcesses() {
+  for (const { child } of managed.toReversed()) {
     if (child.exitCode !== null || child.pid === undefined) continue;
     try {
       if (process.platform === "win32") child.kill("SIGTERM");
@@ -96,14 +119,31 @@ function stopManagedProcesses() {
       if (error?.code !== "ESRCH") throw error;
     }
   }
+  await Promise.all(managed.map(async ({ child }) => {
+    if (child.exitCode !== null) return;
+    await Promise.race([
+      new Promise((resolve) => child.once("exit", resolve)),
+      delay(2_000),
+    ]);
+  }));
+  await Promise.all(managed.map(({ log }) => new Promise((resolve) => log.end(resolve))));
+}
+
+function preserveServiceLogs() {
+  const destination = path.join(process.cwd(), "test-results", "service-logs");
+  fs.mkdirSync(destination, { recursive: true });
+  for (const { label, logPath } of managed) {
+    const destinationPath = path.join(destination, `${label}.log`);
+    fs.copyFileSync(logPath, destinationPath);
+    const lines = fs.readFileSync(logPath, "utf8").trimEnd().split("\n");
+    console.error(`\n[e2e] Last ${Math.min(lines.length, 40)} lines from ${label}:`);
+    console.error(lines.slice(-40).join("\n"));
+  }
+  console.error(`\n[e2e] Complete service logs: ${path.relative(process.cwd(), destination)}`);
 }
 
 async function main() {
-  if (!baseUrl) {
-    baseUrl = useProductionServer
-      ? "http://127.0.0.1:3000"
-      : `http://localhost:${await availablePort()}`;
-  }
+  if (!baseUrl) baseUrl = "http://127.0.0.1:3100";
   environment.PLAYWRIGHT_BASE_URL = baseUrl;
   environment.APP_ORIGIN = new URL(baseUrl).origin;
   environment.AUTH_REDIRECT_ALLOWLIST = `${environment.APP_ORIGIN}/auth/callback`;
@@ -112,46 +152,57 @@ async function main() {
   const aresPort = await availablePort();
   environment.ARES_BASE_URL = `http://127.0.0.1:${aresPort}/ares/ekonomicke-subjekty-v-be/rest/ekonomicke-subjekty`;
   console.log(`Running the acceptance stack at ${baseUrl}`);
-  await command("npm", ["run", "db:stop", "--", "--no-backup"]);
-  await command("npm", ["run", "db:start"]);
+  await phase("Stop existing database", () => command("npm", ["run", "db:stop", "--", "--no-backup"]));
+  await phase("Start acceptance database", () => command("npm", ["run", "db:start", "--", "--profile=e2e"]));
   const localStack = JSON.parse(execFileSync(
     process.execPath,
     ["scripts/supabase.mjs", "status", "-o", "json"],
     { cwd: process.cwd(), env: environment, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
   ));
   environment.MAILPIT_URL = localStack.MAILPIT_URL;
-  if (useProductionServer) await command("npm", ["run", "build"]);
+  if (!useDevelopmentServer) {
+    await phase("Build production application", () => command("npm", ["run", "build"]));
+  }
 
-  const ares = start("postman", [
-    "simulation", "run", "postman/simulations/ares/ares.sim.yaml",
-    "--port", String(aresPort), "--no-history", "--output", "ndjson",
-  ]);
-  await waitForDependency(
-    ares,
-    `${environment.ARES_BASE_URL}/12345678`,
-    "ARES simulation",
-  );
-  const web = start("npm", [
-    "run",
-    useProductionServer ? "start" : "dev",
-    "--",
-    "-p",
-    port,
-  ]);
-  start(process.execPath, [
-    "node_modules/tsx/dist/cli.mjs",
-    "--env-file=.env.local",
-    "worker/index.ts",
-  ]);
-  await waitForApp(web);
-  await command("npx", ["playwright", "test", "--config=playwright.config.ts", ...process.argv.slice(2)]);
+  await phase("Start acceptance services", async () => {
+    const ares = start("postman", [
+      "simulation", "run", "postman/simulations/ares/ares.sim.yaml",
+      "--port", String(aresPort), "--no-history", "--output", "ndjson",
+    ], "postman");
+    await waitForDependency(
+      ares,
+      `${environment.ARES_BASE_URL}/12345678`,
+      "ARES simulation",
+    );
+    const web = start("npm", [
+      "run",
+      useDevelopmentServer ? "dev" : "start",
+      "--",
+      "-p",
+      port,
+    ], "next");
+    start(process.execPath, [
+      "node_modules/tsx/dist/cli.mjs",
+      "--env-file=.env.local",
+      "worker/index.ts",
+    ], "worker");
+    await waitForApp(web);
+  });
+  await phase("Run Playwright acceptance suite", () => command(
+    "npx",
+    ["playwright", "test", "--config=playwright.config.ts", ...playwrightArguments],
+  ));
 }
 
+let failed = false;
 try {
   await main();
 } catch (error) {
+  failed = true;
   console.error(error instanceof Error ? error.message : error);
   process.exitCode = 1;
 } finally {
-  stopManagedProcesses();
+  await stopManagedProcesses();
+  if (failed) preserveServiceLogs();
+  fs.rmSync(serviceLogDirectory, { recursive: true, force: true });
 }
