@@ -1,0 +1,15 @@
+# Platform owns AI credentials and Company access
+
+AI provider configuration and credentials are platform know-how managed only by the SuperAdmin. The SuperAdmin creates named AI Configurations containing the provider credential and the models used for Split and Extraction; one configuration may be assigned to one Company or shared by several Companies without duplicating its secret. The SuperAdmin assigns configurations, grants AI access and sets each Company's AI Processing Allowance, while Organization Administrators, Company Administrators and Users have no AI configuration or BYOK controls.
+
+A new Company receives the shared default AI Configuration, AI access and an allowance of 50 successful Extractions unless the SuperAdmin overrides them. The allowance is a lifetime total and does not reset automatically; failed attempts, Split and technical retries do not consume it, while a successful repeated Extraction does. When a Source File contains more Documents than the remaining allowance, Documents are processed in page order up to the limit and the rest wait for allowance; increasing the limit automatically requeues the oldest waiting Documents. The SuperAdmin may grant unlimited processing. Company-managed credentials may be reconsidered later, but are outside the current product scope.
+
+Expected platform interventions are distinct from processing failures. Documents wait without retrying when their Company has exhausted its allowance or lacks a usable AI Configuration; transient provider failures retry automatically and become failed only after the retry budget is exhausted. Users see platform-neutral explanations, while the SuperAdmin sees provider and credential details.
+
+Platform Administration is the operational control surface for this model. Its active dashboard groups allowance waits, configuration and provider incidents, and terminal processing failures by root cause, AI Configuration and Company; it warns when a Company reaches 80% of its allowance and offers the corresponding remediation in place. Shared-configuration incidents show every affected Company without exposing the credential secret. Resolved conditions leave the active dashboard automatically, while SuperAdmin interventions remain in the Audit Log. Platform alerts are in-app only for now; email alerts are deferred.
+
+Organization-level AI settings and usage views are removed. The SuperAdmin sees full usage, token, allowance and waiting-Document data by AI Configuration and Company. A Company Administrator sees only the Company's successful Extractions against its allowance and the number of waiting Documents; a User sees only the status of their processing and platform-neutral errors.
+
+## Considered Options
+
+- Organization BYOK and Administrator-managed AI settings were removed from the current product to keep provider selection, credential management and commercial limits under platform control.
