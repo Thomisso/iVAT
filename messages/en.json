@@ -393,6 +393,7 @@
     "invalid_filing_defaults": "Enter valid filing defaults. Complete all signatory fields together and keep contacts within EPO limits.",
     "epo_override_not_required": "A separate EPO address is allowed only when the registered address exceeds a schema limit.",
     "epo_override_confirmation_required": "Confirm the separate EPO address before saving it.",
+    "epo_address_required": "Complete and confirm a separate EPO address in Company settings before exporting XML.",
     "invalid_export_format": "Select a VAT Return or Control Statement.",
     "report_not_found": "The saved draft is unavailable. Generate it first.",
     "xml_invalid": "The XML does not match the official schema. Check the Company and Document data, correct it and regenerate the draft.",
@@ -1109,6 +1110,15 @@
     "email": "Contact email (optional)",
     "phone": "Contact phone (optional)",
     "notSet": "Not set",
+    "serializedAddress": "Address written to XML",
+    "addressSource": "Address source",
+    "addressSources": {
+      "registered": "Registered Company address from the saved draft",
+      "confirmed_override": "Confirmed EPO address"
+    },
+    "epoAddressMissing": "Confirmed EPO address required",
+    "epoAddressRequired": "The registered address exceeds an EPO schema limit. Complete and confirm a separate EPO address before downloading XML.",
+    "completeEpoAddress": "Complete EPO address in Company settings",
     "editForExport": "Edit for this export",
     "useSaved": "Use saved defaults",
     "download": "Download XML",

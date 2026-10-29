@@ -1,7 +1,12 @@
 import { isUuid, type AppClient, type Result } from "./client";
+import { epoIdentityFindings } from "./companies";
 import { TAX_OFFICES, type ExportDetails } from "./epo-export-details";
 
 export type EpoAddress = NonNullable<ExportDetails["address"]>;
+export type ResolvedEpoAddress = {
+  address: EpoAddress;
+  source: "registered" | "confirmed_override";
+};
 
 export type CompanyFilingDefaults = {
   taxOffice: string | null;
@@ -31,6 +36,23 @@ export type CompanyFilingDefaultsError =
   | "epo_override_confirmation_required";
 
 const optional = (value: string) => value.trim() || null;
+
+/** Resolves the exact address serialized into EPO XML, without truncating registered identity. */
+export function resolveEpoAddress(
+  registeredAddress: EpoAddress,
+  defaults: CompanyFilingDefaults | null,
+): Result<ResolvedEpoAddress, "epo_address_required"> {
+  if (epoIdentityFindings(registeredAddress).length === 0) {
+    return { ok: true, value: { address: registeredAddress, source: "registered" } };
+  }
+  if (defaults?.epoAddressOverride) {
+    return {
+      ok: true,
+      value: { address: defaults.epoAddressOverride, source: "confirmed_override" },
+    };
+  }
+  return { ok: false, error: "epo_address_required" };
+}
 
 function validAddress(address: EpoAddress): boolean {
   return address.streetName.trim().length > 0

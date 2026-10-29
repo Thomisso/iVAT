@@ -393,6 +393,7 @@
     "invalid_filing_defaults": "Zadejte platné výchozí údaje podání. Vyplňte společně všechny údaje oprávněné osoby a dodržte limity kontaktů EPO.",
     "epo_override_not_required": "Samostatná adresa pro EPO je povolena jen tehdy, když registrovaná adresa překračuje limit schématu.",
     "epo_override_confirmation_required": "Před uložením samostatnou adresu pro EPO potvrďte.",
+    "epo_address_required": "Před exportem XML doplňte a potvrďte samostatnou adresu pro EPO v nastavení firmy.",
     "invalid_export_format": "Vyberte přiznání k DPH nebo kontrolní hlášení.",
     "report_not_found": "Uložený návrh není dostupný. Nejprve jej vygenerujte.",
     "xml_invalid": "XML nevyhovuje oficiálnímu schématu. Zkontrolujte údaje firmy a dokladů, opravte je a návrh znovu vygenerujte.",
@@ -1109,6 +1110,15 @@
     "email": "Kontaktní e-mail (nepovinný)",
     "phone": "Kontaktní telefon (nepovinný)",
     "notSet": "Nenastaveno",
+    "serializedAddress": "Adresa zapsaná do XML",
+    "addressSource": "Zdroj adresy",
+    "addressSources": {
+      "registered": "Registrovaná adresa firmy z uloženého návrhu",
+      "confirmed_override": "Potvrzená adresa pro EPO"
+    },
+    "epoAddressMissing": "Je nutná potvrzená adresa pro EPO",
+    "epoAddressRequired": "Registrovaná adresa překračuje limit schématu EPO. Před stažením XML doplňte a potvrďte samostatnou adresu pro EPO.",
+    "completeEpoAddress": "Doplnit adresu EPO v nastavení firmy",
     "editForExport": "Upravit pro tento export",
     "useSaved": "Použít uložené výchozí údaje",
     "download": "Stáhnout XML",

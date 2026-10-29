@@ -1,5 +1,5 @@
 import type { AppClient, Result } from "./client";
-import { getCompanyFilingDefaults } from "./company-filing-defaults";
+import { getCompanyFilingDefaults, resolveEpoAddress } from "./company-filing-defaults";
 import {
   isEpoFormat,
   parseExportDetails,
@@ -9,7 +9,7 @@ import { createEpoXml, type EpoXmlError } from "./epo-xml";
 import { getVatReport } from "./vat-reports";
 
 export type ExportVatReportError =
-  EpoXmlError | "report_not_found" | "invalid_export_format";
+  EpoXmlError | "report_not_found" | "invalid_export_format" | "epo_address_required";
 export type EpoDownload = {
   xml: string;
   fileName: string;
@@ -28,8 +28,10 @@ async function resolveExportDetails(
     personType: "legal" | "natural";
     registeredAddress: NonNullable<ExportDetails["address"]>;
   },
-): Promise<Result<ExportDetails, "invalid_export_details">> {
+): Promise<Result<ExportDetails, "invalid_export_details" | "epo_address_required">> {
   const defaults = await getCompanyFilingDefaults(client, input.companyId);
+  const resolvedAddress = resolveEpoAddress(input.registeredAddress, defaults);
+  if (!resolvedAddress.ok) return resolvedAddress;
   const supplied = (key: string, fallback: string | null | undefined) =>
     Object.hasOwn(input.details, key) ? input.details[key] : (fallback ?? "");
   const parsed = parseExportDetails({
@@ -47,7 +49,7 @@ async function resolveExportDetails(
     ok: true,
     value: {
       ...parsed.value,
-      address: defaults?.epoAddressOverride ?? input.registeredAddress,
+      address: resolvedAddress.value.address,
     },
   };
 }
