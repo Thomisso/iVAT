@@ -8,6 +8,7 @@ import {
   type DocumentSavedView,
 } from "@/application/document-queue";
 import { DOCUMENT_STATUSES } from "@/application/documents";
+import { PageContent, PageHeader, PageLayout } from "@/components/app-shell";
 import { DataTable } from "@/components/data-table";
 import { StatusBadge } from "@/components/status-badge";
 import { statusBadgeState } from "@/components/status-badge-state";
@@ -31,16 +32,18 @@ export default async function DocumentsPage({ params, searchParams }: PageProps<
   }));
   const clearQueue = documentQueueQuery(parseDocumentQueue({ view: queue.view, batchId: queue.batchId }));
 
-  return <main className="company-workspace documents-workspace">
-    <header className="company-page-header">
-      <h1>{t("shell.documentsTitle")}</h1>
-      <p>{batch ? t("uploadWorkspace.filteredQueue", { count: documents.length }) : t("shell.documentsDescription")}</p>
+  return <PageLayout className="documents-workspace" measure="wide">
+    <PageHeader
+      description={batch ? t("uploadWorkspace.filteredQueue", { count: documents.length }) : t("shell.documentsDescription")}
+      title={t("shell.documentsTitle")}
+    >
       {batch && <Link href={`/companies/${companyId}/upload-batches/${batch.id}`}>{t("uploadWorkspace.backToBatch")}</Link>}
-    </header>
+    </PageHeader>
+    <PageContent measure="wide">
     <nav className="document-saved-views" aria-label={t("documents.savedViewsLabel")}>
       {DOCUMENT_SAVED_VIEWS.map((view) => <Link key={view} href={`/companies/${companyId}/documents?${tabQueue(view)}`} aria-current={queue.view === view ? "page" : undefined}>{t(`documents.savedViews.${view}`)}</Link>)}
     </nav>
-    <form action={`/companies/${companyId}/documents`} className="document-queue-filters">
+    <form action={`/companies/${companyId}/documents`} aria-label={t("documents.filters")} className="document-queue-filters">
       <input type="hidden" name="view" value={queue.view} />
       {queue.batchId && <input type="hidden" name="batchId" value={queue.batchId} />}
       {!(["review", "failed", "approved"] as string[]).includes(queue.view) && <label><span>{t("documents.status")}</span><select className="iv-input" name="status" defaultValue={queue.status ?? ""}><option value="">{t("documents.allStatuses")}</option>{DOCUMENT_STATUSES.map((status) => <option key={status} value={status}>{t(`documentStatus.${status}`)}</option>)}</select></label>}
@@ -65,5 +68,6 @@ export default async function DocumentsPage({ params, searchParams }: PageProps<
         { key: "status", header: t("documents.status"), render: (document) => <StatusBadge status={statusBadgeState(document.status, "document")}>{t(`documentStatus.${document.status}`)}</StatusBadge> },
       ]}
     /> : <section className="company-workspace-empty"><span aria-hidden="true" /><p>{t("documents.noMatch")}</p></section>}
-  </main>;
+    </PageContent>
+  </PageLayout>;
 }
