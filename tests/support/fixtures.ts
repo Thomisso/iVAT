@@ -67,6 +67,17 @@ export async function companyMember(
   return user;
 }
 
+/** Support-only corruption fixture for exercising the database's Finalization
+ * guard. The Application never removes a required completed setup step. */
+export async function removeCompletedCompanyIdentityFixture(companyId: string) {
+  const removed = await systemClient()
+    .from("company_setup_step_state")
+    .delete()
+    .eq("company_id", companyId)
+    .eq("step", "identity");
+  if (removed.error) throw removed.error;
+}
+
 /** Large report fixture. Uses platform-sized Source Files and the worker's narrow
  * write functions to avoid 1001 full PDF extraction jobs; application tests still
  * generate/read as a User. */

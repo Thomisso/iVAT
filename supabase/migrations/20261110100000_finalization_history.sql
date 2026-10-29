@@ -1,13 +1,114 @@
 -- Finalization is an auditable lock of one current, ready VAT Report snapshot.
--- The saved revision and database-derived readiness summary make the later
+-- The database-derived snapshot and readiness summary make the later
 -- transition atomic without trusting browser-supplied readiness claims.
 
 alter table public.vat_report
-  add column data_revision bigint not null default 0,
   add column blocker_count integer not null default 0 check (blocker_count >= 0),
   add column warning_count integer not null default 0 check (warning_count >= 0),
   add column rejected_document_count integer not null default 0
     check (rejected_document_count >= 0);
+
+-- Unlock reasons are business history, but user-entered text must not enter the
+-- generic append-only audit payload (ADR-0009). Keep transition history in its
+-- own inaccessible, append-only relation and expose it only through the query
+-- below.
+create table private.vat_report_transition (
+  id bigint generated always as identity primary key,
+  organization_id uuid not null,
+  company_id uuid not null,
+  period text not null,
+  vat_report_id uuid not null,
+  action text not null check (action in ('vat_report.finalized', 'reporting_period.unlocked')),
+  actor_user_id uuid not null,
+  occurred_at timestamptz not null default clock_timestamp(),
+  unlock_reason text,
+  check (
+    (action = 'vat_report.finalized' and unlock_reason is null)
+    or (action = 'reporting_period.unlocked' and unlock_reason is not null)
+  )
+);
+
+revoke all on private.vat_report_transition from public, anon, authenticated, service_role;
+
+create function private.prevent_vat_report_transition_change()
+returns trigger
+language plpgsql security definer set search_path = ''
+as $$
+begin
+  raise exception 'VAT Report transition history is append-only'
+    using errcode = '42501';
+end;
+$$;
+
+create trigger vat_report_transition_append_only
+  before update or delete on private.vat_report_transition
+  for each row execute function private.prevent_vat_report_transition_change();
+create trigger vat_report_transition_no_truncate
+  before truncate on private.vat_report_transition
+  for each statement execute function private.prevent_vat_report_transition_change();
+
+revoke execute on function private.prevent_vat_report_transition_change() from public;
+
+create function private.reporting_period_readiness_documents(
+  target_company_id uuid,
+  target_period text
+)
+returns table (
+  document_id uuid,
+  status public.document_status,
+  extraction_version_id uuid,
+  payload jsonb,
+  findings jsonb,
+  receipt_date date,
+  claimed_reporting_period text
+)
+language sql stable security definer set search_path = ''
+as $$
+  select
+    document.id,
+    document.status,
+    version.id,
+    version.payload,
+    version.findings,
+    document.receipt_date,
+    document.claimed_reporting_period
+  from public.document document
+  left join lateral (
+    select extraction.id, extraction.payload, extraction.findings
+    from public.extraction_version extraction
+    where extraction.document_id = document.id
+    order by extraction.version desc
+    limit 1
+  ) version on true
+  where document.company_id = target_company_id
+    and document.superseded_at is null
+    and (
+      private.document_reporting_period(
+        document.company_id,
+        version.payload ->> 'direction',
+        version.payload ->> 'taxPointDate',
+        document.receipt_date,
+        document.claimed_reporting_period
+      ) = target_period
+      or (
+        private.document_reporting_period(
+          document.company_id,
+          version.payload ->> 'direction',
+          version.payload ->> 'taxPointDate',
+          document.receipt_date,
+          document.claimed_reporting_period
+        ) is null
+        and document.receipt_date is not null
+        and private.reporting_period_for_date(
+          document.company_id,
+          document.receipt_date
+        ) = target_period
+      )
+    );
+$$;
+
+revoke execute on function private.reporting_period_readiness_documents(uuid, text)
+  from public;
 
 create function private.reporting_period_readiness_stats(
   target_company_id uuid,
@@ -16,42 +117,7 @@ create function private.reporting_period_readiness_stats(
 returns jsonb
 language sql stable security definer set search_path = ''
 as $$
-  with relevant as (
-    select document.status, version.payload, version.findings
-    from public.document document
-    left join lateral (
-      select extraction.payload, extraction.findings
-      from public.extraction_version extraction
-      where extraction.document_id = document.id
-      order by extraction.version desc
-      limit 1
-    ) version on true
-    where document.company_id = target_company_id
-      and document.superseded_at is null
-      and (
-        private.document_reporting_period(
-          document.company_id,
-          version.payload ->> 'direction',
-          version.payload ->> 'taxPointDate',
-          document.receipt_date,
-          document.claimed_reporting_period
-        ) = target_period
-        or (
-          private.document_reporting_period(
-            document.company_id,
-            version.payload ->> 'direction',
-            version.payload ->> 'taxPointDate',
-            document.receipt_date,
-            document.claimed_reporting_period
-          ) is null
-          and document.receipt_date is not null
-          and private.reporting_period_for_date(
-            document.company_id,
-            document.receipt_date
-          ) = target_period
-        )
-      )
-  ), counted as (
+  with counted as (
     select
       status,
       payload,
@@ -65,7 +131,10 @@ as $$
         from jsonb_array_elements(coalesce(findings, '[]'::jsonb)) finding
         where finding ->> 'severity' = 'warning'
       ), 0)::integer as warning_findings
-    from relevant
+    from private.reporting_period_readiness_documents(
+      target_company_id,
+      target_period
+    )
   ), stats as (
     select
       coalesce(sum(case
@@ -110,49 +179,43 @@ returns jsonb
 language sql stable security definer set search_path = ''
 as $$
   select coalesce(jsonb_agg(jsonb_build_object(
-    'documentId', document.id,
+    'documentId', document.document_id,
     'status', document.status,
-    'extractionVersionId', version.id,
+    'extractionVersionId', document.extraction_version_id,
     'receiptDate', document.receipt_date,
     'claimedReportingPeriod', document.claimed_reporting_period
-  ) order by document.id), '[]'::jsonb)
-  from public.document document
-  left join lateral (
-    select extraction.id, extraction.payload
-    from public.extraction_version extraction
-    where extraction.document_id = document.id
-    order by extraction.version desc
-    limit 1
-  ) version on true
-  where document.company_id = target_company_id
-    and document.superseded_at is null
-    and (
-      private.document_reporting_period(
-        document.company_id,
-        version.payload ->> 'direction',
-        version.payload ->> 'taxPointDate',
-        document.receipt_date,
-        document.claimed_reporting_period
-      ) = target_period
-      or (
-        private.document_reporting_period(
-          document.company_id,
-          version.payload ->> 'direction',
-          version.payload ->> 'taxPointDate',
-          document.receipt_date,
-          document.claimed_reporting_period
-        ) is null
-        and document.receipt_date is not null
-        and private.reporting_period_for_date(
-          document.company_id,
-          document.receipt_date
-        ) = target_period
-      )
-    );
+  ) order by document.document_id), '[]'::jsonb)
+  from private.reporting_period_readiness_documents(
+    target_company_id,
+    target_period
+  ) document;
 $$;
 
 revoke execute on function private.reporting_period_readiness_source(uuid, text)
   from public;
+
+create function private.company_identity_snapshot(target_company_id uuid)
+returns jsonb
+language sql stable security definer set search_path = ''
+as $$
+  select jsonb_build_object(
+    'name', company.name,
+    'firstName', company.first_name,
+    'lastName', company.last_name,
+    'ico', company.ico,
+    'vatId', company.vat_id,
+    'streetName', company.street_name,
+    'houseNumber', company.house_number,
+    'orientationNumber', company.orientation_number,
+    'city', company.city,
+    'postalCode', company.postal_code,
+    'personType', company.person_type
+  )
+  from public.company company
+  where company.id = target_company_id;
+$$;
+
+revoke execute on function private.company_identity_snapshot(uuid) from public;
 
 create or replace function public.save_vat_report(
   target_company_id uuid,
@@ -181,8 +244,8 @@ begin
       using errcode = 'P0001', hint = 'invalid_reporting_period';
   end if;
 
-  -- Every mutation represented by data_revision must update this locked Company
-  -- row. Document locks also serialize review and Extraction Version changes.
+  -- The Company lock serializes identity changes. Document locks serialize
+  -- review and Extraction Version changes while the canonical snapshot is saved.
   perform id from public.document where company_id = company.id order by id for share;
   current_documents := public.vat_report_documents(company.id, target_period);
   if current_documents is distinct from expected_documents then
@@ -194,6 +257,11 @@ begin
     raise exception 'Readiness source changed during generation'
       using errcode = 'P0001', hint = 'stale_report';
   end if;
+  if private.company_identity_snapshot(company.id)
+    is distinct from computed_result -> 'company' then
+    raise exception 'Company identity changed during generation'
+      using errcode = 'P0001', hint = 'stale_report';
+  end if;
   readiness := private.reporting_period_readiness_stats(company.id, target_period);
 
   insert into public.vat_report (
@@ -203,7 +271,6 @@ begin
     result,
     documents,
     generated_by,
-    data_revision,
     blocker_count,
     warning_count,
     rejected_document_count
@@ -214,7 +281,6 @@ begin
     computed_result,
     current_documents,
     auth.uid(),
-    company.data_revision,
     (readiness ->> 'blockers')::integer,
     (readiness ->> 'warnings')::integer,
     (readiness ->> 'rejectedDocuments')::integer
@@ -224,7 +290,6 @@ begin
         documents = excluded.documents,
         generated_by = excluded.generated_by,
         generated_at = clock_timestamp(),
-        data_revision = excluded.data_revision,
         blocker_count = excluded.blocker_count,
         warning_count = excluded.warning_count,
         rejected_document_count = excluded.rejected_document_count
@@ -287,7 +352,14 @@ begin
     raise exception 'Company identity is incomplete'
       using errcode = 'P0001', hint = 'company_setup_incomplete';
   end if;
-  if report.data_revision is distinct from company.data_revision then
+
+  -- Every Document-changing command locks its Document before checking the
+  -- Period Lock. Taking the same locks here closes the finalization race.
+  perform id from public.document where company_id = company.id order by id for update;
+  if private.reporting_period_readiness_source(company.id, target_period)
+    is distinct from report.result -> 'readinessSource'
+    or private.company_identity_snapshot(company.id)
+      is distinct from report.result -> 'company' then
     raise exception 'the VAT Report snapshot is stale'
       using errcode = 'P0001', hint = 'stale_report';
   end if;
@@ -303,6 +375,12 @@ begin
   ) on conflict (company_id, period) do nothing;
 
   if found then
+    insert into private.vat_report_transition (
+      organization_id, company_id, period, vat_report_id, action, actor_user_id
+    ) values (
+      company.organization_id, company.id, report.period, report.id,
+      'vat_report.finalized', auth.uid()
+    );
     perform private.record_audit_event(
       'vat_report.finalized', company.organization_id, company.id,
       'vat_report', report.id,
@@ -357,7 +435,14 @@ begin
   perform private.record_audit_event(
     'reporting_period.unlocked', company.organization_id, company.id,
     'vat_report', unlocked_report_id,
-    jsonb_build_object('period', target_period, 'reason', reason)
+    jsonb_build_object('period', target_period)
+  );
+  insert into private.vat_report_transition (
+    organization_id, company_id, period, vat_report_id, action,
+    actor_user_id, unlock_reason
+  ) values (
+    company.organization_id, company.id, target_period, unlocked_report_id,
+    'reporting_period.unlocked', auth.uid(), reason
   );
 end;
 $$;
@@ -401,13 +486,13 @@ begin
       event.actor_user_id,
       "user".email::text,
       event.occurred_at,
-      event.target_id,
-      event.payload ->> 'reason'
-    from public.audit_event event
+      event.vat_report_id,
+      event.unlock_reason
+    from private.vat_report_transition event
     left join auth.users "user" on "user".id = event.actor_user_id
     where event.company_id = company.id
       and event.action in ('vat_report.finalized', 'reporting_period.unlocked')
-      and event.payload ->> 'period' = target_period
+      and event.period = target_period
     order by event.id;
 end;
 $$;

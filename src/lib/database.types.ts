@@ -455,14 +455,14 @@ isOneToOne: false
                   ]
                 },"vat_report": {
                   Row: {
-                    "blocker_count": number,"company_id": string,"data_revision": number,"documents": NonNullable<Json>,"generated_at": string,"generated_by": string,"id": string,"organization_id": string,"period": string,"rejected_document_count": number,"result": NonNullable<Json>,"warning_count": number
+                    "blocker_count": number,"company_id": string,"documents": NonNullable<Json>,"generated_at": string,"generated_by": string,"id": string,"organization_id": string,"period": string,"rejected_document_count": number,"result": NonNullable<Json>,"warning_count": number
                   }
                   ComputedFields: never
                   Insert: {
-                    "blocker_count"?: number,"company_id": string,"data_revision"?: number,"documents": NonNullable<Json>,"generated_at"?: string,"generated_by": string,"id"?: string,"organization_id": string,"period": string,"rejected_document_count"?: number,"result": NonNullable<Json>,"warning_count"?: number
+                    "blocker_count"?: number,"company_id": string,"documents": NonNullable<Json>,"generated_at"?: string,"generated_by": string,"id"?: string,"organization_id": string,"period": string,"rejected_document_count"?: number,"result": NonNullable<Json>,"warning_count"?: number
                   }
                   Update: {
-                    "blocker_count"?: number,"company_id"?: string,"data_revision"?: number,"documents"?: NonNullable<Json>,"generated_at"?: string,"generated_by"?: string,"id"?: string,"organization_id"?: string,"period"?: string,"rejected_document_count"?: number,"result"?: NonNullable<Json>,"warning_count"?: number
+                    "blocker_count"?: number,"company_id"?: string,"documents"?: NonNullable<Json>,"generated_at"?: string,"generated_by"?: string,"id"?: string,"organization_id"?: string,"period"?: string,"rejected_document_count"?: number,"result"?: NonNullable<Json>,"warning_count"?: number
                   }
                   Relationships: [
                     {

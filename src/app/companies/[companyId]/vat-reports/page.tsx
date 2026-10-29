@@ -276,7 +276,7 @@ export default async function VatReportsPage({
               {
                 key: "unlockReason",
                 header: t("vatReports.unlockReason"),
-                render: (transition) => transition.unlockReason ?? "—",
+                render: (transition) => transition.unlockReason ?? t("vatReports.notAvailable"),
               },
             ]}
           />
