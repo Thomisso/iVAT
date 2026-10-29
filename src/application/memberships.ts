@@ -20,6 +20,15 @@ export type CompanyAccess = {
   manageableMembershipId: string | null;
 };
 
+type CompanyAccessDatabaseRow = {
+  membership_id: string;
+  user_id: string;
+  email: string;
+  role: MembershipRole;
+  source: CompanyAccess["source"];
+  manageable_membership_id: string | null;
+};
+
 export type PendingInvitation = {
   id: string;
   email: string;
@@ -141,12 +150,12 @@ export async function listCompanyAccess(
   }
   return {
     ok: true,
-    value: data.map((access) => ({
+    value: (data as unknown as CompanyAccessDatabaseRow[]).map((access) => ({
       membershipId: access.membership_id,
       userId: access.user_id,
       email: access.email,
       role: access.role,
-      source: access.source as CompanyAccess["source"],
+      source: access.source,
       manageableMembershipId: access.manageable_membership_id,
     })),
   };
