@@ -1,6 +1,6 @@
 import type {
   CompanyDetails,
-  FilingFrequencyHistoryEntry,
+  ReportingYear,
 } from "./companies";
 import type { DocumentStatus } from "./documents";
 import {
@@ -39,11 +39,11 @@ function validDate(value: string | null): value is string {
 /** Assigns a Document to the Company's Reporting Period in force on its relevant date. */
 export function reportingPeriodForDocument(
   document: ReportingPeriodDocument,
-  filingFrequencies: readonly FilingFrequencyHistoryEntry[],
+  reportingYears: readonly ReportingYear[],
 ): string | null {
   if (!validDate(document.taxPointDate)) return null;
   if (document.direction === "outgoing") {
-    return reportingPeriodForDate(document.taxPointDate, filingFrequencies);
+    return reportingPeriodForDate(document.taxPointDate, reportingYears);
   }
   if (document.direction !== "incoming" || !validDate(document.receiptDate)) {
     return null;
@@ -52,7 +52,7 @@ export function reportingPeriodForDocument(
     document.receiptDate > document.taxPointDate
       ? document.receiptDate
       : document.taxPointDate,
-    filingFrequencies,
+    reportingYears,
   );
   const claimedStart = document.claimedReportingPeriod
     ? reportingPeriodStart(document.claimedReportingPeriod)
@@ -60,7 +60,7 @@ export function reportingPeriodForDocument(
   if (
     assigned &&
     claimedStart &&
-    reportingPeriodForDate(claimedStart, filingFrequencies) ===
+    reportingPeriodForDate(claimedStart, reportingYears) ===
       document.claimedReportingPeriod &&
     claimedStart > reportingPeriodStart(assigned)!
   ) {
@@ -229,9 +229,11 @@ export function computeVatReport(
   company: CompanyDetails,
   period: string,
   documents: ReportDocument[],
-  filingFrequencies: readonly FilingFrequencyHistoryEntry[] = [
-    { frequency: "monthly", effectiveFrom: "2000-01-01" },
-  ],
+  reportingYears: readonly ReportingYear[] = [{
+    year: Number(period.slice(0, 4)),
+    frequency: period.includes("-Q") ? "quarterly" : "monthly",
+    firstMonth: 1,
+  }],
 ): ComputedVatReport {
   const vatReturn: VatReturnLine[] = VAT_RETURN_LINES.map(
     (line) => ({ line, netAmount: "0.00", vatAmount: "0.00", documentIds: [] }),
@@ -248,12 +250,12 @@ export function computeVatReport(
             receiptDate: document.receiptDate ?? payload.taxPointDate ?? "",
             claimedReportingPeriod: document.claimedReportingPeriod ?? null,
           },
-          filingFrequencies,
+          reportingYears,
         ) ??
         (/^20\d{2}-(0[1-9]|1[0-2])-\d{2}$/.test(payload.taxPointDate ?? "")
           ? reportingPeriodForDate(
               `${payload.taxPointDate!.slice(0, 7)}-01`,
-              filingFrequencies,
+              reportingYears,
             )
           : null)
       : null;

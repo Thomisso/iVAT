@@ -119,6 +119,7 @@ it("exports a Company's originals and Document data before retaining it as soft-
       expect.objectContaining({ step: "identity", state: "completed" }),
       expect.objectContaining({ step: "filing_frequency", state: "completed" }),
     ]),
+    reportingYears: [{ year: 2026, frequency: "monthly", firstMonth: 1 }],
     filingDefaults: expect.objectContaining({
       taxOffice: "451",
       signatoryFirstName: "Jana",

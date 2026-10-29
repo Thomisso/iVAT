@@ -25,7 +25,7 @@ import { prefillCompanyFromAres } from "@/application/ares";
 import {
   createCompanyIdentity,
   getCompany,
-  setCompanyFilingFrequency,
+  setCurrentReportingYear,
   updateCompanyIdentity,
 } from "@/application/companies";
 import { saveCompanyFilingDefaults } from "@/application/company-filing-defaults";
@@ -38,6 +38,7 @@ import {
   mergeDocuments,
   moveDocumentPage,
   rejectDocument,
+  returnDocumentToReview,
   reprocessDocument,
   splitDocument,
   updateDocumentReporting,
@@ -264,14 +265,13 @@ export async function createCompanyAction(_state: FormState, formData: FormData)
   redirect(`/companies/${result.value.id}/setup/filing-frequency`);
 }
 
-export async function setCompanyFilingFrequencyAction(_state: FormState, formData: FormData): Promise<FormState> {
+export async function setCurrentReportingYearAction(_state: FormState, formData: FormData): Promise<FormState> {
   const companyId = field(formData, "companyId");
-  const result = await setCompanyFilingFrequency(await requireUserClient(), {
+  const result = await setCurrentReportingYear(await requireUserClient(), {
     companyId,
     filingFrequency: field(formData, "filingFrequency") as "monthly" | "quarterly",
-    filingFrequencyEffectiveFrom: field(formData, "filingFrequencyEffectiveFrom"),
   });
-  if (!result.ok) return refused(result.error, formData, ["filingFrequency", "filingFrequencyEffectiveFrom"]);
+  if (!result.ok) return refused(result.error, formData, ["filingFrequency"]);
   redirect(`/companies/${companyId}/setup/ai-processing`);
 }
 
@@ -534,6 +534,15 @@ export async function rejectDocumentAction(_state: FormState, formData: FormData
   const result = await rejectDocument(await requireUserClient(), { companyId, documentId });
   if (!result.ok) return settled(result);
   redirectAfterDocumentDecision(formData, companyId, documentId);
+}
+
+export async function returnDocumentToReviewAction(_state: FormState, formData: FormData): Promise<FormState> {
+  return settled(
+    await returnDocumentToReview(await requireUserClient(), {
+      companyId: field(formData, "companyId"),
+      documentId: field(formData, "documentId"),
+    }),
+  );
 }
 
 function redirectAfterDocumentDecision(formData: FormData, companyId: string, documentId: string): never {

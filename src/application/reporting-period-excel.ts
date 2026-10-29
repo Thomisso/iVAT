@@ -5,8 +5,8 @@ import {
   type CompanyDetails,
   getCompany,
   getCompanySetupChecklist,
-  getFilingFrequencyForPeriod,
-  listCompanyFilingFrequencies,
+  getReportingPeriodFrequency,
+  listCompanyReportingYears,
 } from "./companies";
 import type { AppClient, Result } from "./client";
 import { computeVatReport, isReportingPeriod, type ReportDocument } from "./vat-rules";
@@ -135,19 +135,19 @@ export async function exportReportingPeriodWorkbook(
   if (setup.some((item) => (item.step === "identity" || item.step === "filing_frequency") && item.state !== "completed")) {
     return { ok: false, error: "company_setup_incomplete" };
   }
-  const frequency = await getFilingFrequencyForPeriod(client, company.id, input.period);
+  const frequency = await getReportingPeriodFrequency(client, company.id, input.period);
   if (
     frequency === null
     || (input.period.includes("-Q") ? frequency !== "quarterly" : frequency !== "monthly")
   ) {
     return { ok: false, error: "invalid_reporting_period" };
   }
-  const [{ data, error }, filingFrequencies] = await Promise.all([
+  const [{ data, error }, reportingYears] = await Promise.all([
     client.rpc("vat_report_documents", {
       target_company_id: company.id,
       target_period: input.period,
     }),
-    listCompanyFilingFrequencies(client, company.id),
+    listCompanyReportingYears(client, company.id),
   ]);
   if (error) throw error;
   const reportDocuments = data as unknown as ReportDocument[];
@@ -169,7 +169,7 @@ export async function exportReportingPeriodWorkbook(
     postalCode: company.postalCode,
     personType: company.personType,
   };
-  const report = computeVatReport(companyDetails, input.period, documents, filingFrequencies);
+  const report = computeVatReport(companyDetails, input.period, documents, reportingYears);
   const returnLines = new Map(documents.map((document) => [
     document.id,
     report.vatReturn.filter((line) => line.documentIds.includes(document.id)).map((line) => line.line).join(", "),
