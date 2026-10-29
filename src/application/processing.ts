@@ -137,6 +137,26 @@ type ProviderAvailability = {
   configuration: AiProviderConfiguration | null;
 };
 
+async function resolveAssignedAiConfiguration(
+  system: SystemClient,
+  companyId: string,
+): Promise<{ provider: string; configuration: AiProviderConfiguration } | null> {
+  const { data, error } = await system.rpc("resolve_assigned_ai_configuration", {
+    target_company_id: companyId,
+  });
+  if (error) throw error;
+  const settings = data[0];
+  if (!settings) return null;
+  return {
+    provider: settings.provider,
+    configuration: {
+      apiKey: settings.api_key,
+      splitModel: settings.split_model,
+      extractModel: settings.extract_model,
+    },
+  };
+}
+
 async function resolveCompanyAiConfiguration(
   system: SystemClient,
   organizationId: string,
@@ -180,6 +200,23 @@ async function providerAvailability(
   if (error) throw error;
   if (data.organization?.blocked_at) {
     return { blocked: true, provider: null, credentialSource: null, configuration: null };
+  }
+  const assigned = await resolveAssignedAiConfiguration(system, companyId);
+  if (assigned) {
+    const provider = providers.get(assigned.provider);
+    if (!provider) {
+      throw new AiProviderError(
+        "provider_unavailable_on_worker",
+        `AI provider "${assigned.provider}" is not configured on this worker`,
+        { transient: true },
+      );
+    }
+    return {
+      blocked: false,
+      provider,
+      credentialSource: "platform",
+      configuration: assigned.configuration,
+    };
   }
   if (!data.ai_processing_enabled || !data.ai_provider || !data.ai_credential_source) {
     return { blocked: false, provider: null, credentialSource: null, configuration: null };

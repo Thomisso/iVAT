@@ -13,6 +13,8 @@ export type AuditEvent = {
   payload: Json;
 };
 
+export type PlatformAuditEvent = Omit<AuditEvent, "organizationId"> & { organizationId: null };
+
 export type AuditEventPage = {
   events: AuditEvent[];
   page: number;
@@ -40,17 +42,17 @@ function auditDate(value: string | undefined): Date | null {
   return !Number.isNaN(parsed.valueOf()) && parsed.toISOString().slice(0, 10) === value ? parsed : null;
 }
 
-function auditEvent(row: {
+function auditEvent<TOrganizationId extends string | null>(row: {
   id: number;
   occurred_at: string;
   actor_user_id: string | null;
-  organization_id: string;
+  organization_id: TOrganizationId;
   company_id: string | null;
   action: string;
   target_type: string;
   target_id: string | null;
   payload: Json;
-}): AuditEvent {
+}): Omit<AuditEvent, "organizationId"> & { organizationId: TOrganizationId } {
   return {
     id: row.id,
     occurredAt: row.occurred_at,
@@ -114,7 +116,7 @@ export async function listAuditEventPage(
   if (error) throw error;
   const total = count ?? 0;
   return {
-    events: data.map(auditEvent),
+    events: data.map((row) => auditEvent({ ...row, organization_id: row.organization_id! })),
     page,
     pageSize,
     total,
@@ -130,5 +132,16 @@ export async function listAuditEvents(client: AppClient, organizationId: string)
     .eq("organization_id", organizationId)
     .order("id");
   if (error) throw error;
-  return data.map(auditEvent);
+  return data.map((row) => auditEvent({ ...row, organization_id: row.organization_id! }));
+}
+
+/** Platform-scoped events. Only an MFA-satisfied SuperAdmin can observe them. */
+export async function listPlatformAuditEvents(client: AppClient): Promise<PlatformAuditEvent[]> {
+  const { data, error } = await client
+    .from("audit_event")
+    .select("*")
+    .is("organization_id", null)
+    .order("id");
+  if (error) throw error;
+  return data.map((row) => auditEvent({ ...row, organization_id: null }));
 }
