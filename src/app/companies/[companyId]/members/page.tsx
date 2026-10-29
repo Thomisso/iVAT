@@ -17,6 +17,7 @@ export default async function CompanyMembersPage({ params }: PageProps<"/compani
     listPendingInvitations(client, { organizationId: company.organizationId, companyId: company.id }),
     getTranslations("members"),
   ]);
+  if (!companyAccess.ok) redirect(`/companies/${company.id}`);
   return (
     <>
       <AppSidebar currentCompanyId={company.id} activeMembers />
@@ -25,7 +26,7 @@ export default async function CompanyMembersPage({ params }: PageProps<"/compani
         <MemberManagement
           organizationId={company.organizationId}
           companyId={company.id}
-          companyAccess={companyAccess}
+          companyAccess={companyAccess.value}
           pendingInvitations={pendingInvitations}
         />
       </main>

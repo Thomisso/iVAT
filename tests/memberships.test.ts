@@ -75,8 +75,10 @@ describe("Membership invitations", () => {
     })).toEqual({ ok: true, value: null });
 
     const access = await listCompanyAccess(administrator.client, administrator.companyId);
-    expect(access).toHaveLength(2);
-    expect(access).toEqual(expect.arrayContaining([
+    expect(access).toEqual({ ok: true, value: expect.any(Array) });
+    if (!access.ok) throw new Error(access.error);
+    expect(access.value).toHaveLength(2);
+    expect(access.value).toEqual(expect.arrayContaining([
       expect.objectContaining({
         email: administrator.email,
         role: "administrator",
@@ -158,7 +160,8 @@ describe("Membership invitations", () => {
     expect(await changeMembershipRole(member.client, { membershipId: membership.id, role: "administrator" }))
       .toEqual({ ok: false, error: "forbidden" });
     expect(await removeMembership(member.client, membership.id)).toEqual({ ok: false, error: "forbidden" });
-    expect(await listCompanyAccess(member.client, administrator.companyId)).toEqual([]);
+    expect(await listCompanyAccess(member.client, administrator.companyId))
+      .toEqual({ ok: false, error: "forbidden" });
     expect(await listPendingInvitations(member.client, {
       organizationId: administrator.organizationId,
       companyId: administrator.companyId,
@@ -260,7 +263,8 @@ describe("Membership invitations", () => {
     expect(await changeMembershipRole(b.client, { membershipId: membership.id, role: "administrator" }))
       .toEqual({ ok: false, error: "forbidden" });
     expect(await removeMembership(b.client, membership.id)).toEqual({ ok: false, error: "forbidden" });
-    expect(await listCompanyAccess(b.client, a.companyId)).toEqual([]);
+    expect(await listCompanyAccess(b.client, a.companyId))
+      .toEqual({ ok: false, error: "forbidden" });
     expect(await listPendingInvitations(b.client, {
       organizationId: a.organizationId,
       companyId: a.companyId,
