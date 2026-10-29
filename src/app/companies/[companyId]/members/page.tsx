@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getCompany, getMyCompanyRole } from "@/application/companies";
 import { listCompanyAccess, listPendingInvitations } from "@/application/memberships";
-import { AppSidebar } from "@/components/app-sidebar";
+import { PageLayout } from "@/components/app-shell";
 import { MemberManagement } from "@/components/member-management";
 import { requireUserClient } from "@/lib/supabase/server";
 
@@ -18,18 +18,13 @@ export default async function CompanyMembersPage({ params }: PageProps<"/compani
     getTranslations("members"),
   ]);
   if (!companyAccess.ok) redirect(`/companies/${company.id}`);
-  return (
-    <>
-      <AppSidebar currentCompanyId={company.id} activeMembers />
-      <main className="dashboard">
-        <header><h1>{t("companyTitle", { company: company.name })}</h1></header>
-        <MemberManagement
-          organizationId={company.organizationId}
-          companyId={company.id}
-          companyAccess={companyAccess.value}
-          pendingInvitations={pendingInvitations}
-        />
-      </main>
-    </>
-  );
+  return <PageLayout className="dashboard" measure="wide">
+    <header><h1>{t("companyTitle", { company: company.name })}</h1></header>
+    <MemberManagement
+      organizationId={company.organizationId}
+      companyId={company.id}
+      companyAccess={companyAccess.value}
+      pendingInvitations={pendingInvitations}
+    />
+  </PageLayout>;
 }

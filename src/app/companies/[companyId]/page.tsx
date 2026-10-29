@@ -4,6 +4,7 @@ import Link from "next/link";
 import { getCompany, getCompanySetupChecklist } from "@/application/companies";
 import { requireUserClient } from "@/lib/supabase/server";
 import { Icon } from "@/components/icon";
+import { PageLayout } from "@/components/app-shell";
 
 export default async function CompanyOverviewPage({ params }: PageProps<"/companies/[companyId]">) {
   const { companyId } = await params;
@@ -14,7 +15,7 @@ export default async function CompanyOverviewPage({ params }: PageProps<"/compan
     getTranslations("shell"),
   ]);
   if (!company) notFound();
-  return <main className="company-workspace">
+  return <PageLayout className="company-workspace" measure="wide">
     <header className="company-page-header"><h1>{t("overviewTitle")}</h1><p>{t("overviewDescription", { company: company.name })}</p></header>
     <section aria-labelledby="setup-checklist-title" className="company-setup-checklist">
       <header><h2 id="setup-checklist-title">{t("setupChecklist")}</h2><p>{t("setupChecklistIntro")}</p></header>
@@ -29,5 +30,5 @@ export default async function CompanyOverviewPage({ params }: PageProps<"/compan
         </li>;
       })}</ol>
     </section>
-  </main>;
+  </PageLayout>;
 }

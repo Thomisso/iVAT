@@ -7,6 +7,7 @@ import {
 } from "@/application/companies";
 import { requireUserClient } from "@/lib/supabase/server";
 import { AiProviderForm, DisableAiProcessingForm } from "../../ai-provider-form";
+import { PageLayout } from "@/components/app-shell";
 
 export default async function AiProcessingSetupPage({
   params,
@@ -20,7 +21,7 @@ export default async function AiProcessingSetupPage({
     getTranslations("aiProcessing"),
   ]);
   if (!company || role !== "administrator") notFound();
-  return <main className="company-workspace">
+  return <PageLayout className="company-workspace" measure="narrow">
     <header className="company-page-header">
       <h1>{t("setupTitle")}</h1>
       <p>{t("setupIntro")}</p>
@@ -29,5 +30,5 @@ export default async function AiProcessingSetupPage({
       <AiProviderForm companyId={companyId} options={options} current={company.aiProcessing} setup />
       <DisableAiProcessingForm companyId={companyId} setup />
     </section>
-  </main>;
+  </PageLayout>;
 }
