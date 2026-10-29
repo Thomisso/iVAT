@@ -2,6 +2,8 @@ import fs from "node:fs/promises";
 import { createHmac } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { asUserClient } from "../src/application/client";
+import { inviteMember } from "../src/application/memberships";
 import type { Database } from "../src/lib/database.types";
 
 const password = "Playwright-password-76";
@@ -61,6 +63,20 @@ async function serviceClient() {
   });
 }
 
+async function signedInApplicationClient(email: string) {
+  const contents = await fs.readFile(".env.local", "utf8");
+  const environment = Object.fromEntries(contents.split("\n").filter(Boolean).map((line) => {
+    const separator = line.indexOf("=");
+    return [line.slice(0, separator), line.slice(separator + 1)];
+  }));
+  const client = createClient<Database>(environment.NEXT_PUBLIC_SUPABASE_URL, environment.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const signedIn = await client.auth.signInWithPassword({ email, password });
+  if (signedIn.error) throw signedIn.error;
+  return asUserClient(client);
+}
+
 async function english(context: BrowserContext, baseURL: string | undefined) {
   if (!baseURL) throw new Error("Playwright baseURL is required");
   await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: new URL(baseURL).origin }]);
@@ -100,8 +116,24 @@ test("Company context, final navigation and account return stay explicit", async
   }
   await page.goto(`/companies/${firstId}/vat-reports`);
   await expect(page.getByRole("link", { name: "VAT", exact: true })).toHaveAttribute("aria-current", "page");
+  await page.goto(`/companies/${firstId}/settings`);
+  await expect(page.getByRole("link", { name: "Manage users" })).toHaveAttribute(
+    "href",
+    `/companies/${firstId}/members`,
+  );
   await page.goto(`/companies/${firstId}/members`);
   await expect(page.getByRole("link", { name: "Settings", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("heading", { name: `Users of Alpha ${run}` })).toBeVisible();
+  const inheritedAccess = page.getByRole("listitem").filter({ hasText: email });
+  await expect(inheritedAccess.getByText("Inherited from Organization", { exact: true })).toBeVisible();
+  await expect(inheritedAccess.getByRole("button", { name: "Remove access" })).toHaveCount(0);
+
+  const invitedEmail = `shell-invited-${run}@example.test`;
+  await page.getByLabel("Email").fill(invitedEmail);
+  await page.getByRole("button", { name: "Invite user" }).click();
+  const pendingInvitation = page.getByRole("listitem").filter({ hasText: invitedEmail });
+  await expect(pendingInvitation.getByText("Pending", { exact: true })).toBeVisible();
+  await expect(pendingInvitation.getByText(/^Expires /)).toBeVisible();
 
   await page.getByRole("button", { name: "Choose Company" }).click();
   await page.getByRole("menuitem", { name: `Zeta ${run}` }).click();
@@ -170,23 +202,33 @@ test("mobile shell menus return focus and role-dependent administration stays pr
     service.from("company").select("organization_id").eq("id", companyId).single(),
     service.auth.admin.listUsers(),
   ]);
-  const userId = users.users.find((user) => user.email === userEmail)?.id;
-  if (!company || !userId) throw new Error("Could not prepare regular User browser fixture");
-  const { error } = await service.from("membership").insert({
-    company_id: companyId,
+  const adminUserId = users.users.find((user) => user.email === adminEmail)?.id;
+  if (!company || !adminUserId) throw new Error("Could not prepare User browser fixtures");
+  let invitationToken = "";
+  const invited = await inviteMember(await signedInApplicationClient(adminEmail), {
+    async sendInvitation(message) {
+      invitationToken = new URL(message.acceptUrl).searchParams.get("token") ?? "";
+    },
+  }, {
+    acceptUrl: `${baseURL}/invitations/accept`,
+    companyId,
     email: userEmail,
-    organization_id: company.organization_id,
+    organizationId: company.organization_id,
     role: "user",
-    user_id: userId,
   });
-  if (error) throw error;
-  await userPage.goto("/");
+  if (!invited.ok || !invitationToken) throw new Error("Could not prepare invitation browser fixture");
+  await userPage.goto(`/invitations/accept?token=${invitationToken}`);
+  await userPage.getByRole("button", { name: "Accept invitation" }).click();
+  await expect(userPage).toHaveURL(new RegExp(`/companies/${companyId}$`));
+  await adminPage.goto(`/companies/${companyId}/members`);
+  const directAccess = adminPage.getByRole("listitem").filter({ hasText: userEmail });
+  await expect(directAccess.getByText("Direct Company access", { exact: true })).toBeVisible();
+  await expect(directAccess.getByRole("button", { name: "Remove access" })).toBeVisible();
+  await userPage.goto(`/companies/${companyId}/members`);
   await expect(userPage).toHaveURL(new RegExp(`/companies/${companyId}$`));
   await userPage.getByRole("button", { name: "Open administration menu" }).click();
   await expect(userPage.locator(`a[href="/companies/${companyId}/members"]`)).toHaveCount(0);
 
-  const adminUserId = users.users.find((user) => user.email === adminEmail)?.id;
-  if (!adminUserId) throw new Error("Could not prepare SuperAdmin browser fixture");
   const { error: platformError } = await service.from("platform_user").insert({ role: "super_admin", user_id: adminUserId });
   if (platformError) throw platformError;
   await adminPage.setViewportSize({ width: 1440, height: 900 });

@@ -629,6 +629,11 @@ isOneToOne: false
               "provider": string,"region": string
             }[]
                            },
+"list_company_access":
+{ Args: { "target_company_id": string }; Returns: {
+              "email": string,"manageable_membership_id": string,"membership_id": string,"role": Database["public"]['Enums']["membership_role"],"source": string,"user_id": string
+            }[]
+                           },
 "list_company_ai_options":
 { Args: { "target_company_id": string }; Returns: {
               "credential_source": Database["public"]['Enums']["ai_credential_source"],"provider": string,"region": string
