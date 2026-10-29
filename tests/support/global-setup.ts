@@ -8,6 +8,7 @@ declare module "vitest" {
     supabaseAnonKey: string;
     supabaseSecretKey: string;
     supabaseJwtSecret: string;
+    supabaseDbUrl: string;
   }
 }
 
@@ -44,4 +45,5 @@ export default function setup(project: TestProject) {
   project.provide("supabaseAnonKey", status.PUBLISHABLE_KEY);
   project.provide("supabaseSecretKey", status.SECRET_KEY);
   project.provide("supabaseJwtSecret", status.JWT_SECRET);
+  project.provide("supabaseDbUrl", status.DB_URL);
 }

@@ -223,14 +223,14 @@ isOneToOne: false
                   ]
                 },"invitation": {
                   Row: {
-                    "accepted_at": string | null,"accepted_by": string | null,"company_id": string | null,"created_at": string,"created_by": string,"email": string,"expires_at": string,"id": string,"organization_id": string,"role": Database["public"]['Enums']["membership_role"],"token_hash": string
+                    "accepted_at": string | null,"accepted_by": string | null,"company_id": string | null,"created_at": string,"created_by": string,"email": string,"expires_at": string,"id": string,"invitee_existed": boolean,"organization_id": string,"role": Database["public"]['Enums']["membership_role"],"token_hash": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "accepted_at"?: string | null,"accepted_by"?: string | null,"company_id"?: string | null,"created_at"?: string,"created_by"?: string,"email": string,"expires_at"?: string,"id"?: string,"organization_id": string,"role": Database["public"]['Enums']["membership_role"],"token_hash": string
+                    "accepted_at"?: string | null,"accepted_by"?: string | null,"company_id"?: string | null,"created_at"?: string,"created_by"?: string,"email": string,"expires_at"?: string,"id"?: string,"invitee_existed"?: boolean,"organization_id": string,"role": Database["public"]['Enums']["membership_role"],"token_hash": string
                   }
                   Update: {
-                    "accepted_at"?: string | null,"accepted_by"?: string | null,"company_id"?: string | null,"created_at"?: string,"created_by"?: string,"email"?: string,"expires_at"?: string,"id"?: string,"organization_id"?: string,"role"?: Database["public"]['Enums']["membership_role"],"token_hash"?: string
+                    "accepted_at"?: string | null,"accepted_by"?: string | null,"company_id"?: string | null,"created_at"?: string,"created_by"?: string,"email"?: string,"expires_at"?: string,"id"?: string,"invitee_existed"?: boolean,"organization_id"?: string,"role"?: Database["public"]['Enums']["membership_role"],"token_hash"?: string
                   }
                   Relationships: [
                     {
@@ -681,6 +681,11 @@ isOneToOne: false
                            },
 "finish_upload_batch":
 { Args: { "target_batch_id": string }; Returns: undefined
+                           },
+"invitation_onboarding":
+{ Args: { "invitation_token": string }; Returns: {
+              "invitee_email": string,"invitee_existed": boolean,"onboarding_status": string,"target_company_id": string
+            }[]
                            },
 "list_available_ai_providers":
 { Args: Record<PropertyKey, never>; Returns: {

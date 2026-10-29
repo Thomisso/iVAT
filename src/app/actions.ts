@@ -32,7 +32,7 @@ import {
   updateCompanyIdentity,
 } from "@/application/companies";
 import { saveCompanyFilingDefaults } from "@/application/company-filing-defaults";
-import { acceptInvitation, changeMembershipRole, inviteMember, removeMembership } from "@/application/memberships";
+import { changeMembershipRole, completeInvitationOnboarding, inviteMember, removeMembership } from "@/application/memberships";
 import { supabaseInvitationMailer } from "@/application/supabase-invitation-mailer";
 import {
   approveDocument,
@@ -610,8 +610,14 @@ export async function inviteMemberAction(_state: FormState, formData: FormData):
 }
 
 export async function acceptInvitationAction(_state: FormState, formData: FormData): Promise<FormState> {
-  const result = await acceptInvitation(await requireUserClient(), field(formData, "token"));
+  const result = await completeInvitationOnboarding(await createRequestClient(), {
+    token: field(formData, "token"),
+    password: field(formData, "password"),
+  });
   if (!result.ok) return refused(result.error, formData, []);
+  if (result.value.companyId && await storeCompanyContext(result.value.companyId)) {
+    redirect(`/companies/${result.value.companyId}`);
+  }
   redirect("/");
 }
 
