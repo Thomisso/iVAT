@@ -5,7 +5,7 @@ import { mergeDocumentsAction, moveDocumentPageAction, reprocessDocumentAction, 
 import { getCompany, getMyCompanyRole } from "@/application/companies";
 import { documentPeriodLocks, isBeingExtracted, listDocuments, listExtractionVersions } from "@/application/documents";
 import { getSourceFile } from "@/application/source-files";
-import { AppSidebar } from "@/components/app-sidebar";
+import { PageLayout } from "@/components/app-shell";
 import { CommandButton } from "@/components/command-button";
 import { RefreshWhile } from "@/components/refresh-while";
 import { DataTable } from "@/components/data-table";
@@ -50,8 +50,7 @@ export default async function SourceFilePage({
 
   return (
     <>
-      <AppSidebar currentCompanyId={companyId} />
-      <main className="dashboard">
+      <PageLayout className="dashboard" measure="wide">
         <header>
           <p>
             <Link href={`/companies/${companyId}`}>{t("sourceFiles.backToCompany")}</Link>
@@ -257,7 +256,7 @@ export default async function SourceFilePage({
             <img src={contentUrl} alt={file.fileName} />
           )}
         </DocumentViewer>
-      </main>
+      </PageLayout>
       <RefreshWhile active={processing} />
     </>
   );
