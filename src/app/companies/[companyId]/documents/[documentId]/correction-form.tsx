@@ -10,6 +10,7 @@ import {
   type ExtractionPayload,
 } from "@/application/extraction-payload";
 import type { ValidationFinding } from "@/application/document-validation";
+import { findingMessage as messageOf } from "./finding-message";
 import { Button } from "@/components/button";
 import { TextField } from "@/components/text-field";
 import { FormError } from "@/components/form-error";
@@ -52,7 +53,9 @@ export function CorrectionForm({
     );
   const findingMessage = (field: string) => {
     const item = finding(field);
-    return item ? t(`findings.${item.code}`) : undefined;
+    if (!item) return undefined;
+    const message = messageOf(item);
+    return t(`findings.${message.key}`, message.values);
   };
 
   // A refused form shows what was submitted; otherwise the version's own value.
