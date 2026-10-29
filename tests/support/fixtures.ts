@@ -2,10 +2,111 @@ import {
   createCompany,
   type CompanySettingsInput,
 } from "@/application/companies";
+import type { AiProvider } from "@/application/ai-provider";
+import type { AppClient, Result } from "@/application/client";
+import { extractJob, splitJob, type JobQueue } from "@/application/processing";
+import { Client as DatabaseClient } from "pg";
+import { inject } from "vitest";
 import { signedUpUser } from "./clients";
 import { systemClient } from "./worker";
 
 let icoCounter = 0;
+
+/**
+ * Test-only platform provisioning boundary. Production Companies receive an AI
+ * Configuration only through SuperAdmin commands; integration tests provision
+ * one directly so they can focus on their own behavior without a second actor.
+ */
+export async function assignAiConfigurationFixture(
+  _client: AppClient,
+  jobs: JobQueue,
+  input: { companyId: string; provider: Pick<AiProvider, "name" | "region"> },
+): Promise<Result<null, "fixture_failed">> {
+  const database = new DatabaseClient({ connectionString: inject("databaseUrl") });
+  await database.connect();
+  try {
+    await database.query("begin");
+    await database.query(
+      "insert into public.platform_ai_provider (provider) values ($1) on conflict (provider) do nothing",
+      [input.provider.name],
+    );
+    const configurationId = crypto.randomUUID();
+    const credential = `test-${crypto.randomUUID()}`;
+    const secret = await database.query<{ id: string }>(
+      "select vault.create_secret($1, $2, 'Integration test AI Configuration') as id",
+      [credential, `ai_configuration_${configurationId}`],
+    );
+    await database.query(
+      `insert into public.ai_configuration (
+        id, label, provider, split_model, extract_model,
+        credential_secret_id, credential_last_four
+      ) values ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        configurationId,
+        `Test ${input.provider.name} ${configurationId}`,
+        input.provider.name,
+        `${input.provider.name}-split`,
+        `${input.provider.name}-extract`,
+        secret.rows[0].id,
+        credential.slice(-4),
+      ],
+    );
+    await database.query(
+      `insert into public.company_ai_configuration (company_id, configuration_id)
+       values ($1, $2)
+       on conflict (company_id) do update set configuration_id = excluded.configuration_id`,
+      [input.companyId, configurationId],
+    );
+    await database.query(
+      "update public.company set ai_processing_enabled = true where id = $1",
+      [input.companyId],
+    );
+    await database.query(
+      `insert into public.company_setup_step_state (company_id, organization_id, step, state, changed_by)
+       select id, organization_id, 'ai_processing', 'completed', null
+       from public.company where id = $1
+       on conflict (company_id, step) do update set state = excluded.state, changed_by = null, changed_at = now()`,
+      [input.companyId],
+    );
+    await database.query("commit");
+  } catch (error) {
+    await database.query("rollback");
+    throw error;
+  } finally {
+    await database.end();
+  }
+
+  const system = systemClient();
+  const [sources, documents] = await Promise.all([
+    system.from("source_file").select("id").eq("company_id", input.companyId)
+      .in("status", ["uploaded", "processing", "waiting_for_platform"]),
+    system.from("document").select("id").eq("company_id", input.companyId)
+      .in("status", ["uploaded", "processing", "waiting_for_platform"]),
+  ]);
+  if (sources.error) throw sources.error;
+  if (documents.error) throw documents.error;
+  for (const source of sources.data) await jobs.send(splitJob(source.id));
+  for (const document of documents.data) await jobs.send(extractJob(document.id));
+  return { ok: true as const, value: null };
+}
+
+/** Test-only removal of a platform assignment. */
+export async function removeAiConfigurationFixture(_client: AppClient, companyId: string) {
+  const database = new DatabaseClient({ connectionString: inject("databaseUrl") });
+  await database.connect();
+  try {
+    await database.query("begin");
+    await database.query("delete from public.company_ai_configuration where company_id = $1", [companyId]);
+    await database.query("update public.company set ai_processing_enabled = false where id = $1", [companyId]);
+    await database.query("commit");
+  } catch (error) {
+    await database.query("rollback");
+    throw error;
+  } finally {
+    await database.end();
+  }
+  return { ok: true as const, value: null };
+}
 
 /** A random but well-formed set of Company details. */
 export function companyDetails(
@@ -92,6 +193,10 @@ export async function companyWithManyReportDocuments(count: number) {
     .update({ ai_processing_allowance: null })
     .eq("id", admin.companyId);
   if (unlimited.error) throw unlimited.error;
+  await assignAiConfigurationFixture(admin.client, { async send() {} }, {
+    companyId: admin.companyId,
+    provider: { name: "fake", region: "local" },
+  });
   for (let first = 0; first < count; first += 50) {
     const pageCount = Math.min(50, count - first);
     const pdf = await PDFDocument.create();

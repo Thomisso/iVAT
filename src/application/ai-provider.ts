@@ -20,16 +20,12 @@ export type PageRange = { firstPage: number; lastPage: number };
 export type RowRange = WorkbookRowSet;
 export type SourceRange = PageRange | RowRange;
 
-export const AI_CREDENTIAL_SOURCES = ["platform", "organization", "local"] as const;
-export type AiCredentialSource = (typeof AI_CREDENTIAL_SOURCES)[number];
 export type AiProviderConfiguration = { apiKey: string; splitModel: string; extractModel: string };
 
 export type AiCallContext = {
   organizationId: string;
-  /** The credential boundary explicitly selected by the Company Administrator. */
-  credentialSource: AiCredentialSource;
   /** Resolved inside the worker handler; browser/application callers never receive it. */
-  configuration?: AiProviderConfiguration;
+  configuration: AiProviderConfiguration;
 };
 
 /** Token counts returned by a provider for one completed request. */
@@ -82,9 +78,9 @@ export class AiProviderError extends Error {
  * the Source File or Document Failed.
  */
 export interface AiProvider {
-  /** Recorded with the Company's consent and on every Extraction Version. */
+  /** Recorded on every Extraction Version. */
   readonly name: string;
-  /** Where the provider processes the Documents it receives, as consented to by the Company. */
+  /** Where the provider processes the Documents it receives. */
   readonly region: string;
   split(input: AiInput, context?: AiCallContext): Promise<{ model: string; documents: SourceRange[]; usage?: AiUsage }>;
   extract(input: AiInput, context?: AiCallContext): Promise<{ model: string; payload: ExtractionPayload; usage?: AiUsage }>;

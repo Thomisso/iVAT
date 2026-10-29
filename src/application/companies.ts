@@ -1,21 +1,6 @@
 import { isUuid, type AppClient, type Result } from "./client";
 import { reportingPeriodStart, validFilingEffectiveFrom } from "./reporting-periods";
 
-export {
-  configureCompanyAiProcessing,
-  companyAiOptionValue,
-  disableAiProcessing,
-  enableAiProcessing,
-  listCompanyAiOptions,
-  parseCompanyAiOptionValue,
-} from "./company-ai";
-export type {
-  AiCredentialSource,
-  AiProcessingConsent,
-  CompanyAiConfigurationError,
-  CompanyAiOption,
-} from "./company-ai";
-
 export type CompanyDetails = {
   name: string;
   firstName: string | null;

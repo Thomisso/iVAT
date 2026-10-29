@@ -8,11 +8,13 @@ import {
   moveDocumentPage,
   splitDocument,
 } from "@/application/documents";
-import { enableAiProcessing } from "@/application/companies";
 import { uploadSourceFile } from "@/application/source-files";
 import { fakeAiProvider } from "@/ai/fake";
 import { signedUpUser } from "./support/clients";
-import { administratorWithCompany } from "./support/fixtures";
+import {
+  administratorWithCompany,
+  assignAiConfigurationFixture as enableAiProcessing,
+} from "./support/fixtures";
 import { testWorker } from "./support/worker";
 
 async function fourPagePdf() {
