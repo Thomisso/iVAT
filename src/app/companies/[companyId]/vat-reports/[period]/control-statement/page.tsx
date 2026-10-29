@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getCompany } from "@/application/companies";
+import { getCompanyFilingDefaults, resolveEpoAddress } from "@/application/company-filing-defaults";
 import { getReportingPeriodReadiness } from "@/application/reporting-period-readiness";
 import { getPeriodLock, getVatReport } from "@/application/vat-reports";
 import { requireUserClient } from "@/lib/supabase/server";
@@ -26,8 +27,9 @@ export default async function ControlStatementPage({
 }: PageProps<"/companies/[companyId]/vat-reports/[period]/control-statement">) {
   const { companyId, period } = await params;
   const client = await requireUserClient();
-  const [company, report, periodLock, readinessResult, t] = await Promise.all([
+  const [company, filingDefaults, report, periodLock, readinessResult, t] = await Promise.all([
     getCompany(client, companyId),
+    getCompanyFilingDefaults(client, companyId),
     getVatReport(client, companyId, period),
     getPeriodLock(client, companyId, period),
     getReportingPeriodReadiness(client, { companyId, period }),
@@ -35,6 +37,7 @@ export default async function ControlStatementPage({
   ]);
   if (!company || !report || !readinessResult.ok) notFound();
   const readiness = readinessResult.value;
+  const epoAddress = resolveEpoAddress(report.result.company, filingDefaults);
   return (
     <main className="company-workspace vat-reports vat-output-page">
       <header className="company-page-header vat-report-header">
@@ -141,6 +144,8 @@ export default async function ControlStatementPage({
               timeZone: "Europe/Prague",
             }).format(new Date())}
             personType={report.result.company.personType}
+            defaults={filingDefaults}
+            epoAddress={epoAddress.ok ? epoAddress.value : null}
           />
         </div>
       </section>

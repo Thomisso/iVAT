@@ -8,6 +8,7 @@ import {
   getCompany,
   listMyCompanies,
 } from "@/application/companies";
+import { saveCompanyFilingDefaults } from "@/application/company-filing-defaults";
 import {
   exportCompanyData,
   getCompanyDataExportStatus,
@@ -47,6 +48,16 @@ it("exports a Company's originals and Document data before retaining it as soft-
   });
   if (!uploaded.ok) throw new Error(uploaded.error);
   expect(await worker.runJobs()).toEqual([]);
+  expect(await saveCompanyFilingDefaults(company.client, {
+    companyId: company.companyId,
+    taxOffice: "451",
+    signatoryFirstName: "Jana",
+    signatoryLastName: "Nováková",
+    signatoryCapacity: "jednatelka",
+    email: "podatelna@example.test",
+    phone: "+420123456789",
+    epoAddressOverride: null,
+  })).toEqual({ ok: true, value: null });
   const [document] = await listDocuments(
     company.client,
     company.companyId,
@@ -90,6 +101,13 @@ it("exports a Company's originals and Document data before retaining it as soft-
       expect.objectContaining({ step: "identity", state: "completed" }),
       expect.objectContaining({ step: "filing_frequency", state: "completed" }),
     ]),
+    filingDefaults: expect.objectContaining({
+      taxOffice: "451",
+      signatoryFirstName: "Jana",
+      email: "podatelna@example.test",
+      phone: "+420123456789",
+      epoAddressOverride: null,
+    }),
   }));
   expect(await getCompany(company.client, company.companyId)).not.toBeNull();
   expect(

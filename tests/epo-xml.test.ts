@@ -10,6 +10,7 @@ export const details: ExportDetails = {
   preparedOn: "2026-10-27",
   personType: "P",
   email: "qa@example.test",
+  phone: "",
   signatoryFirstName: "Jana",
   signatoryLastName: "Nováková",
   signatoryCapacity: "jednatelka",
@@ -210,6 +211,7 @@ it.each(["dphdp3", "dphkh1"] as const)(
         preparedOn: "2026-10-27",
         personType: "F",
         email: "",
+        phone: "",
       }),
     ).toEqual({
       ok: true,
