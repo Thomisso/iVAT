@@ -424,6 +424,11 @@ describe("SuperAdmin organization console", () => {
         ok: true,
         value: null,
       });
+      const afterDocumentRetry = await listPlatformOperationalProblems(superAdmin.client);
+      if (!afterDocumentRetry.ok) throw new Error(afterDocumentRetry.error);
+      expect(afterDocumentRetry.value.some((problem) => (
+        problem.kind === "terminal_processing_job" && problem.targetIds.includes(document.id)
+      ))).toBe(false);
       expect((await listDocuments(target.client, target.companyId, documentFile.value.id))[0].status)
         .toBe("uploaded");
       expect(await boss.getJobById("extract-document", documentJobId)).toEqual(expect.objectContaining({

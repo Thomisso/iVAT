@@ -29,6 +29,7 @@ export type OperationalProblem = {
   severity: "critical" | "warning";
   firstDetectedAt: string;
   ageMinutes: number;
+  targetIds: string[];
   affectedDocumentCount: number;
   configuration: null | {
     id: string;
@@ -55,6 +56,7 @@ type OperationalFailedJobContext = {
   companyName: string;
   affectedCount: number;
   firstFailedAt: string;
+  targetIds: string[];
 };
 
 type OperationalContext = {
@@ -93,6 +95,7 @@ function addProblem(
     companyName: string;
     affectedDocumentCount: number;
     discriminator?: string;
+    targetIds?: string[];
   },
   configurations: Map<string, AiConfigurationSummary>,
 ) {
@@ -101,6 +104,7 @@ function addProblem(
   const existing = groups.get(key);
   if (existing) {
     existing.firstDetectedAt = earlier(existing.firstDetectedAt, input.firstDetectedAt);
+    existing.targetIds = [...new Set([...existing.targetIds, ...(input.targetIds ?? [])])];
     const company = existing.companies.get(input.companyId);
     if (company) company.affectedDocumentCount += input.affectedDocumentCount;
     else existing.companies.set(input.companyId, {
@@ -116,6 +120,7 @@ function addProblem(
     kind: input.kind,
     severity: input.severity,
     firstDetectedAt: input.firstDetectedAt,
+    targetIds: input.targetIds ?? [],
     configuration,
     companies: new Map([[input.companyId, {
       id: input.companyId,
@@ -199,6 +204,7 @@ export function groupOperationalProblems(input: {
       companyName: job.companyName,
       affectedDocumentCount: job.affectedCount,
       discriminator: job.name,
+      targetIds: job.targetIds,
     }, configurations);
   }
 

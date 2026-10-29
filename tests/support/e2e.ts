@@ -99,6 +99,9 @@ export async function assignBrowserAiConfigurationFixture(companyId: string) {
       "update public.company set ai_processing_enabled = true where id = $1",
       [companyId],
     );
+    await database.query(
+      "insert into public.platform_ai_provider (provider) values ('fake') on conflict (provider) do nothing",
+    );
     await database.query("commit");
   } catch (error) {
     await database.query("rollback");
@@ -182,4 +185,109 @@ export async function promoteBrowserSuperAdminFixture(email: string) {
     user_id: userId,
   });
   if (promoted.error) throw promoted.error;
+}
+
+/** Creates one failed pg-boss split job whose target can be safely retried. */
+export async function addBrowserTerminalProcessingJobFixture(companyId: string) {
+  const environment = await browserFixtureEnvironment();
+  const database = new DatabaseClient({ connectionString: environment.DATABASE_URL });
+  await database.connect();
+  try {
+    await database.query("begin");
+    const source = await database.query<{ id: string }>(
+      `select id from public.source_file
+       where company_id = $1
+       order by uploaded_at desc limit 1
+       for update`,
+      [companyId],
+    );
+    if (!source.rows[0]) throw new Error("Could not prepare terminal processing fixture");
+    await database.query(
+      "update public.source_file set status = 'failed' where id = $1",
+      [source.rows[0].id],
+    );
+    const inserted = await database.query<{ id: string }>(
+      `insert into pgboss.job (
+         name, data, state, retry_limit, started_on, completed_on, output
+       ) values (
+         'split-source-file', jsonb_build_object('sourceFileId', $1::uuid),
+         'failed', 0, now(), now(), '{"message":"browser terminal failure"}'::jsonb
+       ) returning id`,
+      [source.rows[0].id],
+    );
+    await database.query("commit");
+    return { jobId: inserted.rows[0].id, sourceFileId: source.rows[0].id };
+  } catch (error) {
+    await database.query("rollback");
+    throw error;
+  } finally {
+    await database.end();
+  }
+}
+
+/** Parks the latest Source File behind an authoritative missing-configuration issue. */
+export async function addBrowserMissingConfigurationIssueFixture(companyId: string) {
+  const environment = await browserFixtureEnvironment();
+  const database = new DatabaseClient({ connectionString: environment.DATABASE_URL });
+  await database.connect();
+  try {
+    await database.query("begin");
+    await database.query(
+      "insert into public.platform_ai_provider (provider) values ('fake') on conflict (provider) do nothing",
+    );
+    const source = await database.query<{ id: string; organization_id: string }>(
+      `select id, organization_id from public.source_file
+       where company_id = $1
+       order by uploaded_at desc limit 1
+       for update`,
+      [companyId],
+    );
+    if (!source.rows[0]) throw new Error("Could not prepare missing-configuration fixture");
+    await database.query(
+      "update public.company set ai_processing_enabled = true where id = $1",
+      [companyId],
+    );
+    await database.query(
+      "update public.source_file set status = 'waiting_for_platform' where id = $1",
+      [source.rows[0].id],
+    );
+    await database.query(
+      `insert into public.ai_processing_issue (
+         target_kind, target_id, organization_id, company_id,
+         classification, state
+       ) values ('source_file', $1, $2, $3, 'configuration_missing', 'waiting_for_platform')
+       on conflict (target_kind, target_id) do update set
+         classification = excluded.classification,
+         state = excluded.state,
+         configuration_id = null,
+         provider = null,
+         updated_at = now()`,
+      [source.rows[0].id, source.rows[0].organization_id, companyId],
+    );
+    await database.query("commit");
+    return source.rows[0].id;
+  } catch (error) {
+    await database.query("rollback");
+    throw error;
+  } finally {
+    await database.end();
+  }
+}
+
+/** Reads the privileged remediation audit actions written for browser fixtures. */
+export async function browserRemediationAuditActions(targetIds: string[]) {
+  const environment = await browserFixtureEnvironment();
+  const database = new DatabaseClient({ connectionString: environment.DATABASE_URL });
+  await database.connect();
+  try {
+    const result = await database.query<{ action: string }>(
+      `select action from public.audit_event
+       where target_id = any($1::uuid[])
+       order by occurred_at, id`,
+      [targetIds],
+    );
+    return result.rows.map((row) => row.action);
+  } finally {
+    await database.end();
+  }
 }

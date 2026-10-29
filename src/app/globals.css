@@ -1503,6 +1503,19 @@ select:disabled {
 }
 .company-primary-nav a:hover { background: #eef1ef; }
 .company-primary-nav a[aria-current="page"] { background: var(--shell-blue-soft); color: var(--shell-blue); box-shadow: inset 3px 0 var(--shell-blue); }
+.context-navigation-count {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: #9a6400;
+  color: white;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
 .company-shell-icon { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; }
 .company-shell-secondary { margin-top: auto; display: grid; gap: 7px; }
 .notification-inbox { position: relative; justify-self: start; }
@@ -1564,6 +1577,7 @@ select:disabled {
   background: white;
   color: #263944;
 }
+.platform-alert-bell { text-decoration: none; }
 .platform-page > .panel { width: 100%; margin: 0; }
 .operational-problems { display: grid; gap: var(--space-4); }
 .operational-problems-header,
@@ -1635,9 +1649,38 @@ select:disabled {
   border-top: 1px solid var(--line);
 }
 .operational-problem-link { justify-self: start; font-weight: 600; }
+.operational-remediation {
+  padding-top: var(--space-3);
+  display: grid;
+  gap: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+.operational-remediation h4 { margin: 0; font-size: 13px; }
+.operational-remediation details {
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.operational-remediation summary { cursor: pointer; font-weight: 600; }
+.operational-remediation-company,
+.operational-remediation-job {
+  padding: var(--space-3);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.operational-remediation-company > .ai-configuration-assignment-actions { flex: 1 1 auto; }
+.operational-remediation-job code { overflow-wrap: anywhere; }
 @media (max-width: 640px) {
   .operational-problem-facts { grid-template-columns: 1fr; }
   .operational-problem-companies li { align-items: flex-start; flex-direction: column; gap: 0; }
+  .operational-remediation-company,
+  .operational-remediation-job { align-items: stretch; flex-direction: column; }
 }
 .company-shell-secondary > .company-shell-menu:first-child .company-shell-menu-trigger { min-height: 40px; grid-template-columns: 22px 1fr auto; border-color: transparent; background: transparent; }
 .company-shell-secondary > .company-shell-menu:last-child .company-shell-popover { top: auto; bottom: calc(100% + 6px); }
