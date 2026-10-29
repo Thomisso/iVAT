@@ -3,6 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { getCompany, listCompanyFilingFrequencies } from "@/application/companies";
 import { requireUserClient } from "@/lib/supabase/server";
 import { FilingFrequencyForm } from "./filing-frequency-form";
+import { PageLayout } from "@/components/app-shell";
 
 function firstOfCurrentMonth() {
   return `${new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Prague" }).format(new Date()).slice(0, 7)}-01`;
@@ -18,7 +19,7 @@ export default async function FilingFrequencySetupPage({ params }: PageProps<"/c
   ]);
   if (!company) notFound();
   const current = history.at(-1);
-  return <main className="company-workspace">
+  return <PageLayout className="company-workspace" measure="narrow">
     <header className="company-page-header"><h1>{t("filingFrequencyTitle")}</h1><p>{t("filingSetupIntro")}</p></header>
     <section className="panel company-setup-panel">
       <FilingFrequencyForm companyId={companyId} initialValues={{
@@ -26,5 +27,5 @@ export default async function FilingFrequencySetupPage({ params }: PageProps<"/c
         filingFrequencyEffectiveFrom: current?.effectiveFrom ?? firstOfCurrentMonth(),
       }} />
     </section>
-  </main>;
+  </PageLayout>;
 }
