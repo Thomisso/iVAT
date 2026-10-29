@@ -5,6 +5,7 @@ import { createServer as createNetServer } from "node:net";
 import { setTimeout as delay } from "node:timers/promises";
 
 let baseUrl = process.env.PLAYWRIGHT_BASE_URL;
+const useProductionServer = process.env.E2E_PRODUCTION_SERVER === "1";
 const environment = {
   ...process.env,
   AI_PROVIDER: "fake",
@@ -98,7 +99,11 @@ function stopManagedProcesses() {
 }
 
 async function main() {
-  if (!baseUrl) baseUrl = `http://localhost:${await availablePort()}`;
+  if (!baseUrl) {
+    baseUrl = useProductionServer
+      ? "http://127.0.0.1:3000"
+      : `http://localhost:${await availablePort()}`;
+  }
   environment.PLAYWRIGHT_BASE_URL = baseUrl;
   environment.APP_ORIGIN = new URL(baseUrl).origin;
   environment.AUTH_REDIRECT_ALLOWLIST = `${environment.APP_ORIGIN}/auth/callback`;
@@ -107,15 +112,15 @@ async function main() {
   const aresPort = await availablePort();
   environment.ARES_BASE_URL = `http://127.0.0.1:${aresPort}/ares/ekonomicke-subjekty-v-be/rest/ekonomicke-subjekty`;
   console.log(`Running the acceptance stack at ${baseUrl}`);
-  await command("npm", ["run", "db:stop"]);
+  await command("npm", ["run", "db:stop", "--", "--no-backup"]);
   await command("npm", ["run", "db:start"]);
-  await command("npm", ["run", "db:reset"]);
   const localStack = JSON.parse(execFileSync(
     process.execPath,
     ["scripts/supabase.mjs", "status", "-o", "json"],
     { cwd: process.cwd(), env: environment, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
   ));
   environment.MAILPIT_URL = localStack.MAILPIT_URL;
+  if (useProductionServer) await command("npm", ["run", "build"]);
 
   const ares = start("postman", [
     "simulation", "run", "postman/simulations/ares/ares.sim.yaml",
@@ -126,7 +131,13 @@ async function main() {
     `${environment.ARES_BASE_URL}/12345678`,
     "ARES simulation",
   );
-  const web = start("npm", ["run", "dev", "--", "-p", port]);
+  const web = start("npm", [
+    "run",
+    useProductionServer ? "start" : "dev",
+    "--",
+    "-p",
+    port,
+  ]);
   start(process.execPath, [
     "node_modules/tsx/dist/cli.mjs",
     "--env-file=.env.local",

@@ -64,6 +64,8 @@ jobs:
           postman --version
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
+        env:
+          E2E_PRODUCTION_SERVER: "1"
       - name: Upload Playwright traces
         if: failure()
         uses: actions/upload-artifact@v7
