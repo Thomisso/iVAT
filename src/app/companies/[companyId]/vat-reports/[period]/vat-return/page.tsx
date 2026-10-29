@@ -162,6 +162,7 @@ export default async function VatReturnPage({
             personType={report.result.company.personType}
             defaults={filingDefaults}
             epoAddress={epoAddress.ok ? epoAddress.value : null}
+            finalized={Boolean(periodLock)}
           />
         </div>
       </section>

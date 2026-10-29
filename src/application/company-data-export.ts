@@ -1,8 +1,11 @@
+import { createHash } from "node:crypto";
 import { strToU8, zipSync } from "fflate";
 import type { Company, FilingFrequencyHistoryEntry } from "./companies";
 import type { CompanyFilingDefaults } from "./company-filing-defaults";
 import type { Document, ExtractionVersion } from "./documents";
+import type { VatReportArtifact } from "./epo-export";
 import type { SourceFile } from "./source-files";
+import type { VatReport, VatReportTransition } from "./vat-reports";
 
 export type CompanyExportSnapshot = {
   revision: number;
@@ -15,6 +18,9 @@ export type CompanyExportSnapshot = {
   filingFrequencies: FilingFrequencyHistoryEntry[];
   sourceFiles: SourceFile[];
   documents: (Document & { supersededAt: string | null; extractionVersions: ExtractionVersion[] })[];
+  vatReports: (VatReport & { generatedBy: string })[];
+  vatReportTransitions: VatReportTransition[];
+  vatReportArtifacts: (VatReportArtifact & { xmlBase64: string })[];
 };
 
 function json(value: unknown): Uint8Array {
@@ -31,16 +37,38 @@ export async function buildCompanyDataArchive(
   snapshot: CompanyExportSnapshot,
   readOriginal: (sourceFile: SourceFile) => Promise<Uint8Array | null>,
 ): Promise<Uint8Array | null> {
-  const { company, setupSteps, filingFrequencies, sourceFiles, documents } = snapshot;
+  const {
+    company,
+    setupSteps,
+    filingFrequencies,
+    sourceFiles,
+    documents,
+    vatReports,
+    vatReportTransitions,
+    vatReportArtifacts,
+  } = snapshot;
+  const artifactMetadata = vatReportArtifacts.map(({ xmlBase64, ...artifact }) => {
+    void xmlBase64;
+    return artifact;
+  });
   const archive: Record<string, Uint8Array> = {
     "company.json": json({ ...company, setupSteps, filingFrequencies }),
     "source-files.json": json(sourceFiles),
     "documents.json": json(documents),
+    "vat-reports.json": json(vatReports),
+    "vat-report-transitions.json": json(vatReportTransitions),
+    "vat-report-artifacts.json": json(artifactMetadata),
   };
   for (const sourceFile of sourceFiles) {
     const bytes = await readOriginal(sourceFile);
     if (!bytes) return null;
     archive[`source-files/${sourceFile.id}/${archiveLeaf(sourceFile.fileName)}`] = bytes;
+  }
+  for (const artifact of vatReportArtifacts) {
+    const bytes = new Uint8Array(Buffer.from(artifact.xmlBase64, "base64"));
+    const sha256 = createHash("sha256").update(bytes).digest("hex");
+    if (bytes.length !== artifact.byteSize || sha256 !== artifact.sha256) return null;
+    archive[`vat-report-artifacts/${artifact.id}/${archiveLeaf(artifact.fileName)}`] = bytes;
   }
   // ZIP timestamps are fixed so independent route/worker builds have the same digest.
   return zipSync(archive, { level: 6, mtime: new Date("1980-01-01T00:00:00.000Z") });

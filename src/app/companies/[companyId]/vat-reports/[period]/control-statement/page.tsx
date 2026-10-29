@@ -146,6 +146,7 @@ export default async function ControlStatementPage({
             personType={report.result.company.personType}
             defaults={filingDefaults}
             epoAddress={epoAddress.ok ? epoAddress.value : null}
+            finalized={Boolean(periodLock)}
           />
         </div>
       </section>
