@@ -1,7 +1,11 @@
 import fs from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { validateEpoXml } from "../src/application/epo-xml";
-import { addBrowserCompanyMemberFixture } from "../tests/support/e2e";
+import {
+  addBrowserCompanyMemberFixture,
+  addBrowserDocumentWarningFixture,
+  assignBrowserAiConfigurationFixture,
+} from "../tests/support/e2e";
 
 test("an administrator can turn an uploaded Source File into a traceable, exportable VAT Report", async ({
   browser,
@@ -44,14 +48,9 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   await page.getByRole("button", { name: "Save and continue" }).click();
   await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+\/setup\/ai-processing$/, { timeout: 45_000 });
   const companyUrl = page.url().replace(/\/setup\/ai-processing$/, "");
-  await page.getByRole("radio").first().check();
-  await page.getByRole("checkbox", { name: /I consent to sending this Company's documents/ }).check();
-  await page.getByRole("button", { name: "Enable AI processing" }).click();
-  await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+$/);
-  const aiSetup = page.getByRole("listitem").filter({
-    has: page.getByText("AI processing", { exact: true }),
-  });
-  await expect(aiSetup.getByText("Completed", { exact: true })).toBeVisible();
+  const companyId = new URL(companyUrl).pathname.split("/")[2];
+  await assignBrowserAiConfigurationFixture(companyId);
+  await page.goto(companyUrl);
 
   await page.goto(`${companyUrl}/members`);
   await page.getByLabel("Email").fill(`user-${run}@example.test`);
@@ -84,6 +83,12 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   await page.getByRole("button", { name: "Generate draft" }).click();
   await expect(page.getByText("Current data is not ready", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Finalize and lock period" })).toBeDisabled();
+  const blockers = page.getByRole("link", { name: "2 blocker Documents" });
+  await expect(blockers).toBeVisible();
+  await blockers.click();
+  await expect(page).toHaveURL(new RegExp(`/companies/${companyId}/documents\\?view=all&reportingPeriod=2026-10&readiness=blockers$`));
+  await expect(page.getByRole("status").filter({ hasText: "2 Documents blocking 2026-10" })).toBeVisible();
+  await expect(page.getByRole("table", { name: "Documents" }).getByRole("link")).toHaveCount(2);
 
   await page.goto(reviewBatchUrl);
   await expect(page).toHaveURL(/\/documents\?view=review&batchId=[0-9a-f-]+$/);
@@ -97,7 +102,12 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   await page.getByLabel("Document number", { exact: true }).fill(documentNumber);
   await page.getByLabel("Direction", { exact: true }).selectOption("incoming");
   await page.getByRole("button", { name: "Save corrections" }).click();
-  const approve = page.getByRole("button", { name: "Approve version 2" });
+  await expect(page.getByRole("button", { name: "Approve version 2" })).toBeEnabled();
+  const documentId = new URL(documentUrl).pathname.split("/").at(-1);
+  if (!documentId) throw new Error("Document id is missing");
+  await addBrowserDocumentWarningFixture(documentId);
+  await page.reload();
+  const approve = page.getByRole("button", { name: "Approve version 3" });
   await expect(approve).toBeEnabled();
   await approve.click();
   await expect(page).toHaveURL(/\/documents\/[0-9a-f-]+\?view=review&batchId=[0-9a-f-]+$/);
@@ -115,7 +125,8 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   await expect(page.getByText("Stale", { exact: true }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Finalize and lock period" })).toBeDisabled();
   await page.getByRole("button", { name: "Generate / regenerate draft" }).click();
-  await expect(page.getByRole("button", { name: "Finalize and lock period" })).toBeEnabled();
+  await expect(page.getByText("This snapshot matches the relevant live Documents.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Finalize and lock period" })).toBeDisabled();
   await page.getByRole("navigation", { name: "Reporting Period destinations" })
     .getByRole("link", { name: "VAT Return" }).click();
   await expect(page.getByRole("heading", { name: "VAT Return · 2026-10" })).toBeVisible();
@@ -162,9 +173,20 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   const confirmationSummary = page.locator(".finalization-summary");
   await expect(confirmationSummary.getByText("Warnings").locator("..")).toContainText("1");
   await expect(confirmationSummary.getByText("Rejected Documents").locator("..")).toContainText("1");
+  await page.getByRole("link", { name: "1 Document with warnings" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "1 Document with warnings for 2026-10" })).toBeVisible();
+  await expect(page.getByRole("table", { name: "Documents" }).getByRole("link")).toHaveCount(1);
+  await page.goto(`${companyUrl}/vat-reports?period=2026-10`);
+  await page.getByRole("link", { name: "Open 1 rejected Document" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "1 rejected Document for 2026-10" })).toBeVisible();
+  await expect(page.getByRole("form", { name: "Filters" })
+    .getByRole("combobox", { name: "Status" })).toHaveValue("rejected");
+  await expect(page.getByRole("table", { name: "Documents" }).getByRole("link")).toHaveCount(1);
+  await page.goto(`${companyUrl}/vat-reports?period=2026-10`);
   await page.getByRole("checkbox", {
     name: "I understand that Finalization creates a Period Lock for this snapshot.",
   }).check();
+  await expect(page.getByRole("button", { name: "Finalize and lock period" })).toBeEnabled();
   await page.getByRole("button", { name: "Finalize and lock period" }).click();
   await expect(page.getByRole("button", { name: "Unlock period" })).toBeVisible();
   await expect(page.getByText("Period locked", { exact: true })).toBeVisible();
@@ -242,7 +264,7 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   await expect(page.getByRole("button", { name: "Unlock period" })).toBeVisible();
   await expect(page.getByText("Period locked", { exact: true })).toBeVisible();
 
-  await page.goto(`${companyUrl}/settings`);
+  await page.goto(`${companyUrl}/settings/data`);
   page.once("dialog", (dialog) => void dialog.accept());
   const companyExport = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export and delete Company" }).click();

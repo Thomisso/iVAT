@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   finalizeVatReportAction,
@@ -34,6 +34,7 @@ export function PeriodLockForm({
     locked ? unlockReportingPeriodAction : finalizeVatReportAction,
     { error: null, values: {} },
   );
+  const [confirmed, setConfirmed] = useState(false);
   const finalizable = summary.snapshotCurrent &&
     summary.identityComplete &&
     summary.blockerCount === 0;
@@ -72,10 +73,9 @@ export function PeriodLockForm({
           </Button>
         </>
       ) : (
-        <>
-          <Notice tone={finalizable ? "info" : "warning"} title={t("finalizationConfirmationTitle")}>
-            {t("finalizationImpact")}
-          </Notice>
+        <fieldset className="finalization-decision" data-state={finalizable ? "available" : "blocked"}>
+          <legend>{t("finalizationConfirmationTitle")}</legend>
+          <p>{t("finalizationImpact")}</p>
           <dl className="finalization-summary">
             <div>
               <dt>{t("finalizationSnapshot")}</dt>
@@ -100,14 +100,15 @@ export function PeriodLockForm({
               name="confirmed"
               required
               disabled={!finalizable}
-              defaultChecked={state.values.confirmed === "on"}
+              checked={confirmed}
+              onChange={(event) => setConfirmed(event.target.checked)}
             />
             <span>{t("finalizationConfirmation")}</span>
           </label>
-          <Button type="submit" variant="primary" disabled={pending || !finalizable}>
+          <Button type="submit" variant="primary" disabled={pending || !finalizable || !confirmed}>
             {t("finalize")}
           </Button>
-        </>
+        </fieldset>
       )}
       <FormError error={state.error} />
     </form>

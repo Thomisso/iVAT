@@ -8,6 +8,12 @@ import {
 import type { Direction } from "./extraction-payload";
 import type { AppClient } from "./client";
 import { getUploadBatch, type UploadBatchWorkspace } from "./upload-batches";
+import {
+  getReportingPeriodReadiness,
+  READINESS_DOCUMENT_FILTERS,
+  readinessDocumentIds,
+  type ReadinessDocumentFilter,
+} from "./reporting-period-readiness";
 
 export const DOCUMENT_SAVED_VIEWS = [
   "review",
@@ -29,6 +35,7 @@ export type DocumentQueue = {
   counterparty?: string;
   hasFindings: boolean;
   batchId?: string;
+  readiness?: ReadinessDocumentFilter;
 };
 
 export type ResolvedDocumentQueue = {
@@ -45,6 +52,7 @@ const QUEUE_CONTEXT_KEYS = [
   "counterparty",
   "hasFindings",
   "batchId",
+  "readiness",
 ] as const;
 
 const stringParam = (value: string | string[] | undefined) =>
@@ -68,7 +76,12 @@ export function parseDocumentQueue(search: DocumentQueueSearch): DocumentQueue {
     ? requestedView as DocumentSavedView
     : "review";
   const requestedStatus = stringParam(search.status);
-  const status = fixedStatus[view] ?? (
+  const reportingPeriod = stringParam(search.reportingPeriod)?.trim() || undefined;
+  const requestedReadiness = stringParam(search.readiness);
+  const readiness = reportingPeriod && READINESS_DOCUMENT_FILTERS.includes(requestedReadiness as ReadinessDocumentFilter)
+    ? requestedReadiness as ReadinessDocumentFilter
+    : undefined;
+  const status = readiness === "rejected" ? "rejected" : fixedStatus[view] ?? (
     DOCUMENT_STATUSES.includes(requestedStatus as DocumentStatus)
       ? requestedStatus as DocumentStatus
       : undefined
@@ -79,7 +92,6 @@ export function parseDocumentQueue(search: DocumentQueueSearch): DocumentQueue {
       ? requestedDirection
       : undefined
   );
-  const reportingPeriod = stringParam(search.reportingPeriod)?.trim() || undefined;
   const counterparty = stringParam(search.counterparty)?.trim() || undefined;
   const batchId = stringParam(search.batchId)?.trim() || undefined;
   return {
@@ -90,6 +102,7 @@ export function parseDocumentQueue(search: DocumentQueueSearch): DocumentQueue {
     counterparty,
     hasFindings: stringParam(search.hasFindings) === "1",
     batchId,
+    readiness,
   };
 }
 
@@ -105,7 +118,7 @@ export function documentQueueFilters(
   return {
     status: queue.status,
     direction: queue.direction,
-    reportingPeriod: queue.reportingPeriod,
+    reportingPeriod: queue.readiness ? undefined : queue.reportingPeriod,
     counterparty: queue.counterparty,
     hasFindings: queue.hasFindings || undefined,
     sourceFileIds,
@@ -121,6 +134,7 @@ export function documentQueueSearchParams(queue: DocumentQueue): URLSearchParams
   if (queue.counterparty) params.set("counterparty", queue.counterparty);
   if (queue.hasFindings) params.set("hasFindings", "1");
   if (queue.batchId) params.set("batchId", queue.batchId);
+  if (queue.readiness) params.set("readiness", queue.readiness);
   return params;
 }
 
@@ -144,7 +158,14 @@ export async function getDocumentQueue(
   const batch = queue.batchId ? await getUploadBatch(client, companyId, queue.batchId) : null;
   const sourceFileIds = queue.batchId ? (batch?.sourceFiles.map((source) => source.id) ?? []) : undefined;
   const documents = await listCompanyDocuments(client, companyId, documentQueueFilters(queue, sourceFileIds));
-  return { queue, batch, documents };
+  if (!queue.readiness || !queue.reportingPeriod) return { queue, batch, documents };
+  const readiness = await getReportingPeriodReadiness(client, {
+    companyId,
+    period: queue.reportingPeriod,
+  });
+  if (!readiness.ok) return { queue, batch, documents: [] };
+  const included = new Set(readinessDocumentIds(readiness.value, queue.readiness));
+  return { queue, batch, documents: documents.filter((document) => included.has(document.id)) };
 }
 
 export type DocumentQueuePosition = ResolvedDocumentQueue & {
