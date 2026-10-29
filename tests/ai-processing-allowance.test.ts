@@ -10,6 +10,7 @@ import {
   clearDefaultAiConfiguration,
   createAiConfiguration,
   setDefaultAiConfiguration,
+  updateAiConfiguration,
 } from "@/application/ai-configurations";
 import {
   correctDocument,
@@ -189,7 +190,7 @@ describe("AI Processing Allowance", () => {
   });
 
   it("releases a reservation when provider resolution refuses the work", async () => {
-    const { company } = await companyWithDefaultAi("Provider refusal release", 1);
+    const { superAdministrator, configurationId, company } = await companyWithDefaultAi("Provider refusal release", 1);
     const provider = { ...fakeAiProvider(), name: "anthropic" };
     const splittingWorker = testWorker(provider);
     const uploaded = await uploadSourceFile(company.client, splittingWorker.jobs, {
@@ -204,15 +205,21 @@ describe("AI Processing Allowance", () => {
 
     const unavailableWorker = testWorker([]);
     unavailableWorker.queued.push({ name: "extract-document", data: { documentId: document.id } });
-    expect(await unavailableWorker.runJobs({ final: false })).toEqual([expect.any(Error)]);
-    expect((await listCompanyDocuments(company.client, company.companyId))[0].status).toBe("uploaded");
+    expect(await unavailableWorker.runJobs({ final: false })).toEqual([]);
+    expect((await listCompanyDocuments(company.client, company.companyId))[0].status).toBe("waiting_for_platform");
     expect(await getCompanyAiProcessingAllowance(company.client, company.companyId)).toEqual({
       ok: true,
       value: { used: 0, allowance: 1, waitingDocuments: 0 },
     });
 
     const retryWorker = testWorker(provider);
-    retryWorker.queued.push({ name: "extract-document", data: { documentId: document.id } });
+    expect(await updateAiConfiguration(superAdministrator.client, {
+      id: configurationId,
+      label: `Provider refusal repaired ${configurationId}`,
+      provider: "anthropic",
+      splitModel: "allowance-split",
+      extractModel: "allowance-extract",
+    }, retryWorker.jobs)).toEqual({ ok: true, value: null });
     expect(await retryWorker.runJobs()).toEqual([]);
     expect(await getCompanyAiProcessingAllowance(company.client, company.companyId)).toEqual({
       ok: true,
