@@ -9,9 +9,7 @@ import {
   setDefaultAiConfiguration,
   updateAiConfiguration,
 } from "@/application/ai-configurations";
-import { disableAiProcessing, enableAiProcessing } from "@/application/companies";
 import { listCompanyDocuments } from "@/application/documents";
-import { configurePlatformAiProvider, setOrganizationPlatformAiAccess } from "@/application/platform-ai";
 import { getSourceFile, uploadSourceFile } from "@/application/source-files";
 import { fakeAiProvider } from "@/ai/fake";
 import { administratorWithCompany, companyMember } from "./support/fixtures";
@@ -259,7 +257,6 @@ describe("platform-owned AI Configurations", () => {
     ]);
     expect(seenContexts).toEqual([
       expect.objectContaining({
-        credentialSource: "platform",
         configuration: {
           apiKey: "default-secret",
           splitModel: "default-split",
@@ -267,7 +264,6 @@ describe("platform-owned AI Configurations", () => {
         },
       }),
       expect.objectContaining({
-        credentialSource: "platform",
         configuration: {
           apiKey: "default-secret",
           splitModel: "default-split",
@@ -276,21 +272,11 @@ describe("platform-owned AI Configurations", () => {
       }),
     ]);
 
-    expect(await disableAiProcessing(createdAfterDefault.client, createdAfterDefault.companyId))
-      .toEqual({ ok: true, value: null });
-    const uploadedWhileDisabled = await uploadSourceFile(createdAfterDefault.client, worker.jobs, {
-      companyId: createdAfterDefault.companyId,
-      fileName: "explicitly-disabled.png",
-      bytes: fixtureFile("receipt.png"),
-    });
-    if (!uploadedWhileDisabled.ok) throw new Error(uploadedWhileDisabled.error);
-    expect(await worker.runJobs()).toEqual([]);
-    expect(seenContexts).toHaveLength(2);
-    expect((await getSourceFile(
-      createdAfterDefault.client,
-      createdAfterDefault.companyId,
-      uploadedWhileDisabled.value.id,
-    ))?.status).toBe("uploaded");
+    const forbiddenMutation = await createdAfterDefault.client
+      .from("company")
+      .update({ ai_processing_enabled: false })
+      .eq("id", createdAfterDefault.companyId);
+    expect(forbiddenMutation.error?.code).toBe("42501");
     expect(await clearDefaultAiConfiguration(superAdministrator.client)).toEqual({ ok: true, value: null });
   });
 
@@ -310,7 +296,7 @@ describe("platform-owned AI Configurations", () => {
     });
   });
 
-  it("processes Split and Extraction through an assigned configuration while retaining the legacy path", async () => {
+  it("processes Split and Extraction only through the assigned configuration", async () => {
     const superAdministrator = await promotedSuperAdministrator("AI processing operator", "ai-processing");
     const configuredCompany = await administratorWithCompany("Configured processing");
     const seenContexts: AiCallContext[] = [];
@@ -340,37 +326,12 @@ describe("platform-owned AI Configurations", () => {
       companyId: configuredCompany.companyId,
       configurationId: configuration.value.id,
     })).toEqual({ ok: true, value: null });
-    expect(await disableAiProcessing(configuredCompany.client, configuredCompany.companyId))
-      .toEqual({ ok: true, value: null });
-
     const uploaded = await uploadSourceFile(configuredCompany.client, worker.jobs, {
       companyId: configuredCompany.companyId,
       fileName: "receipt.png",
       bytes: fixtureFile("receipt.png"),
     });
     if (!uploaded.ok) throw new Error(uploaded.error);
-    expect(await worker.runJobs()).toEqual([]);
-    expect(seenContexts).toEqual([]);
-    expect((await getSourceFile(configuredCompany.client, configuredCompany.companyId, uploaded.value.id))?.status)
-      .toBe("uploaded");
-
-    expect(await configurePlatformAiProvider(superAdministrator.client, {
-      provider: "anthropic",
-      available: true,
-      splitModel: "legacy-platform-split",
-      extractModel: "legacy-platform-extract",
-      apiKey: "legacy-platform-secret",
-    })).toEqual({ ok: true, value: null });
-    expect(await setOrganizationPlatformAiAccess(superAdministrator.client, {
-      organizationId: configuredCompany.organizationId,
-      provider: "anthropic",
-      enabled: true,
-    })).toEqual({ ok: true, value: null });
-    expect(await enableAiProcessing(configuredCompany.client, worker.jobs, {
-      companyId: configuredCompany.companyId,
-      provider: configuredProvider,
-      credentialSource: "platform",
-    })).toEqual({ ok: true, value: null });
     expect(await worker.runJobs()).toEqual([]);
     expect((await getSourceFile(configuredCompany.client, configuredCompany.companyId, uploaded.value.id))?.status)
       .toBe("split");
@@ -379,7 +340,6 @@ describe("platform-owned AI Configurations", () => {
     ]);
     expect(seenContexts).toEqual([
       expect.objectContaining({
-        credentialSource: "platform",
         configuration: {
           apiKey: "configured-secret",
           splitModel: "configured-split",
@@ -387,7 +347,6 @@ describe("platform-owned AI Configurations", () => {
         },
       }),
       expect.objectContaining({
-        credentialSource: "platform",
         configuration: {
           apiKey: "configured-secret",
           splitModel: "configured-split",
@@ -396,21 +355,5 @@ describe("platform-owned AI Configurations", () => {
       }),
     ]);
 
-    const legacyCompany = await administratorWithCompany("Legacy processing");
-    const legacyWorker = testWorker();
-    expect(await enableAiProcessing(legacyCompany.client, legacyWorker.jobs, {
-      companyId: legacyCompany.companyId,
-      provider: legacyWorker.ai,
-    })).toEqual({ ok: true, value: null });
-    const legacyUpload = await uploadSourceFile(legacyCompany.client, legacyWorker.jobs, {
-      companyId: legacyCompany.companyId,
-      fileName: "receipt.png",
-      bytes: fixtureFile("receipt.png"),
-    });
-    if (!legacyUpload.ok) throw new Error(legacyUpload.error);
-    expect(await legacyWorker.runJobs()).toEqual([]);
-    expect(await listCompanyDocuments(legacyCompany.client, legacyCompany.companyId)).toEqual([
-      expect.objectContaining({ status: "needs_review" }),
-    ]);
   });
 });

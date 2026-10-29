@@ -61,8 +61,6 @@ function AdministrationMenu({ companyId, companyRole, organizations, superAdmin 
     {organizationAdmins.map((organization) => <div className="company-shell-admin-group" key={organization.id}>
       <strong>{organization.name}</strong>
       <Link href={`/organizations/${organization.id}/members`} role="menuitem">{t("users")}</Link>
-      <Link href={`/organizations/${organization.id}/ai-settings`} role="menuitem">{t("aiSettings")}</Link>
-      <Link href={`/organizations/${organization.id}/ai-usage`} role="menuitem">{t("aiUsage")}</Link>
       <Link href={`/organizations/${organization.id}/audit-log`} role="menuitem">{t("auditLog")}</Link>
     </div>)}
     {superAdmin && <><p className="company-shell-menu-label">{t("platformAdministration")}</p><Link href="/platform/administration" role="menuitem">{t("platformOverview")}</Link><Link href="/platform/ai-settings" role="menuitem">{t("platformAi")}</Link><Link href="/platform/ai-usage" role="menuitem">{t("platformUsage")}</Link></>}

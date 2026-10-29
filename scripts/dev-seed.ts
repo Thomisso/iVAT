@@ -1,6 +1,6 @@
 // Seeds the local stack with a fresh QA account to look at the app with: an
-// Organization, a Company with AI processing enabled, and a two-Document PDF
-// uploaded to it. The worker (`npm run worker`) Splits and Extracts it.
+// Organization, a Company, and a two-Document PDF uploaded to it. Assign a
+// platform AI Configuration in the SuperAdmin UI to process the upload.
 //
 //   npm run dev:seed [-- --base-url http://localhost:3100]
 //
@@ -13,10 +13,9 @@ import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
 import { signUp } from "@/application/auth";
 import { asUserClient } from "@/application/client";
-import { createCompany, enableAiProcessing } from "@/application/companies";
+import { createCompany } from "@/application/companies";
 import { listMyOrganizations } from "@/application/organizations";
 import { uploadSourceFile } from "@/application/source-files";
-import { configuredAiProvider } from "@/ai";
 import type { Database } from "@/lib/database.types";
 import { supabasePublishableKey, supabaseUrl } from "@/lib/env";
 import { jobQueue } from "@/lib/jobs";
@@ -62,8 +61,6 @@ async function main() {
   });
   if (!company.ok) throw new Error(`Company creation failed: ${company.error}`);
   const companyId = company.value.id;
-  const enabled = await enableAiProcessing(client, jobQueue, { companyId, provider: configuredAiProvider() });
-  if (!enabled.ok) throw new Error(`Enabling AI processing failed: ${enabled.error}`);
   const uploaded = await uploadSourceFile(client, jobQueue, {
     companyId,
     fileName: "two-invoices.pdf",
@@ -79,7 +76,7 @@ async function main() {
   console.log(`Company:     ${url}/companies/${companyId}`);
   console.log(`Source File: ${url}/companies/${companyId}/source-files/${uploaded.value.id}`);
   console.log(`Cookie:      ${sessionCookie(data.session)}`);
-  console.log("Its Documents appear for review once `npm run worker` has processed the Source File.");
+  console.log("Assign an AI Configuration in Platform settings, then the worker can process the Source File.");
 }
 
 main().then(

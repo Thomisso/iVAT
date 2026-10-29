@@ -8,20 +8,16 @@ import type { OrganizationSummary } from "@/application/organizations";
 import { AccountActions, AppShell, ContextNavigation } from "@/components/app-shell";
 import { AccountMenu, Menu, ShellIcon } from "@/components/shell-controls";
 
-type Destination = "users" | "aiSettings" | "aiUsage" | "auditLog";
+type Destination = "users" | "auditLog";
 
 const destinations: Array<{ key: Destination; icon: string; suffix: string }> = [
   { key: "users", icon: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2m7-10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm13 10v-2a4 4 0 0 0-3-3.87m-3-10a4 4 0 0 1 0 7.75", suffix: "/members" },
-  { key: "aiSettings", icon: "M12 2a10 10 0 1 0 10 10M12 8v4l3 2", suffix: "/ai-settings" },
-  { key: "aiUsage", icon: "M4 19V9m6 10V5m6 14v-7m4 7V3", suffix: "/ai-usage" },
   { key: "auditLog", icon: "M5 3h14v18H5zM9 7h6M9 11h6M9 15h4", suffix: "/audit-log" },
 ];
 
 function activeDestination(pathname: string, organizationId: string): Destination {
   const rest = pathname.slice(`/organizations/${organizationId}`.length);
   if (rest.startsWith("/audit-log")) return "auditLog";
-  if (rest.startsWith("/ai-settings")) return "aiSettings";
-  if (rest.startsWith("/ai-usage")) return "aiUsage";
   return "users";
 }
 
