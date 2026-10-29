@@ -31,3 +31,17 @@ export async function addBrowserCompanyMemberFixture(companyId: string, email: s
   });
   if (membership.error) throw membership.error;
 }
+
+/** Browser-fixture setup for a SuperAdmin who signed up through the real UI. */
+export async function promoteBrowserSuperAdminFixture(email: string) {
+  const service = await browserFixtureClient();
+  const { data: users, error: usersError } = await service.auth.admin.listUsers();
+  if (usersError) throw usersError;
+  const userId = users.users.find((user) => user.email === email)?.id;
+  if (!userId) throw new Error("Could not prepare SuperAdmin browser fixture");
+  const promoted = await service.from("platform_user").insert({
+    role: "super_admin",
+    user_id: userId,
+  });
+  if (promoted.error) throw promoted.error;
+}
