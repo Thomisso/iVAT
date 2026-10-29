@@ -1692,6 +1692,37 @@ select:disabled {
 .upload-notification a { color: var(--upload-ink); font-weight: 650; }
 .upload-notification .iv-btn { color: var(--upload-ink); }
 .company-setup-panel { max-width: 720px; }
+.company-overview-work,
+.company-settings-destinations { max-width: 920px; }
+.company-overview-work > header p,
+.company-settings-destinations > header p,
+.company-settings-section > header p,
+.company-settings-section-heading p { color: #5c6b72; }
+.company-overview-work > div,
+.company-settings-destinations > div { margin-top: 18px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.company-settings-destinations > div { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.company-overview-work a,
+.company-settings-destinations a { min-height: 112px; padding: 18px; display: grid; align-content: start; gap: 7px; border: 1px solid #d7dfdc; border-radius: 8px; background: white; color: #263944; text-decoration: none; }
+.company-overview-work a:hover,
+.company-settings-destinations a:hover { border-color: var(--shell-blue); box-shadow: 0 3px 12px #12304a12; }
+.company-overview-work a:focus-visible,
+.company-settings-destinations a:focus-visible { outline: 3px solid color-mix(in srgb, var(--shell-blue) 35%, transparent); outline-offset: 2px; }
+.company-overview-work a strong,
+.company-settings-destinations a strong { color: var(--shell-navy); font-size: 16px; }
+.company-overview-work a span,
+.company-settings-destinations a span { color: #5c6b72; font-size: 14px; line-height: 1.45; }
+.company-settings-nav { max-width: 1120px; margin: 0 0 28px; display: flex; gap: 4px; border-bottom: 1px solid #cbd5d2; }
+.company-settings-nav a { padding: 10px 13px; border-bottom: 3px solid transparent; color: #4d5f67; font-size: 14px; font-weight: 650; text-decoration: none; }
+.company-settings-nav a:hover { color: var(--shell-blue); }
+.company-settings-nav a[aria-current="page"] { border-bottom-color: var(--shell-blue); color: var(--shell-navy); }
+.company-settings-mobile-nav { display: none; }
+.company-settings-content { width: 100%; max-width: 920px; display: grid; gap: 24px; }
+.company-settings-section,
+.company-settings-section-heading { padding: 24px; border: 1px solid #d7dfdc; border-radius: 8px; background: white; }
+.company-settings-section .panel { max-width: none; margin: 20px 0 0; }
+.company-settings-users { max-width: none; }
+.company-settings-users .member-management > .panel { width: 100%; max-width: none; margin: 20px 0 0; }
+.company-settings-content > .company-delete { padding: 24px; border: 1px solid #e0b6b2; border-radius: 8px; background: #fff8f7; }
 .company-setup-checklist { max-width: 820px; padding: 24px; border: 1px solid #d7dfdc; border-radius: 8px; background: white; }
 .company-setup-checklist header p { color: #5c6b72; }
 .company-setup-checklist ol { margin: 20px 0 0; padding: 0; display: grid; gap: 8px; list-style: none; }
@@ -1791,6 +1822,18 @@ select:disabled {
   .upload-failure-row { grid-template-columns: 1fr; gap: 5px; }
   .upload-notifications { margin-inline: 14px; }
   .company-page-header h1 { font-size: 28px; }
+  .company-overview-work > div,
+  .company-settings-destinations > div { grid-template-columns: 1fr; }
+  .company-settings-nav { display: none; }
+  .company-settings-mobile-nav { margin-bottom: 22px; display: grid; gap: 6px; }
+  .company-settings-mobile-nav label { color: #4d5f67; font-size: 13px; font-weight: 650; }
+  .company-settings-mobile-nav select { width: 100%; min-height: 44px; padding: 8px 36px 8px 11px; border: 1px solid #aebdb9; border-radius: 6px; background: white; color: #263944; font: inherit; }
+  .company-settings-section,
+  .company-settings-section-heading,
+  .company-settings-content > .company-delete,
+  .company-setup-checklist { padding: 18px; }
+  .company-setup-checklist li { grid-template-columns: 32px minmax(0, 1fr); }
+  .company-setup-checklist li a { grid-column: 2; }
   .company-shell-content > .dashboard,
   .company-shell-content > .review,
   .company-shell-content > .company-create { padding-inline: 14px; }

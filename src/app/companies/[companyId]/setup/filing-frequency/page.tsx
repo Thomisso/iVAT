@@ -1,6 +1,6 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { getCompany, listCompanyFilingFrequencies } from "@/application/companies";
+import { getCompany, getMyCompanyRole, listCompanyFilingFrequencies } from "@/application/companies";
 import { requireUserClient } from "@/lib/supabase/server";
 import { FilingFrequencyForm } from "./filing-frequency-form";
 import { PageLayout } from "@/components/app-shell";
@@ -12,12 +12,14 @@ function firstOfCurrentMonth() {
 export default async function FilingFrequencySetupPage({ params }: PageProps<"/companies/[companyId]/setup/filing-frequency">) {
   const { companyId } = await params;
   const client = await requireUserClient();
-  const [company, history, t] = await Promise.all([
+  const [company, role, history, t] = await Promise.all([
     getCompany(client, companyId),
+    getMyCompanyRole(client, companyId),
     listCompanyFilingFrequencies(client, companyId),
     getTranslations("company"),
   ]);
   if (!company) notFound();
+  if (role !== "administrator") redirect(`/companies/${company.id}/settings`);
   const current = history.at(-1);
   return <PageLayout className="company-workspace" measure="narrow">
     <header className="company-page-header"><h1>{t("filingFrequencyTitle")}</h1><p>{t("filingSetupIntro")}</p></header>
