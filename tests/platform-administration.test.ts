@@ -17,6 +17,7 @@ import {
   listFailedProcessingJobs,
   retryFailedProcessingJob,
 } from "@/application/processing-administration";
+import { listPlatformOperationalProblems } from "@/application/operational-problems";
 import { listSourceFiles, uploadSourceFile } from "@/application/source-files";
 import { beginUploadBatch } from "@/application/upload-batches";
 import {
@@ -61,6 +62,20 @@ async function superAdministrator() {
 }
 
 describe("SuperAdmin organization console", () => {
+  it("isolates the live operational dashboard to SuperAdmin", async () => {
+    const ordinary = await signedUpUser("Ordinary operational viewer");
+    const superAdmin = await superAdministrator();
+
+    expect(await listPlatformOperationalProblems(ordinary.client)).toEqual({
+      ok: false,
+      error: "forbidden",
+    });
+    expect(await listPlatformOperationalProblems(superAdmin.client)).toEqual({
+      ok: true,
+      value: expect.any(Array),
+    });
+  });
+
   it("lists every Organization and Company only for a SuperAdmin", async () => {
     const target = await administratorWithCompany("Accounting Office");
     const ordinary = await signedUpUser("Ordinary Organization");
@@ -371,6 +386,18 @@ describe("SuperAdmin organization console", () => {
             error: "storage was unavailable",
           }),
           ]),
+      }));
+      expect(await listPlatformOperationalProblems(superAdmin.client)).toEqual(expect.objectContaining({
+        ok: true,
+        value: expect.arrayContaining([
+          expect.objectContaining({
+            kind: "terminal_processing_job",
+            affectedDocumentCount: 1,
+            companies: expect.arrayContaining([
+              expect.objectContaining({ id: target.companyId, affectedDocumentCount: 1 }),
+            ]),
+          }),
+        ]),
       }));
       expect(await retryFailedProcessingJob(ordinary.client, jobId)).toEqual({
         ok: false,

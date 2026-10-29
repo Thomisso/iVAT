@@ -155,6 +155,10 @@ test("only a SuperAdmin navigates the shared Platform shell without losing exist
     page.getByRole("heading", { name: "Platform administration", level: 1 }),
   ).toBeVisible();
   await expect(
+    page.getByRole("heading", { name: "Operational problems" }),
+  ).toBeVisible();
+  await expect(page.getByText("No active operational problems.")).toBeVisible();
+  await expect(
     page.getByRole("heading", { name: "Organizations and Companies" }),
   ).toBeVisible();
   await expect(
@@ -184,10 +188,6 @@ test("only a SuperAdmin navigates the shared Platform shell without losing exist
   await expect(
     page.getByRole("heading", { name: "AI configurations", level: 2 }),
   ).toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: "Legacy provider settings", level: 2 }),
-  ).toBeVisible();
-
   await navigation.getByRole("link", { name: "Platform AI usage" }).click();
   await expect(page).toHaveURL(/\/platform\/ai-usage$/);
   await expect(
