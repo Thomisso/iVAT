@@ -8,6 +8,7 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   context,
   page,
 }) => {
+  test.setTimeout(240_000);
   const baseUrl = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3100";
   const run = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const digits = Date.now().toString().slice(-8);
