@@ -30,7 +30,7 @@ export function Menu({ children, label, trigger }: { children: ReactNode; label:
   }, [open]);
 
   return <div className="company-shell-menu">
-    <button aria-expanded={open} aria-haspopup="menu" aria-label={label} className="company-shell-menu-trigger" onClick={() => {
+    <button aria-expanded={open} aria-haspopup="menu" className="company-shell-menu-trigger" onClick={() => {
       initialFocus.current = "first";
       setOpen((value) => !value);
     }} onKeyDown={(event) => {
@@ -38,7 +38,7 @@ export function Menu({ children, label, trigger }: { children: ReactNode; label:
       event.preventDefault();
       initialFocus.current = event.key === "ArrowDown" ? "first" : "last";
       setOpen(true);
-    }} ref={button} type="button">{trigger}</button>
+    }} ref={button} type="button"><span className="sr-only">{label}</span>{trigger}</button>
     {open && <div aria-label={label} className="company-shell-popover" onClick={(event) => {
       if (event.target instanceof Element && event.target.closest("a")) setOpen(false);
     }} onKeyDown={(event) => {
