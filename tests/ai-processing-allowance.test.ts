@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { Client as DatabaseClient } from "pg";
+import { afterEach, describe, expect, inject, it } from "vitest";
 import type { AiProvider } from "@/application/ai-provider";
 import {
   getCompanyAiProcessingAllowance,
@@ -23,7 +24,8 @@ import { SAMPLE_EXTRACTION, fakeAiProvider } from "@/ai/fake";
 import { administratorWithCompany, companyMember } from "./support/fixtures";
 import { fixtureFile } from "./support/files";
 import { promotedSuperAdministrator } from "./support/platform";
-import { testWorker } from "./support/worker";
+import { systemClient, testWorker } from "./support/worker";
+import cs from "../messages/cs.json";
 
 const defaultsToClear: Awaited<ReturnType<typeof promotedSuperAdministrator>>[] = [];
 
@@ -155,6 +157,61 @@ describe("AI Processing Allowance", () => {
     });
   });
 
+  it("exhausts allowance before resolving an unavailable provider and shows the exact Czech message", async () => {
+    const { company } = await companyWithDefaultAi("Zero before provider", 0);
+    const splittingWorker = testWorker({ ...fakeAiProvider(), name: "anthropic" });
+    const uploaded = await uploadSourceFile(company.client, splittingWorker.jobs, {
+      companyId: company.companyId,
+      fileName: "zero-before-provider.png",
+      bytes: fixtureFile("receipt.png"),
+    });
+    if (!uploaded.ok) throw new Error(uploaded.error);
+    await splittingWorker.runNextJob();
+    splittingWorker.queued.splice(0);
+
+    const unavailableWorker = testWorker([]);
+    const [document] = await listCompanyDocuments(company.client, company.companyId);
+    unavailableWorker.queued.push({ name: "extract-document", data: { documentId: document.id } });
+
+    expect(await unavailableWorker.runJobs()).toEqual([]);
+    expect((await listCompanyDocuments(company.client, company.companyId))[0].status).toBe("waiting_for_allowance");
+    expect(cs.uploadWorkspace.documentStatus.waiting_for_allowance).toBe(
+      "Dosažen limit počtu zpracovaných dokladů, kontaktujte super administrátora.",
+    );
+  });
+
+  it("releases a reservation when provider resolution refuses the work", async () => {
+    const { company } = await companyWithDefaultAi("Provider refusal release", 1);
+    const provider = { ...fakeAiProvider(), name: "anthropic" };
+    const splittingWorker = testWorker(provider);
+    const uploaded = await uploadSourceFile(company.client, splittingWorker.jobs, {
+      companyId: company.companyId,
+      fileName: "provider-refusal.png",
+      bytes: fixtureFile("receipt.png"),
+    });
+    if (!uploaded.ok) throw new Error(uploaded.error);
+    await splittingWorker.runNextJob();
+    splittingWorker.queued.splice(0);
+    const [document] = await listCompanyDocuments(company.client, company.companyId);
+
+    const unavailableWorker = testWorker([]);
+    unavailableWorker.queued.push({ name: "extract-document", data: { documentId: document.id } });
+    expect(await unavailableWorker.runJobs({ final: false })).toEqual([expect.any(Error)]);
+    expect((await listCompanyDocuments(company.client, company.companyId))[0].status).toBe("uploaded");
+    expect(await getCompanyAiProcessingAllowance(company.client, company.companyId)).toEqual({
+      ok: true,
+      value: { used: 0, allowance: 1, waitingDocuments: 0 },
+    });
+
+    const retryWorker = testWorker(provider);
+    retryWorker.queued.push({ name: "extract-document", data: { documentId: document.id } });
+    expect(await retryWorker.runJobs()).toEqual([]);
+    expect(await getCompanyAiProcessingAllowance(company.client, company.companyId)).toEqual({
+      ok: true,
+      value: { used: 1, allowance: 1, waitingDocuments: 0 },
+    });
+  });
+
   it("uses the final finite unit in page order and resumes waiting Documents after an increase", async () => {
     const { superAdministrator, company } = await companyWithDefaultAi("One unit", 1);
     const provider = { ...fakeAiProvider(), name: "anthropic" };
@@ -208,6 +265,77 @@ describe("AI Processing Allowance", () => {
       ok: true,
       value: { used: 1, allowance: 1, waitingDocuments: 1 },
     });
+  });
+
+  it("serializes a completion handoff before reserving the last unit", async () => {
+    const { company } = await companyWithDefaultAi("Completion handoff", 1);
+    const worker = testWorker({ ...fakeAiProvider(), name: "anthropic" });
+    const uploaded = await uploadSourceFile(company.client, worker.jobs, {
+      companyId: company.companyId,
+      fileName: "completion-handoff.pdf",
+      bytes: fixtureFile("two-invoices.pdf"),
+    });
+    if (!uploaded.ok) throw new Error(uploaded.error);
+    await worker.runNextJob();
+    worker.queued.splice(0);
+
+    const system = systemClient();
+    const listed = await system
+      .from("document")
+      .select("id, extraction_request_id")
+      .eq("company_id", company.companyId)
+      .order("first_page");
+    if (listed.error) throw listed.error;
+    const [completing, competing] = listed.data;
+    const reservationId = crypto.randomUUID();
+    const reserved = await system.rpc("reserve_ai_processing", {
+      target_document_id: completing.id,
+      target_extraction_request_id: completing.extraction_request_id,
+      target_reservation_id: reservationId,
+    });
+    expect(reserved).toEqual(expect.objectContaining({ data: "reserved", error: null }));
+
+    const database = new DatabaseClient({ connectionString: inject("databaseUrl") });
+    await database.connect();
+    await database.query("begin");
+    await database.query("select 1 from public.company where id = $1 for update", [company.companyId]);
+    try {
+      let completionSettled = false;
+      const completion = system.rpc("record_ai_extraction", {
+        target_document_id: completing.id,
+        target_extraction_request_id: completing.extraction_request_id,
+        target_reservation_id: reservationId,
+        provider: "anthropic",
+        model: "allowance-extract",
+        payload: SAMPLE_EXTRACTION,
+        findings: [],
+      }).then((result) => {
+        completionSettled = true;
+        return result;
+      });
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(completionSettled).toBe(false);
+
+      const competingReservation = system.rpc("reserve_ai_processing", {
+        target_document_id: competing.id,
+        target_extraction_request_id: competing.extraction_request_id,
+        target_reservation_id: crypto.randomUUID(),
+      });
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      await database.query("commit");
+
+      expect(await completion).toEqual(expect.objectContaining({ error: null }));
+      expect(await competingReservation).toEqual(expect.objectContaining({
+        data: "allowance_exhausted",
+        error: null,
+      }));
+    } finally {
+      await database.query("rollback");
+      await database.end();
+    }
+
+    const documents = await listCompanyDocuments(company.client, company.companyId);
+    expect(documents.map((document) => document.status)).toEqual(["needs_review", "waiting_for_allowance"]);
   });
 
   it("releases a failed attempt so its retry can consume the unit only after success", async () => {

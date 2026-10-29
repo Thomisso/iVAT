@@ -173,6 +173,7 @@ language plpgsql security definer set search_path = ''
 as $$
 declare
   doc public.document;
+  processing_enabled boolean;
   processing_allowance bigint;
   successful_extractions bigint;
   active_reservations bigint;
@@ -186,10 +187,13 @@ begin
   if not found then
     return 'not_processable';
   end if;
-  select ai_processing_allowance into processing_allowance
+  select ai_processing_enabled, ai_processing_allowance into processing_enabled, processing_allowance
   from public.company
   where id = doc.company_id
   for update;
+  if not found or not processing_enabled then
+    return 'not_processable';
+  end if;
   select * into doc
   from public.document
   where id = target_document_id
@@ -255,11 +259,27 @@ create function public.release_ai_processing_reservation(target_reservation_id u
 returns void
 language plpgsql security definer set search_path = ''
 as $$
+declare
+  reservation public.ai_processing_reservation;
 begin
   if auth.role() <> 'service_role' then
     raise exception 'forbidden' using errcode = '42501';
   end if;
-  delete from public.ai_processing_reservation where id = target_reservation_id;
+  delete from public.ai_processing_reservation
+  where id = target_reservation_id
+  returning * into reservation;
+  if found then
+    update public.document
+    set status = 'uploaded'
+    where id = reservation.document_id
+      and extraction_request_id = reservation.extraction_request_id
+      and status = 'processing'
+      and not exists (
+        select 1 from public.extraction_version version
+        where version.document_id = reservation.document_id
+          and version.extraction_request_id = reservation.extraction_request_id
+      );
+  end if;
 end;
 $$;
 
@@ -283,6 +303,14 @@ begin
   if auth.role() <> 'service_role' then
     raise exception 'forbidden' using errcode = '42501';
   end if;
+  -- Reservation and completion transfer share the Company row as their
+  -- serialization point. Lock it before the Document in both functions, so a
+  -- reserve cannot count between the Version insert and reservation delete.
+  select * into doc from public.document where id = target_document_id;
+  if not found then
+    raise exception 'document % does not exist', target_document_id;
+  end if;
+  perform 1 from public.company where id = doc.company_id for update;
   select * into doc from public.document where id = target_document_id for update;
   if not found then
     raise exception 'document % does not exist', target_document_id;
