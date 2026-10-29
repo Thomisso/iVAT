@@ -67,6 +67,17 @@ export async function companyMember(
   return user;
 }
 
+/** Support-only corruption fixture for exercising the database's Finalization
+ * guard. The Application never removes a required completed setup step. */
+export async function removeCompletedCompanyIdentityFixture(companyId: string) {
+  const removed = await systemClient()
+    .from("company_setup_step_state")
+    .delete()
+    .eq("company_id", companyId)
+    .eq("step", "identity");
+  if (removed.error) throw removed.error;
+}
+
 /** Large report fixture. Uses platform-sized Source Files and the worker's narrow
  * write functions to avoid 1001 full PDF extraction jobs; application tests still
  * generate/read as a User. */
@@ -122,6 +133,26 @@ export async function companyWithManyReportDocuments(count: number) {
     );
   }
   return admin;
+}
+
+/** A large, finalizable VAT Report fixture approved through the Application layer. */
+export async function companyWithManyApprovedReportDocuments(count: number) {
+  const { approveDocument, listCompanyDocuments } = await import("@/application/documents");
+  const company = await companyWithManyReportDocuments(count);
+  const documents = await listCompanyDocuments(company.client, company.companyId);
+  for (let offset = 0; offset < documents.length; offset += 25) {
+    const results = await Promise.all(documents.slice(offset, offset + 25).map((document) =>
+      approveDocument(company.client, {
+        companyId: company.companyId,
+        documentId: document.id,
+        version: 1,
+      })
+    ));
+    for (const result of results) {
+      if (!result.ok) throw new Error(`Document approval failed: ${result.error}`);
+    }
+  }
+  return company;
 }
 
 /** A Company with more than one PostgREST page of uploaded Documents waiting for Extraction. */

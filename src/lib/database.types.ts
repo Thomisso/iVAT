@@ -2,7 +2,7 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
 
 export type Database = {
-  
+
   "graphql_public": {
           Tables: {
             [_ in never]: never
@@ -61,7 +61,7 @@ isOneToOne: false
                     "action"?: string,"actor_user_id"?: string | null,"company_id"?: string | null,"id"?: never,"occurred_at"?: string,"organization_id"?: string,"payload"?: NonNullable<Json>,"target_id"?: string | null,"target_type"?: string
                   }
                   Relationships: [
-                    
+
                   ]
                 },"company": {
                   Row: {
@@ -285,7 +285,7 @@ isOneToOne: false
                     "blocked_at"?: string | null,"blocked_by"?: string | null,"created_at"?: string,"id"?: string,"mfa_required"?: boolean,"name"?: string
                   }
                   Relationships: [
-                    
+
                   ]
                 },"organization_ai_provider_key": {
                   Row: {
@@ -377,7 +377,7 @@ isOneToOne: false
                     "available"?: boolean,"extract_model"?: string,"platform_key_last_four"?: string | null,"platform_key_secret_id"?: string | null,"provider"?: string,"split_model"?: string,"updated_at"?: string,"updated_by"?: string | null
                   }
                   Relationships: [
-                    
+
                   ]
                 },"platform_settings": {
                   Row: {
@@ -391,7 +391,7 @@ isOneToOne: false
                     "max_source_file_bytes"?: number,"max_source_file_pages"?: number,"max_upload_batch_files"?: number,"singleton"?: boolean
                   }
                   Relationships: [
-                    
+
                   ]
                 },"platform_user": {
                   Row: {
@@ -405,7 +405,7 @@ isOneToOne: false
                     "created_at"?: string,"role"?: Database["public"]['Enums']["platform_role"],"user_id"?: string
                   }
                   Relationships: [
-                    
+
                   ]
                 },"source_file": {
                   Row: {
@@ -455,14 +455,14 @@ isOneToOne: false
                   ]
                 },"vat_report": {
                   Row: {
-                    "company_id": string,"documents": NonNullable<Json>,"generated_at": string,"generated_by": string,"id": string,"organization_id": string,"period": string,"result": NonNullable<Json>
+                    "blocker_count": number,"company_id": string,"documents": NonNullable<Json>,"generated_at": string,"generated_by": string,"id": string,"organization_id": string,"period": string,"rejected_document_count": number,"result": NonNullable<Json>,"warning_count": number
                   }
                   ComputedFields: never
                   Insert: {
-                    "company_id": string,"documents": NonNullable<Json>,"generated_at"?: string,"generated_by": string,"id"?: string,"organization_id": string,"period": string,"result": NonNullable<Json>
+                    "blocker_count"?: number,"company_id": string,"documents": NonNullable<Json>,"generated_at"?: string,"generated_by": string,"id"?: string,"organization_id": string,"period": string,"rejected_document_count"?: number,"result": NonNullable<Json>,"warning_count"?: number
                   }
                   Update: {
-                    "company_id"?: string,"documents"?: NonNullable<Json>,"generated_at"?: string,"generated_by"?: string,"id"?: string,"organization_id"?: string,"period"?: string,"result"?: NonNullable<Json>
+                    "blocker_count"?: number,"company_id"?: string,"documents"?: NonNullable<Json>,"generated_at"?: string,"generated_by"?: string,"id"?: string,"organization_id"?: string,"period"?: string,"rejected_document_count"?: number,"result"?: NonNullable<Json>,"warning_count"?: number
                   }
                   Relationships: [
                     {
@@ -479,6 +479,20 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"vat_report_transition": {
+                  Row: {
+                    "action": string,"actor_user_id": string,"company_id": string,"id": number,"occurred_at": string,"organization_id": string,"period": string,"unlock_reason": string | null,"vat_report_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "action": string,"actor_user_id": string,"company_id": string,"id"?: never,"occurred_at"?: string,"organization_id": string,"period": string,"unlock_reason"?: string | null,"vat_report_id": string
+                  }
+                  Update: {
+                    "action"?: string,"actor_user_id"?: string,"company_id"?: string,"id"?: never,"occurred_at"?: string,"organization_id"?: string,"period"?: string,"unlock_reason"?: string | null,"vat_report_id"?: string
+                  }
+                  Relationships: [
+
+                  ]
                 }
           }
           Views: {
@@ -488,7 +502,7 @@ isOneToOne: false
                   }
                   ComputedFields: never
                   Relationships: [
-                    
+
                   ]
                 },"document_overview": {
                   Row: {
@@ -518,7 +532,7 @@ isOneToOne: false
                   }
                   ComputedFields: never
                   Relationships: [
-                    
+
                   ]
                 }
           }
@@ -599,7 +613,7 @@ isOneToOne: false
 { Args: { "target_export_id": string }; Returns: undefined
                            },
 "finalize_vat_report":
-{ Args: { "target_company_id": string,"target_period": string }; Returns: undefined
+{ Args: { "finalization_confirmed": boolean,"target_company_id": string,"target_period": string }; Returns: undefined
                            },
 "finish_mfa_disenrollment":
 { Args: Record<PropertyKey, never>; Returns: undefined
@@ -737,7 +751,7 @@ isOneToOne: false
 { Args: { "split_after_page": number,"target_document_id": string }; Returns: (string)[]
                            },
 "unlock_reporting_period":
-{ Args: { "target_company_id": string,"target_period": string }; Returns: undefined
+{ Args: { "target_company_id": string,"target_period": string,"unlock_confirmed": boolean,"unlock_reason": string }; Returns: undefined
                            },
 "update_company":
 { Args: { "company_city": string,"company_ico": string,"company_name": string,"company_person_type": Database["public"]['Enums']["person_type"],"company_postal_code": string,"company_street": string,"company_vat_id": string,"filing_frequency_effective_from": string,"new_filing_frequency": Database["public"]['Enums']["filing_frequency"],"target_company_id": string }; Returns: undefined
@@ -750,6 +764,11 @@ isOneToOne: false
                            },
 "vat_report_documents":
 { Args: { "target_company_id": string,"target_period": string }; Returns: Json
+                           },
+"vat_report_transition_history":
+{ Args: { "target_company_id": string,"target_period": string }; Returns: {
+              "action": string,"actor_email": string,"actor_user_id": string,"id": number,"occurred_at": string,"unlock_reason": string,"vat_report_id": string
+            }[]
                            },
 "verify_mfa_recovery_code":
 { Args: { "input_code": string }; Returns: boolean
@@ -872,7 +891,7 @@ export type CompositeTypes<
 export const Constants = {
   "graphql_public": {
           Enums: {
-            
+
           }
         },"public": {
           Enums: {

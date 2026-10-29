@@ -1,8 +1,10 @@
 import fs from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { validateEpoXml } from "../src/application/epo-xml";
+import { addBrowserCompanyMemberFixture } from "../tests/support/e2e";
 
 test("an administrator can turn an uploaded Source File into a traceable, exportable VAT Report", async ({
+  browser,
   context,
   page,
 }) => {
@@ -60,7 +62,7 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   await expect(page.getByLabel("Email")).toHaveValue("");
 
   await page.goto(`${companyUrl}/upload`);
-  await page.locator('input[type="file"]').setInputFiles("tests/fixtures/receipt.png");
+  await page.locator('input[type="file"]').setInputFiles("tests/fixtures/two-invoices.pdf");
   const uploadFinished = page.waitForResponse(
     (response) =>
       response.request().method() === "POST" &&
@@ -70,14 +72,22 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   await page.getByRole("button", { name: "Upload" }).click();
   await uploadFinished;
   await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+\/upload-batches\/[0-9a-f-]+$/);
-  const reviewBatch = page.getByRole("link", { name: "Review 1 Document" });
+  const reviewBatch = page.getByRole("link", { name: "Review 2 Documents" });
   await expect(reviewBatch).toBeVisible({ timeout: 45_000 });
   await page.reload();
   await expect(reviewBatch).toBeVisible();
-  await reviewBatch.click();
+  const reviewBatchUrl = await reviewBatch.getAttribute("href");
+  if (!reviewBatchUrl) throw new Error("Review Batch URL is missing");
+
+  await page.goto(`${companyUrl}/vat-reports?period=2026-10`);
+  await page.getByRole("button", { name: "Generate draft" }).click();
+  await expect(page.getByText("Current data is not ready", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Finalize and lock period" })).toBeDisabled();
+
+  await page.goto(reviewBatchUrl);
   await expect(page).toHaveURL(/\/documents\?view=review&batchId=[0-9a-f-]+$/);
   const documents = page.getByRole("table", { name: "Documents" });
-  await expect(documents.getByRole("link")).toHaveCount(1);
+  await expect(documents.getByRole("link")).toHaveCount(2);
   await documents.getByRole("link").first().click();
   await expect(page).toHaveURL(/\/documents\/[0-9a-f-]+\?view=review&batchId=[0-9a-f-]+$/);
   const documentUrl = page.url();
@@ -89,11 +99,22 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   const approve = page.getByRole("button", { name: "Approve version 2" });
   await expect(approve).toBeEnabled();
   await approve.click();
-  await expect(page).toHaveURL(/\/documents\?view=review&batchId=[0-9a-f-]+#document-[0-9a-f-]+$/);
+  await expect(page).toHaveURL(/\/documents\/[0-9a-f-]+\?view=review&batchId=[0-9a-f-]+$/);
+  await expect(page.getByRole("button", { name: "Approve version 1" })).toBeVisible();
+  const secondDocumentUrl = page.url();
+  const rejectFinished = page.waitForResponse((response) =>
+    response.request().method() === "POST" && response.url() === secondDocumentUrl && response.ok()
+  );
+  await page.getByRole("button", { name: "Reject" }).click();
+  await rejectFinished;
+  await page.goto(reviewBatchUrl);
   await expect(page.getByText("No documents match the filters.")).toBeVisible();
 
   await page.goto(`${companyUrl}/vat-reports?period=2026-10`);
-  await page.getByRole("button", { name: "Generate draft" }).click();
+  await expect(page.getByText("Stale", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Finalize and lock period" })).toBeDisabled();
+  await page.getByRole("button", { name: "Generate / regenerate draft" }).click();
+  await expect(page.getByRole("button", { name: "Finalize and lock period" })).toBeEnabled();
   await page.getByRole("navigation", { name: "Reporting Period destinations" })
     .getByRole("link", { name: "VAT Return" }).click();
   await expect(page.getByRole("heading", { name: "VAT Return · 2026-10" })).toBeVisible();
@@ -119,10 +140,36 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   expect(await validateEpoXml(xml, "dphdp3")).toBe(true);
 
   await page.goto(`${companyUrl}/vat-reports?period=2026-10`);
+  await expect(page.getByText("Confirm Finalization", { exact: true })).toBeVisible();
+  const confirmationSummary = page.locator(".finalization-summary");
+  await expect(confirmationSummary.getByText("Warnings").locator("..")).toContainText("1");
+  await expect(confirmationSummary.getByText("Rejected Documents").locator("..")).toContainText("1");
+  await page.getByRole("checkbox", {
+    name: "I understand that Finalization creates a Period Lock for this snapshot.",
+  }).check();
   await page.getByRole("button", { name: "Finalize and lock period" }).click();
   await expect(page.getByRole("button", { name: "Unlock period" })).toBeVisible();
   await expect(page.getByText("Period locked", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Generate / regenerate draft" })).toBeDisabled();
+
+  const userContext = await browser.newContext();
+  await userContext.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseUrl }]);
+  const userPage = await userContext.newPage();
+  const userEmail = `report-user-${run}@example.test`;
+  await userPage.goto("/signup");
+  await userPage.getByLabel("Organization name").fill(`Report User Organization ${run}`);
+  await userPage.getByLabel("Email").fill(userEmail);
+  await userPage.getByLabel("Password").fill("Playwright-password-1");
+  await userPage.getByRole("button", { name: "Sign up" }).click();
+  await expect(userPage).toHaveURL(/\/companies\/new$/);
+  await addBrowserCompanyMemberFixture(companyUrl.split("/").at(-1)!, userEmail);
+  await userPage.goto(`${companyUrl}/vat-reports?period=2026-10`);
+  await expect(userPage.getByText("Period locked", { exact: true })).toBeVisible();
+  await expect(userPage.getByRole("table", { name: "Finalization history" })
+    .getByText("Finalized", { exact: true })).toHaveCount(1);
+  await expect(userPage.getByRole("button", { name: "Finalize and lock period" })).toHaveCount(0);
+  await expect(userPage.getByRole("button", { name: "Unlock period" })).toHaveCount(0);
+  await userContext.close();
 
   await page.goto(documentUrl);
   await expect(page.getByText(/Reporting period 2026-10 is locked/)).toBeVisible();
@@ -131,8 +178,19 @@ test("an administrator can turn an uploaded Source File into a traceable, export
 
   await page.goto(`${companyUrl}/vat-reports?period=2026-10`);
 
+  await page.getByLabel("Unlock reason").fill("Correct the reviewed invoice");
+  await page.getByRole("checkbox", {
+    name: "I understand that changes may require a new VAT Report and export.",
+  }).check();
   await page.getByRole("button", { name: "Unlock period" }).click();
   await expect(page.getByRole("button", { name: "Finalize and lock period" })).toBeVisible();
+  const history = page.getByRole("table", { name: "Finalization history" });
+  await expect(history.getByText("Finalized", { exact: true })).toHaveCount(1);
+  await expect(history.getByText("Unlocked", { exact: true })).toHaveCount(1);
+  await expect(history.getByText("Correct the reviewed invoice", { exact: true })).toBeVisible();
+  await page.getByRole("checkbox", {
+    name: "I understand that Finalization creates a Period Lock for this snapshot.",
+  }).check();
   await page.getByRole("button", { name: "Finalize and lock period" }).click();
   await expect(page.getByRole("button", { name: "Unlock period" })).toBeVisible();
   await expect(page.getByText("Period locked", { exact: true })).toBeVisible();
