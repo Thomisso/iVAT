@@ -446,6 +446,22 @@ export async function rejectDocument(
   return { ok: true, value: null };
 }
 
+/**
+ * Returns an Approved Document to review: its approval is withdrawn, so it
+ * leaves VAT Reports until it is corrected and approved again. Refused while
+ * its Reporting Period has a Period Lock (ADR-0007).
+ */
+export async function returnDocumentToReview(
+  client: AppClient,
+  input: { companyId: string; documentId: string },
+): Promise<Result<null, "not_approved" | "period_locked" | "forbidden">> {
+  const document = await findDocumentId(client, input.companyId, input.documentId);
+  if (!document) return { ok: false, error: "forbidden" };
+  const { error } = await client.rpc("return_document_to_review", { target_document_id: document });
+  if (error) return refusal(error, ["not_approved", "period_locked"]);
+  return { ok: true, value: null };
+}
+
 export type UpdateDocumentReportingError =
   | "invalid_receipt_date"
   | "invalid_tax_point_date"
