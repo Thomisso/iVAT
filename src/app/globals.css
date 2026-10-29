@@ -797,6 +797,63 @@ code,
 .auth-header .language-switcher {
   margin-left: auto;
 }
+.focused-shell {
+  --shell-navy: #12304a;
+  --shell-blue: #21628f;
+  min-height: 100dvh;
+  background:
+    linear-gradient(135deg, #12304a 0 8px, transparent 8px) top left / 88px 88px,
+    var(--canvas);
+}
+.focused-shell-header {
+  min-height: 84px;
+  padding: 16px clamp(18px, 4vw, 56px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-6);
+  border-bottom: 1px solid #cfd8d5;
+  background: #fbfbf7f2;
+}
+.focused-shell-identity {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+.focused-shell-identity .company-brand { padding: 0; }
+.focused-shell-identity p {
+  margin: 0;
+  padding-left: var(--space-4);
+  border-left: 1px solid #cfd8d5;
+  color: var(--ink-muted);
+}
+.focused-shell-content {
+  min-height: calc(100dvh - 84px);
+  padding: clamp(28px, 6vw, 72px) var(--space-4);
+  display: grid;
+  place-items: start center;
+}
+.focused-shell-card {
+  width: min(100%, 31rem);
+  padding: clamp(24px, 5vw, 42px);
+  border: 1px solid #cfd8d5;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+.focused-shell-card-wide { width: min(100%, 43rem); }
+.focused-shell-section {
+  margin-top: var(--space-6);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--line);
+}
+.focused-shell-card > h1 { color: var(--shell-navy); font-size: clamp(28px, 4vw, 34px); line-height: 1.2; }
+.focused-shell-card > p { color: var(--ink-muted); }
+.focused-shell-card .iv-btn-primary { min-height: var(--control-lg); }
+.focused-shell-card > .form .iv-btn-primary { width: 100%; }
+.focused-shell :focus-visible { outline: 3px solid var(--shell-blue); outline-offset: 3px; }
+.focused-shell .company-skip-link { background: var(--shell-navy); }
 .form {
   display: flex;
   flex-direction: column;
@@ -1629,6 +1686,11 @@ select:disabled {
 .company-chooser-add { margin-top: 20px; display: inline-flex; color: #21628f; font-weight: 650; }
 
 @media (max-width: 719px) {
+  .focused-shell-header { min-height: 68px; padding: 10px 14px; }
+  .focused-shell-identity p { display: none; }
+  .focused-shell-header .language-switcher { flex-wrap: nowrap; }
+  .focused-shell-content { min-height: calc(100dvh - 68px); padding: 24px 14px; }
+  .focused-shell-card { padding: 24px 18px; }
   .company-shell { min-height: 100dvh; padding: 61px 0 70px; display: block; }
   .company-shell-sidebar { display: none; }
   .company-mobile-header {
