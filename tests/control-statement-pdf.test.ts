@@ -16,6 +16,8 @@ import {
   companyMember,
   companyWithManyReportDocuments,
 } from "./support/fixtures";
+import czechMessages from "../messages/cs.json";
+import englishMessages from "../messages/en.json";
 
 const report: ComputedVatReport = {
   company: {
@@ -111,7 +113,12 @@ it("renders saved Control Statement identity, sections, entries and totals", asy
 
   expect(preview.totals).toEqual({ netAmount: "1800.00", vatAmount: "333.00" });
 
-  const text = await pdfText(await createControlStatementPdf(preview));
+  const text = await pdfText(
+    await createControlStatementPdf(
+      preview,
+      englishMessages.vatReports.controlStatementPdf,
+    ),
+  );
   for (const literal of [
     "iVAT · Control Statement preview",
     "Příliš žluťoučký kůň s.r.o.",
@@ -141,6 +148,34 @@ it("renders saved Control Statement identity, sections, entries and totals", asy
   }
 });
 
+it("renders every PDF-visible label in Czech when the route supplies Czech copy", async () => {
+  const text = await pdfText(
+    await createControlStatementPdf(
+      controlStatementPreviewData(report),
+      czechMessages.vatReports.controlStatementPdf,
+    ),
+  );
+
+  for (const literal of [
+    "iVAT · Náhled kontrolního hlášení",
+    "Daňové identifikační číslo: CZ12345678",
+    "Adresa: Říční 1",
+    "Zdaňovací období: 2026-10",
+    "Oddíl A.4",
+    "Doklad: 2026-001",
+    "Daňové identifikační číslo protistrany: CZ87654321",
+    "Datum uskutečnění zdanitelného plnění: 2026-10-10",
+    "Sazba",
+    "Základ daně (Kč)",
+    "DPH (Kč)",
+    "Součty kontrolního hlášení",
+  ]) {
+    expect(text).toContain(literal);
+  }
+  expect(text).not.toContain("Reporting Period");
+  expect(text).not.toContain("Statement totals");
+});
+
 it("a Company User downloads the saved Control Statement snapshot as a PDF", async () => {
   const company = await companyWithManyReportDocuments(2);
   const member = await companyMember(company);
@@ -163,7 +198,11 @@ it("a Company User downloads the saved Control Statement snapshot as a PDF", asy
   });
   expect(laterResult.ok).toBe(true);
 
-  const result = await exportControlStatementPdf(member.client, input);
+  const result = await exportControlStatementPdf(
+    member.client,
+    input,
+    englishMessages.vatReports.controlStatementPdf,
+  );
 
   expect(result.ok).toBe(true);
   if (!result.ok) throw new Error(result.error);
@@ -175,6 +214,8 @@ it("a Company User downloads the saved Control Statement snapshot as a PDF", asy
   expect(text).toContain("Section B.3");
   expect(text).toContain("1000.00");
   expect(text).toContain("210.00");
+  expect(text).not.toContain("2000.00");
+  expect(text).not.toContain("420.00");
 });
 
 it("does not expose another Organization's Control Statement PDF", async () => {
@@ -183,7 +224,13 @@ it("does not expose another Organization's Control Statement PDF", async () => {
   const input = { companyId: owner.companyId, period: "2026-10" };
   await generateVatReport(owner.client, input);
 
-  expect(await exportControlStatementPdf(other.client, input)).toEqual({
+  expect(
+    await exportControlStatementPdf(
+      other.client,
+      input,
+      englishMessages.vatReports.controlStatementPdf,
+    ),
+  ).toEqual({
     ok: false,
     error: "report_not_found",
   });
