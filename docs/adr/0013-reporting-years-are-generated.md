@@ -4,5 +4,5 @@ A Company's Reporting Periods are not derived from a filing-frequency history ru
 
 ## Consequences
 
-- The filing-frequency history (`company_filing_frequency`) is replaced; existing Companies are migrated to generated years from their first effective date through the current year.
+- The filing-frequency history (`company_filing_frequency`) is replaced; existing Companies are migrated to generated years from their first effective date through the current year or the latest recorded change, whichever is later.
 - Company onboarding generates the current year with the chosen frequency.
