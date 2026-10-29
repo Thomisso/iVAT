@@ -18,6 +18,56 @@ async function browserFixtureClient() {
   });
 }
 
+/** Adds one durable completed batch and its User-owned notification. */
+export async function addBrowserUploadNotificationFixture(companyId: string, email: string) {
+  const environment = await browserFixtureEnvironment();
+  const database = new DatabaseClient({ connectionString: environment.DATABASE_URL });
+  await database.connect();
+  try {
+    await database.query("begin");
+    const target = await database.query<{ organization_id: string; user_id: string }>(
+      `select company.organization_id, auth_user.id as user_id
+       from public.company company
+       cross join auth.users auth_user
+       where company.id = $1 and auth_user.email = $2`,
+      [companyId, email],
+    );
+    if (!target.rows[0]) throw new Error("Could not prepare browser notification fixture");
+    const batch = await database.query<{ id: string }>(
+      `insert into public.upload_batch (
+         organization_id, company_id, created_by, file_count,
+         upload_finished_at, processing_finished_at
+       ) values ($1, $2, $3, 1, now(), now())
+       returning id`,
+      [target.rows[0].organization_id, companyId, target.rows[0].user_id],
+    );
+    await database.query(
+      `insert into public.notification (
+         organization_id, company_id, user_id, kind, payload
+       ) values (
+         $1, $2, $3, 'upload_batch_finished',
+         jsonb_build_object(
+           'batchId', $4::uuid,
+           'fileCount', 1,
+           'outcome', 'success',
+           'reviewCount', 1,
+           'transportFailureCount', 0,
+           'sourceFailureCount', 0,
+           'documentFailureCount', 0
+         )
+       )`,
+      [target.rows[0].organization_id, companyId, target.rows[0].user_id, batch.rows[0].id],
+    );
+    await database.query("commit");
+    return batch.rows[0].id;
+  } catch (error) {
+    await database.query("rollback");
+    throw error;
+  } finally {
+    await database.end();
+  }
+}
+
 /** Platform configuration fixture for browser tests that need the real worker. */
 export async function assignBrowserAiConfigurationFixture(companyId: string) {
   const environment = await browserFixtureEnvironment();

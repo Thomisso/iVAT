@@ -360,6 +360,13 @@
     "status": "Stav",
     "noQueueDocuments": "Tomuto filtru dávky neodpovídají žádné doklady.",
     "notifications": "Oznámení o nahrání",
+    "notificationBell": "{count, plural, =0 {Oznámení, žádná nepřečtená} one {Oznámení, # nepřečtené} few {Oznámení, # nepřečtená} other {Oznámení, # nepřečtených}}",
+    "notificationUnread": "{count, plural, =0 {Žádná nepřečtená oznámení} one {# nepřečtené oznámení} few {# nepřečtená oznámení} other {# nepřečtených oznámení}}",
+    "closeNotifications": "Zavřít oznámení",
+    "markAllRead": "Označit vše jako přečtené",
+    "dismissAll": "Skrýt vše",
+    "dismiss": "Skrýt",
+    "noNotifications": "Pro tuto firmu nejsou žádná oznámení o nahrání.",
     "notification": {
       "success": {
         "title": "Zpracování dávky skončilo",
