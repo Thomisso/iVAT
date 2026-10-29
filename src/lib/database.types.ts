@@ -23,7 +23,27 @@ export type Database = {
           }
         },"public": {
           Tables: {
-            "ai_usage_event": {
+            "ai_configuration": {
+                  Row: {
+                    "created_at": string,"created_by": string | null,"credential_last_four": string,"credential_secret_id": string,"extract_model": string,"id": string,"is_default": boolean,"label": string,"provider": string,"split_model": string,"updated_at": string,"updated_by": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"created_by"?: string | null,"credential_last_four": string,"credential_secret_id": string,"extract_model": string,"id"?: string,"is_default"?: boolean,"label": string,"provider": string,"split_model": string,"updated_at"?: string,"updated_by"?: string | null
+                  }
+                  Update: {
+                    "created_at"?: string,"created_by"?: string | null,"credential_last_four"?: string,"credential_secret_id"?: string,"extract_model"?: string,"id"?: string,"is_default"?: boolean,"label"?: string,"provider"?: string,"split_model"?: string,"updated_at"?: string,"updated_by"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "ai_configuration_provider_fkey"
+      columns: ["provider"]
+isOneToOne: false
+      referencedRelation: "platform_ai_provider"
+      referencedColumns: ["provider"]
+    }
+                  ]
+                },"ai_usage_event": {
                   Row: {
                     "company_id": string,"created_at": string,"id": number,"input_tokens": number,"job_name": string,"job_target_id": string,"model": string,"operation": string,"organization_id": string,"output_tokens": number,"provider": string,"requests": number
                   }
@@ -51,14 +71,14 @@ isOneToOne: false
                   ]
                 },"audit_event": {
                   Row: {
-                    "action": string,"actor_user_id": string | null,"company_id": string | null,"id": number,"occurred_at": string,"organization_id": string,"payload": NonNullable<Json>,"target_id": string | null,"target_type": string
+                    "action": string,"actor_user_id": string | null,"company_id": string | null,"id": number,"occurred_at": string,"organization_id": string | null,"payload": NonNullable<Json>,"target_id": string | null,"target_type": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "action": string,"actor_user_id"?: string | null,"company_id"?: string | null,"id"?: never,"occurred_at"?: string,"organization_id": string,"payload"?: NonNullable<Json>,"target_id"?: string | null,"target_type": string
+                    "action": string,"actor_user_id"?: string | null,"company_id"?: string | null,"id"?: never,"occurred_at"?: string,"organization_id"?: string | null,"payload"?: NonNullable<Json>,"target_id"?: string | null,"target_type": string
                   }
                   Update: {
-                    "action"?: string,"actor_user_id"?: string | null,"company_id"?: string | null,"id"?: never,"occurred_at"?: string,"organization_id"?: string,"payload"?: NonNullable<Json>,"target_id"?: string | null,"target_type"?: string
+                    "action"?: string,"actor_user_id"?: string | null,"company_id"?: string | null,"id"?: never,"occurred_at"?: string,"organization_id"?: string | null,"payload"?: NonNullable<Json>,"target_id"?: string | null,"target_type"?: string
                   }
                   Relationships: [
 
@@ -80,6 +100,32 @@ isOneToOne: false
       columns: ["organization_id"]
 isOneToOne: false
       referencedRelation: "organization"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"company_ai_configuration": {
+                  Row: {
+                    "assigned_at": string,"assigned_by": string | null,"company_id": string,"configuration_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "assigned_at"?: string,"assigned_by"?: string | null,"company_id": string,"configuration_id": string
+                  }
+                  Update: {
+                    "assigned_at"?: string,"assigned_by"?: string | null,"company_id"?: string,"configuration_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "company_ai_configuration_company_id_fkey"
+      columns: ["company_id"]
+isOneToOne: true
+      referencedRelation: "company"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "company_ai_configuration_configuration_id_fkey"
+      columns: ["configuration_id"]
+isOneToOne: false
+      referencedRelation: "ai_configuration"
       referencedColumns: ["id"]
     }
                   ]
@@ -595,6 +641,9 @@ isOneToOne: false
 "approve_document":
 { Args: { "reviewed_version": number,"target_document_id": string }; Returns: undefined
                            },
+"assign_company_ai_configuration":
+{ Args: { "target_company_id": string,"target_configuration_id": string }; Returns: undefined
+                           },
 "audit_actors":
 { Args: { "target_organization_id": string }; Returns: {
               "email": string,"user_id": string
@@ -613,6 +662,9 @@ isOneToOne: false
                            },
 "change_membership_role":
 { Args: { "target_membership_id": string,"target_role": Database["public"]['Enums']["membership_role"] }; Returns: undefined
+                           },
+"clear_default_ai_configuration":
+{ Args: Record<PropertyKey, never>; Returns: undefined
                            },
 "company_data_export_for_completion":
 { Args: { "target_export_id": string }; Returns: Json
@@ -634,6 +686,9 @@ isOneToOne: false
                            },
 "correct_document":
 { Args: { "based_on_version": number,"findings": Json,"payload": Json,"target_document_id": string }; Returns: number
+                           },
+"create_ai_configuration":
+{ Args: { "configuration_label": string,"provider_credential": string,"target_extract_model": string,"target_provider": string,"target_split_model": string }; Returns: string
                            },
 "create_company":
 { Args: { "company_city": string,"company_ico": string,"company_name": string,"company_person_type": Database["public"]['Enums']["person_type"],"company_postal_code": string,"company_street": string,"company_vat_id": string,"filing_frequency_effective_from": string,"initial_filing_frequency": Database["public"]['Enums']["filing_frequency"],"target_organization_id": string }; Returns: string
@@ -686,6 +741,9 @@ isOneToOne: false
 { Args: { "invitation_token": string }; Returns: {
               "invitee_email": string,"invitee_existed": boolean,"onboarding_status": string,"target_company_id": string
             }[]
+                           },
+"list_ai_configurations":
+{ Args: Record<PropertyKey, never>; Returns: Json
                            },
 "list_available_ai_providers":
 { Args: Record<PropertyKey, never>; Returns: {
@@ -782,6 +840,11 @@ isOneToOne: false
 "reprocess_document":
 { Args: { "target_document_id": string }; Returns: undefined
                            },
+"resolve_assigned_ai_configuration":
+{ Args: { "target_company_id": string }; Returns: {
+              "api_key": string,"extract_model": string,"is_explicit": boolean,"provider": string,"split_model": string
+            }[]
+                           },
 "resolve_company_ai_provider":
 { Args: { "target_credential_source": Database["public"]['Enums']["ai_credential_source"],"target_organization_id": string,"target_provider": string }; Returns: {
               "api_key": string,"extract_model": string,"split_model": string
@@ -810,6 +873,9 @@ isOneToOne: false
 "set_company_filing_frequency":
 { Args: { "filing_frequency_effective_from": string,"new_filing_frequency": Database["public"]['Enums']["filing_frequency"],"target_company_id": string }; Returns: undefined
                            },
+"set_default_ai_configuration":
+{ Args: { "target_configuration_id": string }; Returns: undefined
+                           },
 "set_organization_mfa_required":
 { Args: { "required": boolean,"target_organization_id": string }; Returns: undefined
                            },
@@ -830,6 +896,9 @@ isOneToOne: false
                            },
 "unlock_reporting_period":
 { Args: { "target_company_id": string,"target_period": string,"unlock_confirmed": boolean,"unlock_reason": string }; Returns: undefined
+                           },
+"update_ai_configuration":
+{ Args: { "configuration_label": string,"provider_credential"?: string,"target_configuration_id": string,"target_extract_model": string,"target_provider": string,"target_split_model": string }; Returns: undefined
                            },
 "update_company":
 { Args: { "company_city": string,"company_ico": string,"company_name": string,"company_person_type": Database["public"]['Enums']["person_type"],"company_postal_code": string,"company_street": string,"company_vat_id": string,"filing_frequency_effective_from": string,"new_filing_frequency": Database["public"]['Enums']["filing_frequency"],"target_company_id": string }; Returns: undefined
