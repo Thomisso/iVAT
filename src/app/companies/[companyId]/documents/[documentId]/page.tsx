@@ -30,6 +30,7 @@ import { statusBadgeState } from "@/components/status-badge-state";
 import { PageLayout } from "@/components/app-shell";
 import { formatDocumentDate } from "@/lib/format-date";
 import { CorrectionForm } from "./correction-form";
+import { findingMessage } from "./finding-message";
 import { ReportingAssignmentForm } from "./reporting-assignment-form";
 
 // The review workspace: the Document's original pages next to its extracted
@@ -179,7 +180,10 @@ export default async function DocumentReviewPage({
                 key={`${finding.field}-${finding.code}`}
                 tone="warning"
               >
-                {t(`review.findings.${finding.code}`)}
+                {t(
+                  `review.findings.${findingMessage(finding).key}`,
+                  findingMessage(finding).values,
+                )}
               </Notice>
             ))}
           {shown ? (
