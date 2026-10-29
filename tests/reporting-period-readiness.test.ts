@@ -6,7 +6,7 @@ import {
   listDocuments,
   rejectDocument,
 } from "@/application/documents";
-import { enableAiProcessing, getCompany, updateCompany } from "@/application/companies";
+import { getCompany, updateCompany } from "@/application/companies";
 import {
   getReportingPeriodReadiness,
   listReportingPeriods,
@@ -19,6 +19,7 @@ import {
 import { uploadSourceFile } from "@/application/source-files";
 import {
   administratorWithCompany,
+  assignAiConfigurationFixture as enableAiProcessing,
   companyWithManyReportDocuments,
 } from "./support/fixtures";
 import { fixtureFile } from "./support/files";

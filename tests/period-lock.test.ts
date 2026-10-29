@@ -14,7 +14,7 @@ import {
   splitDocument,
   updateDocumentReporting,
 } from "@/application/documents";
-import { enableAiProcessing, getCompany, updateCompanyIdentity } from "@/application/companies";
+import { getCompany, updateCompanyIdentity } from "@/application/companies";
 import { uploadSourceFile } from "@/application/source-files";
 import {
   finalizeVatReport,
@@ -26,6 +26,7 @@ import {
 } from "@/application/vat-reports";
 import {
   administratorWithCompany,
+  assignAiConfigurationFixture as enableAiProcessing,
   companyMember,
   companyWithManyApprovedReportDocuments,
   removeCompletedCompanyIdentityFixture,

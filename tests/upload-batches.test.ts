@@ -10,8 +10,12 @@ import {
 } from "@/application/upload-batches";
 import { retrySplit, uploadSourceFile } from "@/application/source-files";
 import { listCompanyDocuments, reprocessDocument } from "@/application/documents";
-import { disableAiProcessing, enableAiProcessing } from "@/application/companies";
-import { administratorWithCompany, uploadBatchWithWaitingDocuments } from "./support/fixtures";
+import {
+  administratorWithCompany,
+  assignAiConfigurationFixture as enableAiProcessing,
+  removeAiConfigurationFixture as disableAiProcessing,
+  uploadBatchWithWaitingDocuments,
+} from "./support/fixtures";
 import { fixtureFile } from "./support/files";
 import { testWorker } from "./support/worker";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";

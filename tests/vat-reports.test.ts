@@ -6,14 +6,19 @@ import {
   updateDocumentReporting,
 } from "@/application/documents";
 import {
-  enableAiProcessing,
   createCompanyIdentity,
   getCompany,
   updateCompany,
 } from "@/application/companies";
 import { listAuditEvents } from "@/application/audit";
 import { uploadSourceFile } from "@/application/source-files";
-import { administratorWithCompany, companyDetails, companyMember, companyWithManyReportDocuments } from "./support/fixtures";
+import {
+  administratorWithCompany,
+  assignAiConfigurationFixture as enableAiProcessing,
+  companyDetails,
+  companyMember,
+  companyWithManyReportDocuments,
+} from "./support/fixtures";
 import { signedUpUser } from "./support/clients";
 import { fixtureFile } from "./support/files";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";

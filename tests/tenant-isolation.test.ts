@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createCompany, enableAiProcessing, getCompany, listMyCompanies } from "@/application/companies";
+import { createCompany, getCompany, listMyCompanies } from "@/application/companies";
 import { listMyOrganizations } from "@/application/organizations";
 import {
   listDocuments,
@@ -11,7 +11,11 @@ import { getSourceFile, listSourceFiles, readSourceFile, retrySplit, uploadSourc
 import { anonymousClient, signedUpUser } from "./support/clients";
 import { fixtureFile } from "./support/files";
 import { systemClient, testWorker } from "./support/worker";
-import { administratorWithCompany, companyDetails } from "./support/fixtures";
+import {
+  administratorWithCompany,
+  assignAiConfigurationFixture as enableAiProcessing,
+  companyDetails,
+} from "./support/fixtures";
 
 describe("tenant isolation", () => {
   it("hides another Organization and its Companies from the application layer", async () => {

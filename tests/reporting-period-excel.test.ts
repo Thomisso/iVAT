@@ -4,14 +4,18 @@ import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { exportReportingPeriodWorkbook } from "@/application/reporting-period-excel";
 import {
   createCompany,
-  enableAiProcessing,
   type FilingFrequency,
   getCompany,
   updateCompany,
 } from "@/application/companies";
 import { approveDocument, listDocuments } from "@/application/documents";
 import { uploadSourceFile } from "@/application/source-files";
-import { administratorWithCompany, companyDetails, companyMember } from "./support/fixtures";
+import {
+  administratorWithCompany,
+  assignAiConfigurationFixture as enableAiProcessing,
+  companyDetails,
+  companyMember,
+} from "./support/fixtures";
 import { signedUpUser } from "./support/clients";
 import { fixtureFile } from "./support/files";
 import { testWorker } from "./support/worker";

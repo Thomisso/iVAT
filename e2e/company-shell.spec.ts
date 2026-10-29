@@ -5,6 +5,7 @@ import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { asUserClient } from "../src/application/client";
 import { inviteMember } from "../src/application/memberships";
 import type { Database } from "../src/lib/database.types";
+import { assignBrowserAiConfigurationFixture } from "../tests/support/e2e";
 
 const password = "Playwright-password-76";
 
@@ -48,14 +49,7 @@ async function createCompany(page: Page, name: string, ico: string, enableAi = f
   await page.getByRole("button", { name: "Save and continue" }).click();
   await expect(page).toHaveURL(new RegExp(`/companies/${companyId}/setup/ai-processing$`));
   if (enableAi) {
-    const service = await serviceClient();
-    const { error } = await service.from("company").update({
-      ai_credential_source: "local",
-      ai_processing_enabled: true,
-      ai_provider: "fake",
-      ai_region: "local",
-    }).eq("id", companyId);
-    if (error) throw error;
+    await assignBrowserAiConfigurationFixture(companyId);
   }
   await page.goto(`/companies/${companyId}`);
   await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+$/);
