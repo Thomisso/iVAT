@@ -21,6 +21,7 @@ import {
 import { uploadSourceFile } from "@/application/source-files";
 import { getCompany } from "@/application/companies";
 import { listPlatformAuditEvents } from "@/application/audit";
+import { listPlatformOperationalProblems } from "@/application/operational-problems";
 import { SAMPLE_EXTRACTION, fakeAiProvider } from "@/ai/fake";
 import { administratorWithCompany, companyMember } from "./support/fixtures";
 import { fixtureFile } from "./support/files";
@@ -153,6 +154,13 @@ describe("AI Processing Allowance", () => {
       ok: true,
       value: { used: 0, allowance: 0, waitingDocuments: 1 },
     });
+    const beforeRemediation = await listPlatformOperationalProblems(superAdministrator.client);
+    expect(beforeRemediation).toEqual({ ok: true, value: expect.any(Array) });
+    if (!beforeRemediation.ok) throw new Error(beforeRemediation.error);
+    expect(beforeRemediation.value).toContainEqual(expect.objectContaining({
+      kind: "allowance_exhausted",
+      companies: expect.arrayContaining([expect.objectContaining({ id: company.companyId })]),
+    }));
 
     expect(await setCompanyAiProcessingAllowance(superAdministrator.client, worker.jobs, {
       companyId: company.companyId,
@@ -164,6 +172,12 @@ describe("AI Processing Allowance", () => {
       ok: true,
       value: { used: 1, allowance: null, waitingDocuments: 0 },
     });
+    const afterRemediation = await listPlatformOperationalProblems(superAdministrator.client);
+    if (!afterRemediation.ok) throw new Error(afterRemediation.error);
+    expect(afterRemediation.value.some((problem) => (
+      problem.kind === "allowance_exhausted"
+      && problem.companies.some(({ id }) => id === company.companyId)
+    ))).toBe(false);
   });
 
   it("exhausts allowance before resolving an unavailable provider and shows the exact Czech message", async () => {
