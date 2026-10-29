@@ -1,7 +1,4 @@
-import fs from "node:fs/promises";
-import { createClient } from "@supabase/supabase-js";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
-import type { Database } from "../src/lib/database.types";
 
 const administratorPassword = "Playwright-password-76";
 const existingPassword = "Existing-password-84";
@@ -10,11 +7,11 @@ async function english(context: BrowserContext, baseURL: string) {
   await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: new URL(baseURL).origin }]);
 }
 
-async function signUp(page: Page, organization: string, email: string) {
+async function signUp(page: Page, organization: string, email: string, password = administratorPassword) {
   await page.goto("/signup");
   await page.getByLabel("Organization name").fill(organization);
   await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(administratorPassword);
+  await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign up" }).click();
   await expect(page).toHaveURL(/\/companies\/new$/);
 }
@@ -41,36 +38,25 @@ async function invite(page: Page, companyId: string, email: string) {
   await page.goto(`/companies/${companyId}/members`);
   await page.getByLabel("Email").fill(email);
   await page.getByRole("button", { name: "Invite user" }).click();
-  await expect(page.getByRole("listitem").filter({ hasText: email }).getByText("Pending", { exact: true }))
+  await expect(page.getByRole("listitem").filter({ hasText: email }).getByText("Pending", { exact: true }).last())
     .toBeVisible();
 }
 
-async function invitationLink(email: string) {
+async function invitationLink(email: string, excludedMessageId = "") {
   const mailpit = process.env.MAILPIT_URL;
   if (!mailpit) throw new Error("MAILPIT_URL is required for invitation acceptance coverage");
   let messageId = "";
   await expect.poll(async () => {
     const response = await fetch(`${mailpit}/api/v1/messages?query=${encodeURIComponent(`to:${email}`)}`);
     const listing = await response.json() as { messages: { ID: string }[] };
-    messageId = listing.messages[0]?.ID ?? "";
+    messageId = listing.messages.find((message) => message.ID !== excludedMessageId)?.ID ?? "";
     return messageId;
   }).not.toBe("");
   const response = await fetch(`${mailpit}/api/v1/message/${messageId}`);
   const message = await response.json() as { HTML: string };
   const href = message.HTML.match(/href="([^"]+)"/)?.[1]?.replaceAll("&amp;", "&");
   if (!href) throw new Error("Rendered invitation email has no link");
-  return href;
-}
-
-async function serviceClient() {
-  const contents = await fs.readFile(".env.local", "utf8");
-  const environment = Object.fromEntries(contents.split("\n").filter(Boolean).map((line) => {
-    const separator = line.indexOf("=");
-    return [line.slice(0, separator), line.slice(separator + 1)];
-  }));
-  return createClient<Database>(environment.NEXT_PUBLIC_SUPABASE_URL, environment.SUPABASE_SECRET_KEY, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+  return { href, messageId };
 }
 
 test("rendered invitation emails onboard new and existing Users with the right credentials", async ({ baseURL, browser }) => {
@@ -83,10 +69,23 @@ test("rendered invitation emails onboard new and existing Users with the right c
   const administratorPage = await administratorContext.newPage();
   await signUp(administratorPage, `Invitation Organization ${run}`, administratorEmail);
   const companyId = await createCompany(administratorPage, companyName, `${Date.now()}`.slice(-8));
+  await administratorPage.setExtraHTTPHeaders({
+    origin: "https://untrusted.example.test",
+    "x-forwarded-host": "untrusted.example.test",
+    "x-forwarded-proto": "https",
+  });
 
   const newEmail = `invitation-new-${run}@example.test`;
   await invite(administratorPage, companyId, newEmail);
-  const newLink = new URL(await invitationLink(newEmail));
+  const unusedMessage = await invitationLink(newEmail);
+  const unusedLink = new URL(unusedMessage.href);
+  expect(unusedLink.origin).toBe(new URL(baseURL).origin);
+
+  // Local Auth deliberately throttles repeat magic links for one address for one second.
+  await administratorPage.waitForTimeout(1_100);
+  await invite(administratorPage, companyId, newEmail);
+  const newLink = new URL((await invitationLink(newEmail, unusedMessage.messageId)).href);
+  expect(newLink.toString()).not.toBe(unusedLink.toString());
   expect(newLink.origin).toBe(new URL(baseURL).origin);
   expect(newLink.pathname).toBe("/auth/callback");
   expect(newLink.searchParams.get("token_hash")).toMatch(/^pkce_[0-9a-f]{56}$/);
@@ -109,16 +108,12 @@ test("rendered invitation emails onboard new and existing Users with the right c
     .toBeVisible();
 
   const existingEmail = `invitation-existing-${run}@example.test`;
-  const service = await serviceClient();
-  const existing = await service.auth.admin.createUser({
-    email: existingEmail,
-    email_confirm: true,
-    password: existingPassword,
-    user_metadata: { organization_name: `Existing Organization ${run}` },
-  });
-  if (existing.error) throw existing.error;
+  const existingSetupContext = await browser.newContext();
+  await english(existingSetupContext, baseURL);
+  const existingSetupPage = await existingSetupContext.newPage();
+  await signUp(existingSetupPage, `Existing Organization ${run}`, existingEmail, existingPassword);
   await invite(administratorPage, companyId, existingEmail);
-  const existingLink = await invitationLink(existingEmail);
+  const existingLink = (await invitationLink(existingEmail)).href;
 
   const existingContext = await browser.newContext();
   await english(existingContext, baseURL);
@@ -146,6 +141,7 @@ test("rendered invitation emails onboard new and existing Users with the right c
   await Promise.all([
     administratorContext.close(),
     newContext.close(),
+    existingSetupContext.close(),
     existingContext.close(),
     invalidContext.close(),
   ]);

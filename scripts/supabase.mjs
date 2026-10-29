@@ -112,7 +112,12 @@ function writeEnvLocal() {
     SUPABASE_SECRET_KEY: stack.SECRET_KEY,
   };
   // Settings the developer may change; written only when missing.
-  const defaults = { AI_PROVIDER: "fake" };
+  const appOrigin = isLinkedWorktree ? "http://127.0.0.1:3100" : "http://127.0.0.1:3000";
+  const defaults = {
+    AI_PROVIDER: "fake",
+    APP_ORIGIN: appOrigin,
+    AUTH_REDIRECT_ALLOWLIST: `${appOrigin}/auth/callback`,
+  };
   const file = path.join(root, ".env.local");
   const kept = fs.existsSync(file)
     ? fs

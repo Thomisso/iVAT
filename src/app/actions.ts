@@ -34,6 +34,7 @@ import {
 import { saveCompanyFilingDefaults } from "@/application/company-filing-defaults";
 import { changeMembershipRole, completeInvitationOnboarding, inviteMember, removeMembership } from "@/application/memberships";
 import { supabaseInvitationMailer } from "@/application/supabase-invitation-mailer";
+import { invitationUrls } from "@/application/invitation-urls";
 import {
   approveDocument,
   correctDocument,
@@ -599,16 +600,17 @@ export async function unlockReportingPeriodAction(_state: FormState, formData: F
 
 export async function inviteMemberAction(_state: FormState, formData: FormData): Promise<FormState> {
   const client = await requireUserClient();
-  const requestHeaders = await headers();
-  const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host");
-  const protocol = requestHeaders.get("x-forwarded-proto") ?? "http";
-  if (!host) return refused("invitation_failed", formData, ["email", "role"]);
-  const result = await inviteMember(client, supabaseInvitationMailer(client), {
+  const urls = invitationUrls({
+    appOrigin: process.env.APP_ORIGIN,
+    authRedirectAllowlist: process.env.AUTH_REDIRECT_ALLOWLIST,
+  });
+  if (!urls.ok) return refused(urls.error, formData, ["email", "role"]);
+  const result = await inviteMember(client, supabaseInvitationMailer(client, urls.value.callbackUrl), {
     organizationId: field(formData, "organizationId"),
     companyId: field(formData, "companyId") || null,
     email: field(formData, "email"),
     role: field(formData, "role") as "administrator" | "user",
-    acceptUrl: `${protocol}://${host}/invitations/accept`,
+    acceptUrl: urls.value.acceptUrl,
   });
   if (!result.ok) return refused(result.error, formData, ["email", "role"]);
   refresh();

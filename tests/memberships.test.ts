@@ -44,6 +44,26 @@ async function invitedUser(email: string) {
   return { client, userId: result.value.userId };
 }
 
+async function expireInvitation(token: string) {
+  const { Client } = createRequire(import.meta.url)("pg") as {
+    Client: new (input: { connectionString: string }) => {
+      connect(): Promise<void>;
+      end(): Promise<void>;
+      query(sql: string, values: unknown[]): Promise<unknown>;
+    };
+  };
+  const database = new Client({ connectionString: inject("supabaseDbUrl") });
+  await database.connect();
+  try {
+    await database.query(
+      "update public.invitation set expires_at = '2020-01-01T00:00:00.000Z' where token_hash = $1",
+      [createHash("sha256").update(token).digest("hex")],
+    );
+  } finally {
+    await database.end();
+  }
+}
+
 async function inviteAndAccept(
   administrator: Awaited<ReturnType<typeof administratorWithCompany>>,
   role: "administrator" | "user" = "user",
@@ -146,6 +166,57 @@ describe("Membership invitations", () => {
     expect((await invitee.auth.signInWithPassword({ email, password: "correct-horse-battery" })).error).toBeNull();
   });
 
+  it("lets a passwordless invitee set a password when an expired invitation is sent again", async () => {
+    const administrator = await administratorWithCompany();
+    const email = uniqueEmail();
+    const firstMail = capturingMailer();
+    expect(await inviteMember(administrator.client, firstMail.mailer, {
+      organizationId: administrator.organizationId,
+      companyId: administrator.companyId,
+      email,
+      role: "user",
+      acceptUrl: "http://127.0.0.1:3100/invitations/accept",
+    })).toEqual({ ok: true, value: null });
+    const firstToken = new URL(firstMail.sent[0].acceptUrl).searchParams.get("token")!;
+
+    const service = createClient<Database>(inject("supabaseUrl"), inject("supabaseSecretKey"), {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const firstLink = await service.auth.admin.generateLink({ type: "magiclink", email });
+    if (firstLink.error) throw firstLink.error;
+    await expireInvitation(firstToken);
+    expect(await getInvitationOnboarding(anonymousClient(), firstToken)).toEqual({ status: "expired" });
+
+    const secondMail = capturingMailer();
+    expect(await inviteMember(administrator.client, secondMail.mailer, {
+      organizationId: administrator.organizationId,
+      companyId: administrator.companyId,
+      email,
+      role: "user",
+      acceptUrl: "http://127.0.0.1:3100/invitations/accept",
+    })).toEqual({ ok: true, value: null });
+    const token = new URL(secondMail.sent[0].acceptUrl).searchParams.get("token")!;
+    expect(await getInvitationOnboarding(anonymousClient(), token)).toEqual({
+      status: "valid",
+      email,
+      existingUser: false,
+      companyId: administrator.companyId,
+    });
+
+    const secondLink = await service.auth.admin.generateLink({ type: "magiclink", email });
+    if (secondLink.error) throw secondLink.error;
+    const invitee = anonymousClient();
+    const verified = await invitee.auth.verifyOtp({
+      token_hash: secondLink.data.properties.hashed_token,
+      type: "magiclink",
+    });
+    if (verified.error) throw verified.error;
+    expect(await completeInvitationOnboarding(invitee, { token, password: "87654321" }))
+      .toEqual({ ok: true, value: { companyId: administrator.companyId } });
+    await invitee.auth.signOut();
+    expect((await invitee.auth.signInWithPassword({ email, password: "87654321" })).error).toBeNull();
+  });
+
   it("reports invalid, used and expired invitation links through the onboarding interface", async () => {
     expect(await getInvitationOnboarding(anonymousClient(), "not-an-invitation"))
       .toEqual({ status: "invalid" });
@@ -175,23 +246,7 @@ describe("Membership invitations", () => {
       acceptUrl: "http://127.0.0.1:3100/invitations/accept",
     })).toEqual({ ok: true, value: null });
     const expiredToken = new URL(expiredMail.sent[0].acceptUrl).searchParams.get("token")!;
-    const { Client } = createRequire(import.meta.url)("pg") as {
-      Client: new (input: { connectionString: string }) => {
-        connect(): Promise<void>;
-        end(): Promise<void>;
-        query(sql: string, values: unknown[]): Promise<unknown>;
-      };
-    };
-    const database = new Client({ connectionString: inject("supabaseDbUrl") });
-    await database.connect();
-    try {
-      await database.query(
-        "update public.invitation set expires_at = '2020-01-01T00:00:00.000Z' where token_hash = $1",
-        [createHash("sha256").update(expiredToken).digest("hex")],
-      );
-    } finally {
-      await database.end();
-    }
+    await expireInvitation(expiredToken);
     expect(await getInvitationOnboarding(anonymousClient(), expiredToken)).toEqual({ status: "expired" });
   });
 
