@@ -3,6 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { disenrollMfaAction } from "@/app/actions";
 import { listOrganizationMfaSettings, mfaStatus } from "@/application/mfa";
 import { Button } from "@/components/button";
+import { FocusedShell } from "@/components/focused-shell";
 import { requireUserClient } from "@/lib/supabase/server";
 import { OrganizationMfaForm } from "./organization-mfa-form";
 
@@ -14,24 +15,26 @@ export default async function SecuritySettingsPage() {
     getTranslations("mfa"),
   ]);
   return (
-    <main className="panel">
-      <h1>{t("securityTitle")}</h1>
-      <section className="form">
-        <h2>{t("authenticatorTitle")}</h2>
-        <p>{status.enrolled ? t("authenticatorEnabled") : t("authenticatorDisabled")}</p>
-        {status.enrolled ? (
-          <form action={disenrollMfaAction}>
-            <Button type="submit" variant="ghost">{t("disableAuthenticator")}</Button>
-          </form>
-        ) : <Link href="/mfa/enroll">{t("enableAuthenticator")}</Link>}
-      </section>
-      {organizations.map((organization) => (
-        <section className="form" key={organization.id}>
-          <h2>{organization.name}</h2>
-          <p>{t("organizationEnforcementIntro")}</p>
-          <OrganizationMfaForm organizationId={organization.id} required={organization.required} />
+    <FocusedShell>
+      <main className="focused-shell-card focused-shell-card-wide" id="main-content" tabIndex={-1}>
+        <h1>{t("securityTitle")}</h1>
+        <section className="form focused-shell-section">
+          <h2>{t("authenticatorTitle")}</h2>
+          <p>{status.enrolled ? t("authenticatorEnabled") : t("authenticatorDisabled")}</p>
+          {status.enrolled ? (
+            <form action={disenrollMfaAction}>
+              <Button type="submit" variant="ghost">{t("disableAuthenticator")}</Button>
+            </form>
+          ) : <Link href="/mfa/enroll">{t("enableAuthenticator")}</Link>}
         </section>
-      ))}
-    </main>
+        {organizations.map((organization) => (
+          <section className="form focused-shell-section" key={organization.id}>
+            <h2>{organization.name}</h2>
+            <p>{t("organizationEnforcementIntro")}</p>
+            <OrganizationMfaForm organizationId={organization.id} required={organization.required} />
+          </section>
+        ))}
+      </main>
+    </FocusedShell>
   );
 }
