@@ -18,6 +18,8 @@ describe("Czech date format", () => {
   it("reads typed dd.mm.rrrr text as a calendar date", () => {
     expect(parseDateInput("05.03.2026")).toEqual({ ok: true, value: "2026-03-05" });
     expect(parseDateInput(" 5. 3. 2026 ")).toEqual({ ok: true, value: "2026-03-05" });
+    expect(parseDateInput("05.03.2026.")).toEqual({ ok: true, value: "2026-03-05" });
+    expect(parseDateInput("5 .3. 2026")).toEqual({ ok: true, value: "2026-03-05" });
   });
 
   it("reads an empty input as no date", () => {
@@ -29,5 +31,10 @@ describe("Czech date format", () => {
       expect(parseDateInput(text)).toEqual({ ok: false, error: "invalid_date" });
     }
     expect(parseDateInput("29.02.2028")).toEqual({ ok: true, value: "2028-02-29" });
+  });
+
+  it("shows a malformed stored value unchanged instead of failing the page", () => {
+    expect(formatDate("not a date")).toBe("not a date");
+    expect(formatDateTime("not a date")).toBe("not a date");
   });
 });

@@ -386,6 +386,7 @@
     "markRead": "Označit jako přečtené"
   },
   "dateInput": {
+    "hint": "Formát dd.mm.rrrr",
     "placeholder": "dd.mm.rrrr",
     "invalid": "Zadejte platné datum ve tvaru dd.mm.rrrr."
   },

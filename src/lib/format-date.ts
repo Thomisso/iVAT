@@ -12,7 +12,7 @@ const PRAGUE = new Intl.DateTimeFormat("en-GB", {
 
 function pragueParts(value: string) {
   const instant = new Date(value);
-  if (Number.isNaN(instant.getTime())) throw new Error(`Not a date: ${value}`);
+  if (Number.isNaN(instant.getTime())) return null;
   const parts = Object.fromEntries(
     PRAGUE.formatToParts(instant).map((part) => [part.type, part.value]),
   );
@@ -25,21 +25,22 @@ function pragueParts(value: string) {
 /**
  * Shows a date as dd.mm.rrrr in either UI language, independent of the
  * browser locale. A calendar date (yyyy-mm-dd) is shown as is; a timestamp
- * is shown as its calendar day in Prague.
+ * is shown as its calendar day in Prague. A malformed value is shown
+ * unchanged rather than failing the page.
  */
 export function formatDate(value: string): string {
   const calendar = CALENDAR_DATE.exec(value);
   if (calendar) return `${calendar[3]}.${calendar[2]}.${calendar[1]}`;
-  return pragueParts(value).date;
+  return pragueParts(value)?.date ?? value;
 }
 
 /** Shows a timestamp as dd.mm.rrrr hh:mm in Prague time. */
 export function formatDateTime(value: string): string {
-  const { date, time } = pragueParts(value);
-  return `${date} ${time}`;
+  const parts = pragueParts(value);
+  return parts ? `${parts.date} ${parts.time}` : value;
 }
 
-const TYPED_DATE = /^(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})$/;
+const TYPED_DATE = /^(\d{1,2})\s*\.\s*(\d{1,2})\s*\.\s*(\d{4})\.?$/;
 
 /**
  * Reads what a User typed into a date input (dd.mm.rrrr) as a calendar date
