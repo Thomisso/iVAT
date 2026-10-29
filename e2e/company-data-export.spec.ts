@@ -26,7 +26,7 @@ async function createCompanyAdministrator(page: Page) {
   await page.getByRole("button", { name: "Create company" }).click();
   await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+\/setup\/filing-frequency$/);
   const companyId = new URL(page.url()).pathname.split("/")[2];
-  await page.getByLabel("Effective from").fill("2026-01-01");
+  await page.getByLabel("Effective from").fill("01.01.2026");
   await page.getByRole("button", { name: "Save and continue" }).click();
   await expect(page).toHaveURL(new RegExp(`/companies/${companyId}/setup/ai-processing$`));
   await page.getByRole("link", { name: "Continue to Company" }).click();

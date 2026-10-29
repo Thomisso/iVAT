@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getFormatter, getTranslations } from "next-intl/server";
+import { getTranslations } from "next-intl/server";
 import { getCompany, getMyCompanyRole } from "@/application/companies";
 import { getUploadLimits } from "@/application/source-files";
 import { listUploadBatches } from "@/application/upload-batches";
 import { requireUserClient } from "@/lib/supabase/server";
 import { PageLayout } from "@/components/app-shell";
 import { SourceFileUploadForm } from "../source-file-upload-form";
+import { formatDateTime } from "@/lib/format-date";
 
 const HISTORY_PAGE_SIZE = 20;
 
@@ -19,7 +20,7 @@ export default async function UploadPage({
   const requestedPage = Number(typeof query.historyPage === "string" ? query.historyPage : "1");
   const historyPage = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
   const client = await requireUserClient();
-  const [company, role, limits, batches, t, ai, workspace, format] = await Promise.all([
+  const [company, role, limits, batches, t, ai, workspace] = await Promise.all([
     getCompany(client, companyId),
     getMyCompanyRole(client, companyId),
     getUploadLimits(client),
@@ -30,7 +31,6 @@ export default async function UploadPage({
     getTranslations("shell"),
     getTranslations("aiProcessing"),
     getTranslations("uploadWorkspace"),
-    getFormatter(),
   ]);
   if (!company) notFound();
   const hasNextPage = batches.length > HISTORY_PAGE_SIZE;
@@ -53,7 +53,7 @@ export default async function UploadPage({
           <Link href={`/companies/${companyId}/upload-batches/${batch.id}`}>
             <span className={`upload-outcome upload-outcome-${batch.outcome}`}>{workspace(`outcome.${batch.outcome}`)}</span>
             <strong>{workspace("batchFiles", { count: batch.actualFileCount, planned: batch.plannedFileCount })}</strong>
-            <span>{format.dateTime(new Date(batch.createdAt), { dateStyle: "medium", timeStyle: "short" })}</span>
+            <span>{formatDateTime(batch.createdAt)}</span>
             <span>{workspace("batchSummary", {
               waiting: batch.counts.waiting + batch.counts.splitting + batch.counts.extracting,
               review: batch.counts.review,
