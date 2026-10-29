@@ -967,7 +967,7 @@ isOneToOne: false
                            },
 "resume_platform_ai_processing":
 { Args: { "target_company_id"?: string,"target_configuration_id"?: string }; Returns: {
-              "classification": Database["public"]['Enums']["ai_processing_issue_classification"],"configuration_id": string,"provider": string,"target_id": string,"target_kind": Database["public"]['Enums']["ai_processing_target_kind"]
+              "classification": Database["public"]['Enums']["ai_processing_issue_classification"],"configuration_id": string,"first_detected_at": string,"provider": string,"target_id": string,"target_kind": Database["public"]['Enums']["ai_processing_target_kind"]
             }[]
                            },
 "retry_failed_processing_job":
