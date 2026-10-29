@@ -170,7 +170,8 @@ export const sourceFileDerivativeObjectPath = (companyId: string, sourceFileId: 
  * Stores an uploaded file unchanged as a Source File of the Company. The file
  * is stored before its row is recorded (the database refuses a row without a
  * stored file), so a failed recording leaves only an unreferenced object.
- * Then the Split is enqueued; it runs once the Company enables AI processing.
+ * Then the Split is enqueued; it runs once the Company has an enabled platform
+ * AI Configuration assignment and remaining allowance.
  */
 export async function uploadSourceFile(
   client: AppClient,

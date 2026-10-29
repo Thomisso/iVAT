@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { rotatedHeicFixture } from "../tests/support/files";
+import { assignBrowserAiConfigurationFixture } from "../tests/support/e2e";
 
 const password = "Playwright-password-82";
 
@@ -28,11 +29,9 @@ async function createCompany(page: Page, run: string): Promise<string> {
   const companyId = new URL(page.url()).pathname.split("/")[2];
   await page.getByLabel("Effective from").fill("2026-01-01");
   await page.getByRole("button", { name: "Save and continue" }).click();
-  await page.getByRole("radio").first().check();
-  await page.getByRole("checkbox", {
-    name: /I consent to sending this Company's documents/,
-  }).check();
-  await page.getByRole("button", { name: "Enable AI processing" }).click();
+  await expect(page).toHaveURL(new RegExp(`/companies/${companyId}/setup/ai-processing$`));
+  await assignBrowserAiConfigurationFixture(companyId);
+  await page.getByRole("link", { name: "Continue to Company" }).click();
   await expect(page).toHaveURL(new RegExp(`/companies/${companyId}$`));
   return companyId;
 }

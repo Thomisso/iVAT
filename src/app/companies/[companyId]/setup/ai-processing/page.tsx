@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import Link from "next/link";
 import {
   getCompany,
   getMyCompanyRole,
@@ -25,6 +26,9 @@ export default async function AiProcessingSetupPage({
     </header>
     <section className="panel company-setup-panel">
       <p>{t("platformManaged")}</p>
+      <Link className="iv-btn iv-btn-primary iv-btn-md" href={`/companies/${companyId}`}>
+        {t("continueToCompany")}
+      </Link>
     </section>
   </PageLayout>;
 }

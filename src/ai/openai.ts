@@ -174,7 +174,7 @@ export function openAiProvider(options: OpenAiProviderOptions): AiProvider {
   };
 }
 
-/** OpenAI provider whose encrypted configuration is resolved per Organization at call time. */
+/** OpenAI provider whose assigned platform configuration is resolved per Company at call time. */
 export function platformOpenAiProvider(
   options: { baseUrl?: string } = {},
 ): AiProvider {

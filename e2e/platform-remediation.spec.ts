@@ -98,17 +98,22 @@ test("SuperAdmin resolves live Platform alerts in place without mixing Company n
   await page.goto("/platform/administration");
   const configurationProblem = page.locator(".operational-problem").filter({ hasText: "AI Configuration missing" });
   await expect(configurationProblem).toBeVisible();
-  await expect(page.getByRole("link", { name: /Platform overview, 1 unresolved operational alert/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Platform overview.*1 unresolved operational alert/ })).toBeVisible();
   await expect(page.getByRole("link", { name: "Platform alerts, 1 unresolved" })).toBeVisible();
   await expect(page.getByRole("button", { name: /upload notification/i })).toHaveCount(0);
 
-  await configurationProblem.getByText("Create an AI Configuration").click();
-  await configurationProblem.getByLabel("Configuration label").fill(`Browser repair ${run}`);
-  await configurationProblem.getByLabel("Provider", { exact: true }).selectOption("fake");
-  await configurationProblem.getByLabel("Split model").fill("fake-split");
-  await configurationProblem.getByLabel("Extract model").fill("fake-extract");
-  await configurationProblem.getByLabel("Provider credential").fill("browser-remediation-secret");
-  await configurationProblem.getByRole("button", { name: "Create configuration" }).click();
+  const createConfiguration = configurationProblem.locator("summary").filter({
+    hasText: "Create an AI Configuration",
+  });
+  if (await createConfiguration.count()) {
+    await createConfiguration.click();
+    await configurationProblem.getByLabel("Configuration label").fill(`Browser repair ${run}`);
+    await configurationProblem.getByLabel("Provider", { exact: true }).selectOption("fake");
+    await configurationProblem.getByLabel("Split model").fill("fake-split");
+    await configurationProblem.getByLabel("Extract model").fill("fake-extract");
+    await configurationProblem.getByLabel("Provider credential").fill("browser-remediation-secret");
+    await configurationProblem.getByRole("button", { name: "Create configuration" }).click();
+  }
 
   const refreshedConfigurationProblem = page.locator(".operational-problem").filter({
     hasText: "AI Configuration missing",

@@ -167,7 +167,7 @@ export function anthropicAiProvider(options: AnthropicAiProviderOptions): AiProv
   };
 }
 
-/** Anthropic provider whose encrypted configuration is resolved per Organization at call time. */
+/** Anthropic provider whose assigned platform configuration is resolved per Company at call time. */
 export function platformAnthropicAiProvider(
   options: { baseUrl?: string } = {},
 ): AiProvider {

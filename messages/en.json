@@ -56,7 +56,7 @@
     "users": "Users",
     "auditLog": "Audit log",
     "platformOverview": "Platform overview",
-    "platformOverviewWithAlerts": "Platform overview, {count} unresolved operational alerts",
+    "platformAlertsCount": "{count} unresolved operational alerts",
     "platformAlertBell": "Platform alerts, {count} unresolved",
     "platformAi": "Platform AI settings",
     "platformUsage": "Platform AI usage",
@@ -82,8 +82,7 @@
     "documentsTitle": "Documents",
     "documentsDescription": "Review and manage the Company's Documents.",
     "vatTitle": "VAT",
-    "vatDescription": "Work with Reporting Periods and statutory outputs.",
-    "workspaceComing": "This workspace is ready for the next redesign stage."
+    "vatDescription": "Work with Reporting Periods and statutory outputs."
   },
   "auth": {
     "email": "Email",
@@ -308,8 +307,8 @@
     "backToBatch": "← Back to batch",
     "batchTitle": "Batch from {date}",
     "waitingForAi": "Waiting for AI setup",
-    "waitingForAiHint": "The originals and Documents are stored safely. Waiting Split or Extraction work starts after an administrator enables AI processing.",
-    "configureAi": "Set up AI processing",
+    "waitingForAiHint": "The originals and Documents are stored safely. Waiting Split or Extraction work starts after a SuperAdmin assigns a platform AI Configuration.",
+    "configureAi": "View AI processing status",
     "lifecycle": "Batch lifecycle",
     "phase": {
       "transport": "Transport",
@@ -645,13 +644,14 @@
     "setupTitle": "AI processing",
     "setupIntro": "AI processing is managed by the platform.",
     "platformManaged": "The SuperAdmin manages the AI Configuration and access. Provider, model and credential details are not shown here.",
+    "continueToCompany": "Continue to Company",
     "allowanceUsage": "Successful Extractions: {used} of {allowance}.",
     "waitingDocuments": "{count, plural, =0 {No Documents are waiting for an allowance increase.} one {# Document is waiting for an allowance increase.} other {# Documents are waiting for an allowance increase.}}",
     "unlimited": "unlimited",
     "viewAllowance": "View allowance usage",
     "waitingTitle": "Waiting for platform AI setup",
     "waitingReason": "The original files are stored safely. Splitting and extraction will start after a SuperAdmin assigns a platform AI Configuration.",
-    "administratorOnly": "An administrator can change this setting."
+    "administratorOnly": "The SuperAdmin manages this setting."
   },
   "sourceFileStatus": {
     "uploaded": "Waiting",
