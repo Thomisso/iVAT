@@ -130,23 +130,26 @@ export async function listMemberships(
 export async function listCompanyAccess(
   client: AppClient,
   companyId: string,
-): Promise<CompanyAccess[]> {
-  if (!isUuid(companyId)) return [];
+): Promise<Result<CompanyAccess[], "forbidden">> {
+  if (!isUuid(companyId)) return { ok: false, error: "forbidden" };
   const { data, error } = await client.rpc("list_company_access", {
     target_company_id: companyId,
   });
   if (error) {
-    if (databaseRefusal(error) === "forbidden") return [];
+    if (databaseRefusal(error) === "forbidden") return { ok: false, error: "forbidden" };
     throw error;
   }
-  return data.map((access) => ({
-    membershipId: access.membership_id,
-    userId: access.user_id,
-    email: access.email,
-    role: access.role,
-    source: access.source as CompanyAccess["source"],
-    manageableMembershipId: access.manageable_membership_id,
-  }));
+  return {
+    ok: true,
+    value: data.map((access) => ({
+      membershipId: access.membership_id,
+      userId: access.user_id,
+      email: access.email,
+      role: access.role,
+      source: access.source as CompanyAccess["source"],
+      manageableMembershipId: access.manageable_membership_id,
+    })),
+  };
 }
 
 export async function listPendingInvitations(
