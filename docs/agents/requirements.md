@@ -635,7 +635,7 @@ The following areas require additional business or technical specifications:
 | VAT Reporting | What are the exact VAT return formats and validation rules? | DPHDP3 + DPHKH1; validation rules still to be specified in detail. |
 | Technology Stack | Which frontend, backend, database, and hosting technologies will be selected? | TypeScript, Next.js + worker, PostgreSQL, pg-boss, Supabase (ADR-0002). |
 | AI Integration | Which AI providers and models should be implemented first? | Anthropic and OpenAI; model configurable per pipeline step. |
-| AI Credentials | Will users provide their own API keys or use centrally managed credentials? | Both: platform keys + Organization BYOK (ADR-0006). |
+| AI Credentials | Will users provide their own API keys or use centrally managed credentials? | Platform-owned AI Configurations assigned to Companies; no Organization BYOK in MVP (ADR-0011). |
 | Document Extraction | What is the required structured data schema for each document type? | Header + Rate Breakdown; detailed schema still open. Line items post-MVP. |
 | Document Workflow | Which review and approval states are required? | Uploaded → Processing → NeedsReview → Approved, plus Failed and Rejected. |
 | Multi-Company Access | Can individual users belong to multiple companies? | Yes, with a Role per Membership. |
@@ -643,7 +643,7 @@ The following areas require additional business or technical specifications:
 | Data Retention | What are the document retention and deletion policies? | 10 years; Approved Documents in locked periods cannot be deleted; Company deletion is a soft delete. |
 | VAT Export | Which statutory filing and export formats are required? | EPO XML, PDF preview, Excel export. |
 | Deployment | Will the platform be cloud-hosted, self-hosted, or both? | Cloud SaaS in the EU; local development until MVP. |
-| Commercial Model | Will the application require subscriptions, usage limits, or billing? | No billing in MVP; AI usage metered per Organization. |
+| Commercial Model | Will the application require subscriptions, usage limits, or billing? | No billing in MVP; successful Extractions consume a lifetime Company allowance and usage is metered per Company and AI Configuration. |
 | Language Support | Which user interface languages are required? | Czech and English. |
 
 ---

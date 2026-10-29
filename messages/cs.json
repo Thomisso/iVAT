@@ -56,7 +56,7 @@
     "users": "Uživatelé",
     "auditLog": "Auditní záznamy",
     "platformOverview": "Přehled platformy",
-    "platformOverviewWithAlerts": "Přehled platformy, {count} nevyřešených provozních upozornění",
+    "platformAlertsCount": "Nevyřešená provozní upozornění: {count}",
     "platformAlertBell": "Upozornění platformy, nevyřešeno: {count}",
     "platformAi": "Nastavení AI platformy",
     "platformUsage": "Využití AI platformy",
@@ -82,8 +82,7 @@
     "documentsTitle": "Doklady",
     "documentsDescription": "Kontrolujte a spravujte doklady firmy.",
     "vatTitle": "DPH",
-    "vatDescription": "Pracujte s obdobími pro vykazování a zákonnými výstupy.",
-    "workspaceComing": "Tato pracovní plocha je připravená pro další část redesignu."
+    "vatDescription": "Pracujte s obdobími pro vykazování a zákonnými výstupy."
   },
   "auth": {
     "email": "E-mail",
@@ -308,8 +307,8 @@
     "backToBatch": "← Zpět na dávku",
     "batchTitle": "Dávka z {date}",
     "waitingForAi": "Čeká na nastavení AI",
-    "waitingForAiHint": "Originály i doklady jsou bezpečně uložené. Čekající rozdělení nebo vytěžení začne, až administrátor zapne zpracování pomocí AI.",
-    "configureAi": "Nastavit zpracování pomocí AI",
+    "waitingForAiHint": "Originály i doklady jsou bezpečně uložené. Čekající rozdělení nebo vytěžení začne, až SuperAdmin přiřadí AI konfiguraci platformy.",
+    "configureAi": "Zobrazit stav AI zpracování",
     "lifecycle": "Průběh dávky",
     "phase": {
       "transport": "Přenos",
@@ -645,13 +644,14 @@
     "setupTitle": "Zpracování pomocí AI",
     "setupIntro": "Zpracování pomocí AI spravuje platforma.",
     "platformManaged": "AI konfiguraci a přístup spravuje SuperAdmin. Firma zde nevidí poskytovatele, model ani přihlašovací údaje.",
+    "continueToCompany": "Pokračovat do firmy",
     "allowanceUsage": "Úspěšná vytěžení: {used} z {allowance}.",
     "waitingDocuments": "Na navýšení limitu čeká {count, plural, =0 {0 dokladů} one {# doklad} few {# doklady} other {# dokladů}}.",
     "unlimited": "neomezeno",
     "viewAllowance": "Zobrazit čerpání limitu",
     "waitingTitle": "Čeká na nastavení AI platformou",
     "waitingReason": "Původní soubory jsou bezpečně uložené. Rozdělení a vytěžení začne, až SuperAdmin přiřadí AI konfiguraci platformy.",
-    "administratorOnly": "Toto nastavení může změnit administrátor."
+    "administratorOnly": "Toto nastavení spravuje SuperAdmin."
   },
   "sourceFileStatus": {
     "uploaded": "Čeká",

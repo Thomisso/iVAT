@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
 
 export type ContextNavigationItem = {
-  accessibleLabel?: string;
+  assistiveDescription?: string;
   badge?: number;
   current?: boolean;
   href: string;
@@ -38,13 +38,13 @@ export function ContextNavigation({ items, label }: {
     style={{ "--app-shell-navigation-count": items.length } as CSSProperties}
   >
     {items.map((item) => <Link
-      aria-label={item.accessibleLabel}
       aria-current={item.current ? "page" : undefined}
       href={item.href}
       key={item.href}
     >
       {item.icon}
       <span>{item.label}</span>
+      {item.assistiveDescription && <span className="sr-only"> {item.assistiveDescription}</span>}
       {item.badge !== undefined && item.badge > 0 && (
         <span aria-hidden="true" className="context-navigation-count">{item.badge}</span>
       )}

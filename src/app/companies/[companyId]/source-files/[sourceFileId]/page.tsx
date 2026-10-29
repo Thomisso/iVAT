@@ -41,7 +41,7 @@ export default async function SourceFilePage({
     ? `/companies/${companyId}/source-files/${file.id}/preview`
     : `/companies/${companyId}/source-files/${file.id}/content`;
   const workbook = file.format === "xlsx" || file.format === "xls";
-  // Nothing moves until the Company enables AI processing.
+  // Nothing moves until the platform enables an assigned AI Configuration.
   const processing =
     company.aiProcessingEnabled &&
     (file.status === "uploaded" ||
