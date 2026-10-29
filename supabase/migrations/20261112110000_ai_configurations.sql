@@ -61,8 +61,9 @@ language plpgsql security definer set search_path = ''
 as $$
 declare
   default_configuration_id uuid;
+  default_provider text;
 begin
-  select id into default_configuration_id
+  select id, provider into default_configuration_id, default_provider
   from public.ai_configuration
   where is_default;
 
@@ -73,6 +74,23 @@ begin
       new.id, default_configuration_id, now(), null
     )
     on conflict (company_id) do nothing;
+
+    update public.company set
+      ai_processing_enabled = true,
+      ai_provider = default_provider,
+      ai_region = 'global',
+      ai_credential_source = 'platform'
+    where id = new.id;
+
+    insert into public.company_setup_step_state (
+      company_id, organization_id, step, state, changed_by
+    ) values (
+      new.id, new.organization_id, 'ai_processing', 'completed', null
+    )
+    on conflict (company_id, step) do update set
+      state = excluded.state,
+      changed_by = excluded.changed_by,
+      changed_at = now();
   end if;
 
   return new;
@@ -360,6 +378,39 @@ begin
 end;
 $$;
 
+create function public.clear_default_ai_configuration()
+returns void
+language plpgsql security definer set search_path = ''
+as $$
+declare
+  default_configuration_id uuid;
+  configuration_label text;
+begin
+  if not private.can_administrate_platform() then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+  lock table public.ai_configuration in share row exclusive mode;
+  select id, label into default_configuration_id, configuration_label
+  from public.ai_configuration
+  where is_default;
+  if not found then
+    return;
+  end if;
+
+  update public.ai_configuration
+  set is_default = false,
+      updated_at = now(),
+      updated_by = auth.uid()
+  where id = default_configuration_id;
+
+  perform private.record_ai_configuration_audit_event(
+    'ai_configuration.default_cleared',
+    default_configuration_id,
+    jsonb_build_object('label', configuration_label)
+  );
+end;
+$$;
+
 -- Only the worker may cross the credential boundary. No authenticated RPC can
 -- return a secret, model name, or decrypted Vault value.
 create function public.resolve_assigned_ai_configuration(target_company_id uuid)
@@ -396,6 +447,7 @@ revoke execute on function public.create_ai_configuration(text, text, text, text
   public.list_ai_configurations(),
   public.assign_company_ai_configuration(uuid, uuid),
   public.set_default_ai_configuration(uuid),
+  public.clear_default_ai_configuration(),
   public.resolve_assigned_ai_configuration(uuid)
   from public, anon;
 
@@ -406,7 +458,8 @@ grant execute on function public.create_ai_configuration(text, text, text, text,
   public.update_ai_configuration(uuid, text, text, text, text, text),
   public.list_ai_configurations(),
   public.assign_company_ai_configuration(uuid, uuid),
-  public.set_default_ai_configuration(uuid)
+  public.set_default_ai_configuration(uuid),
+  public.clear_default_ai_configuration()
   to authenticated;
 
 grant execute on function public.resolve_assigned_ai_configuration(uuid)

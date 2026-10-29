@@ -3,12 +3,13 @@ import type { AiCallContext, AiProvider } from "@/application/ai-provider";
 import { listAuditEvents, listPlatformAuditEvents } from "@/application/audit";
 import {
   assignCompanyAiConfiguration,
+  clearDefaultAiConfiguration,
   createAiConfiguration,
   listAiConfigurations,
   setDefaultAiConfiguration,
   updateAiConfiguration,
 } from "@/application/ai-configurations";
-import { enableAiProcessing } from "@/application/companies";
+import { disableAiProcessing, enableAiProcessing } from "@/application/companies";
 import { listCompanyDocuments } from "@/application/documents";
 import { configurePlatformAiProvider, setOrganizationPlatformAiAccess } from "@/application/platform-ai";
 import { getSourceFile, uploadSourceFile } from "@/application/source-files";
@@ -184,6 +185,21 @@ describe("platform-owned AI Configurations", () => {
 
   it("assigns the usable default configuration to every newly created Company", async () => {
     const superAdministrator = await promotedSuperAdministrator("Default AI operator", "ai-default");
+    const seenContexts: AiCallContext[] = [];
+    const fake = fakeAiProvider();
+    const provider: AiProvider = {
+      name: "anthropic",
+      region: "global",
+      async split(input, context) {
+        if (context) seenContexts.push(context);
+        return fake.split(input, context);
+      },
+      async extract(input, context) {
+        if (context) seenContexts.push(context);
+        return fake.extract(input, context);
+      },
+    };
+    const worker = testWorker(provider);
     const configuration = await createAiConfiguration(superAdministrator.client, {
       label: `New Company default ${superAdministrator.userId}`,
       provider: "anthropic",
@@ -202,16 +218,65 @@ describe("platform-owned AI Configurations", () => {
     if (!listed.ok) throw new Error(listed.error);
     expect(listed.value.find(({ id }) => id === configuration.value.id)?.assignedCompanyIds)
       .toContain(createdAfterDefault.companyId);
+    expect(await clearDefaultAiConfiguration(createdAfterDefault.client)).toEqual({ ok: false, error: "forbidden" });
+
+    const uploaded = await uploadSourceFile(createdAfterDefault.client, worker.jobs, {
+      companyId: createdAfterDefault.companyId,
+      fileName: "default-enabled.png",
+      bytes: fixtureFile("receipt.png"),
+    });
+    if (!uploaded.ok) throw new Error(uploaded.error);
+    expect(await worker.runJobs()).toEqual([]);
+    expect(await listCompanyDocuments(createdAfterDefault.client, createdAfterDefault.companyId)).toEqual([
+      expect.objectContaining({ status: "needs_review" }),
+    ]);
+    expect(seenContexts).toEqual([
+      expect.objectContaining({
+        credentialSource: "platform",
+        configuration: {
+          apiKey: "default-secret",
+          splitModel: "default-split",
+          extractModel: "default-extract",
+        },
+      }),
+      expect.objectContaining({
+        credentialSource: "platform",
+        configuration: {
+          apiKey: "default-secret",
+          splitModel: "default-split",
+          extractModel: "default-extract",
+        },
+      }),
+    ]);
+
+    expect(await disableAiProcessing(createdAfterDefault.client, createdAfterDefault.companyId))
+      .toEqual({ ok: true, value: null });
+    const uploadedWhileDisabled = await uploadSourceFile(createdAfterDefault.client, worker.jobs, {
+      companyId: createdAfterDefault.companyId,
+      fileName: "explicitly-disabled.png",
+      bytes: fixtureFile("receipt.png"),
+    });
+    if (!uploadedWhileDisabled.ok) throw new Error(uploadedWhileDisabled.error);
+    expect(await worker.runJobs()).toEqual([]);
+    expect(seenContexts).toHaveLength(2);
+    expect((await getSourceFile(
+      createdAfterDefault.client,
+      createdAfterDefault.companyId,
+      uploadedWhileDisabled.value.id,
+    ))?.status).toBe("uploaded");
+    expect(await clearDefaultAiConfiguration(superAdministrator.client)).toEqual({ ok: true, value: null });
   });
 
-  it("hides configurations from both Company Administrators and Users", async () => {
-    const companyAdministrator = await administratorWithCompany("Configuration visibility");
-    const user = await companyMember(companyAdministrator, "user");
+  it("hides configurations from Organization Administrators, Company Administrators and Users", async () => {
+    const organizationAdministrator = await administratorWithCompany("Configuration visibility");
+    const companyAdministrator = await companyMember(organizationAdministrator, "administrator");
+    const user = await companyMember(organizationAdministrator, "user");
 
-    expect(await listAiConfigurations(companyAdministrator.client)).toEqual({
+    expect(await listAiConfigurations(organizationAdministrator.client)).toEqual({
       ok: false,
       error: "forbidden",
     });
+    expect(await listAiConfigurations(companyAdministrator.client)).toEqual({ ok: false, error: "forbidden" });
     expect(await listAiConfigurations(user.client)).toEqual({
       ok: false,
       error: "forbidden",
@@ -248,6 +313,8 @@ describe("platform-owned AI Configurations", () => {
       companyId: configuredCompany.companyId,
       configurationId: configuration.value.id,
     })).toEqual({ ok: true, value: null });
+    expect(await disableAiProcessing(configuredCompany.client, configuredCompany.companyId))
+      .toEqual({ ok: true, value: null });
 
     const uploaded = await uploadSourceFile(configuredCompany.client, worker.jobs, {
       companyId: configuredCompany.companyId,

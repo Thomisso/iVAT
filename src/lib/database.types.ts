@@ -663,6 +663,9 @@ isOneToOne: false
 "change_membership_role":
 { Args: { "target_membership_id": string,"target_role": Database["public"]['Enums']["membership_role"] }; Returns: undefined
                            },
+"clear_default_ai_configuration":
+{ Args: Record<PropertyKey, never>; Returns: undefined
+                           },
 "company_data_export_for_completion":
 { Args: { "target_export_id": string }; Returns: Json
                            },

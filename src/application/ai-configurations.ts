@@ -139,3 +139,14 @@ export async function setDefaultAiConfiguration(
   }
   return { ok: true, value: null };
 }
+
+export async function clearDefaultAiConfiguration(
+  client: AppClient,
+): Promise<Result<null, "forbidden">> {
+  const { error } = await client.rpc("clear_default_ai_configuration");
+  if (error) {
+    if (error.code === "42501") return { ok: false, error: "forbidden" };
+    throw error;
+  }
+  return { ok: true, value: null };
+}
