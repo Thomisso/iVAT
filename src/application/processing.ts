@@ -1,6 +1,5 @@
 import {
   AiProviderError,
-  type AiCredentialSource,
   type AiInput,
   type AiProvider,
   type AiProviderConfiguration,
@@ -133,40 +132,41 @@ async function completeCompanyExport(
 type ProviderAvailability = {
   blocked: boolean;
   provider: AiProvider | null;
-  credentialSource: AiCredentialSource | null;
   configuration: AiProviderConfiguration | null;
+  configurationId: string | null;
 };
 
-async function resolveCompanyAiConfiguration(
+async function resolveAssignedAiConfiguration(
   system: SystemClient,
-  organizationId: string,
-  provider: string,
-  credentialSource: Exclude<AiCredentialSource, "local">,
-): Promise<AiProviderConfiguration> {
-  const { data, error } = await system.rpc("resolve_company_ai_provider", {
-    target_organization_id: organizationId,
-    target_provider: provider,
-    target_credential_source: credentialSource,
+  companyId: string,
+): Promise<{ id: string; provider: string; configuration: AiProviderConfiguration } | null> {
+  const { data, error } = await system.rpc("resolve_assigned_ai_configuration", {
+    target_company_id: companyId,
   });
-  if (error) {
-    const code = error.hint ?? "provider_configuration_failed";
-    throw new AiProviderError(code, `AI provider configuration error: ${code}`, { transient: false, cause: error });
-  }
+  if (error) throw error;
   const settings = data[0];
-  if (!settings) {
-    const code = credentialSource === "organization"
-      ? "organization_key_not_configured"
-      : "platform_key_not_configured";
-    throw new AiProviderError(code, `AI provider configuration error: ${code}`, { transient: false });
+  if (!settings) return null;
+  if (!settings.api_key) {
+    throw new AiProviderError("ai_configuration_credential_missing", "The assigned credential is unavailable", {
+      transient: false,
+      classification: "configuration_missing",
+      platformIntervention: true,
+      configurationId: settings.configuration_id,
+      provider: settings.provider,
+    });
   }
   return {
-    apiKey: settings.api_key,
-    splitModel: settings.split_model,
-    extractModel: settings.extract_model,
+    id: settings.configuration_id,
+    provider: settings.provider,
+    configuration: {
+      apiKey: settings.api_key,
+      splitModel: settings.split_model,
+      extractModel: settings.extract_model,
+    },
   };
 }
 
-/** The provider named by the Company's current consent, and whether platform blocking deferred it. */
+/** The Company's platform-owned configuration, unless Organization blocking defers it. */
 async function providerAvailability(
   system: SystemClient,
   companyId: string,
@@ -174,37 +174,43 @@ async function providerAvailability(
 ): Promise<ProviderAvailability> {
   const { data, error } = await system
     .from("company")
-    .select("organization_id, ai_processing_enabled, ai_provider, ai_region, ai_credential_source, organization:organization_id (blocked_at)")
+    .select("ai_processing_enabled, organization:organization_id (blocked_at)")
     .eq("id", companyId)
     .single();
   if (error) throw error;
   if (data.organization?.blocked_at) {
-    return { blocked: true, provider: null, credentialSource: null, configuration: null };
+    return { blocked: true, provider: null, configuration: null, configurationId: null };
   }
-  if (!data.ai_processing_enabled || !data.ai_provider || !data.ai_credential_source) {
-    return { blocked: false, provider: null, credentialSource: null, configuration: null };
+  if (!data.ai_processing_enabled) {
+    return { blocked: false, provider: null, configuration: null, configurationId: null };
   }
-  const provider = providers.get(data.ai_provider);
-  if (!provider || provider.region !== data.ai_region) {
+  const assigned = await resolveAssignedAiConfiguration(system, companyId);
+  if (!assigned) {
+    throw new AiProviderError("ai_configuration_missing", "The Company has no usable AI Configuration", {
+      transient: false,
+      classification: "configuration_missing",
+      platformIntervention: true,
+    });
+  }
+  const provider = providers.get(assigned.provider);
+  if (!provider) {
     throw new AiProviderError(
       "provider_unavailable_on_worker",
-      `AI provider "${data.ai_provider}" in region "${data.ai_region}" is not configured on this worker`,
-      { transient: true },
+      `AI provider "${assigned.provider}" is not configured on this worker`,
+      {
+        transient: false,
+        classification: "configuration_unusable",
+        platformIntervention: true,
+        configurationId: assigned.id,
+        provider: assigned.provider,
+      },
     );
   }
-  const configuration = data.ai_credential_source === "local"
-    ? null
-    : await resolveCompanyAiConfiguration(
-      system,
-      data.organization_id,
-      data.ai_provider,
-      data.ai_credential_source,
-    );
   return {
     blocked: false,
     provider,
-    credentialSource: data.ai_credential_source,
-    configuration,
+    configuration: assigned.configuration,
+    configurationId: assigned.id,
   };
 }
 
@@ -245,9 +251,31 @@ async function failOnFinalAttempt(attempt: Attempt, markFailed: () => Promise<vo
   try {
     await work();
   } catch (error) {
-    if (attempt.final || (error instanceof AiProviderError && !error.transient)) await markFailed();
+    if (
+      !(error instanceof AiProviderError && error.platformIntervention)
+      && (attempt.final || (error instanceof AiProviderError && !error.transient))
+    ) await markFailed();
     throw error;
   }
+}
+
+async function recordPlatformIntervention(
+  system: SystemClient,
+  targetKind: "source_file" | "document",
+  targetId: string,
+  error: AiProviderError,
+  availability: ProviderAvailability | undefined,
+  state: "waiting_for_platform" | "terminal" = "waiting_for_platform",
+) {
+  const recorded = await system.rpc("record_ai_processing_issue", {
+    target_kind: targetKind,
+    target_id: targetId,
+    target_classification: error.classification,
+    target_state: state,
+    target_configuration_id: availability?.configurationId ?? error.configurationId ?? undefined,
+    target_provider: availability?.provider?.name ?? error.provider ?? undefined,
+  });
+  if (recorded.error) throw recorded.error;
 }
 
 async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId: string, attempt: Attempt) {
@@ -271,15 +299,17 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
       if (error) throw error;
       return data.length > 0;
     };
-    await failOnFinalAttempt(attempt, () => moveStatus("failed", ["uploaded", "processing"]).then(() => undefined), async () => {
-      const availability = await providerAvailability(system, file.company_id, providers);
+    let availability: ProviderAvailability | undefined;
+    try {
+      await failOnFinalAttempt(attempt, () => moveStatus("failed", ["uploaded", "processing"]).then(() => undefined), async () => {
+      availability = await providerAvailability(system, file.company_id, providers);
       if (availability.blocked) {
         await jobs.send(splitJob(file.id), { startAfterSeconds: BLOCKED_JOB_RECHECK_SECONDS });
         return;
       }
       const ai = availability.provider;
       if (!ai) return;
-      if (!(await moveStatus("processing", ["uploaded", "processing"]))) return;
+      if (!(await moveStatus("processing", ["uploaded", "processing", "waiting_for_platform"]))) return;
       const processingFile = await downloadForProcessing(system, {
         companyId: file.company_id,
         id: file.id,
@@ -289,8 +319,7 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
       const input = sourceFileInput(processingFile.format, processingFile.bytes, file.page_count);
       const { documents, model, usage } = await ai.split(input, {
         organizationId: file.organization_id,
-        credentialSource: availability.credentialSource!,
-        ...(availability.configuration ? { configuration: availability.configuration } : {}),
+        configuration: availability.configuration!,
       });
       assertWorkbookRanges(input, documents);
       const metered = await system.rpc("record_ai_usage", {
@@ -307,7 +336,23 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
       if (metered.error) throw metered.error;
       const { error } = await system.rpc("record_split", { target_source_file_id: file.id, source_ranges: documents });
       if (error) throw error;
-    });
+      });
+    } catch (error) {
+      if (error instanceof AiProviderError && error.platformIntervention) {
+        await recordPlatformIntervention(system, "source_file", file.id, error, availability);
+        return;
+      }
+      if (error instanceof AiProviderError && (attempt.final || !error.transient)) {
+        await recordPlatformIntervention(system, "source_file", file.id, error, availability, "terminal");
+      } else if (attempt.final) {
+        await recordPlatformIntervention(system, "source_file", file.id, new AiProviderError(
+          "processing_failed",
+          "Source File processing failed",
+          { transient: false, classification: "processing_failed" },
+        ), availability, "terminal");
+      }
+      throw error;
+    }
   }
 
   // Enqueues the Documents of the recorded Split, including when an earlier attempt recorded it.
@@ -333,7 +378,11 @@ async function extractDocument(
     .eq("id", documentId)
     .single();
   if (error) throw error;
-  if (document.superseded_at !== null || (document.status !== "uploaded" && document.status !== "processing")) return;
+  if (
+    document.superseded_at !== null
+    || !(["uploaded", "processing", "waiting_for_allowance", "waiting_for_platform"] as DocumentStatus[])
+      .includes(document.status)
+  ) return;
 
   // Moves the status of this Extraction request only from the given ones (see splitSourceFile).
   const moveStatus = async (to: DocumentStatus, from: DocumentStatus[]) => {
@@ -348,76 +397,121 @@ async function extractDocument(
     return data.length > 0;
   };
 
-  await failOnFinalAttempt(attempt, () => moveStatus("failed", ["uploaded", "processing"]).then(() => undefined), async () => {
-    const availability = await providerAvailability(system, document.company_id, providers);
-    if (availability.blocked) {
+  let availability: ProviderAvailability | undefined;
+  try {
+    await failOnFinalAttempt(attempt, () => moveStatus("failed", ["uploaded", "processing"]).then(() => undefined), async () => {
+    if (
+      document.status === "waiting_for_platform"
+      && !(await moveStatus("uploaded", ["waiting_for_platform"]))
+    ) return;
+    const reservationId = crypto.randomUUID();
+    const reserved = await system.rpc("reserve_ai_processing", {
+      target_document_id: document.id,
+      target_extraction_request_id: document.extraction_request_id,
+      target_reservation_id: reservationId,
+    });
+    if (reserved.error) throw reserved.error;
+    if (reserved.data === "already_reserved" || reserved.data === "earlier_document_pending") {
       await jobs.send(extractJob(document.id), { startAfterSeconds: BLOCKED_JOB_RECHECK_SECONDS });
       return;
     }
-    const ai = availability.provider;
-    if (!ai) return;
-    if (!(await moveStatus("processing", ["uploaded", "processing"]))) return;
-    const processingFile = await downloadForProcessing(system, {
-      companyId: document.company_id,
-      id: document.source_file_id,
-      format: document.source_file!.format,
-      normalizedFormat: document.source_file!.normalized_format,
-    });
-    const range = document.first_row === null
-      ? { firstPage: document.first_page, lastPage: document.last_page }
-      : { sheetName: document.source_sheet!, firstRow: document.first_row, lastRow: document.last_row! };
-    const input = await documentInput(processingFile.format, processingFile.bytes, range);
-    const { model, payload: extractedPayload, usage } = await ai.extract(input, {
-      organizationId: document.organization_id,
-      credentialSource: availability.credentialSource!,
-      ...(availability.configuration ? { configuration: availability.configuration } : {}),
-    });
-    const { data: company, error: companyError } = await system
-      .from("company")
-      .select("ico, vat_id")
-      .eq("id", document.company_id)
-      .single();
-    if (companyError) throw companyError;
-    const directedPayload = {
-      ...extractedPayload,
-      direction: detectDocumentDirection(
-        extractedPayload,
-        { ico: company.ico, vatId: company.vat_id },
-        document.source_file!.preselected_direction as Direction | null,
-      ),
-    };
-    const conversion = await applyCnbConversion(directedPayload, exchangeRates);
-    const payload = conversion.payload;
-    const metered = await system.rpc("record_ai_usage", {
-      target_organization_id: document.organization_id,
-      target_company_id: document.company_id,
-      target_provider: ai.name,
-      target_model: model,
-      target_operation: "extract",
-      target_input_tokens: usage?.inputTokens ?? 0,
-      target_output_tokens: usage?.outputTokens ?? 0,
-      target_job_name: "extract-document",
-      target_job_id: document.id,
-    });
-    if (metered.error) throw metered.error;
-    const findings = [
-      ...validateDocument(
+    if (reserved.data !== "reserved") return;
+
+    let completed = false;
+    try {
+      availability = await providerAvailability(system, document.company_id, providers);
+      if (availability.blocked) {
+        await jobs.send(extractJob(document.id), { startAfterSeconds: BLOCKED_JOB_RECHECK_SECONDS });
+        return;
+      }
+      const ai = availability.provider;
+      if (!ai) return;
+      const processingFile = await downloadForProcessing(system, {
+        companyId: document.company_id,
+        id: document.source_file_id,
+        format: document.source_file!.format,
+        normalizedFormat: document.source_file!.normalized_format,
+      });
+      const range = document.first_row === null
+        ? { firstPage: document.first_page, lastPage: document.last_page }
+        : { sheetName: document.source_sheet!, firstRow: document.first_row, lastRow: document.last_row! };
+      const input = await documentInput(processingFile.format, processingFile.bytes, range);
+      const { model, payload: extractedPayload, usage } = await ai.extract(input, {
+        organizationId: document.organization_id,
+        configuration: availability.configuration!,
+      });
+      const { data: company, error: companyError } = await system
+        .from("company")
+        .select("ico, vat_id")
+        .eq("id", document.company_id)
+        .single();
+      if (companyError) throw companyError;
+      const directedPayload = {
+        ...extractedPayload,
+        direction: detectDocumentDirection(
+          extractedPayload,
+          { ico: company.ico, vatId: company.vat_id },
+          document.source_file!.preselected_direction as Direction | null,
+        ),
+      };
+      const conversion = await applyCnbConversion(directedPayload, exchangeRates);
+      const payload = conversion.payload;
+      const metered = await system.rpc("record_ai_usage", {
+        target_organization_id: document.organization_id,
+        target_company_id: document.company_id,
+        target_provider: ai.name,
+        target_model: model,
+        target_operation: "extract",
+        target_input_tokens: usage?.inputTokens ?? 0,
+        target_output_tokens: usage?.outputTokens ?? 0,
+        target_job_name: "extract-document",
+        target_job_id: document.id,
+      });
+      if (metered.error) throw metered.error;
+      const findings = [
+        ...validateDocument(
+          payload,
+          CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA,
+        ),
+        ...(await vatRegistryFindings(vatRegistry, payload)),
+        ...conversion.findings,
+      ];
+      const { error } = await system.rpc("record_ai_extraction", {
+        target_document_id: document.id,
+        target_extraction_request_id: document.extraction_request_id,
+        target_reservation_id: reservationId,
+        provider: ai.name,
+        model,
         payload,
-        CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA,
-      ),
-      ...(await vatRegistryFindings(vatRegistry, payload)),
-      ...conversion.findings,
-    ];
-    const { error } = await system.rpc("record_ai_extraction", {
-      target_document_id: document.id,
-      target_extraction_request_id: document.extraction_request_id,
-      provider: ai.name,
-      model,
-      payload,
-      findings,
+        findings,
+      });
+      if (error) throw error;
+      completed = true;
+    } finally {
+      if (!completed) {
+        const released = await system.rpc("release_ai_processing_reservation", {
+          target_reservation_id: reservationId,
+        });
+        if (released.error) throw released.error;
+      }
+    }
     });
-    if (error) throw error;
-  });
+  } catch (error) {
+    if (error instanceof AiProviderError && error.platformIntervention) {
+      await recordPlatformIntervention(system, "document", document.id, error, availability);
+      return;
+    }
+    if (error instanceof AiProviderError && (attempt.final || !error.transient)) {
+      await recordPlatformIntervention(system, "document", document.id, error, availability, "terminal");
+    } else if (attempt.final) {
+      await recordPlatformIntervention(system, "document", document.id, new AiProviderError(
+        "processing_failed",
+        "Document processing failed",
+        { transient: false, classification: "processing_failed" },
+      ), availability, "terminal");
+    }
+    throw error;
+  }
 }
 
 function binaryAiInput(format: SourceFileFormat, bytes: Uint8Array, pageCount: number): AiInput {

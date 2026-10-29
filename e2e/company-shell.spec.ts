@@ -2,9 +2,8 @@ import fs from "node:fs/promises";
 import { createHmac } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
-import { asUserClient } from "../src/application/client";
-import { inviteMember } from "../src/application/memberships";
 import type { Database } from "../src/lib/database.types";
+import { addBrowserCompanyMemberFixture, assignBrowserAiConfigurationFixture } from "../tests/support/e2e";
 
 const password = "Playwright-password-76";
 
@@ -32,7 +31,7 @@ async function signUp(page: Page, organization: string, email: string) {
   await expect(page).toHaveURL(/\/companies\/new$/);
 }
 
-async function createCompany(page: Page, name: string, ico: string) {
+async function createCompany(page: Page, name: string, ico: string, enableAi = false) {
   await page.goto("/companies/new");
   await page.getByLabel("Company name").fill(name);
   await page.getByLabel("IČO").fill(ico);
@@ -47,9 +46,21 @@ async function createCompany(page: Page, name: string, ico: string) {
   await page.getByLabel("Effective from").fill("2026-01-01");
   await page.getByRole("button", { name: "Save and continue" }).click();
   await expect(page).toHaveURL(new RegExp(`/companies/${companyId}/setup/ai-processing$`));
-  await page.getByRole("button", { name: "Continue without AI" }).click();
+  if (enableAi) {
+    await assignBrowserAiConfigurationFixture(companyId);
+  }
+  await page.goto(`/companies/${companyId}`);
   await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+$/);
   return companyId;
+}
+
+async function expectSingleCompanyShell(page: Page, active: "Overview" | "Upload" | "Documents" | "VAT" | "Settings") {
+  const navigation = page.getByRole("navigation", { name: "Company navigation" });
+  await expect(navigation).toHaveCount(1);
+  await expect(navigation).toBeVisible();
+  await expect(navigation.getByRole("link", { name: active, exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("navigation", { name: "Main navigation" })).toHaveCount(0);
+  await expect(page.getByRole("main")).toHaveCount(1);
 }
 
 async function serviceClient() {
@@ -61,20 +72,6 @@ async function serviceClient() {
   return createClient<Database>(environment.NEXT_PUBLIC_SUPABASE_URL, environment.SUPABASE_SECRET_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-}
-
-async function signedInApplicationClient(email: string) {
-  const contents = await fs.readFile(".env.local", "utf8");
-  const environment = Object.fromEntries(contents.split("\n").filter(Boolean).map((line) => {
-    const separator = line.indexOf("=");
-    return [line.slice(0, separator), line.slice(separator + 1)];
-  }));
-  const client = createClient<Database>(environment.NEXT_PUBLIC_SUPABASE_URL, environment.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-  const signedIn = await client.auth.signInWithPassword({ email, password });
-  if (signedIn.error) throw signedIn.error;
-  return asUserClient(client);
 }
 
 async function english(context: BrowserContext, baseURL: string | undefined) {
@@ -114,16 +111,22 @@ test("Company context, final navigation and account return stay explicit", async
     await expect(companyNavigation.locator('[aria-current="page"]')).toHaveCount(1);
     await expect(companyNavigation.getByRole("link", { name: label, exact: true })).toHaveAttribute("aria-current", "page");
   }
+  await page.goto(`/companies/${firstId}/documents`);
+  const companyGridX = (await page.getByRole("heading", { name: "Documents", level: 1 }).boundingBox())?.x;
+  expect(companyGridX).toBeDefined();
   await page.goto(`/companies/${firstId}/vat-reports`);
   await expect(page.getByRole("link", { name: "VAT", exact: true })).toHaveAttribute("aria-current", "page");
   await page.goto(`/companies/${firstId}/settings`);
-  await expect(page.getByRole("link", { name: "Manage users" })).toHaveAttribute(
+  await expect(page.getByRole("link", { name: "Users and access" }).first()).toHaveAttribute(
     "href",
-    `/companies/${firstId}/members`,
+    `/companies/${firstId}/settings/users`,
   );
   await page.goto(`/companies/${firstId}/members`);
+  await expect(page).toHaveURL(new RegExp(`/companies/${firstId}/settings/users$`));
   await expect(page.getByRole("link", { name: "Settings", exact: true })).toHaveAttribute("aria-current", "page");
-  await expect(page.getByRole("heading", { name: `Users of Alpha ${run}` })).toBeVisible();
+  const membersHeading = page.getByRole("heading", { name: `Users of Alpha ${run}` });
+  await expect(membersHeading).toBeVisible();
+  expect((await page.getByRole("heading", { name: "Company settings", level: 1 }).boundingBox())?.x).toBe(companyGridX);
   const inheritedAccess = page.getByRole("listitem").filter({ hasText: email });
   await expect(inheritedAccess.getByText("Inherited from Organization", { exact: true })).toBeVisible();
   await expect(inheritedAccess.getByRole("button", { name: "Remove access" })).toHaveCount(0);
@@ -134,6 +137,9 @@ test("Company context, final navigation and account return stay explicit", async
   const pendingInvitation = page.getByRole("listitem").filter({ hasText: invitedEmail });
   await expect(pendingInvitation.getByText("Pending", { exact: true })).toBeVisible();
   await expect(pendingInvitation.getByText(/^Expires /)).toBeVisible();
+
+  await page.goto(`/companies/${firstId}/setup/filing-frequency`);
+  await expect(page.getByRole("link", { name: "Settings", exact: true })).toHaveAttribute("aria-current", "page");
 
   await page.getByRole("button", { name: "Choose Company" }).click();
   await page.getByRole("menuitem", { name: `Zeta ${run}` }).click();
@@ -185,12 +191,35 @@ test("mobile shell menus return focus and role-dependent administration stays pr
     await expect(trigger).toBeFocused();
   }
   await adminPage.getByRole("button", { name: "Open administration menu" }).click();
-  await expect(adminPage.locator(`a[href="/companies/${companyId}/members"]`)).toBeVisible();
+  await expect(adminPage.locator(`a[href="/companies/${companyId}/settings/users"]`)).toBeVisible();
 
   for (const width of [360, 720, 1024, 1440]) {
     await adminPage.setViewportSize({ width, height: 900 });
     expect(await adminPage.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
   }
+
+  await adminPage.emulateMedia({ colorScheme: "dark" });
+  await adminPage.setViewportSize({ width: 1440, height: 900 });
+  await adminPage.goto(`/companies/${companyId}/documents`);
+  const documentsHeading = adminPage.getByRole("heading", { name: "Documents", level: 1 });
+  const documentFilters = adminPage.getByRole("form", { name: "Filters" });
+  await expect(documentsHeading).toBeVisible();
+  await expect(documentFilters).toBeVisible();
+  const desktopGrid = await Promise.all([
+    documentsHeading.evaluate((heading) => heading.closest("header")?.getBoundingClientRect().x),
+    documentFilters.evaluate((filters) => filters.getBoundingClientRect().x),
+  ]);
+  expect(desktopGrid[0]).toBe(desktopGrid[1]);
+  await expect.poll(() => adminPage.evaluate(() => getComputedStyle(document.documentElement).colorScheme)).toBe("light");
+
+  await adminPage.setViewportSize({ width: 360, height: 800 });
+  const mobileGrid = await Promise.all([
+    documentsHeading.evaluate((heading) => heading.closest("header")?.getBoundingClientRect().x),
+    documentFilters.evaluate((filters) => filters.getBoundingClientRect().x),
+  ]);
+  expect(mobileGrid[0]).toBe(14);
+  expect(mobileGrid[0]).toBe(mobileGrid[1]);
+  expect(await adminPage.evaluate(() => document.documentElement.scrollWidth)).toBe(360);
 
   const userContext = await browser.newContext();
   await english(userContext, baseURL);
@@ -204,21 +233,8 @@ test("mobile shell menus return focus and role-dependent administration stays pr
   ]);
   const adminUserId = users.users.find((user) => user.email === adminEmail)?.id;
   if (!company || !adminUserId) throw new Error("Could not prepare User browser fixtures");
-  let invitationToken = "";
-  const invited = await inviteMember(await signedInApplicationClient(adminEmail), {
-    async sendInvitation(message) {
-      invitationToken = new URL(message.acceptUrl).searchParams.get("token") ?? "";
-    },
-  }, {
-    acceptUrl: `${baseURL}/invitations/accept`,
-    companyId,
-    email: userEmail,
-    organizationId: company.organization_id,
-    role: "user",
-  });
-  if (!invited.ok || !invitationToken) throw new Error("Could not prepare invitation browser fixture");
-  await userPage.goto(`/invitations/accept?token=${invitationToken}`);
-  await userPage.getByRole("button", { name: "Accept invitation" }).click();
+  await addBrowserCompanyMemberFixture(companyId, userEmail);
+  await userPage.goto(`/companies/${companyId}`);
   await expect(userPage).toHaveURL(new RegExp(`/companies/${companyId}$`));
   await adminPage.goto(`/companies/${companyId}/members`);
   const directAccess = adminPage.getByRole("listitem").filter({ hasText: userEmail });
@@ -227,18 +243,29 @@ test("mobile shell menus return focus and role-dependent administration stays pr
   const roleForm = directAccess.locator("form").filter({
     has: adminPage.getByRole("button", { name: "Change Role" }),
   });
-  await roleForm.locator('input[name="membershipId"]').evaluate((input) => {
-    (input as HTMLInputElement).value = "00000000-0000-4000-8000-000000000000";
-  });
   const role = roleForm.getByLabel("Role");
   await role.selectOption("administrator");
+  await roleForm.evaluate((form) => {
+    form.addEventListener("formdata", (event) => {
+      (event as FormDataEvent).formData.set(
+        "membershipId",
+        "00000000-0000-4000-8000-000000000000",
+      );
+    }, { once: true });
+  });
   await roleForm.getByRole("button", { name: "Change Role" }).click();
   await expect(directAccess.getByText("You are not allowed to do this.")).toBeVisible();
   await expect(role).toHaveValue("user");
   await userPage.goto(`/companies/${companyId}/members`);
-  await expect(userPage).toHaveURL(new RegExp(`/companies/${companyId}$`));
+  await expect(userPage).toHaveURL(new RegExp(`/companies/${companyId}/settings$`));
+  for (const destination of ["company", "vat", "users", "data"]) {
+    await userPage.goto(`/companies/${companyId}/settings/${destination}`);
+    await expect(userPage).toHaveURL(new RegExp(`/companies/${companyId}/settings$`));
+  }
+  await userPage.goto(`/companies/${companyId}/setup/filing-frequency`);
+  await expect(userPage).toHaveURL(new RegExp(`/companies/${companyId}/settings$`));
   await userPage.getByRole("button", { name: "Open administration menu" }).click();
-  await expect(userPage.locator(`a[href="/companies/${companyId}/members"]`)).toHaveCount(0);
+  await expect(userPage.locator(`a[href="/companies/${companyId}/settings/users"]`)).toHaveCount(0);
 
   const { error: platformError } = await service.from("platform_user").insert({ role: "super_admin", user_id: adminUserId });
   if (platformError) throw platformError;
@@ -257,4 +284,71 @@ test("mobile shell menus return focus and role-dependent administration stays pr
 
   await adminContext.close();
   await userContext.close();
+});
+
+test("nested Company routes keep one aligned shell at desktop and mobile widths", async ({ baseURL, context, page }) => {
+  await english(context, baseURL);
+  const run = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const companyName = `Nested Company ${run}`;
+  await signUp(page, `Nested Organization ${run}`, `nested-${run}@example.test`);
+  const companyId = await createCompany(page, companyName, `${Date.now()}`.slice(-8), true);
+
+  await page.goto(`/companies/${companyId}/upload`);
+  await page.locator('input[type="file"]:not([capture])').setInputFiles("tests/fixtures/receipt.jpg");
+  await page.getByRole("button", { name: "Upload" }).click();
+  await expect(page).toHaveURL(/\/upload-batches\/[0-9a-f-]+$/);
+  await expect(page.getByRole("link", { name: "Review 1 Document" })).toBeVisible({ timeout: 45_000 });
+  const batchHref = new URL(page.url()).pathname;
+  const sourceHref = await page.getByRole("link", { name: "receipt.jpg", exact: true }).getAttribute("href");
+  const documentHref = await page.locator('a[href*="/documents/"]').first().getAttribute("href");
+  expect(sourceHref).toBeTruthy();
+  expect(documentHref).toBeTruthy();
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`/companies/${companyId}`);
+  await expectSingleCompanyShell(page, "Overview");
+  const companyGridX = (await page.getByRole("heading", { name: "Overview", level: 1 }).boundingBox())?.x;
+  expect(companyGridX).toBeDefined();
+
+  const desktopRoutes = [
+    [`/companies/${companyId}/upload`, "Upload"],
+    [batchHref, "Upload"],
+    [sourceHref!, "Upload"],
+    [documentHref!, "Documents"],
+    [`/companies/${companyId}/vat`, "VAT"],
+    [`/companies/${companyId}/vat-reports`, "VAT"],
+    [`/companies/${companyId}/settings`, "Settings"],
+    [`/companies/${companyId}/settings/company`, "Settings"],
+    [`/companies/${companyId}/settings/vat`, "Settings"],
+    [`/companies/${companyId}/settings/users`, "Settings"],
+    [`/companies/${companyId}/settings/data`, "Settings"],
+    [`/companies/${companyId}/members`, "Settings"],
+    [`/companies/${companyId}/setup/filing-frequency`, "Settings"],
+    [`/companies/${companyId}/setup/ai-processing`, "Settings"],
+  ] as const;
+  for (const [href, active] of desktopRoutes) {
+    await page.goto(href);
+    await expectSingleCompanyShell(page, active);
+    expect((await page.getByRole("heading", { level: 1 }).first().boundingBox())?.x).toBe(companyGridX);
+  }
+
+  await page.setViewportSize({ width: 360, height: 800 });
+  for (const [href, active] of [
+    [sourceHref!, "Upload"],
+    [documentHref!, "Documents"],
+    [`/companies/${companyId}/vat-reports`, "VAT"],
+    [`/companies/${companyId}/settings`, "Settings"],
+    [`/companies/${companyId}/settings/data`, "Settings"],
+    [`/companies/${companyId}/setup/filing-frequency`, "Settings"],
+  ] as const) {
+    await page.goto(href);
+    await expectSingleCompanyShell(page, active);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+  }
+  await page.goto(`/companies/${companyId}/settings`);
+  const settingsSelector = page.getByRole("combobox", { name: "Company settings sections" });
+  await expect(settingsSelector).toBeVisible();
+  await settingsSelector.selectOption(`/companies/${companyId}/settings/company`);
+  await expect(page).toHaveURL(new RegExp(`/companies/${companyId}/settings/company$`));
+  await expect(settingsSelector).toHaveValue(`/companies/${companyId}/settings/company`);
 });

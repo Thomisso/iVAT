@@ -6,11 +6,14 @@ import {
   listDocuments,
   rejectDocument,
 } from "@/application/documents";
-import { enableAiProcessing, getCompany, updateCompany } from "@/application/companies";
+import { getCompany, updateCompany } from "@/application/companies";
 import {
   getReportingPeriodReadiness,
   listReportingPeriods,
+  readinessDocumentCounts,
+  readinessDocumentIds,
 } from "@/application/reporting-period-readiness";
+import { getDocumentQueue } from "@/application/document-queue";
 import {
   finalizeVatReport,
   generateVatReport,
@@ -19,6 +22,7 @@ import {
 import { uploadSourceFile } from "@/application/source-files";
 import {
   administratorWithCompany,
+  assignAiConfigurationFixture as enableAiProcessing,
   companyWithManyReportDocuments,
 } from "./support/fixtures";
 import { fixtureFile } from "./support/files";
@@ -157,8 +161,16 @@ it("returns blocker, warning and resolved Document groups without writing live d
     ]),
   );
   expect(readiness.value.warnings.map((finding) => finding.code)).toEqual(
-    expect.arrayContaining(["warning_finding", "rejected"]),
+    expect.arrayContaining(["warning_finding"]),
   );
+  expect(readiness.value.warnings).not.toContainEqual(
+    expect.objectContaining({ documentId: readiness.value.groups.rejected[0] }),
+  );
+  expect(readinessDocumentCounts(readiness.value)).toEqual({
+    blockers: 4,
+    warnings: 1,
+    rejected: 1,
+  });
   expect(readiness.value.blockers).not.toContainEqual(
     expect.objectContaining({ code: "warning_finding" }),
   );
@@ -170,11 +182,36 @@ it("returns blocker, warning and resolved Document groups without writing live d
     companyId: company.companyId,
     period: "2026-10",
   })).ok).toBe(true);
+  expect((await getVatReport(company.client, company.companyId, "2026-10"))?.finalization).toEqual({
+    blockerCount: 4,
+    warningCount: 1,
+    rejectedDocumentCount: 1,
+  });
   const savedReadiness = await getReportingPeriodReadiness(company.client, {
     companyId: company.companyId,
     period: "2026-10",
   });
   expect(savedReadiness.ok && savedReadiness.value.snapshot?.freshness).toBe("current");
+});
+
+it("resolves readiness queue links to the unique affected Documents", async () => {
+  const company = await companyWithReadinessStates();
+  const readiness = await getReportingPeriodReadiness(company.client, {
+    companyId: company.companyId,
+    period: "2026-10",
+  });
+  if (!readiness.ok) throw new Error(readiness.error);
+
+  for (const filter of ["blockers", "warnings", "rejected"] as const) {
+    const queue = await getDocumentQueue(company.client, company.companyId, {
+      view: "all",
+      readiness: filter,
+      reportingPeriod: "2026-10",
+    });
+    expect(queue.documents.map((document) => document.id).toSorted()).toEqual(
+      readinessDocumentIds(readiness.value, filter).toSorted(),
+    );
+  }
 });
 
 it("reports a saved source snapshot as current, then stale after a relevant unassigned Document arrives", async () => {

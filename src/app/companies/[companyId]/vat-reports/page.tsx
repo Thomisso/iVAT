@@ -2,9 +2,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
 import { getCompany, getCompanySetupChecklist, getMyCompanyRole } from "@/application/companies";
+import { documentQueueQuery, parseDocumentQueue } from "@/application/document-queue";
 import {
   getReportingPeriodReadiness,
   listReportingPeriods,
+  readinessDocumentCounts,
+  type ReadinessDocumentFilter,
 } from "@/application/reporting-period-readiness";
 import {
   getPeriodLock,
@@ -16,6 +19,7 @@ import { requireUserClient } from "@/lib/supabase/server";
 import { EmptyState } from "@/components/empty-state";
 import { DataTable } from "@/components/data-table";
 import { formatDocumentDate } from "@/lib/format-date";
+import { PageLayout } from "@/components/app-shell";
 import { GenerateForm } from "./generate-form";
 import { PeriodLockForm } from "./period-lock-form";
 import { PeriodNavigation, PeriodSelector } from "./period-navigation";
@@ -53,6 +57,12 @@ export default async function VatReportsPage({
   ]);
   if (!readinessResult.ok) notFound();
   const readiness = readinessResult.value;
+  const readinessCounts = readinessDocumentCounts(readiness);
+  const readinessHref = (filter: ReadinessDocumentFilter) => `/companies/${companyId}/documents?${documentQueueQuery(parseDocumentQueue({
+    view: "all",
+    readiness: filter,
+    reportingPeriod: period,
+  }))}`;
   const identityComplete = setup.some((item) =>
     item.step === "identity" && item.state === "completed"
   );
@@ -66,7 +76,7 @@ export default async function VatReportsPage({
     ] as const
   ).filter(([, ids]) => ids.length > 0);
   return (
-    <main className="company-workspace vat-reports">
+    <PageLayout className="company-workspace vat-reports" measure="wide">
       <header className="company-page-header vat-report-header">
         <p>
           <Link href={`/companies/${companyId}/vat`}>
@@ -110,27 +120,27 @@ export default async function VatReportsPage({
                 )}
               </p>
             </div>
-            <strong>
-              {readiness.ready
-                ? t("vatReports.ready")
-                : t("vatReports.blockerCount", {
-                    count: readiness.blockers.length,
-                  })}
-            </strong>
+            {readiness.ready ? <strong className="vat-readiness-count">{t("vatReports.ready")}</strong> : <Link
+              className="vat-readiness-count"
+              href={readinessHref("blockers")}
+            >{t("vatReports.blockerCount", { count: readinessCounts.blockers })}</Link>}
           </header>
           <dl className="vat-document-groups">
             {groupRows.map(([group, ids]) => (
               <div key={group}>
                 <dt>{t(`vatReports.groups.${group}`)}</dt>
-                <dd>{ids.length}</dd>
+                <dd>{group === "rejected" ? <Link
+                  aria-label={t("vatReports.openRejectedDocuments", { count: ids.length })}
+                  href={readinessHref("rejected")}
+                >{ids.length}</Link> : ids.length}</dd>
               </div>
             ))}
           </dl>
-          {readiness.warnings.length > 0 && (
+          {readinessCounts.warnings > 0 && (
             <p className="vat-readiness-warning">
-              {t("vatReports.warningCount", {
-                count: readiness.warnings.length,
-              })}
+              <Link href={readinessHref("warnings")}>{t("vatReports.warningCount", {
+                count: readinessCounts.warnings,
+              })}</Link>
             </p>
           )}
           <div className="vat-processing-actions">
@@ -199,9 +209,9 @@ export default async function VatReportsPage({
                   period={period}
                   locked={!!periodLock}
                   summary={{
-                    blockerCount: report?.finalization.blockerCount ?? readiness.blockers.length,
-                    warningCount: report?.finalization.warningCount ?? readiness.warnings.length,
-                    rejectedDocumentCount: report?.finalization.rejectedDocumentCount ?? readiness.groups.rejected.length,
+                    blockerCount: report?.finalization.blockerCount ?? readinessCounts.blockers,
+                    warningCount: report?.finalization.warningCount ?? readinessCounts.warnings,
+                    rejectedDocumentCount: report?.finalization.rejectedDocumentCount ?? readinessCounts.rejected,
                     snapshotCurrent: readiness.snapshot?.freshness === "current",
                     identityComplete,
                   }}
@@ -284,6 +294,6 @@ export default async function VatReportsPage({
           <EmptyState title={t("vatReports.noTransitions")} />
         )}
       </section>
-    </main>
+    </PageLayout>
   );
 }

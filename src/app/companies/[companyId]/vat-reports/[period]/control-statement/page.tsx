@@ -9,6 +9,7 @@ import { getPeriodLock, getVatReport } from "@/application/vat-reports";
 import { requireUserClient } from "@/lib/supabase/server";
 import { DataTable } from "@/components/data-table";
 import { StatusBadge } from "@/components/status-badge";
+import { PageLayout } from "@/components/app-shell";
 import { formatDocumentDate } from "@/lib/format-date";
 import { ExportForm } from "../../export-form";
 import { PeriodNavigation } from "../../period-navigation";
@@ -39,7 +40,7 @@ export default async function ControlStatementPage({
   const readiness = readinessResult.value;
   const epoAddress = resolveEpoAddress(report.result.company, filingDefaults);
   return (
-    <main className="company-workspace vat-reports vat-output-page">
+    <PageLayout className="company-workspace vat-reports vat-output-page" measure="wide">
       <header className="company-page-header vat-report-header">
         <p>
           <Link href={`/companies/${companyId}/vat`}>
@@ -135,7 +136,19 @@ export default async function ControlStatementPage({
       <ReportIssues companyId={companyId} readiness={readiness} report={report} />
       <section className="vat-output-actions">
         <h2>{t("controlStatementActions")}</h2>
-        <div className="vat-output-action-grid is-single">
+        <div className="vat-output-action-grid">
+          <article className="vat-export-card">
+            <span className="vat-section-label">{t("pdfFormat")}</span>
+            <h3>{t("controlStatementPdfPreview")}</h3>
+            <p>{t("pdfPreviewHint")}</p>
+            <a
+              className="iv-btn iv-btn-secondary iv-btn-md"
+              href={`/companies/${companyId}/vat-reports/${period}/control-statement/pdf`}
+              download={`DPHKH1-${period}.pdf`}
+            >
+              {t("downloadControlStatementPdf")}
+            </a>
+          </article>
           <ExportForm
             companyId={companyId}
             format="dphkh1"
@@ -150,6 +163,6 @@ export default async function ControlStatementPage({
           />
         </div>
       </section>
-    </main>
+    </PageLayout>
   );
 }

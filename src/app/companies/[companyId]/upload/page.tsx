@@ -5,6 +5,7 @@ import { getCompany, getMyCompanyRole } from "@/application/companies";
 import { getUploadLimits } from "@/application/source-files";
 import { listUploadBatches } from "@/application/upload-batches";
 import { requireUserClient } from "@/lib/supabase/server";
+import { PageLayout } from "@/components/app-shell";
 import { SourceFileUploadForm } from "../source-file-upload-form";
 
 const HISTORY_PAGE_SIZE = 20;
@@ -34,12 +35,12 @@ export default async function UploadPage({
   if (!company) notFound();
   const hasNextPage = batches.length > HISTORY_PAGE_SIZE;
   const visibleBatches = batches.slice(0, HISTORY_PAGE_SIZE);
-  return <main className="company-workspace">
+  return <PageLayout className="company-workspace" measure="wide">
     <header className="company-page-header"><h1>{t("uploadTitle")}</h1><p>{t("uploadDescription")}</p></header>
-    {!company.aiProcessing && <section className="panel" role="status">
+    {!company.aiProcessingEnabled && <section className="panel" role="status">
       <h2>{ai("waitingTitle")}</h2>
       <p>{ai("waitingReason")}</p>
-      {role === "administrator" && <Link href={`/companies/${companyId}/settings`}>{ai("configureAction")}</Link>}
+      {role === "administrator" && <Link href={`/companies/${companyId}/settings`}>{ai("viewAllowance")}</Link>}
     </section>}
     <section className="panel upload-workspace-new" aria-labelledby="new-upload-title">
       <div><h2 id="new-upload-title">{workspace("newBatch")}</h2><p>{workspace("newBatchHint")}</p></div>
@@ -68,5 +69,5 @@ export default async function UploadPage({
         {hasNextPage && <Link href={`/companies/${companyId}/upload?historyPage=${historyPage + 1}`}>{workspace("olderBatches")}</Link>}
       </nav>}
     </section>
-  </main>;
+  </PageLayout>;
 }

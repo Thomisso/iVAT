@@ -10,6 +10,7 @@ import { vatReturnPreviewData } from "@/application/vat-return-preview";
 import { requireUserClient } from "@/lib/supabase/server";
 import { DataTable } from "@/components/data-table";
 import { StatusBadge } from "@/components/status-badge";
+import { PageLayout } from "@/components/app-shell";
 import { formatDocumentDate } from "@/lib/format-date";
 import { ExportForm } from "../../export-form";
 import { PeriodNavigation } from "../../period-navigation";
@@ -41,7 +42,7 @@ export default async function VatReturnPage({
   const readiness = readinessResult.value;
   const epoAddress = resolveEpoAddress(report.result.company, filingDefaults);
   return (
-    <main className="company-workspace vat-reports vat-output-page">
+    <PageLayout className="company-workspace vat-reports vat-output-page" measure="wide">
       <header className="company-page-header vat-report-header">
         <p>
           <Link href={`/companies/${companyId}/vat`}>
@@ -166,6 +167,6 @@ export default async function VatReturnPage({
           />
         </div>
       </section>
-    </main>
+    </PageLayout>
   );
 }

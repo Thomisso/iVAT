@@ -1,109 +1,54 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import {
-  epoIdentityFindings,
-  getCompany,
-  getMyCompanyRole,
-  listCompanyAiOptions,
-} from "@/application/companies";
-import { getCompanyFilingDefaults } from "@/application/company-filing-defaults";
-import { listMyOrganizations } from "@/application/organizations";
+import { getCompany, getCompanySetupChecklist, getMyCompanyRole } from "@/application/companies";
+import { Icon } from "@/components/icon";
 import { requireUserClient } from "@/lib/supabase/server";
-import { CompanyForm } from "../../new/company-form";
-import { CompanyDeletionForm } from "./company-deletion-form";
-import { AiProviderForm, DisableAiProcessingForm } from "../ai-provider-form";
-import { FilingDefaultsForm } from "./filing-defaults-form";
 
-export default async function CompanySettingsPage({
-  params,
-}: PageProps<"/companies/[companyId]/settings">) {
+export default async function CompanySettingsPage({ params }: PageProps<"/companies/[companyId]/settings">) {
   const { companyId } = await params;
   const client = await requireUserClient();
-  const [company, role, organizations, filingDefaults, t, ai] = await Promise.all([
+  const [company, checklist, role, shell, t] = await Promise.all([
     getCompany(client, companyId),
+    getCompanySetupChecklist(client, companyId),
     getMyCompanyRole(client, companyId),
-    listMyOrganizations(client),
-    getCompanyFilingDefaults(client, companyId),
+    getTranslations("shell"),
     getTranslations("company"),
-    getTranslations("aiProcessing"),
   ]);
   if (!company) notFound();
-  const options = role === "administrator" ? await listCompanyAiOptions(client, companyId) : [];
-  const organizationAdministrator = organizations.some((organization) =>
-    organization.id === company.organizationId && organization.role === "administrator"
-  );
-  return (
-      <main className="company-workspace company-create">
-        <div className="panel">
-          <Link href={`/companies/${company.id}`}>{t("backToCompany")}</Link>
-          <h1>{t("settingsTitle")}</h1>
-          <p>{t("settingsIntro")}</p>
-          <section className="company-settings-section">
-            <h2>{t("profileTitle")}</h2>
-            <p>{t("profileIntro")}</p>
-            <CompanyForm
-              organizationId={company.organizationId}
-              companyId={company.id}
-              initialValues={{
-                name: company.name,
-                firstName: company.firstName ?? "",
-                lastName: company.lastName ?? "",
-                ico: company.ico,
-                vatId: company.vatId,
-                streetName: company.streetName ?? "",
-                houseNumber: company.houseNumber ?? "",
-                orientationNumber: company.orientationNumber ?? "",
-                city: company.city,
-                postalCode: company.postalCode,
-                personType: company.personType,
-              }}
-            />
-            <Link href={`/companies/${company.id}/setup/filing-frequency`}>{t("editFilingFrequency")}</Link>
-          </section>
-          <section className="company-settings-section" id="filing-defaults">
-            <h2>{t("filingDefaultsTitle")}</h2>
-            <p>{t("filingDefaultsIntro")}</p>
-            {role === "administrator" ? <FilingDefaultsForm
-              companyId={company.id}
-              defaults={filingDefaults}
-              personType={company.personType}
-              epoOverrideRequired={epoIdentityFindings(company).length > 0}
-            /> : <p className="iv-muted">{ai("administratorOnly")}</p>}
-          </section>
-          {role === "administrator" && <section className="company-settings-section">
-            <h2>{t("usersTitle")}</h2>
-            <p>{t("usersIntro")}</p>
-            <Link href={`/companies/${company.id}/members`}>{t("manageUsers")}</Link>
-          </section>}
-          <section className="company-settings-section">
-            <h2>{ai("title")}</h2>
-            <p>{company.aiProcessing
-              ? ai("on", { provider: company.aiProcessing.provider, region: company.aiProcessing.region })
-              : ai("off")}</p>
-            {company.aiProcessing && <p className="iv-muted">
-              {ai(`source.${company.aiProcessing.credentialSource}`)}
-            </p>}
-            {role === "administrator" ? <>
-              <p>{ai("consent")}</p>
-              <AiProviderForm
-                key={company.aiProcessing
-                  ? `${company.aiProcessing.credentialSource}:${company.aiProcessing.provider}:${company.aiProcessing.region}`
-                  : "off"}
-                companyId={company.id}
-                options={options}
-                current={company.aiProcessing}
-              />
-              {company.aiProcessing && <DisableAiProcessingForm companyId={company.id} />}
-              {organizationAdministrator && <Link href={`/organizations/${company.organizationId}/ai-settings`}>
-                {ai("manageOrganizationKeys")}
-              </Link>}
-            </> : <p className="iv-muted">{ai("administratorOnly")}</p>}
-          </section>
-          {role === "administrator" && (
-            <CompanyDeletionForm companyId={company.id} />
-          )}
-        </div>
-      </main>
-  );
+
+  const checklistHref = (step: (typeof checklist)[number]["step"]) => {
+    if (step === "identity") return `/companies/${companyId}/settings/company`;
+    if (step === "filing_frequency") return `/companies/${companyId}/setup/filing-frequency`;
+    if (step === "ai_processing") return `/companies/${companyId}/setup/ai-processing`;
+    return `/companies/${companyId}/settings/vat`;
+  };
+
+  return <>
+    {role === "administrator" ? <section aria-labelledby="settings-destinations-title" className="company-settings-destinations">
+      <header>
+        <h2 id="settings-destinations-title">{t("settingsDestinationsTitle")}</h2>
+        <p>{t("settingsDestinationsIntro")}</p>
+      </header>
+      <div>
+        {[
+          ["company", "companyDetails", "companyDetailsIntro"],
+          ["vat", "vatAndReporting", "vatAndReportingIntro"],
+          ["users", "usersTitle", "usersIntro"],
+          ["data", "dataAndDeletion", "dataAndDeletionIntro"],
+        ].map(([path, title, intro]) => <Link href={`/companies/${companyId}/settings/${path}`} key={path}>
+          <strong>{t(title)}</strong>
+          <span>{t(intro)}</span>
+        </Link>)}
+      </div>
+    </section> : <p className="iv-muted">{t("administratorSettingsOnly")}</p>}
+    <section aria-labelledby="setup-checklist-title" className="company-setup-checklist">
+      <header><h2 id="setup-checklist-title">{shell("setupChecklist")}</h2><p>{shell("setupChecklistIntro")}</p></header>
+      <ol>{checklist.map((item) => <li data-state={item.state} key={item.step}>
+        <span aria-hidden="true"><Icon name={item.state === "completed" ? "check" : item.state === "blocking" ? "alert" : "info"} /></span>
+        <div><strong>{shell(`setupStep.${item.step}`)}</strong><small>{shell(`setupState.${item.state}`)}</small></div>
+        {role === "administrator" && <Link href={checklistHref(item.step)}>{shell("setupOpen")}</Link>}
+      </li>)}</ol>
+    </section>
+  </>;
 }

@@ -33,7 +33,7 @@ const isLinkedWorktree =
   fs.realpathSync(path.resolve(root, git("rev-parse", "--git-common-dir")));
 
 // Services a worktree stack doesn't need; they only cost memory and start-up time.
-const WORKTREE_DISABLED_SECTIONS = new Set(["studio", "analytics", "local_smtp", "edge_runtime"]);
+const WORKTREE_DISABLED_SECTIONS = new Set(["studio", "analytics", "edge_runtime"]);
 
 function worktreeSlot() {
   if (process.env.SUPABASE_SLOT) return Number(process.env.SUPABASE_SLOT);
@@ -66,6 +66,9 @@ function prepareWorktreeWorkdir(slot) {
       if (header) section = header[1];
       if (/^project_id = /.test(line)) return `project_id = "ivat-wt${slot}"`;
       if (WORKTREE_DISABLED_SECTIONS.has(section) && /^enabled = true/.test(line)) return "enabled = false";
+      if (/^additional_redirect_urls = \[$/.test(line) && process.env.SUPABASE_E2E_REDIRECT_URL) {
+        return `${line}\n  ${JSON.stringify(process.env.SUPABASE_E2E_REDIRECT_URL)},`;
+      }
       return line.replace(
         /^((?:port|shadow_port|inspector_port) = )(\d+)/,
         (_, key, port) => `${key}${Number(port) + 100 * slot}`,
@@ -76,9 +79,13 @@ function prepareWorktreeWorkdir(slot) {
   return path.dirname(target);
 }
 
-const workdirArgs = isLinkedWorktree ? ["--workdir", prepareWorktreeWorkdir(worktreeSlot())] : [];
 const supabase = path.join(root, "node_modules", ".bin", "supabase");
 const args = process.argv.slice(2);
+const generatedWorkdir = path.join(root, ".supabase-worktree");
+const shouldPrepareWorkdir = args[0] === "start" || !fs.existsSync(path.join(generatedWorkdir, "supabase", "config.toml"));
+const workdirArgs = isLinkedWorktree
+  ? ["--workdir", shouldPrepareWorkdir ? prepareWorktreeWorkdir(worktreeSlot()) : generatedWorkdir]
+  : [];
 
 const { status } = spawnSync(supabase, [...args, ...workdirArgs], {
   stdio: "inherit",
@@ -105,7 +112,12 @@ function writeEnvLocal() {
     SUPABASE_SECRET_KEY: stack.SECRET_KEY,
   };
   // Settings the developer may change; written only when missing.
-  const defaults = { AI_PROVIDER: "fake" };
+  const appOrigin = isLinkedWorktree ? "http://127.0.0.1:3100" : "http://127.0.0.1:3000";
+  const defaults = {
+    AI_PROVIDER: "fake",
+    APP_ORIGIN: appOrigin,
+    AUTH_REDIRECT_ALLOWLIST: `${appOrigin}/auth/callback`,
+  };
   const file = path.join(root, ".env.local");
   const kept = fs.existsSync(file)
     ? fs

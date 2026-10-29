@@ -14,7 +14,7 @@ import {
   splitDocument,
   updateDocumentReporting,
 } from "@/application/documents";
-import { enableAiProcessing, getCompany, updateCompanyIdentity } from "@/application/companies";
+import { getCompany, updateCompanyIdentity } from "@/application/companies";
 import { uploadSourceFile } from "@/application/source-files";
 import {
   finalizeVatReport,
@@ -26,6 +26,7 @@ import {
 } from "@/application/vat-reports";
 import {
   administratorWithCompany,
+  assignAiConfigurationFixture as enableAiProcessing,
   companyMember,
   companyWithManyApprovedReportDocuments,
   removeCompletedCompanyIdentityFixture,
@@ -75,6 +76,74 @@ it("identifies every Document whose Reporting Period is locked for the workspace
     company.companyId,
     company.documents.map((document) => document.id),
   )).toEqual(Object.fromEntries(company.documents.map((document) => [document.id, "2026-10"])));
+});
+
+it("preserves a newly uploaded Document for review when Extraction discovers a locked Reporting Period", async () => {
+  const company = await administratorWithCompany();
+  const worker = testWorker();
+  expect(await enableAiProcessing(company.client, worker.jobs, {
+    companyId: company.companyId,
+    provider: worker.ai,
+  })).toEqual({ ok: true, value: null });
+  const period = { companyId: company.companyId, period: "2026-10" };
+  expect((await generateVatReport(company.client, period)).ok).toBe(true);
+  expect(await finalizeVatReport(company.client, { ...period, confirmed: true })).toEqual({
+    ok: true,
+    value: null,
+  });
+
+  const upload = await uploadSourceFile(company.client, worker.jobs, {
+    companyId: company.companyId,
+    fileName: "new-invoice.png",
+    bytes: fixtureFile("receipt.png"),
+    preselectedDirection: "incoming",
+  });
+  if (!upload.ok) throw new Error(upload.error);
+
+  expect(await worker.runJobs()).toEqual([]);
+  const [document] = await listDocuments(company.client, company.companyId, upload.value.id);
+  expect(document.status).toBe("needs_review");
+  expect(await listExtractionVersions(company.client, company.companyId, document.id)).toEqual([
+    expect.objectContaining({
+      documentId: document.id,
+      version: 1,
+      payload: expect.objectContaining({ taxPointDate: "2026-10-01" }),
+    }),
+  ]);
+  expect(await documentPeriodLocks(company.client, company.companyId, [document.id])).toEqual({
+    [document.id]: "2026-10",
+  });
+  expect(await approveDocument(company.client, {
+    companyId: company.companyId,
+    documentId: document.id,
+    version: 1,
+  })).toEqual({ ok: false, error: "period_locked" });
+  expect(await updateDocumentReporting(company.client, {
+    companyId: company.companyId,
+    documentId: document.id,
+    receiptDate: "2026-10-15",
+    claimedReportingPeriod: null,
+  })).toEqual({ ok: false, error: "period_locked" });
+
+  expect(await unlockReportingPeriod(company.client, {
+    ...period,
+    reason: "Review newly received Document",
+    confirmed: true,
+  })).toEqual({ ok: true, value: null });
+  expect(await updateDocumentReporting(company.client, {
+    companyId: company.companyId,
+    documentId: document.id,
+    receiptDate: "2026-10-15",
+    claimedReportingPeriod: null,
+  })).toEqual({ ok: true, value: null });
+  expect(await approveDocument(company.client, {
+    companyId: company.companyId,
+    documentId: document.id,
+    version: 1,
+  })).toEqual({ ok: true, value: null });
+  expect(
+    (await listDocuments(company.client, company.companyId, upload.value.id))[0].status,
+  ).toBe("approved");
 });
 
 it("identifies locks beyond the configured PostgREST row limit", async () => {
@@ -243,7 +312,7 @@ it("requires confirmation and refuses a stale snapshot, readiness blockers and i
   });
 });
 
-it("allows warnings and rejected Documents and records their confirmation summary", async () => {
+it("keeps rejected Documents separate from warnings in the confirmation summary", async () => {
   const company = await administratorWithCompany();
   const worker = testWorker();
   await enableAiProcessing(company.client, worker.jobs, {
@@ -275,7 +344,7 @@ it("allows warnings and rejected Documents and records their confirmation summar
     expect.objectContaining({
       finalization: expect.objectContaining({
         blockerCount: 0,
-        warningCount: 1,
+        warningCount: 0,
         rejectedDocumentCount: 1,
       }),
     }),
