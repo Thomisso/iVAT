@@ -1,3 +1,7 @@
+---
+status: superseded by ADR-0011
+---
+
 # AI credentials are central or BYOK per Organization; AI processing is opt-in per Company
 
 AI provider keys exist at two levels:

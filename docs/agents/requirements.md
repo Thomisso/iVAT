@@ -587,9 +587,9 @@ The first implementation phase should focus on establishing the application's co
     - Excel export of the Reporting Period's Documents for checking before generation (non-approved or invalid Documents on a separate sheet),
     - drill-down from report lines to Documents.
 20. Finalization by an Administrator with Period Lock.
-21. AI credentials: platform keys and Organization BYOK, with per-Company opt-in consent for AI processing.
-22. Metering of AI usage per Organization (no billing).
-23. SuperAdmin console: Organizations and Companies, blocking, AI usage, failed jobs with retry, global provider and model settings. No impersonation.
+21. AI configuration: platform-owned AI Configurations assigned by the SuperAdmin to one or more Companies; no Organization BYOK or Administrator-managed provider settings. New Companies receive enabled AI access through the default configuration and a lifetime allowance of 50 successful Extractions.
+22. Metering of AI usage and allowance per Company and AI Configuration (no billing). Company Administrators see only allowance consumption and waiting-Document counts; complete request, token and provider details are SuperAdmin-only.
+23. SuperAdmin console: Organizations and Companies, blocking, AI Configurations, usage, allowance, grouped operational problems and failed jobs with remediation. No impersonation.
 24. Append-only audit log.
 25. UI in Czech and English (i18n from day one).
 26. Golden set of anonymized sample documents for automated extraction evaluation.
@@ -602,6 +602,10 @@ Potential later development phases may include:
 
 - Advanced role and permission management.
 - Additional AI providers and processing strategies.
+- Secure Company Administrator-managed provider credentials.
+- Official-form visual replica of the Control Statement PDF.
+- Consistent dark mode.
+- Email operational alerts for SuperAdmin.
 - Automated document ingestion through email.
 - ERP and accounting software integrations.
 - Advanced document classification.

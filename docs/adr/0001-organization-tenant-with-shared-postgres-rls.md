@@ -6,5 +6,5 @@ _Where access is enforced is superseded by ADR-0008: the database is the single 
 
 ## Considered Options
 
-- Users belonging directly to Companies with no Organization layer. Rejected: billing, BYOK keys and accounting-office staff need a level above Company, and adding it later would require a painful migration.
+- Users belonging directly to Companies with no Organization layer. Rejected: billing, shared platform services and accounting-office staff need a level above Company, and adding it later would require a painful migration.
 - Schema-per-tenant or database-per-tenant. Rejected: operationally heavy for a solo developer, and RLS gives database-enforced isolation without it.

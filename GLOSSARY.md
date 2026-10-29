@@ -58,6 +58,14 @@ _Avoid_: Parsing, OCR (as a synonym), recognition
 An immutable snapshot of a Document's structured data, authored either by an AI provider or by a User's corrections.
 _Avoid_: Revision, edit
 
+**AI Configuration**:
+A platform-owned AI provider credential together with the models used for Split and Extraction, assigned by the SuperAdmin to one or more Companies.
+_Avoid_: BYOK, Company key, Organization key
+
+**AI Processing Allowance**:
+The total number of successful AI Extractions a Company may consume. It does not reset automatically and only the SuperAdmin may change it.
+_Avoid_: Monthly limit, token quota, Organization quota
+
 **Rate Breakdown**:
 A Document's net amount and VAT amount per VAT rate.
 _Avoid_: VAT summary, tax lines
