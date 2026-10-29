@@ -26,6 +26,7 @@ import {
 } from "./support/fixtures";
 import { testWorker } from "./support/worker";
 import { fakeExchangeRates } from "@/cnb/fake";
+import { getReportingPeriodReadiness } from "@/application/reporting-period-readiness";
 
 /** An Administrator whose Company holds one Document in NeedsReview, Extracted as `extraction`. */
 async function documentInReview(extraction: ExtractionPayload = SAMPLE_EXTRACTION) {
@@ -531,6 +532,66 @@ describe("approving and rejecting a Document", () => {
         error: "not_reprocessable",
       });
     }
+  });
+});
+
+describe("checking Document totals", () => {
+  it("warns about a gross total that differs from net plus VAT, showing the difference, and still allows approval", async () => {
+    const document = await documentInReview();
+    await correctDocument(document.client, {
+      companyId: document.companyId,
+      documentId: document.documentId,
+      basedOnVersion: 1,
+      payload: {
+        ...SAMPLE_EXTRACTION,
+        totals: { netAmount: "1000.00", vatAmount: "210.00", grossAmount: "1200.00" },
+      },
+    });
+
+    const versions = await listExtractionVersions(document.client, document.companyId, document.documentId);
+    expect(versions[1].findings).toEqual([
+      {
+        field: "totals.grossAmount",
+        severity: "warning",
+        code: "total_gross_amount_mismatch",
+        params: { difference: "10.00" },
+      },
+    ]);
+    expect(await approveDocument(document.client, { ...document, version: 2 })).toEqual({ ok: true, value: null });
+    const readiness = await getReportingPeriodReadiness(document.client, {
+      companyId: document.companyId,
+      period: "2026-10",
+    });
+    if (!readiness.ok) throw new Error(readiness.error);
+    expect(readiness.value.blockers).toEqual([]);
+    expect(readiness.value.warnings).toEqual([
+      { code: "warning_finding", documentId: document.documentId, findingCode: "total_gross_amount_mismatch" },
+    ]);
+  });
+
+  it("keeps net and VAT totals that disagree with the Rate Breakdown as blocking errors", async () => {
+    const document = await documentInReview();
+    await correctDocument(document.client, {
+      companyId: document.companyId,
+      documentId: document.documentId,
+      basedOnVersion: 1,
+      payload: {
+        ...SAMPLE_EXTRACTION,
+        totals: { netAmount: "1100.00", vatAmount: "200.00", grossAmount: "1300.00" },
+      },
+    });
+    await approveDocument(document.client, { ...document, version: 2 });
+
+    const readiness = await getReportingPeriodReadiness(document.client, {
+      companyId: document.companyId,
+      period: "2026-10",
+    });
+    if (!readiness.ok) throw new Error(readiness.error);
+    expect(readiness.value.blockers).toEqual([
+      { code: "error_finding", documentId: document.documentId, findingCode: "total_net_amount_mismatch" },
+      { code: "error_finding", documentId: document.documentId, findingCode: "total_vat_amount_mismatch" },
+    ]);
+    expect(readiness.value.warnings).toEqual([]);
   });
 });
 

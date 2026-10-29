@@ -166,7 +166,9 @@ export default async function DocumentReviewPage({
                 key={`${finding.field}-${finding.code}`}
                 tone="warning"
               >
-                {t(`review.findings.${finding.code}`)}
+                {t(`review.findings.${finding.code}`, {
+                  difference: Number(finding.params?.difference ?? 0),
+                })}
               </Notice>
             ))}
           {shown ? (

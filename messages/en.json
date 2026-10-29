@@ -778,7 +778,7 @@
       "rate_vat_amount_mismatch": "VAT does not match the net amount and rate.",
       "total_net_amount_mismatch": "Total net does not match the rate breakdown.",
       "total_vat_amount_mismatch": "Total VAT does not match the rate breakdown.",
-      "total_gross_amount_mismatch": "Total incl. VAT is not net plus VAT.",
+      "total_gross_amount_mismatch": "Total incl. VAT differs from net plus VAT by {difference, number, ::.00}.",
       "vat_rate_not_valid_on_tax_point_date": "This VAT rate was not valid on the tax point date.",
       "invalid_ico_format": "IČO must contain eight digits.",
       "invalid_ico_checksum": "The IČO checksum is invalid.",
