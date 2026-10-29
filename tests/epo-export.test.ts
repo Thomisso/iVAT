@@ -46,7 +46,7 @@ it("a Company User downloads a validated export of the saved draft, even after a
   if (!saved.ok) throw new Error(saved.error);
   expect(saved.value).toEqual(
     expect.objectContaining({
-      fileName: "DPHDP3-2026-10.xml",
+      fileName: "DRAFT_DPHDP3_2026-10.xml",
       mediaType: "application/xml; charset=utf-8",
     }),
   );

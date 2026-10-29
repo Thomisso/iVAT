@@ -416,6 +416,7 @@
     "unlock_reason_required": "Zadejte krátký důvod odemknutí zdaňovacího období.",
     "unlock_reason_too_long": "Důvod odemknutí může mít nejvýše 200 znaků.",
     "period_locked": "Toto vykazované období je finalizované. Před změnou dokladů nebo návrhu je musí administrátor odemknout.",
+    "report_finalized": "Tento VAT Report je finalizovaný. Místo pracovního XML vytvořte nebo stáhněte finální XML.",
     "not_locked": "Toto vykazované období není uzamčené.",
     "invalid_export_details": "Vyplňte platný finanční úřad, datum a údaje o osobě pro podání.",
     "invalid_filing_defaults": "Zadejte platné výchozí údaje podání. Vyplňte společně všechny údaje oprávněné osoby a dodržte limity kontaktů EPO.",
@@ -932,6 +933,13 @@
     "downloadPdf": "Stáhnout PDF přiznání k DPH",
     "noExportArtifacts": "Žádné uložené exportní artefakty",
     "noExportArtifactsHint": "Příslušný zákonný výstup vytvořte na obrazovce přiznání k DPH nebo kontrolního hlášení. Historie uložených artefaktů zůstane zde u daného období.",
+    "exportArtifacts": "Uložené XML artefakty",
+    "artifactKind": "Stav",
+    "artifactKinds": { "draft": "Pracovní", "final": "Finální" },
+    "artifactFormat": "Výstup",
+    "artifactCreatedAt": "Vytvořeno",
+    "artifactAuthor": "Autor",
+    "artifactDownload": "Artefakt",
     "lines": {
       "1": "1 · Tuzemská plnění, základní sazba",
       "2": "2 · Tuzemská plnění, snížená sazba",
@@ -1122,6 +1130,8 @@
     }
   },
   "epoExport": {
+    "draftWarningTitle": "Pouze pracovní XML",
+    "draftWarning": "Tento soubor DRAFT_ je neměnný pracovní artefakt pro kontrolu. Nejde o finální XML ani o potvrzení, že byl VAT Report podán.",
     "title": "Export pro Daňový portál",
     "description": "Doplňte údaje pro řádné podání. DIČ, název a adresu převezmeme z uloženého návrhu.",
     "format": "Formulář",
