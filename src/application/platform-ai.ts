@@ -96,17 +96,19 @@ export async function listPlatformOrganizations(
   client: AppClient,
   provider: string,
 ): Promise<Result<PlatformOrganization[], "forbidden">> {
-  const { data, error } = await client.rpc("list_platform_organizations", { target_provider: provider });
+  const { data, error } = await client.rpc("list_platform_organizations_complete", {
+    target_provider: provider,
+  });
   if (error) {
     if (error.code === "42501") return { ok: false, error: "forbidden" };
     throw error;
   }
   return {
     ok: true,
-    value: data.map((organization) => ({
+    value: (data as unknown as PlatformOrganization[]).map((organization) => ({
       id: organization.id,
       name: organization.name,
-      platformKeyEnabled: organization.platform_key_enabled,
+      platformKeyEnabled: organization.platformKeyEnabled,
     })),
   };
 }

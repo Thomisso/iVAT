@@ -10,7 +10,9 @@ async function setLocale(
   await context.addCookies([{ name: "NEXT_LOCALE", value, url: new URL(baseURL).origin }]);
 }
 
-const widths = [360, 720, 1024, 1440];
+// 320 CSS px also represents a 1280 px viewport at 400% zoom; 640 represents
+// the same viewport at 200% zoom for WCAG reflow coverage.
+const widths = [320, 360, 640, 720, 1024, 1440];
 const screens = [
   "overview",
   "upload",
@@ -115,6 +117,25 @@ test("Documents and review have no axe violations at desktop width", async ({ ba
     await page.goto(`/prototype?screen=${screen}`);
     const results = await new AxeBuilder({ page }).analyze();
     expect(results.violations, `${screen} accessibility violations`).toEqual([]);
+  }
+});
+
+test("critical redesign screens have no serious or critical axe findings on mobile and desktop", async ({
+  baseURL,
+  context,
+  page,
+}) => {
+  await setLocale(context, baseURL, "en");
+  for (const width of [320, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const screen of screens) {
+      await page.goto(`/prototype?screen=${screen}`);
+      const results = await new AxeBuilder({ page }).analyze();
+      const blockers = results.violations.filter(
+        (violation) => violation.impact === "serious" || violation.impact === "critical",
+      );
+      expect(blockers, `${screen} at ${width}px`).toEqual([]);
+    }
   }
 });
 

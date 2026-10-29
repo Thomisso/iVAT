@@ -730,6 +730,9 @@ isOneToOne: false
               "id": string,"name": string,"platform_key_enabled": boolean
             }[]
                            },
+"list_platform_organizations_complete":
+{ Args: { "target_provider": string }; Returns: Json
+                           },
 "mark_upload_notification_read":
 { Args: { "target_notification_id": string }; Returns: undefined
                            },
