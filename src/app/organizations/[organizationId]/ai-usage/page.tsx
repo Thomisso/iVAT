@@ -4,7 +4,7 @@ import { listOrganizationAiUsage } from "@/application/ai-usage";
 import { listMyCompanies } from "@/application/companies";
 import { listMyOrganizations } from "@/application/organizations";
 import { AiUsageTable } from "@/components/ai-usage-table";
-import { AppSidebar } from "@/components/app-sidebar";
+import { PageContent, PageHeader, PageLayout } from "@/components/app-shell";
 import { Button } from "@/components/button";
 import { requireUserClient } from "@/lib/supabase/server";
 
@@ -43,14 +43,12 @@ export default async function OrganizationAiUsagePage({
   const usage = await listOrganizationAiUsage(client, { organizationId, companyId, from, to });
   if (!usage.ok) notFound();
 
-  return (
-    <>
-      <AppSidebar />
-      <main className="dashboard">
-        <header>
-          <h1>{t("organizationTitle", { organization: organization.name })}</h1>
-          <p className="iv-muted">{t("organizationIntro")}</p>
-        </header>
+  return <PageLayout measure="wide">
+    <PageHeader
+      description={t("organizationIntro")}
+      title={t("organizationTitle", { organization: organization.name })}
+    />
+    <PageContent measure="wide">
         <form className="form filters" method="get" aria-label={t("filters") }>
           <label className="iv-field-label">
             {t("from")}
@@ -90,7 +88,6 @@ export default async function OrganizationAiUsagePage({
             empty: t("empty"),
           }}
         />
-      </main>
-    </>
-  );
+    </PageContent>
+  </PageLayout>;
 }
