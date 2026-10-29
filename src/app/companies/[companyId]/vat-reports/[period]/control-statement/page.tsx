@@ -135,7 +135,19 @@ export default async function ControlStatementPage({
       <ReportIssues companyId={companyId} readiness={readiness} report={report} />
       <section className="vat-output-actions">
         <h2>{t("controlStatementActions")}</h2>
-        <div className="vat-output-action-grid is-single">
+        <div className="vat-output-action-grid">
+          <article className="vat-export-card">
+            <span className="vat-section-label">{t("pdfFormat")}</span>
+            <h3>{t("controlStatementPdfPreview")}</h3>
+            <p>{t("pdfPreviewHint")}</p>
+            <a
+              className="iv-btn iv-btn-secondary iv-btn-md"
+              href={`/companies/${companyId}/vat-reports/${period}/control-statement/pdf`}
+              download={`DPHKH1-${period}.pdf`}
+            >
+              {t("downloadControlStatementPdf")}
+            </a>
+          </article>
           <ExportForm
             companyId={companyId}
             format="dphkh1"
