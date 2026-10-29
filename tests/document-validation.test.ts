@@ -15,7 +15,7 @@ describe("Document validation", () => {
     ).toEqual([]);
   });
 
-  it("finds Rate Breakdown and total arithmetic outside the rounding tolerance", () => {
+  it("finds Rate Breakdown and total arithmetic outside the rounding tolerance, with a gross-total difference only as a warning", () => {
     const payload = {
       ...SAMPLE_EXTRACTION,
       rateBreakdown: [
@@ -49,8 +49,9 @@ describe("Document validation", () => {
       },
       {
         field: "totals.grossAmount",
-        severity: "error",
+        severity: "warning",
         code: "total_gross_amount_mismatch",
+        params: { difference: "1.00" },
       },
     ]);
   });
