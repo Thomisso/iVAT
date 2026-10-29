@@ -5,23 +5,20 @@ import { usePathname } from "next/navigation";
 import {
   startTransition,
   useEffect,
-  useRef,
-  useState,
   type ReactNode,
 } from "react";
 import { useTranslations } from "next-intl";
 import {
-  logOutAction,
   markUploadNotificationReadAction,
   rememberCompanyAction,
   selectCompanyAction,
-  setLocaleAction,
 } from "@/app/actions";
 import type { CompanySummary } from "@/application/companies";
 import type { OrganizationSummary } from "@/application/organizations";
 import type { UploadNotification } from "@/application/upload-batches";
 import { AccountActions, AppShell, ContextNavigation } from "@/components/app-shell";
 import { CommandButton } from "@/components/command-button";
+import { AccountMenu, Menu, ShellIcon } from "@/components/shell-controls";
 
 type Destination = "overview" | "upload" | "documents" | "vat" | "settings";
 
@@ -33,10 +30,6 @@ const destinations: Array<{ key: Destination; icon: string; suffix: string }> = 
   { key: "settings", icon: "M9.5 3h5l.6 2.4 2 .8 2.1-1.2 2.5 4.3-1.8 1.6.2 2.2 1.8 1.6-2.5 4.3-2.1-1.2-2 .8-.6 2.4h-5l-.6-2.4-2-.8-2.1 1.2-2.5-4.3 1.8-1.6-.2-2.2-1.8-1.6L4.8 5l2.1 1.2 2-.8L9.5 3Zm2.5 6a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z", suffix: "/settings" },
 ];
 
-function ShellIcon({ path }: { path: string }) {
-  return <svg aria-hidden="true" className="company-shell-icon" viewBox="0 0 24 24"><path d={path} /></svg>;
-}
-
 function activeDestination(pathname: string, companyId: string): Destination {
   const rest = pathname.slice(`/companies/${companyId}`.length);
   if (rest.startsWith("/documents")) return "documents";
@@ -44,55 +37,6 @@ function activeDestination(pathname: string, companyId: string): Destination {
   if (rest.startsWith("/vat") || rest.startsWith("/vat-reports")) return "vat";
   if (rest.startsWith("/settings") || rest.startsWith("/members") || rest.startsWith("/setup")) return "settings";
   return "overview";
-}
-
-function Menu({ children, label, trigger }: { children: ReactNode; label: string; trigger: ReactNode }) {
-  const [open, setOpen] = useState(false);
-  const button = useRef<HTMLButtonElement>(null);
-  const menu = useRef<HTMLDivElement>(null);
-  const initialFocus = useRef<"first" | "last">("first");
-
-  useEffect(() => {
-    if (!open) return;
-    const items = menu.current?.querySelectorAll<HTMLElement>("[role=menuitem]");
-    items?.[initialFocus.current === "first" ? 0 : items.length - 1]?.focus();
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      setOpen(false);
-      button.current?.focus();
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [open]);
-
-  return <div className="company-shell-menu">
-    <button aria-expanded={open} aria-haspopup="menu" aria-label={label} className="company-shell-menu-trigger" onClick={() => {
-      initialFocus.current = "first";
-      setOpen((value) => !value);
-    }} onKeyDown={(event) => {
-      if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
-      event.preventDefault();
-      initialFocus.current = event.key === "ArrowDown" ? "first" : "last";
-      setOpen(true);
-    }} ref={button} type="button">{trigger}</button>
-    {open && <div aria-label={label} className="company-shell-popover" onClick={(event) => {
-      if (event.target instanceof Element && event.target.closest("a")) setOpen(false);
-    }} onKeyDown={(event) => {
-      const items = [...(menu.current?.querySelectorAll<HTMLElement>("[role=menuitem]") ?? [])];
-      const index = Math.max(0, items.indexOf(document.activeElement as HTMLElement));
-      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-        event.preventDefault();
-        const step = event.key === "ArrowDown" ? 1 : -1;
-        items[(index + step + items.length) % items.length]?.focus();
-      } else if (event.key === "Home" || event.key === "End") {
-        event.preventDefault();
-        items[event.key === "Home" ? 0 : items.length - 1]?.focus();
-      } else if (event.key === "Tab") {
-        setOpen(false);
-      }
-    }} ref={menu} role="menu">{children}</div>}
-  </div>;
 }
 
 function CompanyMenu({ companies, current }: { companies: CompanySummary[]; current: CompanySummary & { ico: string } }) {
@@ -104,20 +48,6 @@ function CompanyMenu({ companies, current }: { companies: CompanySummary[]; curr
       <button role="menuitem" type="submit">{company.name}{company.id === current.id ? <span>{t("current")}</span> : null}</button>
     </form>)}
     <Link href="/companies/new" role="menuitem">{t("addCompany")}</Link>
-  </Menu>;
-}
-
-function AccountMenu({ email }: { email: string }) {
-  const t = useTranslations("shell");
-  const language = useTranslations("language");
-  return <Menu label={t("accountMenu")} trigger={<><span className="profile-avatar" aria-hidden="true">{email.slice(0, 1).toUpperCase()}</span><span className="profile-copy"><strong>{t("account")}</strong><small>{email}</small></span><ShellIcon path="m9 6 6 6-6 6" /></>}>
-    <p className="company-shell-menu-label">{email}</p>
-    <form action={setLocaleAction} aria-label={language("label")} className="company-shell-languages">
-      <button lang="cs" name="locale" role="menuitem" type="submit" value="cs">{language("cs")}</button>
-      <button lang="en" name="locale" role="menuitem" type="submit" value="en">{language("en")}</button>
-    </form>
-    <Link href="/settings/security" role="menuitem">{t("security")}</Link>
-    <form action={logOutAction}><button role="menuitem" type="submit">{t("logOut")}</button></form>
   </Menu>;
 }
 

@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { listOrganizationAiProviderKeys } from "@/application/organization-ai";
 import { listMyOrganizations } from "@/application/organizations";
-import { AppSidebar } from "@/components/app-sidebar";
+import { PageContent, PageHeader, PageLayout } from "@/components/app-shell";
 import { OrganizationAiProviderForm } from "@/components/organization-ai-provider-form";
 import { requireUserClient } from "@/lib/supabase/server";
 
@@ -18,14 +18,12 @@ export default async function OrganizationAiSettingsPage({
   const settings = await listOrganizationAiProviderKeys(client, organizationId);
   if (!settings.ok) notFound();
   const t = await getTranslations("organizationAi");
-  return (
-    <>
-      <AppSidebar />
-      <main className="dashboard">
-        <header>
-          <h1>{t("title", { organization: organization.name })}</h1>
-          <p className="iv-muted">{t("intro")}</p>
-        </header>
+  return <PageLayout measure="narrow">
+    <PageHeader
+      description={t("intro")}
+      title={t("title", { organization: organization.name })}
+    />
+    <PageContent measure="narrow">
         {settings.value.map((provider) => (
           <OrganizationAiProviderForm
             key={provider.provider}
@@ -33,7 +31,6 @@ export default async function OrganizationAiSettingsPage({
             settings={provider}
           />
         ))}
-      </main>
-    </>
-  );
+    </PageContent>
+  </PageLayout>;
 }
