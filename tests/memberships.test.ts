@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { createClient } from "@supabase/supabase-js";
+import { describe, expect, inject, it } from "vitest";
 import { signUp } from "@/application/auth";
 import { listAuditEvents } from "@/application/audit";
 import {
@@ -16,6 +17,7 @@ import { listMyOrganizations } from "@/application/organizations";
 import { anonymousClient, uniqueEmail } from "./support/clients";
 import { administratorWithCompany, companyDetails } from "./support/fixtures";
 import { createCompany } from "@/application/companies";
+import type { Database } from "@/lib/database.types";
 
 function capturingMailer() {
   const sent: { email: string; acceptUrl: string }[] = [];
@@ -104,6 +106,48 @@ describe("Membership invitations", () => {
       }),
     ]);
   });
+
+  it("lists every effective User when Company access exceeds the PostgREST row limit", async () => {
+    const administrator = await administratorWithCompany();
+    const service = createClient<Database>(inject("supabaseUrl"), inject("supabaseSecretKey"), {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const directUserCount = 1_000;
+    const users: { email: string; id: string }[] = [];
+
+    for (let offset = 0; offset < directUserCount; offset += 50) {
+      const created = await Promise.all(Array.from({ length: 50 }, async (_, index) => {
+        const email = `access-page-${offset + index}-${crypto.randomUUID()}@example.test`;
+        const { data, error } = await service.auth.admin.createUser({
+          email,
+          email_confirm: true,
+          password: "correct-horse-battery",
+          user_metadata: { organization_name: `Access page ${offset + index}` },
+        });
+        if (error) throw error;
+        return { email, id: data.user.id };
+      }));
+      users.push(...created);
+    }
+
+    for (let offset = 0; offset < users.length; offset += 500) {
+      const { error } = await service.from("membership").insert(users.slice(offset, offset + 500).map((user) => ({
+        company_id: administrator.companyId,
+        email: user.email,
+        organization_id: administrator.organizationId,
+        role: "user" as const,
+        user_id: user.id,
+      })));
+      if (error) throw error;
+    }
+
+    const access = await listCompanyAccess(administrator.client, administrator.companyId);
+
+    expect(access).toEqual({ ok: true, value: expect.any(Array) });
+    if (!access.ok) throw new Error(access.error);
+    expect(access.value).toHaveLength(directUserCount + 1);
+    expect(new Set(access.value.map((entry) => entry.userId)).size).toBe(directUserCount + 1);
+  }, 120_000);
 
   it("lets an Administrator invite a User who accepts a single-use Company link", async () => {
     const administrator = await administratorWithCompany();

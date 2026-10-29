@@ -630,9 +630,7 @@ isOneToOne: false
             }[]
                            },
 "list_company_access":
-{ Args: { "target_company_id": string }; Returns: {
-              "email": string,"manageable_membership_id": string,"membership_id": string,"role": Database["public"]['Enums']["membership_role"],"source": string,"user_id": string
-            }[]
+{ Args: { "target_company_id": string }; Returns: Json
                            },
 "list_company_ai_options":
 { Args: { "target_company_id": string }; Returns: {

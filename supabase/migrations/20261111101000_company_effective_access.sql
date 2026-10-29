@@ -2,18 +2,12 @@
 -- Organization Administrator access without broadening Membership table RLS.
 
 create function public.list_company_access(target_company_id uuid)
-returns table (
-  membership_id uuid,
-  user_id uuid,
-  email text,
-  role public.membership_role,
-  source text,
-  manageable_membership_id uuid
-)
+returns jsonb
 language plpgsql stable security definer set search_path = ''
 as $$
 declare
   target_organization_id uuid;
+  effective_access jsonb;
 begin
   select c.organization_id into target_organization_id
   from public.company c
@@ -24,7 +18,6 @@ begin
     raise insufficient_privilege;
   end if;
 
-  return query
   with access_rows as (
     select m.id, m.user_id, m.email, m.role, 'company'::text as access_source
     from public.membership m
@@ -36,28 +29,35 @@ begin
     where m.organization_id = target_organization_id
       and m.company_id is null
       and m.role = 'administrator'
-  )
+  ), effective_users as (
   select
-    (array_agg(a.id order by a.access_source))[1],
-    a.user_id,
-    max(a.email),
+    (array_agg(a.id order by a.access_source))[1] as membership_id,
+    a.user_id as user_id,
+    max(a.email) as email,
     case
       when bool_or(a.role = 'administrator') then 'administrator'::public.membership_role
       else 'user'::public.membership_role
-    end,
+    end as role,
     case
       when bool_or(a.access_source = 'company') and bool_or(a.access_source = 'organization')
         then 'company_and_organization'
       when bool_or(a.access_source = 'organization') then 'organization'
       else 'company'
-    end,
+    end as source,
     case
       when bool_or(a.access_source = 'organization') then null
       else (array_agg(a.id) filter (where a.access_source = 'company'))[1]
-    end
+    end as manageable_membership_id
   from access_rows a
   group by a.user_id
-  order by max(a.email);
+  )
+  select coalesce(
+    jsonb_agg(to_jsonb(effective_users) order by effective_users.email),
+    '[]'::jsonb
+  ) into effective_access
+  from effective_users;
+
+  return effective_access;
 end;
 $$;
 
