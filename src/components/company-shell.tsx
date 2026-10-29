@@ -5,10 +5,16 @@ import { usePathname } from "next/navigation";
 import {
   startTransition,
   useEffect,
+  useId,
+  useRef,
+  useState,
   type ReactNode,
 } from "react";
 import { useTranslations } from "next-intl";
 import {
+  dismissCompanyUploadNotificationsAction,
+  dismissUploadNotificationAction,
+  markCompanyUploadNotificationsReadAction,
   markUploadNotificationReadAction,
   rememberCompanyAction,
   selectCompanyAction,
@@ -67,26 +73,138 @@ function AdministrationMenu({ companyId, companyRole, organizations, superAdmin 
   </Menu>;
 }
 
-function UploadNotifications({ notifications }: { notifications: UploadNotification[] }) {
+function NotificationBell({ companyId, notifications, unreadCount }: {
+  companyId: string;
+  notifications: UploadNotification[];
+  unreadCount: number;
+}) {
   const t = useTranslations("uploadWorkspace");
-  if (!notifications.length) return null;
-  return <section aria-label={t("notifications")} className="upload-notifications">
-    {notifications.map((notification) => <aside className={`upload-notification upload-notification-${notification.outcome}`} key={notification.id} role="status">
-      <div>
-        <strong>{t(`notification.${notification.outcome}.title`)}</strong>
-        <p>{t(`notification.${notification.outcome}.body`, {
-          count: notification.fileCount,
-          review: notification.reviewCount,
-          failures: notification.failureCount,
-        })}</p>
-        <Link href={`/companies/${notification.companyId}/upload-batches/${notification.batchId}`}>{t("openBatch")}</Link>
-      </div>
-      <CommandButton action={markUploadNotificationReadAction} fields={{ notificationId: notification.id }} size="sm" variant="ghost">{t("markRead")}</CommandButton>
-    </aside>)}
-  </section>;
+  const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLElement>(null);
+  const titleId = useId();
+  const panelId = useId();
+
+  useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    panel.current?.querySelector<HTMLElement>("[data-notification-close]")?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setOpen(false);
+        trigger.current?.focus();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = [...(panel.current?.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ) ?? [])];
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  const close = () => {
+    setOpen(false);
+    trigger.current?.focus();
+  };
+
+  return <div className="notification-inbox">
+    <button
+      aria-controls={panelId}
+      aria-expanded={open}
+      aria-haspopup="dialog"
+      aria-label={t("notificationBell", { count: unreadCount })}
+      className="notification-bell"
+      onClick={() => setOpen(true)}
+      ref={trigger}
+      type="button"
+    >
+      <ShellIcon path="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" />
+      {unreadCount > 0 && <span aria-hidden="true" className="notification-bell-count">{unreadCount}</span>}
+    </button>
+    {open && <div className="notification-panel-backdrop" onMouseDown={(event) => {
+      if (event.target === event.currentTarget) close();
+    }}>
+      <section
+        aria-labelledby={titleId}
+        aria-modal="true"
+        className="notification-panel"
+        id={panelId}
+        ref={panel}
+        role="dialog"
+      >
+        <header className="notification-panel-header">
+          <div>
+            <h2 id={titleId}>{t("notifications")}</h2>
+            <p>{t("notificationUnread", { count: unreadCount })}</p>
+          </div>
+          <button
+            aria-label={t("closeNotifications")}
+            className="notification-panel-close"
+            data-notification-close
+            onClick={close}
+            type="button"
+          ><ShellIcon path="M6 6l12 12M18 6 6 18" /></button>
+        </header>
+        {notifications.length > 0 ? <>
+          <div className="notification-panel-bulk-actions">
+            {unreadCount > 0 && <CommandButton
+              action={markCompanyUploadNotificationsReadAction}
+              fields={{ companyId }}
+              size="sm"
+              variant="ghost"
+            >{t("markAllRead")}</CommandButton>}
+            <CommandButton
+              action={dismissCompanyUploadNotificationsAction}
+              fields={{ companyId }}
+              size="sm"
+              variant="ghost"
+            >{t("dismissAll")}</CommandButton>
+          </div>
+          <ul className="notification-list">
+            {notifications.map((notification) => <li
+              className={`notification-item notification-item-${notification.outcome}`}
+              data-read={notification.readAt ? "true" : "false"}
+              key={notification.id}
+            >
+              <div className="notification-item-copy">
+                <strong>{t(`notification.${notification.outcome}.title`)}</strong>
+                <p>{t(`notification.${notification.outcome}.body`, {
+                  count: notification.fileCount,
+                  review: notification.reviewCount,
+                  failures: notification.failureCount,
+                })}</p>
+              </div>
+              <div className="notification-item-actions">
+                <Link onClick={() => setOpen(false)} href={`/companies/${notification.companyId}/upload-batches/${notification.batchId}`}>{t("openBatch")}</Link>
+                {!notification.readAt && <CommandButton action={markUploadNotificationReadAction} fields={{ notificationId: notification.id }} size="sm" variant="ghost">{t("markRead")}</CommandButton>}
+                <CommandButton action={dismissUploadNotificationAction} fields={{ notificationId: notification.id }} size="sm" variant="ghost">{t("dismiss")}</CommandButton>
+              </div>
+            </li>)}
+          </ul>
+        </> : <p className="notification-empty">{t("noNotifications")}</p>}
+      </section>
+    </div>}
+  </div>;
 }
 
-export function CompanyShell({ children, companies, company, companyRole, email, organizations, superAdmin, uploadNotifications }: {
+export function CompanyShell({ children, companies, company, companyRole, email, organizations, superAdmin, uploadNotifications, uploadUnreadCount }: {
   children: ReactNode;
   companies: CompanySummary[];
   company: CompanySummary & { ico: string };
@@ -95,6 +213,7 @@ export function CompanyShell({ children, companies, company, companyRole, email,
   organizations: OrganizationSummary[];
   superAdmin: boolean;
   uploadNotifications: UploadNotification[];
+  uploadUnreadCount: number;
 }) {
   const t = useTranslations("shell");
   const app = useTranslations("app");
@@ -115,6 +234,7 @@ export function CompanyShell({ children, companies, company, companyRole, email,
   />;
   const context = <CompanyMenu companies={companies} current={company} />;
   const accountActions = <AccountActions label={t("account")}>
+    <NotificationBell companyId={company.id} notifications={uploadNotifications} unreadCount={uploadUnreadCount} />
     <AdministrationMenu
       companyId={company.id}
       companyRole={companyRole}
@@ -129,7 +249,6 @@ export function CompanyShell({ children, companies, company, companyRole, email,
     brandLabel={app("name")}
     context={context}
     navigation={navigation}
-    notices={<UploadNotifications notifications={uploadNotifications} />}
     skipLabel={t("skip")}
   >{children}</AppShell>;
 }

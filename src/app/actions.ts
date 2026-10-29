@@ -56,7 +56,12 @@ import {
   setPlatformUploadLimits,
 } from "@/application/platform-administration";
 import { retryFailedProcessingJob } from "@/application/processing-administration";
-import { markUploadNotificationRead } from "@/application/upload-batches";
+import {
+  dismissCompanyUploadNotifications,
+  dismissUploadNotification,
+  markCompanyUploadNotificationsRead,
+  markUploadNotificationRead,
+} from "@/application/upload-batches";
 import { configuredAresRegistry } from "@/ares";
 import { configuredExchangeRates } from "@/cnb";
 import { jobQueue } from "@/lib/jobs";
@@ -367,6 +372,42 @@ export async function markUploadNotificationReadAction(
     await markUploadNotificationRead(
       await requireUserClient(),
       field(formData, "notificationId"),
+    ),
+  );
+}
+
+export async function markCompanyUploadNotificationsReadAction(
+  _state: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  return settled(
+    await markCompanyUploadNotificationsRead(
+      await requireUserClient(),
+      field(formData, "companyId"),
+    ),
+  );
+}
+
+export async function dismissUploadNotificationAction(
+  _state: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  return settled(
+    await dismissUploadNotification(
+      await requireUserClient(),
+      field(formData, "notificationId"),
+    ),
+  );
+}
+
+export async function dismissCompanyUploadNotificationsAction(
+  _state: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  return settled(
+    await dismissCompanyUploadNotifications(
+      await requireUserClient(),
+      field(formData, "companyId"),
     ),
   );
 }
