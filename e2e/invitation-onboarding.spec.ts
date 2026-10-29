@@ -29,7 +29,9 @@ async function createCompany(page: Page, name: string, ico: string) {
   const companyId = new URL(page.url()).pathname.split("/")[2];
   await page.getByLabel("Effective from").fill("2026-01-01");
   await page.getByRole("button", { name: "Save and continue" }).click();
-  await page.getByRole("button", { name: "Continue without AI" }).click();
+  await expect(page).toHaveURL(new RegExp(`/companies/${companyId}/setup/ai-processing$`));
+  await expect(page.getByRole("heading", { name: "Choose AI processing" })).toBeVisible();
+  await page.goto(`/companies/${companyId}`);
   await expect(page).toHaveURL(new RegExp(`/companies/${companyId}$`));
   return companyId;
 }
