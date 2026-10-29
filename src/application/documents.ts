@@ -20,7 +20,15 @@ import { applyCnbConversion, type ExchangeRateProvider } from "./exchange-rates"
 
 const unavailableExchangeRates: ExchangeRateProvider = { rateFor: async () => null };
 
-export const DOCUMENT_STATUSES = ["uploaded", "processing", "needs_review", "approved", "rejected", "failed"] as const;
+export const DOCUMENT_STATUSES = [
+  "uploaded",
+  "waiting_for_allowance",
+  "processing",
+  "needs_review",
+  "approved",
+  "rejected",
+  "failed",
+] as const;
 export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number];
 
 /** Whether Extraction of the Document is still to run or running. */
@@ -45,7 +53,7 @@ export type Document = {
 };
 
 export type ExtractionVersionAuthor =
-  { kind: "ai"; provider: string; model: string } | { kind: "user"; userId: string };
+  { kind: "ai" } | { kind: "user"; userId: string };
 
 export type ExtractionVersion = {
   id: string;
@@ -336,7 +344,7 @@ export async function listExtractionVersions(
   if (!isUuid(companyId) || !isUuid(documentId)) return [];
   const { data, error } = await client
     .from("extraction_version")
-    .select("id, document_id, version, provider, model, author_user_id, payload, findings, created_at")
+    .select("id, document_id, version, author_user_id, payload, findings, created_at")
     .eq("company_id", companyId)
     .eq("document_id", documentId)
     .order("version");
@@ -347,7 +355,7 @@ export async function listExtractionVersions(
     version: v.version,
     author: v.author_user_id
       ? { kind: "user", userId: v.author_user_id }
-      : { kind: "ai", provider: v.provider!, model: v.model! },
+      : { kind: "ai" },
     payload: v.payload as ExtractionPayload,
     findings: v.findings as ValidationFinding[],
     createdAt: v.created_at,

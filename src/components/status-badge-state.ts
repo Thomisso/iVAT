@@ -9,6 +9,7 @@ export function statusBadgeState(
 ): DocumentStatus {
   if (status === "processing")
     return target === "source-file" ? "splitting" : "extracting";
+  if (status === "waiting_for_allowance") return "waiting-for-allowance";
   if (status === "needs_review") return "needs-review";
   return status;
 }
