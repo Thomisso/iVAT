@@ -152,8 +152,17 @@ export async function resumePlatformAiProcessing(
   });
   if (error?.code === "42501") return { ok: false, error: "forbidden" };
   if (error) throw error;
-  for (const work of data) {
-    await jobs.send(work.target_kind === "source_file" ? splitJob(work.target_id) : extractJob(work.target_id));
+  for (let index = 0; index < data.length; index += 1) {
+    const work = data[index];
+    try {
+      await jobs.send(work.target_kind === "source_file" ? splitJob(work.target_id) : extractJob(work.target_id));
+    } catch (queueError) {
+      const restored = await client.rpc("restore_platform_ai_processing_wait", {
+        target_work: data.slice(index),
+      });
+      if (restored.error) throw restored.error;
+      throw queueError;
+    }
   }
   return { ok: true, value: null };
 }

@@ -10,8 +10,9 @@ import {
   updateAiConfiguration,
 } from "@/application/ai-configurations";
 import { listPlatformAiProcessingIssues } from "@/application/ai-processing-interventions";
+import { listPlatformAuditEvents } from "@/application/audit";
 import { listCompanyDocuments } from "@/application/documents";
-import { splitJob } from "@/application/processing";
+import { splitJob, type ProcessingJob } from "@/application/processing";
 import { getSourceFile, uploadSourceFile } from "@/application/source-files";
 import { fakeAiProvider } from "@/ai/fake";
 import { administratorWithCompany, companyMember } from "./support/fixtures";
@@ -172,8 +173,142 @@ describe("AI processing states requiring platform intervention", () => {
     creditsAvailable = true;
     expect(await resumePlatformAiProcessing(superAdministrator.client, worker.jobs, { configurationId }))
       .toEqual({ ok: true, value: null });
+    expect(await listPlatformAuditEvents(superAdministrator.client)).toContainEqual(expect.objectContaining({
+      actorUserId: superAdministrator.userId,
+      action: "ai_processing.remediation_requested",
+      targetType: "ai_configuration",
+      targetId: configurationId,
+      payload: {
+        company_id: null,
+        configuration_id: configurationId,
+        resumed_count: 1,
+      },
+    }));
     expect(await worker.runJobs()).toEqual([]);
     expect((await listCompanyDocuments(user.client, company.companyId))[0].status).toBe("needs_review");
+  });
+
+  it("restores the undispatched suffix after a partial or ambiguously acknowledged remediation dispatch", async () => {
+    const { superAdministrator, configurationId, company } = await configuredCompany("Dispatch compensation");
+    let creditsAvailable = false;
+    const fake = fakeAiProvider();
+    const worker = testWorker({
+      ...fake,
+      name: "anthropic",
+      async extract(input, context) {
+        if (!creditsAvailable) {
+          throw new AiProviderError("anthropic_request_failed", "credit balance exhausted", {
+            transient: false,
+            classification: "provider_credits_exhausted",
+            platformIntervention: true,
+          });
+        }
+        return fake.extract(input, context);
+      },
+    });
+    const uploaded = await uploadSourceFile(company.client, worker.jobs, {
+      companyId: company.companyId,
+      fileName: "dispatch-compensation.pdf",
+      bytes: fixtureFile("two-invoices.pdf"),
+    });
+    if (!uploaded.ok) throw new Error(uploaded.error);
+    expect(await worker.runJobs()).toEqual([]);
+    expect((await listCompanyDocuments(company.client, company.companyId)).map(({ status }) => status))
+      .toEqual(["waiting_for_platform", "waiting_for_platform"]);
+
+    creditsAvailable = true;
+    const accepted: ProcessingJob[] = [];
+    await expect(resumePlatformAiProcessing(superAdministrator.client, {
+      async send(job) {
+        accepted.push(job);
+        worker.queued.push(job);
+        if (accepted.length === 2) throw new Error("queue acknowledgement lost");
+      },
+    }, { configurationId })).rejects.toThrow("queue acknowledgement lost");
+
+    const acceptedIds = accepted.map((job) => {
+      if (job.name !== "extract-document") throw new Error("Expected only Extraction remediation work");
+      return job.data.documentId;
+    });
+    const failedTarget = acceptedIds[1];
+    expect(await listCompanyDocuments(company.client, company.companyId)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: failedTarget, status: "waiting_for_platform" }),
+      expect.objectContaining({ id: acceptedIds[0], status: "uploaded" }),
+    ]));
+    const compensated = await listPlatformAiProcessingIssues(superAdministrator.client);
+    if (!compensated.ok) throw new Error(compensated.error);
+    expect(compensated.value.filter(({ targetId }) => targetId === failedTarget)).toEqual([
+      expect.objectContaining({
+        state: "waiting_for_platform",
+        classification: "provider_credits_exhausted",
+        configurationId,
+      }),
+    ]);
+
+    expect(await worker.runJobsConcurrently()).toEqual([]);
+    expect((await listCompanyDocuments(company.client, company.companyId)).map(({ status }) => status))
+      .toEqual(["needs_review", "needs_review"]);
+  });
+
+  it.each([
+    ["waiting", "waiting_for_platform", "provider_credits_exhausted"],
+    ["terminal", "failed", "provider_response_invalid"],
+  ] as const)("keeps the first concurrent %s decision against a stale conflicting handler", async (
+    firstDecision,
+    expectedStatus,
+    expectedClassification,
+  ) => {
+    const { superAdministrator, company } = await configuredCompany("Concurrent classification");
+    let splitCalls = 0;
+    let releaseWaiting!: () => void;
+    let releaseTerminal!: () => void;
+    let bothStarted!: () => void;
+    const waitingGate = new Promise<void>((resolve) => { releaseWaiting = resolve; });
+    const terminalGate = new Promise<void>((resolve) => { releaseTerminal = resolve; });
+    const started = new Promise<void>((resolve) => { bothStarted = resolve; });
+    const provider: AiProvider = {
+      ...fakeAiProvider(),
+      name: "anthropic",
+      async split() {
+        splitCalls += 1;
+        const call = splitCalls;
+        if (call === 2) bothStarted();
+        await (call === 1 ? waitingGate : terminalGate);
+        throw new AiProviderError("anthropic_request_failed", call === 1 ? "credits" : "bad response", {
+          transient: false,
+          classification: call === 1 ? "provider_credits_exhausted" : "provider_response_invalid",
+          platformIntervention: call === 1,
+        });
+      },
+    };
+    const worker = testWorker(provider);
+    const uploaded = await uploadSourceFile(company.client, worker.jobs, {
+      companyId: company.companyId,
+      fileName: "concurrent-classification.png",
+      bytes: fixtureFile("receipt.png"),
+    });
+    if (!uploaded.ok) throw new Error(uploaded.error);
+    worker.queued.push(splitJob(uploaded.value.id));
+
+    const running = worker.runJobsConcurrently();
+    await started;
+    if (firstDecision === "waiting") releaseWaiting();
+    else releaseTerminal();
+    await expect.poll(async () =>
+      (await getSourceFile(company.client, company.companyId, uploaded.value.id))?.status
+    ).toBe(expectedStatus);
+    if (firstDecision === "waiting") releaseTerminal();
+    else releaseWaiting();
+    expect(await running).toEqual([expect.any(AiProviderError)]);
+
+    expect((await getSourceFile(company.client, company.companyId, uploaded.value.id))?.status)
+      .toBe(expectedStatus);
+    const issues = await listPlatformAiProcessingIssues(superAdministrator.client);
+    if (!issues.ok) throw new Error(issues.error);
+    expect(issues.value.find(({ targetId }) => targetId === uploaded.value.id)).toEqual(expect.objectContaining({
+      state: firstDecision === "waiting" ? "waiting_for_platform" : "terminal",
+      classification: expectedClassification,
+    }));
   });
 
   it("uses the exact retry budget for transient unavailability before recording a terminal failure", async () => {

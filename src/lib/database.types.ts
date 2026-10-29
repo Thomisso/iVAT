@@ -962,9 +962,12 @@ isOneToOne: false
 "restore_ai_processing_allowance_wait":
 { Args: { "target_company_id": string,"target_document_ids": (string)[] }; Returns: undefined
                            },
+"restore_platform_ai_processing_wait":
+{ Args: { "target_work": Json }; Returns: undefined
+                           },
 "resume_platform_ai_processing":
 { Args: { "target_company_id"?: string,"target_configuration_id"?: string }; Returns: {
-              "target_id": string,"target_kind": Database["public"]['Enums']["ai_processing_target_kind"]
+              "classification": Database["public"]['Enums']["ai_processing_issue_classification"],"configuration_id": string,"provider": string,"target_id": string,"target_kind": Database["public"]['Enums']["ai_processing_target_kind"]
             }[]
                            },
 "retry_failed_processing_job":

@@ -236,6 +236,7 @@ as $$
 declare
   target_organization_id uuid;
   target_company_id uuid;
+  changed_rows bigint;
 begin
   if auth.role() <> 'service_role' then
     raise exception 'forbidden' using errcode = '42501';
@@ -250,7 +251,15 @@ begin
       when 'waiting_for_platform' then 'waiting_for_platform'::public.source_file_status
       else 'failed'::public.source_file_status
     end
-    where id = target_id and status in ('uploaded', 'processing', 'waiting_for_platform', 'failed');
+    where id = target_id
+      and status in (
+        'uploaded',
+        'processing',
+        case target_state
+          when 'waiting_for_platform' then 'waiting_for_platform'::public.source_file_status
+          else 'failed'::public.source_file_status
+        end
+      );
   else
     select organization_id, company_id into target_organization_id, target_company_id
     from public.document where id = target_id for update;
@@ -262,10 +271,19 @@ begin
     end
     where id = target_id
       and superseded_at is null
-      and status in ('uploaded', 'waiting_for_allowance', 'processing', 'waiting_for_platform', 'failed');
+      and status in (
+        'uploaded',
+        'waiting_for_allowance',
+        'processing',
+        case target_state
+          when 'waiting_for_platform' then 'waiting_for_platform'::public.document_status
+          else 'failed'::public.document_status
+        end
+      );
   end if;
 
-  if not found then return; end if;
+  get diagnostics changed_rows = row_count;
+  if changed_rows = 0 then return; end if;
   insert into public.ai_processing_issue (
     target_kind, target_id, organization_id, company_id, configuration_id,
     provider, classification, state
@@ -278,7 +296,8 @@ begin
       provider = excluded.provider,
       classification = excluded.classification,
       state = excluded.state,
-      updated_at = now();
+      updated_at = now()
+  where ai_processing_issue.state = excluded.state;
 end;
 $$;
 
@@ -314,9 +333,17 @@ create function public.resume_platform_ai_processing(
   target_company_id uuid default null,
   target_configuration_id uuid default null
 )
-returns table (target_kind public.ai_processing_target_kind, target_id uuid)
+returns table (
+  target_kind public.ai_processing_target_kind,
+  target_id uuid,
+  classification public.ai_processing_issue_classification,
+  configuration_id uuid,
+  provider text
+)
 language plpgsql security definer set search_path = ''
 as $$
+declare
+  resumed_count bigint;
 begin
   if not private.can_administrate_platform() then
     raise exception 'forbidden' using errcode = '42501';
@@ -327,7 +354,8 @@ begin
 
   return query
     with selected as (
-      select issue.target_kind, issue.target_id
+      select issue.target_kind, issue.target_id, issue.classification,
+        issue.configuration_id, issue.provider, issue.first_detected_at
       from public.ai_processing_issue issue
       where issue.state = 'waiting_for_platform'
         and (target_company_id is null or issue.company_id = target_company_id)
@@ -340,7 +368,8 @@ begin
       where selected.target_kind = 'source_file'
         and source.id = selected.target_id
         and source.status = 'waiting_for_platform'
-      returning selected.target_kind, selected.target_id
+      returning selected.target_kind, selected.target_id, selected.classification,
+        selected.configuration_id, selected.provider, selected.first_detected_at
     ), reset_documents as (
       update public.document document
       set status = 'uploaded'
@@ -348,7 +377,8 @@ begin
       where selected.target_kind = 'document'
         and document.id = selected.target_id
         and document.status = 'waiting_for_platform'
-      returning selected.target_kind, selected.target_id
+      returning selected.target_kind, selected.target_id, selected.classification,
+        selected.configuration_id, selected.provider, selected.first_detected_at
     ), recovered as (
       select * from reset_sources
       union all
@@ -358,7 +388,91 @@ begin
       using recovered
       where issue.target_kind = recovered.target_kind and issue.target_id = recovered.target_id
     )
-    select recovered.target_kind, recovered.target_id from recovered;
+    select recovered.target_kind, recovered.target_id, recovered.classification,
+      recovered.configuration_id, recovered.provider
+    from recovered
+    order by recovered.first_detected_at, recovered.target_kind, recovered.target_id;
+
+  get diagnostics resumed_count = row_count;
+  perform private.record_audit_event(
+    'ai_processing.remediation_requested',
+    null,
+    null,
+    case when target_configuration_id is not null then 'ai_configuration' else 'company' end,
+    coalesce(target_configuration_id, target_company_id),
+    jsonb_build_object(
+      'company_id', target_company_id,
+      'configuration_id', target_configuration_id,
+      'resumed_count', resumed_count
+    )
+  );
+end;
+$$;
+
+-- The broker may accept a job and lose its acknowledgement. Restore only the
+-- undispatched suffix that has not started yet, including the exact technical
+-- issue removed by the remediation transaction. An accepted job can safely
+-- move the target out of this visible wait state when it eventually starts.
+create function public.restore_platform_ai_processing_wait(target_work jsonb)
+returns void
+language plpgsql security definer set search_path = ''
+as $$
+declare
+  work record;
+  target_organization_id uuid;
+  target_company_id uuid;
+begin
+  if not private.can_administrate_platform() then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+  if jsonb_typeof(target_work) <> 'array' then
+    raise exception 'invalid recovery work' using errcode = '22023';
+  end if;
+
+  for work in
+    select *
+    from jsonb_to_recordset(target_work) as item(
+      target_kind public.ai_processing_target_kind,
+      target_id uuid,
+      classification public.ai_processing_issue_classification,
+      configuration_id uuid,
+      provider text
+    )
+  loop
+    target_organization_id := null;
+    target_company_id := null;
+    if work.target_kind = 'source_file' then
+      update public.source_file source
+      set status = 'waiting_for_platform'
+      where source.id = work.target_id and source.status = 'uploaded'
+      returning source.organization_id, source.company_id
+      into target_organization_id, target_company_id;
+    else
+      update public.document document
+      set status = 'waiting_for_platform'
+      where document.id = work.target_id
+        and document.status = 'uploaded'
+        and document.superseded_at is null
+      returning document.organization_id, document.company_id
+      into target_organization_id, target_company_id;
+    end if;
+
+    if target_organization_id is not null then
+      insert into public.ai_processing_issue (
+        target_kind, target_id, organization_id, company_id, configuration_id,
+        provider, classification, state
+      ) values (
+        work.target_kind, work.target_id, target_organization_id, target_company_id,
+        work.configuration_id, work.provider, work.classification, 'waiting_for_platform'
+      )
+      on conflict on constraint ai_processing_issue_pkey do update
+      set configuration_id = excluded.configuration_id,
+          provider = excluded.provider,
+          classification = excluded.classification,
+          updated_at = now()
+      where ai_processing_issue.state = 'waiting_for_platform';
+    end if;
+  end loop;
 end;
 $$;
 
@@ -366,12 +480,14 @@ revoke execute on function public.record_ai_processing_issue(
   public.ai_processing_target_kind, uuid, public.ai_processing_issue_classification,
   public.ai_processing_issue_state, uuid, text
 ), public.list_platform_ai_processing_issues(),
-  public.resume_platform_ai_processing(uuid, uuid)
+  public.resume_platform_ai_processing(uuid, uuid),
+  public.restore_platform_ai_processing_wait(jsonb)
 from public, anon, authenticated, service_role;
 grant execute on function public.record_ai_processing_issue(
   public.ai_processing_target_kind, uuid, public.ai_processing_issue_classification,
   public.ai_processing_issue_state, uuid, text
 ) to service_role;
 grant execute on function public.list_platform_ai_processing_issues(),
-  public.resume_platform_ai_processing(uuid, uuid)
+  public.resume_platform_ai_processing(uuid, uuid),
+  public.restore_platform_ai_processing_wait(jsonb)
 to authenticated;

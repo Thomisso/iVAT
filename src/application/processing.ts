@@ -383,7 +383,7 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
       }
       const ai = availability.provider;
       if (!ai) return;
-      if (!(await moveStatus("processing", ["uploaded", "processing"]))) return;
+      if (!(await moveStatus("processing", ["uploaded", "processing", "waiting_for_platform"]))) return;
       const processingFile = await downloadForProcessing(system, {
         companyId: file.company_id,
         id: file.id,
@@ -455,7 +455,8 @@ async function extractDocument(
   if (error) throw error;
   if (
     document.superseded_at !== null
-    || !(["uploaded", "processing", "waiting_for_allowance"] as DocumentStatus[]).includes(document.status)
+    || !(["uploaded", "processing", "waiting_for_allowance", "waiting_for_platform"] as DocumentStatus[])
+      .includes(document.status)
   ) return;
 
   // Moves the status of this Extraction request only from the given ones (see splitSourceFile).
@@ -474,6 +475,10 @@ async function extractDocument(
   let availability: ProviderAvailability | undefined;
   try {
     await failOnFinalAttempt(attempt, () => moveStatus("failed", ["uploaded", "processing"]).then(() => undefined), async () => {
+    if (
+      document.status === "waiting_for_platform"
+      && !(await moveStatus("uploaded", ["waiting_for_platform"]))
+    ) return;
     const reservationId = crypto.randomUUID();
     const reserved = await system.rpc("reserve_ai_processing", {
       target_document_id: document.id,
