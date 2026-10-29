@@ -61,9 +61,11 @@ language plpgsql security definer set search_path = ''
 as $$
 declare
   default_configuration_id uuid;
+  default_configuration_label text;
   default_provider text;
 begin
-  select id, provider into default_configuration_id, default_provider
+  select id, label, provider into
+    default_configuration_id, default_configuration_label, default_provider
   from public.ai_configuration
   where is_default;
 
@@ -74,6 +76,10 @@ begin
       new.id, default_configuration_id, now(), null
     )
     on conflict (company_id) do nothing;
+
+    -- These state changes are a platform default, not an Organization action.
+    -- The affected legacy triggers are restored below with this narrow guard.
+    perform set_config('app.platform_default_ai_assignment', 'on', true);
 
     update public.company set
       ai_processing_enabled = true,
@@ -91,6 +97,21 @@ begin
       state = excluded.state,
       changed_by = excluded.changed_by,
       changed_at = now();
+
+    perform set_config('app.platform_default_ai_assignment', 'off', true);
+
+    perform private.record_audit_event(
+      'company.ai_configuration_assigned',
+      null,
+      null,
+      'company',
+      new.id,
+      jsonb_build_object(
+        'ai_configuration_id', default_configuration_id,
+        'ai_configuration_label', default_configuration_label
+      ),
+      null
+    );
   end if;
 
   return new;
@@ -102,6 +123,58 @@ revoke execute on function private.assign_default_ai_configuration() from public
 create trigger company_assign_default_ai_configuration
   after insert on public.company
   for each row execute function private.assign_default_ai_configuration();
+
+-- Automatic platform defaults must not masquerade as Organization actions.
+-- Explicit legacy enable/disable and setup commands retain their original
+-- Organization-scoped audit behavior outside the guarded trigger operation.
+create or replace function private.audit_company_ai_processing_changed()
+returns trigger
+language plpgsql security definer set search_path = ''
+as $$
+begin
+  if current_setting('app.platform_default_ai_assignment', true) = 'on' then
+    return new;
+  end if;
+
+  if new.ai_processing_enabled then
+    perform private.record_audit_event(
+      'company.ai_processing_enabled', new.organization_id, new.id, 'company', new.id,
+      jsonb_build_object(
+        'provider', new.ai_provider,
+        'region', new.ai_region,
+        'credential_source', new.ai_credential_source
+      )
+    );
+  else
+    perform private.record_audit_event(
+      'company.ai_processing_disabled', new.organization_id, new.id, 'company', new.id,
+      jsonb_build_object(
+        'provider', old.ai_provider,
+        'region', old.ai_region,
+        'credential_source', old.ai_credential_source
+      )
+    );
+  end if;
+  return new;
+end;
+$$;
+
+create or replace function private.audit_company_setup_changed()
+returns trigger language plpgsql security definer set search_path = ''
+as $$
+begin
+  if current_setting('app.platform_default_ai_assignment', true) = 'on' then
+    return new;
+  end if;
+
+  perform private.record_audit_event(
+    'company.setup_changed', new.organization_id, new.company_id,
+    'company', new.company_id,
+    jsonb_build_object('step', new.step, 'state', new.state)
+  );
+  return new;
+end;
+$$;
 
 create function private.record_ai_configuration_audit_event(
   event_action text,
