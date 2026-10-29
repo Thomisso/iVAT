@@ -338,7 +338,8 @@ returns table (
   target_id uuid,
   classification public.ai_processing_issue_classification,
   configuration_id uuid,
-  provider text
+  provider text,
+  first_detected_at timestamptz
 )
 language plpgsql security definer set search_path = ''
 as $$
@@ -389,7 +390,7 @@ begin
       where issue.target_kind = recovered.target_kind and issue.target_id = recovered.target_id
     )
     select recovered.target_kind, recovered.target_id, recovered.classification,
-      recovered.configuration_id, recovered.provider
+      recovered.configuration_id, recovered.provider, recovered.first_detected_at
     from recovered
     order by recovered.first_detected_at, recovered.target_kind, recovered.target_id;
 
@@ -436,7 +437,8 @@ begin
       target_id uuid,
       classification public.ai_processing_issue_classification,
       configuration_id uuid,
-      provider text
+      provider text,
+      first_detected_at timestamptz
     )
   loop
     target_organization_id := null;
@@ -460,15 +462,17 @@ begin
     if target_organization_id is not null then
       insert into public.ai_processing_issue (
         target_kind, target_id, organization_id, company_id, configuration_id,
-        provider, classification, state
+        provider, classification, state, first_detected_at
       ) values (
         work.target_kind, work.target_id, target_organization_id, target_company_id,
-        work.configuration_id, work.provider, work.classification, 'waiting_for_platform'
+        work.configuration_id, work.provider, work.classification, 'waiting_for_platform',
+        work.first_detected_at
       )
       on conflict on constraint ai_processing_issue_pkey do update
       set configuration_id = excluded.configuration_id,
           provider = excluded.provider,
           classification = excluded.classification,
+          first_detected_at = excluded.first_detected_at,
           updated_at = now()
       where ai_processing_issue.state = 'waiting_for_platform';
     end if;

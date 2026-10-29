@@ -215,6 +215,11 @@ describe("AI processing states requiring platform intervention", () => {
     expect(await worker.runJobs()).toEqual([]);
     expect((await listCompanyDocuments(company.client, company.companyId)).map(({ status }) => status))
       .toEqual(["waiting_for_platform", "waiting_for_platform"]);
+    const beforeRemediation = await listPlatformAiProcessingIssues(superAdministrator.client);
+    if (!beforeRemediation.ok) throw new Error(beforeRemediation.error);
+    const detectedAtByTarget = new Map(
+      beforeRemediation.value.map(({ targetId, firstDetectedAt }) => [targetId, firstDetectedAt]),
+    );
 
     creditsAvailable = true;
     const accepted: ProcessingJob[] = [];
@@ -242,6 +247,7 @@ describe("AI processing states requiring platform intervention", () => {
         state: "waiting_for_platform",
         classification: "provider_credits_exhausted",
         configurationId,
+        firstDetectedAt: detectedAtByTarget.get(failedTarget),
       }),
     ]);
 
