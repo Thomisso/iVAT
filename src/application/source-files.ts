@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import convertHeic from "heic-convert";
 import { PDFDocument } from "pdf-lib";
 import { isUuid, type AppClient, type Result } from "./client";
 import { getCompany } from "./companies";
@@ -9,8 +10,8 @@ import {
   type Direction,
 } from "./extraction-payload";
 
-export type SourceFileFormat = "pdf" | "png" | "jpeg" | "xlsx" | "xls";
-export type ImageSourceFileFormat = "pdf" | "png" | "jpeg";
+export type SourceFileFormat = "pdf" | "png" | "jpeg" | "heic" | "heif" | "xlsx" | "xls";
+export type ImageSourceFileFormat = "pdf" | "png" | "jpeg" | "heic" | "heif";
 export type SpreadsheetSourceFileFormat = "xlsx" | "xls";
 
 /** Where the Split of a Source File stands; its Documents carry their own status. */
@@ -23,6 +24,11 @@ export type SourceFile = {
   format: SourceFileFormat;
   byteSize: number;
   sha256: string;
+  normalizedDerivative: {
+    format: "jpeg";
+    byteSize: number;
+    sha256: string;
+  } | null;
   pageCount: number;
   preselectedDirection: Direction | null;
   status: SourceFileStatus;
@@ -52,6 +58,8 @@ export const SOURCE_FILE_MEDIA_TYPES: Record<SourceFileFormat, string> = {
   pdf: "application/pdf",
   png: "image/png",
   jpeg: "image/jpeg",
+  heic: "image/heic",
+  heif: "image/heif",
   xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   xls: "application/vnd.ms-excel",
 };
@@ -61,6 +69,8 @@ const FORMAT_BY_EXTENSION: Record<string, SourceFileFormat> = {
   png: "png",
   jpg: "jpeg",
   jpeg: "jpeg",
+  heic: "heic",
+  heif: "heif",
   xlsx: "xlsx",
   xls: "xls",
 };
@@ -70,6 +80,8 @@ const SIGNATURES: Record<SourceFileFormat, number[]> = {
   pdf: [0x25, 0x50, 0x44, 0x46, 0x2d], // %PDF-
   png: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
   jpeg: [0xff, 0xd8, 0xff],
+  heic: [],
+  heif: [],
   xlsx: [0x50, 0x4b, 0x03, 0x04],
   xls: [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1],
 };
@@ -101,7 +113,25 @@ function formatOf(fileName: string): SourceFileFormat | null {
 }
 
 function contentMatches(format: SourceFileFormat, bytes: Uint8Array): boolean {
+  if (format === "heic" || format === "heif") {
+    if (String.fromCharCode(...bytes.slice(4, 8)) !== "ftyp") return false;
+    const brands = String.fromCharCode(...bytes.slice(8, Math.min(bytes.length, 40)));
+    return ["heic", "heix", "hevc", "hevx", "heim", "heis", "mif1", "msf1"]
+      .some((brand) => brands.includes(brand));
+  }
   return SIGNATURES[format].every((byte, i) => bytes[i] === byte);
+}
+
+async function normalizedDerivative(
+  format: SourceFileFormat,
+  bytes: Uint8Array,
+): Promise<Uint8Array | null> {
+  if (format !== "heic" && format !== "heif") return null;
+  try {
+    return new Uint8Array(await convertHeic({ buffer: bytes, format: "JPEG", quality: 0.9 }));
+  } catch {
+    return null;
+  }
 }
 
 async function countPages(format: SourceFileFormat, bytes: Uint8Array): Promise<number | null> {
@@ -132,6 +162,8 @@ export async function pdfPages(bytes: Uint8Array, range: { firstPage: number; la
 }
 
 export const sourceFileObjectPath = (companyId: string, sourceFileId: string) => `${companyId}/${sourceFileId}`;
+export const sourceFileDerivativeObjectPath = (companyId: string, sourceFileId: string) =>
+  `${companyId}/${sourceFileId}/normalized.jpeg`;
 
 /**
  * Stores an uploaded file unchanged as a Source File of the Company. The file
@@ -161,6 +193,10 @@ export async function uploadSourceFile(
   const pageCount = await countPages(format, input.bytes);
   if (!pageCount) return { ok: false, error: "unreadable_file" };
   if (pageCount > limits.maxFilePages) return { ok: false, error: "too_many_pages" };
+  const derivative = await normalizedDerivative(format, input.bytes);
+  if ((format === "heic" || format === "heif") && !derivative) {
+    return { ok: false, error: "unreadable_file" };
+  }
 
   // Only for the Organization of the row; RLS hides Companies the user cannot access.
   const company = await getCompany(client, input.companyId);
@@ -174,6 +210,15 @@ export async function uploadSourceFile(
     if ("statusCode" in stored.error && stored.error.statusCode === "403") return { ok: false, error: "forbidden" };
     throw stored.error;
   }
+  if (derivative) {
+    const storedDerivative = await client.storage
+      .from(SOURCE_FILE_BUCKET)
+      .upload(sourceFileDerivativeObjectPath(company.id, id), derivative, {
+        contentType: SOURCE_FILE_MEDIA_TYPES.jpeg,
+        upsert: false,
+      });
+    if (storedDerivative.error) throw storedDerivative.error;
+  }
 
   const { error } = await client.from("source_file").insert({
     id,
@@ -184,6 +229,11 @@ export async function uploadSourceFile(
     format,
     byte_size: input.bytes.length,
     sha256: createHash("sha256").update(input.bytes).digest("hex"),
+    normalized_format: derivative ? "jpeg" : null,
+    normalized_byte_size: derivative?.length ?? null,
+    normalized_sha256: derivative
+      ? createHash("sha256").update(derivative).digest("hex")
+      : null,
     page_count: pageCount,
     preselected_direction: input.preselectedDirection ?? null,
   });
@@ -195,7 +245,7 @@ export async function uploadSourceFile(
   return { ok: true, value: { id } };
 }
 
-const COLUMNS = "id, company_id, file_name, format, byte_size, sha256, page_count, preselected_direction, status, uploaded_at";
+const COLUMNS = "id, company_id, file_name, format, byte_size, sha256, normalized_format, normalized_byte_size, normalized_sha256, page_count, preselected_direction, status, uploaded_at";
 
 type SourceFileRow = {
   id: string;
@@ -204,6 +254,9 @@ type SourceFileRow = {
   format: SourceFileFormat;
   byte_size: number;
   sha256: string;
+  normalized_format: SourceFileFormat | null;
+  normalized_byte_size: number | null;
+  normalized_sha256: string | null;
   page_count: number;
   preselected_direction: string | null;
   status: SourceFileStatus;
@@ -218,6 +271,14 @@ function toSourceFile(row: SourceFileRow): SourceFile {
     format: row.format,
     byteSize: row.byte_size,
     sha256: row.sha256,
+    normalizedDerivative:
+      row.normalized_format === "jpeg" && row.normalized_byte_size && row.normalized_sha256
+        ? {
+            format: row.normalized_format,
+            byteSize: Number(row.normalized_byte_size),
+            sha256: row.normalized_sha256,
+          }
+        : null,
     pageCount: row.page_count,
     preselectedDirection: row.preselected_direction as Direction | null,
     status: row.status,
@@ -265,6 +326,33 @@ export async function readSourceFile(
   const { data, error } = await client.storage.from(SOURCE_FILE_BUCKET).download(sourceFileObjectPath(file.companyId, file.id));
   if (error) throw error;
   return { file, bytes: new Uint8Array(await data.arrayBuffer()) };
+}
+
+/** The normalized preview/AI derivative, explicitly linked to its immutable original. */
+export async function readSourceFileDerivative(
+  client: AppClient,
+  companyId: string,
+  sourceFileId: string,
+): Promise<{
+  sourceFileId: string;
+  originalSha256: string;
+  format: "jpeg";
+  sha256: string;
+  bytes: Uint8Array;
+} | null> {
+  const file = await getSourceFile(client, companyId, sourceFileId);
+  if (!file?.normalizedDerivative) return null;
+  const { data, error } = await client.storage
+    .from(SOURCE_FILE_BUCKET)
+    .download(sourceFileDerivativeObjectPath(file.companyId, file.id));
+  if (error) throw error;
+  return {
+    sourceFileId: file.id,
+    originalSha256: file.sha256,
+    format: file.normalizedDerivative.format,
+    sha256: file.normalizedDerivative.sha256,
+    bytes: new Uint8Array(await data.arrayBuffer()),
+  };
 }
 
 /** Runs the Split of a Source File again after it failed. */

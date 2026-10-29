@@ -1,8 +1,15 @@
 import { describe, expect, it } from "vitest";
+import { listAuditEvents } from "@/application/audit";
 import { createCompany } from "@/application/companies";
-import { getSourceFile, listSourceFiles, readSourceFile, uploadSourceFile } from "@/application/source-files";
+import {
+  getSourceFile,
+  listSourceFiles,
+  readSourceFile,
+  readSourceFileDerivative,
+  uploadSourceFile,
+} from "@/application/source-files";
 import { administratorWithCompany, companyDetails } from "./support/fixtures";
-import { fixtureFile, workbookFile } from "./support/files";
+import { fixtureFile, heicFixture, rotatedHeicFixture, workbookFile } from "./support/files";
 import { testWorker } from "./support/worker";
 
 describe("Source File upload", () => {
@@ -22,6 +29,7 @@ describe("Source File upload", () => {
         format: "pdf",
         byteSize: 1303,
         sha256: "79ae60b6a1040a3eaf64d441f2fa48f627a18d1e5c1ad831ba6919e9e9c663ea",
+        normalizedDerivative: null,
         pageCount: 2,
         preselectedDirection: null,
         status: "uploaded",
@@ -64,6 +72,84 @@ describe("Source File upload", () => {
       expect.objectContaining({ id: result.value.id, fileName, format, sha256, pageCount: 1 }),
     ]);
     expect((await readSourceFile(client, companyId, result.value.id))?.bytes).toEqual(image);
+  });
+
+  it.each([
+    ["receipt.heic", "heic"],
+    ["receipt.HEIF", "heif"],
+  ] as const)("preserves %s and audit-links its normalized JPEG derivative", async (fileName, format) => {
+    const { client, companyId, organizationId } = await administratorWithCompany();
+    const original = heicFixture();
+
+    const result = await uploadSourceFile(client, testWorker().jobs, {
+      companyId,
+      fileName,
+      bytes: original,
+    });
+
+    expect(result).toEqual({ ok: true, value: { id: expect.any(String) } });
+    if (!result.ok) return;
+    const [stored] = await listSourceFiles(client, companyId);
+    expect(stored).toEqual(expect.objectContaining({
+      id: result.value.id,
+      format,
+      byteSize: 1375,
+      sha256: "49df5e1dc3854738e19694e07f8121b04a6f4985e2f502a755cd447235b6e076",
+      normalizedDerivative: {
+        format: "jpeg",
+        byteSize: expect.any(Number),
+        sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
+      },
+    }));
+    expect((await readSourceFile(client, companyId, result.value.id))?.bytes).toEqual(original);
+    const derivative = await readSourceFileDerivative(client, companyId, result.value.id);
+    expect(derivative).toEqual({
+      sourceFileId: result.value.id,
+      originalSha256: "49df5e1dc3854738e19694e07f8121b04a6f4985e2f502a755cd447235b6e076",
+      format: "jpeg",
+      sha256: stored.normalizedDerivative?.sha256,
+      bytes: expect.any(Uint8Array),
+    });
+    expect(derivative?.bytes.slice(0, 3)).toEqual(new Uint8Array([0xff, 0xd8, 0xff]));
+    expect((await listAuditEvents(client, organizationId)).at(-1)).toEqual(expect.objectContaining({
+      action: "source_file.uploaded",
+      targetId: result.value.id,
+      payload: {
+        file_name: fileName,
+        format,
+        byte_size: 1375,
+        sha256: "49df5e1dc3854738e19694e07f8121b04a6f4985e2f502a755cd447235b6e076",
+        page_count: 1,
+        normalized_derivative: {
+          format: "jpeg",
+          byte_size: stored.normalizedDerivative?.byteSize,
+          sha256: stored.normalizedDerivative?.sha256,
+        },
+      },
+    }));
+  });
+
+  it("applies HEIF rotation metadata only to the normalized derivative", async () => {
+    const { client, companyId } = await administratorWithCompany();
+    const original = rotatedHeicFixture();
+
+    const result = await uploadSourceFile(client, testWorker().jobs, {
+      companyId,
+      fileName: "rotated.heic",
+      bytes: original,
+    });
+
+    if (!result.ok) throw new Error(result.error);
+    const stored = await getSourceFile(client, companyId, result.value.id);
+    expect(stored).toEqual(expect.objectContaining({
+      sha256: "e10c56139d49bdccbc54838b8f9726a8c0d1474df62b4429b6c7b62d43440953",
+      normalizedDerivative: {
+        format: "jpeg",
+        byteSize: 664,
+        sha256: "268da1a5dfca47126246de862aedef33128afaddd56265457d5dea20beffaf22",
+      },
+    }));
+    expect((await readSourceFile(client, companyId, result.value.id))?.bytes).toEqual(original);
   });
 
   it.each(["xlsx", "xls"] as const)("stores a genuine .%s workbook unchanged", async (format) => {
@@ -195,6 +281,33 @@ describe("a stored Source File", () => {
       byte_size: 1303,
       sha256: "79ae60b6a1040a3eaf64d441f2fa48f627a18d1e5c1ad831ba6919e9e9c663ea",
       page_count: 2,
+    });
+
+    expect(insert.error?.code).toBe("42501");
+    expect(await listSourceFiles(client, companyId)).toEqual([]);
+  });
+
+  it("cannot claim a normalized HEIC derivative that was not stored", async () => {
+    const { client, organizationId, companyId } = await administratorWithCompany();
+    const id = "00000000-0000-4000-8000-000000000001";
+    const original = heicFixture();
+    const stored = await client.storage
+      .from("source-files")
+      .upload(`${companyId}/${id}`, original, { contentType: "image/heic" });
+    expect(stored.error).toBeNull();
+
+    const insert = await client.from("source_file").insert({
+      id,
+      organization_id: organizationId,
+      company_id: companyId,
+      file_name: "unlinked.heic",
+      format: "heic",
+      byte_size: original.length,
+      sha256: "49df5e1dc3854738e19694e07f8121b04a6f4985e2f502a755cd447235b6e076",
+      normalized_format: "jpeg",
+      normalized_byte_size: 100,
+      normalized_sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      page_count: 1,
     });
 
     expect(insert.error?.code).toBe("42501");

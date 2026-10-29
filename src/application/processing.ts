@@ -17,6 +17,7 @@ import {
   pdfPages,
   SOURCE_FILE_BUCKET,
   SOURCE_FILE_MEDIA_TYPES,
+  sourceFileDerivativeObjectPath,
   sourceFileObjectPath,
   type SourceFileFormat,
   type SourceFileStatus,
@@ -217,6 +218,28 @@ async function download(system: SystemClient, companyId: string, sourceFileId: s
   return new Uint8Array(await data.arrayBuffer());
 }
 
+async function downloadForProcessing(
+  system: SystemClient,
+  file: {
+    companyId: string;
+    id: string;
+    format: SourceFileFormat;
+    normalizedFormat: SourceFileFormat | null;
+  },
+): Promise<{ format: SourceFileFormat; bytes: Uint8Array }> {
+  if ((file.format === "heic" || file.format === "heif") && file.normalizedFormat === "jpeg") {
+    const { data, error } = await system.storage
+      .from(SOURCE_FILE_BUCKET)
+      .download(sourceFileDerivativeObjectPath(file.companyId, file.id));
+    if (error) throw error;
+    return { format: "jpeg", bytes: new Uint8Array(await data.arrayBuffer()) };
+  }
+  return {
+    format: file.format,
+    bytes: await download(system, file.companyId, file.id),
+  };
+}
+
 /** Runs `work`, marking the target Failed when it throws on the final attempt. */
 async function failOnFinalAttempt(attempt: Attempt, markFailed: () => Promise<void>, work: () => Promise<void>) {
   try {
@@ -230,7 +253,7 @@ async function failOnFinalAttempt(attempt: Attempt, markFailed: () => Promise<vo
 async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId: string, attempt: Attempt) {
   const { data: file, error } = await system
     .from("source_file")
-    .select("id, organization_id, company_id, format, page_count, status")
+    .select("id, organization_id, company_id, format, normalized_format, page_count, status")
     .eq("id", sourceFileId)
     .single();
   if (error) throw error;
@@ -257,8 +280,13 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
       const ai = availability.provider;
       if (!ai) return;
       if (!(await moveStatus("processing", ["uploaded", "processing"]))) return;
-      const bytes = await download(system, file.company_id, file.id);
-      const input = sourceFileInput(file.format, bytes, file.page_count);
+      const processingFile = await downloadForProcessing(system, {
+        companyId: file.company_id,
+        id: file.id,
+        format: file.format,
+        normalizedFormat: file.normalized_format,
+      });
+      const input = sourceFileInput(processingFile.format, processingFile.bytes, file.page_count);
       const { documents, model, usage } = await ai.split(input, {
         organizationId: file.organization_id,
         credentialSource: availability.credentialSource!,
@@ -301,7 +329,7 @@ async function extractDocument(
 ) {
   const { data: document, error } = await system
     .from("document")
-    .select("id, organization_id, company_id, source_file_id, first_page, last_page, source_sheet, first_row, last_row, status, superseded_at, extraction_request_id, source_file (format, preselected_direction)")
+    .select("id, organization_id, company_id, source_file_id, first_page, last_page, source_sheet, first_row, last_row, status, superseded_at, extraction_request_id, source_file (format, normalized_format, preselected_direction)")
     .eq("id", documentId)
     .single();
   if (error) throw error;
@@ -329,11 +357,16 @@ async function extractDocument(
     const ai = availability.provider;
     if (!ai) return;
     if (!(await moveStatus("processing", ["uploaded", "processing"]))) return;
-    const bytes = await download(system, document.company_id, document.source_file_id);
+    const processingFile = await downloadForProcessing(system, {
+      companyId: document.company_id,
+      id: document.source_file_id,
+      format: document.source_file!.format,
+      normalizedFormat: document.source_file!.normalized_format,
+    });
     const range = document.first_row === null
       ? { firstPage: document.first_page, lastPage: document.last_page }
       : { sheetName: document.source_sheet!, firstRow: document.first_row, lastRow: document.last_row! };
-    const input = await documentInput(document.source_file!.format, bytes, range);
+    const input = await documentInput(processingFile.format, processingFile.bytes, range);
     const { model, payload: extractedPayload, usage } = await ai.extract(input, {
       organizationId: document.organization_id,
       credentialSource: availability.credentialSource!,
