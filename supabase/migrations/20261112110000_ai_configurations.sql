@@ -55,6 +55,36 @@ create index company_ai_configuration_configuration_id_idx
 revoke all on public.company_ai_configuration from anon, authenticated, service_role;
 alter table public.company_ai_configuration enable row level security;
 
+create function private.assign_default_ai_configuration()
+returns trigger
+language plpgsql security definer set search_path = ''
+as $$
+declare
+  default_configuration_id uuid;
+begin
+  select id into default_configuration_id
+  from public.ai_configuration
+  where is_default;
+
+  if default_configuration_id is not null then
+    insert into public.company_ai_configuration (
+      company_id, configuration_id, assigned_at, assigned_by
+    ) values (
+      new.id, default_configuration_id, now(), null
+    )
+    on conflict (company_id) do nothing;
+  end if;
+
+  return new;
+end;
+$$;
+
+revoke execute on function private.assign_default_ai_configuration() from public;
+
+create trigger company_assign_default_ai_configuration
+  after insert on public.company
+  for each row execute function private.assign_default_ai_configuration();
+
 create function private.record_ai_configuration_audit_event(
   event_action text,
   target_configuration_id uuid,
@@ -280,8 +310,8 @@ begin
 
   perform private.record_audit_event(
     'company.ai_configuration_assigned',
-    target_company.organization_id,
-    target_company.id,
+    null,
+    null,
     'company',
     target_company.id,
     jsonb_build_object(
@@ -337,7 +367,8 @@ returns table (
   provider text,
   api_key text,
   split_model text,
-  extract_model text
+  extract_model text,
+  is_explicit boolean
 )
 language plpgsql stable security definer set search_path = ''
 as $$
@@ -349,7 +380,8 @@ begin
     select configuration.provider,
       secret.decrypted_secret,
       configuration.split_model,
-      configuration.extract_model
+      configuration.extract_model,
+      assignment.assigned_by is not null
     from public.company_ai_configuration assignment
     join public.ai_configuration configuration
       on configuration.id = assignment.configuration_id

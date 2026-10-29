@@ -10,9 +10,10 @@ import {
 } from "@/application/ai-configurations";
 import { enableAiProcessing } from "@/application/companies";
 import { listCompanyDocuments } from "@/application/documents";
+import { configurePlatformAiProvider, setOrganizationPlatformAiAccess } from "@/application/platform-ai";
 import { getSourceFile, uploadSourceFile } from "@/application/source-files";
 import { fakeAiProvider } from "@/ai/fake";
-import { administratorWithCompany } from "./support/fixtures";
+import { administratorWithCompany, companyMember } from "./support/fixtures";
 import { fixtureFile } from "./support/files";
 import { promotedSuperAdministrator } from "./support/platform";
 import { testWorker } from "./support/worker";
@@ -101,6 +102,7 @@ describe("platform-owned AI Configurations", () => {
     const superAdministrator = await promotedSuperAdministrator("AI assignment operator", "ai-assignment");
     const firstCompany = await administratorWithCompany("Assigned Company One");
     const secondCompany = await administratorWithCompany("Assigned Company Two");
+    const dedicatedCompany = await administratorWithCompany("Dedicated Company");
     const outsider = await administratorWithCompany("AI assignment outsider");
     const labelSuffix = superAdministrator.userId;
     const first = await createAiConfiguration(superAdministrator.client, {
@@ -136,6 +138,10 @@ describe("platform-owned AI Configurations", () => {
       companyId: secondCompany.companyId,
       configurationId: first.value.id,
     })).toEqual({ ok: true, value: null });
+    expect(await assignCompanyAiConfiguration(superAdministrator.client, {
+      companyId: dedicatedCompany.companyId,
+      configurationId: second.value.id,
+    })).toEqual({ ok: true, value: null });
     expect(await setDefaultAiConfiguration(superAdministrator.client, first.value.id)).toEqual({
       ok: true,
       value: null,
@@ -153,7 +159,7 @@ describe("platform-owned AI Configurations", () => {
         expect.objectContaining({
           id: second.value.id,
           isDefault: true,
-          assignedCompanyIds: [],
+          assignedCompanyIds: [dedicatedCompany.companyId],
         }),
         expect.objectContaining({
           id: first.value.id,
@@ -167,10 +173,49 @@ describe("platform-owned AI Configurations", () => {
       expect.arrayContaining([
         "ai_configuration.created",
         "ai_configuration.default_selected",
+        "company.ai_configuration_assigned",
       ]),
     );
-    expect((await listAuditEvents(firstCompany.client, firstCompany.organizationId)).map((event) => event.action))
-      .toContain("company.ai_configuration_assigned");
+    const organizationAudit = await listAuditEvents(firstCompany.client, firstCompany.organizationId);
+    expect(organizationAudit.map((event) => event.action)).not.toContain("company.ai_configuration_assigned");
+    expect(JSON.stringify(organizationAudit)).not.toContain(first.value.id);
+    expect(JSON.stringify(organizationAudit)).not.toContain(`Assignment shared ${labelSuffix}`);
+  });
+
+  it("assigns the usable default configuration to every newly created Company", async () => {
+    const superAdministrator = await promotedSuperAdministrator("Default AI operator", "ai-default");
+    const configuration = await createAiConfiguration(superAdministrator.client, {
+      label: `New Company default ${superAdministrator.userId}`,
+      provider: "anthropic",
+      splitModel: "default-split",
+      extractModel: "default-extract",
+      credential: "default-secret",
+    });
+    if (!configuration.ok) throw new Error(configuration.error);
+    expect(await setDefaultAiConfiguration(superAdministrator.client, configuration.value.id)).toEqual({
+      ok: true,
+      value: null,
+    });
+
+    const createdAfterDefault = await administratorWithCompany("Default-assigned Company");
+    const listed = await listAiConfigurations(superAdministrator.client);
+    if (!listed.ok) throw new Error(listed.error);
+    expect(listed.value.find(({ id }) => id === configuration.value.id)?.assignedCompanyIds)
+      .toContain(createdAfterDefault.companyId);
+  });
+
+  it("hides configurations from both Company Administrators and Users", async () => {
+    const companyAdministrator = await administratorWithCompany("Configuration visibility");
+    const user = await companyMember(companyAdministrator, "user");
+
+    expect(await listAiConfigurations(companyAdministrator.client)).toEqual({
+      ok: false,
+      error: "forbidden",
+    });
+    expect(await listAiConfigurations(user.client)).toEqual({
+      ok: false,
+      error: "forbidden",
+    });
   });
 
   it("processes Split and Extraction through an assigned configuration while retaining the legacy path", async () => {
@@ -210,6 +255,28 @@ describe("platform-owned AI Configurations", () => {
       bytes: fixtureFile("receipt.png"),
     });
     if (!uploaded.ok) throw new Error(uploaded.error);
+    expect(await worker.runJobs()).toEqual([]);
+    expect(seenContexts).toEqual([]);
+    expect((await getSourceFile(configuredCompany.client, configuredCompany.companyId, uploaded.value.id))?.status)
+      .toBe("uploaded");
+
+    expect(await configurePlatformAiProvider(superAdministrator.client, {
+      provider: "anthropic",
+      available: true,
+      splitModel: "legacy-platform-split",
+      extractModel: "legacy-platform-extract",
+      apiKey: "legacy-platform-secret",
+    })).toEqual({ ok: true, value: null });
+    expect(await setOrganizationPlatformAiAccess(superAdministrator.client, {
+      organizationId: configuredCompany.organizationId,
+      provider: "anthropic",
+      enabled: true,
+    })).toEqual({ ok: true, value: null });
+    expect(await enableAiProcessing(configuredCompany.client, worker.jobs, {
+      companyId: configuredCompany.companyId,
+      provider: configuredProvider,
+      credentialSource: "platform",
+    })).toEqual({ ok: true, value: null });
     expect(await worker.runJobs()).toEqual([]);
     expect((await getSourceFile(configuredCompany.client, configuredCompany.companyId, uploaded.value.id))?.status)
       .toBe("split");
