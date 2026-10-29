@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 export type ContextNavigationItem = {
   current?: boolean;
@@ -30,7 +30,11 @@ export function ContextNavigation({ items, label }: {
   items: ContextNavigationItem[];
   label: string;
 }) {
-  return <nav aria-label={label} className="app-shell-navigation company-primary-nav">
+  return <nav
+    aria-label={label}
+    className="app-shell-navigation company-primary-nav"
+    style={{ "--app-shell-navigation-count": items.length } as CSSProperties}
+  >
     {items.map((item) => <Link
       aria-current={item.current ? "page" : undefined}
       href={item.href}
