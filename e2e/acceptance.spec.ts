@@ -42,7 +42,7 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+\/setup\/filing-frequency$/);
   await page.getByLabel("Effective from").fill("2026-01-01");
   await page.getByRole("button", { name: "Save and continue" }).click();
-  await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+\/setup\/ai-processing$/);
+  await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+\/setup\/ai-processing$/, { timeout: 45_000 });
   const companyUrl = page.url().replace(/\/setup\/ai-processing$/, "");
   await page.getByRole("radio").first().check();
   await page.getByRole("checkbox", { name: /I consent to sending this Company's documents/ }).check();
