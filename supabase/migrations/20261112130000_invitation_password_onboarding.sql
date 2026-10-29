@@ -1,6 +1,6 @@
--- Invitation onboarding distinguishes an account that existed when the
--- invitation was created from the passwordless Auth user created only so
--- local/hosted Supabase can deliver the invitation email.
+-- Invitation onboarding distinguishes a User with durable Membership state
+-- from the passwordless Auth user created only so local/hosted Supabase can
+-- deliver the invitation email.
 
 alter table public.invitation
   add column invitee_existed boolean not null default false;
@@ -39,7 +39,11 @@ begin
     normalized_email,
     target_role,
     encode(extensions.digest(token, 'sha256'), 'hex'),
-    exists (select 1 from auth.users "user" where lower("user".email) = normalized_email)
+    exists (
+      select 1
+      from public.membership
+      where lower(membership.email) = normalized_email
+    )
   )
   returning id into invitation_id;
 
