@@ -34,6 +34,31 @@ const isLinkedWorktree =
 
 // Services a worktree stack doesn't need; they only cost memory and start-up time.
 const WORKTREE_DISABLED_SECTIONS = new Set(["studio", "analytics", "edge_runtime"]);
+const SERVICE_PROFILES = {
+  // Browser acceptance needs Auth, Storage and Mailpit, but not the local
+  // dashboards, observability stack, Edge Functions, image proxy or pooler.
+  e2e: ["studio", "logflare", "vector", "edge-runtime", "imgproxy", "supavisor"],
+};
+
+function expandServiceProfile(rawArgs) {
+  const profileArgument = rawArgs.find((argument) => argument.startsWith("--profile="));
+  if (!profileArgument) return rawArgs;
+  const profile = profileArgument.slice("--profile=".length);
+  if (rawArgs[0] !== "start") {
+    throw new Error("A Supabase service profile can only be used with start");
+  }
+  if (!(profile in SERVICE_PROFILES)) {
+    throw new Error(`Unknown Supabase service profile: ${profile}`);
+  }
+  if (rawArgs.includes("-x") || rawArgs.includes("--exclude")) {
+    throw new Error("A Supabase service profile cannot be combined with an explicit exclusion list");
+  }
+  return [
+    ...rawArgs.filter((argument) => argument !== profileArgument),
+    "-x",
+    SERVICE_PROFILES[profile].join(","),
+  ];
+}
 
 function worktreeSlot() {
   if (process.env.SUPABASE_SLOT) return Number(process.env.SUPABASE_SLOT);
@@ -80,7 +105,13 @@ function prepareWorktreeWorkdir(slot) {
 }
 
 const supabase = path.join(root, "node_modules", ".bin", "supabase");
-const args = process.argv.slice(2);
+let args;
+try {
+  args = expandServiceProfile(process.argv.slice(2));
+} catch (error) {
+  console.error(error instanceof Error ? error.message : error);
+  process.exit(1);
+}
 const generatedWorkdir = path.join(root, ".supabase-worktree");
 const shouldPrepareWorkdir = args[0] === "start" || !fs.existsSync(path.join(generatedWorkdir, "supabase", "config.toml"));
 const workdirArgs = isLinkedWorktree
