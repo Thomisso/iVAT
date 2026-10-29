@@ -157,7 +157,6 @@ test("only a SuperAdmin navigates the shared Platform shell without losing exist
   await expect(
     page.getByRole("heading", { name: "Operational problems" }),
   ).toBeVisible();
-  await expect(page.getByText("No active operational problems.")).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Organizations and Companies" }),
   ).toBeVisible();

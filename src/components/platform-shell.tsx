@@ -78,8 +78,8 @@ export function PlatformShell({
   const navigation = (
     <ContextNavigation
       items={destinations.map((destination) => ({
-        accessibleLabel: destination.key === "overview" && operationalProblemCount > 0
-          ? t("platformOverviewWithAlerts", { count: operationalProblemCount })
+        assistiveDescription: destination.key === "overview" && operationalProblemCount > 0
+          ? t("platformAlertsCount", { count: operationalProblemCount })
           : undefined,
         badge: destination.key === "overview" ? operationalProblemCount : undefined,
         current: destination.key === active,

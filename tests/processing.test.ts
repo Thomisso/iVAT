@@ -9,17 +9,17 @@ import { signedUpUser } from "./support/clients";
 import { fixtureFile, heicFixture, workbookFile } from "./support/files";
 import {
   administratorWithCompany,
-  assignAiConfigurationFixture as enableAiProcessing,
+  assignAiConfigurationFixture,
 } from "./support/fixtures";
 import { testWorker } from "./support/worker";
 
 const INVOICE_1: ExtractionPayload = { ...SAMPLE_EXTRACTION, documentNumber: "FV-1" };
 const INVOICE_2: ExtractionPayload = { ...SAMPLE_EXTRACTION, documentNumber: "FV-2" };
 
-/** An Administrator whose Company has AI processing enabled for the worker's provider. */
+/** An Administrator whose Company is assigned an AI Configuration for the worker's provider. */
 async function companyWithAiProcessing(worker: ReturnType<typeof testWorker>) {
   const admin = await administratorWithCompany();
-  const enabled = await enableAiProcessing(admin.client, worker.jobs, {
+  const enabled = await assignAiConfigurationFixture(admin.client, worker.jobs, {
     companyId: admin.companyId,
     provider: worker.ai,
   });
@@ -291,7 +291,7 @@ describe("platform-owned AI processing", () => {
     return { ai, calls };
   }
 
-  it("is off for a new Company, so its Source Files wait without reaching the AI provider", async () => {
+  it("waits when no platform default AI Configuration exists", async () => {
     const { ai, calls } = countingProvider();
     const worker = testWorker(ai);
     const { client, companyId } = await administratorWithCompany();
@@ -312,7 +312,7 @@ describe("platform-owned AI processing", () => {
     const sourceFileId = await upload({ client, companyId }, worker);
     await worker.runJobs();
 
-    expect(await enableAiProcessing(client, worker.jobs, { companyId, provider: ai })).toEqual({ ok: true, value: null });
+    expect(await assignAiConfigurationFixture(client, worker.jobs, { companyId, provider: ai })).toEqual({ ok: true, value: null });
     await worker.runJobs();
 
     expect((await getCompany(client, companyId))?.aiProcessingEnabled).toBe(true);
@@ -323,7 +323,7 @@ describe("platform-owned AI processing", () => {
     ]);
   });
 
-  it("waits for platform intervention when the worker lacks the selected provider", async () => {
+  it("waits for platform intervention when the worker lacks the assigned provider", async () => {
     const configured = testWorker();
     const unavailable = testWorker([]);
     const { client, companyId } = await companyWithAiProcessing(configured);
@@ -628,7 +628,7 @@ describe("Split", () => {
 });
 
 describe("Extraction", () => {
-  it("waits when the worker does not have the Company's selected provider", async () => {
+  it("waits when the worker does not have the assigned AI Configuration's provider", async () => {
     const configured = testWorker();
     const unavailable = testWorker([]);
     const { client, companyId } = await companyWithAiProcessing(configured);
