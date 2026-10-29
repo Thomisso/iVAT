@@ -1,11 +1,12 @@
 import { strToU8, zipSync } from "fflate";
 import type { Company, FilingFrequencyHistoryEntry } from "./companies";
+import type { CompanyFilingDefaults } from "./company-filing-defaults";
 import type { Document, ExtractionVersion } from "./documents";
 import type { SourceFile } from "./source-files";
 
 export type CompanyExportSnapshot = {
   revision: number;
-  company: Company;
+  company: Company & { filingDefaults: CompanyFilingDefaults | null };
   setupSteps: {
     step: "identity" | "filing_frequency" | "filing_defaults" | "ai_processing";
     state: "completed" | "skipped";

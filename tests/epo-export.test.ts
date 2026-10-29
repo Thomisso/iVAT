@@ -3,6 +3,10 @@ import { exportVatReport } from "@/application/epo-export";
 import { generateVatReport } from "@/application/vat-reports";
 import { approveDocument, listCompanyDocuments } from "@/application/documents";
 import { createCompany } from "@/application/companies";
+import {
+  getCompanyFilingDefaults,
+  saveCompanyFilingDefaults,
+} from "@/application/company-filing-defaults";
 import { signedUpUser } from "./support/clients";
 import {
   administratorWithCompany,
@@ -16,6 +20,7 @@ const details = {
   personType: "P",
   preparedOn: "2026-10-27",
   email: "qa@example.test",
+  phone: "",
   signatoryFirstName: "Jana",
   signatoryLastName: "Nováková",
   signatoryCapacity: "jednatelka",
@@ -71,6 +76,103 @@ it.each(["dphdp3", "dphkh1"])(
     ).toEqual({ ok: false, error: "report_not_found" });
   },
 );
+
+it.each(["dphdp3", "dphkh1"])(
+  "resolves saved filing defaults and a confirmed EPO address for %s",
+  async (format) => {
+    const administrator = await signedUpUser();
+    const company = await createCompany(administrator.client, {
+      organizationId: administrator.organizationId,
+      ...companyDetails({ streetName: "Dlouhá registrovaná ulice překračující limit EPO" }),
+    });
+    if (!company.ok) throw new Error(company.error);
+    expect(await saveCompanyFilingDefaults(administrator.client, {
+      companyId: company.value.id,
+      taxOffice: "451",
+      signatoryFirstName: "Jana",
+      signatoryLastName: "Nováková",
+      signatoryCapacity: "jednatelka",
+      email: "podatelna@example.test",
+      phone: "+420123456789",
+      epoAddressOverride: {
+        streetName: "Dlouhá ulice",
+        houseNumber: "12",
+        orientationNumber: "3A",
+        city: "Praha",
+        postalCode: "120 00",
+      },
+      epoAddressConfirmed: true,
+    })).toEqual({ ok: true, value: null });
+    await generateVatReport(administrator.client, {
+      companyId: company.value.id,
+      period: "2026-10",
+    });
+
+    const result = await exportVatReport(administrator.client, {
+      companyId: company.value.id,
+      period: "2026-10",
+      format,
+      details: { preparedOn: "2026-10-27" },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.value.xml).toContain('c_ufo="451"');
+    expect(result.value.xml).toContain('opr_jmeno="Jana"');
+    expect(result.value.xml).toContain('email="podatelna@example.test"');
+    expect(result.value.xml).toContain('c_telef="+420123456789"');
+    expect(result.value.xml).toContain('ulice="Dlouhá ulice"');
+    expect(result.value.xml).not.toContain("Dlouhá registrovaná");
+  },
+);
+
+it("uses one-export overrides without mutating the saved filing defaults", async () => {
+  const company = await administratorWithCompany();
+  expect(await saveCompanyFilingDefaults(company.client, {
+    companyId: company.companyId,
+    taxOffice: "451",
+    signatoryFirstName: "Jana",
+    signatoryLastName: "Nováková",
+    signatoryCapacity: "jednatelka",
+    email: "default@example.test",
+    phone: "+420123456789",
+    epoAddressOverride: null,
+  })).toEqual({ ok: true, value: null });
+  await generateVatReport(company.client, {
+    companyId: company.companyId,
+    period: "2026-10",
+  });
+
+  const result = await exportVatReport(company.client, {
+    companyId: company.companyId,
+    period: "2026-10",
+    format: "dphdp3",
+    details: {
+      preparedOn: "2026-10-27",
+      taxOffice: "452",
+      signatoryFirstName: "Petr",
+      signatoryLastName: "Novák",
+      signatoryCapacity: "jednatel",
+      email: "one-off@example.test",
+      phone: "",
+    },
+  });
+
+  expect(result.ok).toBe(true);
+  if (!result.ok) throw new Error(result.error);
+  expect(result.value.xml).toContain('c_ufo="452"');
+  expect(result.value.xml).toContain('opr_jmeno="Petr"');
+  expect(result.value.xml).toContain('email="one-off@example.test"');
+  expect(result.value.xml).not.toContain("c_telef");
+  expect(await getCompanyFilingDefaults(company.client, company.companyId)).toEqual(
+    expect.objectContaining({
+      taxOffice: "451",
+      signatoryFirstName: "Jana",
+      email: "default@example.test",
+      phone: "+420123456789",
+    }),
+  );
+});
 it("refuses missing drafts and invalid export inputs without producing a download", async () => {
   const a = await administratorWithCompany();
   const input = {
@@ -122,8 +224,50 @@ it("uses the saved Company's person type for the XML header", async () => {
   expect(result.value.xml).toContain('jmeno="Jan" prijmeni="Novák"');
   expect(result.value.xml).not.toContain("zkrobchjm");
 });
+it("uses a natural person's snapshotted identity without silently adding the User email", async () => {
+  const administrator = await signedUpUser();
+  const company = await createCompany(administrator.client, {
+    organizationId: administrator.organizationId,
+    ...companyDetails({ personType: "natural", firstName: "Jana", lastName: "Nováková" }),
+  });
+  if (!company.ok) throw new Error(company.error);
+  expect(await saveCompanyFilingDefaults(administrator.client, {
+    companyId: company.value.id,
+    taxOffice: "451",
+    signatoryFirstName: "",
+    signatoryLastName: "",
+    signatoryCapacity: "",
+    email: "",
+    phone: "",
+    epoAddressOverride: null,
+  })).toEqual({ ok: true, value: null });
+  await generateVatReport(administrator.client, {
+    companyId: company.value.id,
+    period: "2026-10",
+  });
+
+  const result = await exportVatReport(administrator.client, {
+    companyId: company.value.id,
+    period: "2026-10",
+    format: "dphdp3",
+    details: {},
+  });
+
+  expect(result.ok).toBe(true);
+  if (!result.ok) throw new Error(result.error);
+  expect(result.value.xml).toContain('typ_ds="F"');
+  expect(result.value.xml).toContain('jmeno="Jana" prijmeni="Nováková"');
+  expect(result.value.xml).not.toContain("email=");
+  expect(result.value.xml).not.toContain("opr_jmeno");
+  const today = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Prague" })
+    .format(new Date())
+    .split("-")
+    .reverse()
+    .join(".");
+  expect(result.value.xml).toContain(`d_poddp="${today}"`);
+});
 it.each(["dphdp3", "dphkh1"])(
-  "blocks %s whose saved Company header fails the official schema",
+  "requires a confirmed EPO address before exporting %s with an over-limit registered address",
   async (format) => {
     const a = await signedUpUser();
     const company = await createCompany(a.client, {
@@ -140,7 +284,7 @@ it.each(["dphdp3", "dphkh1"])(
     await generateVatReport(a.client, input);
     expect(await exportVatReport(a.client, input)).toEqual({
       ok: false,
-      error: "xml_invalid",
+      error: "epo_address_required",
     });
   },
 );
