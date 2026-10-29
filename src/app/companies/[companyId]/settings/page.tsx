@@ -5,15 +5,13 @@ import {
   epoIdentityFindings,
   getCompany,
   getMyCompanyRole,
-  listCompanyAiOptions,
 } from "@/application/companies";
+import { getCompanyAiProcessingAllowance } from "@/application/ai-processing-allowance";
 import { getCompanyFilingDefaults } from "@/application/company-filing-defaults";
-import { listMyOrganizations } from "@/application/organizations";
 import { requireUserClient } from "@/lib/supabase/server";
 import { CompanyForm } from "../../new/company-form";
 import { CompanyDataExportForm } from "./company-data-export-form";
 import { CompanyDeletionForm } from "./company-deletion-form";
-import { AiProviderForm, DisableAiProcessingForm } from "../ai-provider-form";
 import { FilingDefaultsForm } from "./filing-defaults-form";
 
 export default async function CompanySettingsPage({
@@ -21,19 +19,17 @@ export default async function CompanySettingsPage({
 }: PageProps<"/companies/[companyId]/settings">) {
   const { companyId } = await params;
   const client = await requireUserClient();
-  const [company, role, organizations, filingDefaults, t, ai] = await Promise.all([
+  const [company, role, filingDefaults, t, ai] = await Promise.all([
     getCompany(client, companyId),
     getMyCompanyRole(client, companyId),
-    listMyOrganizations(client),
     getCompanyFilingDefaults(client, companyId),
     getTranslations("company"),
     getTranslations("aiProcessing"),
   ]);
   if (!company) notFound();
-  const options = role === "administrator" ? await listCompanyAiOptions(client, companyId) : [];
-  const organizationAdministrator = organizations.some((organization) =>
-    organization.id === company.organizationId && organization.role === "administrator"
-  );
+  const allowance = role === "administrator"
+    ? await getCompanyAiProcessingAllowance(client, companyId)
+    : null;
   return (
       <main className="company-workspace company-create">
         <div className="panel">
@@ -77,30 +73,14 @@ export default async function CompanySettingsPage({
             <p>{t("usersIntro")}</p>
             <Link href={`/companies/${company.id}/members`}>{t("manageUsers")}</Link>
           </section>}
-          <section className="company-settings-section">
+          {allowance?.ok && <section className="company-settings-section">
             <h2>{ai("title")}</h2>
-            <p>{company.aiProcessing
-              ? ai("on", { provider: company.aiProcessing.provider, region: company.aiProcessing.region })
-              : ai("off")}</p>
-            {company.aiProcessing && <p className="iv-muted">
-              {ai(`source.${company.aiProcessing.credentialSource}`)}
-            </p>}
-            {role === "administrator" ? <>
-              <p>{ai("consent")}</p>
-              <AiProviderForm
-                key={company.aiProcessing
-                  ? `${company.aiProcessing.credentialSource}:${company.aiProcessing.provider}:${company.aiProcessing.region}`
-                  : "off"}
-                companyId={company.id}
-                options={options}
-                current={company.aiProcessing}
-              />
-              {company.aiProcessing && <DisableAiProcessingForm companyId={company.id} />}
-              {organizationAdministrator && <Link href={`/organizations/${company.organizationId}/ai-settings`}>
-                {ai("manageOrganizationKeys")}
-              </Link>}
-            </> : <p className="iv-muted">{ai("administratorOnly")}</p>}
-          </section>
+            <p>{ai("allowanceUsage", {
+              used: allowance.value.used,
+              allowance: allowance.value.allowance ?? ai("unlimited"),
+            })}</p>
+            <p className="iv-muted">{ai("waitingDocuments", { count: allowance.value.waitingDocuments })}</p>
+          </section>}
           {role === "administrator" && (
             <>
               <CompanyDataExportForm companyId={company.id} />

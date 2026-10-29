@@ -54,6 +54,7 @@ import {
   setDefaultAiConfiguration,
   updateAiConfiguration,
 } from "@/application/ai-configurations";
+import { setCompanyAiProcessingAllowance } from "@/application/ai-processing-allowance";
 import {
   setPlatformOrganizationBlocked,
   setPlatformUploadLimits,
@@ -707,6 +708,21 @@ export async function assignCompanyAiConfigurationAction(
     configurationId: field(formData, "configurationId"),
   });
   if (!result.ok) return refused(result.error, formData, ["configurationId"]);
+  refresh();
+  return { error: null, values: {} };
+}
+
+export async function setCompanyAiProcessingAllowanceAction(
+  _state: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const unlimited = field(formData, "unlimited") === "on";
+  const allowance = Number(field(formData, "allowance"));
+  const result = await setCompanyAiProcessingAllowance(await requireUserClient(), jobQueue, {
+    companyId: field(formData, "companyId"),
+    allowance: unlimited ? null : allowance,
+  });
+  if (!result.ok) return refused(result.error, formData, ["allowance", "unlimited"]);
   refresh();
   return { error: null, values: {} };
 }

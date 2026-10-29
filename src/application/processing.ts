@@ -381,7 +381,10 @@ async function extractDocument(
     .eq("id", documentId)
     .single();
   if (error) throw error;
-  if (document.superseded_at !== null || (document.status !== "uploaded" && document.status !== "processing")) return;
+  if (
+    document.superseded_at !== null
+    || !(["uploaded", "processing", "waiting_for_allowance"] as DocumentStatus[]).includes(document.status)
+  ) return;
 
   // Moves the status of this Extraction request only from the given ones (see splitSourceFile).
   const moveStatus = async (to: DocumentStatus, from: DocumentStatus[]) => {
@@ -397,74 +400,98 @@ async function extractDocument(
   };
 
   await failOnFinalAttempt(attempt, () => moveStatus("failed", ["uploaded", "processing"]).then(() => undefined), async () => {
-    const availability = await providerAvailability(system, document.company_id, providers);
-    if (availability.blocked) {
+    const reservationId = crypto.randomUUID();
+    const reserved = await system.rpc("reserve_ai_processing", {
+      target_document_id: document.id,
+      target_extraction_request_id: document.extraction_request_id,
+      target_reservation_id: reservationId,
+    });
+    if (reserved.error) throw reserved.error;
+    if (reserved.data === "already_reserved") {
       await jobs.send(extractJob(document.id), { startAfterSeconds: BLOCKED_JOB_RECHECK_SECONDS });
       return;
     }
-    const ai = availability.provider;
-    if (!ai) return;
-    if (!(await moveStatus("processing", ["uploaded", "processing"]))) return;
-    const processingFile = await downloadForProcessing(system, {
-      companyId: document.company_id,
-      id: document.source_file_id,
-      format: document.source_file!.format,
-      normalizedFormat: document.source_file!.normalized_format,
-    });
-    const range = document.first_row === null
-      ? { firstPage: document.first_page, lastPage: document.last_page }
-      : { sheetName: document.source_sheet!, firstRow: document.first_row, lastRow: document.last_row! };
-    const input = await documentInput(processingFile.format, processingFile.bytes, range);
-    const { model, payload: extractedPayload, usage } = await ai.extract(input, {
-      organizationId: document.organization_id,
-      credentialSource: availability.credentialSource!,
-      ...(availability.configuration ? { configuration: availability.configuration } : {}),
-    });
-    const { data: company, error: companyError } = await system
-      .from("company")
-      .select("ico, vat_id")
-      .eq("id", document.company_id)
-      .single();
-    if (companyError) throw companyError;
-    const directedPayload = {
-      ...extractedPayload,
-      direction: detectDocumentDirection(
-        extractedPayload,
-        { ico: company.ico, vatId: company.vat_id },
-        document.source_file!.preselected_direction as Direction | null,
-      ),
-    };
-    const conversion = await applyCnbConversion(directedPayload, exchangeRates);
-    const payload = conversion.payload;
-    const metered = await system.rpc("record_ai_usage", {
-      target_organization_id: document.organization_id,
-      target_company_id: document.company_id,
-      target_provider: ai.name,
-      target_model: model,
-      target_operation: "extract",
-      target_input_tokens: usage?.inputTokens ?? 0,
-      target_output_tokens: usage?.outputTokens ?? 0,
-      target_job_name: "extract-document",
-      target_job_id: document.id,
-    });
-    if (metered.error) throw metered.error;
-    const findings = [
-      ...validateDocument(
+    if (reserved.data !== "reserved") return;
+
+    let completed = false;
+    try {
+      const availability = await providerAvailability(system, document.company_id, providers);
+      if (availability.blocked) {
+        await jobs.send(extractJob(document.id), { startAfterSeconds: BLOCKED_JOB_RECHECK_SECONDS });
+        return;
+      }
+      const ai = availability.provider;
+      if (!ai) return;
+      const processingFile = await downloadForProcessing(system, {
+        companyId: document.company_id,
+        id: document.source_file_id,
+        format: document.source_file!.format,
+        normalizedFormat: document.source_file!.normalized_format,
+      });
+      const range = document.first_row === null
+        ? { firstPage: document.first_page, lastPage: document.last_page }
+        : { sheetName: document.source_sheet!, firstRow: document.first_row, lastRow: document.last_row! };
+      const input = await documentInput(processingFile.format, processingFile.bytes, range);
+      const { model, payload: extractedPayload, usage } = await ai.extract(input, {
+        organizationId: document.organization_id,
+        credentialSource: availability.credentialSource!,
+        ...(availability.configuration ? { configuration: availability.configuration } : {}),
+      });
+      const { data: company, error: companyError } = await system
+        .from("company")
+        .select("ico, vat_id")
+        .eq("id", document.company_id)
+        .single();
+      if (companyError) throw companyError;
+      const directedPayload = {
+        ...extractedPayload,
+        direction: detectDocumentDirection(
+          extractedPayload,
+          { ico: company.ico, vatId: company.vat_id },
+          document.source_file!.preselected_direction as Direction | null,
+        ),
+      };
+      const conversion = await applyCnbConversion(directedPayload, exchangeRates);
+      const payload = conversion.payload;
+      const metered = await system.rpc("record_ai_usage", {
+        target_organization_id: document.organization_id,
+        target_company_id: document.company_id,
+        target_provider: ai.name,
+        target_model: model,
+        target_operation: "extract",
+        target_input_tokens: usage?.inputTokens ?? 0,
+        target_output_tokens: usage?.outputTokens ?? 0,
+        target_job_name: "extract-document",
+        target_job_id: document.id,
+      });
+      if (metered.error) throw metered.error;
+      const findings = [
+        ...validateDocument(
+          payload,
+          CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA,
+        ),
+        ...(await vatRegistryFindings(vatRegistry, payload)),
+        ...conversion.findings,
+      ];
+      const { error } = await system.rpc("record_ai_extraction", {
+        target_document_id: document.id,
+        target_extraction_request_id: document.extraction_request_id,
+        target_reservation_id: reservationId,
+        provider: ai.name,
+        model,
         payload,
-        CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA,
-      ),
-      ...(await vatRegistryFindings(vatRegistry, payload)),
-      ...conversion.findings,
-    ];
-    const { error } = await system.rpc("record_ai_extraction", {
-      target_document_id: document.id,
-      target_extraction_request_id: document.extraction_request_id,
-      provider: ai.name,
-      model,
-      payload,
-      findings,
-    });
-    if (error) throw error;
+        findings,
+      });
+      if (error) throw error;
+      completed = true;
+    } finally {
+      if (!completed) {
+        const released = await system.rpc("release_ai_processing_reservation", {
+          target_reservation_id: reservationId,
+        });
+        if (released.error) throw released.error;
+      }
+    }
   });
 }
 

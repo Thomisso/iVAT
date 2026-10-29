@@ -52,7 +52,7 @@ async function expireInvitation(token: string) {
       query(sql: string, values: unknown[]): Promise<unknown>;
     };
   };
-  const database = new Client({ connectionString: inject("supabaseDbUrl") });
+  const database = new Client({ connectionString: inject("databaseUrl") });
   await database.connect();
   try {
     await database.query(
