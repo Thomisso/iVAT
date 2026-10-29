@@ -24,6 +24,8 @@ Read the ADR named by the branch you are changing:
 - Roles, authorization, RLS or security-definer RPCs → `0008-database-is-the-authority-for-access-and-roles.md`
 - audit payloads or User identity → `0009-audit-log-holds-no-personal-data-of-users.md`
 - worker privileges, `SystemClient`, idempotency or job payloads → `0010-worker-acts-as-service-role-through-narrow-grants.md`
+- a Document's Reporting Period, Tax Point Date or Deferred Claim → `0012-reporting-period-follows-tax-point-date.md`
+- Reporting Years, filing frequency or period generation → `0013-reporting-years-are-generated.md`
 
 ## File structure
 
