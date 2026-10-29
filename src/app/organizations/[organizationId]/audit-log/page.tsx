@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getFormatter, getTranslations } from "next-intl/server";
+import { getTranslations } from "next-intl/server";
 import {
   listAuditActors,
   listAuditCompanies,
@@ -13,6 +13,8 @@ import { Button } from "@/components/button";
 import { DataTable } from "@/components/data-table";
 import { EmptyState } from "@/components/empty-state";
 import { requireUserClient } from "@/lib/supabase/server";
+import { formatDateTime } from "@/lib/format-date";
+import { DateInput } from "@/components/date-input";
 
 function single(value: string | string[] | undefined): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
@@ -49,11 +51,10 @@ export default async function OrganizationAuditLogPage({
   const { organizationId } = await params;
   const query = await searchParams;
   const client = await requireUserClient();
-  const [organizations, companies, t, format] = await Promise.all([
+  const [organizations, companies, t] = await Promise.all([
     listMyOrganizations(client),
     listAuditCompanies(client, organizationId),
     getTranslations("auditLog"),
-    getFormatter(),
   ]);
   const organization = organizations.find((item) => item.id === organizationId && item.role === "administrator");
   if (!organization) notFound();
@@ -89,14 +90,8 @@ export default async function OrganizationAuditLogPage({
     />
     <PageContent measure="wide">
         <form className="form filters" method="get" aria-label={t("filters") }>
-          <label className="iv-field-label">
-            {t("from")}
-            <input className="iv-input" type="date" name="from" defaultValue={filters.from ?? ""} />
-          </label>
-          <label className="iv-field-label">
-            {t("to")}
-            <input className="iv-input" type="date" name="to" defaultValue={filters.to ?? ""} />
-          </label>
+          <DateInput label={t("from")} name="from" defaultValue={filters.from ?? ""} />
+          <DateInput label={t("to")} name="to" defaultValue={filters.to ?? ""} />
           <label className="iv-field-label">
             {t("company")}
             <select className="iv-input" name="companyId" defaultValue={filters.companyId ?? ""}>
@@ -137,7 +132,7 @@ export default async function OrganizationAuditLogPage({
                 header: t("occurredAt"),
                 render: (row) => (
                   <time dateTime={row.occurredAt}>
-                    {format.dateTime(new Date(row.occurredAt), { dateStyle: "medium", timeStyle: "short" })}
+                    {formatDateTime(row.occurredAt)}
                   </time>
                 ),
               },

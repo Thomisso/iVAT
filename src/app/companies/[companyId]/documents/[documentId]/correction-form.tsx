@@ -13,6 +13,7 @@ import type { ValidationFinding } from "@/application/document-validation";
 import { Button } from "@/components/button";
 import { TextField } from "@/components/text-field";
 import { FormError } from "@/components/form-error";
+import { DateInput } from "@/components/date-input";
 
 /**
  * The extracted fields of one Extraction Version. While `editable`, saving
@@ -77,8 +78,16 @@ export function CorrectionForm({
       {...props}
     />
   );
-  const date = (name: "issueDate" | "taxPointDate" | "dueDate") =>
-    text(name, payload[name], name, { type: "date" });
+  const date = (name: "issueDate" | "taxPointDate" | "dueDate") => (
+    <DateInput
+      key={name}
+      label={t(`fields.${name}`)}
+      name={name}
+      defaultValue={value(name, payload[name])}
+      disabled={!editable}
+      error={findingMessage(name)}
+    />
+  );
   const amount = (name: string, saved: string | null, label: string) =>
     text(name, saved, label, { inputMode: "decimal" });
   const choice = (

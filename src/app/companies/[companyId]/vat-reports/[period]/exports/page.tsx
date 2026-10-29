@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getFormatter, getTranslations } from "next-intl/server";
+import { getTranslations } from "next-intl/server";
 import { getCompany } from "@/application/companies";
 import { listVatReportArtifacts } from "@/application/epo-export";
 import { getVatReport } from "@/application/vat-reports";
@@ -10,6 +10,7 @@ import { DataTable } from "@/components/data-table";
 import { EmptyState } from "@/components/empty-state";
 import { PageLayout } from "@/components/app-shell";
 import { PeriodNavigation } from "../../period-navigation";
+import { formatDate, formatDateTime } from "@/lib/format-date";
 
 export async function generateMetadata({
   params,
@@ -24,13 +25,12 @@ export default async function ExportHistoryPage({
 }: PageProps<"/companies/[companyId]/vat-reports/[period]/exports">) {
   const { companyId, period } = await params;
   const client = await requireUserClient();
-  const [company, report, artifacts, t, epo, format] = await Promise.all([
+  const [company, report, artifacts, t, epo] = await Promise.all([
     getCompany(client, companyId),
     getVatReport(client, companyId, period),
     listVatReportArtifacts(client, { companyId, period }),
     getTranslations("vatReports"),
     getTranslations("epoExport"),
-    getFormatter(),
   ]);
   if (!company || !report) notFound();
   return (
@@ -77,10 +77,7 @@ export default async function ExportHistoryPage({
               {
                 key: "createdAt",
                 header: t("artifactCreatedAt"),
-                render: (artifact) => format.dateTime(new Date(artifact.createdAt), {
-                  dateStyle: "medium",
-                  timeStyle: "short",
-                }),
+                render: (artifact) => formatDateTime(artifact.createdAt),
               },
               {
                 key: "authorEmail",
@@ -101,7 +98,7 @@ export default async function ExportHistoryPage({
                   return (
                     <dl className="epo-export-summary">
                       <div><dt>{epo("taxOffice")}</dt><dd>{details.taxOffice}</dd></div>
-                      <div><dt>{epo("preparedOn")}</dt><dd>{details.preparedOn}</dd></div>
+                      <div><dt>{epo("preparedOn")}</dt><dd>{formatDate(details.preparedOn)}</dd></div>
                       <div><dt>{epo("signatory")}</dt><dd>{signatory}</dd></div>
                       <div><dt>{epo("email")}</dt><dd>{details.email || epo("notSet")}</dd></div>
                       <div><dt>{epo("phone")}</dt><dd>{details.phone || epo("notSet")}</dd></div>

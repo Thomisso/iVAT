@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { setCompanyFilingFrequencyAction } from "@/app/actions";
 import { Button } from "@/components/button";
 import { FormError } from "@/components/form-error";
-import { TextField } from "@/components/text-field";
+import { DateInput } from "@/components/date-input";
 
 export function FilingFrequencyForm({ companyId, initialValues }: {
   companyId: string;
@@ -25,8 +25,7 @@ export function FilingFrequencyForm({ companyId, initialValues }: {
         <option value="quarterly">{t("quarterly")}</option>
       </select>
     </label>
-    <TextField
-      type="date"
+    <DateInput
       label={t("effectiveFrom")}
       name="filingFrequencyEffectiveFrom"
       defaultValue={state.values.filingFrequencyEffectiveFrom}

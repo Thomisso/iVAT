@@ -18,7 +18,7 @@ async function signUp(page: Page, run: string) {
 
 async function completeFrequency(page: Page, companyId: string) {
   await page.getByLabel("Filing frequency").selectOption("quarterly");
-  await page.getByLabel("Effective from").fill("2026-10-01");
+  await page.getByLabel("Effective from").fill("01.10.2026");
   await page.getByRole("button", { name: "Save and continue" }).click();
   await expect(page).toHaveURL(new RegExp(`/companies/${companyId}/setup/ai-processing$`));
   await page.getByRole("link", { name: "Continue to Company" }).click();
