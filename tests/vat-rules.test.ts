@@ -20,7 +20,7 @@ const company = {
   personType: "legal" as const,
 };
 const period = "2026-10";
-const monthly = [{ frequency: "monthly", effectiveFrom: "2026-01-01" }] as const;
+const monthly = [{ year: 2026, frequency: "monthly", firstMonth: 1 }] as const;
 function document(
   overrides: Partial<typeof SAMPLE_EXTRACTION> = {},
 ): ReportDocument {
@@ -59,7 +59,7 @@ it("computes a quarterly Company's Documents across all three months", () => {
   }));
 
   const report = computeVatReport(company, "2027-Q1", reports, [
-    { frequency: "quarterly", effectiveFrom: "2027-01-01" },
+    { year: 2027, frequency: "quarterly", firstMonth: 1 },
   ]);
 
   expect(report.vatReturn.find((entry) => entry.line === "40")).toEqual({
@@ -88,8 +88,10 @@ it.each([
   ["2026-12-15", "2026-12"],
   ["2027-01-15", "2027-Q1"],
   ["2027-04-15", "2027-Q2"],
+  ["2025-12-31", null],
+  ["2028-01-01", null],
 ] as const)(
-  "uses the filing frequency in force for %s when assigning Reporting Period %s",
+  "uses the Reporting Year of %s when assigning Reporting Period %s",
   (taxPointDate, expectedPeriod) => {
     expect(
       reportingPeriodForDocument(
@@ -100,8 +102,8 @@ it.each([
           claimedReportingPeriod: null,
         },
         [
-          { frequency: "monthly", effectiveFrom: "2026-01-01" },
-          { frequency: "quarterly", effectiveFrom: "2027-01-01" },
+          { year: 2026, frequency: "monthly", firstMonth: 1 },
+          { year: 2027, frequency: "quarterly", firstMonth: 1 },
         ],
       ),
     ).toBe(expectedPeriod);
