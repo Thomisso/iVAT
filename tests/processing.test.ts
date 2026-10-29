@@ -7,7 +7,7 @@ import type { Direction, ExtractionPayload } from "@/application/extraction-payl
 import { getSourceFile, retrySplit, uploadSourceFile } from "@/application/source-files";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { signedUpUser } from "./support/clients";
-import { fixtureFile, workbookFile } from "./support/files";
+import { fixtureFile, heicFixture, workbookFile } from "./support/files";
 import { administratorWithCompany } from "./support/fixtures";
 import { testWorker } from "./support/worker";
 
@@ -602,6 +602,40 @@ describe("Split", () => {
       expect.objectContaining({ firstPage: 1, lastPage: 1, status: "needs_review" }),
     ]);
     expect(extracted).toEqual([{ format: "png", mediaType: "image/png", bytes: fixtureFile("receipt.png"), pageCount: 1 }]);
+  });
+
+  it("sends a HEIC Source File's normalized JPEG derivative to Split and Extraction", async () => {
+    const received: AiInput[] = [];
+    const worker = testWorker(fakeAiProvider({
+      split: (input) => {
+        received.push(input);
+        return [{ firstPage: 1, lastPage: 1 }];
+      },
+      extract: (input) => {
+        received.push(input);
+        return SAMPLE_EXTRACTION;
+      },
+    }));
+    const { client, companyId } = await companyWithAiProcessing(worker);
+    const uploaded = await uploadSourceFile(client, worker.jobs, {
+      companyId,
+      fileName: "receipt.heic",
+      bytes: heicFixture(),
+    });
+    if (!uploaded.ok) throw new Error(uploaded.error);
+
+    expect(await worker.runJobs()).toEqual([]);
+
+    expect((await getSourceFile(client, companyId, uploaded.value.id))?.format).toBe("heic");
+    expect(received).toHaveLength(2);
+    for (const input of received) {
+      expect(input).toEqual(expect.objectContaining({
+        format: "jpeg",
+        mediaType: "image/jpeg",
+        pageCount: 1,
+      }));
+      expect(input.bytes.slice(0, 3)).toEqual(new Uint8Array([0xff, 0xd8, 0xff]));
+    }
   });
 
   it.each([

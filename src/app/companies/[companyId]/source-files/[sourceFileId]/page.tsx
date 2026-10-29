@@ -37,7 +37,9 @@ export default async function SourceFilePage({
   const lockedPeriods = await documentPeriodLocks(client, companyId, documents.map((document) => document.id));
   const t = await getTranslations();
   const format = await getFormatter();
-  const contentUrl = `/companies/${companyId}/source-files/${file.id}/content`;
+  const contentUrl = file.normalizedDerivative
+    ? `/companies/${companyId}/source-files/${file.id}/preview`
+    : `/companies/${companyId}/source-files/${file.id}/content`;
   const workbook = file.format === "xlsx" || file.format === "xls";
   // Nothing moves until the Company enables AI processing.
   const processing =
