@@ -222,15 +222,46 @@ describe("Reporting Year changes from onboarding", () => {
   });
 });
 
+describe("Reporting Year migrated with a later first month", () => {
+  /** Test-only setup: a Company migrated from a history that started on 1 February. */
+  async function startedInFebruary(companyId: string) {
+    const database = new DatabaseClient({ connectionString: inject("databaseUrl") });
+    await database.connect();
+    try {
+      await database.query(
+        "update public.reporting_year set first_month = 2 where company_id = $1 and year = 2026",
+        [companyId],
+      );
+    } finally {
+      await database.end();
+    }
+  }
+
+  it("starts the year on its first quarter when it switches to quarterly filing", async () => {
+    const company = await administratorWithCompany();
+    await startedInFebruary(company.companyId);
+
+    expect(await setCurrentReportingYear(company.client, {
+      companyId: company.companyId,
+      filingFrequency: "quarterly",
+      year: 2026,
+    })).toEqual({ ok: true, value: null });
+
+    expect(await listCompanyReportingYears(company.client, company.companyId)).toEqual([
+      { year: 2026, frequency: "quarterly", firstMonth: 1 },
+    ]);
+  });
+});
+
 describe("Reporting Year migration", () => {
   /** The rule the migration applied to every existing Company's filing-frequency history. */
-  async function migrated(history: { frequency: string; effectiveFrom: string }[], throughYear: number) {
+  async function migrated(history: { frequency: string; effectiveFrom: string }[], currentYear: number) {
     const database = new DatabaseClient({ connectionString: inject("databaseUrl") });
     await database.connect();
     try {
       const { rows } = await database.query<{ year: number; frequency: string; first_month: number }>(
         "select * from private.reporting_years_from_frequency_history($1::jsonb, $2)",
-        [JSON.stringify(history), throughYear],
+        [JSON.stringify(history), currentYear],
       );
       return rows.map((row) => ({ year: row.year, frequency: row.frequency, firstMonth: row.first_month }));
     } finally {
@@ -238,7 +269,7 @@ describe("Reporting Year migration", () => {
     }
   }
 
-  it("creates one year per calendar year through the current year with the frequency in force on 1 January", async () => {
+  it("creates one year per calendar year with the frequency in force on 1 January", async () => {
     expect(await migrated([
       { frequency: "monthly", effectiveFrom: "2024-03-01" },
       { frequency: "quarterly", effectiveFrom: "2025-01-01" },
@@ -259,5 +290,18 @@ describe("Reporting Year migration", () => {
       { year: 2026, frequency: "quarterly", firstMonth: 4 },
     ]);
     expect(await migrated([], 2026)).toEqual([]);
+  });
+
+  it("keeps a recorded future switch and a Company whose history starts after the current year", async () => {
+    expect(await migrated([
+      { frequency: "monthly", effectiveFrom: "2026-01-01" },
+      { frequency: "quarterly", effectiveFrom: "2027-01-01" },
+    ], 2026)).toEqual([
+      { year: 2026, frequency: "monthly", firstMonth: 1 },
+      { year: 2027, frequency: "quarterly", firstMonth: 1 },
+    ]);
+    expect(await migrated([{ frequency: "monthly", effectiveFrom: "2027-03-01" }], 2026)).toEqual([
+      { year: 2027, frequency: "monthly", firstMonth: 3 },
+    ]);
   });
 });

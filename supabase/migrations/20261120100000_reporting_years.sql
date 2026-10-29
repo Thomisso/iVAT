@@ -28,12 +28,13 @@ create policy "members read accessible Company Reporting Years"
   using (private.can_access_company(company_id, organization_id));
 
 -- The migration rule, kept as a function so it is testable: one year per
--- calendar year from the earliest entry through `through_year`. Each year uses
--- the frequency in force on 1 January; the first year uses the frequency of the
--- first effective date, whose month (on a quarter for quarterly) starts it.
+-- calendar year from the earliest entry through the current year or the latest
+-- recorded change, whichever is later. Each year uses the frequency in force on
+-- 1 January; the first year uses the frequency of the first effective date,
+-- whose month (on a quarter for quarterly) starts it.
 create function private.reporting_years_from_frequency_history(
   history jsonb,
-  through_year integer
+  current_year integer
 )
 returns table (year integer, frequency public.filing_frequency, first_month smallint)
 language sql immutable set search_path = ''
@@ -43,11 +44,14 @@ as $$
       (entry ->> 'frequency')::public.filing_frequency as frequency
     from jsonb_array_elements(history) entry
   ), first_entry as (
-    select min(effective_from) as first_date from entries
+    select min(effective_from) as first_date, max(effective_from) as last_date from entries
   ), years as (
     select calendar_year::integer as year, first_entry.first_date
     from first_entry,
-      generate_series(extract(year from first_entry.first_date)::integer, through_year) calendar_year
+      generate_series(
+        extract(year from first_entry.first_date)::integer,
+        greatest(current_year, extract(year from first_entry.last_date)::integer)
+      ) calendar_year
     where first_entry.first_date is not null
   ), resolved as (
     select years.year, years.first_date,
@@ -132,11 +136,13 @@ as $$
   select exists (
     select 1 from public.vat_report report
     where report.company_id = target_company_id
-      and left(report.period, 4) = target_year::text
+      and report.period >= target_year::text || '-'
+      and report.period < (target_year + 1)::text || '-'
   ) or exists (
     select 1 from public.period_lock lock
     where lock.company_id = target_company_id
-      and left(lock.period, 4) = target_year::text
+      and lock.period >= target_year::text || '-'
+      and lock.period < (target_year + 1)::text || '-'
   );
 $$;
 
@@ -191,9 +197,14 @@ begin
       using errcode = 'P0001', hint = 'reporting_year_in_use';
   end if;
 
+  -- A quarterly year starts on the quarter that holds its first month.
   insert into public.reporting_year (company_id, organization_id, year, frequency)
   values (target.id, target.organization_id, target_year, new_frequency)
-  on conflict (company_id, year) do update set frequency = excluded.frequency
+  on conflict (company_id, year) do update set
+    frequency = excluded.frequency,
+    first_month = case when excluded.frequency = 'quarterly'
+      then ((reporting_year.first_month - 1) / 3) * 3 + 1
+      else reporting_year.first_month end
     where reporting_year.frequency is distinct from excluded.frequency;
 
   insert into public.company_setup_step_state (
@@ -309,6 +320,28 @@ begin
   );
 end;
 $function$;
+
+-- Every reported or locked period must survive the conversion unchanged.
+do $$
+declare
+  lost record;
+begin
+  select reported.company_id, reported.period into lost
+  from (
+    select company_id, period from public.vat_report
+    union
+    select company_id, period from public.period_lock
+  ) reported
+  where private.reporting_period_for_date(
+    reported.company_id, private.reporting_period_start(reported.period)
+  ) is distinct from reported.period
+  limit 1;
+  if found then
+    raise exception 'Reporting Year migration would lose period % of Company %',
+      lost.period, lost.company_id;
+  end if;
+end;
+$$;
 
 drop function public.set_company_filing_frequency(uuid, public.filing_frequency, date);
 drop function public.create_company(
