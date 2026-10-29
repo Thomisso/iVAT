@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import {
@@ -9,6 +10,10 @@ import {
   listPlatformOrganizationCompanies,
 } from "@/application/platform-administration";
 import { listFailedProcessingJobs } from "@/application/processing-administration";
+import {
+  listPlatformOperationalProblems,
+  type OperationalProblemKind,
+} from "@/application/operational-problems";
 import { CommandButton } from "@/components/command-button";
 import { DataTable } from "@/components/data-table";
 import { StatusBadge } from "@/components/status-badge";
@@ -19,12 +24,27 @@ export default async function PlatformAdministrationPage() {
   const client = await requireUserClient();
   const organizations = await listPlatformOrganizationCompanies(client);
   if (!organizations.ok) notFound();
-  const [limits, jobs, t] = await Promise.all([
+  const [limits, jobs, problems, t] = await Promise.all([
     getPlatformUploadLimits(client),
     listFailedProcessingJobs(client),
+    listPlatformOperationalProblems(client),
     getTranslations("platformAdministration"),
   ]);
-  if (!limits.ok || !jobs.ok) notFound();
+  if (!limits.ok || !jobs.ok || !problems.ok) notFound();
+
+  const problemLabels: Record<OperationalProblemKind, string> = {
+    allowance_exhausted: t("problemAllowanceExhausted"),
+    allowance_high: t("problemAllowanceHigh"),
+    waiting_documents: t("problemWaitingDocuments"),
+    configuration_missing: t("problemConfigurationMissing"),
+    configuration_unusable: t("problemConfigurationUnusable"),
+    invalid_credentials: t("problemInvalidCredentials"),
+    provider_credits_exhausted: t("problemProviderCreditsExhausted"),
+    provider_unavailable: t("problemProviderUnavailable"),
+    provider_response_invalid: t("problemProviderResponseInvalid"),
+    processing_failed: t("problemProcessingFailed"),
+    terminal_processing_job: t("problemTerminalJob"),
+  };
 
   return (
     <>
@@ -33,6 +53,72 @@ export default async function PlatformAdministrationPage() {
           <h1>{t("title")}</h1>
           <p className="iv-muted">{t("intro")}</p>
         </header>
+
+        <section className="panel operational-problems" aria-labelledby="operational-problems-title">
+          <header className="operational-problems-header">
+            <div>
+              <h2 id="operational-problems-title">{t("operationalProblems")}</h2>
+              <p className="iv-muted">{t("operationalProblemsIntro")}</p>
+            </div>
+            <span className="operational-problems-count">{problems.value.length}</span>
+          </header>
+          {problems.value.length === 0 ? (
+            <p className="operational-problems-healthy">{t("noOperationalProblems")}</p>
+          ) : (
+            <ol className="operational-problems-list">
+              {problems.value.map((problem) => {
+                const age = problem.ageMinutes >= 1_440
+                  ? t("ageDays", { count: Math.floor(problem.ageMinutes / 1_440) })
+                  : problem.ageMinutes >= 60
+                    ? t("ageHours", { count: Math.floor(problem.ageMinutes / 60) })
+                    : t("ageMinutes", { count: problem.ageMinutes });
+                return (
+                  <li key={problem.id} className={`operational-problem operational-problem-${problem.severity}`}>
+                    <div className="operational-problem-summary">
+                      <div>
+                        <h3>{problemLabels[problem.kind]}</h3>
+                        <p className="iv-muted">{t("problemAge", { age })}</p>
+                      </div>
+                      <StatusBadge status={problem.severity === "critical" ? "failed" : "waiting-for-platform"}>
+                        {problem.severity === "critical" ? t("critical") : t("warning")}
+                      </StatusBadge>
+                    </div>
+                    <dl className="operational-problem-facts">
+                      <div>
+                        <dt>{t("affectedDocuments")}</dt>
+                        <dd>{problem.affectedDocumentCount}</dd>
+                      </div>
+                      {problem.configuration && (
+                        <div>
+                          <dt>{t("configuration")}</dt>
+                          <dd>
+                            {problem.configuration.label} · {problem.configuration.provider} · {t("credentialSuffix", {
+                              lastFour: problem.configuration.credentialLastFour,
+                            })}
+                          </dd>
+                        </div>
+                      )}
+                    </dl>
+                    <div className="operational-problem-companies">
+                      <strong>{t("affectedCompanies")}</strong>
+                      <ul>
+                        {problem.companies.map((company) => (
+                          <li key={company.id}>
+                            <span>{company.name}</span>
+                            <span>{t("companyDocumentCount", { count: company.affectedDocumentCount })}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <Link className="operational-problem-link" href={problem.detailHref}>
+                      {t("viewProblemDetail")}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+        </section>
 
         <section className="panel">
           <h2>{t("organizations")}</h2>
@@ -70,7 +156,7 @@ export default async function PlatformAdministrationPage() {
           />
         </section>
 
-        <section className="panel">
+        <section className="panel" id="failed-jobs">
           <h2>{t("failedJobs")}</h2>
           <p className="iv-muted">{t("failedJobsIntro")}</p>
           {jobs.value.length === 0 ? <p>{t("noFailedJobs")}</p> : (

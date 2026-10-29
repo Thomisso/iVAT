@@ -39,7 +39,11 @@ export default async function PlatformAiSettingsPage() {
           <AiConfigurationForm providers={providers.value} />
           <div className="ai-configurations">
             {configurations.value.map((configuration) => (
-              <article key={configuration.id} className="panel ai-configuration">
+              <article
+                key={configuration.id}
+                id={`configuration-${configuration.id}`}
+                className="panel ai-configuration"
+              >
                 <header className="ai-configuration-summary">
                   <div>
                     <h3>{configuration.label}</h3>
@@ -76,7 +80,7 @@ export default async function PlatformAiSettingsPage() {
             <div className="platform-organizations">
               <h3>{t("companyAssignments")}</h3>
               {companies.map((company) => (
-                <div key={company.id} className="platform-organization">
+                <div key={company.id} id={`company-${company.id}`} className="platform-organization">
                   <div>
                     <strong>{company.organizationName} · {company.name}</strong>
                     {allowanceByCompany.get(company.id) && <p className="iv-muted">
