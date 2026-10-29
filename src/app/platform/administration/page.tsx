@@ -9,9 +9,10 @@ import {
   getPlatformUploadLimits,
   listPlatformOrganizationCompanies,
 } from "@/application/platform-administration";
+import { listAiConfigurationProviders, listAiConfigurations } from "@/application/ai-configurations";
+import { listPlatformAiProcessingAllowances } from "@/application/ai-processing-allowance";
 import { listFailedProcessingJobs } from "@/application/processing-administration";
 import {
-  listPlatformOperationalProblems,
   type OperationalProblemKind,
 } from "@/application/operational-problems";
 import { CommandButton } from "@/components/command-button";
@@ -19,18 +20,26 @@ import { DataTable } from "@/components/data-table";
 import { StatusBadge } from "@/components/status-badge";
 import { requireUserClient } from "@/lib/supabase/server";
 import { UploadLimitsForm } from "./upload-limits-form";
+import { OperationalProblemRemediation } from "./operational-problem-remediation";
+import { currentPlatformOperationalProblems } from "../current-operational-problems";
 
 export default async function PlatformAdministrationPage() {
   const client = await requireUserClient();
   const organizations = await listPlatformOrganizationCompanies(client);
   if (!organizations.ok) notFound();
-  const [limits, jobs, problems, t] = await Promise.all([
+  const [limits, jobs, problems, providers, configurations, allowances, t] = await Promise.all([
     getPlatformUploadLimits(client),
     listFailedProcessingJobs(client),
-    listPlatformOperationalProblems(client),
+    currentPlatformOperationalProblems(),
+    listAiConfigurationProviders(client),
+    listAiConfigurations(client),
+    listPlatformAiProcessingAllowances(client),
     getTranslations("platformAdministration"),
   ]);
-  if (!limits.ok || !jobs.ok || !problems.ok) notFound();
+  if (
+    !limits.ok || !jobs.ok || !problems.ok || !providers.ok
+    || !configurations.ok || !allowances.ok
+  ) notFound();
 
   const problemLabels: Record<OperationalProblemKind, string> = {
     allowance_exhausted: t("problemAllowanceExhausted"),
@@ -113,6 +122,13 @@ export default async function PlatformAdministrationPage() {
                     <Link className="operational-problem-link" href={problem.detailHref}>
                       {t("viewProblemDetail")}
                     </Link>
+                    <OperationalProblemRemediation
+                      allowances={allowances.value}
+                      configurations={configurations.value}
+                      failedJobs={jobs.value}
+                      problem={problem}
+                      providers={providers.value}
+                    />
                   </li>
                 );
               })}

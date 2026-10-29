@@ -9,6 +9,7 @@ import {
   parseCompanyContext,
 } from "@/lib/company-context";
 import { requireUserClient } from "@/lib/supabase/server";
+import { currentPlatformOperationalProblems } from "./current-operational-problems";
 
 export default async function PlatformLayout({
   children,
@@ -17,12 +18,13 @@ export default async function PlatformLayout({
   const remembered = parseCompanyContext(
     (await cookies()).get(companyContextCookie)?.value,
   );
-  const [auth, superAdmin, companyContext] = await Promise.all([
+  const [auth, superAdmin, companyContext, operationalProblems] = await Promise.all([
     currentUser(client),
     isSuperAdmin(client),
     resolveCompanyContext(client, remembered),
+    currentPlatformOperationalProblems(),
   ]);
-  if (!auth || !superAdmin) notFound();
+  if (!auth || !superAdmin || !operationalProblems.ok) notFound();
 
   return (
     <PlatformShell
@@ -32,6 +34,7 @@ export default async function PlatformLayout({
           : "/"
       }
       email={auth.email}
+      operationalProblemCount={operationalProblems.value.length}
     >
       {children}
     </PlatformShell>

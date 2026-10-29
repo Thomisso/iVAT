@@ -10,6 +10,7 @@ import {
   updateAiConfiguration,
 } from "@/application/ai-configurations";
 import { listPlatformAiProcessingIssues } from "@/application/ai-processing-interventions";
+import { listPlatformOperationalProblems } from "@/application/operational-problems";
 import { listPlatformAuditEvents } from "@/application/audit";
 import { listCompanyDocuments } from "@/application/documents";
 import { splitJob, type ProcessingJob } from "@/application/processing";
@@ -103,6 +104,12 @@ describe("AI processing states requiring platform intervention", () => {
         provider: "anthropic",
       })]),
     });
+    const beforeRemediation = await listPlatformOperationalProblems(superAdministrator.client);
+    if (!beforeRemediation.ok) throw new Error(beforeRemediation.error);
+    expect(beforeRemediation.value).toContainEqual(expect.objectContaining({
+      kind: "invalid_credentials",
+      companies: expect.arrayContaining([expect.objectContaining({ id: company.companyId })]),
+    }));
 
     credentialIsValid = true;
     expect(await updateAiConfiguration(superAdministrator.client, {
@@ -120,6 +127,12 @@ describe("AI processing states requiring platform intervention", () => {
     expect(afterRecovery).toEqual({ ok: true, value: expect.any(Array) });
     if (!afterRecovery.ok) throw new Error(afterRecovery.error);
     expect(afterRecovery.value.find((issue) => issue.targetId === uploaded.value.id)).toBeUndefined();
+    const afterRemediation = await listPlatformOperationalProblems(superAdministrator.client);
+    if (!afterRemediation.ok) throw new Error(afterRemediation.error);
+    expect(afterRemediation.value.some((problem) => (
+      problem.kind === "invalid_credentials"
+      && problem.companies.some(({ id }) => id === company.companyId)
+    ))).toBe(false);
   });
 
   it("holds a Document for provider-credit intervention behind a neutral User status", async () => {
