@@ -58,7 +58,7 @@ describe("Company creation", () => {
       lastName: null,
       street: "Vinohradská 12",
       orientationNumber: null,
-      aiProcessing: null,
+      aiProcessingEnabled: false,
     });
     expect(await listCompanyFilingFrequencies(client, result.value.id)).toEqual([
       { frequency: "monthly", effectiveFrom: "2026-01-01" },

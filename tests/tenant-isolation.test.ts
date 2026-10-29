@@ -220,6 +220,7 @@ describe("tenant isolation", () => {
         await a.client.rpc("record_ai_extraction", {
           target_document_id: a.documentId,
           target_extraction_request_id: "00000000-0000-4000-8000-000000000000",
+          target_reservation_id: "00000000-0000-4000-8000-000000000001",
           provider: "fake",
           model: "forged",
           payload: {},
@@ -231,6 +232,54 @@ describe("tenant isolation", () => {
 
       for (const attempt of attempts) expect(attempt.error?.code).toBe("42501");
       expect(await listExtractionVersions(a.client, a.companyId, a.documentId)).toEqual([version]);
+    });
+
+    it("refuses cross-Organization reads and writes to AI Processing reservations", async () => {
+      const a = await administratorWithCompany("Reservation Organization A");
+      const worker = testWorker();
+      await enableAiProcessing(a.client, worker.jobs, { companyId: a.companyId, provider: worker.ai });
+      const uploaded = await uploadSourceFile(a.client, worker.jobs, {
+        companyId: a.companyId,
+        fileName: "reserved.png",
+        bytes: fixtureFile("receipt.png"),
+      });
+      if (!uploaded.ok) throw new Error(uploaded.error);
+      await worker.runNextJob();
+      const [document] = await listDocuments(a.client, a.companyId, uploaded.value.id);
+      const system = systemClient();
+      const source = await system
+        .from("document")
+        .select("extraction_request_id")
+        .eq("id", document.id)
+        .single();
+      if (source.error) throw source.error;
+      const reservationId = crypto.randomUUID();
+      const reservation = await system.rpc("reserve_ai_processing", {
+        target_document_id: document.id,
+        target_extraction_request_id: source.data.extraction_request_id,
+        target_reservation_id: reservationId,
+      });
+      if (reservation.error) throw reservation.error;
+      expect(reservation.data).toBe("reserved");
+
+      const b = await signedUpUser("Reservation Organization B");
+      const read = await b.client.from("ai_processing_reservation").select("id").eq("id", reservationId);
+      const update = await b.client
+        .from("ai_processing_reservation")
+        .update({ company_id: a.companyId })
+        .eq("id", reservationId);
+      const remove = await b.client.from("ai_processing_reservation").delete().eq("id", reservationId);
+      const insert = await b.client.from("ai_processing_reservation").insert({
+        id: crypto.randomUUID(),
+        extraction_request_id: crypto.randomUUID(),
+        document_id: document.id,
+        organization_id: a.organizationId,
+        company_id: a.companyId,
+      });
+
+      for (const attempt of [read, update, remove, insert]) expect(attempt.error?.code).toBe("42501");
+      expect((await system.rpc("release_ai_processing_reservation", { target_reservation_id: reservationId })).error)
+        .toBeNull();
     });
 
     it("keeps Extraction Versions immutable even for the worker", async () => {
