@@ -285,9 +285,11 @@ describe("SuperAdmin organization console", () => {
     if (!documentFile.ok) throw new Error(documentFile.error);
     await extractStuck.runNextJob({ final: false });
     const [document] = await listDocuments(target.client, target.companyId, documentFile.value.id);
-    expect(await extractStuck.runJobs({ final: false })).toHaveLength(1);
+    expect(await extractStuck.runJobs({ final: true })).toEqual([
+      expect.objectContaining({ message: "extract provider timed out" }),
+    ]);
     expect((await listDocuments(target.client, target.companyId, documentFile.value.id))[0].status)
-      .toBe("processing");
+      .toBe("failed");
     const ordinary = await signedUpUser("Ordinary Organization");
     process.loadEnvFile(".env.local");
     const boss = createBoss({ supervise: false });

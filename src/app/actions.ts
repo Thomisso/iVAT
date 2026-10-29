@@ -687,7 +687,7 @@ export async function updateAiConfigurationAction(
     splitModel: field(formData, "splitModel"),
     extractModel: field(formData, "extractModel"),
     credential: field(formData, "credential").trim() || undefined,
-  });
+  }, jobQueue);
   if (!result.ok) return refused(result.error, formData, [
     "configurationId",
     "label",
@@ -706,7 +706,7 @@ export async function assignCompanyAiConfigurationAction(
   const result = await assignCompanyAiConfiguration(await requireUserClient(), {
     companyId: field(formData, "companyId"),
     configurationId: field(formData, "configurationId"),
-  });
+  }, jobQueue);
   if (!result.ok) return refused(result.error, formData, ["configurationId"]);
   refresh();
   return { error: null, values: {} };

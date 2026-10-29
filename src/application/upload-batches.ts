@@ -194,10 +194,13 @@ function workspaceOf(
   ).length;
   const failures = transportFailures + sourceFailures + documentFailures;
   const active = !batch.upload_finished_at || sourceFiles.some(
-    (source) => source.status === "uploaded" || source.status === "processing",
+    (source) => source.status === "uploaded"
+      || source.status === "waiting_for_platform"
+      || source.status === "processing",
   ) || documents.some(
     (document) => document.status === "uploaded"
       || document.status === "waiting_for_allowance"
+      || document.status === "waiting_for_platform"
       || document.status === "processing",
   );
   const outcome: UploadBatchOutcome = active || !batch.processing_finished_at
@@ -219,9 +222,13 @@ function workspaceOf(
     outcome,
     counts: {
       transport: batch.upload_finished_at ? 0 : Math.max(batch.file_count - sourceFiles.length, 0),
-      waiting: sourceFiles.filter((source) => source.status === "uploaded").length
+      waiting: sourceFiles.filter((source) => (
+        source.status === "uploaded" || source.status === "waiting_for_platform"
+      )).length
         + documents.filter((document) =>
-          document.status === "uploaded" || document.status === "waiting_for_allowance"
+          document.status === "uploaded"
+            || document.status === "waiting_for_allowance"
+            || document.status === "waiting_for_platform"
         ).length,
       splitting: sourceFiles.filter((source) => source.status === "processing").length,
       extracting: documents.filter((document) => document.status === "processing").length,
