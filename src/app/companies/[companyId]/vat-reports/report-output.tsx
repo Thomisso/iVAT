@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { getLocale, getTranslations } from "next-intl/server";
 import { Money } from "@/components/money";
-import type { ReportingPeriodReadiness } from "@/application/reporting-period-readiness";
+import {
+  readinessDocumentCounts,
+  type ReportingPeriodReadiness,
+} from "@/application/reporting-period-readiness";
 import type { VatReport } from "@/application/vat-reports";
 
 export async function ReportAmount({
@@ -50,6 +53,7 @@ export async function ReportIssues({
   report: VatReport;
 }) {
   const t = await getTranslations("vatReports");
+  const counts = readinessDocumentCounts(readiness);
   const documentLink = (documentId: string) => {
     const document = report.documents.find((candidate) => candidate.id === documentId);
     return (
@@ -66,9 +70,9 @@ export async function ReportIssues({
           <h2 id="vat-output-issues-title">{t("issuesTitle")}</h2>
           <p>{t("issuesHint")}</p>
         </div>
-        <strong className={readiness.blockers.length ? "has-blockers" : "is-ready"}>
-          {readiness.blockers.length
-            ? t("blockerCount", { count: readiness.blockers.length })
+        <strong className={counts.blockers ? "has-blockers" : "is-ready"}>
+          {counts.blockers
+            ? t("blockerCount", { count: counts.blockers })
             : t("ready")}
         </strong>
       </header>
