@@ -13,6 +13,7 @@ export async function POST(
   const file = formData.get("file");
   const result = await uploadSourceFile(await requireUserClient(), jobQueue, {
     companyId,
+    sourceFileId: String(formData.get("sourceFileId") ?? ""),
     batchId: String(formData.get("batchId") ?? ""),
     fileName: file instanceof File ? file.name : "",
     preselectedDirection:
