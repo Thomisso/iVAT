@@ -113,11 +113,7 @@ describe("Company AI settings", () => {
       "sk-organization-company-settings",
     ]);
     expect(await getCompany(company.client, company.companyId)).toEqual(expect.objectContaining({
-      aiProcessing: {
-        provider: "openai",
-        region: "global",
-        credentialSource: "organization",
-      },
+      aiProcessingEnabled: true,
     }));
     expect(await configurePlatformAiProvider(superAdministrator.client, {
       provider: "openai",
@@ -146,7 +142,7 @@ describe("Company AI settings", () => {
     const member = await companyMember(company, "user");
     const jobs = { async send() {} };
 
-    expect((await getCompany(member.client, company.companyId))?.aiProcessing).toBeNull();
+    expect((await getCompany(member.client, company.companyId))?.aiProcessingEnabled).toBe(false);
     expect(await listCompanyAiOptions(member.client, company.companyId)).toEqual([]);
     expect(await configureCompanyAiProcessing(company.client, jobs, {
       companyId: company.companyId,
@@ -164,11 +160,7 @@ describe("Company AI settings", () => {
       option: { provider: "fake", region: "local", credentialSource: "local" },
       consent: true,
     })).toEqual({ ok: true, value: null });
-    expect((await getCompany(member.client, company.companyId))?.aiProcessing).toEqual({
-      provider: "fake",
-      region: "local",
-      credentialSource: "local",
-    });
+    expect((await getCompany(member.client, company.companyId))?.aiProcessingEnabled).toBe(true);
     expect(JSON.stringify(await getCompany(member.client, company.companyId))).not.toContain("secret");
 
     expect(await disableAiProcessing(member.client, company.companyId)).toEqual({ ok: false, error: "forbidden" });

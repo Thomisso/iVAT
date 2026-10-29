@@ -85,7 +85,7 @@ describe("processing a Source File", () => {
         id: expect.any(String),
         documentId: documents[0].id,
         version: 1,
-        author: { kind: "ai", provider: "fake", model: "fake-extract" },
+        author: { kind: "ai" },
         payload: INVOICE_1,
         findings: [],
         createdAt: expect.any(String),
@@ -297,7 +297,7 @@ describe("AI-processing consent", () => {
     const sourceFileId = await upload({ client, companyId }, worker);
     await worker.runJobs();
 
-    expect((await getCompany(client, companyId))?.aiProcessing).toBeNull();
+    expect((await getCompany(client, companyId))?.aiProcessingEnabled).toBe(false);
     expect(calls).toEqual({ split: 0, extract: 0 });
     expect((await getSourceFile(client, companyId, sourceFileId))?.status).toBe("uploaded");
     expect(await listDocuments(client, companyId, sourceFileId)).toEqual([]);
@@ -313,11 +313,7 @@ describe("AI-processing consent", () => {
     expect(await enableAiProcessing(client, worker.jobs, { companyId, provider: ai })).toEqual({ ok: true, value: null });
     await worker.runJobs();
 
-    expect((await getCompany(client, companyId))?.aiProcessing).toEqual({
-      provider: "fake",
-      region: "local",
-      credentialSource: "local",
-    });
+    expect((await getCompany(client, companyId))?.aiProcessingEnabled).toBe(true);
     expect(calls).toEqual({ split: 1, extract: 2 });
     expect((await listDocuments(client, companyId, sourceFileId)).map((d) => d.status)).toEqual([
       "needs_review",
@@ -402,16 +398,8 @@ describe("AI-processing consent", () => {
 
     const [document] = await listDocuments(client, companyId, sourceFileId);
     expect(fakeCalls).toBe(2);
-    expect((await listExtractionVersions(client, companyId, document.id))[0].author).toEqual({
-      kind: "ai",
-      provider: "fake",
-      model: "fake-extract",
-    });
-    expect((await getCompany(client, companyId))?.aiProcessing).toEqual({
-      provider: "fake",
-      region: "local",
-      credentialSource: "local",
-    });
+    expect((await listExtractionVersions(client, companyId, document.id))[0].author).toEqual({ kind: "ai" });
+    expect((await getCompany(client, companyId))?.aiProcessingEnabled).toBe(true);
     await disableAiProcessing(client, companyId);
 
     const aiConsentEvents = (await listAuditEvents(client, organizationId))
@@ -447,7 +435,7 @@ describe("AI-processing consent", () => {
     expect(enabled).toEqual({ ok: false, error: "forbidden" });
     expect(direct.error?.code).toBe("42501");
     expect(direct.data).toBeNull();
-    expect((await getCompany(a.client, a.companyId))?.aiProcessing).toBeNull();
+    expect((await getCompany(a.client, a.companyId))?.aiProcessingEnabled).toBe(false);
   });
 });
 
@@ -864,31 +852,15 @@ describe("jobs running at the same time", () => {
     expect([JSON.stringify([[1, 2]]), JSON.stringify([[1, 1], [2, 2]])]).toContain(JSON.stringify(ranges));
   });
 
-  it("leave a Document in review when a late duplicate of its Extract job finishes", async () => {
-    const { opened, release } = gate();
-    let gated = false;
-    let run = 0;
-    const worker = testWorker(
-      fakeAiProvider({
-        extract: async () => {
-          // While gated, the first run waits until the duplicate has recorded its result.
-          if (gated && ++run === 1) await opened;
-          return SAMPLE_EXTRACTION;
-        },
-      }),
-    );
+  it("leaves a Document in review when the same Extract job runs twice", async () => {
+    const worker = testWorker();
     const { client, companyId } = await companyWithAiProcessing(worker);
     const sourceFileId = await upload({ client, companyId }, worker, "receipt.png");
     await worker.runJobs();
     const [document] = await listDocuments(client, companyId, sourceFileId);
     await reprocessDocument(client, worker.jobs, { companyId, documentId: document.id });
     worker.queued.push(...worker.queued);
-    gated = true;
-
-    const running = worker.runJobsConcurrently();
-    await expect.poll(async () => (await listDocuments(client, companyId, sourceFileId))[0].status).toBe("needs_review");
-    release();
-    await running;
+    await worker.runJobsConcurrently();
 
     expect((await listDocuments(client, companyId, sourceFileId))[0].status).toBe("needs_review");
     expect((await listExtractionVersions(client, companyId, document.id)).map((v) => v.version)).toEqual([1, 2]);

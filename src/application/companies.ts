@@ -1,4 +1,3 @@
-import type { AiProcessingConsent } from "./company-ai";
 import { isUuid, type AppClient, type Result } from "./client";
 import { reportingPeriodStart, validFilingEffectiveFrom } from "./reporting-periods";
 
@@ -69,7 +68,8 @@ export type Company = CompanyDetails & {
   organizationId: string;
   /** Formatted for display only. Statutory outputs use the structured address fields. */
   street: string;
-  aiProcessing: AiProcessingConsent;
+  /** Generic processing state; provider/configuration details are platform-only. */
+  aiProcessingEnabled: boolean;
 };
 
 export type CompanySummary = { id: string; organizationId: string; name: string };
@@ -297,7 +297,7 @@ export async function getCompany(client: AppClient, companyId: string): Promise<
   if (!isUuid(companyId)) return null;
   const { data, error } = await client
     .from("company")
-    .select("id, organization_id, name, first_name, last_name, ico, vat_id, street, street_name, house_number, orientation_number, city, postal_code, person_type, ai_processing_enabled, ai_provider, ai_region, ai_credential_source")
+    .select("id, organization_id, name, first_name, last_name, ico, vat_id, street, street_name, house_number, orientation_number, city, postal_code, person_type, ai_processing_enabled")
     .eq("id", companyId)
     .maybeSingle();
   if (error) throw error;
@@ -321,11 +321,7 @@ export async function getCompany(client: AppClient, companyId: string): Promise<
     city: data.city,
     postalCode: data.postal_code,
     personType: data.person_type,
-    aiProcessing: data.ai_processing_enabled ? {
-      provider: data.ai_provider!,
-      region: data.ai_region!,
-      credentialSource: data.ai_credential_source!,
-    } : null,
+    aiProcessingEnabled: data.ai_processing_enabled,
   };
 }
 

@@ -114,7 +114,7 @@ describe("correcting a Document", () => {
     expect(result).toEqual({ ok: true, value: { version: 2 } });
     const versions = await listExtractionVersions(client, companyId, documentId);
     expect(versions.map((v) => [v.version, v.author])).toEqual([
-      [1, { kind: "ai", provider: "fake", model: "fake-extract" }],
+      [1, { kind: "ai" }],
       [2, { kind: "user", userId }],
     ]);
     expect(versions[0].payload).toEqual(SAMPLE_EXTRACTION);
