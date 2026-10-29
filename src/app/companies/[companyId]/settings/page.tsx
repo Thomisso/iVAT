@@ -10,6 +10,7 @@ import { getCompanyAiProcessingAllowance } from "@/application/ai-processing-all
 import { getCompanyFilingDefaults } from "@/application/company-filing-defaults";
 import { requireUserClient } from "@/lib/supabase/server";
 import { CompanyForm } from "../../new/company-form";
+import { CompanyDataExportForm } from "./company-data-export-form";
 import { CompanyDeletionForm } from "./company-deletion-form";
 import { FilingDefaultsForm } from "./filing-defaults-form";
 
@@ -81,7 +82,10 @@ export default async function CompanySettingsPage({
             <p className="iv-muted">{ai("waitingDocuments", { count: allowance.value.waitingDocuments })}</p>
           </section>}
           {role === "administrator" && (
-            <CompanyDeletionForm companyId={company.id} />
+            <>
+              <CompanyDataExportForm companyId={company.id} />
+              <CompanyDeletionForm companyId={company.id} />
+            </>
           )}
         </div>
       </main>
