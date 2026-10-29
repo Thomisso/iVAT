@@ -4,6 +4,7 @@ import {
   getCompany,
   getMyCompanyRole,
 } from "@/application/companies";
+import { PageLayout } from "@/components/app-shell";
 import { requireUserClient } from "@/lib/supabase/server";
 
 export default async function AiProcessingSetupPage({
@@ -17,7 +18,7 @@ export default async function AiProcessingSetupPage({
     getTranslations("aiProcessing"),
   ]);
   if (!company || role !== "administrator") notFound();
-  return <main className="company-workspace">
+  return <PageLayout className="company-workspace" measure="narrow">
     <header className="company-page-header">
       <h1>{t("setupTitle")}</h1>
       <p>{t("setupIntro")}</p>
@@ -25,5 +26,5 @@ export default async function AiProcessingSetupPage({
     <section className="panel company-setup-panel">
       <p>{t("platformManaged")}</p>
     </section>
-  </main>;
+  </PageLayout>;
 }

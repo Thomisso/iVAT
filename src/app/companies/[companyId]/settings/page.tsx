@@ -13,6 +13,7 @@ import { CompanyForm } from "../../new/company-form";
 import { CompanyDataExportForm } from "./company-data-export-form";
 import { CompanyDeletionForm } from "./company-deletion-form";
 import { FilingDefaultsForm } from "./filing-defaults-form";
+import { PageLayout } from "@/components/app-shell";
 
 export default async function CompanySettingsPage({
   params,
@@ -31,7 +32,7 @@ export default async function CompanySettingsPage({
     ? await getCompanyAiProcessingAllowance(client, companyId)
     : null;
   return (
-      <main className="company-workspace company-create">
+      <PageLayout className="company-workspace company-create" measure="narrow">
         <div className="panel">
           <Link href={`/companies/${company.id}`}>{t("backToCompany")}</Link>
           <h1>{t("settingsTitle")}</h1>
@@ -88,6 +89,6 @@ export default async function CompanySettingsPage({
             </>
           )}
         </div>
-      </main>
+      </PageLayout>
   );
 }

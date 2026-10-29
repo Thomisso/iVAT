@@ -16,6 +16,7 @@ import { requireUserClient } from "@/lib/supabase/server";
 import { EmptyState } from "@/components/empty-state";
 import { DataTable } from "@/components/data-table";
 import { formatDocumentDate } from "@/lib/format-date";
+import { PageLayout } from "@/components/app-shell";
 import { GenerateForm } from "./generate-form";
 import { PeriodLockForm } from "./period-lock-form";
 import { PeriodNavigation, PeriodSelector } from "./period-navigation";
@@ -66,7 +67,7 @@ export default async function VatReportsPage({
     ] as const
   ).filter(([, ids]) => ids.length > 0);
   return (
-    <main className="company-workspace vat-reports">
+    <PageLayout className="company-workspace vat-reports" measure="wide">
       <header className="company-page-header vat-report-header">
         <p>
           <Link href={`/companies/${companyId}/vat`}>
@@ -284,6 +285,6 @@ export default async function VatReportsPage({
           <EmptyState title={t("vatReports.noTransitions")} />
         )}
       </section>
-    </main>
+    </PageLayout>
   );
 }
