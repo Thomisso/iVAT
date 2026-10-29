@@ -19,25 +19,12 @@ export type PlatformUploadLimits = {
 export async function listPlatformOrganizationCompanies(
   client: AppClient,
 ): Promise<Result<PlatformOrganizationCompanyList[], "forbidden">> {
-  const { data, error } = await client.rpc("list_platform_organization_companies");
+  const { data, error } = await client.rpc("list_platform_organization_companies_complete");
   if (error) {
     if (error.code === "42501") return { ok: false, error: "forbidden" };
     throw error;
   }
-  const organizations = new Map<string, PlatformOrganizationCompanyList>();
-  for (const row of data) {
-    const organization = organizations.get(row.organization_id) ?? {
-      id: row.organization_id,
-      name: row.organization_name,
-      blocked: row.organization_blocked,
-      companies: [],
-    };
-    if (row.company_id && row.company_name && row.company_ico) {
-      organization.companies.push({ id: row.company_id, name: row.company_name, ico: row.company_ico });
-    }
-    organizations.set(organization.id, organization);
-  }
-  return { ok: true, value: [...organizations.values()] };
+  return { ok: true, value: data as unknown as PlatformOrganizationCompanyList[] };
 }
 
 /** Blocks or unblocks an Organization platform-wide. Idempotent and audited in the database. */
