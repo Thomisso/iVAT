@@ -38,6 +38,16 @@ async function type(text: string): Promise<void> {
   });
 }
 
+function alert(): Element | null {
+  return container.querySelector("[role=alert]");
+}
+
+async function blur(): Promise<void> {
+  await act(async () => {
+    visibleInput().dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+  });
+}
+
 beforeEach(() => {
   (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
     .IS_REACT_ACT_ENVIRONMENT = true;
@@ -69,19 +79,41 @@ describe("DateInput", () => {
     expect(container.querySelector("[role=alert]")).toBeNull();
   });
 
-  it("rejects an invalid date with a message and blocks the form", async () => {
+  it("shows the expected format as a hint and keeps the full keyboard for the dots", async () => {
+    await render();
+
+    expect(container.querySelector(".iv-field-hint")?.textContent).toBe("hint");
+    expect(visibleInput().inputMode).not.toBe("numeric");
+  });
+
+  it("blocks the form on an invalid date and explains it once the User leaves the field", async () => {
     const form = await render("2026-03-05");
 
     await type("31.04.2026");
 
-    expect(container.querySelector("[role=alert]")?.textContent).toBe("invalid");
-    expect(visibleInput().getAttribute("aria-invalid")).toBe("true");
     expect(form.checkValidity()).toBe(false);
+    expect(alert()).toBeNull();
+
+    await blur();
+
+    expect(alert()?.textContent).toBe("invalid");
+    expect(visibleInput().getAttribute("aria-invalid")).toBe("true");
 
     await type("30.04.2026");
 
-    expect(container.querySelector("[role=alert]")).toBeNull();
+    expect(alert()).toBeNull();
     expect(form.checkValidity()).toBe(true);
     expect(new FormData(form).get("taxPointDate")).toBe("2026-04-30");
+  });
+
+  it("explains an invalid date when the User submits without leaving the field", async () => {
+    const form = await render();
+
+    await type("29.02.2027");
+    await act(async () => {
+      form.checkValidity();
+    });
+
+    expect(alert()?.textContent).toBe("invalid");
   });
 });

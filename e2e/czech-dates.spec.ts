@@ -37,10 +37,11 @@ test("dates are shown and entered as dd.mm.rrrr regardless of the browser locale
   const companyId = await createCompany(page, run);
 
   const effectiveFrom = page.getByLabel("Effective from");
+  await expect(page.getByText("Format dd.mm.yyyy", { exact: true })).toBeVisible();
   await effectiveFrom.fill("31.02.2026");
+  await page.getByRole("button", { name: "Save and continue" }).click();
   const invalidDate = page.getByRole("alert").filter({ hasText: "Enter a valid date as dd.mm.yyyy." });
   await expect(invalidDate).toBeVisible();
-  await page.getByRole("button", { name: "Save and continue" }).click();
   await expect(page).toHaveURL(/\/setup\/filing-frequency$/);
   await effectiveFrom.fill("01.01.2026");
   await page.getByRole("button", { name: "Save and continue" }).click();
@@ -68,8 +69,9 @@ test("dates are shown and entered as dd.mm.rrrr regardless of the browser locale
   await expect(taxPointDate).toHaveValue("01.10.2026");
   await expect(page.getByLabel("Due date", { exact: true })).toHaveValue("15.10.2026");
   await taxPointDate.fill("2026-10-20");
+  await taxPointDate.blur();
   await expect(invalidDate).toBeVisible();
-  await taxPointDate.fill("20.10.2026");
+  await taxPointDate.fill("20.10.2026.");
   await page.getByLabel("Direction", { exact: true }).selectOption("incoming");
   await page.getByRole("button", { name: "Save corrections" }).click();
   await expect(page.getByRole("button", { name: "Approve version 2" })).toBeVisible();
