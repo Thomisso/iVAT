@@ -50,10 +50,12 @@ export function PlatformShell({
   children,
   companyHref,
   email,
+  operationalProblemCount,
 }: {
   children: ReactNode;
   companyHref: string;
   email: string;
+  operationalProblemCount: number;
 }) {
   const t = useTranslations("shell");
   const app = useTranslations("app");
@@ -76,6 +78,10 @@ export function PlatformShell({
   const navigation = (
     <ContextNavigation
       items={destinations.map((destination) => ({
+        accessibleLabel: destination.key === "overview" && operationalProblemCount > 0
+          ? t("platformOverviewWithAlerts", { count: operationalProblemCount })
+          : undefined,
+        badge: destination.key === "overview" ? operationalProblemCount : undefined,
         current: destination.key === active,
         href: destination.href,
         icon: <ShellIcon path={destination.icon} />,
@@ -86,6 +92,16 @@ export function PlatformShell({
   );
   const accountActions = (
     <AccountActions label={t("accountActions")}>
+      <Link
+        aria-label={t("platformAlertBell", { count: operationalProblemCount })}
+        className="notification-bell platform-alert-bell"
+        href="/platform/administration#operational-problems-title"
+      >
+        <ShellIcon path="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" />
+        {operationalProblemCount > 0 && (
+          <span aria-hidden="true" className="notification-bell-count">{operationalProblemCount}</span>
+        )}
+      </Link>
       <Link
         aria-label={t("returnToCompany")}
         className="organization-company-return"

@@ -162,6 +162,7 @@ describe("operational problem grouping", () => {
             companyName: "Alpha",
             affectedCount: 2,
             firstFailedAt: "2026-11-12T08:00:00.000Z",
+            targetIds: ["document-a", "document-b"],
           },
           {
             name: "extract-document",
@@ -169,6 +170,7 @@ describe("operational problem grouping", () => {
             companyName: "Alpha",
             affectedCount: 1,
             firstFailedAt: "2026-11-12T10:00:00.000Z",
+            targetIds: ["document-b"],
           },
         ],
       },
@@ -179,6 +181,7 @@ describe("operational problem grouping", () => {
       kind: "terminal_processing_job",
       affectedDocumentCount: 3,
       firstDetectedAt: "2026-11-12T08:00:00.000Z",
+      targetIds: ["document-a", "document-b"],
     })]);
 
     expect(groupOperationalProblems({

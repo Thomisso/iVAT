@@ -35,7 +35,8 @@ begin
           coalesce(source.company_id, document.company_id) as company_id,
           company.name as company_name,
           count(distinct parsed.target_id)::integer as affected_count,
-          min(parsed.failed_at) as first_failed_at
+          min(parsed.failed_at) as first_failed_at,
+          jsonb_agg(distinct parsed.target_id order by parsed.target_id) as target_ids
         from parsed
         left join public.source_file source
           on parsed.name = 'split-source-file' and source.id = parsed.target_id
@@ -50,7 +51,8 @@ begin
         'companyId', grouped.company_id,
         'companyName', grouped.company_name,
         'affectedCount', grouped.affected_count,
-        'firstFailedAt', grouped.first_failed_at
+        'firstFailedAt', grouped.first_failed_at,
+        'targetIds', grouped.target_ids
       ) order by grouped.first_failed_at), '[]'::jsonb)
       from grouped
     $query$ into failed_jobs;
