@@ -322,6 +322,7 @@
     "documentPages": "Document · pages {first}–{last}",
     "sourceStatus": {
       "uploaded": "Waiting",
+      "waiting_for_platform": "Waiting for platform intervention",
       "processing": "Splitting",
       "split": "Split complete",
       "failed": "Split failed"
@@ -329,6 +330,7 @@
     "documentStatus": {
       "uploaded": "Waiting for Extraction",
       "waiting_for_allowance": "The processed-Document limit has been reached. Contact the SuperAdmin.",
+      "waiting_for_platform": "AI processing is waiting for platform intervention.",
       "processing": "Extracting",
       "needs_review": "Needs review",
       "approved": "Approved",
@@ -644,6 +646,7 @@
   },
   "sourceFileStatus": {
     "uploaded": "Waiting",
+    "waiting_for_platform": "Waiting for platform intervention",
     "processing": "Splitting",
     "split": "Split",
     "failed": "Failed"
@@ -651,6 +654,7 @@
   "documentStatus": {
     "uploaded": "Waiting",
     "waiting_for_allowance": "The processed-Document limit has been reached. Contact the SuperAdmin.",
+    "waiting_for_platform": "AI processing is waiting for platform intervention.",
     "processing": "Processing",
     "needs_review": "Needs review",
     "failed": "Failed",
@@ -846,6 +850,7 @@
   "statusBadge": {
     "uploaded": "Uploaded",
     "waiting-for-allowance": "The processed-Document limit has been reached. Contact the SuperAdmin.",
+    "waiting-for-platform": "AI processing is waiting for platform intervention.",
     "splitting": "Splitting",
     "extracting": "Extracting",
     "proposed": "AI proposed",

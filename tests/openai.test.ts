@@ -222,4 +222,33 @@ describe("OpenAI provider", () => {
     expect(error).toBeInstanceOf(OpenAiProviderError);
     expect(error).toMatchObject({ status, transient });
   });
+
+  it.each([
+    [401, "invalid_api_key", "invalid_credentials"],
+    [429, "insufficient_quota", "provider_credits_exhausted"],
+  ] as const)("classifies HTTP %i with %s as platform intervention", async (status, code, classification) => {
+    const baseUrl = await openAiStandIn((_request, _body, response) => {
+      response.writeHead(status, { "content-type": "application/json" });
+      response.end(JSON.stringify({ error: { code, message: "operator-only detail" } }));
+    });
+    const provider = openAiProvider({
+      apiKey: "test-secret",
+      splitModel: "gpt-split",
+      extractModel: "gpt-extract",
+      baseUrl,
+    });
+
+    const error = await provider.split({
+      format: "pdf",
+      mediaType: "application/pdf",
+      bytes: new Uint8Array([37, 80, 68, 70]),
+      pageCount: 1,
+    }).catch((caught: unknown) => caught);
+
+    expect(error).toMatchObject({
+      transient: false,
+      platformIntervention: true,
+      classification,
+    });
+  });
 });

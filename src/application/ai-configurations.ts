@@ -1,4 +1,5 @@
 import { isUuid, type AppClient, type Result } from "./client";
+import { extractJob, splitJob, type JobQueue } from "./processing";
 
 export type AiConfigurationSummary = {
   id: string;
@@ -77,6 +78,7 @@ export async function createAiConfiguration(
 export async function updateAiConfiguration(
   client: AppClient,
   input: UpdateAiConfigurationInput,
+  jobs?: JobQueue,
 ): Promise<Result<null, AiConfigurationError>> {
   if (!isUuid(input.id)) return { ok: false, error: "forbidden" };
   const invalid = validateInput(input);
@@ -93,6 +95,10 @@ export async function updateAiConfiguration(
     const refusal = expectedError(error);
     if (refusal) return { ok: false, error: refusal };
     throw error;
+  }
+  if (jobs) {
+    const resumed = await resumePlatformAiProcessing(client, jobs, { configurationId: input.id });
+    if (!resumed.ok) return resumed;
   }
   return { ok: true, value: null };
 }
@@ -112,6 +118,7 @@ export async function listAiConfigurations(
 export async function assignCompanyAiConfiguration(
   client: AppClient,
   input: { companyId: string; configurationId: string },
+  jobs?: JobQueue,
 ): Promise<Result<null, "forbidden">> {
   if (!isUuid(input.companyId) || !isUuid(input.configurationId)) return { ok: false, error: "forbidden" };
   const { error } = await client.rpc("assign_company_ai_configuration", {
@@ -121,6 +128,41 @@ export async function assignCompanyAiConfiguration(
   if (error) {
     if (error.code === "42501") return { ok: false, error: "forbidden" };
     throw error;
+  }
+  if (jobs) {
+    const resumed = await resumePlatformAiProcessing(client, jobs, { companyId: input.companyId });
+    if (!resumed.ok) return resumed;
+  }
+  return { ok: true, value: null };
+}
+
+export async function resumePlatformAiProcessing(
+  client: AppClient,
+  jobs: JobQueue,
+  target: { companyId?: string; configurationId?: string },
+): Promise<Result<null, "forbidden">> {
+  if (
+    (!target.companyId && !target.configurationId)
+    || (target.companyId !== undefined && !isUuid(target.companyId))
+    || (target.configurationId !== undefined && !isUuid(target.configurationId))
+  ) return { ok: false, error: "forbidden" };
+  const { data, error } = await client.rpc("resume_platform_ai_processing", {
+    target_company_id: target.companyId,
+    target_configuration_id: target.configurationId,
+  });
+  if (error?.code === "42501") return { ok: false, error: "forbidden" };
+  if (error) throw error;
+  for (let index = 0; index < data.length; index += 1) {
+    const work = data[index];
+    try {
+      await jobs.send(work.target_kind === "source_file" ? splitJob(work.target_id) : extractJob(work.target_id));
+    } catch (queueError) {
+      const restored = await client.rpc("restore_platform_ai_processing_wait", {
+        target_work: data.slice(index),
+      });
+      if (restored.error) throw restored.error;
+      throw queueError;
+    }
   }
   return { ok: true, value: null };
 }

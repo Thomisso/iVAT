@@ -23,6 +23,7 @@ const unavailableExchangeRates: ExchangeRateProvider = { rateFor: async () => nu
 export const DOCUMENT_STATUSES = [
   "uploaded",
   "waiting_for_allowance",
+  "waiting_for_platform",
   "processing",
   "needs_review",
   "approved",
