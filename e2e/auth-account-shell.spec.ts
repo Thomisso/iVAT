@@ -111,7 +111,6 @@ test("account security, MFA enrollment and verification stay focused at desktop 
 
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/companies/new");
-  await page.getByText("User menu", { exact: true }).click();
   const logOut = page.getByRole("button", { name: "Log out" });
   await expect(logOut).toBeVisible();
   await logOut.focus();

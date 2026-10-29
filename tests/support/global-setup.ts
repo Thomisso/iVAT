@@ -1,5 +1,4 @@
 import { execSync } from "node:child_process";
-import path from "node:path";
 import type { TestProject } from "vitest/node";
 
 declare module "vitest" {
@@ -12,27 +11,9 @@ declare module "vitest" {
   }
 }
 
-// Application-layer tests run against the local Supabase stack (ADR-0002).
-// Its URL and keys are read from the running CLI instance.
-const databaseFreeTests = new Set([
-  path.resolve("tests/visual-prototype.test.ts"),
-]);
-
-export function shouldSkipDatabaseSetup(argv: readonly string[]) {
-  const scope = argv.slice(2);
-  return scope.length === 2
-    && scope[0] === "run"
-    && databaseFreeTests.has(path.resolve(scope[1]));
-}
-
 export default function setup(project: TestProject) {
-  // Vitest does not expose CLI file filters on TestProject during global setup.
-  // Only the exact `vitest run <allowlisted-file>` shape is safe to exempt:
-  // directories, mixed selectors and options all retain the database preflight.
-  if (shouldSkipDatabaseSetup(process.argv)) {
-    return;
-  }
-
+  // Application-layer tests run against the local Supabase stack (ADR-0002).
+  // Its URL and keys are read from the running CLI instance.
   let status: Record<string, string>;
   try {
     status = JSON.parse(

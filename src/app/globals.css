@@ -1,7 +1,6 @@
 /* Ported iVAT design tokens. The reference lives in design-system/tokens.json. */
 
-:root,
-[data-theme="light"] {
+:root {
   color-scheme: light;
   --canvas: #f6f6f3;
   --surface: #ffffff;
@@ -53,7 +52,6 @@
   --control-lg: 40px;
   --row-compact: 36px;
   --row-comfortable: 44px;
-  --sidebar: 232px;
   --review-panel: 400px;
   --font-sans:
     var(--font-geist), ui-sans-serif, system-ui, -apple-system, "Segoe UI",
@@ -173,7 +171,6 @@ body {
 :where(
   .iv-btn,
   .iv-input,
-  .iv-nav-item,
   .iv-drop,
   .iv-ask input,
   .iv-table tr[tabindex]
@@ -546,106 +543,6 @@ body {
   }
 }
 
-/* Sidebar */
-.iv-side {
-  width: var(--sidebar);
-  max-width: 100%;
-  background: var(--surface-sunken);
-  border-right: 1px solid var(--line);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  padding: var(--space-3);
-}
-.iv-brand {
-  font-weight: 700;
-  font-size: 16px;
-  letter-spacing: -0.01em;
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 0 var(--space-2);
-}
-.iv-brand b {
-  display: inline-block;
-  width: 10px;
-  height: 14px;
-  background: var(--ai-mark);
-  border-radius: var(--radius-sm);
-  box-shadow: inset 0 0 0 1px var(--ai-edge);
-}
-.iv-company {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-}
-.iv-company-text {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  flex: 1;
-}
-.iv-company-name {
-  font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.iv-company-id {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 14px;
-  color: var(--ink-muted);
-}
-.iv-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.iv-nav-group {
-  font-size: 11px;
-  line-height: 16px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-muted);
-  padding: var(--space-3) var(--space-2) var(--space-1);
-}
-.iv-nav-item {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  height: var(--control-md);
-  padding: 0 var(--space-2);
-  border-radius: var(--radius-md);
-  color: var(--ink);
-  text-decoration: none;
-}
-.iv-nav-item:hover {
-  background: var(--surface);
-}
-.iv-nav-item[aria-current="page"] {
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-weight: 500;
-}
-.iv-nav-count {
-  margin-left: auto;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--ink-muted);
-}
-.iv-nav-count.is-ai {
-  color: var(--ai);
-  background: var(--ai-soft);
-  padding: 0 var(--space-2);
-  border-radius: var(--radius-full);
-}
-
 /* Notice */
 .iv-notice {
   display: flex;
@@ -783,20 +680,6 @@ code,
   background: var(--surface);
   margin: var(--space-8) auto;
 }
-.auth-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-5) var(--space-6);
-  border-bottom: 1px solid var(--line);
-}
-.auth-content {
-  padding: var(--space-4);
-}
-.auth-header .language-switcher {
-  margin-left: auto;
-}
 .focused-shell {
   --shell-navy: #12304a;
   --shell-blue: #21628f;
@@ -828,6 +711,7 @@ code,
   border-left: 1px solid #cfd8d5;
   color: var(--ink-muted);
 }
+.focused-shell-actions { display: flex; align-items: center; gap: var(--space-3); }
 .focused-shell-content {
   min-height: calc(100dvh - 84px);
   padding: clamp(28px, 6vw, 72px) var(--space-4);
@@ -920,59 +804,16 @@ select {
   color: var(--ink);
   background: var(--surface);
 }
-.dashboard,
-.review,
-.company-create {
-  min-width: 0;
-  margin-left: var(--sidebar);
-  padding: var(--space-6);
-}
 .dashboard {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
-}
-.company-create .panel {
-  margin-top: var(--space-2);
-}
-.iv-side {
-  position: fixed;
-  z-index: 10;
-  inset: 0 auto 0 0;
-  overflow-y: auto;
-}
-.iv-brand {
-  color: var(--ink);
-  text-decoration: none;
-}
-.iv-user-menu {
-  margin-top: auto;
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--line);
-}
-.iv-user-menu summary {
-  cursor: pointer;
-  padding: var(--space-2);
-  border-radius: var(--radius-md);
-}
-.iv-user-menu form {
-  margin: var(--space-2) 0;
 }
 .language-switcher {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1);
-}
-.company-switcher summary {
-  cursor: pointer;
-  list-style: none;
-  border-color: var(--line-strong);
-}
-.company-switcher .iv-nav {
-  padding-top: var(--space-2);
-}
-.mobile-nav {
-  display: none;
 }
 .upload-form {
   margin-bottom: var(--space-4);
@@ -1296,30 +1137,6 @@ select:disabled {
   }
 }
 @media (max-width: 720px) {
-  .mobile-nav {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: var(--space-3);
-    background: var(--surface);
-    border-bottom: 1px solid var(--line);
-  }
-  .iv-side {
-    display: none;
-    inset: auto 0;
-    width: 100%;
-    max-height: calc(100dvh - var(--control-lg) - var(--space-6));
-    box-shadow: var(--shadow-pop);
-  }
-  .iv-side.is-open {
-    display: flex;
-  }
-  .dashboard,
-  .review,
-  .company-create {
-    margin-left: 0;
-    padding: var(--space-4);
-  }
   .iv-viewer {
     padding: var(--space-3);
   }
@@ -1578,6 +1395,7 @@ select:disabled {
   color: #263944;
 }
 .platform-alert-bell { text-decoration: none; }
+.platform-page { width: 100%; min-height: 100dvh; padding: clamp(24px, 4vw, 56px); }
 .platform-page > .panel { width: 100%; margin: 0; }
 .operational-problems { display: grid; gap: var(--space-4); }
 .operational-problems-header,
@@ -1687,10 +1505,8 @@ select:disabled {
 .company-shell-content { min-width: 0; }
 .company-shell-content > .dashboard,
 .company-shell-content > .review,
-.company-shell-content > .company-create,
 .company-shell-content > .iv-notice { margin-left: 0; }
-.company-mobile-header,
-.company-mobile-nav { display: none; }
+.company-mobile-header { display: none; }
 .app-page {
   width: 100%;
   min-height: 100dvh;
@@ -1968,6 +1784,8 @@ select:disabled {
   .focused-shell-header { min-height: 68px; padding: 10px 14px; }
   .focused-shell-identity p { display: none; }
   .focused-shell-header .language-switcher { flex-wrap: nowrap; }
+  .focused-shell-actions { gap: var(--space-2); }
+  .focused-shell-actions .iv-btn { padding-inline: var(--space-2); }
   .focused-shell-content { min-height: calc(100dvh - 68px); padding: 24px 14px; }
   .focused-shell-card { padding: 24px 18px; }
   .company-shell { min-height: 100dvh; padding: 61px 0 70px; display: block; }
@@ -2062,8 +1880,7 @@ select:disabled {
   .company-setup-checklist li { grid-template-columns: 32px minmax(0, 1fr); }
   .company-setup-checklist li a { grid-column: 2; }
   .company-shell-content > .dashboard,
-  .company-shell-content > .review,
-  .company-shell-content > .company-create { padding-inline: 14px; }
+  .company-shell-content > .review { padding-inline: 14px; }
   .company-chooser-page { padding: 14px; }
   .company-chooser-panel { padding: 24px 18px; }
 }
