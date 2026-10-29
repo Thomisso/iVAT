@@ -778,7 +778,7 @@
       "rate_vat_amount_mismatch": "DPH neodpovídá základu a sazbě.",
       "total_net_amount_mismatch": "Celkový základ neodpovídá rozpisu sazeb.",
       "total_vat_amount_mismatch": "Celková DPH neodpovídá rozpisu sazeb.",
-      "total_gross_amount_mismatch": "Celkem s DPH neodpovídá součtu základu a DPH.",
+      "total_gross_amount_mismatch": "Celkem s DPH se od součtu základu a DPH liší o {difference, number, ::.00}.",
       "vat_rate_not_valid_on_tax_point_date": "Tato sazba DPH nebyla k DUZP platná.",
       "invalid_ico_format": "IČO musí mít osm číslic.",
       "invalid_ico_checksum": "Kontrolní součet IČO není platný.",

@@ -51,7 +51,11 @@ export function CorrectionForm({
     );
   const findingMessage = (field: string) => {
     const item = finding(field);
-    return item ? t(`findings.${item.code}`) : undefined;
+    return item
+      ? t(`findings.${item.code}`, {
+          difference: Number(item.params?.difference ?? 0),
+        })
+      : undefined;
   };
 
   // A refused form shows what was submitted; otherwise the version's own value.
