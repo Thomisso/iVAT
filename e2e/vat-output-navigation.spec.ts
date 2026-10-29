@@ -101,6 +101,20 @@ test("empty and draft Reporting Periods expose separate statutory destinations i
   await expect(page.getByRole("heading", { name: "Control Statement · 2026-01" })).toBeVisible();
   await expect(page.locator('input[name="format"]')).toHaveValue("dphkh1");
   await expect(page.locator('select[name="format"]')).toHaveCount(0);
+  const pdfDownload = page.getByRole("link", {
+    name: "Download Control Statement PDF",
+  });
+  const pdfPath = `/companies/${companyId}/vat-reports/2026-01/control-statement/pdf`;
+  await expect(pdfDownload).toHaveAttribute("href", pdfPath);
+  await expect(pdfDownload).toHaveAttribute("download", "DPHKH1-2026-01.pdf");
+  if (!baseURL) throw new Error("Playwright baseURL is required");
+  const pdfResponse = await context.request.get(new URL(pdfPath, baseURL).toString());
+  expect(pdfResponse.status()).toBe(200);
+  expect(pdfResponse.headers()["content-type"]).toBe("application/pdf");
+  expect(pdfResponse.headers()["content-disposition"]).toBe(
+    'attachment; filename="DPHKH1-2026-01.pdf"',
+  );
+  expect((await pdfResponse.body()).subarray(0, 5).toString()).toBe("%PDF-");
 
   await page
     .getByRole("navigation", { name: "Reporting Period destinations" })
