@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { listPlatformAiUsage } from "@/application/ai-usage";
 import { AiUsageTable } from "@/components/ai-usage-table";
-import { AppSidebar } from "@/components/app-sidebar";
 import { Button } from "@/components/button";
 import { requireUserClient } from "@/lib/supabase/server";
 
@@ -31,8 +30,7 @@ export default async function PlatformAiUsagePage({ searchParams }: PageProps<"/
 
   return (
     <>
-      <AppSidebar />
-      <main className="dashboard">
+      <main className="dashboard platform-page">
         <header>
           <h1>{t("platformTitle")}</h1>
           <p className="iv-muted">{t("platformIntro")}</p>
