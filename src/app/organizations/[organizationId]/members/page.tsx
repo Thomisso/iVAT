@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { listMemberships, listPendingInvitations } from "@/application/memberships";
 import { listMyOrganizations } from "@/application/organizations";
-import { AppSidebar } from "@/components/app-sidebar";
+import { PageContent, PageHeader, PageLayout } from "@/components/app-shell";
 import { MemberManagement } from "@/components/member-management";
 import { requireUserClient } from "@/lib/supabase/server";
 
@@ -16,18 +16,15 @@ export default async function OrganizationMembersPage({ params }: PageProps<"/or
     listPendingInvitations(client, { organizationId, companyId: null }),
     getTranslations("members"),
   ]);
-  return (
-    <>
-      <AppSidebar />
-      <main className="dashboard">
-        <header><h1>{t("organizationTitle", { organization: organization.name })}</h1></header>
+  return <PageLayout className="organization-members" measure="wide">
+    <PageHeader title={t("organizationTitle", { organization: organization.name })} />
+    <PageContent measure="narrow">
         <MemberManagement
           organizationId={organizationId}
           companyId={null}
           memberships={memberships}
           pendingInvitations={pendingInvitations}
         />
-      </main>
-    </>
-  );
+    </PageContent>
+  </PageLayout>;
 }
