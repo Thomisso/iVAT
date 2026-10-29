@@ -368,7 +368,7 @@ it("retains an Approved Document and its Period Lock after the Company is soft-d
   ).toEqual({ ok: true, value: null });
   const report = { companyId: company.companyId, period: "2026-10" };
   expect((await generateVatReport(company.client, report)).ok).toBe(true);
-  expect(await finalizeVatReport(company.client, report)).toEqual({
+  expect(await finalizeVatReport(company.client, { ...report, confirmed: true })).toEqual({
     ok: true,
     value: null,
   });

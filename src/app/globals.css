@@ -1874,6 +1874,14 @@ select:disabled {
 .vat-snapshot-card dd { margin: 0; font-weight: 700; }
 .vat-snapshot-card dd[data-freshness="current"] { color: var(--success); }
 .vat-snapshot-card dd[data-freshness="stale"] { color: var(--danger); }
+.period-lock-form { margin-top: 18px; display: grid; gap: 10px; }
+.period-lock-form .iv-notice { margin: 0; }
+.period-lock-form textarea { min-height: 84px; resize: vertical; }
+.period-lock-confirmation { display: grid; grid-template-columns: auto 1fr; align-items: start; gap: 8px; color: #526168; font-size: 13px; }
+.period-lock-confirmation input { margin-top: 3px; }
+.finalization-summary { display: grid; grid-template-columns: 1fr 1fr; }
+.finalization-summary > div:nth-child(even) { padding-left: 10px; }
+.vat-transition-history > p { color: #617078; }
 .vat-reports > section:not(.vat-period-toolbar) { margin-top: 20px; padding: 22px; }
 .vat-reports > .iv-empty { margin-top: 20px; }
 .vat-snapshot-destinations > p { color: #617078; }

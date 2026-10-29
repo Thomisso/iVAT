@@ -1,15 +1,20 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getTranslations } from "next-intl/server";
-import { getCompany, getMyCompanyRole } from "@/application/companies";
+import { getFormatter, getTranslations } from "next-intl/server";
+import { getCompany, getCompanySetupChecklist, getMyCompanyRole } from "@/application/companies";
 import {
   getReportingPeriodReadiness,
   listReportingPeriods,
 } from "@/application/reporting-period-readiness";
-import { getPeriodLock, getVatReport } from "@/application/vat-reports";
+import {
+  getPeriodLock,
+  getVatReport,
+  listVatReportTransitions,
+} from "@/application/vat-reports";
 import { isReportingPeriod } from "@/application/vat-rules";
 import { requireUserClient } from "@/lib/supabase/server";
 import { EmptyState } from "@/components/empty-state";
+import { DataTable } from "@/components/data-table";
 import { formatDocumentDate } from "@/lib/format-date";
 import { GenerateForm } from "./generate-form";
 import { PeriodLockForm } from "./period-lock-form";
@@ -36,15 +41,21 @@ export default async function VatReportsPage({
     : periods.find((candidate) => candidate.oldestUnfinished)?.period ??
       periods.at(-1)?.period;
   if (!period) notFound();
-  const [report, periodLock, role, readinessResult, t] = await Promise.all([
+  const [report, periodLock, role, readinessResult, setup, transitions, t, format] = await Promise.all([
     getVatReport(client, companyId, period),
     getPeriodLock(client, companyId, period),
     getMyCompanyRole(client, companyId),
     getReportingPeriodReadiness(client, { companyId, period }),
+    getCompanySetupChecklist(client, companyId),
+    listVatReportTransitions(client, companyId, period),
     getTranslations(),
+    getFormatter(),
   ]);
   if (!readinessResult.ok) notFound();
   const readiness = readinessResult.value;
+  const identityComplete = setup.some((item) =>
+    item.step === "identity" && item.state === "completed"
+  );
   const groupRows = (
     [
       ["processing", readiness.groups.processing],
@@ -187,6 +198,13 @@ export default async function VatReportsPage({
                   companyId={companyId}
                   period={period}
                   locked={!!periodLock}
+                  summary={{
+                    blockerCount: report?.finalization.blockerCount ?? readiness.blockers.length,
+                    warningCount: report?.finalization.warningCount ?? readiness.warnings.length,
+                    rejectedDocumentCount: report?.finalization.rejectedDocumentCount ?? readiness.groups.rejected.length,
+                    snapshotCurrent: readiness.snapshot?.freshness === "current",
+                    identityComplete,
+                  }}
                 />
               )}
             </>
@@ -221,6 +239,51 @@ export default async function VatReportsPage({
           </div>
         </section>
       )}
+      <section className="vat-transition-history">
+        <h2>{t("vatReports.transitionHistory")}</h2>
+        <p>{t("vatReports.transitionHistoryHint")}</p>
+        {transitions.length > 0 ? (
+          <DataTable
+            caption={t("vatReports.transitionHistory")}
+            rows={transitions}
+            columns={[
+              {
+                key: "occurredAt",
+                header: t("vatReports.transitionTime"),
+                render: (transition) => (
+                  <time dateTime={transition.occurredAt}>
+                    {format.dateTime(new Date(transition.occurredAt), {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    })}
+                  </time>
+                ),
+              },
+              {
+                key: "action",
+                header: t("vatReports.transitionAction"),
+                render: (transition) => t(
+                  transition.action === "vat_report.finalized"
+                    ? "vatReports.transitionFinalized"
+                    : "vatReports.transitionUnlocked",
+                ),
+              },
+              {
+                key: "actorEmail",
+                header: t("vatReports.transitionActor"),
+                render: (transition) => transition.actorEmail ?? transition.actorUserId,
+              },
+              {
+                key: "unlockReason",
+                header: t("vatReports.unlockReason"),
+                render: (transition) => transition.unlockReason ?? "—",
+              },
+            ]}
+          />
+        ) : (
+          <EmptyState title={t("vatReports.noTransitions")} />
+        )}
+      </section>
     </main>
   );
 }

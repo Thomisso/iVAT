@@ -43,6 +43,7 @@ it("lists monthly and quarterly Reporting Periods and advances the oldest unfini
   expect(await finalizeVatReport(company.client, {
     companyId: company.companyId,
     period: "2026-01",
+    confirmed: true,
   })).toEqual({ ok: true, value: null });
   expect(
     (await listReportingPeriods(company.client, company.companyId, "2026-04-30"))

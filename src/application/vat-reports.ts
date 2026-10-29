@@ -27,6 +27,11 @@ export type VatReport = {
     readinessSource?: ReportingPeriodReadinessSource[];
   };
   documents: ReportDocument[];
+  finalization: {
+    blockerCount: number;
+    warningCount: number;
+    rejectedDocumentCount: number;
+  };
 };
 export type GenerateVatReportError =
   "forbidden" | "company_setup_incomplete" | "invalid_reporting_period" | "stale_report" | "period_locked";
@@ -42,11 +47,28 @@ export type PeriodLock = {
 export type FinalizeVatReportError =
   | "forbidden"
   | "invalid_reporting_period"
-  | "report_not_found";
+  | "report_not_found"
+  | "confirmation_required"
+  | "company_setup_incomplete"
+  | "stale_report"
+  | "readiness_blocked";
 export type UnlockReportingPeriodError =
   | "forbidden"
   | "invalid_reporting_period"
-  | "not_locked";
+  | "not_locked"
+  | "confirmation_required"
+  | "unlock_reason_required"
+  | "unlock_reason_too_long";
+
+export type VatReportTransition = {
+  id: number;
+  action: "vat_report.finalized" | "reporting_period.unlocked";
+  actorUserId: string;
+  actorEmail: string | null;
+  occurredAt: string;
+  vatReportId: string;
+  unlockReason: string | null;
+};
 
 function periodTransitionRefusal<E extends string>(
   error: { code?: string; hint?: string },
@@ -61,7 +83,7 @@ function periodTransitionRefusal<E extends string>(
 /** Finalizes the stored VAT Report and locks its Reporting Period (ADR-0007). */
 export async function finalizeVatReport(
   client: AppClient,
-  input: { companyId: string; period: string },
+  input: { companyId: string; period: string; confirmed: boolean },
 ): Promise<Result<null, FinalizeVatReportError>> {
   if (!isUuid(input.companyId)) return { ok: false, error: "forbidden" };
   if (!isReportingPeriod(input.period))
@@ -69,15 +91,24 @@ export async function finalizeVatReport(
   const { error } = await client.rpc("finalize_vat_report", {
     target_company_id: input.companyId,
     target_period: input.period,
+    finalization_confirmed: input.confirmed,
   });
-  if (error) return periodTransitionRefusal(error, ["report_not_found"]);
+  if (error) {
+    return periodTransitionRefusal(error, [
+      "report_not_found",
+      "confirmation_required",
+      "company_setup_incomplete",
+      "stale_report",
+      "readiness_blocked",
+    ]);
+  }
   return { ok: true, value: null };
 }
 
 /** Removes a Period Lock so the Company's Documents can be corrected again. */
 export async function unlockReportingPeriod(
   client: AppClient,
-  input: { companyId: string; period: string },
+  input: { companyId: string; period: string; reason: string; confirmed: boolean },
 ): Promise<Result<null, UnlockReportingPeriodError>> {
   if (!isUuid(input.companyId)) return { ok: false, error: "forbidden" };
   if (!isReportingPeriod(input.period))
@@ -85,9 +116,42 @@ export async function unlockReportingPeriod(
   const { error } = await client.rpc("unlock_reporting_period", {
     target_company_id: input.companyId,
     target_period: input.period,
+    unlock_reason: input.reason,
+    unlock_confirmed: input.confirmed,
   });
-  if (error) return periodTransitionRefusal(error, ["not_locked"]);
+  if (error) {
+    return periodTransitionRefusal(error, [
+      "not_locked",
+      "confirmation_required",
+      "unlock_reason_required",
+      "unlock_reason_too_long",
+    ]);
+  }
   return { ok: true, value: null };
+}
+
+/** Every Finalization and unlock for a Reporting Period, oldest first. */
+export async function listVatReportTransitions(
+  client: AppClient,
+  companyId: string,
+  period: string,
+): Promise<VatReportTransition[]> {
+  if (!isUuid(companyId) || !isReportingPeriod(period)) return [];
+  const { data, error } = await client.rpc("vat_report_transition_history", {
+    target_company_id: companyId,
+    target_period: period,
+  });
+  if (error?.code === "42501") return [];
+  if (error) throw error;
+  return data.map((transition) => ({
+    id: transition.id,
+    action: transition.action as VatReportTransition["action"],
+    actorUserId: transition.actor_user_id,
+    actorEmail: transition.actor_email,
+    occurredAt: transition.occurred_at,
+    vatReportId: transition.vat_report_id,
+    unlockReason: transition.unlock_reason,
+  }));
 }
 
 /** The active lock for a Reporting Period, visible to Company members. */
@@ -196,7 +260,7 @@ export async function getVatReport(
   if (!isUuid(companyId) || !isReportingPeriod(period)) return null;
   const { data, error } = await client
     .from("vat_report")
-    .select("id, company_id, period, generated_at, result, documents")
+    .select("id, company_id, period, generated_at, result, documents, blocker_count, warning_count, rejected_document_count")
     .eq("company_id", companyId)
     .eq("period", period)
     .maybeSingle();
@@ -209,6 +273,11 @@ export async function getVatReport(
         generatedAt: data.generated_at,
         result: data.result as unknown as ComputedVatReport,
         documents: data.documents as unknown as ReportDocument[],
+        finalization: {
+          blockerCount: data.blocker_count,
+          warningCount: data.warning_count,
+          rejectedDocumentCount: data.rejected_document_count,
+        },
       }
     : null;
 }
