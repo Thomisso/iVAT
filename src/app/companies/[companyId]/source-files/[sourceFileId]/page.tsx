@@ -43,7 +43,7 @@ export default async function SourceFilePage({
   const workbook = file.format === "xlsx" || file.format === "xls";
   // Nothing moves until the Company enables AI processing.
   const processing =
-    company.aiProcessing !== null &&
+    company.aiProcessingEnabled &&
     (file.status === "uploaded" ||
       file.status === "processing" ||
       documents.some((d) => d.status === "uploaded" || d.status === "processing"));
@@ -76,10 +76,10 @@ export default async function SourceFilePage({
             <StatusBadge status={statusBadgeState(file.status, "source-file")}>
               {t(`sourceFileStatus.${file.status}`)}
             </StatusBadge>
-            {!company.aiProcessing && <span className="iv-muted"> · {t("aiProcessing.waitingTitle")}</span>}
+            {!company.aiProcessingEnabled && <span className="iv-muted"> · {t("aiProcessing.waitingTitle")}</span>}
           </p>
-          {!company.aiProcessing && role === "administrator" && <p>
-            <Link href={`/companies/${companyId}/settings`}>{t("aiProcessing.configureAction")}</Link>
+          {!company.aiProcessingEnabled && role === "administrator" && <p>
+            <Link href={`/companies/${companyId}/settings`}>{t("aiProcessing.viewAllowance")}</Link>
           </p>}
           {file.status === "failed" && (
             <CommandButton
@@ -136,7 +136,7 @@ export default async function SourceFilePage({
                       documentNumber: document.current.payload.documentNumber ?? "—",
                       author:
                         document.current.author.kind === "ai"
-                          ? `${document.current.author.provider} / ${document.current.author.model}`
+                          ? t("review.aiAuthor")
                           : t("documents.userAuthor"),
                     }),
                 },

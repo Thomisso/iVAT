@@ -37,10 +37,10 @@ export default async function UploadPage({
   const visibleBatches = batches.slice(0, HISTORY_PAGE_SIZE);
   return <PageLayout className="company-workspace" measure="wide">
     <header className="company-page-header"><h1>{t("uploadTitle")}</h1><p>{t("uploadDescription")}</p></header>
-    {!company.aiProcessing && <section className="panel" role="status">
+    {!company.aiProcessingEnabled && <section className="panel" role="status">
       <h2>{ai("waitingTitle")}</h2>
       <p>{ai("waitingReason")}</p>
-      {role === "administrator" && <Link href={`/companies/${companyId}/settings`}>{ai("configureAction")}</Link>}
+      {role === "administrator" && <Link href={`/companies/${companyId}/settings`}>{ai("viewAllowance")}</Link>}
     </section>}
     <section className="panel upload-workspace-new" aria-labelledby="new-upload-title">
       <div><h2 id="new-upload-title">{workspace("newBatch")}</h2><p>{workspace("newBatchHint")}</p></div>

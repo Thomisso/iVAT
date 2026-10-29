@@ -44,7 +44,7 @@ export default async function UploadBatchPage({
       <span className={`upload-outcome upload-outcome-${batch.outcome}`}>{t(`outcome.${batch.outcome}`)}</span>
     </header>
 
-    {!company.aiProcessing && batch.counts.waiting > 0 && <section className="panel" role="status">
+    {!company.aiProcessingEnabled && batch.counts.waiting > 0 && <section className="panel" role="status">
       <h2>{t("waitingForAi")}</h2><p>{t("waitingForAiHint")}</p>
       {role === "administrator" && <Link href={`/companies/${companyId}/settings`}>{t("configureAi")}</Link>}
     </section>}

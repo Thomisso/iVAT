@@ -5,6 +5,7 @@ import {
   setOrganizationPlatformAiAccessAction,
 } from "@/app/actions";
 import { listAiConfigurations } from "@/application/ai-configurations";
+import { listPlatformAiProcessingAllowances } from "@/application/ai-processing-allowance";
 import { listPlatformOrganizationCompanies } from "@/application/platform-administration";
 import {
   listPlatformAiProviders,
@@ -16,21 +17,24 @@ import { requireUserClient } from "@/lib/supabase/server";
 import { PlatformAiProviderForm } from "./platform-ai-provider-form";
 import { AiConfigurationForm } from "./ai-configuration-form";
 import { AiConfigurationAssignmentForm } from "./ai-configuration-assignment-form";
+import { AiProcessingAllowanceForm } from "./ai-processing-allowance-form";
 
 export default async function PlatformAiSettingsPage() {
   const client = await requireUserClient();
-  const [settings, configurations, organizationCompanies] = await Promise.all([
+  const [settings, configurations, organizationCompanies, allowances] = await Promise.all([
     listPlatformAiProviders(client),
     listAiConfigurations(client),
     listPlatformOrganizationCompanies(client),
+    listPlatformAiProcessingAllowances(client),
   ]);
-  if (!settings.ok || !configurations.ok || !organizationCompanies.ok) notFound();
+  if (!settings.ok || !configurations.ok || !organizationCompanies.ok || !allowances.ok) notFound();
   const t = await getTranslations("platformAi");
   const providerNames = settings.value.map(({ provider }) => provider);
   const companies = organizationCompanies.value.flatMap((organization) =>
     organization.companies.map((company) => ({ ...company, organizationName: organization.name })),
   );
   const companyNames = new Map(companies.map((company) => [company.id, company.name]));
+  const allowanceByCompany = new Map(allowances.value.map((allowance) => [allowance.companyId, allowance]));
   const providers = await Promise.all(settings.value.map(async (provider) => ({
     provider,
     organizations: await listPlatformOrganizations(client, provider.provider),
@@ -88,10 +92,25 @@ export default async function PlatformAiSettingsPage() {
               <h3>{t("companyAssignments")}</h3>
               {companies.map((company) => (
                 <div key={company.id} className="platform-organization">
-                  <span>{company.organizationName} · {company.name}</span>
+                  <div>
+                    <strong>{company.organizationName} · {company.name}</strong>
+                    {allowanceByCompany.get(company.id) && <p className="iv-muted">
+                      {t("allowanceUsage", {
+                        used: allowanceByCompany.get(company.id)!.used,
+                        allowance: allowanceByCompany.get(company.id)!.allowance ?? t("unlimited"),
+                        waiting: allowanceByCompany.get(company.id)!.waitingDocuments,
+                      })}
+                    </p>}
+                  </div>
                   <AiConfigurationAssignmentForm
                     companyId={company.id}
                     configurations={configurations.value}
+                  />
+                  <AiProcessingAllowanceForm
+                    companyId={company.id}
+                    allowance={allowanceByCompany.has(company.id)
+                      ? allowanceByCompany.get(company.id)!.allowance
+                      : 50}
                   />
                 </div>
               ))}
