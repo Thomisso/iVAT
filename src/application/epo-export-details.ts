@@ -26,6 +26,14 @@ export type ExportDetails = {
   taxOffice: string;
   preparedOn: string;
   email: string;
+  phone: string;
+  address?: {
+    streetName: string;
+    houseNumber: string;
+    orientationNumber: string | null;
+    city: string;
+    postalCode: string;
+  };
 } & (
   | {
       personType: "P";
@@ -36,7 +44,7 @@ export type ExportDetails = {
   | { personType: "F" }
 );
 
-/** Filing details are supplied per export until Company settings exist (#27). */
+/** Validates the resolved direct-filing details at the final server-side seam. */
 export function parseExportDetails(
   input: Record<string, string>,
 ): Result<ExportDetails, "invalid_export_details"> {
@@ -49,15 +57,17 @@ export function parseExportDetails(
     !Number.isNaN(Date.parse(`${date}T00:00:00Z`)) &&
     new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) === date;
   const email = value("email");
+  const phone = value("phone");
   const refused = { ok: false, error: "invalid_export_details" } as const;
   if (
     !TAX_OFFICES.some((code) => code === value("taxOffice")) ||
     !validDate ||
     email.length > 255 ||
-    (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) ||
+    phone.length > 14
   )
     return refused;
-  const common = { taxOffice: value("taxOffice"), preparedOn: date, email };
+  const common = { taxOffice: value("taxOffice"), preparedOn: date, email, phone };
   if (
     value("personType") === "P" &&
     bounded("signatoryFirstName", 20) &&

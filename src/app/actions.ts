@@ -31,6 +31,7 @@ import {
   setCompanyFilingFrequency,
   updateCompanyIdentity,
 } from "@/application/companies";
+import { saveCompanyFilingDefaults } from "@/application/company-filing-defaults";
 import { acceptInvitation, changeMembershipRole, inviteMember, removeMembership } from "@/application/memberships";
 import { supabaseInvitationMailer } from "@/application/supabase-invitation-mailer";
 import {
@@ -264,6 +265,55 @@ export async function setCompanyFilingFrequencyAction(_state: FormState, formDat
   });
   if (!result.ok) return refused(result.error, formData, ["filingFrequency", "filingFrequencyEffectiveFrom"]);
   redirect(`/companies/${companyId}/setup/ai-processing`);
+}
+
+const FILING_DEFAULT_FIELDS = [
+  "taxOffice",
+  "signatoryFirstName",
+  "signatoryLastName",
+  "signatoryCapacity",
+  "email",
+  "phone",
+  "useEpoAddressOverride",
+  "epoStreetName",
+  "epoHouseNumber",
+  "epoOrientationNumber",
+  "epoCity",
+  "epoPostalCode",
+  "epoAddressConfirmed",
+];
+
+export async function saveCompanyFilingDefaultsAction(
+  _state: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const useEpoAddressOverride = field(formData, "useEpoAddressOverride") === "yes";
+  const result = await saveCompanyFilingDefaults(await requireUserClient(), {
+    companyId: field(formData, "companyId"),
+    taxOffice: field(formData, "taxOffice"),
+    signatoryFirstName: field(formData, "signatoryFirstName"),
+    signatoryLastName: field(formData, "signatoryLastName"),
+    signatoryCapacity: field(formData, "signatoryCapacity"),
+    email: field(formData, "email"),
+    phone: field(formData, "phone"),
+    epoAddressOverride: useEpoAddressOverride ? {
+      streetName: field(formData, "epoStreetName"),
+      houseNumber: field(formData, "epoHouseNumber"),
+      orientationNumber: field(formData, "epoOrientationNumber"),
+      city: field(formData, "epoCity"),
+      postalCode: field(formData, "epoPostalCode"),
+    } : null,
+    epoAddressConfirmed: field(formData, "epoAddressConfirmed") === "yes",
+  });
+  if (!result.ok) return refused(result.error, formData, FILING_DEFAULT_FIELDS);
+  refresh();
+  return {
+    error: null,
+    values: {
+      ...Object.fromEntries(FILING_DEFAULT_FIELDS.map((name) => [name, field(formData, name)])),
+      saved: "yes",
+    },
+  };
 }
 
 export async function uploadSourceFileAction(_state: FormState, formData: FormData): Promise<FormState> {
@@ -566,12 +616,12 @@ export async function acceptInvitationAction(_state: FormState, formData: FormDa
 }
 
 export async function changeMembershipRoleAction(_state: FormState, formData: FormData): Promise<FormState> {
-  return settled(
-    await changeMembershipRole(await requireUserClient(), {
-      membershipId: field(formData, "membershipId"),
-      role: field(formData, "role") as "administrator" | "user",
-    }),
-  );
+  const result = await changeMembershipRole(await requireUserClient(), {
+    membershipId: field(formData, "membershipId"),
+    role: field(formData, "role") as "administrator" | "user",
+  });
+  if (!result.ok) return refused(result.error, formData, ["role"]);
+  return settled(result);
 }
 
 export async function removeMembershipAction(_state: FormState, formData: FormData): Promise<FormState> {
