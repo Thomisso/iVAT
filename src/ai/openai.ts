@@ -3,6 +3,7 @@ import {
   type AiCallContext,
   type AiInput,
   type AiProvider,
+  type AiProcessingIssueClassification,
   type AiUsage,
 } from "@/application/ai-provider";
 import {
@@ -25,8 +26,19 @@ export type OpenAiProviderOptions = {
 export class OpenAiProviderError extends AiProviderError {
   readonly status: number | null;
 
-  constructor(message: string, options: { transient: boolean; status?: number; cause?: unknown }) {
-    super("openai_request_failed", message, { transient: options.transient, cause: options.cause });
+  constructor(message: string, options: {
+    transient: boolean;
+    status?: number;
+    classification?: AiProcessingIssueClassification;
+    platformIntervention?: boolean;
+    cause?: unknown;
+  }) {
+    super("openai_request_failed", message, {
+      transient: options.transient,
+      classification: options.classification,
+      platformIntervention: options.platformIntervention,
+      cause: options.cause,
+    });
     this.name = "OpenAiProviderError";
     this.status = options.status ?? null;
   }
@@ -79,10 +91,22 @@ async function structuredResponse(
     throw new OpenAiProviderError("OpenAI could not be reached", { transient: true, cause });
   }
   if (!response.ok) {
-    const transient = response.status === 408 || response.status === 409 || response.status === 429 || response.status >= 500;
+    const body = await response.json().catch(() => null) as { error?: { code?: unknown } } | null;
+    const errorCode = body?.error?.code;
+    const creditsExhausted = errorCode === "insufficient_quota" || errorCode === "billing_hard_limit_reached";
+    const classification = response.status === 401
+      ? "invalid_credentials"
+      : creditsExhausted
+        ? "provider_credits_exhausted"
+        : undefined;
+    const platformIntervention = classification !== undefined;
+    const transient = !platformIntervention
+      && (response.status === 408 || response.status === 409 || response.status === 429 || response.status >= 500);
     throw new OpenAiProviderError(`OpenAI request failed (${response.status})`, {
       transient,
       status: response.status,
+      classification,
+      platformIntervention,
     });
   }
   const result = await response.json() as {

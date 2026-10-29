@@ -43,6 +43,38 @@ isOneToOne: false
       referencedColumns: ["provider"]
     }
                   ]
+                },"ai_processing_issue": {
+                  Row: {
+                    "classification": Database["public"]['Enums']["ai_processing_issue_classification"],"company_id": string,"configuration_id": string | null,"first_detected_at": string,"organization_id": string,"provider": string | null,"state": Database["public"]['Enums']["ai_processing_issue_state"],"target_id": string,"target_kind": Database["public"]['Enums']["ai_processing_target_kind"],"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "classification": Database["public"]['Enums']["ai_processing_issue_classification"],"company_id": string,"configuration_id"?: string | null,"first_detected_at"?: string,"organization_id": string,"provider"?: string | null,"state": Database["public"]['Enums']["ai_processing_issue_state"],"target_id": string,"target_kind": Database["public"]['Enums']["ai_processing_target_kind"],"updated_at"?: string
+                  }
+                  Update: {
+                    "classification"?: Database["public"]['Enums']["ai_processing_issue_classification"],"company_id"?: string,"configuration_id"?: string | null,"first_detected_at"?: string,"organization_id"?: string,"provider"?: string | null,"state"?: Database["public"]['Enums']["ai_processing_issue_state"],"target_id"?: string,"target_kind"?: Database["public"]['Enums']["ai_processing_target_kind"],"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "ai_processing_issue_company_id_fkey"
+      columns: ["company_id"]
+isOneToOne: false
+      referencedRelation: "company"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "ai_processing_issue_configuration_id_fkey"
+      columns: ["configuration_id"]
+isOneToOne: false
+      referencedRelation: "ai_configuration"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "ai_processing_issue_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organization"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"ai_processing_reservation": {
                   Row: {
                     "company_id": string,"created_at": string,"document_id": string,"extraction_request_id": string,"id": string,"organization_id": string
@@ -828,6 +860,9 @@ isOneToOne: false
               "allowance": number,"company_id": string,"company_name": string,"configuration_id": string,"configuration_label": string,"organization_id": string,"organization_name": string,"provider": string,"used": number,"waiting_documents": number
             }[]
                            },
+"list_platform_ai_processing_issues":
+{ Args: Record<PropertyKey, never>; Returns: Json
+                           },
 "list_platform_ai_providers":
 { Args: Record<PropertyKey, never>; Returns: {
               "available": boolean,"extract_model": string,"has_platform_key": boolean,"platform_key_last_four": string,"provider": string,"split_model": string
@@ -877,6 +912,9 @@ isOneToOne: false
 "record_ai_extraction":
 { Args: { "findings": Json,"model": string,"payload": Json,"provider": string,"target_document_id": string,"target_extraction_request_id": string,"target_reservation_id": string }; Returns: undefined
                            },
+"record_ai_processing_issue":
+{ Args: { "target_classification": Database["public"]['Enums']["ai_processing_issue_classification"],"target_configuration_id"?: string,"target_id": string,"target_kind": Database["public"]['Enums']["ai_processing_target_kind"],"target_provider"?: string,"target_state": Database["public"]['Enums']["ai_processing_issue_state"] }; Returns: undefined
+                           },
 "record_ai_usage":
 { Args: { "target_company_id": string,"target_input_tokens": number,"target_job_id": string,"target_job_name": string,"target_model": string,"target_operation": string,"target_organization_id": string,"target_output_tokens": number,"target_provider": string }; Returns: undefined
                            },
@@ -903,7 +941,7 @@ isOneToOne: false
                            },
 "resolve_assigned_ai_configuration":
 { Args: { "target_company_id": string }; Returns: {
-              "api_key": string,"extract_model": string,"is_explicit": boolean,"provider": string,"split_model": string
+              "api_key": string,"configuration_id": string,"extract_model": string,"is_explicit": boolean,"provider": string,"split_model": string
             }[]
                            },
 "resolve_company_ai_provider":
@@ -914,6 +952,11 @@ isOneToOne: false
 "resolve_platform_ai_provider":
 { Args: { "target_organization_id": string,"target_provider": string }; Returns: {
               "api_key": string,"extract_model": string,"split_model": string
+            }[]
+                           },
+"resume_platform_ai_processing":
+{ Args: { "target_company_id"?: string,"target_configuration_id"?: string }; Returns: {
+              "target_id": string,"target_kind": Database["public"]['Enums']["ai_processing_target_kind"]
             }[]
                            },
 "retry_failed_processing_job":
@@ -991,7 +1034,7 @@ isOneToOne: false
                            }
           }
           Enums: {
-            "ai_credential_source": "platform"|"organization"|"local","company_setup_state": "completed"|"skipped","company_setup_step": "identity"|"filing_frequency"|"filing_defaults"|"ai_processing","document_status": "uploaded"|"waiting_for_allowance"|"processing"|"needs_review"|"failed"|"approved"|"rejected","filing_frequency": "monthly"|"quarterly","membership_role": "administrator"|"user","person_type": "legal"|"natural","platform_role": "super_admin","source_file_format": "pdf"|"png"|"jpeg"|"xlsx"|"xls"|"heic"|"heif","source_file_status": "uploaded"|"processing"|"split"|"failed"
+            "ai_credential_source": "platform"|"organization"|"local","ai_processing_issue_classification": "configuration_missing"|"configuration_unusable"|"invalid_credentials"|"provider_credits_exhausted"|"provider_unavailable"|"provider_response_invalid"|"processing_failed","ai_processing_issue_state": "waiting_for_platform"|"terminal","ai_processing_target_kind": "source_file"|"document","company_setup_state": "completed"|"skipped","company_setup_step": "identity"|"filing_frequency"|"filing_defaults"|"ai_processing","document_status": "uploaded"|"waiting_for_allowance"|"waiting_for_platform"|"processing"|"needs_review"|"failed"|"approved"|"rejected","filing_frequency": "monthly"|"quarterly","membership_role": "administrator"|"user","person_type": "legal"|"natural","platform_role": "super_admin","source_file_format": "pdf"|"png"|"jpeg"|"xlsx"|"xls"|"heic"|"heif","source_file_status": "uploaded"|"waiting_for_platform"|"processing"|"split"|"failed"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -1111,7 +1154,7 @@ export const Constants = {
           }
         },"public": {
           Enums: {
-            "ai_credential_source": ["platform", "organization", "local"],"company_setup_state": ["completed", "skipped"],"company_setup_step": ["identity", "filing_frequency", "filing_defaults", "ai_processing"],"document_status": ["uploaded", "waiting_for_allowance", "processing", "needs_review", "failed", "approved", "rejected"],"filing_frequency": ["monthly", "quarterly"],"membership_role": ["administrator", "user"],"person_type": ["legal", "natural"],"platform_role": ["super_admin"],"source_file_format": ["pdf", "png", "jpeg", "xlsx", "xls", "heic", "heif"],"source_file_status": ["uploaded", "processing", "split", "failed"]
+            "ai_credential_source": ["platform", "organization", "local"],"ai_processing_issue_classification": ["configuration_missing", "configuration_unusable", "invalid_credentials", "provider_credits_exhausted", "provider_unavailable", "provider_response_invalid", "processing_failed"],"ai_processing_issue_state": ["waiting_for_platform", "terminal"],"ai_processing_target_kind": ["source_file", "document"],"company_setup_state": ["completed", "skipped"],"company_setup_step": ["identity", "filing_frequency", "filing_defaults", "ai_processing"],"document_status": ["uploaded", "waiting_for_allowance", "waiting_for_platform", "processing", "needs_review", "failed", "approved", "rejected"],"filing_frequency": ["monthly", "quarterly"],"membership_role": ["administrator", "user"],"person_type": ["legal", "natural"],"platform_role": ["super_admin"],"source_file_format": ["pdf", "png", "jpeg", "xlsx", "xls", "heic", "heif"],"source_file_status": ["uploaded", "waiting_for_platform", "processing", "split", "failed"]
           }
         }
 } as const

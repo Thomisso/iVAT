@@ -135,21 +135,31 @@ type ProviderAvailability = {
   provider: AiProvider | null;
   credentialSource: AiCredentialSource | null;
   configuration: AiProviderConfiguration | null;
+  configurationId: string | null;
 };
 
 async function resolveAssignedAiConfiguration(
   system: SystemClient,
   companyId: string,
-): Promise<{ provider: string; configuration: AiProviderConfiguration; isExplicit: boolean } | null> {
+): Promise<{ id: string; provider: string; configuration: AiProviderConfiguration } | null> {
   const { data, error } = await system.rpc("resolve_assigned_ai_configuration", {
     target_company_id: companyId,
   });
   if (error) throw error;
   const settings = data[0];
   if (!settings) return null;
+  if (!settings.api_key) {
+    throw new AiProviderError("ai_configuration_credential_missing", "The assigned credential is unavailable", {
+      transient: false,
+      classification: "configuration_missing",
+      platformIntervention: true,
+      configurationId: settings.configuration_id,
+      provider: settings.provider,
+    });
+  }
   return {
+    id: settings.configuration_id,
     provider: settings.provider,
-    isExplicit: settings.is_explicit,
     configuration: {
       apiKey: settings.api_key,
       splitModel: settings.split_model,
@@ -171,14 +181,23 @@ async function resolveCompanyAiConfiguration(
   });
   if (error) {
     const code = error.hint ?? "provider_configuration_failed";
-    throw new AiProviderError(code, `AI provider configuration error: ${code}`, { transient: false, cause: error });
+    throw new AiProviderError(code, `AI provider configuration error: ${code}`, {
+      transient: false,
+      classification: code.includes("not_configured") ? "configuration_missing" : "configuration_unusable",
+      platformIntervention: true,
+      cause: error,
+    });
   }
   const settings = data[0];
   if (!settings) {
     const code = credentialSource === "organization"
       ? "organization_key_not_configured"
       : "platform_key_not_configured";
-    throw new AiProviderError(code, `AI provider configuration error: ${code}`, { transient: false });
+    throw new AiProviderError(code, `AI provider configuration error: ${code}`, {
+      transient: false,
+      classification: "configuration_missing",
+      platformIntervention: true,
+    });
   }
   return {
     apiKey: settings.api_key,
@@ -200,44 +219,56 @@ async function providerAvailability(
     .single();
   if (error) throw error;
   if (data.organization?.blocked_at) {
-    return { blocked: true, provider: null, credentialSource: null, configuration: null };
+    return { blocked: true, provider: null, credentialSource: null, configuration: null, configurationId: null };
   }
   if (!data.ai_processing_enabled) {
-    return { blocked: false, provider: null, credentialSource: null, configuration: null };
+    return { blocked: false, provider: null, credentialSource: null, configuration: null, configurationId: null };
   }
   if (data.ai_credential_source === "platform") {
     const assigned = await resolveAssignedAiConfiguration(system, companyId);
     if (assigned) {
       const provider = providers.get(assigned.provider);
       if (!provider) {
-        if (assigned.isExplicit) {
-          throw new AiProviderError(
-            "provider_unavailable_on_worker",
-            `AI provider "${assigned.provider}" is not configured on this worker`,
-            { transient: true },
-          );
-        }
-        // Expand-phase defaults may name a provider not deployed to this worker
-        // yet. Preserve the Company's selected legacy platform path until it is.
+        throw new AiProviderError(
+          "provider_unavailable_on_worker",
+          `AI provider "${assigned.provider}" is not configured on this worker`,
+          {
+            transient: false,
+            classification: "configuration_unusable",
+            platformIntervention: true,
+            configurationId: assigned.id,
+            provider: assigned.provider,
+          },
+        );
       } else {
         return {
           blocked: false,
           provider,
           credentialSource: "platform",
           configuration: assigned.configuration,
+          configurationId: assigned.id,
         };
       }
     }
   }
   if (!data.ai_provider || !data.ai_credential_source) {
-    return { blocked: false, provider: null, credentialSource: null, configuration: null };
+    throw new AiProviderError("ai_configuration_missing", "The Company has no usable AI Configuration", {
+      transient: false,
+      classification: "configuration_missing",
+      platformIntervention: true,
+    });
   }
   const provider = providers.get(data.ai_provider);
   if (!provider || provider.region !== data.ai_region) {
     throw new AiProviderError(
       "provider_unavailable_on_worker",
       `AI provider "${data.ai_provider}" in region "${data.ai_region}" is not configured on this worker`,
-      { transient: true },
+      {
+        transient: false,
+        classification: "configuration_unusable",
+        platformIntervention: true,
+        provider: data.ai_provider,
+      },
     );
   }
   const configuration = data.ai_credential_source === "local"
@@ -253,6 +284,7 @@ async function providerAvailability(
     provider,
     credentialSource: data.ai_credential_source,
     configuration,
+    configurationId: null,
   };
 }
 
@@ -293,9 +325,31 @@ async function failOnFinalAttempt(attempt: Attempt, markFailed: () => Promise<vo
   try {
     await work();
   } catch (error) {
-    if (attempt.final || (error instanceof AiProviderError && !error.transient)) await markFailed();
+    if (
+      !(error instanceof AiProviderError && error.platformIntervention)
+      && (attempt.final || (error instanceof AiProviderError && !error.transient))
+    ) await markFailed();
     throw error;
   }
+}
+
+async function recordPlatformIntervention(
+  system: SystemClient,
+  targetKind: "source_file" | "document",
+  targetId: string,
+  error: AiProviderError,
+  availability: ProviderAvailability | undefined,
+  state: "waiting_for_platform" | "terminal" = "waiting_for_platform",
+) {
+  const recorded = await system.rpc("record_ai_processing_issue", {
+    target_kind: targetKind,
+    target_id: targetId,
+    target_classification: error.classification,
+    target_state: state,
+    target_configuration_id: availability?.configurationId ?? error.configurationId ?? undefined,
+    target_provider: availability?.provider?.name ?? error.provider ?? undefined,
+  });
+  if (recorded.error) throw recorded.error;
 }
 
 async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId: string, attempt: Attempt) {
@@ -319,8 +373,10 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
       if (error) throw error;
       return data.length > 0;
     };
-    await failOnFinalAttempt(attempt, () => moveStatus("failed", ["uploaded", "processing"]).then(() => undefined), async () => {
-      const availability = await providerAvailability(system, file.company_id, providers);
+    let availability: ProviderAvailability | undefined;
+    try {
+      await failOnFinalAttempt(attempt, () => moveStatus("failed", ["uploaded", "processing"]).then(() => undefined), async () => {
+      availability = await providerAvailability(system, file.company_id, providers);
       if (availability.blocked) {
         await jobs.send(splitJob(file.id), { startAfterSeconds: BLOCKED_JOB_RECHECK_SECONDS });
         return;
@@ -355,7 +411,23 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
       if (metered.error) throw metered.error;
       const { error } = await system.rpc("record_split", { target_source_file_id: file.id, source_ranges: documents });
       if (error) throw error;
-    });
+      });
+    } catch (error) {
+      if (error instanceof AiProviderError && error.platformIntervention) {
+        await recordPlatformIntervention(system, "source_file", file.id, error, availability);
+        return;
+      }
+      if (error instanceof AiProviderError && (attempt.final || !error.transient)) {
+        await recordPlatformIntervention(system, "source_file", file.id, error, availability, "terminal");
+      } else if (attempt.final) {
+        await recordPlatformIntervention(system, "source_file", file.id, new AiProviderError(
+          "processing_failed",
+          "Source File processing failed",
+          { transient: false, classification: "processing_failed" },
+        ), availability, "terminal");
+      }
+      throw error;
+    }
   }
 
   // Enqueues the Documents of the recorded Split, including when an earlier attempt recorded it.
@@ -399,7 +471,9 @@ async function extractDocument(
     return data.length > 0;
   };
 
-  await failOnFinalAttempt(attempt, () => moveStatus("failed", ["uploaded", "processing"]).then(() => undefined), async () => {
+  let availability: ProviderAvailability | undefined;
+  try {
+    await failOnFinalAttempt(attempt, () => moveStatus("failed", ["uploaded", "processing"]).then(() => undefined), async () => {
     const reservationId = crypto.randomUUID();
     const reserved = await system.rpc("reserve_ai_processing", {
       target_document_id: document.id,
@@ -415,7 +489,7 @@ async function extractDocument(
 
     let completed = false;
     try {
-      const availability = await providerAvailability(system, document.company_id, providers);
+      availability = await providerAvailability(system, document.company_id, providers);
       if (availability.blocked) {
         await jobs.send(extractJob(document.id), { startAfterSeconds: BLOCKED_JOB_RECHECK_SECONDS });
         return;
@@ -492,7 +566,23 @@ async function extractDocument(
         if (released.error) throw released.error;
       }
     }
-  });
+    });
+  } catch (error) {
+    if (error instanceof AiProviderError && error.platformIntervention) {
+      await recordPlatformIntervention(system, "document", document.id, error, availability);
+      return;
+    }
+    if (error instanceof AiProviderError && (attempt.final || !error.transient)) {
+      await recordPlatformIntervention(system, "document", document.id, error, availability, "terminal");
+    } else if (attempt.final) {
+      await recordPlatformIntervention(system, "document", document.id, new AiProviderError(
+        "processing_failed",
+        "Document processing failed",
+        { transient: false, classification: "processing_failed" },
+      ), availability, "terminal");
+    }
+    throw error;
+  }
 }
 
 function binaryAiInput(format: SourceFileFormat, bytes: Uint8Array, pageCount: number): AiInput {
