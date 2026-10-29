@@ -54,6 +54,21 @@ test("legal Company setup uses structured ARES data, resumes, and completes the 
   await completeFrequency(page, companyId);
   await expect(checklist.getByText("Filing frequency").locator("..")).toContainText("Completed");
 
+  await page.goto(`/companies/${companyId}/settings`);
+  await page.getByLabel("Tax office").selectOption("451");
+  const signatory = page.getByRole("group", { name: "Default authorized signatory" });
+  await signatory.getByLabel("First name").fill("Jana");
+  await signatory.getByLabel("Last name").fill("Nováková");
+  await signatory.getByLabel("Capacity (e.g. director)").fill("director");
+  await page.getByLabel("Taxpayer email (optional)").fill("filing@example.test");
+  await page.getByLabel("Taxpayer phone (optional)").fill("+420123456789");
+  await page.getByRole("button", { name: "Save filing defaults" }).click();
+  await expect(page.getByRole("status").getByText("Filing defaults saved.")).toBeVisible();
+  await expect(page.getByLabel("Tax office")).toHaveValue("451");
+  await expect(page.getByLabel("Company name")).toHaveValue("ARES Test s.r.o.");
+  await page.goto(`/companies/${companyId}`);
+  await expect(checklist.getByText("Export and tax office").locator("..")).toContainText("Completed");
+
   await page.setViewportSize({ width: 360, height: 800 });
   await page.reload();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
