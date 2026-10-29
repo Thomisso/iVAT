@@ -881,6 +881,9 @@ isOneToOne: false
 "retry_split":
 { Args: { "target_source_file_id": string }; Returns: undefined
                            },
+"return_document_to_review":
+{ Args: { "target_document_id": string }; Returns: undefined
+                           },
 "save_vat_report":
 { Args: { "computed_result": Json,"expected_documents": Json,"target_company_id": string,"target_period": string }; Returns: string
                            },
