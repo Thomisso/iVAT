@@ -725,6 +725,9 @@ isOneToOne: false
               "company_ico": string,"company_id": string,"company_name": string,"organization_blocked": boolean,"organization_id": string,"organization_name": string
             }[]
                            },
+"list_platform_organization_companies_complete":
+{ Args: Record<PropertyKey, never>; Returns: Json
+                           },
 "list_platform_organizations":
 { Args: { "target_provider": string }; Returns: {
               "id": string,"name": string,"platform_key_enabled": boolean
