@@ -1,11 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { createClient } from "@supabase/supabase-js";
+import { describe, expect, inject, it } from "vitest";
 import { signUp } from "@/application/auth";
 import { listAuditEvents } from "@/application/audit";
 import {
   acceptInvitation,
   changeMembershipRole,
   inviteMember,
+  listCompanyAccess,
   listMemberships,
+  listPendingInvitations,
   removeMembership,
   type InvitationMailer,
 } from "@/application/memberships";
@@ -14,6 +17,7 @@ import { listMyOrganizations } from "@/application/organizations";
 import { anonymousClient, uniqueEmail } from "./support/clients";
 import { administratorWithCompany, companyDetails } from "./support/fixtures";
 import { createCompany } from "@/application/companies";
+import type { Database } from "@/lib/database.types";
 
 function capturingMailer() {
   const sent: { email: string; acceptUrl: string }[] = [];
@@ -58,6 +62,93 @@ async function inviteAndAccept(
 }
 
 describe("Membership invitations", () => {
+  it("lists direct and inherited Company access separately from pending invitations", async () => {
+    const administrator = await administratorWithCompany();
+    const directUser = await inviteAndAccept(administrator);
+    const pendingEmail = uniqueEmail();
+    const mail = capturingMailer();
+
+    expect(await inviteMember(administrator.client, mail.mailer, {
+      organizationId: administrator.organizationId,
+      companyId: administrator.companyId,
+      email: pendingEmail,
+      role: "user",
+      acceptUrl: "http://127.0.0.1:3100/invitations/accept",
+    })).toEqual({ ok: true, value: null });
+
+    const access = await listCompanyAccess(administrator.client, administrator.companyId);
+    expect(access).toEqual({ ok: true, value: expect.any(Array) });
+    if (!access.ok) throw new Error(access.error);
+    expect(access.value).toHaveLength(2);
+    expect(access.value).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        email: administrator.email,
+        role: "administrator",
+        source: "organization",
+        manageableMembershipId: null,
+      }),
+      expect.objectContaining({
+        email: directUser.email,
+        role: "user",
+        source: "company",
+        manageableMembershipId: expect.any(String),
+      }),
+    ]));
+    expect(await listPendingInvitations(administrator.client, {
+      organizationId: administrator.organizationId,
+      companyId: administrator.companyId,
+    })).toEqual([
+      expect.objectContaining({
+        email: pendingEmail,
+        role: "user",
+        status: "pending",
+        expiresAt: expect.any(String),
+      }),
+    ]);
+  });
+
+  it("lists every effective User when Company access exceeds the PostgREST row limit", async () => {
+    const administrator = await administratorWithCompany();
+    const service = createClient<Database>(inject("supabaseUrl"), inject("supabaseSecretKey"), {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const directUserCount = 1_000;
+    const users: { email: string; id: string }[] = [];
+
+    for (let offset = 0; offset < directUserCount; offset += 50) {
+      const created = await Promise.all(Array.from({ length: 50 }, async (_, index) => {
+        const email = `access-page-${offset + index}-${crypto.randomUUID()}@example.test`;
+        const { data, error } = await service.auth.admin.createUser({
+          email,
+          email_confirm: true,
+          password: "correct-horse-battery",
+          user_metadata: { organization_name: `Access page ${offset + index}` },
+        });
+        if (error) throw error;
+        return { email, id: data.user.id };
+      }));
+      users.push(...created);
+    }
+
+    for (let offset = 0; offset < users.length; offset += 500) {
+      const { error } = await service.from("membership").insert(users.slice(offset, offset + 500).map((user) => ({
+        company_id: administrator.companyId,
+        email: user.email,
+        organization_id: administrator.organizationId,
+        role: "user" as const,
+        user_id: user.id,
+      })));
+      if (error) throw error;
+    }
+
+    const access = await listCompanyAccess(administrator.client, administrator.companyId);
+
+    expect(access).toEqual({ ok: true, value: expect.any(Array) });
+    if (!access.ok) throw new Error(access.error);
+    expect(access.value).toHaveLength(directUserCount + 1);
+    expect(new Set(access.value.map((entry) => entry.userId)).size).toBe(directUserCount + 1);
+  }, 120_000);
+
   it("lets an Administrator invite a User who accepts a single-use Company link", async () => {
     const administrator = await administratorWithCompany();
     const email = uniqueEmail();
@@ -113,6 +204,12 @@ describe("Membership invitations", () => {
     expect(await changeMembershipRole(member.client, { membershipId: membership.id, role: "administrator" }))
       .toEqual({ ok: false, error: "forbidden" });
     expect(await removeMembership(member.client, membership.id)).toEqual({ ok: false, error: "forbidden" });
+    expect(await listCompanyAccess(member.client, administrator.companyId))
+      .toEqual({ ok: false, error: "forbidden" });
+    expect(await listPendingInvitations(member.client, {
+      organizationId: administrator.organizationId,
+      companyId: administrator.companyId,
+    })).toEqual([]);
     expect(mail.sent).toEqual([]);
   });
 
@@ -210,6 +307,12 @@ describe("Membership invitations", () => {
     expect(await changeMembershipRole(b.client, { membershipId: membership.id, role: "administrator" }))
       .toEqual({ ok: false, error: "forbidden" });
     expect(await removeMembership(b.client, membership.id)).toEqual({ ok: false, error: "forbidden" });
+    expect(await listCompanyAccess(b.client, a.companyId))
+      .toEqual({ ok: false, error: "forbidden" });
+    expect(await listPendingInvitations(b.client, {
+      organizationId: a.organizationId,
+      companyId: a.companyId,
+    })).toEqual([]);
     expect(await listMemberships(b.client, { organizationId: a.organizationId, companyId: a.companyId })).toEqual([]);
     expect((await b.client.from("invitation").select("id").eq("organization_id", a.organizationId)).data).toEqual([]);
     expect((await b.client.from("membership").select("id").eq("organization_id", a.organizationId)).data).toEqual([]);
