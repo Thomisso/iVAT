@@ -89,6 +89,17 @@ export async function setCompanyAiProcessingAllowance(
     if (error.hint === "invalid_allowance") return { ok: false, error: "invalid_allowance" };
     throw error;
   }
-  for (const row of data) await jobs.send(extractJob(row.document_id));
+  for (let index = 0; index < data.length; index += 1) {
+    try {
+      await jobs.send(extractJob(data[index].document_id));
+    } catch (queueError) {
+      const restored = await client.rpc("restore_ai_processing_allowance_wait", {
+        target_company_id: input.companyId,
+        target_document_ids: data.slice(index).map((row) => row.document_id),
+      });
+      if (restored.error) throw restored.error;
+      throw queueError;
+    }
+  }
   return { ok: true, value: null };
 }
