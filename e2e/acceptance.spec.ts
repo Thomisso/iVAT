@@ -56,8 +56,8 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   await page.goto(`${companyUrl}/members`);
   await page.getByLabel("Email").fill(`user-${run}@example.test`);
   await page.getByLabel("Role").selectOption("user");
-  await page.getByRole("button", { name: "Send invitation" }).click();
-  await expect(page.getByRole("button", { name: "Send invitation" })).toBeEnabled({
+  await page.getByRole("button", { name: "Invite user" }).click();
+  await expect(page.getByRole("button", { name: "Invite user" })).toBeEnabled({
     timeout: 15_000,
   });
   await expect(page.getByLabel("Email")).toHaveValue("");
@@ -132,13 +132,30 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   await exportSection.getByLabel("Last name").fill("Nováková");
   await exportSection.getByLabel("Capacity").fill("jednatelka");
   await exportSection.getByLabel("Email").fill(`admin-${run}@example.test`);
+  await expect(exportSection.getByText("Working XML only", { exact: true })).toBeVisible();
   const downloadPromise = page.waitForEvent("download");
   await exportSection.getByRole("button", { name: "Download XML" }).click();
   const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe("DRAFT_DPHDP3_2026-10.xml");
   const path = await download.path();
   expect(path).not.toBeNull();
   const xml = await fs.readFile(path!, "utf8");
   expect(await validateEpoXml(xml, "dphdp3")).toBe(true);
+
+  await page
+    .getByRole("navigation", { name: "Reporting Period destinations" })
+    .getByRole("link", { name: "Export history" })
+    .click();
+  const artifacts = page.getByRole("table", { name: "Stored XML artifacts" });
+  const storedDraft = artifacts.getByRole("link", { name: "DRAFT_DPHDP3_2026-10.xml" });
+  await expect(storedDraft).toBeVisible();
+  const storedDownloadPromise = page.waitForEvent("download");
+  await storedDraft.click();
+  const storedDownload = await storedDownloadPromise;
+  expect(storedDownload.suggestedFilename()).toBe("DRAFT_DPHDP3_2026-10.xml");
+  const storedPath = await storedDownload.path();
+  expect(storedPath).not.toBeNull();
+  expect(await fs.readFile(storedPath!, "utf8")).toBe(xml);
 
   await page.goto(`${companyUrl}/vat-reports?period=2026-10`);
   await expect(page.getByText("Confirm Finalization", { exact: true })).toBeVisible();

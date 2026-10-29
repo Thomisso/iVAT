@@ -1,4 +1,4 @@
-import type { AppClient, Result } from "./client";
+import { isUuid, type AppClient, type Result } from "./client";
 import { getCompanyFilingDefaults, resolveEpoAddress } from "./company-filing-defaults";
 import {
   isEpoFormat,
@@ -7,13 +7,49 @@ import {
 } from "./epo-export-details";
 import { createEpoXml, type EpoXmlError } from "./epo-xml";
 import { getVatReport } from "./vat-reports";
+import { isReportingPeriod } from "./vat-rules";
+import type { Json } from "@/lib/database.types";
+
+export const EPO_SCHEMA_VERSIONS = {
+  dphdp3: "03.01.04",
+  dphkh1: "03.01.15",
+} as const;
+export const EPO_SERIALIZER_VERSION = "1";
 
 export type ExportVatReportError =
-  EpoXmlError | "report_not_found" | "invalid_export_format" | "epo_address_required";
+  | EpoXmlError
+  | "report_not_found"
+  | "invalid_export_format"
+  | "epo_address_required"
+  | "forbidden"
+  | "stale_report"
+  | "report_finalized";
 export type EpoDownload = {
+  artifactId: string;
   xml: string;
+  bytes: Uint8Array;
   fileName: string;
   mediaType: "application/xml; charset=utf-8";
+};
+
+export type VatReportArtifact = {
+  id: string;
+  companyId: string;
+  vatReportId: string;
+  reportGeneratedAt: string;
+  period: string;
+  format: "dphdp3" | "dphkh1";
+  kind: "draft" | "final";
+  fileName: string;
+  mediaType: "application/xml; charset=utf-8";
+  byteSize: number;
+  sha256: string;
+  resolvedDetails: ExportDetails;
+  schemaVersion: string;
+  serializerVersion: string;
+  authorUserId: string;
+  authorEmail: string | null;
+  createdAt: string;
 };
 
 function todayInPrague(): string {
@@ -83,12 +119,70 @@ export async function exportVatReport(
   if (!details.ok) return details;
   const result = await createEpoXml(report.result, input.format, details.value);
   if (!result.ok) return result;
+  const bytes = new TextEncoder().encode(result.value);
+  const fileName = `DRAFT_${input.format.toUpperCase()}_${input.period}.xml`;
+  const stored = await client.rpc("create_draft_vat_report_artifact", {
+    target_company_id: report.companyId,
+    target_vat_report_id: report.id,
+    target_report_generated_at: report.generatedAt,
+    target_format: input.format,
+    target_file_name: fileName,
+    target_xml_base64: Buffer.from(bytes).toString("base64"),
+    target_resolved_details: details.value as unknown as Json,
+    target_schema_version: EPO_SCHEMA_VERSIONS[input.format],
+    target_serializer_version: EPO_SERIALIZER_VERSION,
+  });
+  if (stored.error) {
+    if (stored.error.code === "42501") return { ok: false, error: "forbidden" };
+    if (stored.error.code === "P0001" && stored.error.hint === "stale_report")
+      return { ok: false, error: "stale_report" };
+    if (stored.error.code === "P0001" && stored.error.hint === "report_finalized")
+      return { ok: false, error: "report_finalized" };
+    if (stored.error.code === "P0001" && stored.error.hint === "invalid_export_details")
+      return { ok: false, error: "invalid_export_details" };
+    throw stored.error;
+  }
   return {
     ok: true,
     value: {
+      artifactId: stored.data,
       xml: result.value,
-      fileName: `${input.format.toUpperCase()}-${input.period}.xml`,
+      bytes,
+      fileName,
       mediaType: "application/xml; charset=utf-8",
     },
+  };
+}
+
+/** Every immutable XML artifact for the Reporting Period, newest first. */
+export async function listVatReportArtifacts(
+  client: AppClient,
+  input: { companyId: string; period: string },
+): Promise<VatReportArtifact[]> {
+  if (!isUuid(input.companyId) || !isReportingPeriod(input.period)) return [];
+  const { data, error } = await client.rpc("vat_report_artifact_history", {
+    target_company_id: input.companyId,
+    target_period: input.period,
+  });
+  if (error) throw error;
+  return data as unknown as VatReportArtifact[];
+}
+
+/** Exact stored bytes of one authorized artifact. */
+export async function readVatReportArtifact(
+  client: AppClient,
+  input: { companyId: string; artifactId: string },
+): Promise<{ artifact: VatReportArtifact; bytes: Uint8Array } | null> {
+  if (!isUuid(input.companyId) || !isUuid(input.artifactId)) return null;
+  const { data, error } = await client.rpc("read_vat_report_artifact", {
+    target_company_id: input.companyId,
+    target_artifact_id: input.artifactId,
+  });
+  if (error) throw error;
+  if (!data) return null;
+  const value = data as unknown as { artifact: VatReportArtifact; xmlBase64: string };
+  return {
+    artifact: value.artifact,
+    bytes: new Uint8Array(Buffer.from(value.xmlBase64, "base64")),
   };
 }
