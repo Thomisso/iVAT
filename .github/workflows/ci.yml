@@ -48,7 +48,9 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Installing Chromium and starting the complete Supabase/Next.js/Postman
+    # acceptance stack consume several minutes before the serial suite begins.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
