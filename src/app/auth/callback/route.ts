@@ -1,6 +1,6 @@
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
-import { completeGoogleSignIn, verifyEmailOtp } from "@/application/auth";
+import { completeGoogleSignIn, verifyEmailOtp, verifyInvitationEmailOtp } from "@/application/auth";
 import { createRequestClient } from "@/lib/supabase/server";
 
 const EMAIL_OTP_TYPES: EmailOtpType[] = ["email", "email_change", "invite", "magiclink", "recovery", "signup"];
@@ -11,16 +11,20 @@ export async function GET(request: NextRequest) {
   const requestedType = request.nextUrl.searchParams.get("type");
   const requested = request.nextUrl.searchParams.get("next") ?? "/";
   const next = requested.startsWith("/") && !requested.startsWith("//") ? requested : "/";
+  const invitationCallback = new URL(next, request.url).pathname === "/invitations/accept";
   const client = await createRequestClient();
 
   if (tokenHash && EMAIL_OTP_TYPES.includes(requestedType as EmailOtpType)) {
-    const result = await verifyEmailOtp(client, tokenHash, requestedType as EmailOtpType);
+    const result = invitationCallback && requestedType === "magiclink"
+      ? await verifyInvitationEmailOtp(client, tokenHash)
+      : await verifyEmailOtp(client, tokenHash, requestedType as EmailOtpType);
     if (result.ok) {
       return NextResponse.redirect(new URL(next, request.url));
     }
-    if (result.error === "organization_blocked") {
+    if ("error" in result && result.error === "organization_blocked") {
       return NextResponse.redirect(new URL("/login?error=organization_blocked", request.url));
     }
+    if (invitationCallback) return NextResponse.redirect(new URL(next, request.url));
   }
   if (code) {
     const result = await completeGoogleSignIn(client, code);

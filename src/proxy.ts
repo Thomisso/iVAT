@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { supabasePublishableKey, supabaseUrl } from "@/lib/env";
 import { mfaRedirectPath } from "@/application/mfa-routing";
 
-const PUBLIC_PATHS = ["/login", "/signup", "/auth/callback", "/prototype", "/icon.svg"];
+const PUBLIC_PATHS = ["/login", "/signup", "/auth/callback", "/invitations/accept", "/prototype", "/icon.svg"];
 
 // Refreshes the Supabase session cookie on every request and sends anonymous
 // visitors to the login page. Pages still check the user themselves.
