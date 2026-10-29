@@ -87,6 +87,11 @@ export async function companyWithManyReportDocuments(count: number) {
   const { SAMPLE_EXTRACTION } = await import("@/ai/fake");
   const admin = await administratorWithCompany();
   const system = systemClient();
+  const unlimited = await system
+    .from("company")
+    .update({ ai_processing_allowance: null })
+    .eq("id", admin.companyId);
+  if (unlimited.error) throw unlimited.error;
   for (let first = 0; first < count; first += 50) {
     const pageCount = Math.min(50, count - first);
     const pdf = await PDFDocument.create();
@@ -120,9 +125,18 @@ export async function companyWithManyReportDocuments(count: number) {
     if (error) throw error;
     await Promise.all(
       data.map(async (d) => {
+        const reservationId = crypto.randomUUID();
+        const reservation = await system.rpc("reserve_ai_processing", {
+          target_document_id: d.id,
+          target_extraction_request_id: d.extraction_request_id,
+          target_reservation_id: reservationId,
+        });
+        if (reservation.error) throw reservation.error;
+        if (reservation.data !== "reserved") throw new Error(`Extraction fixture was not reserved: ${reservation.data}`);
         const result = await system.rpc("record_ai_extraction", {
           target_document_id: d.id,
           target_extraction_request_id: d.extraction_request_id,
+          target_reservation_id: reservationId,
           provider: "fake",
           model: "fake-extract",
           payload: SAMPLE_EXTRACTION,

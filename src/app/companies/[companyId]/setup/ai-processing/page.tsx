@@ -3,21 +3,18 @@ import { getTranslations } from "next-intl/server";
 import {
   getCompany,
   getMyCompanyRole,
-  listCompanyAiOptions,
 } from "@/application/companies";
-import { requireUserClient } from "@/lib/supabase/server";
-import { AiProviderForm, DisableAiProcessingForm } from "../../ai-provider-form";
 import { PageLayout } from "@/components/app-shell";
+import { requireUserClient } from "@/lib/supabase/server";
 
 export default async function AiProcessingSetupPage({
   params,
 }: PageProps<"/companies/[companyId]/setup/ai-processing">) {
   const { companyId } = await params;
   const client = await requireUserClient();
-  const [company, role, options, t] = await Promise.all([
+  const [company, role, t] = await Promise.all([
     getCompany(client, companyId),
     getMyCompanyRole(client, companyId),
-    listCompanyAiOptions(client, companyId),
     getTranslations("aiProcessing"),
   ]);
   if (!company || role !== "administrator") notFound();
@@ -27,8 +24,7 @@ export default async function AiProcessingSetupPage({
       <p>{t("setupIntro")}</p>
     </header>
     <section className="panel company-setup-panel">
-      <AiProviderForm companyId={companyId} options={options} current={company.aiProcessing} setup />
-      <DisableAiProcessingForm companyId={companyId} setup />
+      <p>{t("platformManaged")}</p>
     </section>
   </PageLayout>;
 }

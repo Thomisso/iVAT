@@ -48,14 +48,16 @@ async function createCompany(page: Page, name: string, ico: string, enableAi = f
   await page.getByRole("button", { name: "Save and continue" }).click();
   await expect(page).toHaveURL(new RegExp(`/companies/${companyId}/setup/ai-processing$`));
   if (enableAi) {
-    await page.getByRole("radio").first().check();
-    await page.getByRole("checkbox", {
-      name: /I consent to sending this Company's documents/,
-    }).check();
-    await page.getByRole("button", { name: "Enable AI processing" }).click();
-  } else {
-    await page.getByRole("button", { name: "Continue without AI" }).click();
+    const service = await serviceClient();
+    const { error } = await service.from("company").update({
+      ai_credential_source: "local",
+      ai_processing_enabled: true,
+      ai_provider: "fake",
+      ai_region: "local",
+    }).eq("id", companyId);
+    if (error) throw error;
   }
+  await page.goto(`/companies/${companyId}`);
   await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+$/);
   return companyId;
 }

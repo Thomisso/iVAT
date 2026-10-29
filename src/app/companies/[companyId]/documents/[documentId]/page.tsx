@@ -236,10 +236,7 @@ export default async function DocumentReviewPage({
                           v.payload.documentNumber ?? t("review.notSet"),
                         author:
                           v.author.kind === "ai"
-                            ? t("review.aiAuthor", {
-                                provider: v.author.provider,
-                                model: v.author.model,
-                              })
+                            ? t("review.aiAuthor")
                             : v.author.userId === userId
                               ? t("review.userAuthorYou")
                               : t("review.userAuthor"),
@@ -261,7 +258,7 @@ export default async function DocumentReviewPage({
       </PageLayout>
       <RefreshWhile
         active={
-          company.aiProcessing !== null &&
+          company.aiProcessingEnabled &&
           isBeingExtracted(document.status)
         }
       />
