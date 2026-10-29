@@ -48,6 +48,12 @@ import type { ExtractionPayload, Party } from "@/application/extraction-payload"
 import { retrySplit, uploadSourceFile } from "@/application/source-files";
 import { configurePlatformAiProvider, setOrganizationPlatformAiAccess } from "@/application/platform-ai";
 import {
+  assignCompanyAiConfiguration,
+  createAiConfiguration,
+  setDefaultAiConfiguration,
+  updateAiConfiguration,
+} from "@/application/ai-configurations";
+import {
   setPlatformOrganizationBlocked,
   setPlatformUploadLimits,
 } from "@/application/platform-administration";
@@ -648,6 +654,69 @@ export async function configurePlatformAiProviderAction(
   if (!result.ok) return refused(result.error, formData, ["provider", "available", "splitModel", "extractModel"]);
   refresh();
   return { error: null, values: {} };
+}
+
+export async function createAiConfigurationAction(
+  _state: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const result = await createAiConfiguration(await requireUserClient(), {
+    label: field(formData, "label"),
+    provider: field(formData, "provider"),
+    splitModel: field(formData, "splitModel"),
+    extractModel: field(formData, "extractModel"),
+    credential: field(formData, "credential"),
+  });
+  // Credentials are never included in serialized Server Action state.
+  if (!result.ok) return refused(result.error, formData, ["label", "provider", "splitModel", "extractModel"]);
+  refresh();
+  return { error: null, values: {} };
+}
+
+export async function updateAiConfigurationAction(
+  _state: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const result = await updateAiConfiguration(await requireUserClient(), {
+    id: field(formData, "configurationId"),
+    label: field(formData, "label"),
+    provider: field(formData, "provider"),
+    splitModel: field(formData, "splitModel"),
+    extractModel: field(formData, "extractModel"),
+    credential: field(formData, "credential").trim() || undefined,
+  });
+  if (!result.ok) return refused(result.error, formData, [
+    "configurationId",
+    "label",
+    "provider",
+    "splitModel",
+    "extractModel",
+  ]);
+  refresh();
+  return { error: null, values: {} };
+}
+
+export async function assignCompanyAiConfigurationAction(
+  _state: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const result = await assignCompanyAiConfiguration(await requireUserClient(), {
+    companyId: field(formData, "companyId"),
+    configurationId: field(formData, "configurationId"),
+  });
+  if (!result.ok) return refused(result.error, formData, ["configurationId"]);
+  refresh();
+  return { error: null, values: {} };
+}
+
+export async function setDefaultAiConfigurationAction(
+  _state: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  return settled(await setDefaultAiConfiguration(
+    await requireUserClient(),
+    field(formData, "configurationId"),
+  ));
 }
 
 export async function setOrganizationPlatformAiAccessAction(
