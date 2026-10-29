@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { listAuditEvents } from "@/application/audit";
 import { createCompany } from "@/application/companies";
@@ -6,6 +7,8 @@ import {
   listSourceFiles,
   readSourceFile,
   readSourceFileDerivative,
+  SOURCE_FILE_BUCKET,
+  sourceFileObjectPath,
   uploadSourceFile,
 } from "@/application/source-files";
 import { administratorWithCompany, companyDetails } from "./support/fixtures";
@@ -56,7 +59,6 @@ describe("Source File upload", () => {
         sha256: "79ae60b6a1040a3eaf64d441f2fa48f627a18d1e5c1ad831ba6919e9e9c663ea",
         normalizedDerivative: null,
         pageCount: 2,
-        preselectedDirection: null,
         status: "uploaded",
         uploadedAt: expect.any(String),
       },
@@ -65,20 +67,30 @@ describe("Source File upload", () => {
     expect(stored?.bytes).toEqual(pdf);
   });
 
-  it("stores an optional Direction preselection with the Source File", async () => {
-    const { client, companyId } = await administratorWithCompany();
+  it("refuses a Direction recorded with a Source File, leaving it to detection", async () => {
+    const { client, companyId, organizationId } = await administratorWithCompany();
+    const id = randomUUID();
+    const stored = await client.storage
+      .from(SOURCE_FILE_BUCKET)
+      .upload(sourceFileObjectPath(companyId, id), fixtureFile("receipt.png"), { contentType: "image/png" });
+    if (stored.error) throw stored.error;
+    const row = {
+      id,
+      organization_id: organizationId,
+      company_id: companyId,
+      file_name: "receipt.png",
+      format: "png" as const,
+      byte_size: 1,
+      sha256: "0".repeat(64),
+      page_count: 1,
+    };
 
-    const result = await uploadSourceFile(client, testWorker().jobs, {
-      companyId,
-      fileName: "receipt.png",
-      bytes: fixtureFile("receipt.png"),
-      preselectedDirection: "outgoing",
-    });
+    const withDirection = await client
+      .from("source_file")
+      .insert({ ...row, preselected_direction: "outgoing" });
 
-    expect(result.ok).toBe(true);
-    expect(await listSourceFiles(client, companyId)).toEqual([
-      expect.objectContaining({ preselectedDirection: "outgoing" }),
-    ]);
+    expect(withDirection.error?.code).toBe("42501");
+    expect((await client.from("source_file").insert(row)).error).toBeNull();
   });
 
   it.each([

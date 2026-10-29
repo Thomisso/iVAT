@@ -37,7 +37,6 @@ async function documentInReview(extraction: ExtractionPayload = SAMPLE_EXTRACTIO
     companyId: admin.companyId,
     fileName: "receipt.png",
     bytes: fixtureFile("receipt.png"),
-    preselectedDirection: extraction.direction ?? undefined,
   });
   if (!uploaded.ok) throw new Error(uploaded.error);
   await worker.runJobs();
@@ -45,11 +44,20 @@ async function documentInReview(extraction: ExtractionPayload = SAMPLE_EXTRACTIO
   return { ...admin, worker, sourceFileId: uploaded.value.id, documentId: document.id };
 }
 
+/** SAMPLE_EXTRACTION without the customer identity that would reveal the Company's Direction. */
+const UNDETECTED: ExtractionPayload = {
+  ...SAMPLE_EXTRACTION,
+  direction: null,
+  customer: { ...SAMPLE_EXTRACTION.customer, ico: null, vatId: null },
+};
+
 /** SAMPLE_EXTRACTION as a User corrects it: an outgoing invoice under domestic reverse charge at two rates. */
 const CORRECTED: ExtractionPayload = {
   ...SAMPLE_EXTRACTION,
   documentNumber: "FV-2026-0002",
   direction: "outgoing",
+  supplier: SAMPLE_EXTRACTION.customer,
+  customer: SAMPLE_EXTRACTION.supplier,
   proposedVatRegime: "domestic_reverse_charge",
   reverseChargeCode: "4",
   rateBreakdown: [
@@ -409,10 +417,7 @@ describe("approving and rejecting a Document", () => {
   });
 
   it("refuses approval while Direction is unknown", async () => {
-    const document = await documentInReview({
-      ...SAMPLE_EXTRACTION,
-      direction: null,
-    });
+    const document = await documentInReview(UNDETECTED);
 
     expect(
       await approveDocument(document.client, { ...document, version: 1 }),
@@ -426,19 +431,24 @@ describe("approving and rejecting a Document", () => {
     ).toBe("needs_review");
   });
 
-  it("allows approval after a User sets the unknown Direction", async () => {
-    const document = await documentInReview({
-      ...SAMPLE_EXTRACTION,
-      direction: null,
-    });
+  it("records a User-set Direction as their Extraction Version, which clears the finding and allows approval", async () => {
+    const document = await documentInReview(UNDETECTED);
 
     expect(
       await correctDocument(document.client, {
         ...document,
         basedOnVersion: 1,
-        payload: SAMPLE_EXTRACTION,
+        payload: { ...UNDETECTED, direction: "incoming" },
       }),
     ).toEqual({ ok: true, value: { version: 2 } });
+
+    const versions = await listExtractionVersions(document.client, document.companyId, document.documentId);
+    expect(versions[0].findings).toContainEqual({ field: "direction", severity: "error", code: "direction_unknown" });
+    expect(versions[1]).toEqual(expect.objectContaining({
+      author: { kind: "user", userId: document.userId },
+      payload: expect.objectContaining({ direction: "incoming" }),
+    }));
+    expect(versions[1].findings).not.toContainEqual(expect.objectContaining({ code: "direction_unknown" }));
     expect(
       await approveDocument(document.client, { ...document, version: 2 }),
     ).toEqual({ ok: true, value: null });
@@ -547,7 +557,6 @@ describe("the Document list", () => {
         companyId: admin.companyId,
         fileName: "receipt.png",
         bytes: fixtureFile("receipt.png"),
-        preselectedDirection: extractions[i].direction ?? undefined,
       });
       if (!uploaded.ok) throw new Error(uploaded.error);
       sourceFileIds.push(uploaded.value.id);
