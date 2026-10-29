@@ -38,7 +38,7 @@ test("saved views preserve queue context while review decisions advance through 
 }) => {
   const companyId = await createAiCompany(context, page, baseURL);
   await page.goto(`/companies/${companyId}/upload`);
-  await page.locator('input[type="file"]').setInputFiles("tests/fixtures/two-invoices.pdf");
+  await page.locator('input[type="file"]:not([capture])').setInputFiles("tests/fixtures/two-invoices.pdf");
   await page.getByRole("button", { name: "Upload" }).click();
   const reviewBatch = page.getByRole("link", { name: "Review 2 Documents" });
   await expect(reviewBatch).toBeVisible({ timeout: 45_000 });

@@ -63,7 +63,7 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   await expect(page.getByLabel("Email")).toHaveValue("");
 
   await page.goto(`${companyUrl}/upload`);
-  await page.locator('input[type="file"]').setInputFiles("tests/fixtures/two-invoices.pdf");
+  await page.locator('input[type="file"]:not([capture])').setInputFiles("tests/fixtures/two-invoices.pdf");
   const uploadFinished = page.waitForResponse(
     (response) =>
       response.request().method() === "POST" &&

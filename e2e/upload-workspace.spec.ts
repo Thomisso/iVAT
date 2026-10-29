@@ -43,7 +43,7 @@ test("a batch survives waiting and reload, exposes partial recovery, then hands 
   const companyId = await createCompany(page, run);
 
   await page.goto(`/companies/${companyId}/upload`);
-  await page.locator('input[type="file"]').setInputFiles("tests/fixtures/two-invoices.pdf");
+  await page.locator('input[type="file"]:not([capture])').setInputFiles("tests/fixtures/two-invoices.pdf");
   await page.getByRole("button", { name: "Upload" }).click();
   await expect(page).toHaveURL(/\/upload-batches\/[0-9a-f-]+$/);
   const batchUrl = page.url();
