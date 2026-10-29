@@ -2,8 +2,8 @@ import { isUuid, type AppClient, type Result } from "./client";
 import {
   getCompany,
   getCompanySetupChecklist,
-  getFilingFrequencyForPeriod,
-  listCompanyFilingFrequencies,
+  getReportingPeriodFrequency,
+  listCompanyReportingYears,
   type CompanyDetails,
 } from "./companies";
 import {
@@ -192,7 +192,7 @@ export async function generateVatReport(
   if (setup.some((item) => (item.step === "identity" || item.step === "filing_frequency") && item.state !== "completed")) {
     return { ok: false, error: "company_setup_incomplete" };
   }
-  const frequency = await getFilingFrequencyForPeriod(
+  const frequency = await getReportingPeriodFrequency(
     client,
     company.id,
     input.period,
@@ -205,7 +205,7 @@ export async function generateVatReport(
   }
   const readiness = await getReportingPeriodReadiness(client, input);
   if (!readiness.ok) return readiness;
-  const filingFrequencies = await listCompanyFilingFrequencies(client, company.id);
+  const reportingYears = await listCompanyReportingYears(client, company.id);
   const { data, error } = await client.rpc("vat_report_documents", {
     target_company_id: company.id,
     target_period: input.period,
@@ -230,7 +230,7 @@ export async function generateVatReport(
       details,
       input.period,
       documents,
-      filingFrequencies,
+      reportingYears,
     ),
     readinessSource: readiness.value.source,
   };

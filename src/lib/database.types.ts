@@ -251,26 +251,6 @@ isOneToOne: false
       referencedColumns: ["id","organization_id"]
     }
                   ]
-                },"company_filing_frequency": {
-                  Row: {
-                    "company_id": string,"created_at": string,"effective_from": string,"frequency": Database["public"]['Enums']["filing_frequency"],"organization_id": string
-                  }
-                  ComputedFields: never
-                  Insert: {
-                    "company_id": string,"created_at"?: string,"effective_from": string,"frequency": Database["public"]['Enums']["filing_frequency"],"organization_id": string
-                  }
-                  Update: {
-                    "company_id"?: string,"created_at"?: string,"effective_from"?: string,"frequency"?: Database["public"]['Enums']["filing_frequency"],"organization_id"?: string
-                  }
-                  Relationships: [
-                    {
-      foreignKeyName: "company_filing_frequency_company_id_organization_id_fkey"
-      columns: ["company_id","organization_id"]
-isOneToOne: false
-      referencedRelation: "company"
-      referencedColumns: ["id","organization_id"]
-    }
-                  ]
                 },"company_setup_step_state": {
                   Row: {
                     "changed_at": string,"changed_by": string | null,"company_id": string,"organization_id": string,"state": Database["public"]['Enums']["company_setup_state"],"step": Database["public"]['Enums']["company_setup_step"]
@@ -503,6 +483,26 @@ isOneToOne: false
                   Relationships: [
 
                   ]
+                },"reporting_year": {
+                  Row: {
+                    "company_id": string,"created_at": string,"first_month": number,"frequency": Database["public"]['Enums']["filing_frequency"],"organization_id": string,"year": number
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "company_id": string,"created_at"?: string,"first_month"?: number,"frequency": Database["public"]['Enums']["filing_frequency"],"organization_id": string,"year": number
+                  }
+                  Update: {
+                    "company_id"?: string,"created_at"?: string,"first_month"?: number,"frequency"?: Database["public"]['Enums']["filing_frequency"],"organization_id"?: string,"year"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "reporting_year_company_id_organization_id_fkey"
+      columns: ["company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "company"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
                 },"source_file": {
                   Row: {
                     "byte_size": number,"company_id": string,"file_name": string,"format": Database["public"]['Enums']["source_file_format"],"id": string,"normalized_byte_size": number | null,"normalized_format": Database["public"]['Enums']["source_file_format"] | null,"normalized_sha256": string | null,"organization_id": string,"page_count": number,"preselected_direction": string | null,"sha256": string,"status": Database["public"]['Enums']["source_file_status"],"upload_batch_id": string | null,"uploaded_at": string,"uploaded_by": string | null
@@ -719,9 +719,6 @@ isOneToOne: false
 "create_ai_configuration":
 { Args: { "configuration_label": string,"provider_credential": string,"target_extract_model": string,"target_provider": string,"target_split_model": string }; Returns: string
                            },
-"create_company":
-{ Args: { "company_city": string,"company_ico": string,"company_name": string,"company_person_type": Database["public"]['Enums']["person_type"],"company_postal_code": string,"company_street": string,"company_vat_id": string,"filing_frequency_effective_from": string,"initial_filing_frequency": Database["public"]['Enums']["filing_frequency"],"target_organization_id": string }; Returns: string
-                           },
 "create_company_data_export":
 { Args: { "target_company_id": string }; Returns: Json
                            },
@@ -884,6 +881,9 @@ isOneToOne: false
 "retry_split":
 { Args: { "target_source_file_id": string }; Returns: undefined
                            },
+"return_document_to_review":
+{ Args: { "target_document_id": string }; Returns: undefined
+                           },
 "save_vat_report":
 { Args: { "computed_result": Json,"expected_documents": Json,"target_company_id": string,"target_period": string }; Returns: string
                            },
@@ -895,8 +895,8 @@ isOneToOne: false
 "set_company_filing_defaults":
 { Args: { "epo_address_confirmed": boolean,"new_email": string,"new_epo_city": string,"new_epo_house_number": string,"new_epo_orientation_number": string,"new_epo_postal_code": string,"new_epo_street_name": string,"new_phone": string,"new_signatory_capacity": string,"new_signatory_first_name": string,"new_signatory_last_name": string,"new_tax_office": string,"target_company_id": string }; Returns: undefined
                            },
-"set_company_filing_frequency":
-{ Args: { "filing_frequency_effective_from": string,"new_filing_frequency": Database["public"]['Enums']["filing_frequency"],"target_company_id": string }; Returns: undefined
+"set_company_reporting_year":
+{ Args: { "new_frequency": Database["public"]['Enums']["filing_frequency"],"target_company_id": string,"target_year": number }; Returns: undefined
                            },
 "set_default_ai_configuration":
 { Args: { "target_configuration_id": string }; Returns: undefined
@@ -921,9 +921,6 @@ isOneToOne: false
                            },
 "update_ai_configuration":
 { Args: { "configuration_label": string,"provider_credential"?: string,"target_configuration_id": string,"target_extract_model": string,"target_provider": string,"target_split_model": string }; Returns: undefined
-                           },
-"update_company":
-{ Args: { "company_city": string,"company_ico": string,"company_name": string,"company_person_type": Database["public"]['Enums']["person_type"],"company_postal_code": string,"company_street": string,"company_vat_id": string,"filing_frequency_effective_from": string,"new_filing_frequency": Database["public"]['Enums']["filing_frequency"],"target_company_id": string }; Returns: undefined
                            },
 "update_company_identity":
 { Args: { "company_city": string,"company_first_name": string,"company_house_number": string,"company_ico": string,"company_last_name": string,"company_name": string,"company_orientation_number": string,"company_person_type": Database["public"]['Enums']["person_type"],"company_postal_code": string,"company_street_name": string,"company_vat_id": string,"target_company_id": string }; Returns: undefined

@@ -47,7 +47,6 @@ async function createCompany(page: Page) {
   await page.getByLabel("City").fill("Praha");
   await page.getByLabel("Postal code").fill("11000");
   await page.getByRole("button", { name: "Create company" }).click();
-  await page.getByLabel("Effective from").fill("2026-01-01");
   await page.getByRole("button", { name: "Save and continue" }).click();
   await expect(page).toHaveURL(/\/setup\/ai-processing$/);
   await page.getByRole("link", { name: "Continue to Company" }).click();
