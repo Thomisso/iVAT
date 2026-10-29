@@ -328,11 +328,12 @@ export async function listUploadNotifications(
     .from("notification")
     .select("id, company_id, payload, read_at, created_at")
     .eq("company_id", companyId)
-    .eq("kind", "upload_batch_finished");
+    .eq("kind", "upload_batch_finished")
+    .is("dismissed_at", null);
   if (options.unreadOnly) query = query.is("read_at", null);
-  const { data, error } = await query
-    .order("created_at", { ascending: false })
-    .limit(options.limit ?? 20);
+  query = query.order("created_at", { ascending: false });
+  if (options.limit) query = query.limit(options.limit);
+  const { data, error } = await query;
   if (error) throw error;
   return data.map((row) => {
     const payload = row.payload as Record<string, unknown>;
@@ -353,6 +354,23 @@ export async function listUploadNotifications(
   });
 }
 
+/** Exact unread badge count for the signed-in User in one Company. */
+export async function countUnreadUploadNotifications(
+  client: AppClient,
+  companyId: string,
+): Promise<number> {
+  if (!isUuid(companyId)) return 0;
+  const { count, error } = await client
+    .from("notification")
+    .select("id", { count: "exact", head: true })
+    .eq("company_id", companyId)
+    .eq("kind", "upload_batch_finished")
+    .is("dismissed_at", null)
+    .is("read_at", null);
+  if (error) throw error;
+  return count ?? 0;
+}
+
 /** Marks only the signed-in User's own notification as read. */
 export async function markUploadNotificationRead(
   client: AppClient,
@@ -361,6 +379,54 @@ export async function markUploadNotificationRead(
   if (!isUuid(notificationId)) return { ok: false, error: "forbidden" };
   const { error } = await client.rpc("mark_upload_notification_read", {
     target_notification_id: notificationId,
+  });
+  if (error) {
+    if (error.code === "42501") return { ok: false, error: "forbidden" };
+    throw error;
+  }
+  return { ok: true, value: null };
+}
+
+/** Marks every visible notification in one accessible Company as read. */
+export async function markCompanyUploadNotificationsRead(
+  client: AppClient,
+  companyId: string,
+): Promise<Result<null, "forbidden">> {
+  if (!isUuid(companyId)) return { ok: false, error: "forbidden" };
+  const { error } = await client.rpc("mark_company_upload_notifications_read", {
+    target_company_id: companyId,
+  });
+  if (error) {
+    if (error.code === "42501") return { ok: false, error: "forbidden" };
+    throw error;
+  }
+  return { ok: true, value: null };
+}
+
+/** Hides one notification from only the signed-in User's inbox. */
+export async function dismissUploadNotification(
+  client: AppClient,
+  notificationId: string,
+): Promise<Result<null, "forbidden">> {
+  if (!isUuid(notificationId)) return { ok: false, error: "forbidden" };
+  const { error } = await client.rpc("dismiss_upload_notification", {
+    target_notification_id: notificationId,
+  });
+  if (error) {
+    if (error.code === "42501") return { ok: false, error: "forbidden" };
+    throw error;
+  }
+  return { ok: true, value: null };
+}
+
+/** Hides every current-Company notification from only this User's inbox. */
+export async function dismissCompanyUploadNotifications(
+  client: AppClient,
+  companyId: string,
+): Promise<Result<null, "forbidden">> {
+  if (!isUuid(companyId)) return { ok: false, error: "forbidden" };
+  const { error } = await client.rpc("dismiss_company_upload_notifications", {
+    target_company_id: companyId,
   });
   if (error) {
     if (error.code === "42501") return { ok: false, error: "forbidden" };

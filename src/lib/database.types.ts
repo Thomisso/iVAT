@@ -403,14 +403,14 @@ isOneToOne: false
                   ]
                 },"notification": {
                   Row: {
-                    "company_id": string,"created_at": string,"id": string,"kind": string,"organization_id": string,"payload": NonNullable<Json>,"read_at": string | null,"user_id": string
+                    "company_id": string,"created_at": string,"dismissed_at": string | null,"id": string,"kind": string,"organization_id": string,"payload": NonNullable<Json>,"read_at": string | null,"user_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "company_id": string,"created_at"?: string,"id"?: string,"kind": string,"organization_id": string,"payload": NonNullable<Json>,"read_at"?: string | null,"user_id": string
+                    "company_id": string,"created_at"?: string,"dismissed_at"?: string | null,"id"?: string,"kind": string,"organization_id": string,"payload": NonNullable<Json>,"read_at"?: string | null,"user_id": string
                   }
                   Update: {
-                    "company_id"?: string,"created_at"?: string,"id"?: string,"kind"?: string,"organization_id"?: string,"payload"?: NonNullable<Json>,"read_at"?: string | null,"user_id"?: string
+                    "company_id"?: string,"created_at"?: string,"dismissed_at"?: string | null,"id"?: string,"kind"?: string,"organization_id"?: string,"payload"?: NonNullable<Json>,"read_at"?: string | null,"user_id"?: string
                   }
                   Relationships: [
                     {
@@ -748,6 +748,12 @@ isOneToOne: false
 "current_user_can_use_application":
 { Args: Record<PropertyKey, never>; Returns: boolean
                            },
+"dismiss_company_upload_notifications":
+{ Args: { "target_company_id": string }; Returns: undefined
+                           },
+"dismiss_upload_notification":
+{ Args: { "target_notification_id": string }; Returns: undefined
+                           },
 "fail_company_data_export":
 { Args: { "target_export_id": string }; Returns: undefined
                            },
@@ -802,6 +808,9 @@ isOneToOne: false
                            },
 "list_platform_organization_companies_complete":
 { Args: Record<PropertyKey, never>; Returns: Json
+                           },
+"mark_company_upload_notifications_read":
+{ Args: { "target_company_id": string }; Returns: undefined
                            },
 "mark_upload_notification_read":
 { Args: { "target_notification_id": string }; Returns: undefined

@@ -360,6 +360,13 @@
     "status": "Status",
     "noQueueDocuments": "No Documents match this batch queue.",
     "notifications": "Upload notifications",
+    "notificationBell": "{count, plural, =0 {Notifications, none unread} one {Notifications, # unread} other {Notifications, # unread}}",
+    "notificationUnread": "{count, plural, =0 {No unread notifications} one {# unread notification} other {# unread notifications}}",
+    "closeNotifications": "Close notifications",
+    "markAllRead": "Mark all as read",
+    "dismissAll": "Dismiss all",
+    "dismiss": "Dismiss",
+    "noNotifications": "No upload notifications for this Company.",
     "notification": {
       "success": {
         "title": "Batch processing finished",
