@@ -192,6 +192,29 @@ test("mobile shell menus return focus and role-dependent administration stays pr
     expect(await adminPage.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
   }
 
+  await adminPage.emulateMedia({ colorScheme: "dark" });
+  await adminPage.setViewportSize({ width: 1440, height: 900 });
+  await adminPage.goto(`/companies/${companyId}/documents`);
+  const documentsHeading = adminPage.getByRole("heading", { name: "Documents", level: 1 });
+  const documentFilters = adminPage.getByRole("form", { name: "Filters" });
+  await expect(documentsHeading).toBeVisible();
+  await expect(documentFilters).toBeVisible();
+  const desktopGrid = await Promise.all([
+    documentsHeading.evaluate((heading) => heading.closest("header")?.getBoundingClientRect().x),
+    documentFilters.evaluate((filters) => filters.getBoundingClientRect().x),
+  ]);
+  expect(desktopGrid[0]).toBe(desktopGrid[1]);
+  await expect.poll(() => adminPage.evaluate(() => getComputedStyle(document.documentElement).colorScheme)).toBe("light");
+
+  await adminPage.setViewportSize({ width: 360, height: 800 });
+  const mobileGrid = await Promise.all([
+    documentsHeading.evaluate((heading) => heading.closest("header")?.getBoundingClientRect().x),
+    documentFilters.evaluate((filters) => filters.getBoundingClientRect().x),
+  ]);
+  expect(mobileGrid[0]).toBe(14);
+  expect(mobileGrid[0]).toBe(mobileGrid[1]);
+  expect(await adminPage.evaluate(() => document.documentElement.scrollWidth)).toBe(360);
+
   const userContext = await browser.newContext();
   await english(userContext, baseURL);
   const userPage = await userContext.newPage();

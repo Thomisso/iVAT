@@ -20,6 +20,7 @@ import {
 import type { CompanySummary } from "@/application/companies";
 import type { OrganizationSummary } from "@/application/organizations";
 import type { UploadNotification } from "@/application/upload-batches";
+import { AccountActions, AppShell, ContextNavigation } from "@/components/app-shell";
 import { CommandButton } from "@/components/command-button";
 
 type Destination = "overview" | "upload" | "documents" | "vat" | "settings";
@@ -34,10 +35,6 @@ const destinations: Array<{ key: Destination; icon: string; suffix: string }> = 
 
 function ShellIcon({ path }: { path: string }) {
   return <svg aria-hidden="true" className="company-shell-icon" viewBox="0 0 24 24"><path d={path} /></svg>;
-}
-
-function BrandMark() {
-  return <svg aria-hidden="true" className="company-brand-mark" viewBox="0 0 32 32"><path className="paper" d="M4 4h10v15l2 3 3-3V4h9v19l-7 6H11l-7-6z" /><path className="check" d="m9 14 7 7 8-11" /></svg>;
 }
 
 function activeDestination(pathname: string, companyId: string): Destination {
@@ -179,18 +176,32 @@ export function CompanyShell({ children, companies, company, companyRole, email,
     startTransition(() => { void rememberCompanyAction(company.id); });
   }, [company.id]);
 
-  const navigation = <nav aria-label={t("companyNavigation")} className="company-primary-nav">{destinations.map((destination) => <Link aria-current={active === destination.key ? "page" : undefined} href={`/companies/${company.id}${destination.suffix}`} key={destination.key}><ShellIcon path={destination.icon} /><span>{t(destination.key)}</span></Link>)}</nav>;
-  return <>
-    <a className="company-skip-link" href="#main-content">{t("skip")}</a>
-    <div className="company-shell">
-      <aside className="company-shell-sidebar">
-        <Link aria-label={app("name")} className="company-brand" href="/"><BrandMark /><span>{app("name")}</span></Link>
-        <CompanyMenu companies={companies} current={company} />
-        <div className="company-shell-secondary"><AdministrationMenu companyId={company.id} companyRole={companyRole} organizations={organizations} superAdmin={superAdmin} /><AccountMenu email={email} /></div>
-      </aside>
-      <header className="company-mobile-header"><Link aria-label={app("name")} className="company-brand" href="/"><BrandMark /></Link><CompanyMenu companies={companies} current={company} /><div className="company-mobile-actions"><AdministrationMenu companyId={company.id} companyRole={companyRole} organizations={organizations} superAdmin={superAdmin} /><AccountMenu email={email} /></div></header>
-      {navigation}
-      <div className="company-shell-content" id="main-content" tabIndex={-1}><UploadNotifications notifications={uploadNotifications} />{children}</div>
-    </div>
-  </>;
+  const navigation = <ContextNavigation
+    items={destinations.map((destination) => ({
+      current: active === destination.key,
+      href: `/companies/${company.id}${destination.suffix}`,
+      icon: <ShellIcon path={destination.icon} />,
+      label: t(destination.key),
+    }))}
+    label={t("companyNavigation")}
+  />;
+  const context = <CompanyMenu companies={companies} current={company} />;
+  const accountActions = <AccountActions label={t("account")}>
+    <AdministrationMenu
+      companyId={company.id}
+      companyRole={companyRole}
+      organizations={organizations}
+      superAdmin={superAdmin}
+    />
+    <AccountMenu email={email} />
+  </AccountActions>;
+  return <AppShell
+    accountActions={accountActions}
+    brandHref="/"
+    brandLabel={app("name")}
+    context={context}
+    navigation={navigation}
+    notices={<UploadNotifications notifications={uploadNotifications} />}
+    skipLabel={t("skip")}
+  >{children}</AppShell>;
 }
