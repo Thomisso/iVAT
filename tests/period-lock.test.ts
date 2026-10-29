@@ -14,23 +14,27 @@ import {
   splitDocument,
   updateDocumentReporting,
 } from "@/application/documents";
-import { enableAiProcessing } from "@/application/companies";
+import { enableAiProcessing, getCompany, updateCompanyIdentity } from "@/application/companies";
 import { uploadSourceFile } from "@/application/source-files";
 import {
   finalizeVatReport,
   generateVatReport,
   getPeriodLock,
+  getVatReport,
+  listVatReportTransitions,
   unlockReportingPeriod,
 } from "@/application/vat-reports";
-import { administratorWithCompany, companyMember, companyWithManyReportDocuments } from "./support/fixtures";
+import {
+  administratorWithCompany,
+  companyMember,
+  companyWithManyApprovedReportDocuments,
+} from "./support/fixtures";
 import { fixtureFile } from "./support/files";
 import { systemClient, testWorker } from "./support/worker";
 
 async function lockedCompanyWithDocuments({
-  approveFirst = false,
   period = "2026-10",
 }: {
-  approveFirst?: boolean;
   period?: string;
 } = {}) {
   const company = await administratorWithCompany();
@@ -48,18 +52,18 @@ async function lockedCompanyWithDocuments({
   if (!upload.ok) throw new Error(upload.error);
   expect(await worker.runJobs()).toEqual([]);
   const documents = await listDocuments(company.client, company.companyId, upload.value.id);
-  if (approveFirst) {
+  for (const document of documents) {
     expect(
       await approveDocument(company.client, {
         companyId: company.companyId,
-        documentId: documents[0].id,
+        documentId: document.id,
         version: 1,
       }),
     ).toEqual({ ok: true, value: null });
   }
   const report = { companyId: company.companyId, period };
   expect((await generateVatReport(company.client, report)).ok).toBe(true);
-  expect(await finalizeVatReport(company.client, report)).toEqual({ ok: true, value: null });
+  expect(await finalizeVatReport(company.client, { ...report, confirmed: true })).toEqual({ ok: true, value: null });
   return { ...company, documents, worker };
 }
 
@@ -73,10 +77,10 @@ it("identifies every Document whose Reporting Period is locked for the workspace
 });
 
 it("identifies locks beyond the configured PostgREST row limit", async () => {
-  const company = await companyWithManyReportDocuments(1001);
+  const company = await companyWithManyApprovedReportDocuments(1001);
   const input = { companyId: company.companyId, period: "2026-10" };
   expect((await generateVatReport(company.client, input)).ok).toBe(true);
-  expect(await finalizeVatReport(company.client, input)).toEqual({ ok: true, value: null });
+  expect(await finalizeVatReport(company.client, { ...input, confirmed: true })).toEqual({ ok: true, value: null });
   const documents = await listCompanyDocuments(company.client, company.companyId);
 
   const locks = await documentPeriodLocks(
@@ -88,7 +92,7 @@ it("identifies locks beyond the configured PostgREST row limit", async () => {
   expect(documents).toHaveLength(1001);
   expect(Object.keys(locks)).toHaveLength(1001);
   expect(new Set(Object.values(locks))).toEqual(new Set(["2026-10"]));
-});
+}, 60_000);
 
 it("only an Administrator finalizes and unlocks a stored VAT Report, and both transitions are audited", async () => {
   const company = await administratorWithCompany();
@@ -99,11 +103,11 @@ it("only an Administrator finalizes and unlocks a stored VAT Report, and both tr
     value: { id: expect.any(String) },
   });
 
-  expect(await finalizeVatReport(user.client, input)).toEqual({
+  expect(await finalizeVatReport(user.client, { ...input, confirmed: true })).toEqual({
     ok: false,
     error: "forbidden",
   });
-  expect(await finalizeVatReport(company.client, input)).toEqual({
+  expect(await finalizeVatReport(company.client, { ...input, confirmed: true })).toEqual({
     ok: true,
     value: null,
   });
@@ -115,11 +119,19 @@ it("only an Administrator finalizes and unlocks a stored VAT Report, and both tr
       lockedAt: expect.any(String),
     }),
   );
-  expect(await unlockReportingPeriod(user.client, input)).toEqual({
+  expect(await unlockReportingPeriod(user.client, {
+    ...input,
+    reason: "Correct source data",
+    confirmed: true,
+  })).toEqual({
     ok: false,
     error: "forbidden",
   });
-  expect(await unlockReportingPeriod(company.client, input)).toEqual({
+  expect(await unlockReportingPeriod(company.client, {
+    ...input,
+    reason: "Correct source data",
+    confirmed: true,
+  })).toEqual({
     ok: true,
     value: null,
   });
@@ -131,7 +143,7 @@ it("only an Administrator finalizes and unlocks a stored VAT Report, and both tr
       actorUserId: company.userId,
       companyId: company.companyId,
       targetType: "vat_report",
-      payload: { period: input.period },
+      payload: { period: input.period, warning_count: 0, rejected_document_count: 0 },
     }),
   ]);
   expect(events.filter((event) => event.action === "reporting_period.unlocked")).toEqual([
@@ -139,9 +151,140 @@ it("only an Administrator finalizes and unlocks a stored VAT Report, and both tr
       actorUserId: company.userId,
       companyId: company.companyId,
       targetType: "vat_report",
-      payload: { period: input.period },
+      payload: { period: input.period, reason: "Correct source data" },
     }),
   ]);
+  expect(await listVatReportTransitions(user.client, input.companyId, input.period)).toEqual([
+    expect.objectContaining({
+      action: "vat_report.finalized",
+      actorUserId: company.userId,
+      unlockReason: null,
+    }),
+    expect.objectContaining({
+      action: "reporting_period.unlocked",
+      actorUserId: company.userId,
+      unlockReason: "Correct source data",
+    }),
+  ]);
+});
+
+it("requires confirmation and refuses a stale snapshot, readiness blockers and incomplete identity", async () => {
+  const stale = await administratorWithCompany();
+  const staleInput = { companyId: stale.companyId, period: "2026-10" };
+  expect((await generateVatReport(stale.client, staleInput)).ok).toBe(true);
+  expect(await finalizeVatReport(stale.client, { ...staleInput, confirmed: false })).toEqual({
+    ok: false,
+    error: "confirmation_required",
+  });
+  const staleUpload = await uploadSourceFile(stale.client, { async send() {} }, {
+    companyId: stale.companyId,
+    fileName: "new-source.pdf",
+    bytes: fixtureFile("two-invoices.pdf"),
+  });
+  expect(staleUpload.ok).toBe(true);
+  expect(await finalizeVatReport(stale.client, { ...staleInput, confirmed: true })).toEqual({
+    ok: false,
+    error: "stale_report",
+  });
+
+  const blocked = await administratorWithCompany("Blocked readiness");
+  const worker = testWorker();
+  await enableAiProcessing(blocked.client, worker.jobs, {
+    companyId: blocked.companyId,
+    provider: worker.ai,
+  });
+  const blockedUpload = await uploadSourceFile(blocked.client, worker.jobs, {
+    companyId: blocked.companyId,
+    fileName: "needs-review.pdf",
+    bytes: fixtureFile("two-invoices.pdf"),
+    preselectedDirection: "incoming",
+  });
+  if (!blockedUpload.ok) throw new Error(blockedUpload.error);
+  expect(await worker.runJobs()).toEqual([]);
+  const blockedInput = { companyId: blocked.companyId, period: "2026-10" };
+  expect((await generateVatReport(blocked.client, blockedInput)).ok).toBe(true);
+  expect(await finalizeVatReport(blocked.client, { ...blockedInput, confirmed: true })).toEqual({
+    ok: false,
+    error: "readiness_blocked",
+  });
+
+  const incomplete = await administratorWithCompany("Incomplete identity");
+  const incompleteInput = { companyId: incomplete.companyId, period: "2026-10" };
+  expect((await generateVatReport(incomplete.client, incompleteInput)).ok).toBe(true);
+  const removed = await systemClient()
+    .from("company_setup_step_state")
+    .delete()
+    .eq("company_id", incomplete.companyId)
+    .eq("step", "identity");
+  expect(removed.error).toBeNull();
+  expect(await finalizeVatReport(incomplete.client, { ...incompleteInput, confirmed: true })).toEqual({
+    ok: false,
+    error: "company_setup_incomplete",
+  });
+});
+
+it("allows warnings and rejected Documents and records their confirmation summary", async () => {
+  const company = await administratorWithCompany();
+  const worker = testWorker();
+  await enableAiProcessing(company.client, worker.jobs, {
+    companyId: company.companyId,
+    provider: worker.ai,
+  });
+  const upload = await uploadSourceFile(company.client, worker.jobs, {
+    companyId: company.companyId,
+    fileName: "warnings.pdf",
+    bytes: fixtureFile("two-invoices.pdf"),
+    preselectedDirection: "incoming",
+  });
+  if (!upload.ok) throw new Error(upload.error);
+  expect(await worker.runJobs()).toEqual([]);
+  const documents = await listDocuments(company.client, company.companyId, upload.value.id);
+  expect(await approveDocument(company.client, {
+    companyId: company.companyId,
+    documentId: documents[0].id,
+    version: 1,
+  })).toEqual({ ok: true, value: null });
+  expect(await rejectDocument(company.client, {
+    companyId: company.companyId,
+    documentId: documents[1].id,
+  })).toEqual({ ok: true, value: null });
+
+  const input = { companyId: company.companyId, period: "2026-10" };
+  expect((await generateVatReport(company.client, input)).ok).toBe(true);
+  expect(await getVatReport(company.client, input.companyId, input.period)).toEqual(
+    expect.objectContaining({
+      finalization: expect.objectContaining({
+        blockerCount: 0,
+        warningCount: 1,
+        rejectedDocumentCount: 1,
+      }),
+    }),
+  );
+  expect(await finalizeVatReport(company.client, { ...input, confirmed: true })).toEqual({
+    ok: true,
+    value: null,
+  });
+});
+
+it("requires an unlock reason and confirmation", async () => {
+  const company = await administratorWithCompany();
+  const input = { companyId: company.companyId, period: "2026-10" };
+  expect((await generateVatReport(company.client, input)).ok).toBe(true);
+  expect(await finalizeVatReport(company.client, { ...input, confirmed: true })).toEqual({
+    ok: true,
+    value: null,
+  });
+  expect(await unlockReportingPeriod(company.client, {
+    ...input,
+    reason: "Correction",
+    confirmed: false,
+  })).toEqual({ ok: false, error: "confirmation_required" });
+  expect(await unlockReportingPeriod(company.client, {
+    ...input,
+    reason: " ",
+    confirmed: true,
+  })).toEqual({ ok: false, error: "unlock_reason_required" });
+  expect(await getPeriodLock(company.client, input.companyId, input.period)).not.toBeNull();
 });
 
 it("finalizes a Reporting Period again after it was unlocked and audits every transition", async () => {
@@ -152,9 +295,24 @@ it("finalizes a Reporting Period again after it was unlocked and audits every tr
     value: { id: expect.any(String) },
   });
 
-  expect(await finalizeVatReport(company.client, input)).toEqual({ ok: true, value: null });
-  expect(await unlockReportingPeriod(company.client, input)).toEqual({ ok: true, value: null });
-  expect(await finalizeVatReport(company.client, input)).toEqual({ ok: true, value: null });
+  expect(await finalizeVatReport(company.client, { ...input, confirmed: true })).toEqual({ ok: true, value: null });
+  expect(await unlockReportingPeriod(company.client, {
+    ...input,
+    reason: "Regenerate after correction",
+    confirmed: true,
+  })).toEqual({ ok: true, value: null });
+  const details = await getCompany(company.client, company.companyId);
+  if (!details) throw new Error("Company not found");
+  expect(await updateCompanyIdentity(company.client, {
+    ...details,
+    companyId: company.companyId,
+    city: "Brno",
+  })).toEqual({ ok: true, value: null });
+  expect(await generateVatReport(company.client, input)).toEqual({
+    ok: true,
+    value: { id: expect.any(String) },
+  });
+  expect(await finalizeVatReport(company.client, { ...input, confirmed: true })).toEqual({ ok: true, value: null });
   expect(await getPeriodLock(company.client, input.companyId, input.period)).toEqual(
     expect.objectContaining({
       companyId: input.companyId,
@@ -166,13 +324,16 @@ it("finalizes a Reporting Period again after it was unlocked and audits every tr
   const transitions = (await listAuditEvents(company.client, company.organizationId))
     .filter((event) => event.action === "vat_report.finalized" || event.action === "reporting_period.unlocked");
   expect(transitions).toEqual([
-    expect.objectContaining({ action: "vat_report.finalized", payload: { period: input.period } }),
-    expect.objectContaining({ action: "reporting_period.unlocked", payload: { period: input.period } }),
-    expect.objectContaining({ action: "vat_report.finalized", payload: { period: input.period } }),
+    expect.objectContaining({ action: "vat_report.finalized" }),
+    expect.objectContaining({ action: "reporting_period.unlocked", payload: {
+      period: input.period,
+      reason: "Regenerate after correction",
+    } }),
+    expect.objectContaining({ action: "vat_report.finalized" }),
   ]);
 });
 
-it("refuses correcting a Document assigned to a locked Reporting Period", async () => {
+it("keeps review commands inapplicable to the Approved Documents required by Finalization", async () => {
   const company = await lockedCompanyWithDocuments();
   const [version] = await listExtractionVersions(
     company.client,
@@ -186,38 +347,26 @@ it("refuses correcting a Document assigned to a locked Reporting Period", async 
       basedOnVersion: version.version,
       payload: version.payload,
     }),
-  ).toEqual({ ok: false, error: "period_locked" });
-});
-
-it("refuses approving a Document assigned to a locked Reporting Period", async () => {
-  const company = await lockedCompanyWithDocuments();
+  ).toEqual({ ok: false, error: "not_in_review" });
   expect(
     await approveDocument(company.client, {
       companyId: company.companyId,
       documentId: company.documents[0].id,
       version: 1,
     }),
-  ).toEqual({ ok: false, error: "period_locked" });
-});
-
-it("refuses rejecting a Document assigned to a locked Reporting Period", async () => {
-  const company = await lockedCompanyWithDocuments();
+  ).toEqual({ ok: false, error: "not_in_review" });
   expect(
     await rejectDocument(company.client, {
       companyId: company.companyId,
       documentId: company.documents[0].id,
     }),
-  ).toEqual({ ok: false, error: "period_locked" });
-});
-
-it("refuses reprocessing a Document assigned to a locked Reporting Period", async () => {
-  const company = await lockedCompanyWithDocuments();
+  ).toEqual({ ok: false, error: "not_in_review" });
   expect(
     await reprocessDocument(company.client, company.worker.jobs, {
       companyId: company.companyId,
       documentId: company.documents[0].id,
     }),
-  ).toEqual({ ok: false, error: "period_locked" });
+  ).toEqual({ ok: false, error: "not_reprocessable" });
   expect(company.worker.queued).toEqual([]);
 });
 
@@ -290,7 +439,7 @@ it("refuses moving a Document into a locked Reporting Period", async () => {
 });
 
 it("refuses deleting an Approved Document in a locked Reporting Period even to the privileged worker role", async () => {
-  const company = await lockedCompanyWithDocuments({ approveFirst: true });
+  const company = await lockedCompanyWithDocuments();
   const deletion = await systemClient()
     .from("document")
     .delete()

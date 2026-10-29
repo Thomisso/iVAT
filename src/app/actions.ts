@@ -522,8 +522,9 @@ export async function finalizeVatReportAction(_state: FormState, formData: FormD
   const result = await finalizeVatReport(await requireUserClient(), {
     companyId: field(formData, "companyId"),
     period: field(formData, "period"),
+    confirmed: field(formData, "confirmed") === "on",
   });
-  if (!result.ok) return refused(result.error, formData, []);
+  if (!result.ok) return refused(result.error, formData, ["confirmed"]);
   refresh();
   return { error: null, values: {} };
 }
@@ -532,8 +533,10 @@ export async function unlockReportingPeriodAction(_state: FormState, formData: F
   const result = await unlockReportingPeriod(await requireUserClient(), {
     companyId: field(formData, "companyId"),
     period: field(formData, "period"),
+    reason: field(formData, "reason"),
+    confirmed: field(formData, "confirmed") === "on",
   });
-  if (!result.ok) return refused(result.error, formData, []);
+  if (!result.ok) return refused(result.error, formData, ["reason", "confirmed"]);
   refresh();
   return { error: null, values: {} };
 }

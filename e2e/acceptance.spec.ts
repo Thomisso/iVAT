@@ -119,6 +119,11 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   expect(await validateEpoXml(xml, "dphdp3")).toBe(true);
 
   await page.goto(`${companyUrl}/vat-reports?period=2026-10`);
+  await expect(page.getByText("Confirm Finalization", { exact: true })).toBeVisible();
+  await expect(page.getByText("Rejected Documents", { exact: true })).toBeVisible();
+  await page.getByRole("checkbox", {
+    name: "I understand that Finalization creates a Period Lock for this snapshot.",
+  }).check();
   await page.getByRole("button", { name: "Finalize and lock period" }).click();
   await expect(page.getByRole("button", { name: "Unlock period" })).toBeVisible();
   await expect(page.getByText("Period locked", { exact: true })).toBeVisible();
@@ -131,8 +136,19 @@ test("an administrator can turn an uploaded Source File into a traceable, export
 
   await page.goto(`${companyUrl}/vat-reports?period=2026-10`);
 
+  await page.getByLabel("Unlock reason").fill("Correct the reviewed invoice");
+  await page.getByRole("checkbox", {
+    name: "I understand that changes may require a new VAT Report and export.",
+  }).check();
   await page.getByRole("button", { name: "Unlock period" }).click();
   await expect(page.getByRole("button", { name: "Finalize and lock period" })).toBeVisible();
+  const history = page.getByRole("table", { name: "Finalization history" });
+  await expect(history.getByText("Finalized", { exact: true })).toHaveCount(1);
+  await expect(history.getByText("Unlocked", { exact: true })).toHaveCount(1);
+  await expect(history.getByText("Correct the reviewed invoice", { exact: true })).toBeVisible();
+  await page.getByRole("checkbox", {
+    name: "I understand that Finalization creates a Period Lock for this snapshot.",
+  }).check();
   await page.getByRole("button", { name: "Finalize and lock period" }).click();
   await expect(page.getByRole("button", { name: "Unlock period" })).toBeVisible();
   await expect(page.getByText("Period locked", { exact: true })).toBeVisible();

@@ -124,6 +124,26 @@ export async function companyWithManyReportDocuments(count: number) {
   return admin;
 }
 
+/** A large, finalizable VAT Report fixture approved through the Application layer. */
+export async function companyWithManyApprovedReportDocuments(count: number) {
+  const { approveDocument, listCompanyDocuments } = await import("@/application/documents");
+  const company = await companyWithManyReportDocuments(count);
+  const documents = await listCompanyDocuments(company.client, company.companyId);
+  for (let offset = 0; offset < documents.length; offset += 25) {
+    const results = await Promise.all(documents.slice(offset, offset + 25).map((document) =>
+      approveDocument(company.client, {
+        companyId: company.companyId,
+        documentId: document.id,
+        version: 1,
+      })
+    ));
+    for (const result of results) {
+      if (!result.ok) throw new Error(`Document approval failed: ${result.error}`);
+    }
+  }
+  return company;
+}
+
 /** A Company with more than one PostgREST page of uploaded Documents waiting for Extraction. */
 export async function companyWithWaitingDocuments(count: number) {
   const { PDFDocument } = await import("pdf-lib");
