@@ -61,7 +61,7 @@ export default async function CompanySettingsPage({
             />
             <Link href={`/companies/${company.id}/setup/filing-frequency`}>{t("editFilingFrequency")}</Link>
           </section>
-          <section className="company-settings-section">
+          <section className="company-settings-section" id="filing-defaults">
             <h2>{t("filingDefaultsTitle")}</h2>
             <p>{t("filingDefaultsIntro")}</p>
             {role === "administrator" ? <FilingDefaultsForm

@@ -1,4 +1,5 @@
 import { expect, it } from "vitest";
+import { listAuditEvents } from "@/application/audit";
 import {
   getCompanyFilingDefaults,
   saveCompanyFilingDefaults,
@@ -41,6 +42,39 @@ it("saves filing defaults independently from the Company identity", async () => 
     step: "filing_defaults",
     state: "completed",
   });
+});
+
+it("audits filing-default changes without storing User personal data", async () => {
+  const company = await administratorWithCompany();
+
+  expect(await saveCompanyFilingDefaults(company.client, {
+    companyId: company.companyId,
+    taxOffice: "451",
+    signatoryFirstName: "Jana",
+    signatoryLastName: "Nováková",
+    signatoryCapacity: "jednatelka",
+    email: "podatelna@example.test",
+    phone: "+420123456789",
+    epoAddressOverride: null,
+  })).toEqual({ ok: true, value: null });
+
+  expect((await listAuditEvents(company.client, company.organizationId)).at(-1)).toEqual(
+    expect.objectContaining({
+      action: "company.filing_defaults_updated",
+      companyId: company.companyId,
+      targetType: "company",
+      targetId: company.companyId,
+      payload: {
+        tax_office_set: true,
+        signatory_set: true,
+        email_set: true,
+        phone_set: true,
+        epo_address_override_set: false,
+      },
+    }),
+  );
+  expect(JSON.stringify((await listAuditEvents(company.client, company.organizationId)).at(-1)))
+    .not.toContain("podatelna@example.test");
 });
 
 it("lets an Administrator edit filing defaults and refuses a Company User", async () => {
@@ -106,9 +140,17 @@ it("requires an explicit EPO address confirmation only when the registered addre
   );
   expect(await updateCompanyIdentity(administrator.client, {
     companyId: created.value.id,
-    ...companyDetails(),
+    ...companyDetails({ streetName: "Jiná registrovaná ulice, která stále překračuje limit EPO" }),
   })).toEqual({ ok: true, value: null });
-  expect((await getCompanyFilingDefaults(administrator.client, created.value.id))?.epoAddressOverride).toBeNull();
+  expect(await getCompanyFilingDefaults(administrator.client, created.value.id)).toEqual({
+    taxOffice: "451",
+    signatoryFirstName: "Jana",
+    signatoryLastName: "Nováková",
+    signatoryCapacity: "jednatelka",
+    email: null,
+    phone: null,
+    epoAddressOverride: null,
+  });
 
   const ordinary = await administratorWithCompany();
   expect(await saveCompanyFilingDefaults(ordinary.client, {

@@ -267,7 +267,7 @@ it("uses a natural person's snapshotted identity without silently adding the Use
   expect(result.value.xml).toContain(`d_poddp="${today}"`);
 });
 it.each(["dphdp3", "dphkh1"])(
-  "blocks %s whose saved Company header fails the official schema",
+  "requires a confirmed EPO address before exporting %s with an over-limit registered address",
   async (format) => {
     const a = await signedUpUser();
     const company = await createCompany(a.client, {
@@ -284,7 +284,7 @@ it.each(["dphdp3", "dphkh1"])(
     await generateVatReport(a.client, input);
     expect(await exportVatReport(a.client, input)).toEqual({
       ok: false,
-      error: "xml_invalid",
+      error: "epo_address_required",
     });
   },
 );

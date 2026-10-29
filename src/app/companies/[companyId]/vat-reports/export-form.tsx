@@ -1,9 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import type { PersonType } from "@/application/companies";
 import { useTranslations } from "next-intl";
-import type { CompanyFilingDefaults } from "@/application/company-filing-defaults";
+import type {
+  CompanyFilingDefaults,
+  ResolvedEpoAddress,
+} from "@/application/company-filing-defaults";
 import { TAX_OFFICES, type EpoFormat } from "@/application/epo-export-details";
 import { TextField } from "@/components/text-field";
 import { Button } from "@/components/button";
@@ -16,6 +20,7 @@ export function ExportForm({
   preparedOn,
   personType,
   defaults,
+  epoAddress,
 }: {
   companyId: string;
   format: EpoFormat;
@@ -23,14 +28,18 @@ export function ExportForm({
   preparedOn: string;
   personType: PersonType;
   defaults: CompanyFilingDefaults | null;
+  epoAddress: ResolvedEpoAddress | null;
 }) {
   const t = useTranslations("epoExport");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const defaultsComplete = Boolean(defaults?.taxOffice) && (personType === "natural" || Boolean(
+  const filingDetailsComplete = Boolean(defaults?.taxOffice) && (personType === "natural" || Boolean(
     defaults?.signatoryFirstName && defaults.signatoryLastName && defaults.signatoryCapacity,
   ));
-  const [editing, setEditing] = useState(!defaultsComplete);
+  const [editing, setEditing] = useState(!filingDetailsComplete);
+  const serializedAddress = epoAddress
+    ? `${epoAddress.address.streetName} ${epoAddress.address.houseNumber}${epoAddress.address.orientationNumber ? `/${epoAddress.address.orientationNumber}` : ""}, ${epoAddress.address.postalCode} ${epoAddress.address.city}`
+    : null;
 
   async function download(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -53,6 +62,7 @@ export function ExportForm({
             "report_not_found",
             "invalid_export_format",
             "invalid_export_details",
+            "epo_address_required",
             "xml_invalid",
           ].includes(failure.error)
             ? failure.error
@@ -98,14 +108,20 @@ export function ExportForm({
           />
         </div>
         <p>{t("personType")}: {t(personType === "legal" ? "legalPerson" : "naturalPerson")}</p>
-        {defaults && <dl className="epo-export-summary">
-          <div><dt>{t("taxOffice")}</dt><dd>{defaults.taxOffice ? t(`taxOffices.${defaults.taxOffice}`) : t("notSet")}</dd></div>
-          {personType === "legal" && <div><dt>{t("signatory")}</dt><dd>{defaults.signatoryFirstName
+        <dl className="epo-export-summary">
+          <div><dt>{t("taxOffice")}</dt><dd>{defaults?.taxOffice ? t(`taxOffices.${defaults.taxOffice}`) : t("notSet")}</dd></div>
+          {personType === "legal" && <div><dt>{t("signatory")}</dt><dd>{defaults?.signatoryFirstName
             ? `${defaults.signatoryFirstName} ${defaults.signatoryLastName} · ${defaults.signatoryCapacity}`
             : t("notSet")}</dd></div>}
-          <div><dt>{t("email")}</dt><dd>{defaults.email ?? t("notSet")}</dd></div>
-          <div><dt>{t("phone")}</dt><dd>{defaults.phone ?? t("notSet")}</dd></div>
-        </dl>}
+          <div><dt>{t("email")}</dt><dd>{defaults?.email ?? t("notSet")}</dd></div>
+          <div><dt>{t("phone")}</dt><dd>{defaults?.phone ?? t("notSet")}</dd></div>
+          <div><dt>{t("serializedAddress")}</dt><dd>{serializedAddress ?? t("epoAddressMissing")}</dd></div>
+          {epoAddress && <div><dt>{t("addressSource")}</dt><dd>{t(`addressSources.${epoAddress.source}`)}</dd></div>}
+        </dl>
+        {!epoAddress && <div className="iv-notice iv-notice-warning" role="alert">
+          <p>{t("epoAddressRequired")}</p>
+          <Link href={`/companies/${companyId}/settings#filing-defaults`}>{t("completeEpoAddress")}</Link>
+        </div>}
         {editing ? <>
           <label className="iv-field-label">
             {t("taxOffice")}
@@ -128,10 +144,10 @@ export function ExportForm({
             <TextField label={t("email")} name="email" type="email" maxLength={255} defaultValue={defaults?.email ?? ""} />
             <TextField label={t("phone")} name="phone" type="tel" maxLength={14} defaultValue={defaults?.phone ?? ""} />
           </div>
-          {defaultsComplete && <Button type="button" variant="secondary" onClick={() => setEditing(false)}>{t("useSaved")}</Button>}
+          {filingDetailsComplete && <Button type="button" variant="secondary" onClick={() => setEditing(false)}>{t("useSaved")}</Button>}
         </> : <Button type="button" variant="secondary" onClick={() => setEditing(true)}>{t("editForExport")}</Button>}
         <FormError error={error} />
-        <Button type="submit" disabled={pending} icon="report">
+        <Button type="submit" disabled={pending || !epoAddress} icon="report">
           {t(pending ? "preparing" : "download")}
         </Button>
       </form>

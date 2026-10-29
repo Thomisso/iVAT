@@ -159,6 +159,20 @@ begin
   on conflict (company_id, step) do update set
     state = excluded.state, changed_by = excluded.changed_by, changed_at = now()
     where company_setup_step_state.state is distinct from excluded.state;
+
+  perform private.record_audit_event(
+    'company.filing_defaults_updated', target.organization_id, target.id,
+    'company', target.id,
+    jsonb_build_object(
+      'tax_office_set', nullif(trim(new_tax_office), '') is not null,
+      'signatory_set', nullif(trim(new_signatory_first_name), '') is not null
+        and nullif(trim(new_signatory_last_name), '') is not null
+        and nullif(trim(new_signatory_capacity), '') is not null,
+      'email_set', nullif(trim(new_email), '') is not null,
+      'phone_set', nullif(trim(new_phone), '') is not null,
+      'epo_address_override_set', has_epo_override
+    )
+  );
 end;
 $$;
 
@@ -179,13 +193,19 @@ language plpgsql security definer set search_path = ''
 as $$
 declare
   defaults public.company_filing_defaults;
+  registered_address_changed boolean;
   registered_address_exceeds_epo boolean;
   setup_is_complete boolean;
 begin
+  registered_address_changed := new.street_name is distinct from old.street_name
+    or new.house_number is distinct from old.house_number
+    or new.orientation_number is distinct from old.orientation_number
+    or new.city is distinct from old.city
+    or new.postal_code is distinct from old.postal_code;
   registered_address_exceeds_epo := length(new.street_name) > 38
     or length(coalesce(new.orientation_number, '')) > 4
     or length(new.city) > 48;
-  if not registered_address_exceeds_epo then
+  if registered_address_changed then
     update public.company_filing_defaults set
       epo_street_name = null,
       epo_house_number = null,

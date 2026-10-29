@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getCompany } from "@/application/companies";
-import { getCompanyFilingDefaults } from "@/application/company-filing-defaults";
+import { getCompanyFilingDefaults, resolveEpoAddress } from "@/application/company-filing-defaults";
 import { getReportingPeriodReadiness } from "@/application/reporting-period-readiness";
 import { getPeriodLock, getVatReport } from "@/application/vat-reports";
 import { vatReturnPreviewData } from "@/application/vat-return-preview";
@@ -39,6 +39,7 @@ export default async function VatReturnPage({
   if (!company || !report || !readinessResult.ok) notFound();
   const preview = vatReturnPreviewData(report.result);
   const readiness = readinessResult.value;
+  const epoAddress = resolveEpoAddress(report.result.company, filingDefaults);
   return (
     <main className="company-workspace vat-reports vat-output-page">
       <header className="company-page-header vat-report-header">
@@ -160,6 +161,7 @@ export default async function VatReturnPage({
             }).format(new Date())}
             personType={report.result.company.personType}
             defaults={filingDefaults}
+            epoAddress={epoAddress.ok ? epoAddress.value : null}
           />
         </div>
       </section>
