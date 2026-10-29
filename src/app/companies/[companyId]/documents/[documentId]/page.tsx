@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { approveDocumentAction, rejectDocumentAction, reprocessDocumentAction } from "@/app/actions";
+import {
+  approveDocumentAction,
+  rejectDocumentAction,
+  reprocessDocumentAction,
+  returnDocumentToReviewAction,
+} from "@/app/actions";
 import { getCompany } from "@/application/companies";
 import { currentUserId } from "@/application/auth";
 import { documentQueueQuery, getDocumentQueuePosition } from "@/application/document-queue";
@@ -111,6 +116,14 @@ export default async function DocumentReviewPage({
           </p>
           {document.status === "approved" && (
             <Notice>{t("review.approvedNote")}</Notice>
+          )}
+          {document.status === "approved" && !lockedPeriod && (
+            <CommandButton
+              action={returnDocumentToReviewAction}
+              fields={{ companyId, documentId: document.id }}
+            >
+              {t("review.returnToReview")}
+            </CommandButton>
           )}
           {document.status === "rejected" && (
             <Notice>{t("review.rejectedNote")}</Notice>
