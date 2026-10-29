@@ -71,6 +71,11 @@ export default async function CompanySettingsPage({
               epoOverrideRequired={epoIdentityFindings(company).length > 0}
             /> : <p className="iv-muted">{ai("administratorOnly")}</p>}
           </section>
+          {role === "administrator" && <section className="company-settings-section">
+            <h2>{t("usersTitle")}</h2>
+            <p>{t("usersIntro")}</p>
+            <Link href={`/companies/${company.id}/members`}>{t("manageUsers")}</Link>
+          </section>}
           <section className="company-settings-section">
             <h2>{ai("title")}</h2>
             <p>{company.aiProcessing

@@ -616,12 +616,12 @@ export async function acceptInvitationAction(_state: FormState, formData: FormDa
 }
 
 export async function changeMembershipRoleAction(_state: FormState, formData: FormData): Promise<FormState> {
-  return settled(
-    await changeMembershipRole(await requireUserClient(), {
-      membershipId: field(formData, "membershipId"),
-      role: field(formData, "role") as "administrator" | "user",
-    }),
-  );
+  const result = await changeMembershipRole(await requireUserClient(), {
+    membershipId: field(formData, "membershipId"),
+    role: field(formData, "role") as "administrator" | "user",
+  });
+  if (!result.ok) return refused(result.error, formData, ["role"]);
+  return settled(result);
 }
 
 export async function removeMembershipAction(_state: FormState, formData: FormData): Promise<FormState> {

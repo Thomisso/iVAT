@@ -649,6 +649,9 @@ isOneToOne: false
               "provider": string,"region": string
             }[]
                            },
+"list_company_access":
+{ Args: { "target_company_id": string }; Returns: Json
+                           },
 "list_company_ai_options":
 { Args: { "target_company_id": string }; Returns: {
               "credential_source": Database["public"]['Enums']["ai_credential_source"],"provider": string,"region": string
