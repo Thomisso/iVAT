@@ -3,7 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { ShellBrand } from "@/components/app-shell";
 
-export async function FocusedShell({ children }: { children: ReactNode }) {
+export async function FocusedShell({ actions, children }: { actions?: ReactNode; children: ReactNode }) {
   const [app, shell] = await Promise.all([
     getTranslations("app"),
     getTranslations("shell"),
@@ -15,7 +15,10 @@ export async function FocusedShell({ children }: { children: ReactNode }) {
         <ShellBrand href="/" label={app("name")} />
         <p>{app("tagline")}</p>
       </div>
-      <LanguageSwitcher />
+      <div className="focused-shell-actions">
+        <LanguageSwitcher />
+        {actions}
+      </div>
     </header>
     <div className="focused-shell-content">{children}</div>
   </div>;
