@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { createRequire } from "node:module";
 import { createClient } from "@supabase/supabase-js";
 import { describe, expect, inject, it } from "vitest";
 import { signUp } from "@/application/auth";
@@ -5,6 +7,8 @@ import { listAuditEvents } from "@/application/audit";
 import {
   acceptInvitation,
   changeMembershipRole,
+  completeInvitationOnboarding,
+  getInvitationOnboarding,
   inviteMember,
   listCompanyAccess,
   listMemberships,
@@ -62,6 +66,135 @@ async function inviteAndAccept(
 }
 
 describe("Membership invitations", () => {
+  it("lets a new User set an eight-character password, accept the Membership and enter the target Company", async () => {
+    const administrator = await administratorWithCompany();
+    const email = uniqueEmail();
+    const mail = capturingMailer();
+    expect(await inviteMember(administrator.client, mail.mailer, {
+      organizationId: administrator.organizationId,
+      companyId: administrator.companyId,
+      email,
+      role: "user",
+      acceptUrl: "http://127.0.0.1:3100/invitations/accept",
+    })).toEqual({ ok: true, value: null });
+    const token = new URL(mail.sent[0].acceptUrl).searchParams.get("token")!;
+
+    expect(await getInvitationOnboarding(anonymousClient(), token)).toEqual({
+      status: "valid",
+      email,
+      existingUser: false,
+      companyId: administrator.companyId,
+    });
+
+    const service = createClient<Database>(inject("supabaseUrl"), inject("supabaseSecretKey"), {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const created = await service.auth.admin.createUser({ email, email_confirm: true });
+    if (created.error) throw created.error;
+    const link = await service.auth.admin.generateLink({ type: "magiclink", email });
+    if (link.error) throw link.error;
+    const invitee = anonymousClient();
+    const verified = await invitee.auth.verifyOtp({
+      token_hash: link.data.properties.hashed_token,
+      type: "magiclink",
+    });
+    if (verified.error) throw verified.error;
+
+    expect(await completeInvitationOnboarding(invitee, { token, password: "1234567" }))
+      .toEqual({ ok: false, error: "weak_password" });
+    expect(await completeInvitationOnboarding(invitee, { token, password: "12345678" }))
+      .toEqual({ ok: true, value: { companyId: administrator.companyId } });
+    expect(await listMyCompanies(invitee)).toEqual([{
+      id: administrator.companyId,
+      organizationId: administrator.organizationId,
+      name: "Novák s.r.o.",
+    }]);
+
+    await invitee.auth.signOut();
+    expect((await invitee.auth.signInWithPassword({ email, password: "12345678" })).error).toBeNull();
+  });
+
+  it("requires an existing User's credentials without replacing their password", async () => {
+    const administrator = await administratorWithCompany();
+    const existing = await invitedUser(uniqueEmail());
+    const { data: identity } = await existing.client.auth.getUser();
+    const email = identity.user?.email;
+    if (!email) throw new Error("Existing User has no email");
+    const mail = capturingMailer();
+    expect(await inviteMember(administrator.client, mail.mailer, {
+      organizationId: administrator.organizationId,
+      companyId: administrator.companyId,
+      email,
+      role: "user",
+      acceptUrl: "http://127.0.0.1:3100/invitations/accept",
+    })).toEqual({ ok: true, value: null });
+    const token = new URL(mail.sent[0].acceptUrl).searchParams.get("token")!;
+    const invitee = anonymousClient();
+
+    expect(await getInvitationOnboarding(invitee, token)).toEqual({
+      status: "valid",
+      email,
+      existingUser: true,
+      companyId: administrator.companyId,
+    });
+    expect(await completeInvitationOnboarding(invitee, { token, password: "wrong-password" }))
+      .toEqual({ ok: false, error: "invalid_credentials" });
+    expect(await completeInvitationOnboarding(invitee, { token, password: "correct-horse-battery" }))
+      .toEqual({ ok: true, value: { companyId: administrator.companyId } });
+
+    await invitee.auth.signOut();
+    expect((await invitee.auth.signInWithPassword({ email, password: "correct-horse-battery" })).error).toBeNull();
+  });
+
+  it("reports invalid, used and expired invitation links through the onboarding interface", async () => {
+    expect(await getInvitationOnboarding(anonymousClient(), "not-an-invitation"))
+      .toEqual({ status: "invalid" });
+
+    const administrator = await administratorWithCompany();
+    const usedEmail = uniqueEmail();
+    const usedMail = capturingMailer();
+    expect(await inviteMember(administrator.client, usedMail.mailer, {
+      organizationId: administrator.organizationId,
+      companyId: administrator.companyId,
+      email: usedEmail,
+      role: "user",
+      acceptUrl: "http://127.0.0.1:3100/invitations/accept",
+    })).toEqual({ ok: true, value: null });
+    const usedToken = new URL(usedMail.sent[0].acceptUrl).searchParams.get("token")!;
+    const usedUser = await invitedUser(usedEmail);
+    expect(await acceptInvitation(usedUser.client, usedToken)).toEqual({ ok: true, value: null });
+    expect(await getInvitationOnboarding(anonymousClient(), usedToken)).toEqual({ status: "used" });
+
+    const expiredEmail = uniqueEmail();
+    const expiredMail = capturingMailer();
+    expect(await inviteMember(administrator.client, expiredMail.mailer, {
+      organizationId: administrator.organizationId,
+      companyId: administrator.companyId,
+      email: expiredEmail,
+      role: "user",
+      acceptUrl: "http://127.0.0.1:3100/invitations/accept",
+    })).toEqual({ ok: true, value: null });
+    const expiredToken = new URL(expiredMail.sent[0].acceptUrl).searchParams.get("token")!;
+    const { Client } = createRequire(import.meta.url)("pg") as {
+      Client: new (input: { connectionString: string }) => {
+        connect(): Promise<void>;
+        end(): Promise<void>;
+        query(sql: string, values: unknown[]): Promise<unknown>;
+      };
+    };
+    const database = new Client({ connectionString: inject("supabaseDbUrl") });
+    await database.connect();
+    try {
+      await database.query(
+        "update public.invitation set expires_at = '2020-01-01T00:00:00.000Z' where token_hash = $1",
+        [createHash("sha256").update(expiredToken).digest("hex")],
+      );
+    } finally {
+      await database.end();
+    }
+    expect(await getInvitationOnboarding(anonymousClient(), expiredToken)).toEqual({ status: "expired" });
+  });
+
   it("lists direct and inherited Company access separately from pending invitations", async () => {
     const administrator = await administratorWithCompany();
     const directUser = await inviteAndAccept(administrator);

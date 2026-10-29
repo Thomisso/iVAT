@@ -103,3 +103,12 @@ export async function verifyEmailOtp(
   if (!(await applicationAccessAllowed(client))) return { ok: false, error: "organization_blocked" };
   return { ok: true, value: null };
 }
+
+/** Establishes the temporary session needed for a new invitee to set a password. */
+export async function verifyInvitationEmailOtp(
+  client: AppClient,
+  tokenHash: string,
+): Promise<Result<null, "email_otp_failed">> {
+  const { error } = await client.auth.verifyOtp({ token_hash: tokenHash, type: "magiclink" });
+  return error ? { ok: false, error: "email_otp_failed" } : { ok: true, value: null };
+}
