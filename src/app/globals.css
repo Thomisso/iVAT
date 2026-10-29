@@ -1913,6 +1913,10 @@ select:disabled {
 .vat-export-card h3 { margin: 0; color: var(--shell-navy); font-size: 18px; }
 .vat-export-card > p { margin: 5px 0 16px; color: #617078; }
 .vat-export-card .form { margin-bottom: 0; }
+.epo-export-summary { display: grid; gap: 8px; margin: 0; }
+.epo-export-summary > div { display: grid; grid-template-columns: minmax(110px, 0.45fr) 1fr; gap: 12px; }
+.epo-export-summary dt { color: #617078; }
+.epo-export-summary dd { margin: 0; color: var(--shell-navy); font-weight: 600; }
 .vat-export-history { text-align: center; }
 .vat-export-history > .iv-empty { border: 0; box-shadow: none; }
 .vat-export-history > p { color: #617078; }
