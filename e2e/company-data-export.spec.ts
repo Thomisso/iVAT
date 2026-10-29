@@ -39,11 +39,18 @@ test("a Company Administrator downloads data without beginning deletion", async 
   const companyId = await createCompanyAdministrator(page);
   const companyUrl = `/companies/${companyId}`;
 
-  const refusedDeletion = await page.request.post(`${companyUrl}/delete`, {
-    data: { exportId: "00000000-0000-4000-8000-000000000000" },
+  const refusedDeletion = await page.evaluate(async ({ companyUrl }) => {
+    const response = await fetch(`${companyUrl}/delete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ exportId: "00000000-0000-4000-8000-000000000000" }),
+    });
+    return { status: response.status, body: await response.json() };
+  }, { companyUrl });
+  expect(refusedDeletion).toEqual({
+    status: 422,
+    body: { error: "export_required" },
   });
-  expect(refusedDeletion.status()).toBe(422);
-  expect(await refusedDeletion.json()).toEqual({ error: "export_required" });
 
   await page.goto(`${companyUrl}/settings`);
   const download = page.waitForEvent("download");
