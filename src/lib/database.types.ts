@@ -2,7 +2,7 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
 
 export type Database = {
-  
+
   "graphql_public": {
           Tables: {
             [_ in never]: never
@@ -61,18 +61,18 @@ isOneToOne: false
                     "action"?: string,"actor_user_id"?: string | null,"company_id"?: string | null,"id"?: never,"occurred_at"?: string,"organization_id"?: string,"payload"?: NonNullable<Json>,"target_id"?: string | null,"target_type"?: string
                   }
                   Relationships: [
-                    
+
                   ]
                 },"company": {
                   Row: {
-                    "ai_processing_enabled": boolean,"ai_provider": string | null,"ai_region": string | null,"city": string,"created_at": string,"created_by": string | null,"data_revision": number,"deleted_at": string | null,"deleted_by": string | null,"ico": string,"id": string,"name": string,"organization_id": string,"person_type": Database["public"]['Enums']["person_type"],"postal_code": string,"street": string,"vat_id": string
+                    "ai_credential_source": Database["public"]['Enums']["ai_credential_source"] | null,"ai_processing_enabled": boolean,"ai_provider": string | null,"ai_region": string | null,"city": string,"created_at": string,"created_by": string | null,"data_revision": number,"deleted_at": string | null,"deleted_by": string | null,"first_name": string | null,"house_number": string | null,"ico": string,"id": string,"last_name": string | null,"name": string,"organization_id": string,"orientation_number": string | null,"person_type": Database["public"]['Enums']["person_type"],"postal_code": string,"street": string,"street_name": string | null,"vat_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "ai_processing_enabled"?: boolean,"ai_provider"?: string | null,"ai_region"?: string | null,"city": string,"created_at"?: string,"created_by"?: string | null,"data_revision"?: number,"deleted_at"?: string | null,"deleted_by"?: string | null,"ico": string,"id"?: string,"name": string,"organization_id": string,"person_type"?: Database["public"]['Enums']["person_type"],"postal_code": string,"street": string,"vat_id": string
+                    "ai_credential_source"?: Database["public"]['Enums']["ai_credential_source"] | null,"ai_processing_enabled"?: boolean,"ai_provider"?: string | null,"ai_region"?: string | null,"city": string,"created_at"?: string,"created_by"?: string | null,"data_revision"?: number,"deleted_at"?: string | null,"deleted_by"?: string | null,"first_name"?: string | null,"house_number"?: string | null,"ico": string,"id"?: string,"last_name"?: string | null,"name": string,"organization_id": string,"orientation_number"?: string | null,"person_type"?: Database["public"]['Enums']["person_type"],"postal_code": string,"street": string,"street_name"?: string | null,"vat_id": string
                   }
                   Update: {
-                    "ai_processing_enabled"?: boolean,"ai_provider"?: string | null,"ai_region"?: string | null,"city"?: string,"created_at"?: string,"created_by"?: string | null,"data_revision"?: number,"deleted_at"?: string | null,"deleted_by"?: string | null,"ico"?: string,"id"?: string,"name"?: string,"organization_id"?: string,"person_type"?: Database["public"]['Enums']["person_type"],"postal_code"?: string,"street"?: string,"vat_id"?: string
+                    "ai_credential_source"?: Database["public"]['Enums']["ai_credential_source"] | null,"ai_processing_enabled"?: boolean,"ai_provider"?: string | null,"ai_region"?: string | null,"city"?: string,"created_at"?: string,"created_by"?: string | null,"data_revision"?: number,"deleted_at"?: string | null,"deleted_by"?: string | null,"first_name"?: string | null,"house_number"?: string | null,"ico"?: string,"id"?: string,"last_name"?: string | null,"name"?: string,"organization_id"?: string,"orientation_number"?: string | null,"person_type"?: Database["public"]['Enums']["person_type"],"postal_code"?: string,"street"?: string,"street_name"?: string | null,"vat_id"?: string
                   }
                   Relationships: [
                     {
@@ -103,6 +103,26 @@ isOneToOne: false
       referencedColumns: ["id","organization_id"]
     }
                   ]
+                },"company_filing_defaults": {
+                  Row: {
+                    "company_id": string,"email": string | null,"epo_address_confirmed_at": string | null,"epo_city": string | null,"epo_house_number": string | null,"epo_orientation_number": string | null,"epo_postal_code": string | null,"epo_street_name": string | null,"organization_id": string,"phone": string | null,"signatory_capacity": string | null,"signatory_first_name": string | null,"signatory_last_name": string | null,"tax_office": string | null,"updated_at": string,"updated_by": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "company_id": string,"email"?: string | null,"epo_address_confirmed_at"?: string | null,"epo_city"?: string | null,"epo_house_number"?: string | null,"epo_orientation_number"?: string | null,"epo_postal_code"?: string | null,"epo_street_name"?: string | null,"organization_id": string,"phone"?: string | null,"signatory_capacity"?: string | null,"signatory_first_name"?: string | null,"signatory_last_name"?: string | null,"tax_office"?: string | null,"updated_at"?: string,"updated_by"?: string | null
+                  }
+                  Update: {
+                    "company_id"?: string,"email"?: string | null,"epo_address_confirmed_at"?: string | null,"epo_city"?: string | null,"epo_house_number"?: string | null,"epo_orientation_number"?: string | null,"epo_postal_code"?: string | null,"epo_street_name"?: string | null,"organization_id"?: string,"phone"?: string | null,"signatory_capacity"?: string | null,"signatory_first_name"?: string | null,"signatory_last_name"?: string | null,"tax_office"?: string | null,"updated_at"?: string,"updated_by"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "company_filing_defaults_company_id_organization_id_fkey"
+      columns: ["company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "company"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
                 },"company_filing_frequency": {
                   Row: {
                     "company_id": string,"created_at": string,"effective_from": string,"frequency": Database["public"]['Enums']["filing_frequency"],"organization_id": string
@@ -117,6 +137,26 @@ isOneToOne: false
                   Relationships: [
                     {
       foreignKeyName: "company_filing_frequency_company_id_organization_id_fkey"
+      columns: ["company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "company"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
+                },"company_setup_step_state": {
+                  Row: {
+                    "changed_at": string,"changed_by": string | null,"company_id": string,"organization_id": string,"state": Database["public"]['Enums']["company_setup_state"],"step": Database["public"]['Enums']["company_setup_step"]
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "changed_at"?: string,"changed_by"?: string | null,"company_id": string,"organization_id": string,"state": Database["public"]['Enums']["company_setup_state"],"step": Database["public"]['Enums']["company_setup_step"]
+                  }
+                  Update: {
+                    "changed_at"?: string,"changed_by"?: string | null,"company_id"?: string,"organization_id"?: string,"state"?: Database["public"]['Enums']["company_setup_state"],"step"?: Database["public"]['Enums']["company_setup_step"]
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "company_setup_step_state_company_id_organization_id_fkey"
       columns: ["company_id","organization_id"]
 isOneToOne: false
       referencedRelation: "company"
@@ -235,14 +275,14 @@ isOneToOne: false
                   ]
                 },"notification": {
                   Row: {
-                    "company_id": string,"created_at": string,"id": string,"kind": string,"organization_id": string,"payload": NonNullable<Json>,"user_id": string
+                    "company_id": string,"created_at": string,"id": string,"kind": string,"organization_id": string,"payload": NonNullable<Json>,"read_at": string | null,"user_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "company_id": string,"created_at"?: string,"id"?: string,"kind": string,"organization_id": string,"payload": NonNullable<Json>,"user_id": string
+                    "company_id": string,"created_at"?: string,"id"?: string,"kind": string,"organization_id": string,"payload": NonNullable<Json>,"read_at"?: string | null,"user_id": string
                   }
                   Update: {
-                    "company_id"?: string,"created_at"?: string,"id"?: string,"kind"?: string,"organization_id"?: string,"payload"?: NonNullable<Json>,"user_id"?: string
+                    "company_id"?: string,"created_at"?: string,"id"?: string,"kind"?: string,"organization_id"?: string,"payload"?: NonNullable<Json>,"read_at"?: string | null,"user_id"?: string
                   }
                   Relationships: [
                     {
@@ -265,7 +305,7 @@ isOneToOne: false
                     "blocked_at"?: string | null,"blocked_by"?: string | null,"created_at"?: string,"id"?: string,"mfa_required"?: boolean,"name"?: string
                   }
                   Relationships: [
-                    
+
                   ]
                 },"organization_ai_provider_key": {
                   Row: {
@@ -357,7 +397,7 @@ isOneToOne: false
                     "available"?: boolean,"extract_model"?: string,"platform_key_last_four"?: string | null,"platform_key_secret_id"?: string | null,"provider"?: string,"split_model"?: string,"updated_at"?: string,"updated_by"?: string | null
                   }
                   Relationships: [
-                    
+
                   ]
                 },"platform_settings": {
                   Row: {
@@ -371,7 +411,7 @@ isOneToOne: false
                     "max_source_file_bytes"?: number,"max_source_file_pages"?: number,"max_upload_batch_files"?: number,"singleton"?: boolean
                   }
                   Relationships: [
-                    
+
                   ]
                 },"platform_user": {
                   Row: {
@@ -385,18 +425,18 @@ isOneToOne: false
                     "created_at"?: string,"role"?: Database["public"]['Enums']["platform_role"],"user_id"?: string
                   }
                   Relationships: [
-                    
+
                   ]
                 },"source_file": {
                   Row: {
-                    "byte_size": number,"company_id": string,"file_name": string,"format": Database["public"]['Enums']["source_file_format"],"id": string,"organization_id": string,"page_count": number,"preselected_direction": string | null,"sha256": string,"status": Database["public"]['Enums']["source_file_status"],"upload_batch_id": string | null,"uploaded_at": string,"uploaded_by": string | null
+                    "byte_size": number,"company_id": string,"file_name": string,"format": Database["public"]['Enums']["source_file_format"],"id": string,"normalized_byte_size": number | null,"normalized_format": Database["public"]['Enums']["source_file_format"] | null,"normalized_sha256": string | null,"organization_id": string,"page_count": number,"preselected_direction": string | null,"sha256": string,"status": Database["public"]['Enums']["source_file_status"],"upload_batch_id": string | null,"uploaded_at": string,"uploaded_by": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "byte_size": number,"company_id": string,"file_name": string,"format": Database["public"]['Enums']["source_file_format"],"id": string,"organization_id": string,"page_count": number,"preselected_direction"?: string | null,"sha256": string,"status"?: Database["public"]['Enums']["source_file_status"],"upload_batch_id"?: string | null,"uploaded_at"?: string,"uploaded_by"?: string | null
+                    "byte_size": number,"company_id": string,"file_name": string,"format": Database["public"]['Enums']["source_file_format"],"id": string,"normalized_byte_size"?: number | null,"normalized_format"?: Database["public"]['Enums']["source_file_format"] | null,"normalized_sha256"?: string | null,"organization_id": string,"page_count": number,"preselected_direction"?: string | null,"sha256": string,"status"?: Database["public"]['Enums']["source_file_status"],"upload_batch_id"?: string | null,"uploaded_at"?: string,"uploaded_by"?: string | null
                   }
                   Update: {
-                    "byte_size"?: number,"company_id"?: string,"file_name"?: string,"format"?: Database["public"]['Enums']["source_file_format"],"id"?: string,"organization_id"?: string,"page_count"?: number,"preselected_direction"?: string | null,"sha256"?: string,"status"?: Database["public"]['Enums']["source_file_status"],"upload_batch_id"?: string | null,"uploaded_at"?: string,"uploaded_by"?: string | null
+                    "byte_size"?: number,"company_id"?: string,"file_name"?: string,"format"?: Database["public"]['Enums']["source_file_format"],"id"?: string,"normalized_byte_size"?: number | null,"normalized_format"?: Database["public"]['Enums']["source_file_format"] | null,"normalized_sha256"?: string | null,"organization_id"?: string,"page_count"?: number,"preselected_direction"?: string | null,"sha256"?: string,"status"?: Database["public"]['Enums']["source_file_status"],"upload_batch_id"?: string | null,"uploaded_at"?: string,"uploaded_by"?: string | null
                   }
                   Relationships: [
                     {
@@ -435,14 +475,14 @@ isOneToOne: false
                   ]
                 },"vat_report": {
                   Row: {
-                    "company_id": string,"documents": NonNullable<Json>,"generated_at": string,"generated_by": string,"id": string,"organization_id": string,"period": string,"result": NonNullable<Json>
+                    "blocker_count": number,"company_id": string,"documents": NonNullable<Json>,"generated_at": string,"generated_by": string,"id": string,"organization_id": string,"period": string,"rejected_document_count": number,"result": NonNullable<Json>,"warning_count": number
                   }
                   ComputedFields: never
                   Insert: {
-                    "company_id": string,"documents": NonNullable<Json>,"generated_at"?: string,"generated_by": string,"id"?: string,"organization_id": string,"period": string,"result": NonNullable<Json>
+                    "blocker_count"?: number,"company_id": string,"documents": NonNullable<Json>,"generated_at"?: string,"generated_by": string,"id"?: string,"organization_id": string,"period": string,"rejected_document_count"?: number,"result": NonNullable<Json>,"warning_count"?: number
                   }
                   Update: {
-                    "company_id"?: string,"documents"?: NonNullable<Json>,"generated_at"?: string,"generated_by"?: string,"id"?: string,"organization_id"?: string,"period"?: string,"result"?: NonNullable<Json>
+                    "blocker_count"?: number,"company_id"?: string,"documents"?: NonNullable<Json>,"generated_at"?: string,"generated_by"?: string,"id"?: string,"organization_id"?: string,"period"?: string,"rejected_document_count"?: number,"result"?: NonNullable<Json>,"warning_count"?: number
                   }
                   Relationships: [
                     {
@@ -459,6 +499,52 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"vat_report_artifact": {
+                  Row: {
+                    "byte_size": number | null,"company_id": string,"created_at": string,"created_by": string,"file_name": string,"format": string,"id": string,"kind": string,"media_type": string,"organization_id": string,"period": string,"report_generated_at": string,"resolved_details": NonNullable<Json>,"schema_version": string,"serializer_version": string,"sha256": string | null,"vat_report_id": string,"xml_bytes": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "byte_size"?: never,"company_id": string,"created_at"?: string,"created_by": string,"file_name": string,"format": string,"id"?: string,"kind": string,"media_type": string,"organization_id": string,"period": string,"report_generated_at": string,"resolved_details": NonNullable<Json>,"schema_version": string,"serializer_version": string,"sha256"?: never,"vat_report_id": string,"xml_bytes": string
+                  }
+                  Update: {
+                    "byte_size"?: never,"company_id"?: string,"created_at"?: string,"created_by"?: string,"file_name"?: string,"format"?: string,"id"?: string,"kind"?: string,"media_type"?: string,"organization_id"?: string,"period"?: string,"report_generated_at"?: string,"resolved_details"?: NonNullable<Json>,"schema_version"?: string,"serializer_version"?: string,"sha256"?: never,"vat_report_id"?: string,"xml_bytes"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "vat_report_artifact_company_id_organization_id_fkey"
+      columns: ["company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "company"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "vat_report_artifact_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organization"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "vat_report_artifact_vat_report_id_fkey"
+      columns: ["vat_report_id"]
+isOneToOne: false
+      referencedRelation: "vat_report"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"vat_report_transition": {
+                  Row: {
+                    "action": string,"actor_user_id": string,"company_id": string,"id": number,"occurred_at": string,"organization_id": string,"period": string,"unlock_reason": string | null,"vat_report_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "action": string,"actor_user_id": string,"company_id": string,"id"?: never,"occurred_at"?: string,"organization_id": string,"period": string,"unlock_reason"?: string | null,"vat_report_id": string
+                  }
+                  Update: {
+                    "action"?: string,"actor_user_id"?: string,"company_id"?: string,"id"?: never,"occurred_at"?: string,"organization_id"?: string,"period"?: string,"unlock_reason"?: string | null,"vat_report_id"?: string
+                  }
+                  Relationships: [
+
+                  ]
                 }
           }
           Views: {
@@ -468,7 +554,7 @@ isOneToOne: false
                   }
                   ComputedFields: never
                   Relationships: [
-                    
+
                   ]
                 },"document_overview": {
                   Row: {
@@ -484,13 +570,21 @@ isOneToOne: false
       referencedColumns: ["id","company_id","organization_id"]
     }
                   ]
+                },"upload_batch_summary": {
+                  Row: {
+                    "actual_file_count": number | null,"company_id": string,"created_at": string,"document_failure_count": number | null,"extracting_count": number | null,"file_count": number,"id": string,"processing_finished_at": string | null,"review_count": number | null,"reviewed_count": number | null,"source_failure_count": number | null,"splitting_count": number | null,"transport_count": number | null,"transport_failure_count": number | null,"upload_finished_at": string | null,"waiting_count": number | null
+                  }
+                  ComputedFields: never
+                  Relationships: [
+
+                  ]
                 },"vat_report_document": {
                   Row: {
                     "claimed_reporting_period": string | null,"company_id": string,"extraction_version_id": string | null,"id": string,"organization_id": string,"payload": Json | null,"receipt_date": string,"status": Database["public"]['Enums']["document_status"]
                   }
                   ComputedFields: never
                   Relationships: [
-                    
+
                   ]
                 }
           }
@@ -532,6 +626,9 @@ isOneToOne: false
 "complete_company_data_export":
 { Args: { "target_byte_size": number,"target_export_id": string,"target_sha256": string }; Returns: undefined
                            },
+"configure_company_ai_processing":
+{ Args: { "target_company_id": string,"target_credential_source": Database["public"]['Enums']["ai_credential_source"],"target_provider": string,"target_region": string }; Returns: undefined
+                           },
 "configure_platform_ai_provider":
 { Args: { "platform_key"?: string,"provider_available": boolean,"target_extract_model": string,"target_provider": string,"target_split_model": string }; Returns: undefined
                            },
@@ -543,6 +640,15 @@ isOneToOne: false
                            },
 "create_company_data_export":
 { Args: { "target_company_id": string }; Returns: Json
+                           },
+"create_company_identity":
+{ Args: { "company_city": string,"company_first_name": string,"company_house_number": string,"company_ico": string,"company_last_name": string,"company_name": string,"company_orientation_number": string,"company_person_type": Database["public"]['Enums']["person_type"],"company_postal_code": string,"company_street_name": string,"company_vat_id": string,"target_organization_id": string }; Returns: string
+                           },
+"create_draft_vat_report_artifact":
+{ Args: { "target_company_id": string,"target_file_name": string,"target_format": string,"target_report_generated_at": string,"target_resolved_details": Json,"target_schema_version": string,"target_serializer_version": string,"target_vat_report_id": string,"target_xml_base64": string }; Returns: string
+                           },
+"create_final_vat_report_artifact":
+{ Args: { "target_company_id": string,"target_file_name": string,"target_format": string,"target_report_generated_at": string,"target_resolved_details": Json,"target_schema_version": string,"target_serializer_version": string,"target_vat_report_id": string,"target_xml_base64": string }; Returns: string
                            },
 "create_invitation":
 { Args: { "target_company_id": string,"target_email": string,"target_organization_id": string,"target_role": Database["public"]['Enums']["membership_role"] }; Returns: string
@@ -558,11 +664,14 @@ isOneToOne: false
 "current_user_can_use_application":
 { Args: Record<PropertyKey, never>; Returns: boolean
                            },
+"disable_company_ai_processing":
+{ Args: { "target_company_id": string }; Returns: undefined
+                           },
 "fail_company_data_export":
 { Args: { "target_export_id": string }; Returns: undefined
                            },
 "finalize_vat_report":
-{ Args: { "target_company_id": string,"target_period": string }; Returns: undefined
+{ Args: { "finalization_confirmed": boolean,"target_company_id": string,"target_period": string }; Returns: undefined
                            },
 "finish_mfa_disenrollment":
 { Args: Record<PropertyKey, never>; Returns: undefined
@@ -576,6 +685,14 @@ isOneToOne: false
 "list_available_ai_providers":
 { Args: Record<PropertyKey, never>; Returns: {
               "provider": string,"region": string
+            }[]
+                           },
+"list_company_access":
+{ Args: { "target_company_id": string }; Returns: Json
+                           },
+"list_company_ai_options":
+{ Args: { "target_company_id": string }; Returns: {
+              "credential_source": Database["public"]['Enums']["ai_credential_source"],"provider": string,"region": string
             }[]
                            },
 "list_failed_processing_jobs":
@@ -608,10 +725,19 @@ isOneToOne: false
               "company_ico": string,"company_id": string,"company_name": string,"organization_blocked": boolean,"organization_id": string,"organization_name": string
             }[]
                            },
+"list_platform_organization_companies_complete":
+{ Args: Record<PropertyKey, never>; Returns: Json
+                           },
 "list_platform_organizations":
 { Args: { "target_provider": string }; Returns: {
               "id": string,"name": string,"platform_key_enabled": boolean
             }[]
+                           },
+"list_platform_organizations_complete":
+{ Args: { "target_provider": string }; Returns: Json
+                           },
+"mark_upload_notification_read":
+{ Args: { "target_notification_id": string }; Returns: undefined
                            },
 "merge_documents":
 { Args: { "left_document_id": string,"right_document_id": string }; Returns: (string)[]
@@ -626,6 +752,9 @@ isOneToOne: false
 { Args: Record<PropertyKey, never>; Returns: {
               "max_source_file_bytes": number,"max_source_file_pages": number,"max_upload_batch_files": number
             }[]
+                           },
+"read_vat_report_artifact":
+{ Args: { "target_artifact_id": string,"target_company_id": string }; Returns: Json
                            },
 "record_ai_extraction":
 { Args: { "findings": Json,"model": string,"payload": Json,"provider": string,"target_document_id": string,"target_extraction_request_id": string }; Returns: undefined
@@ -648,6 +777,11 @@ isOneToOne: false
 "reprocess_document":
 { Args: { "target_document_id": string }; Returns: undefined
                            },
+"resolve_company_ai_provider":
+{ Args: { "target_credential_source": Database["public"]['Enums']["ai_credential_source"],"target_organization_id": string,"target_provider": string }; Returns: {
+              "api_key": string,"extract_model": string,"split_model": string
+            }[]
+                           },
 "resolve_platform_ai_provider":
 { Args: { "target_organization_id": string,"target_provider": string }; Returns: {
               "api_key": string,"extract_model": string,"split_model": string
@@ -664,6 +798,12 @@ isOneToOne: false
                            },
 "save_vat_report":
 { Args: { "computed_result": Json,"expected_documents": Json,"target_company_id": string,"target_period": string }; Returns: string
+                           },
+"set_company_filing_defaults":
+{ Args: { "epo_address_confirmed": boolean,"new_email": string,"new_epo_city": string,"new_epo_house_number": string,"new_epo_orientation_number": string,"new_epo_postal_code": string,"new_epo_street_name": string,"new_phone": string,"new_signatory_capacity": string,"new_signatory_first_name": string,"new_signatory_last_name": string,"new_tax_office": string,"target_company_id": string }; Returns: undefined
+                           },
+"set_company_filing_frequency":
+{ Args: { "filing_frequency_effective_from": string,"new_filing_frequency": Database["public"]['Enums']["filing_frequency"],"target_company_id": string }; Returns: undefined
                            },
 "set_organization_mfa_required":
 { Args: { "required": boolean,"target_organization_id": string }; Returns: undefined
@@ -684,23 +824,34 @@ isOneToOne: false
 { Args: { "split_after_page": number,"target_document_id": string }; Returns: (string)[]
                            },
 "unlock_reporting_period":
-{ Args: { "target_company_id": string,"target_period": string }; Returns: undefined
+{ Args: { "target_company_id": string,"target_period": string,"unlock_confirmed": boolean,"unlock_reason": string }; Returns: undefined
                            },
 "update_company":
 { Args: { "company_city": string,"company_ico": string,"company_name": string,"company_person_type": Database["public"]['Enums']["person_type"],"company_postal_code": string,"company_street": string,"company_vat_id": string,"filing_frequency_effective_from": string,"new_filing_frequency": Database["public"]['Enums']["filing_frequency"],"target_company_id": string }; Returns: undefined
                            },
+"update_company_identity":
+{ Args: { "company_city": string,"company_first_name": string,"company_house_number": string,"company_ico": string,"company_last_name": string,"company_name": string,"company_orientation_number": string,"company_person_type": Database["public"]['Enums']["person_type"],"company_postal_code": string,"company_street_name": string,"company_vat_id": string,"target_company_id": string }; Returns: undefined
+                           },
 "update_document_reporting":
 { Args: { "new_claimed_reporting_period": string,"new_receipt_date": string,"target_document_id": string }; Returns: undefined
                            },
+"vat_report_artifact_history":
+{ Args: { "target_company_id": string,"target_period": string }; Returns: Json
+                           },
 "vat_report_documents":
 { Args: { "target_company_id": string,"target_period": string }; Returns: Json
+                           },
+"vat_report_transition_history":
+{ Args: { "target_company_id": string,"target_period": string }; Returns: {
+              "action": string,"actor_email": string,"actor_user_id": string,"id": number,"occurred_at": string,"unlock_reason": string,"vat_report_id": string
+            }[]
                            },
 "verify_mfa_recovery_code":
 { Args: { "input_code": string }; Returns: boolean
                            }
           }
           Enums: {
-            "document_status": "uploaded"|"processing"|"needs_review"|"failed"|"approved"|"rejected","filing_frequency": "monthly"|"quarterly","membership_role": "administrator"|"user","person_type": "legal"|"natural","platform_role": "super_admin","source_file_format": "pdf"|"png"|"jpeg"|"xlsx"|"xls","source_file_status": "uploaded"|"processing"|"split"|"failed"
+            "ai_credential_source": "platform"|"organization"|"local","company_setup_state": "completed"|"skipped","company_setup_step": "identity"|"filing_frequency"|"filing_defaults"|"ai_processing","document_status": "uploaded"|"processing"|"needs_review"|"failed"|"approved"|"rejected","filing_frequency": "monthly"|"quarterly","membership_role": "administrator"|"user","person_type": "legal"|"natural","platform_role": "super_admin","source_file_format": "pdf"|"png"|"jpeg"|"xlsx"|"xls"|"heic"|"heif","source_file_status": "uploaded"|"processing"|"split"|"failed"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -816,11 +967,11 @@ export type CompositeTypes<
 export const Constants = {
   "graphql_public": {
           Enums: {
-            
+
           }
         },"public": {
           Enums: {
-            "document_status": ["uploaded", "processing", "needs_review", "failed", "approved", "rejected"],"filing_frequency": ["monthly", "quarterly"],"membership_role": ["administrator", "user"],"person_type": ["legal", "natural"],"platform_role": ["super_admin"],"source_file_format": ["pdf", "png", "jpeg", "xlsx", "xls"],"source_file_status": ["uploaded", "processing", "split", "failed"]
+            "ai_credential_source": ["platform", "organization", "local"],"company_setup_state": ["completed", "skipped"],"company_setup_step": ["identity", "filing_frequency", "filing_defaults", "ai_processing"],"document_status": ["uploaded", "processing", "needs_review", "failed", "approved", "rejected"],"filing_frequency": ["monthly", "quarterly"],"membership_role": ["administrator", "user"],"person_type": ["legal", "natural"],"platform_role": ["super_admin"],"source_file_format": ["pdf", "png", "jpeg", "xlsx", "xls", "heic", "heif"],"source_file_status": ["uploaded", "processing", "split", "failed"]
           }
         }
 } as const

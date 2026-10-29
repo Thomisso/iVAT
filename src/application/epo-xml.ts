@@ -52,7 +52,7 @@ function epoDate(iso: string): string {
 }
 function party(report: ComputedVatReport, details: ExportDetails): string {
   const c = report.company;
-  const address = /^(.*?)\s+(\d{1,6})(?:\/(\d{1,3}[a-zA-Z]?))?$/.exec(c.street);
+  const address = details.address ?? c;
   return element("VetaP", {
     c_ufo: details.taxOffice,
     ...(details.taxOffice === "13" ? { c_pracufo: "4000" } : {}),
@@ -60,14 +60,15 @@ function party(report: ComputedVatReport, details: ExportDetails): string {
     typ_ds: details.personType,
     ...(details.personType === "P"
       ? { zkrobchjm: c.name }
-      : { jmeno: details.firstName, prijmeni: details.lastName }),
-    ulice: address ? address[1] : c.street,
-    c_pop: address?.[2],
-    c_orient: address?.[3],
-    naz_obce: c.city,
-    psc: c.postalCode.replace(/\s/g, ""),
+      : { jmeno: c.firstName ?? undefined, prijmeni: c.lastName ?? undefined }),
+    ulice: address.streetName,
+    c_pop: address.houseNumber,
+    c_orient: address.orientationNumber ?? undefined,
+    naz_obce: address.city,
+    psc: address.postalCode.replace(/\s/g, ""),
     stat: "ČESKÁ REPUBLIKA",
     email: details.email || undefined,
+    c_telef: details.phone || undefined,
     ...(details.personType === "P"
       ? {
           opr_jmeno: details.signatoryFirstName,
@@ -242,9 +243,20 @@ export async function createEpoXml(
   format: EpoFormat,
   details: ExportDetails,
 ): Promise<Result<string, EpoXmlError>> {
-  const parsed = parseExportDetails(details);
+  const parsed = parseExportDetails({
+    taxOffice: details.taxOffice,
+    preparedOn: details.preparedOn,
+    email: details.email,
+    phone: details.phone,
+    personType: details.personType,
+    ...(details.personType === "P" ? {
+      signatoryFirstName: details.signatoryFirstName,
+      signatoryLastName: details.signatoryLastName,
+      signatoryCapacity: details.signatoryCapacity,
+    } : {}),
+  });
   if (!parsed.ok) return parsed;
-  details = parsed.value;
+  details = { ...parsed.value, address: details.address };
   const [year, periodPart] = report.period.split("-");
   const quarter = /^Q([1-4])$/.exec(periodPart)?.[1];
   const isReturn = format === "dphdp3";

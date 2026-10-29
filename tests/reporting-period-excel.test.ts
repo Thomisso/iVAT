@@ -185,13 +185,13 @@ it("uses filing-frequency history beyond the API row limit for quarterly classif
   const details = await getCompany(company.client, company.companyId);
   if (!details) throw new Error("Company fixture is missing");
   const changes: { frequency: FilingFrequency; effectiveFrom: string }[] = Array.from(
-    { length: 999 },
+    { length: 1001 },
     (_, index) => ({
       frequency: "monthly" as const,
-      effectiveFrom: new Date(Date.UTC(2027, 0, index + 1)).toISOString().slice(0, 10),
+      effectiveFrom: `${2000 + Math.floor(index / 12)}-${String(index % 12 + 1).padStart(2, "0")}-01`,
     }),
   );
-  changes.push({ frequency: "quarterly", effectiveFrom: "2030-01-01" });
+  changes.push({ frequency: "quarterly", effectiveFrom: "2099-10-01" });
   for (let offset = 0; offset < changes.length; offset += 25) {
     const results = await Promise.all(changes.slice(offset, offset + 25).map((change) => updateCompany(company.client, {
       ...details,
@@ -202,7 +202,7 @@ it("uses filing-frequency history beyond the API row limit for quarterly classif
     expect(results).toEqual(results.map(() => ({ ok: true, value: null })));
   }
   const worker = testWorker(fakeAiProvider({
-    extract: () => ({ ...SAMPLE_EXTRACTION, taxPointDate: "2030-02-10" }),
+    extract: () => ({ ...SAMPLE_EXTRACTION, taxPointDate: "2099-11-10" }),
   }));
   await enableAiProcessing(company.client, worker.jobs, {
     companyId: company.companyId,
@@ -225,7 +225,7 @@ it("uses filing-frequency history beyond the API row limit for quarterly classif
 
   const result = await exportReportingPeriodWorkbook(company.client, {
     companyId: company.companyId,
-    period: "2030-Q1",
+    period: "2099-Q4",
   });
   if (!result.ok) throw new Error(result.error);
   const workbook = XLSX.read(result.value.bytes, { type: "array" });

@@ -13,15 +13,22 @@ export interface DataTableProps<Row extends { id: string | number }> {
   rows: Row[];
   selectedId?: Row["id"];
   caption?: string;
+  rowId?: (row: Row) => string;
 }
 export function DataTable<Row extends { id: string | number }>({
   columns,
   rows,
   selectedId,
   caption,
+  rowId,
 }: DataTableProps<Row>) {
   return (
-    <div className="iv-table-wrap">
+    <div
+      aria-label={caption}
+      className="iv-table-wrap"
+      role={caption ? "region" : undefined}
+      tabIndex={0}
+    >
       <table className="iv-table">
         {caption && <caption className="sr-only">{caption}</caption>}
         <thead>
@@ -41,6 +48,7 @@ export function DataTable<Row extends { id: string | number }>({
           {rows.map((row) => (
             <tr
               key={row.id}
+              id={rowId?.(row)}
               className={row.id === selectedId ? "is-selected" : undefined}
             >
               {columns.map((column) => (

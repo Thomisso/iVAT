@@ -16,9 +16,13 @@ export function companyDetails(
   ).slice(0, 8);
   return {
     name: "Novák s.r.o.",
+    firstName: "",
+    lastName: "",
     ico,
     vatId: `CZ${ico}`,
-    street: "Vinohradská 12",
+    streetName: "Vinohradská",
+    houseNumber: "12",
+    orientationNumber: "",
     city: "Praha",
     postalCode: "120 00",
     personType: "legal",
@@ -61,6 +65,17 @@ export async function companyMember(
     });
   if (error) throw error;
   return user;
+}
+
+/** Support-only corruption fixture for exercising the database's Finalization
+ * guard. The Application never removes a required completed setup step. */
+export async function removeCompletedCompanyIdentityFixture(companyId: string) {
+  const removed = await systemClient()
+    .from("company_setup_step_state")
+    .delete()
+    .eq("company_id", companyId)
+    .eq("step", "identity");
+  if (removed.error) throw removed.error;
 }
 
 /** Large report fixture. Uses platform-sized Source Files and the worker's narrow
@@ -118,4 +133,92 @@ export async function companyWithManyReportDocuments(count: number) {
     );
   }
   return admin;
+}
+
+/** A large, finalizable VAT Report fixture approved through the Application layer. */
+export async function companyWithManyApprovedReportDocuments(count: number) {
+  const { approveDocument, listCompanyDocuments } = await import("@/application/documents");
+  const company = await companyWithManyReportDocuments(count);
+  const documents = await listCompanyDocuments(company.client, company.companyId);
+  for (let offset = 0; offset < documents.length; offset += 25) {
+    const results = await Promise.all(documents.slice(offset, offset + 25).map((document) =>
+      approveDocument(company.client, {
+        companyId: company.companyId,
+        documentId: document.id,
+        version: 1,
+      })
+    ));
+    for (const result of results) {
+      if (!result.ok) throw new Error(`Document approval failed: ${result.error}`);
+    }
+  }
+  return company;
+}
+
+/** A Company with more than one PostgREST page of uploaded Documents waiting for Extraction. */
+export async function companyWithWaitingDocuments(count: number) {
+  const { PDFDocument } = await import("pdf-lib");
+  const { uploadSourceFile } = await import("@/application/source-files");
+  const admin = await administratorWithCompany("Paged AI resume");
+  const pageCount = Math.min(50, count);
+  const pdf = await PDFDocument.create();
+  for (let page = 0; page < pageCount; page++) pdf.addPage();
+  const bytes = await pdf.save();
+  let created = 0;
+  while (created < count) {
+    const documentsInFile = Math.min(pageCount, count - created);
+    const uploaded = await uploadSourceFile(admin.client, { async send() {} }, {
+      companyId: admin.companyId,
+      fileName: `waiting-${created / pageCount + 1}.pdf`,
+      bytes,
+    });
+    if (!uploaded.ok) throw new Error(uploaded.error);
+    const split = await systemClient().rpc("record_split", {
+      target_source_file_id: uploaded.value.id,
+      source_ranges: Array.from({ length: documentsInFile }, (_, page) => ({
+        firstPage: page + 1,
+        lastPage: page + 1,
+      })),
+    });
+    if (split.error) throw split.error;
+    created += documentsInFile;
+  }
+  return admin;
+}
+
+/** A real-user Upload Batch with more Documents than one PostgREST page.
+ * Worker-only split setup stays inside test support; assertions use Application queries. */
+export async function uploadBatchWithWaitingDocuments(count: number) {
+  const { PDFDocument } = await import("pdf-lib");
+  const { beginUploadBatch, finishUploadBatch } = await import("@/application/upload-batches");
+  const { uploadSourceFile } = await import("@/application/source-files");
+  const admin = await administratorWithCompany("Paged upload batch");
+  const fileCount = Math.ceil(count / 50);
+  const batch = await beginUploadBatch(admin.client, { companyId: admin.companyId, fileCount });
+  if (!batch.ok) throw new Error(batch.error);
+  const pdf = await PDFDocument.create();
+  for (let page = 0; page < 50; page++) pdf.addPage();
+  const bytes = await pdf.save();
+  let created = 0;
+  for (let fileIndex = 0; fileIndex < fileCount; fileIndex++) {
+    const uploaded = await uploadSourceFile(admin.client, { async send() {} }, {
+      companyId: admin.companyId,
+      batchId: batch.value.id,
+      fileName: `large-${fileIndex}.pdf`,
+      bytes,
+    });
+    if (!uploaded.ok) throw new Error(uploaded.error);
+    const documentsInFile = Math.min(50, count - created);
+    const split = await systemClient().rpc("record_split", {
+      target_source_file_id: uploaded.value.id,
+      source_ranges: Array.from({ length: documentsInFile }, (_, page) => ({
+        firstPage: page + 1,
+        lastPage: page + 1,
+      })),
+    });
+    if (split.error) throw split.error;
+    created += documentsInFile;
+  }
+  await finishUploadBatch(admin.client, batch.value.id);
+  return { ...admin, batchId: batch.value.id };
 }

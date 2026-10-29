@@ -8,9 +8,13 @@ import { SAMPLE_EXTRACTION } from "@/ai/fake";
 
 const company = {
   name: "Test s.r.o.",
+  firstName: null,
+  lastName: null,
   ico: "27082440",
   vatId: "CZ27082440",
-  street: "Praha 1",
+  streetName: "Praha",
+  houseNumber: "1",
+  orientationNumber: null,
   city: "Praha",
   postalCode: "110 00",
   personType: "legal" as const,

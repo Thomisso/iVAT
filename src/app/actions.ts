@@ -8,7 +8,7 @@ import {
   generateVatReport,
   unlockReportingPeriod,
 } from "@/application/vat-reports";
-import { logIn, logOut, signUp, startGoogleSignIn } from "@/application/auth";
+import { currentUser, logIn, logOut, signUp, startGoogleSignIn } from "@/application/auth";
 import {
   beginTotpEnrollment,
   completeTotpEnrollment,
@@ -22,7 +22,16 @@ import {
 } from "@/application/mfa";
 import { mfaRedirectPath } from "@/application/mfa-routing";
 import { prefillCompanyFromAres } from "@/application/ares";
-import { createCompany, disableAiProcessing, enableAiProcessing, updateCompany } from "@/application/companies";
+import {
+  createCompanyIdentity,
+  parseCompanyAiOptionValue,
+  configureCompanyAiProcessing,
+  disableAiProcessing,
+  getCompany,
+  setCompanyFilingFrequency,
+  updateCompanyIdentity,
+} from "@/application/companies";
+import { saveCompanyFilingDefaults } from "@/application/company-filing-defaults";
 import { acceptInvitation, changeMembershipRole, inviteMember, removeMembership } from "@/application/memberships";
 import { supabaseInvitationMailer } from "@/application/supabase-invitation-mailer";
 import {
@@ -44,12 +53,15 @@ import {
 } from "@/application/platform-administration";
 import { retryFailedProcessingJob } from "@/application/processing-administration";
 import { removeOrganizationAiProviderKey, saveOrganizationAiProviderKey } from "@/application/organization-ai";
-import { availableCompanyAiProviders } from "@/ai";
+import { markUploadNotificationRead } from "@/application/upload-batches";
 import { configuredAresRegistry } from "@/ares";
 import { configuredExchangeRates } from "@/cnb";
 import { jobQueue } from "@/lib/jobs";
 import { createRequestClient, requireUserClient } from "@/lib/supabase/server";
 import { isLocale, localeCookie } from "@/i18n/locales";
+import { companyContextCookie, serializeCompanyContext } from "@/lib/company-context";
+import { normalizeDocumentQueueQuery } from "@/application/document-queue";
+import { isUuid } from "@/application/client";
 
 /**
  * Form state: an error code that the form translates through the `errors`
@@ -60,20 +72,47 @@ export type FormState = { error: string | null; values: Record<string, string> }
 
 const field = (formData: FormData, name: string) => String(formData.get(name) ?? "");
 
+async function storeCompanyContext(companyId: string): Promise<boolean> {
+  const client = await requireUserClient();
+  const [user, company] = await Promise.all([
+    currentUser(client),
+    getCompany(client, companyId),
+  ]);
+  if (!user || !company) return false;
+  (await cookies()).set(
+    companyContextCookie,
+    serializeCompanyContext({ userId: user.id, companyId }),
+    { httpOnly: true, maxAge: 60 * 60 * 24 * 365, path: "/", sameSite: "lax" },
+  );
+  return true;
+}
+
+export async function rememberCompanyAction(companyId: string): Promise<void> {
+  await storeCompanyContext(companyId);
+}
+
+export async function selectCompanyAction(formData: FormData): Promise<void> {
+  const companyId = field(formData, "companyId");
+  if (await storeCompanyContext(companyId)) redirect(`/companies/${companyId}`);
+  redirect("/");
+}
+
 function refused(error: string, formData: FormData, fields: string[]): FormState {
   return { error, values: Object.fromEntries(fields.map((name) => [name, field(formData, name)])) };
 }
 
 const COMPANY_FIELDS = [
   "name",
+  "firstName",
+  "lastName",
   "ico",
   "vatId",
-  "street",
+  "streetName",
+  "houseNumber",
+  "orientationNumber",
   "city",
   "postalCode",
   "personType",
-  "filingFrequency",
-  "filingFrequencyEffectiveFrom",
 ];
 
 export async function signUpAction(_state: FormState, formData: FormData): Promise<FormState> {
@@ -190,27 +229,91 @@ export async function createCompanyAction(_state: FormState, formData: FormData)
   const companyId = field(formData, "companyId");
   const settings = {
     name: field(formData, "name"),
+    firstName: field(formData, "firstName"),
+    lastName: field(formData, "lastName"),
     ico: field(formData, "ico"),
     vatId: field(formData, "vatId"),
-    street: field(formData, "street"),
+    streetName: field(formData, "streetName"),
+    houseNumber: field(formData, "houseNumber"),
+    orientationNumber: field(formData, "orientationNumber"),
     city: field(formData, "city"),
     postalCode: field(formData, "postalCode"),
     personType: field(formData, "personType") as "legal" | "natural",
-    filingFrequency: field(formData, "filingFrequency") as "monthly" | "quarterly",
-    filingFrequencyEffectiveFrom: field(formData, "filingFrequencyEffectiveFrom"),
   };
   const client = await requireUserClient();
   if (companyId) {
-    const result = await updateCompany(client, { companyId, ...settings });
+    const result = await updateCompanyIdentity(client, { companyId, ...settings });
     if (!result.ok) return refused(result.error, formData, COMPANY_FIELDS);
-    redirect(`/companies/${companyId}`);
+    await storeCompanyContext(companyId);
+    redirect(`/companies/${companyId}/settings`);
   }
-  const result = await createCompany(client, {
+  const result = await createCompanyIdentity(client, {
     organizationId: field(formData, "organizationId"),
     ...settings,
   });
   if (!result.ok) return refused(result.error, formData, COMPANY_FIELDS);
-  redirect(`/companies/${result.value.id}`);
+  await storeCompanyContext(result.value.id);
+  redirect(`/companies/${result.value.id}/setup/filing-frequency`);
+}
+
+export async function setCompanyFilingFrequencyAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const companyId = field(formData, "companyId");
+  const result = await setCompanyFilingFrequency(await requireUserClient(), {
+    companyId,
+    filingFrequency: field(formData, "filingFrequency") as "monthly" | "quarterly",
+    filingFrequencyEffectiveFrom: field(formData, "filingFrequencyEffectiveFrom"),
+  });
+  if (!result.ok) return refused(result.error, formData, ["filingFrequency", "filingFrequencyEffectiveFrom"]);
+  redirect(`/companies/${companyId}/setup/ai-processing`);
+}
+
+const FILING_DEFAULT_FIELDS = [
+  "taxOffice",
+  "signatoryFirstName",
+  "signatoryLastName",
+  "signatoryCapacity",
+  "email",
+  "phone",
+  "useEpoAddressOverride",
+  "epoStreetName",
+  "epoHouseNumber",
+  "epoOrientationNumber",
+  "epoCity",
+  "epoPostalCode",
+  "epoAddressConfirmed",
+];
+
+export async function saveCompanyFilingDefaultsAction(
+  _state: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const useEpoAddressOverride = field(formData, "useEpoAddressOverride") === "yes";
+  const result = await saveCompanyFilingDefaults(await requireUserClient(), {
+    companyId: field(formData, "companyId"),
+    taxOffice: field(formData, "taxOffice"),
+    signatoryFirstName: field(formData, "signatoryFirstName"),
+    signatoryLastName: field(formData, "signatoryLastName"),
+    signatoryCapacity: field(formData, "signatoryCapacity"),
+    email: field(formData, "email"),
+    phone: field(formData, "phone"),
+    epoAddressOverride: useEpoAddressOverride ? {
+      streetName: field(formData, "epoStreetName"),
+      houseNumber: field(formData, "epoHouseNumber"),
+      orientationNumber: field(formData, "epoOrientationNumber"),
+      city: field(formData, "epoCity"),
+      postalCode: field(formData, "epoPostalCode"),
+    } : null,
+    epoAddressConfirmed: field(formData, "epoAddressConfirmed") === "yes",
+  });
+  if (!result.ok) return refused(result.error, formData, FILING_DEFAULT_FIELDS);
+  refresh();
+  return {
+    error: null,
+    values: {
+      ...Object.fromEntries(FILING_DEFAULT_FIELDS.map((name) => [name, field(formData, name)])),
+      saved: "yes",
+    },
+  };
 }
 
 export async function uploadSourceFileAction(_state: FormState, formData: FormData): Promise<FormState> {
@@ -237,19 +340,26 @@ function settled(result: { ok: true } | { ok: false; error: string }): FormState
 
 export async function enableAiProcessingAction(_state: FormState, formData: FormData): Promise<FormState> {
   const client = await requireUserClient();
-  const providerName = field(formData, "provider");
-  const provider = (await availableCompanyAiProviders(client)).find((candidate) => candidate.name === providerName);
-  if (!provider) return refused("unknown_provider", formData, ["provider"]);
-  return settled(
-    await enableAiProcessing(client, jobQueue, {
-      companyId: field(formData, "companyId"),
-      provider,
-    }),
-  );
+  const companyId = field(formData, "companyId");
+  const option = parseCompanyAiOptionValue(field(formData, "option"));
+  if (!option) return refused("provider_unavailable", formData, ["option", "consent"]);
+  const result = await configureCompanyAiProcessing(client, jobQueue, {
+    companyId,
+    option,
+    consent: field(formData, "consent") === "yes",
+  });
+  if (!result.ok) return refused(result.error, formData, ["option", "consent"]);
+  const returnTo = field(formData, "returnTo");
+  if (returnTo === "company") redirect(`/companies/${companyId}`);
+  return settled(result);
 }
 
 export async function disableAiProcessingAction(_state: FormState, formData: FormData): Promise<FormState> {
-  return settled(await disableAiProcessing(await requireUserClient(), field(formData, "companyId")));
+  const companyId = field(formData, "companyId");
+  const result = await disableAiProcessing(await requireUserClient(), companyId);
+  if (!result.ok) return settled(result);
+  if (field(formData, "returnTo") === "company") redirect(`/companies/${companyId}`);
+  return settled(result);
 }
 
 export async function retrySplitAction(_state: FormState, formData: FormData): Promise<FormState> {
@@ -267,6 +377,18 @@ export async function reprocessDocumentAction(_state: FormState, formData: FormD
       companyId: field(formData, "companyId"),
       documentId: field(formData, "documentId"),
     }),
+  );
+}
+
+export async function markUploadNotificationReadAction(
+  _state: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  return settled(
+    await markUploadNotificationRead(
+      await requireUserClient(),
+      field(formData, "notificationId"),
+    ),
   );
 }
 
@@ -378,22 +500,30 @@ export async function correctDocumentAction(_state: FormState, formData: FormDat
 }
 
 export async function approveDocumentAction(_state: FormState, formData: FormData): Promise<FormState> {
-  return settled(
-    await approveDocument(await requireUserClient(), {
-      companyId: field(formData, "companyId"),
-      documentId: field(formData, "documentId"),
-      version: Number(field(formData, "version")),
-    }),
-  );
+  const companyId = field(formData, "companyId");
+  const documentId = field(formData, "documentId");
+  const result = await approveDocument(await requireUserClient(), {
+    companyId,
+    documentId,
+    version: Number(field(formData, "version")),
+  });
+  if (!result.ok) return settled(result);
+  redirectAfterDocumentDecision(formData, companyId, documentId);
 }
 
 export async function rejectDocumentAction(_state: FormState, formData: FormData): Promise<FormState> {
-  return settled(
-    await rejectDocument(await requireUserClient(), {
-      companyId: field(formData, "companyId"),
-      documentId: field(formData, "documentId"),
-    }),
-  );
+  const companyId = field(formData, "companyId");
+  const documentId = field(formData, "documentId");
+  const result = await rejectDocument(await requireUserClient(), { companyId, documentId });
+  if (!result.ok) return settled(result);
+  redirectAfterDocumentDecision(formData, companyId, documentId);
+}
+
+function redirectAfterDocumentDecision(formData: FormData, companyId: string, documentId: string): never {
+  const query = normalizeDocumentQueueQuery(field(formData, "queueQuery"));
+  const nextDocumentId = field(formData, "nextDocumentId");
+  if (isUuid(nextDocumentId)) redirect(`/companies/${companyId}/documents/${nextDocumentId}?${query}`);
+  redirect(`/companies/${companyId}/documents?${query}#document-${documentId}`);
 }
 
 export async function updateDocumentReportingAction(
@@ -442,8 +572,9 @@ export async function finalizeVatReportAction(_state: FormState, formData: FormD
   const result = await finalizeVatReport(await requireUserClient(), {
     companyId: field(formData, "companyId"),
     period: field(formData, "period"),
+    confirmed: field(formData, "confirmed") === "on",
   });
-  if (!result.ok) return refused(result.error, formData, []);
+  if (!result.ok) return refused(result.error, formData, ["confirmed"]);
   refresh();
   return { error: null, values: {} };
 }
@@ -452,8 +583,10 @@ export async function unlockReportingPeriodAction(_state: FormState, formData: F
   const result = await unlockReportingPeriod(await requireUserClient(), {
     companyId: field(formData, "companyId"),
     period: field(formData, "period"),
+    reason: field(formData, "reason"),
+    confirmed: field(formData, "confirmed") === "on",
   });
-  if (!result.ok) return refused(result.error, formData, []);
+  if (!result.ok) return refused(result.error, formData, ["reason", "confirmed"]);
   refresh();
   return { error: null, values: {} };
 }
@@ -483,12 +616,12 @@ export async function acceptInvitationAction(_state: FormState, formData: FormDa
 }
 
 export async function changeMembershipRoleAction(_state: FormState, formData: FormData): Promise<FormState> {
-  return settled(
-    await changeMembershipRole(await requireUserClient(), {
-      membershipId: field(formData, "membershipId"),
-      role: field(formData, "role") as "administrator" | "user",
-    }),
-  );
+  const result = await changeMembershipRole(await requireUserClient(), {
+    membershipId: field(formData, "membershipId"),
+    role: field(formData, "role") as "administrator" | "user",
+  });
+  if (!result.ok) return refused(result.error, formData, ["role"]);
+  return settled(result);
 }
 
 export async function removeMembershipAction(_state: FormState, formData: FormData): Promise<FormState> {

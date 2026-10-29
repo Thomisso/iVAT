@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   createCompany,
+  createCompanyIdentity,
+  epoIdentityFindings,
   getCompany,
+  getCompanySetupChecklist,
   getFilingFrequencyForPeriod,
   listCompanyFilingFrequencies,
   listMyCompanies,
+  setCompanyFilingFrequency,
   updateCompany,
 } from "@/application/companies";
 import { listAuditEvents } from "@/application/audit";
@@ -17,9 +21,13 @@ import {
 
 const novak = {
   name: "Novák s.r.o.",
+  firstName: "",
+  lastName: "",
   ico: "27082440",
   vatId: "CZ27082440",
-  street: "Vinohradská 12",
+  streetName: "Vinohradská",
+  houseNumber: "12",
+  orientationNumber: "",
   city: "Praha",
   postalCode: "120 00",
   personType: "legal" as const,
@@ -46,6 +54,10 @@ describe("Company creation", () => {
       id: result.value.id,
       organizationId,
       ...novak,
+      firstName: null,
+      lastName: null,
+      street: "Vinohradská 12",
+      orientationNumber: null,
       aiProcessing: null,
     });
     expect(await listCompanyFilingFrequencies(client, result.value.id)).toEqual([
@@ -58,6 +70,44 @@ describe("Company creation", () => {
       { id: result.value.id, organizationId, name: "Novák s.r.o." },
     ]);
   });
+
+  it("persists natural-person identity before filing frequency and resumes from the blocking step", async () => {
+    const { client, organizationId } = await signedUpUser();
+    const identity = await createCompanyIdentity(client, {
+      organizationId,
+      ...companyDetails({
+        personType: "natural",
+        name: "ignored legal name",
+        firstName: " Jana ",
+        lastName: " Nováková ",
+        orientationNumber: "53A",
+      }),
+    });
+    expect(identity.ok).toBe(true);
+    if (!identity.ok) return;
+    expect(await getCompany(client, identity.value.id)).toEqual(expect.objectContaining({
+      name: "Jana Nováková",
+      firstName: "Jana",
+      lastName: "Nováková",
+      streetName: "Vinohradská",
+      houseNumber: "12",
+      orientationNumber: "53A",
+    }));
+    expect(await getCompanySetupChecklist(client, identity.value.id)).toEqual([
+      { step: "identity", state: "completed" },
+      { step: "filing_frequency", state: "blocking" },
+      { step: "filing_defaults", state: "skipped" },
+      { step: "ai_processing", state: "skipped" },
+    ]);
+    expect(await setCompanyFilingFrequency(client, {
+      companyId: identity.value.id,
+      filingFrequency: "quarterly",
+      filingFrequencyEffectiveFrom: "2026-04-01",
+    })).toEqual({ ok: true, value: null });
+    expect((await getCompanySetupChecklist(client, identity.value.id))[1]).toEqual({
+      step: "filing_frequency", state: "completed",
+    });
+  });
 });
 
 describe("Company details", () => {
@@ -67,9 +117,13 @@ describe("Company details", () => {
     const result = await createCompany(client, {
       organizationId,
       name: "  Novák s.r.o. ",
+      firstName: "",
+      lastName: "",
       ico: " 27082440 ",
       vatId: "cz 27082440",
-      street: " Vinohradská 12 ",
+      streetName: " Vinohradská ",
+      houseNumber: "12",
+      orientationNumber: "",
       city: " Praha ",
       postalCode: "12000",
       personType: "legal",
@@ -85,10 +139,17 @@ describe("Company details", () => {
 
   it.each([
     [{ name: " " }, "name_required"],
+    [{ personType: "natural" as const, firstName: "", lastName: "Novák" }, "first_name_required"],
+    [{ personType: "natural" as const, firstName: "Jana", lastName: "" }, "last_name_required"],
     [{ ico: "1234567" }, "invalid_ico"],
     [{ vatId: "SK2708244012" }, "invalid_vat_id"],
-    [{ street: "" }, "address_required"],
+    [{ streetName: "" }, "address_required"],
     [{ city: "" }, "address_required"],
+    [{ houseNumber: "12A" }, "invalid_house_number"],
+    [{ orientationNumber: "1234A" }, "invalid_orientation_number"],
+    [{ name: "x".repeat(256) }, "name_too_long"],
+    [{ personType: "natural" as const, firstName: "x".repeat(31), lastName: "Novák" }, "first_name_too_long"],
+    [{ personType: "natural" as const, firstName: "Jana", lastName: "x".repeat(37) }, "last_name_too_long"],
     [{ postalCode: "1200" }, "invalid_postal_code"],
   ])("are refused when invalid: %o", async (override, error) => {
     const { client, organizationId } = await signedUpUser();
@@ -97,6 +158,25 @@ describe("Company details", () => {
 
     expect(result).toEqual({ ok: false, error });
     expect(await listMyCompanies(client)).toEqual([]);
+  });
+
+  it("preserves valid registered data that exceeds EPO limits and reports field-specific findings", async () => {
+    const { client, organizationId } = await signedUpUser();
+    const streetName = "Dlouhá registrovaná ulice s nezkráceným názvem";
+    const city = "Městská část s pravdivým názvem delším než limit EPO formuláře";
+
+    const result = await createCompany(client, {
+      organizationId,
+      ...companyDetails({ streetName, city }),
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(await getCompany(client, result.value.id)).toEqual(expect.objectContaining({ streetName, city }));
+    expect(epoIdentityFindings({ streetName, orientationNumber: "53A", city })).toEqual([
+      { field: "streetName", code: "epo_street_name_too_long" },
+      { field: "city", code: "epo_city_too_long" },
+    ]);
   });
 
   it("are refused when the IČO is already used in the Organization", async () => {
@@ -118,7 +198,7 @@ describe("Company details", () => {
       companyId,
       ...existing,
       name: "Novák účetnictví s.r.o.",
-      personType: "natural",
+      personType: "legal",
       filingFrequency: "quarterly",
       filingFrequencyEffectiveFrom: "2027-01-01",
     });
@@ -127,7 +207,7 @@ describe("Company details", () => {
     expect(await getCompany(client, companyId)).toEqual(
       expect.objectContaining({
         name: "Novák účetnictví s.r.o.",
-        personType: "natural",
+        personType: "legal",
       }),
     );
     expect(await listCompanyFilingFrequencies(client, companyId)).toEqual([
@@ -140,9 +220,10 @@ describe("Company details", () => {
     expect(
       await getFilingFrequencyForPeriod(client, companyId, "2027-Q2"),
     ).toBe("quarterly");
-    expect(
-      (await listAuditEvents(client, organizationId)).slice(-2),
-    ).toEqual([
+    const relevantEvents = (await listAuditEvents(client, organizationId)).filter(
+      (event) => event.action === "company.updated" || event.action === "company.filing_frequency_changed",
+    );
+    expect(relevantEvents.slice(-2)).toEqual([
       expect.objectContaining({
         action: "company.updated",
         actorUserId: userId,
@@ -152,7 +233,6 @@ describe("Company details", () => {
             from: "Novák s.r.o.",
             to: "Novák účetnictví s.r.o.",
           },
-          person_type: { from: "legal", to: "natural" },
         }),
       }),
       expect.objectContaining({
@@ -191,6 +271,56 @@ describe("Company details", () => {
     expect((await getCompany(company.client, company.companyId))?.name).toBe(
       "Administrator changed this",
     );
+  });
+
+  it("enforces quarter boundaries across the full filing-frequency history", async () => {
+    const company = await administratorWithCompany();
+    expect(await setCompanyFilingFrequency(company.client, {
+      companyId: company.companyId,
+      filingFrequency: "quarterly",
+      filingFrequencyEffectiveFrom: "2027-01-01",
+    })).toEqual({ ok: true, value: null });
+
+    expect(await setCompanyFilingFrequency(company.client, {
+      companyId: company.companyId,
+      filingFrequency: "monthly",
+      filingFrequencyEffectiveFrom: "2027-02-01",
+    })).toEqual({ ok: false, error: "invalid_effective_from" });
+    expect(await listCompanyFilingFrequencies(company.client, company.companyId)).toEqual([
+      { frequency: "monthly", effectiveFrom: "2026-01-01" },
+      { frequency: "quarterly", effectiveFrom: "2027-01-01" },
+    ]);
+
+    const legacyBypass = await company.client.rpc("update_company", {
+      target_company_id: company.companyId,
+      company_name: "Legacy bypass",
+      company_ico: "27082440",
+      company_vat_id: "CZ27082440",
+      company_street: "Legacy 1",
+      company_city: "Praha",
+      company_postal_code: "110 00",
+      company_person_type: "legal",
+      new_filing_frequency: "monthly",
+      filing_frequency_effective_from: "2027-02-01",
+    });
+    expect(legacyBypass.error?.code).toBe("42501");
+  });
+
+  it("isolates persisted setup state from another Organization", async () => {
+    const company = await administratorWithCompany();
+    const outsider = await signedUpUser("Other Organization");
+
+    const visible = await outsider.client
+      .from("company_setup_step_state")
+      .select("step, state")
+      .eq("company_id", company.companyId);
+    expect(visible.error).toBeNull();
+    expect(visible.data).toEqual([]);
+    const refused = await outsider.client
+      .from("company_setup_step_state")
+      .update({ state: "skipped" })
+      .eq("company_id", company.companyId);
+    expect(refused.error?.code).toBe("42501");
   });
 });
 

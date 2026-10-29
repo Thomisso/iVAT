@@ -4,7 +4,9 @@ export type AresCompanyDetails = {
   name: string;
   ico: string;
   vatId: string;
-  street: string;
+  streetName: string;
+  houseNumber: string;
+  orientationNumber: string;
   city: string;
   postalCode: string;
 };
