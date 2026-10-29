@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { approveDocument, listDocuments, listDuplicateWarnings } from "@/application/documents";
 import type { ExtractionPayload } from "@/application/extraction-payload";
-import { enableAiProcessing } from "@/application/companies";
 import { uploadSourceFile } from "@/application/source-files";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { fixtureFile } from "./support/files";
-import { administratorWithCompany } from "./support/fixtures";
+import {
+  administratorWithCompany,
+  assignAiConfigurationFixture as enableAiProcessing,
+} from "./support/fixtures";
 import { testWorker } from "./support/worker";
 
 async function companyWithExtractions(...extractions: ExtractionPayload[]) {

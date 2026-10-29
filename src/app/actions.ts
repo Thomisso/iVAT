@@ -24,9 +24,6 @@ import { mfaRedirectPath } from "@/application/mfa-routing";
 import { prefillCompanyFromAres } from "@/application/ares";
 import {
   createCompanyIdentity,
-  parseCompanyAiOptionValue,
-  configureCompanyAiProcessing,
-  disableAiProcessing,
   getCompany,
   setCompanyFilingFrequency,
   updateCompanyIdentity,
@@ -47,7 +44,6 @@ import {
 } from "@/application/documents";
 import type { ExtractionPayload, Party } from "@/application/extraction-payload";
 import { retrySplit, uploadSourceFile } from "@/application/source-files";
-import { configurePlatformAiProvider, setOrganizationPlatformAiAccess } from "@/application/platform-ai";
 import {
   assignCompanyAiConfiguration,
   createAiConfiguration,
@@ -60,7 +56,6 @@ import {
   setPlatformUploadLimits,
 } from "@/application/platform-administration";
 import { retryFailedProcessingJob } from "@/application/processing-administration";
-import { removeOrganizationAiProviderKey, saveOrganizationAiProviderKey } from "@/application/organization-ai";
 import { markUploadNotificationRead } from "@/application/upload-batches";
 import { configuredAresRegistry } from "@/ares";
 import { configuredExchangeRates } from "@/cnb";
@@ -346,30 +341,6 @@ function settled(result: { ok: true } | { ok: false; error: string }): FormState
   return { error: null, values: {} };
 }
 
-export async function enableAiProcessingAction(_state: FormState, formData: FormData): Promise<FormState> {
-  const client = await requireUserClient();
-  const companyId = field(formData, "companyId");
-  const option = parseCompanyAiOptionValue(field(formData, "option"));
-  if (!option) return refused("provider_unavailable", formData, ["option", "consent"]);
-  const result = await configureCompanyAiProcessing(client, jobQueue, {
-    companyId,
-    option,
-    consent: field(formData, "consent") === "yes",
-  });
-  if (!result.ok) return refused(result.error, formData, ["option", "consent"]);
-  const returnTo = field(formData, "returnTo");
-  if (returnTo === "company") redirect(`/companies/${companyId}`);
-  return settled(result);
-}
-
-export async function disableAiProcessingAction(_state: FormState, formData: FormData): Promise<FormState> {
-  const companyId = field(formData, "companyId");
-  const result = await disableAiProcessing(await requireUserClient(), companyId);
-  if (!result.ok) return settled(result);
-  if (field(formData, "returnTo") === "company") redirect(`/companies/${companyId}`);
-  return settled(result);
-}
-
 export async function retrySplitAction(_state: FormState, formData: FormData): Promise<FormState> {
   return settled(
     await retrySplit(await requireUserClient(), jobQueue, {
@@ -643,22 +614,6 @@ export async function removeMembershipAction(_state: FormState, formData: FormDa
   return settled(await removeMembership(await requireUserClient(), field(formData, "membershipId")));
 }
 
-export async function configurePlatformAiProviderAction(
-  _state: FormState,
-  formData: FormData,
-): Promise<FormState> {
-  const result = await configurePlatformAiProvider(await requireUserClient(), {
-    provider: field(formData, "provider"),
-    available: field(formData, "available") === "on",
-    splitModel: field(formData, "splitModel"),
-    extractModel: field(formData, "extractModel"),
-    apiKey: field(formData, "apiKey").trim() || undefined,
-  });
-  if (!result.ok) return refused(result.error, formData, ["provider", "available", "splitModel", "extractModel"]);
-  refresh();
-  return { error: null, values: {} };
-}
-
 export async function createAiConfigurationAction(
   _state: FormState,
   formData: FormData,
@@ -737,17 +692,6 @@ export async function setDefaultAiConfigurationAction(
   ));
 }
 
-export async function setOrganizationPlatformAiAccessAction(
-  _state: FormState,
-  formData: FormData,
-): Promise<FormState> {
-  return settled(await setOrganizationPlatformAiAccess(await requireUserClient(), {
-    organizationId: field(formData, "organizationId"),
-    provider: field(formData, "provider"),
-    enabled: field(formData, "enabled") === "true",
-  }));
-}
-
 export async function setPlatformOrganizationBlockedAction(
   _state: FormState,
   formData: FormData,
@@ -780,30 +724,4 @@ export async function retryFailedProcessingJobAction(
     await requireUserClient(),
     field(formData, "jobId"),
   ));
-}
-
-export async function saveOrganizationAiProviderKeyAction(
-  _state: FormState,
-  formData: FormData,
-): Promise<FormState> {
-  const result = await saveOrganizationAiProviderKey(await requireUserClient(), {
-    organizationId: field(formData, "organizationId"),
-    provider: field(formData, "provider"),
-    apiKey: field(formData, "apiKey"),
-    dpaAcknowledged: field(formData, "dpaAcknowledged") === "on",
-  });
-  // API keys are intentionally excluded: Server Action return values are serialized to the client.
-  if (!result.ok) return refused(result.error, formData, ["provider", "dpaAcknowledged"]);
-  refresh();
-  return { error: null, values: {} };
-}
-
-export async function removeOrganizationAiProviderKeyAction(
-  _state: FormState,
-  formData: FormData,
-): Promise<FormState> {
-  return settled(await removeOrganizationAiProviderKey(await requireUserClient(), {
-    organizationId: field(formData, "organizationId"),
-    provider: field(formData, "provider"),
-  }));
 }

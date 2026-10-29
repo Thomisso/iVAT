@@ -3,11 +3,7 @@ import { strFromU8, unzipSync } from "fflate";
 import { expect, it } from "vitest";
 import type { AppClient } from "@/application/client";
 import { listAuditEvents } from "@/application/audit";
-import {
-  enableAiProcessing,
-  getCompany,
-  listMyCompanies,
-} from "@/application/companies";
+import { getCompany, listMyCompanies } from "@/application/companies";
 import { saveCompanyFilingDefaults } from "@/application/company-filing-defaults";
 import {
   exportCompanyData,
@@ -20,7 +16,11 @@ import {
   finalizeVatReport,
   generateVatReport,
 } from "@/application/vat-reports";
-import { administratorWithCompany, companyMember } from "./support/fixtures";
+import {
+  administratorWithCompany,
+  assignAiConfigurationFixture as enableAiProcessing,
+  companyMember,
+} from "./support/fixtures";
 import { fixtureFile, workbookFile } from "./support/files";
 import { systemClient, testWorker } from "./support/worker";
 
@@ -430,25 +430,10 @@ it("retains an Approved Document and its Period Lock after the Company is soft-d
 it("exports every Document beyond the API row limit, including superseded rows", async () => {
   const company = await administratorWithCompany();
   const worker = testWorker();
-  worker.ai.split = async () => ({
-    documents: Array.from({ length: 1001 }, (_, index) => ({
-      sheetName: "Invoices",
-      firstRow: index + 2,
-      lastRow: index + 2,
-    })),
-    model: "test-split",
-  });
   await enableAiProcessing(company.client, worker.jobs, {
     companyId: company.companyId,
     provider: worker.ai,
   });
-  const uploaded = await uploadSourceFile(company.client, worker.jobs, {
-    companyId: company.companyId,
-    fileName: "many-rows.xlsx",
-    bytes: workbookFile("xlsx", [["Invoice"], ...Array.from({ length: 1001 }, (_, i) => [`INV-${i}`])]),
-  });
-  if (!uploaded.ok) throw new Error(uploaded.error);
-  await worker.runNextJob();
   const supersededWorker = testWorker();
   const supersededSource = await uploadSourceFile(company.client, supersededWorker.jobs, {
     companyId: company.companyId,
@@ -463,6 +448,23 @@ it("exports every Document beyond the API row limit, including superseded rows",
     leftDocumentId: first.id,
     rightDocumentId: second.id,
   })).toEqual({ ok: true, value: null });
+  expect(await worker.runJobs()).toEqual([]);
+
+  worker.ai.split = async () => ({
+    documents: Array.from({ length: 1001 }, (_, index) => ({
+      sheetName: "Invoices",
+      firstRow: index + 2,
+      lastRow: index + 2,
+    })),
+    model: "test-split",
+  });
+  const uploaded = await uploadSourceFile(company.client, worker.jobs, {
+    companyId: company.companyId,
+    fileName: "many-rows.xlsx",
+    bytes: workbookFile("xlsx", [["Invoice"], ...Array.from({ length: 1001 }, (_, i) => [`INV-${i}`])]),
+  });
+  if (!uploaded.ok) throw new Error(uploaded.error);
+  await worker.runNextJob();
 
   const exported = await exportAndComplete(company.client, { companyId: company.companyId });
   expect(exported.ok).toBe(true);

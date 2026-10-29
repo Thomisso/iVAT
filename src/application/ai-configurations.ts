@@ -10,6 +10,17 @@ export type AiConfigurationSummary = {
   assignedCompanyIds: string[];
 };
 
+export async function listAiConfigurationProviders(
+  client: AppClient,
+): Promise<Result<string[], "forbidden">> {
+  const { data, error } = await client.rpc("list_ai_configuration_providers");
+  if (error) {
+    if (error.code === "42501") return { ok: false, error: "forbidden" };
+    throw error;
+  }
+  return { ok: true, value: data };
+}
+
 export type CreateAiConfigurationInput = {
   label: string;
   provider: string;

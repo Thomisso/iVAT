@@ -1,14 +1,16 @@
 import { describe, expect, it } from "vitest";
 import type { AiInput } from "@/application/ai-provider";
-import { listAuditEvents } from "@/application/audit";
-import { disableAiProcessing, enableAiProcessing, getCompany } from "@/application/companies";
+import { getCompany } from "@/application/companies";
 import { listDocuments, listExtractionVersions, readDocumentRows, reprocessDocument } from "@/application/documents";
 import type { Direction, ExtractionPayload } from "@/application/extraction-payload";
 import { getSourceFile, retrySplit, uploadSourceFile } from "@/application/source-files";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { signedUpUser } from "./support/clients";
 import { fixtureFile, heicFixture, workbookFile } from "./support/files";
-import { administratorWithCompany } from "./support/fixtures";
+import {
+  administratorWithCompany,
+  assignAiConfigurationFixture as enableAiProcessing,
+} from "./support/fixtures";
 import { testWorker } from "./support/worker";
 
 const INVOICE_1: ExtractionPayload = { ...SAMPLE_EXTRACTION, documentNumber: "FV-1" };
@@ -272,7 +274,7 @@ describe("foreign currency conversion", () => {
   });
 });
 
-describe("AI-processing consent", () => {
+describe("platform-owned AI processing", () => {
   /** A fake provider that counts the calls it receives. */
   function countingProvider() {
     const calls = { split: 0, extract: 0 };
@@ -303,7 +305,7 @@ describe("AI-processing consent", () => {
     expect(await listDocuments(client, companyId, sourceFileId)).toEqual([]);
   });
 
-  it("once enabled, processes the Source Files that waited for it", async () => {
+  it("processes waiting Source Files after a platform configuration is assigned", async () => {
     const { ai, calls } = countingProvider();
     const worker = testWorker(ai);
     const { client, companyId } = await administratorWithCompany();
@@ -321,40 +323,6 @@ describe("AI-processing consent", () => {
     ]);
   });
 
-  it("once disabled, stops Documents from reaching the AI provider, even those already Split", async () => {
-    const { ai, calls } = countingProvider();
-    const worker = testWorker(ai);
-    const { client, companyId } = await companyWithAiProcessing(worker);
-    const sourceFileId = await upload({ client, companyId }, worker);
-    await worker.runJobs();
-    const [document] = await listDocuments(client, companyId, sourceFileId);
-    await reprocessDocument(client, worker.jobs, { companyId, documentId: document.id });
-
-    expect(await disableAiProcessing(client, companyId)).toEqual({ ok: true, value: null });
-    await upload({ client, companyId }, worker);
-    await worker.runJobs();
-
-    expect(calls).toEqual({ split: 1, extract: 2 });
-    expect((await listDocuments(client, companyId, sourceFileId)).map((d) => d.status)).toEqual([
-      "uploaded",
-      "needs_review",
-    ]);
-  });
-
-  it("waits for platform intervention on a provider-region mismatch without retrying", async () => {
-    const worker = testWorker({ ...fakeAiProvider(), region: "elsewhere" });
-    const { client, companyId } = await administratorWithCompany();
-    await enableAiProcessing(client, worker.jobs, {
-      companyId,
-      provider: { name: "fake", region: "local" },
-    });
-
-    const sourceFileId = await upload({ client, companyId }, worker);
-    await expect(worker.runJobs({ final: false })).resolves.toEqual([]);
-    expect((await getSourceFile(client, companyId, sourceFileId))?.status).toBe("waiting_for_platform");
-    expect(worker.delayed).toEqual([]);
-  });
-
   it("waits for platform intervention when the worker lacks the selected provider", async () => {
     const configured = testWorker();
     const unavailable = testWorker([]);
@@ -366,59 +334,16 @@ describe("AI-processing consent", () => {
     expect(unavailable.delayed).toEqual([]);
   });
 
-  it("uses and audits the explicitly selected credential boundary", async () => {
-    let fakeCalls = 0;
-    const fake = fakeAiProvider({
-      split: () => (++fakeCalls, [{ firstPage: 1, lastPage: 1 }]),
-      extract: () => (++fakeCalls, SAMPLE_EXTRACTION),
-    });
-    const worker = testWorker(fake);
-    const { client, userId, organizationId, companyId } = await administratorWithCompany();
-
-    expect(await enableAiProcessing(client, worker.jobs, { companyId, provider: fake })).toEqual({
-      ok: true,
-      value: null,
-    });
-    const sourceFileId = await upload({ client, companyId }, worker, "receipt.png");
-    await worker.runJobs();
-
-    const [document] = await listDocuments(client, companyId, sourceFileId);
-    expect(fakeCalls).toBe(2);
-    expect((await listExtractionVersions(client, companyId, document.id))[0].author).toEqual({ kind: "ai" });
-    expect((await getCompany(client, companyId))?.aiProcessingEnabled).toBe(true);
-    await disableAiProcessing(client, companyId);
-
-    const aiConsentEvents = (await listAuditEvents(client, organizationId))
-      .filter((event) => event.action.startsWith("company.ai_processing_"));
-    expect(aiConsentEvents.slice(-2)).toEqual([
-      expect.objectContaining({
-        action: "company.ai_processing_enabled",
-        actorUserId: userId,
-        companyId,
-        payload: { provider: "fake", region: "local", credential_source: "local" },
-      }),
-      expect.objectContaining({
-        action: "company.ai_processing_disabled",
-        actorUserId: userId,
-        companyId,
-        payload: { provider: "fake", region: "local", credential_source: "local" },
-      }),
-    ]);
-  });
-
-  it("cannot be changed by another Organization, even through direct queries", async () => {
-    const worker = testWorker();
+  it("cannot be changed by an Organization, even through direct queries", async () => {
     const a = await administratorWithCompany("Organization A");
     const b = await signedUpUser("Organization B");
 
-    const enabled = await enableAiProcessing(b.client, worker.jobs, { companyId: a.companyId, provider: worker.ai });
     const direct = await b.client
       .from("company")
       .update({ ai_processing_enabled: true, ai_provider: "fake", ai_region: "local" })
       .eq("id", a.companyId)
       .select("id");
 
-    expect(enabled).toEqual({ ok: false, error: "forbidden" });
     expect(direct.error?.code).toBe("42501");
     expect(direct.data).toBeNull();
     expect((await getCompany(a.client, a.companyId))?.aiProcessingEnabled).toBe(false);

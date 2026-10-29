@@ -5,7 +5,6 @@ import { fakeAiProvider } from "@/ai/fake";
 import { asUserClient } from "@/application/client";
 import { logIn } from "@/application/auth";
 import { listAuditEvents } from "@/application/audit";
-import { enableAiProcessing } from "@/application/companies";
 import { exportCompanyData, getCompanyDataExportStatus } from "@/application/company-deletion";
 import { listDocuments } from "@/application/documents";
 import {
@@ -24,7 +23,10 @@ import {
   createBoss,
   createProcessingQueues,
 } from "@/lib/jobs";
-import { administratorWithCompany } from "./support/fixtures";
+import {
+  administratorWithCompany,
+  assignAiConfigurationFixture as enableAiProcessing,
+} from "./support/fixtures";
 import { anonymousClient, signedUpUser } from "./support/clients";
 import { fixtureFile } from "./support/files";
 import { systemClient, testWorker } from "./support/worker";
