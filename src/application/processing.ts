@@ -400,13 +400,6 @@ async function extractDocument(
   };
 
   await failOnFinalAttempt(attempt, () => moveStatus("failed", ["uploaded", "processing"]).then(() => undefined), async () => {
-    const availability = await providerAvailability(system, document.company_id, providers);
-    if (availability.blocked) {
-      await jobs.send(extractJob(document.id), { startAfterSeconds: BLOCKED_JOB_RECHECK_SECONDS });
-      return;
-    }
-    const ai = availability.provider;
-    if (!ai) return;
     const reservationId = crypto.randomUUID();
     const reserved = await system.rpc("reserve_ai_processing", {
       target_document_id: document.id,
@@ -420,7 +413,15 @@ async function extractDocument(
     }
     if (reserved.data !== "reserved") return;
 
+    let completed = false;
     try {
+      const availability = await providerAvailability(system, document.company_id, providers);
+      if (availability.blocked) {
+        await jobs.send(extractJob(document.id), { startAfterSeconds: BLOCKED_JOB_RECHECK_SECONDS });
+        return;
+      }
+      const ai = availability.provider;
+      if (!ai) return;
       const processingFile = await downloadForProcessing(system, {
         companyId: document.company_id,
         id: document.source_file_id,
@@ -482,12 +483,14 @@ async function extractDocument(
         findings,
       });
       if (error) throw error;
-    } catch (error) {
-      const released = await system.rpc("release_ai_processing_reservation", {
-        target_reservation_id: reservationId,
-      });
-      if (released.error) throw released.error;
-      throw error;
+      completed = true;
+    } finally {
+      if (!completed) {
+        const released = await system.rpc("release_ai_processing_reservation", {
+          target_reservation_id: reservationId,
+        });
+        if (released.error) throw released.error;
+      }
     }
   });
 }
