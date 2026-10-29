@@ -50,7 +50,7 @@ async function createCompany(page: Page) {
   await page.getByLabel("Effective from").fill("2026-01-01");
   await page.getByRole("button", { name: "Save and continue" }).click();
   await expect(page).toHaveURL(/\/setup\/ai-processing$/);
-  await page.getByRole("button", { name: "Continue without AI" }).click();
+  await page.getByRole("link", { name: "Continue to Company" }).click();
   await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+$/);
   return {
     companyId: new URL(page.url()).pathname.split("/")[2],

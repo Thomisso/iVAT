@@ -29,7 +29,7 @@ async function createCompanyAdministrator(page: Page) {
   await page.getByLabel("Effective from").fill("2026-01-01");
   await page.getByRole("button", { name: "Save and continue" }).click();
   await expect(page).toHaveURL(new RegExp(`/companies/${companyId}/setup/ai-processing$`));
-  await page.getByRole("button", { name: "Continue without AI" }).click();
+  await page.getByRole("link", { name: "Continue to Company" }).click();
   await expect(page).toHaveURL(new RegExp(`/companies/${companyId}$`));
   return companyId;
 }
@@ -52,7 +52,7 @@ test("a Company Administrator downloads data without beginning deletion", async 
     body: { error: "export_required" },
   });
 
-  await page.goto(`${companyUrl}/settings`);
+  await page.goto(`${companyUrl}/settings/data`);
   const download = page.waitForEvent("download");
   const response = page.waitForResponse((candidate) =>
     candidate.request().method() === "POST" && candidate.url().endsWith("/export")
@@ -61,10 +61,10 @@ test("a Company Administrator downloads data without beginning deletion", async 
   const [archive, exported] = await Promise.all([download, response]);
   expect(archive.suggestedFilename()).toMatch(/^iVAT-company-.*\.zip$/);
   expect(exported.ok()).toBe(true);
-  await expect(page).toHaveURL(`${companyUrl}/settings`);
+  await expect(page).toHaveURL(`${companyUrl}/settings/data`);
   await expect(page.getByText("The Company remains active.")).toBeVisible();
 
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Company settings" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Export Company data" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Export and delete Company" })).toBeVisible();
 });

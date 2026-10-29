@@ -28,7 +28,7 @@ Open http://localhost:3000/signup. Signing up creates your Organization, makes y
 Email/password sign-in works without third-party credentials. To enable Google
 sign-in locally, follow [`docs/google-sign-in.md`](docs/google-sign-in.md).
 
-Uploaded Source Files wait until the Company enables AI processing and chooses a provider on its page. Locally, `AI_PROVIDER=fake` (the default `db:start` writes) Splits every page into its own Document and returns a sample Extraction, so no Document leaves your machine. Set `AI_PROVIDER=platform` for per-Company Anthropic/OpenAI routing through the SuperAdmin settings.
+New Companies receive the platform's default AI Configuration and a lifetime allowance of 50 successful Extractions. A SuperAdmin can change assignments, access and allowances; Company users only see their allowance and waiting-Document status. Locally, `AI_PROVIDER=fake` (the default written by `db:start`) Splits every page into its own Document and returns a sample Extraction, so no Document leaves your machine. Set `AI_PROVIDER=platform` for per-Company Anthropic/OpenAI routing through SuperAdmin-owned configurations.
 
 ## Scripts
 
@@ -55,7 +55,7 @@ Uploaded Source Files wait until the Company enables AI processing and chooses a
 ```
 src/application/   commands and queries; each takes a Supabase client acting as a user (AppClient),
                    plus the background job handlers (processing.ts) and the AI provider interface
-src/ai/            AI provider adapters (so far the scripted fake) and selection by AI_PROVIDER
+src/ai/            fake, Anthropic and OpenAI adapters and selection by AI_PROVIDER
 src/app/           Next.js routes and server actions, thin wrappers over src/application
 src/i18n/          locale config; messages are in messages/{cs,en}.json
 src/proxy.ts       session refresh and login redirect
@@ -96,7 +96,7 @@ flow to enroll TOTP. QA/demo data remains a separate, explicit `dev:seed` step.
 Uploading a Source File enqueues a Split job (pg-boss). The worker Splits the file into Documents through the AI provider, then runs one Extract job per Document. Each Extract job stores an immutable Extraction Version and moves the Document to NeedsReview ([ADR-0004](docs/adr/0004-split-then-extract-with-multimodal-llms.md), [ADR-0005](docs/adr/0005-immutable-extraction-versions.md)).
 
 - Statuses: a Source File is `uploaded → processing → split`, and each Document is `uploaded → processing → needs_review`. Either ends in `failed` once a technical error has used up its retries. A failed Split can be retried. A failed or reviewed Document can be reprocessed, which adds a new Extraction Version.
-- No job calls the AI provider unless the Company has enabled AI processing for that provider and region ([ADR-0006](docs/adr/0006-ai-credentials-and-data-sharing-consent.md)). Enabling and disabling are audited.
+- No job calls a real AI provider unless the Company has an enabled assignment to a usable platform-owned AI Configuration and remaining allowance ([ADR-0011](docs/adr/0011-platform-owns-ai-credentials-and-company-access.md)). Assignment, access and allowance changes are audited.
 - The worker acts as `service_role`, but only through narrow grants and the `record_split` / `record_ai_extraction` functions, which keep jobs idempotent ([ADR-0010](docs/adr/0010-worker-acts-as-service-role-through-narrow-grants.md)).
 - The Extraction payload schema is documented in [`docs/extraction-payload.md`](docs/extraction-payload.md).
 

@@ -21,11 +21,11 @@ async function completeFrequency(page: Page, companyId: string) {
   await page.getByLabel("Effective from").fill("2026-10-01");
   await page.getByRole("button", { name: "Save and continue" }).click();
   await expect(page).toHaveURL(new RegExp(`/companies/${companyId}/setup/ai-processing$`));
-  await page.getByRole("button", { name: "Continue without AI" }).click();
+  await page.getByRole("link", { name: "Continue to Company" }).click();
   await expect(page).toHaveURL(new RegExp(`/companies/${companyId}$`));
 }
 
-test("legal Company setup uses structured ARES data, resumes, and completes the Overview checklist", async ({ baseURL, context, page }) => {
+test("legal Company setup uses structured ARES data, resumes, and reaches the focused work overview", async ({ baseURL, context, page }) => {
   await english(context, baseURL);
   const run = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const ico = Date.now().toString().slice(-8);
@@ -44,17 +44,17 @@ test("legal Company setup uses structured ARES data, resumes, and completes the 
   const companyId = new URL(page.url()).pathname.split("/")[2];
 
   await page.goto(`/companies/${companyId}`);
-  const checklist = page.getByRole("region", { name: "Company setup" });
-  await expect(checklist.getByText("Taxpayer identity").locator("..")).toContainText("Completed");
-  await expect(checklist.getByText("Filing frequency").locator("..")).toContainText("Required");
-  await expect(checklist.getByText("Export and tax office").locator("..")).toContainText("Skipped for now");
+  const companyWork = page.getByRole("region", { name: "Company work" });
+  await expect(companyWork.getByRole("link", { name: /Upload/ })).toBeVisible();
+  await expect(companyWork.getByRole("link", { name: /Documents/ })).toBeVisible();
+  await expect(companyWork.getByRole("link", { name: /VAT/ })).toBeVisible();
 
   await page.goto(`/companies/${companyId}/setup`);
   await expect(page).toHaveURL(new RegExp(`/companies/${companyId}/setup/filing-frequency$`));
   await completeFrequency(page, companyId);
-  await expect(checklist.getByText("Filing frequency").locator("..")).toContainText("Completed");
+  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
 
-  await page.goto(`/companies/${companyId}/settings`);
+  await page.goto(`/companies/${companyId}/settings/vat`);
   await page.getByLabel("Tax office").selectOption("451");
   const signatory = page.getByRole("group", { name: "Default authorized signatory" });
   await signatory.getByLabel("First name").fill("Jana");
@@ -65,9 +65,10 @@ test("legal Company setup uses structured ARES data, resumes, and completes the 
   await page.getByRole("button", { name: "Save filing defaults" }).click();
   await expect(page.getByRole("status").getByText("Filing defaults saved.")).toBeVisible();
   await expect(page.getByLabel("Tax office")).toHaveValue("451");
+  await page.goto(`/companies/${companyId}/settings/company`);
   await expect(page.getByLabel("Company name")).toHaveValue("ARES Test s.r.o.");
   await page.goto(`/companies/${companyId}`);
-  await expect(checklist.getByText("Export and tax office").locator("..")).toContainText("Completed");
+  await expect(page.getByRole("region", { name: "Company work" })).toBeVisible();
 
   await page.setViewportSize({ width: 360, height: 800 });
   await page.reload();
@@ -102,5 +103,5 @@ test("natural-person setup derives its immutable name and shows precise EPO comp
   if (!baseURL) throw new Error("Playwright baseURL is required");
   await context.addCookies([{ name: "NEXT_LOCALE", value: "cs", url: new URL(baseURL).origin }]);
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Nastavení firmy" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Přehled" })).toBeVisible();
 });
