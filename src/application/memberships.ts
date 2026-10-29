@@ -51,6 +51,14 @@ export type InviteMemberInput = {
 
 export type InvitationError = "invalid_invitation" | "forbidden" | "invitation_failed";
 export type AcceptInvitationError = "invitation_invalid" | "invitation_used" | "invitation_expired" | "forbidden";
+export type InvitationOnboarding =
+  | { status: "invalid" | "used" | "expired" }
+  | { status: "valid"; email: string; existingUser: boolean; companyId: string | null };
+export type CompleteInvitationOnboardingError =
+  | AcceptInvitationError
+  | "invalid_credentials"
+  | "weak_password"
+  | "invitation_authentication_failed";
 
 function databaseRefusal(error: { code?: string; hint?: string | null }): string | null {
   if (error.code === "42501") return "forbidden";
@@ -64,12 +72,19 @@ export async function inviteMember(
   input: InviteMemberInput,
 ): Promise<Result<null, InvitationError>> {
   const email = input.email.trim().toLowerCase();
+  let acceptanceUrl: URL;
+  try {
+    acceptanceUrl = new URL(input.acceptUrl);
+  } catch {
+    return { ok: false, error: "invalid_invitation" };
+  }
   if (
     !isUuid(input.organizationId) ||
     (input.companyId !== null && !isUuid(input.companyId)) ||
     !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
     (input.role !== "administrator" && input.role !== "user") ||
-    (input.companyId === null && input.role !== "administrator")
+    (input.companyId === null && input.role !== "administrator") ||
+    (acceptanceUrl.protocol !== "http:" && acceptanceUrl.protocol !== "https:")
   ) {
     return { ok: false, error: "invalid_invitation" };
   }
@@ -87,11 +102,11 @@ export async function inviteMember(
     throw error;
   }
 
-  const separator = input.acceptUrl.includes("?") ? "&" : "?";
+  acceptanceUrl.searchParams.set("token", token);
   try {
     await mailer.sendInvitation({
       email,
-      acceptUrl: `${input.acceptUrl}${separator}token=${encodeURIComponent(token)}`,
+      acceptUrl: acceptanceUrl.toString(),
     });
   } catch {
     const cancelled = await client.rpc("cancel_invitation", { invitation_token: token });
@@ -100,6 +115,61 @@ export async function inviteMember(
   }
   return { ok: true, value: null };
 }
+
+export async function getInvitationOnboarding(
+  client: AppClient,
+  token: string,
+): Promise<InvitationOnboarding> {
+  const { data, error } = await client.rpc("invitation_onboarding", { invitation_token: token });
+  if (error) throw error;
+  const [onboarding] = data;
+  if (!onboarding || onboarding.onboarding_status !== "valid") {
+    const status = onboarding?.onboarding_status;
+    return { status: status === "used" || status === "expired" ? status : "invalid" };
+  }
+  return {
+    status: "valid",
+    email: onboarding.invitee_email,
+    existingUser: onboarding.invitee_existed,
+    companyId: onboarding.target_company_id,
+  };
+}
+
+export async function completeInvitationOnboarding(
+  client: AppClient,
+  input: { token: string; password: string },
+): Promise<Result<{ companyId: string | null }, CompleteInvitationOnboardingError>> {
+  const onboarding = await getInvitationOnboarding(client, input.token);
+  if (onboarding.status !== "valid") {
+    return { ok: false, error: `invitation_${onboarding.status}` };
+  }
+
+  if (onboarding.existingUser) {
+    const { error } = await client.auth.signInWithPassword({
+      email: onboarding.email,
+      password: input.password,
+    });
+    if (error) return { ok: false, error: "invalid_credentials" };
+  } else {
+    if (input.password.length < 8) return { ok: false, error: "weak_password" };
+    const { data } = await client.auth.getUser();
+    if (data.user?.email?.toLowerCase() !== onboarding.email) {
+      return { ok: false, error: "invitation_authentication_failed" };
+    }
+    const { error } = await client.auth.updateUser({ password: input.password });
+    if (error) {
+      return {
+        ok: false,
+        error: error.code === "weak_password" ? "weak_password" : "invitation_authentication_failed",
+      };
+    }
+  }
+
+  const accepted = await acceptInvitation(client, input.token);
+  if (!accepted.ok) return accepted;
+  return { ok: true, value: { companyId: onboarding.companyId } };
+}
+
 export async function acceptInvitation(
   client: AppClient,
   token: string,

@@ -481,7 +481,7 @@ async function extractDocument(
       target_reservation_id: reservationId,
     });
     if (reserved.error) throw reserved.error;
-    if (reserved.data === "already_reserved") {
+    if (reserved.data === "already_reserved" || reserved.data === "earlier_document_pending") {
       await jobs.send(extractJob(document.id), { startAfterSeconds: BLOCKED_JOB_RECHECK_SECONDS });
       return;
     }
