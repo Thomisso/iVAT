@@ -42,7 +42,7 @@ function activeDestination(pathname: string, companyId: string): Destination {
   if (rest.startsWith("/documents")) return "documents";
   if (rest.startsWith("/source-files") || rest.startsWith("/upload-batches") || rest.startsWith("/upload")) return "upload";
   if (rest.startsWith("/vat") || rest.startsWith("/vat-reports")) return "vat";
-  if (rest.startsWith("/settings") || rest.startsWith("/members")) return "settings";
+  if (rest.startsWith("/settings") || rest.startsWith("/members") || rest.startsWith("/setup")) return "settings";
   return "overview";
 }
 

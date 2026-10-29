@@ -5,6 +5,7 @@ import { getCompany } from "@/application/companies";
 import { listReportingPeriods } from "@/application/reporting-period-readiness";
 import { requireUserClient } from "@/lib/supabase/server";
 import { StatusBadge } from "@/components/status-badge";
+import { PageLayout } from "@/components/app-shell";
 
 export default async function VatPage({ params }: PageProps<"/companies/[companyId]/vat">) {
   const { companyId } = await params;
@@ -16,7 +17,7 @@ export default async function VatPage({ params }: PageProps<"/companies/[company
     getFormatter(),
   ]);
   if (!company) notFound();
-  return <main className="company-workspace vat-periods-workspace">
+  return <PageLayout className="company-workspace vat-periods-workspace" measure="wide">
     <header className="company-page-header">
       <h1>{t("periodsTitle")}</h1>
       <p>{t("periodsDescription")}</p>
@@ -43,5 +44,5 @@ export default async function VatPage({ params }: PageProps<"/companies/[company
         <Link href={`/companies/${companyId}/vat-reports?period=${period.period}`}>{t("openPeriod")}</Link>
       </li>)}</ol>
     </section>
-  </main>;
+  </PageLayout>;
 }

@@ -8,6 +8,7 @@ import { getVatReport } from "@/application/vat-reports";
 import { requireUserClient } from "@/lib/supabase/server";
 import { DataTable } from "@/components/data-table";
 import { EmptyState } from "@/components/empty-state";
+import { PageLayout } from "@/components/app-shell";
 import { PeriodNavigation } from "../../period-navigation";
 
 export async function generateMetadata({
@@ -33,7 +34,7 @@ export default async function ExportHistoryPage({
   ]);
   if (!company || !report) notFound();
   return (
-    <main className="company-workspace vat-reports vat-output-page">
+    <PageLayout className="company-workspace vat-reports vat-output-page" measure="wide">
       <header className="company-page-header vat-report-header">
         <p>
           <Link href={`/companies/${companyId}/vat`}>
@@ -139,6 +140,6 @@ export default async function ExportHistoryPage({
           </Link>
         </div>
       </section>
-    </main>
+    </PageLayout>
   );
 }
