@@ -479,6 +479,20 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"vat_report_transition": {
+                  Row: {
+                    "action": string,"actor_user_id": string,"company_id": string,"id": number,"occurred_at": string,"organization_id": string,"period": string,"unlock_reason": string | null,"vat_report_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "action": string,"actor_user_id": string,"company_id": string,"id"?: never,"occurred_at"?: string,"organization_id": string,"period": string,"unlock_reason"?: string | null,"vat_report_id": string
+                  }
+                  Update: {
+                    "action"?: string,"actor_user_id"?: string,"company_id"?: string,"id"?: never,"occurred_at"?: string,"organization_id"?: string,"period"?: string,"unlock_reason"?: string | null,"vat_report_id"?: string
+                  }
+                  Relationships: [
+
+                  ]
                 }
           }
           Views: {
