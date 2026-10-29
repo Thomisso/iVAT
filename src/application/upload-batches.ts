@@ -84,25 +84,6 @@ type DocumentRow = {
   status: DocumentStatus;
 };
 
-type SummaryRow = {
-  id: string;
-  company_id: string;
-  file_count: number;
-  actual_file_count: number;
-  upload_finished_at: string | null;
-  processing_finished_at: string | null;
-  created_at: string;
-  transport_count: number;
-  transport_failure_count: number;
-  waiting_count: number;
-  splitting_count: number;
-  extracting_count: number;
-  review_count: number;
-  reviewed_count: number;
-  source_failure_count: number;
-  document_failure_count: number;
-};
-
 const PAGE_SIZE = 1000;
 
 /** Starts one user-selected group of Source Files after enforcing the platform batch limit. */
@@ -279,44 +260,25 @@ export async function listUploadBatches(
   const offset = Math.max(options.offset ?? 0, 0);
   if (limit === 0) return [];
   const { data, error } = await client
-    .from("upload_batch_summary")
-    .select("*")
+    .from("upload_batch")
+    .select("id, company_id, file_count, upload_finished_at, processing_finished_at, created_at")
     .eq("company_id", companyId)
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
     .range(offset, offset + limit - 1);
   if (error) throw error;
-  return (data as SummaryRow[]).map((row) => {
-    const failures = row.transport_failure_count + row.source_failure_count + row.document_failure_count;
-    const active = !row.upload_finished_at || row.waiting_count + row.splitting_count + row.extracting_count > 0;
-    const outcome: UploadBatchOutcome = active || !row.processing_finished_at
-      ? "processing"
-      : failures === 0
-        ? "success"
-        : row.review_count + row.reviewed_count > 0
-          ? "partial"
-          : "failure";
+  const workspaces = await hydrateBatches(client, data as BatchRow[]);
+  return workspaces.map((workspace) => {
     return {
-      id: row.id,
-      companyId: row.company_id,
-      plannedFileCount: row.file_count,
-      actualFileCount: row.actual_file_count,
-      uploadFinishedAt: row.upload_finished_at,
-      processingFinishedAt: row.processing_finished_at,
-      createdAt: row.created_at,
-      outcome,
-      counts: {
-        transport: row.transport_count,
-        waiting: row.waiting_count,
-        splitting: row.splitting_count,
-        extracting: row.extracting_count,
-        review: row.review_count,
-        reviewed: row.reviewed_count,
-        failures,
-        transportFailures: row.transport_failure_count,
-        sourceFailures: row.source_failure_count,
-        documentFailures: row.document_failure_count,
-      },
+      id: workspace.id,
+      companyId: workspace.companyId,
+      plannedFileCount: workspace.plannedFileCount,
+      actualFileCount: workspace.actualFileCount,
+      uploadFinishedAt: workspace.uploadFinishedAt,
+      processingFinishedAt: workspace.processingFinishedAt,
+      createdAt: workspace.createdAt,
+      outcome: workspace.outcome,
+      counts: workspace.counts,
     };
   });
 }
