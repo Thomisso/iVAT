@@ -191,20 +191,41 @@ export async function promoteBrowserSuperAdminFixture(email: string) {
 export async function addBrowserTerminalProcessingJobFixture(companyId: string) {
   const environment = await browserFixtureEnvironment();
   const database = new DatabaseClient({ connectionString: environment.DATABASE_URL });
+  const service = await browserFixtureClient();
+  const retrySourceFileId = crypto.randomUUID();
+  let copiedObject = false;
+  let transactionStarted = false;
   await database.connect();
   try {
-    await database.query("begin");
     const source = await database.query<{ id: string }>(
       `select id from public.source_file
        where company_id = $1
-       order by uploaded_at desc limit 1
-       for update`,
+       order by uploaded_at desc limit 1`,
       [companyId],
     );
     if (!source.rows[0]) throw new Error("Could not prepare terminal processing fixture");
+    const copied = await service.storage.from("source-files").copy(
+      `${companyId}/${source.rows[0].id}`,
+      `${companyId}/${retrySourceFileId}`,
+    );
+    if (copied.error) throw copied.error;
+    copiedObject = true;
+
+    await database.query("begin");
+    transactionStarted = true;
     await database.query(
-      "update public.source_file set status = 'failed' where id = $1",
-      [source.rows[0].id],
+      `insert into public.source_file (
+         id, organization_id, company_id, file_name, format,
+         byte_size, sha256, page_count, uploaded_by, status,
+         preselected_direction
+       )
+       select
+         $2, organization_id, company_id, file_name, format,
+         byte_size, sha256, page_count, uploaded_by, 'failed',
+         preselected_direction
+       from public.source_file
+       where id = $1`,
+      [source.rows[0].id, retrySourceFileId],
     );
     const inserted = await database.query<{ id: string }>(
       `insert into pgboss.job (
@@ -213,13 +234,33 @@ export async function addBrowserTerminalProcessingJobFixture(companyId: string) 
          'split-source-file', jsonb_build_object('sourceFileId', $1::uuid),
          'failed', 0, now(), now(), '{"message":"browser terminal failure"}'::jsonb
        ) returning id`,
-      [source.rows[0].id],
+      [retrySourceFileId],
     );
     await database.query("commit");
-    return { jobId: inserted.rows[0].id, sourceFileId: source.rows[0].id };
+    transactionStarted = false;
+    return { jobId: inserted.rows[0].id, sourceFileId: retrySourceFileId };
   } catch (error) {
-    await database.query("rollback");
+    if (transactionStarted) await database.query("rollback");
+    if (copiedObject) {
+      await service.storage.from("source-files").remove([`${companyId}/${retrySourceFileId}`]);
+    }
     throw error;
+  } finally {
+    await database.end();
+  }
+}
+
+/** Reads the durable state reached by a retried Source File. */
+export async function browserSourceFileStatus(sourceFileId: string) {
+  const environment = await browserFixtureEnvironment();
+  const database = new DatabaseClient({ connectionString: environment.DATABASE_URL });
+  await database.connect();
+  try {
+    const result = await database.query<{ status: string }>(
+      "select status from public.source_file where id = $1",
+      [sourceFileId],
+    );
+    return result.rows[0]?.status ?? null;
   } finally {
     await database.end();
   }

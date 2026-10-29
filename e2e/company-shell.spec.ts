@@ -243,11 +243,16 @@ test("mobile shell menus return focus and role-dependent administration stays pr
   const roleForm = directAccess.locator("form").filter({
     has: adminPage.getByRole("button", { name: "Change Role" }),
   });
-  await roleForm.locator('input[name="membershipId"]').evaluate((input) => {
-    (input as HTMLInputElement).value = "00000000-0000-4000-8000-000000000000";
-  });
   const role = roleForm.getByLabel("Role");
   await role.selectOption("administrator");
+  await roleForm.evaluate((form) => {
+    form.addEventListener("formdata", (event) => {
+      (event as FormDataEvent).formData.set(
+        "membershipId",
+        "00000000-0000-4000-8000-000000000000",
+      );
+    }, { once: true });
+  });
   await roleForm.getByRole("button", { name: "Change Role" }).click();
   await expect(directAccess.getByText("You are not allowed to do this.")).toBeVisible();
   await expect(role).toHaveValue("user");

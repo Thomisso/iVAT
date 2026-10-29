@@ -56,8 +56,16 @@ async function invitationLink(email: string, excludedMessageId = "") {
   }).not.toBe("");
   const response = await fetch(`${mailpit}/api/v1/message/${messageId}`);
   const message = await response.json() as { HTML: string };
-  const href = message.HTML.match(/href="([^"]+)"/)?.[1]?.replaceAll("&amp;", "&");
-  if (!href) throw new Error("Rendered invitation email has no link");
+  const href = [...message.HTML.matchAll(/href="([^"]+)"/g)]
+    .map((match) => match[1].replaceAll("&amp;", "&"))
+    .find((candidate) => {
+      try {
+        return new URL(candidate).pathname === "/auth/callback";
+      } catch {
+        return false;
+      }
+    });
+  if (!href) throw new Error("Rendered invitation email has no absolute Auth callback link");
   return { href, messageId };
 }
 

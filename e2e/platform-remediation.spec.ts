@@ -4,6 +4,7 @@ import {
   addBrowserMissingConfigurationIssueFixture,
   addBrowserTerminalProcessingJobFixture,
   browserRemediationAuditActions,
+  browserSourceFileStatus,
   promoteBrowserSuperAdminFixture,
 } from "../tests/support/e2e";
 
@@ -140,6 +141,10 @@ test("SuperAdmin resolves live Platform alerts in place without mixing Company n
   const terminalProblem = page.locator(".operational-problem").filter({ hasText: "Terminal processing job" });
   await expect(terminalProblem).toBeVisible();
   await terminalProblem.getByRole("button", { name: "Retry" }).click();
+  await expect.poll(
+    async () => browserSourceFileStatus(terminal.sourceFileId),
+    { timeout: 45_000 },
+  ).toBe("split");
   await waitForHealthyDashboard(page);
 
   await expect.poll(async () => browserRemediationAuditActions([companyId, terminal.jobId])).toEqual(
