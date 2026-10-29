@@ -41,17 +41,31 @@ describe("Documents queue context", () => {
       counterparty: "  Acme & syn  ",
       hasFindings: "1",
       batchId: "batch-id",
+      readiness: "warnings",
     });
     expect(documentQueueQuery(queue)).toBe(
-      "view=all&status=rejected&direction=outgoing&reportingPeriod=2026-10&counterparty=Acme+%26+syn&hasFindings=1&batchId=batch-id",
+      "view=all&status=rejected&direction=outgoing&reportingPeriod=2026-10&counterparty=Acme+%26+syn&hasFindings=1&batchId=batch-id&readiness=warnings",
     );
     expect(documentQueueFilters(queue, ["source-id"])).toEqual({
       status: "rejected",
       direction: "outgoing",
-      reportingPeriod: "2026-10",
+      reportingPeriod: undefined,
       counterparty: "Acme & syn",
       hasFindings: true,
       sourceFileIds: ["source-id"],
+    });
+  });
+
+  it("requires a Reporting Period for a readiness filter and makes rejected explicit", () => {
+    expect(parseDocumentQueue({ view: "all", readiness: "blockers" }).readiness).toBeUndefined();
+    expect(parseDocumentQueue({
+      view: "all",
+      readiness: "rejected",
+      reportingPeriod: "2026-Q4",
+    })).toMatchObject({
+      readiness: "rejected",
+      reportingPeriod: "2026-Q4",
+      status: "rejected",
     });
   });
 

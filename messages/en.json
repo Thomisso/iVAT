@@ -663,6 +663,11 @@
     "counterparty": "Counterparty",
     "counterpartyHint": "Name, VAT ID or IČO",
     "findingsOnly": "Only documents with findings",
+    "readinessFilters": {
+      "blockers": "{count, plural, one {# Document blocking {period}} other {# Documents blocking {period}}}",
+      "warnings": "{count, plural, one {# Document with warnings for {period}} other {# Documents with warnings for {period}}}",
+      "rejected": "{count, plural, one {# rejected Document for {period}} other {# rejected Documents for {period}}}"
+    },
     "findings": "Findings",
     "findingCount": "{count, plural, one {# finding} other {# findings}}",
     "noFindings": "—",
@@ -864,8 +869,9 @@
     "readinessBlocked": "Current data is not ready",
     "readinessBlockedHint": "These Documents stay excluded from the saved VAT Report until they are resolved.",
     "ready": "Ready",
-    "blockerCount": "{count, plural, one {# blocker} other {# blockers}}",
-    "warningCount": "{count, plural, one {# resolved or informational warning remains visible.} other {# resolved or informational warnings remain visible.}}",
+    "blockerCount": "{count, plural, one {# blocker Document} other {# blocker Documents}}",
+    "warningCount": "{count, plural, one {# Document with warnings} other {# Documents with warnings}}",
+    "openRejectedDocuments": "Open {count, plural, one {# rejected Document} other {# rejected Documents}}",
     "groups": { "processing": "Processing", "failed": "Failed", "needsReview": "Needs review", "approved": "Approved", "rejected": "Rejected · resolved" },
     "liveWorkbook": "Current checking workbook",
     "savedSnapshot": "SAVED SNAPSHOT",

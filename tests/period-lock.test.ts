@@ -312,7 +312,7 @@ it("requires confirmation and refuses a stale snapshot, readiness blockers and i
   });
 });
 
-it("allows warnings and rejected Documents and records their confirmation summary", async () => {
+it("keeps rejected Documents separate from warnings in the confirmation summary", async () => {
   const company = await administratorWithCompany();
   const worker = testWorker();
   await enableAiProcessing(company.client, worker.jobs, {
@@ -344,7 +344,7 @@ it("allows warnings and rejected Documents and records their confirmation summar
     expect.objectContaining({
       finalization: expect.objectContaining({
         blockerCount: 0,
-        warningCount: 1,
+        warningCount: 0,
         rejectedDocumentCount: 1,
       }),
     }),

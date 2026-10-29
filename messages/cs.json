@@ -663,6 +663,11 @@
     "counterparty": "Protistrana",
     "counterpartyHint": "Název, DIČ nebo IČO",
     "findingsOnly": "Pouze doklady s nálezy",
+    "readinessFilters": {
+      "blockers": "{count, plural, one {# doklad blokuje období {period}} few {# doklady blokují období {period}} other {# dokladů blokuje období {period}}}",
+      "warnings": "{count, plural, one {# doklad s upozorněním pro období {period}} few {# doklady s upozorněním pro období {period}} other {# dokladů s upozorněním pro období {period}}}",
+      "rejected": "{count, plural, one {# zamítnutý doklad pro období {period}} few {# zamítnuté doklady pro období {period}} other {# zamítnutých dokladů pro období {period}}}"
+    },
     "findings": "Nálezy",
     "findingCount": "{count, plural, one {# nález} few {# nálezy} other {# nálezů}}",
     "noFindings": "—",
@@ -864,8 +869,9 @@
     "readinessBlocked": "Aktuální data nejsou připravená",
     "readinessBlockedHint": "Tyto doklady zůstanou z uloženého přiznání k DPH vyloučené, dokud je nevyřešíte.",
     "ready": "Připraveno",
-    "blockerCount": "{count, plural, one {# blokující problém} few {# blokující problémy} other {# blokujících problémů}}",
-    "warningCount": "{count, plural, one {# vyřešené nebo informativní upozornění zůstává viditelné.} few {# vyřešená nebo informativní upozornění zůstávají viditelná.} other {# vyřešených nebo informativních upozornění zůstává viditelných.}}",
+    "blockerCount": "{count, plural, one {# blokující doklad} few {# blokující doklady} other {# blokujících dokladů}}",
+    "warningCount": "{count, plural, one {# doklad s upozorněním} few {# doklady s upozorněním} other {# dokladů s upozorněním}}",
+    "openRejectedDocuments": "Otevřít {count, plural, one {# zamítnutý doklad} few {# zamítnuté doklady} other {# zamítnutých dokladů}}",
     "groups": { "processing": "Zpracovává se", "failed": "Selhalo", "needsReview": "Ke kontrole", "approved": "Schváleno", "rejected": "Zamítnuto · vyřešeno" },
     "liveWorkbook": "Aktuální kontrolní sešit",
     "savedSnapshot": "ULOŽENÝ SNÍMEK",

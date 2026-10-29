@@ -58,6 +58,49 @@ export async function assignBrowserAiConfigurationFixture(companyId: string) {
   }
 }
 
+/** Adds one immutable current Version with a warning for readiness browser coverage. */
+export async function addBrowserDocumentWarningFixture(documentId: string) {
+  const environment = await browserFixtureEnvironment();
+  const database = new DatabaseClient({ connectionString: environment.DATABASE_URL });
+  await database.connect();
+  try {
+    await database.query(
+      `insert into public.extraction_version (
+        organization_id, company_id, document_id, version,
+        author_user_id, payload, findings
+      )
+      select
+        current.organization_id,
+        current.company_id,
+        current.document_id,
+        current.version + 1,
+        membership.user_id,
+        current.payload,
+        '[{"field":"supplier.vatId","severity":"warning","code":"vat_registry_check_not_performed"}]'::jsonb
+      from public.extraction_version current
+      join public.document document on document.id = current.document_id
+      join lateral (
+        select candidate.user_id
+        from public.membership candidate
+        where candidate.organization_id = document.organization_id
+          and candidate.role = 'administrator'
+          and candidate.user_id is not null
+        order by candidate.company_id nulls first
+        limit 1
+      ) membership on true
+      where current.document_id = $1
+        and current.version = (
+          select max(candidate.version)
+          from public.extraction_version candidate
+          where candidate.document_id = current.document_id
+        )`,
+      [documentId],
+    );
+  } finally {
+    await database.end();
+  }
+}
+
 /** Browser-fixture setup for a user who signed up through the real UI. */
 export async function addBrowserCompanyMemberFixture(companyId: string, email: string) {
   const service = await browserFixtureClient();
