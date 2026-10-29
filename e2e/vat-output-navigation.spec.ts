@@ -1,6 +1,23 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 
 const password = "Playwright-password-85";
+
+async function pdfText(bytes: Uint8Array) {
+  const task = getDocument({ data: Uint8Array.from(bytes) });
+  const pdf = await task.promise;
+  const pages: string[] = [];
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+    const content = await (await pdf.getPage(pageNumber)).getTextContent();
+    pages.push(
+      content.items
+        .flatMap((item) => ("str" in item ? [item.str] : []))
+        .join(" "),
+    );
+  }
+  await task.destroy();
+  return pages.join("\n");
+}
 
 async function setLocale(
   context: BrowserContext,
@@ -114,7 +131,11 @@ test("empty and draft Reporting Periods expose separate statutory destinations i
   expect(pdfResponse.headers()["content-disposition"]).toBe(
     'attachment; filename="DPHKH1-2026-01.pdf"',
   );
-  expect((await pdfResponse.body()).subarray(0, 5).toString()).toBe("%PDF-");
+  const englishPdf = await pdfResponse.body();
+  expect(englishPdf.subarray(0, 5).toString()).toBe("%PDF-");
+  expect(await pdfText(englishPdf)).toContain(
+    "iVAT · Control Statement preview",
+  );
 
   await page
     .getByRole("navigation", { name: "Reporting Period destinations" })
@@ -123,6 +144,14 @@ test("empty and draft Reporting Periods expose separate statutory destinations i
   await expect(page.getByText("No stored export artifacts", { exact: true })).toBeVisible();
 
   await setLocale(context, baseURL, "cs");
+  const czechPdfResponse = await context.request.get(
+    new URL(pdfPath, baseURL).toString(),
+  );
+  expect(czechPdfResponse.status()).toBe(200);
+  const czechPdf = await pdfText(await czechPdfResponse.body());
+  expect(czechPdf).toContain("iVAT · Náhled kontrolního hlášení");
+  expect(czechPdf).toContain("Zdaňovací období: 2026-01");
+  expect(czechPdf).not.toContain("Reporting Period");
   await page.reload();
   await expect(page).toHaveTitle("Historie exportů · 2026-01");
   const czechNavigation = page.getByRole("navigation", {
