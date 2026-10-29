@@ -341,7 +341,7 @@ describe("AI-processing consent", () => {
     ]);
   });
 
-  it("retries Split on a provider-region mismatch, then marks the Source File failed", async () => {
+  it("waits for platform intervention on a provider-region mismatch without retrying", async () => {
     const worker = testWorker({ ...fakeAiProvider(), region: "elsewhere" });
     const { client, companyId } = await administratorWithCompany();
     await enableAiProcessing(client, worker.jobs, {
@@ -350,34 +350,20 @@ describe("AI-processing consent", () => {
     });
 
     const sourceFileId = await upload({ client, companyId }, worker);
-    await expect(worker.runJobs({ final: false })).resolves.toEqual([
-      expect.objectContaining({
-        message: 'AI provider "fake" in region "local" is not configured on this worker',
-      }),
-    ]);
-    expect((await getSourceFile(client, companyId, sourceFileId))?.status).toBe("uploaded");
-
-    worker.queued.push({ name: "split-source-file", data: { sourceFileId } });
-    await expect(worker.runJobs()).resolves.toHaveLength(1);
-    expect((await getSourceFile(client, companyId, sourceFileId))?.status).toBe("failed");
+    await expect(worker.runJobs({ final: false })).resolves.toEqual([]);
+    expect((await getSourceFile(client, companyId, sourceFileId))?.status).toBe("waiting_for_platform");
+    expect(worker.delayed).toEqual([]);
   });
 
-  it("retries Split when this worker does not have the Company's selected provider, then fails clearly", async () => {
+  it("waits for platform intervention when the worker lacks the selected provider", async () => {
     const configured = testWorker();
     const unavailable = testWorker([]);
     const { client, companyId } = await companyWithAiProcessing(configured);
     const sourceFileId = await upload({ client, companyId }, unavailable, "receipt.png");
 
-    await expect(unavailable.runJobs({ final: false })).resolves.toEqual([
-      expect.objectContaining({
-        message: 'AI provider "fake" in region "local" is not configured on this worker',
-      }),
-    ]);
-    expect((await getSourceFile(client, companyId, sourceFileId))?.status).toBe("uploaded");
-
-    unavailable.queued.push({ name: "split-source-file", data: { sourceFileId } });
-    await expect(unavailable.runJobs()).resolves.toHaveLength(1);
-    expect((await getSourceFile(client, companyId, sourceFileId))?.status).toBe("failed");
+    await expect(unavailable.runJobs({ final: false })).resolves.toEqual([]);
+    expect((await getSourceFile(client, companyId, sourceFileId))?.status).toBe("waiting_for_platform");
+    expect(unavailable.delayed).toEqual([]);
   });
 
   it("uses and audits the explicitly selected credential boundary", async () => {
@@ -717,7 +703,7 @@ describe("Split", () => {
 });
 
 describe("Extraction", () => {
-  it("retries when this worker does not have the Company's selected provider, then fails the Document clearly", async () => {
+  it("waits when the worker does not have the Company's selected provider", async () => {
     const configured = testWorker();
     const unavailable = testWorker([]);
     const { client, companyId } = await companyWithAiProcessing(configured);
@@ -726,16 +712,9 @@ describe("Extraction", () => {
     const [document] = await listDocuments(client, companyId, sourceFileId);
     unavailable.queued.push({ name: "extract-document", data: { documentId: document.id } });
 
-    await expect(unavailable.runJobs({ final: false })).resolves.toEqual([
-      expect.objectContaining({
-        message: 'AI provider "fake" in region "local" is not configured on this worker',
-      }),
-    ]);
-    expect((await listDocuments(client, companyId, sourceFileId))[0].status).toBe("uploaded");
-
-    unavailable.queued.push({ name: "extract-document", data: { documentId: document.id } });
-    await expect(unavailable.runJobs()).resolves.toHaveLength(1);
-    expect((await listDocuments(client, companyId, sourceFileId))[0].status).toBe("failed");
+    await expect(unavailable.runJobs({ final: false })).resolves.toEqual([]);
+    expect((await listDocuments(client, companyId, sourceFileId))[0].status).toBe("waiting_for_platform");
+    expect(unavailable.delayed).toEqual([]);
   });
 
   it("fails only the Document whose Extraction failed, and can be retried", async () => {

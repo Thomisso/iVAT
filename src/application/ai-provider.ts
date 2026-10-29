@@ -35,16 +35,44 @@ export type AiCallContext = {
 /** Token counts returned by a provider for one completed request. */
 export type AiUsage = { inputTokens: number; outputTokens: number };
 
+export const AI_PROCESSING_ISSUE_CLASSIFICATIONS = [
+  "configuration_missing",
+  "configuration_unusable",
+  "invalid_credentials",
+  "provider_credits_exhausted",
+  "provider_unavailable",
+  "provider_response_invalid",
+  "processing_failed",
+] as const;
+export type AiProcessingIssueClassification = (typeof AI_PROCESSING_ISSUE_CLASSIFICATIONS)[number];
+
 /** A provider/configuration refusal whose retryability is known. */
 export class AiProviderError extends Error {
   readonly code: string;
   readonly transient: boolean;
+  readonly classification: AiProcessingIssueClassification;
+  readonly platformIntervention: boolean;
+  readonly configurationId: string | null;
+  readonly provider: string | null;
 
-  constructor(code: string, message: string, options: { transient: boolean; cause?: unknown }) {
+  constructor(code: string, message: string, options: {
+    transient: boolean;
+    classification?: AiProcessingIssueClassification;
+    platformIntervention?: boolean;
+    configurationId?: string;
+    provider?: string;
+    cause?: unknown;
+  }) {
     super(message, { cause: options.cause });
     this.name = "AiProviderError";
     this.code = code;
     this.transient = options.transient;
+    this.classification = options.classification ?? (options.transient
+      ? "provider_unavailable"
+      : "provider_response_invalid");
+    this.platformIntervention = options.platformIntervention ?? false;
+    this.configurationId = options.configurationId ?? null;
+    this.provider = options.provider ?? null;
   }
 }
 

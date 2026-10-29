@@ -310,7 +310,12 @@ export async function getReportingPeriodReadiness(
   const blockers: ReadinessFinding[] = [];
   const warnings: ReadinessFinding[] = [];
   for (const document of documents) {
-    if (document.status === "uploaded" || document.status === "processing") {
+    if (
+      document.status === "uploaded"
+      || document.status === "waiting_for_allowance"
+      || document.status === "waiting_for_platform"
+      || document.status === "processing"
+    ) {
       groups.processing.push(document.id);
       blockers.push({ code: "processing", documentId: document.id });
       continue;

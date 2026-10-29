@@ -78,6 +78,43 @@ describe("tenant isolation", () => {
     expect((await listMyOrganizations(b.client)).map((o) => o.name)).toEqual(["Organization B"]);
   });
 
+  it("refuses cross-Organization reads and writes to AI Processing issues", async () => {
+    const a = await administratorWithCompany("Issue Organization A");
+    const uploaded = await uploadSourceFile(a.client, testWorker().jobs, {
+      companyId: a.companyId,
+      fileName: "platform-wait.png",
+      bytes: fixtureFile("receipt.png"),
+    });
+    if (!uploaded.ok) throw new Error(uploaded.error);
+    const system = systemClient();
+    const recorded = await system.rpc("record_ai_processing_issue", {
+      target_kind: "source_file",
+      target_id: uploaded.value.id,
+      target_classification: "invalid_credentials",
+      target_state: "waiting_for_platform",
+      target_provider: "anthropic",
+    });
+    if (recorded.error) throw recorded.error;
+
+    const b = await signedUpUser("Issue Organization B");
+    const read = await b.client.from("ai_processing_issue").select("target_id").eq("organization_id", a.organizationId);
+    const update = await b.client
+      .from("ai_processing_issue")
+      .update({ classification: "processing_failed" })
+      .eq("target_id", uploaded.value.id);
+    const remove = await b.client.from("ai_processing_issue").delete().eq("target_id", uploaded.value.id);
+    const insert = await b.client.from("ai_processing_issue").insert({
+      target_kind: "source_file",
+      target_id: crypto.randomUUID(),
+      organization_id: a.organizationId,
+      company_id: a.companyId,
+      classification: "invalid_credentials",
+      state: "waiting_for_platform",
+    });
+
+    for (const attempt of [read, update, remove, insert]) expect(attempt.error?.code).toBe("42501");
+  });
+
   describe("of Source Files", () => {
     async function organizationWithSourceFile() {
       const a = await administratorWithCompany("Organization A");
