@@ -801,6 +801,9 @@ isOneToOne: false
               "input_tokens": number,"model": string,"organization_id": string,"organization_name": string,"output_tokens": number,"provider": string,"requests": number
             }[]
                            },
+"list_platform_operational_context":
+{ Args: Record<PropertyKey, never>; Returns: Json
+                           },
 "list_platform_organization_companies":
 { Args: Record<PropertyKey, never>; Returns: {
               "company_ico": string,"company_id": string,"company_name": string,"organization_blocked": boolean,"organization_id": string,"organization_name": string
