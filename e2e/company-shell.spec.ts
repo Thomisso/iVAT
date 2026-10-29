@@ -32,7 +32,7 @@ async function signUp(page: Page, organization: string, email: string) {
   await expect(page).toHaveURL(/\/companies\/new$/);
 }
 
-async function createCompany(page: Page, name: string, ico: string) {
+async function createCompany(page: Page, name: string, ico: string, enableAi = false) {
   await page.goto("/companies/new");
   await page.getByLabel("Company name").fill(name);
   await page.getByLabel("IČO").fill(ico);
@@ -47,9 +47,28 @@ async function createCompany(page: Page, name: string, ico: string) {
   await page.getByLabel("Effective from").fill("2026-01-01");
   await page.getByRole("button", { name: "Save and continue" }).click();
   await expect(page).toHaveURL(new RegExp(`/companies/${companyId}/setup/ai-processing$`));
-  await page.getByRole("button", { name: "Continue without AI" }).click();
+  if (enableAi) {
+    const service = await serviceClient();
+    const { error } = await service.from("company").update({
+      ai_credential_source: "local",
+      ai_processing_enabled: true,
+      ai_provider: "fake",
+      ai_region: "local",
+    }).eq("id", companyId);
+    if (error) throw error;
+  }
+  await page.goto(`/companies/${companyId}`);
   await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+$/);
   return companyId;
+}
+
+async function expectSingleCompanyShell(page: Page, active: "Overview" | "Upload" | "Documents" | "VAT" | "Settings") {
+  const navigation = page.getByRole("navigation", { name: "Company navigation" });
+  await expect(navigation).toHaveCount(1);
+  await expect(navigation).toBeVisible();
+  await expect(navigation.getByRole("link", { name: active, exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("navigation", { name: "Main navigation" })).toHaveCount(0);
+  await expect(page.getByRole("main")).toHaveCount(1);
 }
 
 async function serviceClient() {
@@ -114,6 +133,9 @@ test("Company context, final navigation and account return stay explicit", async
     await expect(companyNavigation.locator('[aria-current="page"]')).toHaveCount(1);
     await expect(companyNavigation.getByRole("link", { name: label, exact: true })).toHaveAttribute("aria-current", "page");
   }
+  await page.goto(`/companies/${firstId}/documents`);
+  const companyGridX = (await page.getByRole("heading", { name: "Documents", level: 1 }).boundingBox())?.x;
+  expect(companyGridX).toBeDefined();
   await page.goto(`/companies/${firstId}/vat-reports`);
   await expect(page.getByRole("link", { name: "VAT", exact: true })).toHaveAttribute("aria-current", "page");
   await page.goto(`/companies/${firstId}/settings`);
@@ -123,7 +145,9 @@ test("Company context, final navigation and account return stay explicit", async
   );
   await page.goto(`/companies/${firstId}/members`);
   await expect(page.getByRole("link", { name: "Settings", exact: true })).toHaveAttribute("aria-current", "page");
-  await expect(page.getByRole("heading", { name: `Users of Alpha ${run}` })).toBeVisible();
+  const membersHeading = page.getByRole("heading", { name: `Users of Alpha ${run}` });
+  await expect(membersHeading).toBeVisible();
+  expect((await membersHeading.boundingBox())?.x).toBe(companyGridX);
   const inheritedAccess = page.getByRole("listitem").filter({ hasText: email });
   await expect(inheritedAccess.getByText("Inherited from Organization", { exact: true })).toBeVisible();
   await expect(inheritedAccess.getByRole("button", { name: "Remove access" })).toHaveCount(0);
@@ -134,6 +158,9 @@ test("Company context, final navigation and account return stay explicit", async
   const pendingInvitation = page.getByRole("listitem").filter({ hasText: invitedEmail });
   await expect(pendingInvitation.getByText("Pending", { exact: true })).toBeVisible();
   await expect(pendingInvitation.getByText(/^Expires /)).toBeVisible();
+
+  await page.goto(`/companies/${firstId}/setup/filing-frequency`);
+  await expect(page.getByRole("link", { name: "Settings", exact: true })).toHaveAttribute("aria-current", "page");
 
   await page.getByRole("button", { name: "Choose Company" }).click();
   await page.getByRole("menuitem", { name: `Zeta ${run}` }).click();
@@ -280,4 +307,59 @@ test("mobile shell menus return focus and role-dependent administration stays pr
 
   await adminContext.close();
   await userContext.close();
+});
+
+test("nested Company routes keep one aligned shell at desktop and mobile widths", async ({ baseURL, context, page }) => {
+  await english(context, baseURL);
+  const run = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const companyName = `Nested Company ${run}`;
+  await signUp(page, `Nested Organization ${run}`, `nested-${run}@example.test`);
+  const companyId = await createCompany(page, companyName, `${Date.now()}`.slice(-8), true);
+
+  await page.goto(`/companies/${companyId}/upload`);
+  await page.locator('input[type="file"]:not([capture])').setInputFiles("tests/fixtures/receipt.jpg");
+  await page.getByRole("button", { name: "Upload" }).click();
+  await expect(page).toHaveURL(/\/upload-batches\/[0-9a-f-]+$/);
+  await expect(page.getByRole("link", { name: "Review 1 Document" })).toBeVisible({ timeout: 45_000 });
+  const batchHref = new URL(page.url()).pathname;
+  const sourceHref = await page.getByRole("link", { name: "receipt.jpg", exact: true }).getAttribute("href");
+  const documentHref = await page.locator('a[href*="/documents/"]').first().getAttribute("href");
+  expect(sourceHref).toBeTruthy();
+  expect(documentHref).toBeTruthy();
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`/companies/${companyId}`);
+  await expectSingleCompanyShell(page, "Overview");
+  const companyGridX = (await page.getByRole("heading", { name: "Overview", level: 1 }).boundingBox())?.x;
+  expect(companyGridX).toBeDefined();
+
+  const desktopRoutes = [
+    [`/companies/${companyId}/upload`, "Upload"],
+    [batchHref, "Upload"],
+    [sourceHref!, "Upload"],
+    [documentHref!, "Documents"],
+    [`/companies/${companyId}/vat`, "VAT"],
+    [`/companies/${companyId}/vat-reports`, "VAT"],
+    [`/companies/${companyId}/members`, "Settings"],
+    [`/companies/${companyId}/setup/filing-frequency`, "Settings"],
+    [`/companies/${companyId}/setup/ai-processing`, "Settings"],
+  ] as const;
+  for (const [href, active] of desktopRoutes) {
+    await page.goto(href);
+    await expectSingleCompanyShell(page, active);
+    expect((await page.getByRole("heading", { level: 1 }).first().boundingBox())?.x).toBe(companyGridX);
+  }
+
+  await page.setViewportSize({ width: 360, height: 800 });
+  for (const [href, active] of [
+    [sourceHref!, "Upload"],
+    [documentHref!, "Documents"],
+    [`/companies/${companyId}/vat-reports`, "VAT"],
+    [`/companies/${companyId}/members`, "Settings"],
+    [`/companies/${companyId}/setup/filing-frequency`, "Settings"],
+  ] as const) {
+    await page.goto(href);
+    await expectSingleCompanyShell(page, active);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+  }
 });
