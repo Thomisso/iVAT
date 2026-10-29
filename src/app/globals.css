@@ -1096,6 +1096,26 @@ select {
   padding: var(--space-3) 0;
   border-bottom: 1px solid var(--line);
 }
+.ai-configurations {
+  display: grid;
+  gap: var(--space-3);
+}
+.ai-configuration {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.ai-configuration-summary,
+.ai-configuration-assignment-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.ai-configuration-form {
+  margin-top: var(--space-3);
+}
 .iv-checkbox {
   display: flex;
   align-items: center;
