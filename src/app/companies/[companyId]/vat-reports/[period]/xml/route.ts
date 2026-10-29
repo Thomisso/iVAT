@@ -40,11 +40,12 @@ export async function POST(
       { error: result.error, message: t(result.error) },
       { status: result.error === "report_not_found" ? 404 : 422, headers },
     );
-  return new Response(result.value.xml, {
+  return new Response(Buffer.from(result.value.bytes), {
     headers: {
       ...headers,
       "Content-Type": result.value.mediaType,
       "Content-Disposition": `attachment; filename="${result.value.fileName}"`,
+      "X-iVAT-Artifact-ID": result.value.artifactId,
     },
   });
 }
