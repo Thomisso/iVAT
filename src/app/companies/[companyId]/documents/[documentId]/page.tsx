@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { approveDocumentAction, rejectDocumentAction, reprocessDocumentAction } from "@/app/actions";
+import {
+  approveDocumentAction,
+  rejectDocumentAction,
+  reprocessDocumentAction,
+  returnDocumentToReviewAction,
+} from "@/app/actions";
 import { getCompany } from "@/application/companies";
 import { currentUserId } from "@/application/auth";
 import { documentQueueQuery, getDocumentQueuePosition } from "@/application/document-queue";
@@ -25,6 +30,7 @@ import { statusBadgeState } from "@/components/status-badge-state";
 import { PageLayout } from "@/components/app-shell";
 import { formatDateTime } from "@/lib/format-date";
 import { CorrectionForm } from "./correction-form";
+import { findingMessage } from "./finding-message";
 import { ReportingAssignmentForm } from "./reporting-assignment-form";
 
 // The review workspace: the Document's original pages next to its extracted
@@ -112,6 +118,14 @@ export default async function DocumentReviewPage({
           {document.status === "approved" && (
             <Notice>{t("review.approvedNote")}</Notice>
           )}
+          {document.status === "approved" && !lockedPeriod && (
+            <CommandButton
+              action={returnDocumentToReviewAction}
+              fields={{ companyId, documentId: document.id }}
+            >
+              {t("review.returnToReview")}
+            </CommandButton>
+          )}
           {document.status === "rejected" && (
             <Notice>{t("review.rejectedNote")}</Notice>
           )}
@@ -166,7 +180,10 @@ export default async function DocumentReviewPage({
                 key={`${finding.field}-${finding.code}`}
                 tone="warning"
               >
-                {t(`review.findings.${finding.code}`)}
+                {t(
+                  `review.findings.${findingMessage(finding).key}`,
+                  findingMessage(finding).values,
+                )}
               </Notice>
             ))}
           {shown ? (
