@@ -200,8 +200,9 @@ describe("platform-owned AI Configurations", () => {
       },
     };
     const worker = testWorker(provider);
+    const configurationLabel = `New Company default ${superAdministrator.userId}`;
     const configuration = await createAiConfiguration(superAdministrator.client, {
-      label: `New Company default ${superAdministrator.userId}`,
+      label: configurationLabel,
       provider: "anthropic",
       splitModel: "default-split",
       extractModel: "default-extract",
@@ -219,6 +220,32 @@ describe("platform-owned AI Configurations", () => {
     expect(listed.value.find(({ id }) => id === configuration.value.id)?.assignedCompanyIds)
       .toContain(createdAfterDefault.companyId);
     expect(await clearDefaultAiConfiguration(createdAfterDefault.client)).toEqual({ ok: false, error: "forbidden" });
+    const organizationAudit = await listAuditEvents(createdAfterDefault.client, createdAfterDefault.organizationId);
+    expect(organizationAudit.some((event) => event.action === "company.ai_processing_enabled")).toBe(false);
+    expect(organizationAudit.some((event) =>
+      event.action === "company.setup_changed"
+      && typeof event.payload === "object"
+      && event.payload !== null
+      && !Array.isArray(event.payload)
+      && event.payload.step === "ai_processing"
+    )).toBe(false);
+    expect(JSON.stringify(organizationAudit)).not.toMatch(/anthropic|global|platform|default-split|default-extract/);
+
+    const platformAssignment = (await listPlatformAuditEvents(superAdministrator.client)).find((event) =>
+      event.action === "company.ai_configuration_assigned"
+      && event.targetId === createdAfterDefault.companyId
+    );
+    expect(platformAssignment).toEqual(expect.objectContaining({
+      actorUserId: null,
+      organizationId: null,
+      companyId: null,
+      targetType: "company",
+      targetId: createdAfterDefault.companyId,
+      payload: {
+        ai_configuration_id: configuration.value.id,
+        ai_configuration_label: configurationLabel,
+      },
+    }));
 
     const uploaded = await uploadSourceFile(createdAfterDefault.client, worker.jobs, {
       companyId: createdAfterDefault.companyId,
