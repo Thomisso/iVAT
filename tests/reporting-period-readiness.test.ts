@@ -6,7 +6,7 @@ import {
   listDocuments,
   rejectDocument,
 } from "@/application/documents";
-import { getCompany, updateCompany } from "@/application/companies";
+import { setCurrentReportingYear } from "@/application/companies";
 import {
   getReportingPeriodReadiness,
   listReportingPeriods,
@@ -28,16 +28,16 @@ import {
 import { fixtureFile } from "./support/files";
 import { testWorker } from "./support/worker";
 
-it("lists monthly and quarterly Reporting Periods and advances the oldest unfinished period", async () => {
+it("lists the generated Reporting Periods and advances the oldest unfinished period", async () => {
   const company = await administratorWithCompany();
   expect(
-    (await listReportingPeriods(company.client, company.companyId, "2026-04-30"))
+    (await listReportingPeriods(company.client, company.companyId))
+      .slice(0, 3)
       .map(({ period, oldestUnfinished }) => ({ period, oldestUnfinished })),
   ).toEqual([
     { period: "2026-01", oldestUnfinished: true },
     { period: "2026-02", oldestUnfinished: false },
     { period: "2026-03", oldestUnfinished: false },
-    { period: "2026-04", oldestUnfinished: false },
   ]);
 
   expect((await generateVatReport(company.client, {
@@ -50,22 +50,20 @@ it("lists monthly and quarterly Reporting Periods and advances the oldest unfini
     confirmed: true,
   })).toEqual({ ok: true, value: null });
   expect(
-    (await listReportingPeriods(company.client, company.companyId, "2026-04-30"))
+    (await listReportingPeriods(company.client, company.companyId))
       .find((period) => period.oldestUnfinished)?.period,
   ).toBe("2026-02");
 
-  const details = await getCompany(company.client, company.companyId);
-  if (!details) throw new Error("Company not found");
-  expect(await updateCompany(company.client, {
-    ...details,
+  expect(await setCurrentReportingYear(company.client, {
     companyId: company.companyId,
     filingFrequency: "quarterly",
-    filingFrequencyEffectiveFrom: "2026-04-01",
+    year: 2027,
   })).toEqual({ ok: true, value: null });
   expect(
-    (await listReportingPeriods(company.client, company.companyId, "2026-10-31"))
-      .map((period) => period.period),
-  ).toEqual(["2026-01", "2026-02", "2026-03", "2026-Q2", "2026-Q3", "2026-Q4"]);
+    (await listReportingPeriods(company.client, company.companyId))
+      .map((period) => period.period)
+      .slice(10),
+  ).toEqual(["2026-11", "2026-12", "2027-Q1", "2027-Q2", "2027-Q3", "2027-Q4"]);
 });
 
 async function companyWithReadinessStates() {
