@@ -148,6 +148,22 @@ describe("platform AI provider settings", () => {
     });
   });
 
+  it("lists every Organization beyond the PostgREST row limit", async () => {
+    const superAdministrator = sharedSuperAdministrator;
+    const organizations = Array.from({ length: 1001 }, (_, index) => ({
+      name: `Platform AI page ${index.toString().padStart(4, "0")}`,
+    }));
+    const inserted = await systemClient().from("organization").insert(organizations).select("id");
+    if (inserted.error) throw inserted.error;
+
+    const result = await listPlatformOrganizations(superAdministrator.client, "anthropic");
+
+    expect(result).toEqual({ ok: true, value: expect.any(Array) });
+    if (!result.ok) throw new Error(result.error);
+    const insertedIds = new Set(inserted.data.map((organization) => organization.id));
+    expect(result.value.filter((organization) => insertedIds.has(organization.id))).toHaveLength(1001);
+  });
+
   it("does not offer or accept a platform key while Organization access is disabled", async () => {
     const target = await administratorWithCompany("Disabled Organization");
     const superAdministrator = sharedSuperAdministrator;
