@@ -34,11 +34,9 @@ export const CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA: DocumentValidationReferen
   roundingToleranceCents: 2,
 };
 
-/** An amount in cents as a two-decimal string, the way amounts are stored ("-0.05"). */
+/** Non-negative cents as a two-decimal string, the way amounts are stored ("0.05"). */
 function centsAmount(cents: number): string {
-  const sign = cents < 0 ? "-" : "";
-  const absolute = Math.abs(cents);
-  return `${sign}${Math.floor(absolute / 100)}.${String(absolute % 100).padStart(2, "0")}`;
+  return `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, "0")}`;
 }
 
 function amountCents(value: string | null): number | null {

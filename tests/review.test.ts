@@ -15,6 +15,7 @@ import {
   type DocumentFilters,
 } from "@/application/documents";
 import type { ExtractionPayload } from "@/application/extraction-payload";
+import { getReportingPeriodReadiness } from "@/application/reporting-period-readiness";
 import { uploadSourceFile } from "@/application/source-files";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { signedUpUser } from "./support/clients";
@@ -26,7 +27,6 @@ import {
 } from "./support/fixtures";
 import { testWorker } from "./support/worker";
 import { fakeExchangeRates } from "@/cnb/fake";
-import { getReportingPeriodReadiness } from "@/application/reporting-period-readiness";
 
 /** An Administrator whose Company holds one Document in NeedsReview, Extracted as `extraction`. */
 async function documentInReview(extraction: ExtractionPayload = SAMPLE_EXTRACTION) {
@@ -580,7 +580,7 @@ describe("checking Document totals", () => {
         totals: { netAmount: "1100.00", vatAmount: "200.00", grossAmount: "1300.00" },
       },
     });
-    await approveDocument(document.client, { ...document, version: 2 });
+    expect(await approveDocument(document.client, { ...document, version: 2 })).toEqual({ ok: true, value: null });
 
     const readiness = await getReportingPeriodReadiness(document.client, {
       companyId: document.companyId,
