@@ -1,5 +1,6 @@
 import { getTranslations } from "next-intl/server";
-import { exportVatReport } from "@/application/epo-export";
+import { exportFinalVatReport, exportVatReport } from "@/application/epo-export";
+import { getPeriodLock } from "@/application/vat-reports";
 import { requireUserClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -29,7 +30,10 @@ export async function POST(
       typeof value === "string" ? [[key, value]] : [],
     ),
   );
-  const result = await exportVatReport(client, {
+  const exporter = await getPeriodLock(client, companyId, period)
+    ? exportFinalVatReport
+    : exportVatReport;
+  const result = await exporter(client, {
     companyId,
     period,
     format: details.format ?? "",
@@ -40,11 +44,12 @@ export async function POST(
       { error: result.error, message: t(result.error) },
       { status: result.error === "report_not_found" ? 404 : 422, headers },
     );
-  return new Response(result.value.xml, {
+  return new Response(Buffer.from(result.value.bytes), {
     headers: {
       ...headers,
       "Content-Type": result.value.mediaType,
       "Content-Disposition": `attachment; filename="${result.value.fileName}"`,
+      "X-iVAT-Artifact-ID": result.value.artifactId,
     },
   });
 }

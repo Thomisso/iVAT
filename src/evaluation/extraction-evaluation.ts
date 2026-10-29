@@ -55,6 +55,8 @@ const MEDIA_TYPES: Record<ImageSourceFileFormat, string> = {
   pdf: "application/pdf",
   png: "image/png",
   jpeg: "image/jpeg",
+  heic: "image/heic",
+  heif: "image/heif",
 };
 
 const EXTRACTION_KEYS = [

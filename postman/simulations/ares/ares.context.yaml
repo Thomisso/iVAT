@@ -1,0 +1,23 @@
+purpose:
+  stands_in_for: ARES economic-subject lookup used by Company onboarding.
+  unblocks: Deterministic browser verification of structured registered-address prefill without live-service calls.
+assumptions:
+  - id: structured-address-response
+    status: unknown
+    claim: A successful ARES economic-subject response can provide street name, house number, optional orientation number including a letter, city, and postal code as separate values.
+    reason: The local stand-in models the fields consumed by iVAT and proves the caller preserves them, but a stand-in does not establish the live provider contract.
+    verification: On 2026-10-28 the focused browser run sent the real Next server's GET through the Postman simulation and received the modelled structured payload. This proves the caller path against the stand-in, not the live provider contract.
+    source: src/ares/registry.ts; tests/contract/ares.test.ts; postman/mocks/ares/default.js
+    updated_at: "2026-10-28"
+  - id: onboarding-preserves-structured-address
+    status: supported
+    claim: Against the local ARES stand-in, Company onboarding preserves street name, house number, orientation number with a letter, city, and postal code as separate form values.
+    reason: The Postman request log showed the dependency path was exercised, and Playwright asserted each visible form field before saving.
+    verification: On 2026-10-28, npm run test:e2e -- e2e/company-onboarding.spec.ts passed 2/2; the simulation summary recorded two successful requests, including the readiness probe and the onboarding lookup.
+    source: e2e/company-onboarding.spec.ts; postman/mocks/ares/default.js; focused run on ticket/77-company-onboarding
+    updated_at: "2026-10-28"
+fingerprints:
+  - id: ivat-77-dirty-2026-10-28
+    date: "2026-10-28"
+    commit: 0eabffa (dirty ticket worktree)
+    cli: Postman CLI 1.73.0

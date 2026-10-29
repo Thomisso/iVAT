@@ -1,15 +1,55 @@
-import type { AiProvider } from "./ai-provider";
+import type { AiProcessingConsent } from "./company-ai";
 import { isUuid, type AppClient, type Result } from "./client";
-import { extractJob, splitJob, type JobQueue } from "./processing";
+import { reportingPeriodStart, validFilingEffectiveFrom } from "./reporting-periods";
+
+export {
+  configureCompanyAiProcessing,
+  companyAiOptionValue,
+  disableAiProcessing,
+  enableAiProcessing,
+  listCompanyAiOptions,
+  parseCompanyAiOptionValue,
+} from "./company-ai";
+export type {
+  AiCredentialSource,
+  AiProcessingConsent,
+  CompanyAiConfigurationError,
+  CompanyAiOption,
+} from "./company-ai";
 
 export type CompanyDetails = {
   name: string;
+  firstName: string | null;
+  lastName: string | null;
   ico: string;
   vatId: string;
-  street: string;
+  streetName: string;
+  houseNumber: string;
+  orientationNumber: string | null;
   city: string;
   postalCode: string;
   personType: PersonType;
+};
+
+export type CompanyIdentityInput = {
+  name: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  ico: string;
+  vatId: string;
+  streetName?: string;
+  houseNumber?: string;
+  orientationNumber?: string | null;
+  city: string;
+  postalCode: string;
+  personType: PersonType;
+};
+type NormalizedCompanyIdentity = Omit<CompanyIdentityInput, "firstName" | "lastName" | "streetName" | "houseNumber" | "orientationNumber"> & {
+  firstName: string;
+  lastName: string;
+  streetName: string;
+  houseNumber: string;
+  orientationNumber: string;
 };
 
 export const PERSON_TYPES = ["legal", "natural"] as const;
@@ -21,14 +61,20 @@ export type FilingFrequencyHistoryEntry = {
   effectiveFrom: string;
 };
 
-/** The provider and region a Company has consented to send its Documents to; null while AI processing is off. */
-export type AiProcessingConsent = { provider: string; region: string } | null;
+export type CompanySetupStep = "identity" | "filing_frequency" | "filing_defaults" | "ai_processing";
+export type CompanySetupItem = { step: CompanySetupStep; state: "completed" | "skipped" | "blocking" };
 
-export type Company = CompanyDetails & { id: string; organizationId: string; aiProcessing: AiProcessingConsent };
+export type Company = CompanyDetails & {
+  id: string;
+  organizationId: string;
+  /** Formatted for display only. Statutory outputs use the structured address fields. */
+  street: string;
+  aiProcessing: AiProcessingConsent;
+};
 
 export type CompanySummary = { id: string; organizationId: string; name: string };
 
-export type CompanySettingsInput = CompanyDetails & {
+export type CompanySettingsInput = CompanyIdentityInput & {
   filingFrequency: FilingFrequency;
   filingFrequencyEffectiveFrom: string;
 };
@@ -38,9 +84,16 @@ export type UpdateCompanyInput = CompanySettingsInput & { companyId: string };
 
 export type CompanyDetailsError =
   | "name_required"
+  | "name_too_long"
+  | "first_name_required"
+  | "first_name_too_long"
+  | "last_name_required"
+  | "last_name_too_long"
   | "invalid_ico"
   | "invalid_vat_id"
   | "address_required"
+  | "invalid_house_number"
+  | "invalid_orientation_number"
   | "invalid_postal_code"
   | "invalid_person_type"
   | "invalid_filing_frequency"
@@ -48,14 +101,29 @@ export type CompanyDetailsError =
 
 export type CreateCompanyError = CompanyDetailsError | "ico_taken" | "forbidden";
 
-function normalizeCompanyDetails(details: CompanyDetails): CompanyDetails {
+export type EpoIdentityFinding = {
+  field: "streetName" | "orientationNumber" | "city";
+  code: "epo_street_name_too_long" | "epo_orientation_number_too_long" | "epo_city_too_long";
+};
+
+export function registeredAddressLine(address: Pick<CompanyDetails, "streetName" | "houseNumber" | "orientationNumber">) {
+  return `${address.streetName} ${address.houseNumber}${address.orientationNumber ? `/${address.orientationNumber}` : ""}`;
+}
+
+export function normalizeCompanyIdentity(details: CompanyIdentityInput): NormalizedCompanyIdentity {
   const digits = (value: string) => value.replace(/\s+/g, "");
   const postalCode = digits(details.postalCode);
+  const firstName = details.firstName?.trim() ?? "";
+  const lastName = details.lastName?.trim() ?? "";
   return {
-    name: details.name.trim(),
+    name: details.personType === "natural" ? `${firstName} ${lastName}`.trim() : details.name.trim(),
+    firstName,
+    lastName,
     ico: digits(details.ico),
     vatId: digits(details.vatId).toUpperCase(),
-    street: details.street.trim(),
+    streetName: details.streetName?.trim() ?? "",
+    houseNumber: details.houseNumber?.trim() ?? "",
+    orientationNumber: details.orientationNumber?.trim() ?? "",
     city: details.city.trim(),
     postalCode: /^\d{5}$/.test(postalCode) ? `${postalCode.slice(0, 3)} ${postalCode.slice(3)}` : postalCode,
     personType: details.personType,
@@ -63,52 +131,74 @@ function normalizeCompanyDetails(details: CompanyDetails): CompanyDetails {
 }
 
 // Format checks only; checksum and registry checks are added with Document validations (#36).
-function validateCompanyDetails(details: CompanyDetails): CompanyDetailsError | null {
-  if (!details.name) return "name_required";
+function validateCompanyIdentity(details: CompanyIdentityInput): CompanyDetailsError | null {
+  if (details.personType === "legal" && !details.name) return "name_required";
+  if (details.personType === "legal" && details.name.length > 255) return "name_too_long";
+  if (details.personType === "natural" && !details.firstName) return "first_name_required";
+  if (details.personType === "natural" && (details.firstName?.length ?? 0) > 30) return "first_name_too_long";
+  if (details.personType === "natural" && !details.lastName) return "last_name_required";
+  if (details.personType === "natural" && (details.lastName?.length ?? 0) > 36) return "last_name_too_long";
   if (!/^\d{8}$/.test(details.ico)) return "invalid_ico";
   if (!/^CZ\d{8,10}$/.test(details.vatId)) return "invalid_vat_id";
-  if (!details.street || !details.city) return "address_required";
+  if (!details.streetName || !details.city) return "address_required";
+  if (!/^\d{1,6}$/.test(details.houseNumber ?? "")) return "invalid_house_number";
+  if (details.orientationNumber && !/^\d{1,3}[A-Za-z]?$/.test(details.orientationNumber)) {
+    return "invalid_orientation_number";
+  }
   if (!/^\d{3} \d{2}$/.test(details.postalCode)) return "invalid_postal_code";
   if (!PERSON_TYPES.some((personType) => personType === details.personType)) return "invalid_person_type";
   return null;
 }
 
-function validEffectiveFrom(value: string): boolean {
-  if (!/^20\d{2}-\d{2}-\d{2}$/.test(value)) return false;
-  const date = new Date(`${value}T00:00:00Z`);
-  return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value;
+/** EPO schema limits do not change the registered identity and are never truncated. */
+export function epoIdentityFindings(
+  details: Pick<CompanyIdentityInput, "streetName" | "orientationNumber" | "city">,
+): EpoIdentityFinding[] {
+  const findings: EpoIdentityFinding[] = [];
+  if ((details.streetName?.length ?? 0) > 38) {
+    findings.push({ field: "streetName", code: "epo_street_name_too_long" });
+  }
+  if ((details.orientationNumber?.length ?? 0) > 4) {
+    findings.push({ field: "orientationNumber", code: "epo_orientation_number_too_long" });
+  }
+  if (details.city.length > 48) {
+    findings.push({ field: "city", code: "epo_city_too_long" });
+  }
+  return findings;
 }
 
 function validateCompanySettings(input: CompanySettingsInput): CompanyDetailsError | null {
-  const invalid = validateCompanyDetails(input);
+  const invalid = validateCompanyIdentity(input);
   if (invalid) return invalid;
   if (!FILING_FREQUENCIES.some((frequency) => frequency === input.filingFrequency)) {
     return "invalid_filing_frequency";
   }
-  if (!validEffectiveFrom(input.filingFrequencyEffectiveFrom)) return "invalid_effective_from";
+  if (!validFilingEffectiveFrom(input.filingFrequency, input.filingFrequencyEffectiveFrom)) {
+    return "invalid_effective_from";
+  }
   return null;
 }
 
-export async function createCompany(
+export async function createCompanyIdentity(
   client: AppClient,
-  input: CreateCompanyInput,
+  input: CompanyIdentityInput & { organizationId: string },
 ): Promise<Result<{ id: string }, CreateCompanyError>> {
-  const details = normalizeCompanyDetails(input);
-  const normalized = { ...input, ...details };
-  const invalid = validateCompanySettings(normalized);
+  const identity = normalizeCompanyIdentity(input);
+  const invalid = validateCompanyIdentity(identity);
   if (invalid) return { ok: false, error: invalid };
-
-  const { data, error } = await client.rpc("create_company", {
+  const { data, error } = await client.rpc("create_company_identity", {
     target_organization_id: input.organizationId,
-    company_name: details.name,
-    company_ico: details.ico,
-    company_vat_id: details.vatId,
-    company_street: details.street,
-    company_city: details.city,
-    company_postal_code: details.postalCode,
-    company_person_type: details.personType,
-    initial_filing_frequency: input.filingFrequency,
-    filing_frequency_effective_from: input.filingFrequencyEffectiveFrom,
+    company_name: identity.name,
+    company_first_name: identity.firstName,
+    company_last_name: identity.lastName,
+    company_ico: identity.ico,
+    company_vat_id: identity.vatId,
+    company_street_name: identity.streetName,
+    company_house_number: identity.houseNumber,
+    company_orientation_number: identity.orientationNumber,
+    company_city: identity.city,
+    company_postal_code: identity.postalCode,
+    company_person_type: identity.personType,
   });
   if (error) {
     if (error.code === "42501") return { ok: false, error: "forbidden" };
@@ -118,26 +208,68 @@ export async function createCompany(
   return { ok: true, value: { id: data } };
 }
 
-export async function updateCompany(
+export async function setCompanyFilingFrequency(
   client: AppClient,
-  input: UpdateCompanyInput,
-): Promise<Result<null, CreateCompanyError>> {
+  input: { companyId: string; filingFrequency: FilingFrequency; filingFrequencyEffectiveFrom: string },
+): Promise<Result<null, CompanyDetailsError | "forbidden">> {
   if (!isUuid(input.companyId)) return { ok: false, error: "forbidden" };
-  const details = normalizeCompanyDetails(input);
+  if (!FILING_FREQUENCIES.some((frequency) => frequency === input.filingFrequency)) {
+    return { ok: false, error: "invalid_filing_frequency" };
+  }
+  if (!validFilingEffectiveFrom(input.filingFrequency, input.filingFrequencyEffectiveFrom)) {
+    return { ok: false, error: "invalid_effective_from" };
+  }
+  const { error } = await client.rpc("set_company_filing_frequency", {
+    target_company_id: input.companyId,
+    new_filing_frequency: input.filingFrequency,
+    filing_frequency_effective_from: input.filingFrequencyEffectiveFrom,
+  });
+  if (error) {
+    if (error.code === "42501") return { ok: false, error: "forbidden" };
+    if (error.code === "P0001" && error.hint === "invalid_effective_from") {
+      return { ok: false, error: "invalid_effective_from" };
+    }
+    throw error;
+  }
+  return { ok: true, value: null };
+}
+
+export async function createCompany(
+  client: AppClient,
+  input: CreateCompanyInput,
+): Promise<Result<{ id: string }, CreateCompanyError>> {
+  const details = normalizeCompanyIdentity(input);
   const normalized = { ...input, ...details };
   const invalid = validateCompanySettings(normalized);
   if (invalid) return { ok: false, error: invalid };
-  const { error } = await client.rpc("update_company", {
+  const created = await createCompanyIdentity(client, { organizationId: input.organizationId, ...details });
+  if (!created.ok) return created;
+  const filing = await setCompanyFilingFrequency(client, { companyId: created.value.id, ...input });
+  if (!filing.ok) return filing;
+  return created;
+}
+
+export async function updateCompanyIdentity(
+  client: AppClient,
+  input: CompanyIdentityInput & { companyId: string },
+): Promise<Result<null, CreateCompanyError>> {
+  if (!isUuid(input.companyId)) return { ok: false, error: "forbidden" };
+  const identity = normalizeCompanyIdentity(input);
+  const invalid = validateCompanyIdentity(identity);
+  if (invalid) return { ok: false, error: invalid };
+  const { error } = await client.rpc("update_company_identity", {
     target_company_id: input.companyId,
-    company_name: details.name,
-    company_ico: details.ico,
-    company_vat_id: details.vatId,
-    company_street: details.street,
-    company_city: details.city,
-    company_postal_code: details.postalCode,
-    company_person_type: details.personType,
-    new_filing_frequency: input.filingFrequency,
-    filing_frequency_effective_from: input.filingFrequencyEffectiveFrom,
+    company_name: identity.name,
+    company_first_name: identity.firstName,
+    company_last_name: identity.lastName,
+    company_ico: identity.ico,
+    company_vat_id: identity.vatId,
+    company_street_name: identity.streetName,
+    company_house_number: identity.houseNumber,
+    company_orientation_number: identity.orientationNumber,
+    company_city: identity.city,
+    company_postal_code: identity.postalCode,
+    company_person_type: identity.personType,
   });
   if (error) {
     if (error.code === "42501") return { ok: false, error: "forbidden" };
@@ -147,11 +279,25 @@ export async function updateCompany(
   return { ok: true, value: null };
 }
 
+export async function updateCompany(
+  client: AppClient,
+  input: UpdateCompanyInput,
+): Promise<Result<null, CreateCompanyError>> {
+  if (!isUuid(input.companyId)) return { ok: false, error: "forbidden" };
+  const details = normalizeCompanyIdentity(input);
+  const normalized = { ...input, ...details };
+  const invalid = validateCompanySettings(normalized);
+  if (invalid) return { ok: false, error: invalid };
+  const updated = await updateCompanyIdentity(client, { companyId: input.companyId, ...details });
+  if (!updated.ok) return updated;
+  return setCompanyFilingFrequency(client, { ...input, companyId: input.companyId });
+}
+
 export async function getCompany(client: AppClient, companyId: string): Promise<Company | null> {
   if (!isUuid(companyId)) return null;
   const { data, error } = await client
     .from("company")
-    .select("id, organization_id, name, ico, vat_id, street, city, postal_code, person_type, ai_processing_enabled, ai_provider, ai_region")
+    .select("id, organization_id, name, first_name, last_name, ico, vat_id, street, street_name, house_number, orientation_number, city, postal_code, person_type, ai_processing_enabled, ai_provider, ai_region, ai_credential_source")
     .eq("id", companyId)
     .maybeSingle();
   if (error) throw error;
@@ -160,13 +306,26 @@ export async function getCompany(client: AppClient, companyId: string): Promise<
     id: data.id,
     organizationId: data.organization_id,
     name: data.name,
+    firstName: data.first_name,
+    lastName: data.last_name,
     ico: data.ico,
     vatId: data.vat_id,
-    street: data.street,
+    street: registeredAddressLine({
+      streetName: data.street_name ?? data.street,
+      houseNumber: data.house_number ?? "",
+      orientationNumber: data.orientation_number,
+    }),
+    streetName: data.street_name ?? data.street,
+    houseNumber: data.house_number ?? "",
+    orientationNumber: data.orientation_number,
     city: data.city,
     postalCode: data.postal_code,
     personType: data.person_type,
-    aiProcessing: data.ai_processing_enabled ? { provider: data.ai_provider!, region: data.ai_region! } : null,
+    aiProcessing: data.ai_processing_enabled ? {
+      provider: data.ai_provider!,
+      region: data.ai_region!,
+      credentialSource: data.ai_credential_source!,
+    } : null,
   };
 }
 
@@ -194,13 +353,22 @@ export async function listCompanyFilingFrequencies(
   }));
 }
 
-function reportingPeriodStart(period: string): string | null {
-  const month = /^(20\d{2})-(0[1-9]|1[0-2])$/.exec(period);
-  if (month) return `${period}-01`;
-  const quarter = /^(20\d{2})-Q([1-4])$/.exec(period);
-  if (!quarter) return null;
-  const firstMonth = (Number(quarter[2]) - 1) * 3 + 1;
-  return `${quarter[1]}-${String(firstMonth).padStart(2, "0")}-01`;
+/** Read-only setup state. Missing required steps block; optional future steps remain visible as skipped. */
+export async function getCompanySetupChecklist(
+  client: AppClient,
+  companyId: string,
+): Promise<CompanySetupItem[]> {
+  if (!isUuid(companyId)) return [];
+  const { data, error } = await client
+    .from("company_setup_step_state")
+    .select("step, state")
+    .eq("company_id", companyId);
+  if (error) throw error;
+  const state = new Map(data.map((item) => [item.step, item.state]));
+  return (["identity", "filing_frequency", "filing_defaults", "ai_processing"] as const).map((step) => ({
+    step,
+    state: state.get(step) ?? (step === "identity" || step === "filing_frequency" ? "blocking" : "skipped"),
+  }));
 }
 
 /** The filing frequency in force on the first day of a Reporting Period. */
@@ -245,50 +413,4 @@ export async function getMyCompanyRole(client: AppClient, companyId: string): Pr
     return "administrator";
   }
   return data.find((membership) => membership.company_id === companyId)?.role ?? null;
-}
-
-/**
- * Consents to sending the Company's Documents to the provider, in its region
- * (ADR-0006), and starts the processing that waited for it. Administrators only;
- * the database audits the change.
- */
-export async function enableAiProcessing(
-  client: AppClient,
-  jobs: JobQueue,
-  input: { companyId: string; provider: Pick<AiProvider, "name" | "region"> },
-): Promise<Result<null, "forbidden">> {
-  const consent = { ai_processing_enabled: true, ai_provider: input.provider.name, ai_region: input.provider.region };
-  const updated = await updateAiProcessing(client, input.companyId, consent);
-  if (!updated.ok) return updated;
-
-  const [sourceFiles, documents] = await Promise.all([
-    client.from("source_file").select("id").eq("company_id", input.companyId).in("status", ["uploaded", "processing"]),
-    client.from("document").select("id").eq("company_id", input.companyId).in("status", ["uploaded", "processing"]),
-  ]);
-  if (sourceFiles.error) throw sourceFiles.error;
-  if (documents.error) throw documents.error;
-  for (const file of sourceFiles.data) await jobs.send(splitJob(file.id));
-  for (const document of documents.data) await jobs.send(extractJob(document.id));
-  return updated;
-}
-
-/** Withdraws the consent; no further Document is sent to an AI provider. Administrators only. */
-export async function disableAiProcessing(client: AppClient, companyId: string): Promise<Result<null, "forbidden">> {
-  return updateAiProcessing(client, companyId, { ai_processing_enabled: false, ai_provider: null, ai_region: null });
-}
-
-async function updateAiProcessing(
-  client: AppClient,
-  companyId: string,
-  consent: { ai_processing_enabled: boolean; ai_provider: string | null; ai_region: string | null },
-): Promise<Result<null, "forbidden">> {
-  if (!isUuid(companyId)) return { ok: false, error: "forbidden" };
-  // RLS turns a refused update into one that matches no row.
-  const { data, error } = await client.from("company").update(consent).eq("id", companyId).select("id");
-  if (error) {
-    if (error.code === "42501") return { ok: false, error: "forbidden" };
-    throw error;
-  }
-  if (data.length === 0) return { ok: false, error: "forbidden" };
-  return { ok: true, value: null };
 }

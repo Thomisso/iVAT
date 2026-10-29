@@ -10,15 +10,20 @@ export const details: ExportDetails = {
   preparedOn: "2026-10-27",
   personType: "P",
   email: "qa@example.test",
+  phone: "",
   signatoryFirstName: "Jana",
   signatoryLastName: "Nováková",
   signatoryCapacity: "jednatelka",
 };
 const company = {
   name: "Test & spol. s.r.o.",
+  firstName: null,
+  lastName: null,
   ico: "27082440",
   vatId: "CZ27082440",
-  street: "Na Příkopě 1",
+  streetName: "Na Příkopě",
+  houseNumber: "1",
+  orientationNumber: null,
   city: "Praha",
   postalCode: "110 00",
   personType: "legal" as const,
@@ -193,15 +198,20 @@ it.each(["dphdp3", "dphkh1"] as const)(
 it.each(["dphdp3", "dphkh1"] as const)(
   "exports an empty %s for a natural person without inventing a legal Company name",
   async (format) => {
-    const report = computeVatReport(company, "2026-10", []);
+    const report = computeVatReport({
+      ...company,
+      name: "Jan Novák",
+      firstName: "Jan",
+      lastName: "Novák",
+      personType: "natural",
+    }, "2026-10", []);
     expect(
       await createEpoXml(report, format, {
         taxOffice: "451",
         preparedOn: "2026-10-27",
         personType: "F",
-        firstName: "Jan",
-        lastName: "Novák",
         email: "",
+        phone: "",
       }),
     ).toEqual({
       ok: true,

@@ -79,6 +79,23 @@ describe("SuperAdmin organization console", () => {
     }));
   });
 
+  it("lists Organizations beyond the PostgREST row limit", async () => {
+    const superAdmin = await superAdministrator();
+    const inserted = await systemClient().from("organization").insert(
+      Array.from({ length: 1001 }, (_, index) => ({
+        name: `Platform inventory ${index.toString().padStart(4, "0")}`,
+      })),
+    ).select("id");
+    if (inserted.error) throw inserted.error;
+
+    const result = await listPlatformOrganizationCompanies(superAdmin.client);
+
+    expect(result).toEqual({ ok: true, value: expect.any(Array) });
+    if (!result.ok) throw new Error(result.error);
+    const insertedIds = new Set(inserted.data.map((organization) => organization.id));
+    expect(result.value.filter((organization) => insertedIds.has(organization.id))).toHaveLength(1001);
+  });
+
   it("blocks login and processing until a SuperAdmin unblocks the Organization, with an audit trail", async () => {
     const target = await administratorWithCompany("Blocked Organization");
     const worker = testWorker();

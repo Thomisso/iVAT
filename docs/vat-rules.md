@@ -1,9 +1,11 @@
 # VAT Rules Engine
 
 The pure Rules Engine in `src/application/vat-rules.ts` accepts Company details,
-a monthly Reporting Period (`YYYY-MM`) and Document snapshots. Only Approved
-Documents in that month of their Tax Point Date contribute. Incoming Receipt Date
-assignment and quarterly periods follow in #43.
+a monthly (`YYYY-MM`) or quarterly (`YYYY-Qn`) Reporting Period and Document
+snapshots. Only Approved Documents assigned to that period contribute. Incoming
+Documents use the later of their Tax Point Date and Receipt Date unless the User
+explicitly claims a later valid period. Shared parsing and effective-dated filing
+frequency rules live in `src/application/reporting-periods.ts`.
 
 The Rules Engine supports CZK amounts at 21% and 12% (including amounts derived
 from a stored ČNB conversion) with full input VAT deduction:
@@ -44,9 +46,12 @@ calls `save_vat_report`. The database locks the Company's Documents and compares
 the source snapshot before atomically saving the result and audit event. A stale
 snapshot is refused. Members of the Company can read and regenerate its draft;
 RLS and the database access predicate enforce this. Regeneration replaces the
-same Company/month draft. Stored data includes the Company header and all period
-Document snapshots (status, payload and immutable Extraction Version id), so reads
-do not silently recompute after another approval.
+same Company/period draft. Generation is refused with `company_setup_incomplete`
+until identity and filing-frequency onboarding are complete. Stored data includes
+the canonical structured Company identity (including natural-person names and
+registered-address components) and all period Document snapshots (status, payload
+and immutable Extraction Version id), so reads do not silently recompute after
+another approval or a later Company edit.
 
 ## Primary sources
 

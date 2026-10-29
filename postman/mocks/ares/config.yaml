@@ -1,0 +1,11 @@
+version: 1
+name: ARES economic subjects
+slug: ares
+protocol: http
+port: 4920
+interceptRequests: true
+origin: ares.gov.cz
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true

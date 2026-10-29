@@ -114,6 +114,8 @@ export async function listDuplicateWarnings(
 export type DocumentFilters = {
   status?: DocumentStatus;
   direction?: Direction;
+  /** Source Files that define a durable upload-batch or queue context. */
+  sourceFileIds?: string[];
   /** A month, "2026-10". */
   reportingPeriod?: string;
   /** Part of the counterparty's name, VAT ID or IČO, in any case. */
@@ -131,44 +133,96 @@ export async function listCompanyDocuments(
   filters: DocumentFilters = {},
 ): Promise<DocumentOverview[]> {
   if (!isUuid(companyId)) return [];
-  let query = client
-    .from("document_overview")
-    .select(
-      "id, source_file_id, first_page, last_page, status, created_at, version, document_number, direction, tax_point_date, receipt_date, claimed_reporting_period, reporting_period, counterparty_name, counterparty_vat_id, counterparty_ico, currency, gross_amount, finding_count",
-    )
-    .eq("company_id", companyId);
-  if (filters.status) query = query.eq("status", filters.status);
-  if (filters.direction) query = query.eq("direction", filters.direction);
-  if (filters.reportingPeriod) query = query.eq("reporting_period", filters.reportingPeriod);
+  if (filters.sourceFileIds?.length === 0) return [];
   const counterparty = filters.counterparty?.trim();
-  if (counterparty) query = query.ilike("counterparty_search", `%${likeLiteral(counterparty)}%`);
-  if (filters.hasFindings) query = query.gt("finding_count", 0);
+  const documents: DocumentOverview[] = [];
+  for (let from = 0; ; from += 1000) {
+    let query = client
+      .from("document_overview")
+      .select(
+        "id, source_file_id, first_page, last_page, status, created_at, version, document_number, direction, tax_point_date, receipt_date, claimed_reporting_period, reporting_period, counterparty_name, counterparty_vat_id, counterparty_ico, currency, gross_amount, finding_count",
+      )
+      .eq("company_id", companyId);
+    if (filters.sourceFileIds) query = query.in("source_file_id", filters.sourceFileIds);
+    if (filters.status) query = query.eq("status", filters.status);
+    if (filters.direction) query = query.eq("direction", filters.direction);
+    if (filters.reportingPeriod) query = query.eq("reporting_period", filters.reportingPeriod);
+    if (counterparty) query = query.ilike("counterparty_search", `%${likeLiteral(counterparty)}%`);
+    if (filters.hasFindings) query = query.gt("finding_count", 0);
 
-  const { data, error } = await query.order("created_at", { ascending: false }).order("first_page");
-  if (error) throw error;
-  return data.map((d) => ({
-    id: d.id,
-    sourceFileId: d.source_file_id,
-    firstPage: d.first_page,
-    lastPage: d.last_page,
-    status: d.status,
-    createdAt: d.created_at,
-    version: d.version,
-    documentNumber: d.document_number,
-    direction: d.direction as Direction | null,
-    taxPointDate: d.tax_point_date,
-    receiptDate: d.receipt_date,
-    claimedReportingPeriod: d.claimed_reporting_period,
-    reportingPeriod: d.reporting_period,
-    counterparty:
-      d.direction === null
+    const { data, error } = await query
+      .order("created_at", { ascending: false })
+      .order("first_page")
+      .order("id")
+      .range(from, from + 999);
+    if (error) throw error;
+    documents.push(...data.map((d) => ({
+      id: d.id,
+      sourceFileId: d.source_file_id,
+      firstPage: d.first_page,
+      lastPage: d.last_page,
+      status: d.status,
+      createdAt: d.created_at,
+      version: d.version,
+      documentNumber: d.document_number,
+      direction: d.direction as Direction | null,
+      taxPointDate: d.tax_point_date,
+      receiptDate: d.receipt_date,
+      claimedReportingPeriod: d.claimed_reporting_period,
+      reportingPeriod: d.reporting_period,
+      counterparty: d.direction === null
         ? null
         : { name: d.counterparty_name, vatId: d.counterparty_vat_id, ico: d.counterparty_ico },
-    currency: d.currency,
-    grossAmount: d.gross_amount,
-    findingCount: d.finding_count ?? 0,
-    eligibleForVatReport: isEligibleForVatReport(d.status),
-  }));
+      currency: d.currency,
+      grossAmount: d.gross_amount,
+      findingCount: d.finding_count ?? 0,
+      eligibleForVatReport: isEligibleForVatReport(d.status),
+    })));
+    if (data.length < 1000) return documents;
+  }
+}
+
+/** Active Reporting Period locks for Documents, keyed by Document id. */
+export async function documentPeriodLocks(
+  client: AppClient,
+  companyId: string,
+  documentIds: string[],
+): Promise<Record<string, string>> {
+  if (!isUuid(companyId) || documentIds.length === 0 || documentIds.some((id) => !isUuid(id))) return {};
+  const documents: { id: string; reporting_period: string | null }[] = [];
+  const uniqueDocumentIds = [...new Set(documentIds)];
+  for (let offset = 0; offset < uniqueDocumentIds.length; offset += 100) {
+    const { data, error } = await client
+      .from("document_overview")
+      .select("id, reporting_period")
+      .eq("company_id", companyId)
+      .in("id", uniqueDocumentIds.slice(offset, offset + 100));
+    if (error) throw error;
+    documents.push(...data);
+  }
+  const periods = [...new Set(
+    documents
+      .map((document) => document.reporting_period)
+      .filter((period): period is string => period !== null),
+  )];
+  if (periods.length === 0) return {};
+  const lockedPeriods = new Set<string>();
+  for (let offset = 0; offset < periods.length; offset += 100) {
+    const { data, error } = await client
+      .from("period_lock")
+      .select("period")
+      .eq("company_id", companyId)
+      .in("period", periods.slice(offset, offset + 100));
+    if (error) throw error;
+    data.forEach((lock) => lockedPeriods.add(lock.period));
+  }
+  return Object.fromEntries(
+    documents.flatMap((document) =>
+      document.reporting_period && lockedPeriods.has(document.reporting_period)
+        ? [[document.id, document.reporting_period]]
+        : [],
+    ),
+  );
 }
 
 const DOCUMENT_COLUMNS = "id, company_id, source_file_id, first_page, last_page, source_sheet, first_row, last_row, has_document_image, status, created_at, receipt_date, claimed_reporting_period";

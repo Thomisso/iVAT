@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
-import { createServer } from "node:net";
+import { createServer as createNetServer } from "node:net";
 import { setTimeout as delay } from "node:timers/promises";
 
 let baseUrl = process.env.PLAYWRIGHT_BASE_URL;
@@ -56,7 +56,7 @@ async function waitForApp(child) {
 
 function availablePort() {
   return new Promise((resolve, reject) => {
-    const server = createServer();
+    const server = createNetServer();
     server.once("error", reject);
     server.listen(0, "127.0.0.1", () => {
       const address = server.address();
@@ -68,6 +68,21 @@ function availablePort() {
       server.close((error) => (error ? reject(error) : resolve(address.port)));
     });
   });
+}
+
+async function waitForDependency(child, url, label) {
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    if (child.exitCode !== null) throw new Error(`${label} exited before it became available`);
+    try {
+      const response = await fetch(url);
+      if (response.ok) return;
+    } catch {
+      // The local stand-in is still starting.
+    }
+    await delay(100);
+  }
+  throw new Error(`Timed out waiting for ${label}`);
 }
 
 function stopManagedProcesses() {
@@ -86,10 +101,21 @@ async function main() {
   if (!baseUrl) baseUrl = `http://localhost:${await availablePort()}`;
   environment.PLAYWRIGHT_BASE_URL = baseUrl;
   const port = new URL(baseUrl).port;
+  const aresPort = await availablePort();
+  environment.ARES_BASE_URL = `http://127.0.0.1:${aresPort}/ares/ekonomicke-subjekty-v-be/rest/ekonomicke-subjekty`;
   console.log(`Running the acceptance stack at ${baseUrl}`);
   await command("npm", ["run", "db:start"]);
   await command("npm", ["run", "db:reset"]);
 
+  const ares = start("postman", [
+    "simulation", "run", "postman/simulations/ares/ares.sim.yaml",
+    "--port", String(aresPort), "--no-history", "--output", "ndjson",
+  ]);
+  await waitForDependency(
+    ares,
+    `${environment.ARES_BASE_URL}/12345678`,
+    "ARES simulation",
+  );
   const web = start("npm", ["run", "dev", "--", "-p", port]);
   start(process.execPath, [
     "node_modules/tsx/dist/cli.mjs",
@@ -97,7 +123,7 @@ async function main() {
     "worker/index.ts",
   ]);
   await waitForApp(web);
-  await command("npx", ["playwright", "test", "--config=playwright.config.ts"]);
+  await command("npx", ["playwright", "test", "--config=playwright.config.ts", ...process.argv.slice(2)]);
 }
 
 try {

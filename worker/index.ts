@@ -26,7 +26,7 @@ const system = asSystemClient(
   }),
 );
 
-const providers = configuredAiProviders(system);
+const providers = configuredAiProviders();
 const worker: Worker = {
   system,
   providers: { get: (name) => providers.find((provider) => provider.name === name) },

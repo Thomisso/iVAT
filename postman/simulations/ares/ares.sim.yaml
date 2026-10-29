@@ -1,0 +1,8 @@
+simulation: ares
+routing: path
+mocks:
+  - name: ares
+    routeKey: ares
+    origin:
+      - ares.gov.cz
+    path: postman/mocks/ares/config.yaml

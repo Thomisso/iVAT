@@ -8,6 +8,7 @@ import {
   getCompany,
   listMyCompanies,
 } from "@/application/companies";
+import { saveCompanyFilingDefaults } from "@/application/company-filing-defaults";
 import {
   exportCompanyData,
   getCompanyDataExportStatus,
@@ -47,6 +48,16 @@ it("exports a Company's originals and Document data before retaining it as soft-
   });
   if (!uploaded.ok) throw new Error(uploaded.error);
   expect(await worker.runJobs()).toEqual([]);
+  expect(await saveCompanyFilingDefaults(company.client, {
+    companyId: company.companyId,
+    taxOffice: "451",
+    signatoryFirstName: "Jana",
+    signatoryLastName: "Nováková",
+    signatoryCapacity: "jednatelka",
+    email: "podatelna@example.test",
+    phone: "+420123456789",
+    epoAddressOverride: null,
+  })).toEqual({ ok: true, value: null });
   const [document] = await listDocuments(
     company.client,
     company.companyId,
@@ -80,6 +91,24 @@ it("exports a Company's originals and Document data before retaining it as soft-
       ],
     }),
   ]);
+  expect(JSON.parse(strFromU8(archive["company.json"]))).toEqual(expect.objectContaining({
+    firstName: null,
+    lastName: null,
+    streetName: "Vinohradská",
+    houseNumber: "12",
+    orientationNumber: null,
+    setupSteps: expect.arrayContaining([
+      expect.objectContaining({ step: "identity", state: "completed" }),
+      expect.objectContaining({ step: "filing_frequency", state: "completed" }),
+    ]),
+    filingDefaults: expect.objectContaining({
+      taxOffice: "451",
+      signatoryFirstName: "Jana",
+      email: "podatelna@example.test",
+      phone: "+420123456789",
+      epoAddressOverride: null,
+    }),
+  }));
   expect(await getCompany(company.client, company.companyId)).not.toBeNull();
   expect(
     await softDeleteCompany(company.client, {
@@ -357,7 +386,7 @@ it("retains an Approved Document and its Period Lock after the Company is soft-d
   ).toEqual({ ok: true, value: null });
   const report = { companyId: company.companyId, period: "2026-10" };
   expect((await generateVatReport(company.client, report)).ok).toBe(true);
-  expect(await finalizeVatReport(company.client, report)).toEqual({
+  expect(await finalizeVatReport(company.client, { ...report, confirmed: true })).toEqual({
     ok: true,
     value: null,
   });
