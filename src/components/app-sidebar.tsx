@@ -23,7 +23,7 @@ export async function AppSidebar({
   activeMembers?: boolean;
 }) {
   // Company routes are wrapped by the persistent CompanyShell layout. Keep
-  // this component for Organization/platform pages while they are migrated.
+  // this component for the new-Company and Platform pages while they are migrated.
   if (currentCompanyId) return null;
   const client = await requireUserClient();
   const [companies, current, role, organizations, superAdmin, t] = await Promise.all([
