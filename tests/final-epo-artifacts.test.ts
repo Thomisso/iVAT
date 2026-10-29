@@ -1,7 +1,7 @@
 import { strFromU8, unzipSync } from "fflate";
 import { expect, it } from "vitest";
 import { saveCompanyFilingDefaults } from "@/application/company-filing-defaults";
-import { setCompanyFilingFrequency } from "@/application/companies";
+import { setCurrentReportingYear } from "@/application/companies";
 import { exportCompanyData } from "@/application/company-deletion";
 import {
   exportFinalVatReport,
@@ -106,10 +106,10 @@ it.each(["dphdp3", "dphkh1"] as const)(
 
 it("stores and downloads quarterly VAT Return draft and final XML artifacts", async () => {
   const company = await administratorWithCompany();
-  expect(await setCompanyFilingFrequency(company.client, {
+  expect(await setCurrentReportingYear(company.client, {
     companyId: company.companyId,
     filingFrequency: "quarterly",
-    filingFrequencyEffectiveFrom: "2026-10-01",
+    year: 2026,
   })).toEqual({ ok: true, value: null });
   expect(await saveCompanyFilingDefaults(company.client, {
     companyId: company.companyId,
