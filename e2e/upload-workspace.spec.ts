@@ -66,3 +66,25 @@ test("a batch survives reload, exposes partial recovery, then hands off its comp
   await expect(page).toHaveURL(new RegExp(`/companies/${companyId}/documents\\?view=review&batchId=${batchId}$`));
   await expect(page.getByRole("table", { name: "Documents" }).getByRole("link")).toHaveCount(2);
 });
+
+test("the desktop upload card offers only file selection, aligned with the page", async ({
+  baseURL,
+  context,
+  page,
+}) => {
+  await english(context, baseURL);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const run = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const companyId = await createCompany(page, run);
+  await page.goto(`/companies/${companyId}/upload`);
+
+  const card = page.getByRole("region", { name: "Add Source Files" });
+  await expect(card.getByText("Drop a Source File here")).toBeVisible();
+  await expect(card.getByLabel("Direction")).toHaveCount(0);
+  await expect(card.getByText("Take document photo")).toBeHidden();
+
+  const history = page.getByRole("region", { name: "Batch history" });
+  const [cardBox, historyBox] = await Promise.all([card.boundingBox(), history.boundingBox()]);
+  expect(cardBox?.x).toBe(historyBox?.x);
+  expect(cardBox?.width).toBe(historyBox?.width);
+});

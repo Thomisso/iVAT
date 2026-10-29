@@ -276,13 +276,7 @@
     "hash": "Otisk SHA-256",
     "status": "Stav",
     "dropTitle": "Přetáhněte sem zdrojový soubor",
-    "chooseFile": "Vybrat soubor",
-    "direction": "Směr",
-    "directionAutomatic": "Určit automaticky podle identity firmy",
-    "directionValue": {
-      "incoming": "Přijatý",
-      "outgoing": "Vydaný"
-    }
+    "chooseFile": "Vybrat soubor"
   },
   "uploadWorkspace": {
     "newBatch": "Přidat zdrojové soubory",

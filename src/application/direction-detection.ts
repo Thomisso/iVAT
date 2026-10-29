@@ -19,13 +19,14 @@ function isIdentified(party: Party): boolean {
   return [party.name, party.ico, party.vatId].some((value) => value?.trim());
 }
 
-/** Upload intent wins; otherwise Company identity, then the narrow receipt fallback, decides. */
+/**
+ * Company identity, then the narrow receipt fallback, decides the Direction;
+ * null when neither does, which leaves a blocking finding for the User.
+ */
 export function detectDocumentDirection(
   payload: ExtractionPayload,
   company: CompanyIdentity,
-  preselectedDirection: Direction | null,
 ): Direction | null {
-  if (preselectedDirection) return preselectedDirection;
   const supplierMatches = matchesCompany(payload.supplier, company);
   const customerMatches = matchesCompany(payload.customer, company);
   if (supplierMatches !== customerMatches) return supplierMatches ? "outgoing" : "incoming";
