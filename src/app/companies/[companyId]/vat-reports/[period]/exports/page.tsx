@@ -23,11 +23,12 @@ export default async function ExportHistoryPage({
 }: PageProps<"/companies/[companyId]/vat-reports/[period]/exports">) {
   const { companyId, period } = await params;
   const client = await requireUserClient();
-  const [company, report, artifacts, t, format] = await Promise.all([
+  const [company, report, artifacts, t, epo, format] = await Promise.all([
     getCompany(client, companyId),
     getVatReport(client, companyId, period),
     listVatReportArtifacts(client, { companyId, period }),
     getTranslations("vatReports"),
+    getTranslations("epoExport"),
     getFormatter(),
   ]);
   if (!company || !report) notFound();
@@ -84,6 +85,29 @@ export default async function ExportHistoryPage({
                 key: "authorEmail",
                 header: t("artifactAuthor"),
                 render: (artifact) => artifact.authorEmail ?? artifact.authorUserId,
+              },
+              {
+                key: "resolvedDetails",
+                header: t("artifactFilingDetails"),
+                render: (artifact) => {
+                  const details = artifact.resolvedDetails;
+                  const address = details.address
+                    ? `${details.address.streetName} ${details.address.houseNumber}${details.address.orientationNumber ? `/${details.address.orientationNumber}` : ""}, ${details.address.postalCode} ${details.address.city}`
+                    : epo("notSet");
+                  const signatory = details.personType === "P"
+                    ? `${details.signatoryFirstName} ${details.signatoryLastName} · ${details.signatoryCapacity}`
+                    : epo("naturalPerson");
+                  return (
+                    <dl className="epo-export-summary">
+                      <div><dt>{epo("taxOffice")}</dt><dd>{details.taxOffice}</dd></div>
+                      <div><dt>{epo("preparedOn")}</dt><dd>{details.preparedOn}</dd></div>
+                      <div><dt>{epo("signatory")}</dt><dd>{signatory}</dd></div>
+                      <div><dt>{epo("email")}</dt><dd>{details.email || epo("notSet")}</dd></div>
+                      <div><dt>{epo("phone")}</dt><dd>{details.phone || epo("notSet")}</dd></div>
+                      <div><dt>{epo("serializedAddress")}</dt><dd>{address}</dd></div>
+                    </dl>
+                  );
+                },
               },
               {
                 key: "sha256",

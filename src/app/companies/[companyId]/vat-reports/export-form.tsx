@@ -21,6 +21,7 @@ export function ExportForm({
   personType,
   defaults,
   epoAddress,
+  finalized,
 }: {
   companyId: string;
   format: EpoFormat;
@@ -29,6 +30,7 @@ export function ExportForm({
   personType: PersonType;
   defaults: CompanyFilingDefaults | null;
   epoAddress: ResolvedEpoAddress | null;
+  finalized: boolean;
 }) {
   const t = useTranslations("epoExport");
   const [pending, setPending] = useState(false);
@@ -65,6 +67,7 @@ export function ExportForm({
             "epo_address_required",
             "stale_report",
             "report_finalized",
+            "report_not_finalized",
             "xml_invalid",
           ].includes(failure.error)
             ? failure.error
@@ -82,8 +85,9 @@ export function ExportForm({
       const link = document.createElement("a");
       link.href = url;
       const disposition = response.headers.get("Content-Disposition") ?? "";
+      const prefix = finalized ? "" : "DRAFT_";
       link.download = disposition.match(/filename="([^"]+)"/)?.[1]
-        ?? `DRAFT_${String(form.get("format")).toUpperCase()}_${period}.xml`;
+        ?? `${prefix}${String(form.get("format")).toUpperCase()}_${period}.xml`;
       document.body.append(link);
       link.click();
       link.remove();
@@ -100,9 +104,9 @@ export function ExportForm({
       <span className="vat-section-label">{format.toUpperCase()}</span>
       <h3>{t(`formats.${format}`)}</h3>
       <p className="iv-muted">{t("description")}</p>
-      <div className="iv-notice iv-notice-warning" role="note">
-        <strong>{t("draftWarningTitle")}</strong>
-        <p>{t("draftWarning")}</p>
+      <div className={`iv-notice ${finalized ? "iv-notice-info" : "iv-notice-warning"}`} role="note">
+        <strong>{t(finalized ? "finalNoticeTitle" : "draftWarningTitle")}</strong>
+        <p>{t(finalized ? "finalNotice" : "draftWarning")}</p>
       </div>
       <form className="form" onSubmit={download}>
         <input type="hidden" name="format" value={format} />

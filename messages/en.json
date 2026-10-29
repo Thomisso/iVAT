@@ -417,6 +417,7 @@
     "unlock_reason_too_long": "The unlock reason must be at most 200 characters.",
     "period_locked": "This Reporting Period is finalized. An Administrator must unlock it before Documents or the draft can change.",
     "report_finalized": "This VAT Report is finalized. Create or download its final XML instead.",
+    "report_not_finalized": "Finalize this VAT Report before creating its final XML.",
     "not_locked": "This Reporting Period is not locked.",
     "invalid_export_details": "Enter a valid tax office, date and person details for the filing.",
     "invalid_filing_defaults": "Enter valid filing defaults. Complete all signatory fields together and keep contacts within EPO limits.",
@@ -939,6 +940,7 @@
     "artifactFormat": "Output",
     "artifactCreatedAt": "Created",
     "artifactAuthor": "Author",
+    "artifactFilingDetails": "Resolved filing details",
     "artifactDownload": "Artifact",
     "lines": {
       "1": "1 · Domestic output, standard rate",
@@ -1132,6 +1134,8 @@
   "epoExport": {
     "draftWarningTitle": "Working XML only",
     "draftWarning": "This DRAFT_ file is an immutable working artifact for checking. It is not the final XML and does not mean the VAT Report was submitted.",
+    "finalNoticeTitle": "Final XML artifact",
+    "finalNotice": "This creates a new immutable final XML from the finalized VAT Report snapshot. It does not submit the XML to the tax authority.",
     "title": "Tax portal export",
     "description": "Enter the details for an ordinary filing. VAT ID, name and address come from the saved draft.",
     "format": "Form",
