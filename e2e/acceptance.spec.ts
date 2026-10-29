@@ -1,19 +1,7 @@
 import fs from "node:fs/promises";
-import { createClient } from "@supabase/supabase-js";
 import { expect, test } from "@playwright/test";
 import { validateEpoXml } from "../src/application/epo-xml";
-import type { Database } from "../src/lib/database.types";
-
-async function serviceClient() {
-  const contents = await fs.readFile(".env.local", "utf8");
-  const environment = Object.fromEntries(contents.split("\n").filter(Boolean).map((line) => {
-    const separator = line.indexOf("=");
-    return [line.slice(0, separator), line.slice(separator + 1)];
-  }));
-  return createClient<Database>(environment.NEXT_PUBLIC_SUPABASE_URL, environment.SUPABASE_SECRET_KEY, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-}
+import { addBrowserCompanyMemberFixture } from "../tests/support/e2e";
 
 test("an administrator can turn an uploaded Source File into a traceable, exportable VAT Report", async ({
   browser,
@@ -174,21 +162,7 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   await userPage.getByLabel("Password").fill("Playwright-password-1");
   await userPage.getByRole("button", { name: "Sign up" }).click();
   await expect(userPage).toHaveURL(/\/companies\/new$/);
-  const service = await serviceClient();
-  const [{ data: company }, { data: users }] = await Promise.all([
-    service.from("company").select("organization_id").eq("id", companyUrl.split("/").at(-1)!).single(),
-    service.auth.admin.listUsers(),
-  ]);
-  const userId = users.users.find((user) => user.email === userEmail)?.id;
-  if (!company || !userId) throw new Error("Could not prepare regular User browser fixture");
-  const membership = await service.from("membership").insert({
-    company_id: companyUrl.split("/").at(-1)!,
-    email: userEmail,
-    organization_id: company.organization_id,
-    role: "user",
-    user_id: userId,
-  });
-  if (membership.error) throw membership.error;
+  await addBrowserCompanyMemberFixture(companyUrl.split("/").at(-1)!, userEmail);
   await userPage.goto(`${companyUrl}/vat-reports?period=2026-10`);
   await expect(userPage.getByText("Period locked", { exact: true })).toBeVisible();
   await expect(userPage.getByRole("table", { name: "Finalization history" })

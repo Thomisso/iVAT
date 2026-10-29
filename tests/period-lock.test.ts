@@ -473,7 +473,7 @@ it("refuses deleting an Approved Document in a locked Reporting Period even to t
   ).toContainEqual(expect.objectContaining({ id: company.documents[0].id, status: "approved" }));
 });
 
-it("isolates Period Lock reads and refuses direct user writes", async () => {
+it("isolates Period Lock and transition history reads and refuses direct user writes", async () => {
   const company = await lockedCompanyWithDocuments();
   const outsider = await administratorWithCompany("Other Organization");
   const own = await company.client.from("period_lock").select("*").eq("company_id", company.companyId).single();
@@ -483,11 +483,42 @@ it("isolates Period Lock reads and refuses direct user writes", async () => {
   expect(hidden.error).toBeNull();
   expect(hidden.data).toEqual([]);
 
+  const ownTransitions = await company.client
+    .from("vat_report_transition")
+    .select("*")
+    .eq("company_id", company.companyId);
+  expect(ownTransitions.error).toBeNull();
+  expect(ownTransitions.data).toEqual([
+    expect.objectContaining({
+      action: "vat_report.finalized",
+      actor_user_id: company.userId,
+      period: "2026-10",
+    }),
+  ]);
+  const hiddenTransitions = await outsider.client
+    .from("vat_report_transition")
+    .select("*")
+    .eq("company_id", company.companyId);
+  expect(hiddenTransitions.error).toBeNull();
+  expect(hiddenTransitions.data).toEqual([]);
+
   const row = own.data!;
+  const transition = ownTransitions.data![0];
   const attempts = [
     await outsider.client.from("period_lock").insert(row),
     await outsider.client.from("period_lock").update({ period: "2026-11" }).eq("company_id", company.companyId),
     await outsider.client.from("period_lock").delete().eq("company_id", company.companyId),
+    await outsider.client.from("vat_report_transition").insert({
+      action: transition.action,
+      actor_user_id: transition.actor_user_id,
+      company_id: transition.company_id,
+      organization_id: transition.organization_id,
+      period: transition.period,
+      unlock_reason: transition.unlock_reason,
+      vat_report_id: transition.vat_report_id,
+    }),
+    await outsider.client.from("vat_report_transition").update({ period: "2026-11" }).eq("company_id", company.companyId),
+    await outsider.client.from("vat_report_transition").delete().eq("company_id", company.companyId),
   ];
   for (const attempt of attempts) expect(attempt.error?.code).toBe("42501");
   expect(await getPeriodLock(company.client, company.companyId, "2026-10")).not.toBeNull();

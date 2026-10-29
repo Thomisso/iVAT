@@ -12,7 +12,7 @@ alter table public.vat_report
 -- generic append-only audit payload (ADR-0009). Keep transition history in its
 -- own inaccessible, append-only relation and expose it only through the query
 -- below.
-create table private.vat_report_transition (
+create table public.vat_report_transition (
   id bigint generated always as identity primary key,
   organization_id uuid not null,
   company_id uuid not null,
@@ -28,7 +28,12 @@ create table private.vat_report_transition (
   )
 );
 
-revoke all on private.vat_report_transition from public, anon, authenticated, service_role;
+alter table public.vat_report_transition enable row level security;
+revoke all on public.vat_report_transition from public, anon, authenticated, service_role;
+grant select on public.vat_report_transition to authenticated;
+create policy "members read their companies' VAT Report transitions"
+  on public.vat_report_transition for select to authenticated
+  using (private.can_access_company(company_id, organization_id));
 
 create function private.prevent_vat_report_transition_change()
 returns trigger
@@ -41,10 +46,10 @@ end;
 $$;
 
 create trigger vat_report_transition_append_only
-  before update or delete on private.vat_report_transition
+  before update or delete on public.vat_report_transition
   for each row execute function private.prevent_vat_report_transition_change();
 create trigger vat_report_transition_no_truncate
-  before truncate on private.vat_report_transition
+  before truncate on public.vat_report_transition
   for each statement execute function private.prevent_vat_report_transition_change();
 
 revoke execute on function private.prevent_vat_report_transition_change() from public;
@@ -375,7 +380,7 @@ begin
   ) on conflict (company_id, period) do nothing;
 
   if found then
-    insert into private.vat_report_transition (
+    insert into public.vat_report_transition (
       organization_id, company_id, period, vat_report_id, action, actor_user_id
     ) values (
       company.organization_id, company.id, report.period, report.id,
@@ -437,7 +442,7 @@ begin
     'vat_report', unlocked_report_id,
     jsonb_build_object('period', target_period)
   );
-  insert into private.vat_report_transition (
+  insert into public.vat_report_transition (
     organization_id, company_id, period, vat_report_id, action,
     actor_user_id, unlock_reason
   ) values (
@@ -488,7 +493,7 @@ begin
       event.occurred_at,
       event.vat_report_id,
       event.unlock_reason
-    from private.vat_report_transition event
+    from public.vat_report_transition event
     left join auth.users "user" on "user".id = event.actor_user_id
     where event.company_id = company.id
       and event.action in ('vat_report.finalized', 'reporting_period.unlocked')
