@@ -921,6 +921,9 @@ isOneToOne: false
               "api_key": string,"extract_model": string,"split_model": string
             }[]
                            },
+"restore_ai_processing_allowance_wait":
+{ Args: { "target_company_id": string,"target_document_ids": (string)[] }; Returns: undefined
+                           },
 "retry_failed_processing_job":
 { Args: { "target_failed_job_id": string }; Returns: undefined
                            },

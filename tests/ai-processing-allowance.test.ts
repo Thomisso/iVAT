@@ -77,6 +77,10 @@ describe("AI Processing Allowance", () => {
       companyId: company.companyId,
       allowance: 1,
     })).toEqual({ ok: false, error: "forbidden" });
+    expect((await company.client.rpc("restore_ai_processing_allowance_wait", {
+      target_company_id: company.companyId,
+      target_document_ids: [crypto.randomUUID()],
+    })).error?.code).toBe("42501");
     expect(await setCompanyAiProcessingAllowance(superAdministrator.client, { async send() {} }, {
       companyId: company.companyId,
       allowance: -1,
@@ -138,6 +142,10 @@ describe("AI Processing Allowance", () => {
     expect(await worker.runJobs()).toEqual([]);
     expect(extractionCalls).toBe(0);
     expect(await listCompanyDocuments(company.client, company.companyId)).toEqual([
+      expect.objectContaining({ status: "waiting_for_allowance" }),
+    ]);
+    const user = await companyMember(company, "user");
+    expect(await listCompanyDocuments(user.client, company.companyId)).toEqual([
       expect.objectContaining({ status: "waiting_for_allowance" }),
     ]);
     expect(await getCompanyAiProcessingAllowance(company.client, company.companyId)).toEqual({
@@ -246,6 +254,140 @@ describe("AI Processing Allowance", () => {
     });
   });
 
+  it("selects Documents for finite allowance in page order even when jobs start in reverse", async () => {
+    const { company } = await companyWithDefaultAi("Deterministic dispatch", 1);
+    const worker = testWorker({ ...fakeAiProvider(), name: "anthropic" });
+    const uploaded = await uploadSourceFile(company.client, worker.jobs, {
+      companyId: company.companyId,
+      fileName: "deterministic-dispatch.pdf",
+      bytes: fixtureFile("two-invoices.pdf"),
+    });
+    if (!uploaded.ok) throw new Error(uploaded.error);
+
+    await worker.runNextJob();
+    expect(worker.queued).toHaveLength(2);
+    worker.queued.reverse();
+    expect(await worker.runJobs()).toEqual([]);
+    worker.releaseDelayedJobs();
+    expect(await worker.runJobs()).toEqual([]);
+    expect(await listCompanyDocuments(company.client, company.companyId)).toEqual([
+      expect.objectContaining({ firstPage: 1, status: "needs_review" }),
+      expect.objectContaining({ firstPage: 2, status: "waiting_for_allowance" }),
+    ]);
+  });
+
+  it("resumes waiting Documents oldest-first for finite capacity, or all when unlimited", async () => {
+    const { superAdministrator, company } = await companyWithDefaultAi("Oldest resume", 0);
+    const worker = testWorker({ ...fakeAiProvider(), name: "anthropic" });
+    const firstSource = await uploadSourceFile(company.client, worker.jobs, {
+      companyId: company.companyId,
+      fileName: "oldest-source.pdf",
+      bytes: fixtureFile("two-invoices.pdf"),
+    });
+    if (!firstSource.ok) throw new Error(firstSource.error);
+    expect(await worker.runJobs()).toEqual([]);
+    const secondSource = await uploadSourceFile(company.client, worker.jobs, {
+      companyId: company.companyId,
+      fileName: "newer-source.pdf",
+      bytes: fixtureFile("two-invoices.pdf"),
+    });
+    if (!secondSource.ok) throw new Error(secondSource.error);
+    expect(await worker.runJobs()).toEqual([]);
+    expect((await listCompanyDocuments(company.client, company.companyId)).filter(
+      (document) => document.status === "waiting_for_allowance",
+    )).toHaveLength(4);
+
+    expect(await setCompanyAiProcessingAllowance(superAdministrator.client, worker.jobs, {
+      companyId: company.companyId,
+      allowance: 1,
+    })).toEqual({ ok: true, value: null });
+    expect(worker.queued).toHaveLength(4);
+    worker.queued.reverse();
+    expect(await worker.runJobsConcurrently()).toEqual([]);
+    worker.releaseDelayedJobs();
+    expect(await worker.runJobsConcurrently()).toEqual([]);
+    expect(await listCompanyDocuments(company.client, company.companyId)).toContainEqual(
+      expect.objectContaining({ sourceFileId: firstSource.value.id, firstPage: 1, status: "needs_review" }),
+    );
+
+    expect(await setCompanyAiProcessingAllowance(superAdministrator.client, worker.jobs, {
+      companyId: company.companyId,
+      allowance: 2,
+    })).toEqual({ ok: true, value: null });
+    expect(worker.queued).toHaveLength(3);
+    worker.queued.reverse();
+    expect(await worker.runJobsConcurrently()).toEqual([]);
+    worker.releaseDelayedJobs();
+    expect(await worker.runJobsConcurrently()).toEqual([]);
+    expect(await listCompanyDocuments(company.client, company.companyId)).toContainEqual(
+      expect.objectContaining({ sourceFileId: firstSource.value.id, firstPage: 2, status: "needs_review" }),
+    );
+
+    expect(await setCompanyAiProcessingAllowance(superAdministrator.client, worker.jobs, {
+      companyId: company.companyId,
+      allowance: null,
+    })).toEqual({ ok: true, value: null });
+    expect(worker.queued).toHaveLength(2);
+    expect(await worker.runJobs()).toEqual([]);
+    expect(await getCompanyAiProcessingAllowance(company.client, company.companyId)).toEqual({
+      ok: true,
+      value: { used: 4, allowance: null, waitingDocuments: 0 },
+    });
+  });
+
+  it("restores waiting state after an uncertain queue send and safely recovers without duplicate consumption", async () => {
+    const { superAdministrator, company } = await companyWithDefaultAi("Resume queue recovery", 0);
+    const fake = fakeAiProvider();
+    let extractionCalls = 0;
+    const worker = testWorker({
+      ...fake,
+      name: "anthropic",
+      async extract(input, context) {
+        extractionCalls += 1;
+        return fake.extract(input, context);
+      },
+    });
+    const uploaded = await uploadSourceFile(company.client, worker.jobs, {
+      companyId: company.companyId,
+      fileName: "queue-recovery.pdf",
+      bytes: fixtureFile("two-invoices.pdf"),
+    });
+    if (!uploaded.ok) throw new Error(uploaded.error);
+    expect(await worker.runJobs()).toEqual([]);
+
+    await expect(setCompanyAiProcessingAllowance(superAdministrator.client, {
+      async send(job) {
+        // The broker may have accepted a job even though its acknowledgement
+        // was lost. Recovery must therefore tolerate this duplicate.
+        worker.queued.push(job);
+        throw new Error("queue acknowledgement lost");
+      },
+    }, {
+      companyId: company.companyId,
+      allowance: 2,
+    })).rejects.toThrow("queue acknowledgement lost");
+    expect((await listCompanyDocuments(company.client, company.companyId)).map((document) => document.status))
+      .toEqual(["waiting_for_allowance", "waiting_for_allowance"]);
+
+    expect(await setCompanyAiProcessingAllowance(superAdministrator.client, worker.jobs, {
+      companyId: company.companyId,
+      allowance: 2,
+    })).toEqual({ ok: true, value: null });
+    expect(await worker.runJobsConcurrently()).toEqual([]);
+    worker.releaseDelayedJobs();
+    expect(await worker.runJobsConcurrently()).toEqual([]);
+    const documents = await listCompanyDocuments(company.client, company.companyId);
+    expect(documents.map((document) => document.status)).toEqual(["needs_review", "needs_review"]);
+    expect(extractionCalls).toBe(2);
+    expect(await Promise.all(documents.map((document) =>
+      listExtractionVersions(company.client, company.companyId, document.id)
+    ))).toEqual([[expect.any(Object)], [expect.any(Object)]]);
+    expect(await getCompanyAiProcessingAllowance(company.client, company.companyId)).toEqual({
+      ok: true,
+      value: { used: 2, allowance: 2, waitingDocuments: 0 },
+    });
+  });
+
   it("allows only one of two concurrent final Extractions to complete", async () => {
     const { company } = await companyWithDefaultAi("Concurrent final unit", 1);
     const worker = testWorker({ ...fakeAiProvider(), name: "anthropic" });
@@ -258,6 +400,8 @@ describe("AI Processing Allowance", () => {
     await worker.runNextJob();
 
     expect(await worker.runJobsConcurrently()).toEqual([]);
+    worker.releaseDelayedJobs();
+    expect(await worker.runJobs()).toEqual([]);
     const documents = await listCompanyDocuments(company.client, company.companyId);
     expect(documents.filter((document) => document.status === "needs_review")).toHaveLength(1);
     expect(documents.filter((document) => document.status === "waiting_for_allowance")).toHaveLength(1);
