@@ -816,6 +816,7 @@
     "transitionActor": "Actor",
     "transitionFinalized": "Finalized",
     "transitionUnlocked": "Unlocked",
+    "notAvailable": "—",
     "noTransitions": "No Finalization transitions yet",
     "excelOverview": "Download Excel overview",
     "excelOverviewHint": "Live-data output: it always reads the current Documents and does not change the saved snapshot.",

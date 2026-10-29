@@ -816,6 +816,7 @@
     "transitionActor": "Provedl",
     "transitionFinalized": "Finalizováno",
     "transitionUnlocked": "Odemknuto",
+    "notAvailable": "—",
     "noTransitions": "Zatím neproběhla žádná finalizace",
     "excelOverview": "Stáhnout přehled v Excelu",
     "excelOverviewHint": "Výstup ze živých dat: vždy čte aktuální doklady a uložený snímek nemění.",

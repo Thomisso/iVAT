@@ -28,6 +28,7 @@ import {
   administratorWithCompany,
   companyMember,
   companyWithManyApprovedReportDocuments,
+  removeCompletedCompanyIdentityFixture,
 } from "./support/fixtures";
 import { fixtureFile } from "./support/files";
 import { systemClient, testWorker } from "./support/worker";
@@ -151,7 +152,7 @@ it("only an Administrator finalizes and unlocks a stored VAT Report, and both tr
       actorUserId: company.userId,
       companyId: company.companyId,
       targetType: "vat_report",
-      payload: { period: input.period, reason: "Correct source data" },
+      payload: { period: input.period },
     }),
   ]);
   expect(await listVatReportTransitions(user.client, input.companyId, input.period)).toEqual([
@@ -168,20 +169,44 @@ it("only an Administrator finalizes and unlocks a stored VAT Report, and both tr
   ]);
 });
 
+it("keeps a period snapshot current after an unrelated Company setting changes", async () => {
+  const company = await administratorWithCompany();
+  const input = { companyId: company.companyId, period: "2026-10" };
+  expect((await generateVatReport(company.client, input)).ok).toBe(true);
+
+  const worker = testWorker();
+  expect(await enableAiProcessing(company.client, worker.jobs, {
+    companyId: company.companyId,
+    provider: worker.ai,
+  })).toEqual({ ok: true, value: null });
+
+  expect(await finalizeVatReport(company.client, { ...input, confirmed: true })).toEqual({
+    ok: true,
+    value: null,
+  });
+});
+
 it("requires confirmation and refuses a stale snapshot, readiness blockers and incomplete identity", async () => {
   const stale = await administratorWithCompany();
   const staleInput = { companyId: stale.companyId, period: "2026-10" };
+  const staleWorker = testWorker();
+  expect(await enableAiProcessing(stale.client, staleWorker.jobs, {
+    companyId: stale.companyId,
+    provider: staleWorker.ai,
+  })).toEqual({ ok: true, value: null });
   expect((await generateVatReport(stale.client, staleInput)).ok).toBe(true);
   expect(await finalizeVatReport(stale.client, { ...staleInput, confirmed: false })).toEqual({
     ok: false,
     error: "confirmation_required",
   });
-  const staleUpload = await uploadSourceFile(stale.client, { async send() {} }, {
+  const staleUpload = await uploadSourceFile(stale.client, staleWorker.jobs, {
     companyId: stale.companyId,
     fileName: "new-source.pdf",
     bytes: fixtureFile("two-invoices.pdf"),
+    preselectedDirection: "incoming",
   });
   expect(staleUpload.ok).toBe(true);
+  expect(await staleWorker.runJobs()).toEqual([]);
   expect(await finalizeVatReport(stale.client, { ...staleInput, confirmed: true })).toEqual({
     ok: false,
     error: "stale_report",
@@ -211,12 +236,7 @@ it("requires confirmation and refuses a stale snapshot, readiness blockers and i
   const incomplete = await administratorWithCompany("Incomplete identity");
   const incompleteInput = { companyId: incomplete.companyId, period: "2026-10" };
   expect((await generateVatReport(incomplete.client, incompleteInput)).ok).toBe(true);
-  const removed = await systemClient()
-    .from("company_setup_step_state")
-    .delete()
-    .eq("company_id", incomplete.companyId)
-    .eq("step", "identity");
-  expect(removed.error).toBeNull();
+  await removeCompletedCompanyIdentityFixture(incomplete.companyId);
   expect(await finalizeVatReport(incomplete.client, { ...incompleteInput, confirmed: true })).toEqual({
     ok: false,
     error: "company_setup_incomplete",
@@ -327,7 +347,6 @@ it("finalizes a Reporting Period again after it was unlocked and audits every tr
     expect.objectContaining({ action: "vat_report.finalized" }),
     expect.objectContaining({ action: "reporting_period.unlocked", payload: {
       period: input.period,
-      reason: "Regenerate after correction",
     } }),
     expect.objectContaining({ action: "vat_report.finalized" }),
   ]);
