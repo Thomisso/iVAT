@@ -220,6 +220,7 @@ describe("tenant isolation", () => {
         await a.client.rpc("record_ai_extraction", {
           target_document_id: a.documentId,
           target_extraction_request_id: "00000000-0000-4000-8000-000000000000",
+          target_reservation_id: "00000000-0000-4000-8000-000000000001",
           provider: "fake",
           model: "forged",
           payload: {},
