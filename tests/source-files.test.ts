@@ -13,6 +13,31 @@ import { fixtureFile, heicFixture, rotatedHeicFixture, workbookFile } from "./su
 import { testWorker } from "./support/worker";
 
 describe("Source File upload", () => {
+  it("returns the same Source File when the client retries after losing the response", async () => {
+    const { client, companyId } = await administratorWithCompany();
+    const worker = testWorker();
+    const sourceFileId = "00000000-0000-4000-8000-000000000082";
+    const input = {
+      companyId,
+      sourceFileId,
+      fileName: "retry-safe.png",
+      bytes: fixtureFile("receipt.png"),
+    };
+
+    expect(await uploadSourceFile(client, worker.jobs, input)).toEqual({
+      ok: true,
+      value: { id: sourceFileId },
+    });
+    expect(await uploadSourceFile(client, worker.jobs, input)).toEqual({
+      ok: true,
+      value: { id: sourceFileId },
+    });
+
+    const stored = await listSourceFiles(client, companyId);
+    expect(stored).toHaveLength(1);
+    expect(stored[0]).toEqual(expect.objectContaining({ id: sourceFileId, fileName: "retry-safe.png" }));
+  });
+
   it("stores a PDF unchanged and lists it with its hash, format and page count", async () => {
     const { client, companyId } = await administratorWithCompany();
     const pdf = fixtureFile("two-invoices.pdf");

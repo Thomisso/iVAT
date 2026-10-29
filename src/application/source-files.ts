@@ -37,6 +37,7 @@ export type SourceFile = {
 
 export type UploadSourceFileInput = {
   companyId: string;
+  sourceFileId?: string;
   batchId?: string;
   fileName: string;
   bytes: Uint8Array;
@@ -178,6 +179,9 @@ export async function uploadSourceFile(
 ): Promise<Result<{ id: string }, UploadSourceFileError>> {
   const fileName = input.fileName.trim();
   if (!fileName || input.bytes.length === 0) return { ok: false, error: "file_required" };
+  if (input.sourceFileId !== undefined && !isUuid(input.sourceFileId)) {
+    return { ok: false, error: "invalid_choice" };
+  }
   if (input.batchId !== undefined && !isUuid(input.batchId)) return { ok: false, error: "forbidden" };
   if (
     input.preselectedDirection !== undefined &&
@@ -193,16 +197,36 @@ export async function uploadSourceFile(
   const pageCount = await countPages(format, input.bytes);
   if (!pageCount) return { ok: false, error: "unreadable_file" };
   if (pageCount > limits.maxFilePages) return { ok: false, error: "too_many_pages" };
-  const derivative = await normalizedDerivative(format, input.bytes);
-  if ((format === "heic" || format === "heif") && !derivative) {
-    return { ok: false, error: "unreadable_file" };
-  }
+  const sha256 = createHash("sha256").update(input.bytes).digest("hex");
 
   // Only for the Organization of the row; RLS hides Companies the user cannot access.
   const company = await getCompany(client, input.companyId);
   if (!company) return { ok: false, error: "forbidden" };
 
-  const id = randomUUID();
+  const id = input.sourceFileId ?? randomUUID();
+  const { data: existing, error: existingError } = await client
+    .from("source_file")
+    .select("id, upload_batch_id, file_name, format, byte_size, sha256, preselected_direction")
+    .eq("id", id)
+    .eq("company_id", company.id)
+    .maybeSingle();
+  if (existingError) throw existingError;
+  if (existing) {
+    const matches = existing.upload_batch_id === (input.batchId ?? null)
+      && existing.file_name === fileName
+      && existing.format === format
+      && Number(existing.byte_size) === input.bytes.length
+      && existing.sha256 === sha256
+      && existing.preselected_direction === (input.preselectedDirection ?? null);
+    if (!matches) return { ok: false, error: "invalid_choice" };
+    await jobs.send(splitJob(existing.id));
+    return { ok: true, value: { id: existing.id } };
+  }
+
+  const derivative = await normalizedDerivative(format, input.bytes);
+  if ((format === "heic" || format === "heif") && !derivative) {
+    return { ok: false, error: "unreadable_file" };
+  }
   const stored = await client.storage
     .from(SOURCE_FILE_BUCKET)
     .upload(sourceFileObjectPath(company.id, id), input.bytes, { contentType: SOURCE_FILE_MEDIA_TYPES[format], upsert: false });
@@ -228,7 +252,7 @@ export async function uploadSourceFile(
     file_name: fileName,
     format,
     byte_size: input.bytes.length,
-    sha256: createHash("sha256").update(input.bytes).digest("hex"),
+    sha256,
     normalized_format: derivative ? "jpeg" : null,
     normalized_byte_size: derivative?.length ?? null,
     normalized_sha256: derivative

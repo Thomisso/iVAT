@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import type { UploadLimits } from "@/application/source-files";
@@ -8,6 +8,7 @@ import { DIRECTIONS, type Direction } from "@/application/extraction-payload";
 import { Button } from "@/components/button";
 import { DropZone } from "@/components/drop-zone";
 import { FormError } from "@/components/form-error";
+import { browserImagePreview } from "@/lib/browser-image-preview";
 
 type UploadItem = {
   id: string;
@@ -104,6 +105,7 @@ function sendFile(
     });
     request.addEventListener("error", () => resolve({ kind: "retryable_failure" }));
     const data = new FormData();
+    data.set("sourceFileId", item.id);
     data.set("batchId", batchId);
     if (direction) data.set("direction", direction);
     data.set("file", item.file);
@@ -145,10 +147,22 @@ function PhotoPreview({
   onRetake: () => void;
 }) {
   const t = useTranslations("sourceFiles");
-  const url = useMemo(() => URL.createObjectURL(item.file), [item.file]);
+  const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
-    return () => URL.revokeObjectURL(url);
-  }, [url]);
+    let active = true;
+    let objectUrl: string | null = null;
+    void browserImagePreview(item.file).then((preview) => {
+      objectUrl = URL.createObjectURL(preview);
+      if (active) setUrl(objectUrl);
+      else URL.revokeObjectURL(objectUrl);
+    }).catch(() => {
+      if (active) setUrl(null);
+    });
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [item.file]);
   return (
     <section className="capture-preview" role="region" aria-label={t("photoPreview")}>
       {/* A local blob URL is already the exact client-side preview and cannot use next/image. */}
