@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import type { PersonType } from "@/application/companies";
 import { useTranslations } from "next-intl";
+import type { CompanyFilingDefaults } from "@/application/company-filing-defaults";
 import { TAX_OFFICES, type EpoFormat } from "@/application/epo-export-details";
 import { TextField } from "@/components/text-field";
 import { Button } from "@/components/button";
@@ -14,16 +15,22 @@ export function ExportForm({
   period,
   preparedOn,
   personType,
+  defaults,
 }: {
   companyId: string;
   format: EpoFormat;
   period: string;
   preparedOn: string;
   personType: PersonType;
+  defaults: CompanyFilingDefaults | null;
 }) {
   const t = useTranslations("epoExport");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const defaultsComplete = Boolean(defaults?.taxOffice) && (personType === "natural" || Boolean(
+    defaults?.signatoryFirstName && defaults.signatoryLastName && defaults.signatoryCapacity,
+  ));
+  const [editing, setEditing] = useState(!defaultsComplete);
 
   async function download(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -90,51 +97,39 @@ export function ExportForm({
             defaultValue={preparedOn}
           />
         </div>
-        <label className="iv-field-label">
-          {t("taxOffice")}
-          <select name="taxOffice" required defaultValue="">
-            <option value="">{t("choose")}</option>
-            {TAX_OFFICES.map((code) => (
-              <option key={code} value={code}>
-                {t(`taxOffices.${code}`)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <p>
-          {t("personType")}: {t(personType === "legal" ? "legalPerson" : "naturalPerson")}
-        </p>
-        {personType === "legal" && (
-          <fieldset>
+        <p>{t("personType")}: {t(personType === "legal" ? "legalPerson" : "naturalPerson")}</p>
+        {defaults && <dl className="epo-export-summary">
+          <div><dt>{t("taxOffice")}</dt><dd>{defaults.taxOffice ? t(`taxOffices.${defaults.taxOffice}`) : t("notSet")}</dd></div>
+          {personType === "legal" && <div><dt>{t("signatory")}</dt><dd>{defaults.signatoryFirstName
+            ? `${defaults.signatoryFirstName} ${defaults.signatoryLastName} · ${defaults.signatoryCapacity}`
+            : t("notSet")}</dd></div>}
+          <div><dt>{t("email")}</dt><dd>{defaults.email ?? t("notSet")}</dd></div>
+          <div><dt>{t("phone")}</dt><dd>{defaults.phone ?? t("notSet")}</dd></div>
+        </dl>}
+        {editing ? <>
+          <label className="iv-field-label">
+            {t("taxOffice")}
+            <select name="taxOffice" required defaultValue={defaults?.taxOffice ?? ""}>
+              <option value="">{t("choose")}</option>
+              {TAX_OFFICES.map((code) => (
+                <option key={code} value={code}>{t(`taxOffices.${code}`)}</option>
+              ))}
+            </select>
+          </label>
+          {personType === "legal" && <fieldset>
             <legend>{t("signatory")}</legend>
             <div className="form-row">
-              <TextField
-                label={t("firstName")}
-                name="signatoryFirstName"
-                required
-                maxLength={20}
-              />
-              <TextField
-                label={t("lastName")}
-                name="signatoryLastName"
-                required
-                maxLength={36}
-              />
+              <TextField label={t("firstName")} name="signatoryFirstName" required maxLength={20} defaultValue={defaults?.signatoryFirstName ?? ""} />
+              <TextField label={t("lastName")} name="signatoryLastName" required maxLength={36} defaultValue={defaults?.signatoryLastName ?? ""} />
             </div>
-            <TextField
-              label={t("capacity")}
-              name="signatoryCapacity"
-              required
-              maxLength={40}
-            />
-          </fieldset>
-        )}
-        <TextField
-          label={t("email")}
-          name="email"
-          type="email"
-          maxLength={255}
-        />
+            <TextField label={t("capacity")} name="signatoryCapacity" required maxLength={40} defaultValue={defaults?.signatoryCapacity ?? ""} />
+          </fieldset>}
+          <div className="form-row">
+            <TextField label={t("email")} name="email" type="email" maxLength={255} defaultValue={defaults?.email ?? ""} />
+            <TextField label={t("phone")} name="phone" type="tel" maxLength={14} defaultValue={defaults?.phone ?? ""} />
+          </div>
+          {defaultsComplete && <Button type="button" variant="secondary" onClick={() => setEditing(false)}>{t("useSaved")}</Button>}
+        </> : <Button type="button" variant="secondary" onClick={() => setEditing(true)}>{t("editForExport")}</Button>}
         <FormError error={error} />
         <Button type="submit" disabled={pending} icon="report">
           {t(pending ? "preparing" : "download")}

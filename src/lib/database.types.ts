@@ -103,6 +103,26 @@ isOneToOne: false
       referencedColumns: ["id","organization_id"]
     }
                   ]
+                },"company_filing_defaults": {
+                  Row: {
+                    "company_id": string,"email": string | null,"epo_address_confirmed_at": string | null,"epo_city": string | null,"epo_house_number": string | null,"epo_orientation_number": string | null,"epo_postal_code": string | null,"epo_street_name": string | null,"organization_id": string,"phone": string | null,"signatory_capacity": string | null,"signatory_first_name": string | null,"signatory_last_name": string | null,"tax_office": string | null,"updated_at": string,"updated_by": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "company_id": string,"email"?: string | null,"epo_address_confirmed_at"?: string | null,"epo_city"?: string | null,"epo_house_number"?: string | null,"epo_orientation_number"?: string | null,"epo_postal_code"?: string | null,"epo_street_name"?: string | null,"organization_id": string,"phone"?: string | null,"signatory_capacity"?: string | null,"signatory_first_name"?: string | null,"signatory_last_name"?: string | null,"tax_office"?: string | null,"updated_at"?: string,"updated_by"?: string | null
+                  }
+                  Update: {
+                    "company_id"?: string,"email"?: string | null,"epo_address_confirmed_at"?: string | null,"epo_city"?: string | null,"epo_house_number"?: string | null,"epo_orientation_number"?: string | null,"epo_postal_code"?: string | null,"epo_street_name"?: string | null,"organization_id"?: string,"phone"?: string | null,"signatory_capacity"?: string | null,"signatory_first_name"?: string | null,"signatory_last_name"?: string | null,"tax_office"?: string | null,"updated_at"?: string,"updated_by"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "company_filing_defaults_company_id_organization_id_fkey"
+      columns: ["company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "company"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
                 },"company_filing_frequency": {
                   Row: {
                     "company_id": string,"created_at": string,"effective_from": string,"frequency": Database["public"]['Enums']["filing_frequency"],"organization_id": string
@@ -728,6 +748,9 @@ isOneToOne: false
                            },
 "save_vat_report":
 { Args: { "computed_result": Json,"expected_documents": Json,"target_company_id": string,"target_period": string }; Returns: string
+                           },
+"set_company_filing_defaults":
+{ Args: { "epo_address_confirmed": boolean,"new_email": string,"new_epo_city": string,"new_epo_house_number": string,"new_epo_orientation_number": string,"new_epo_postal_code": string,"new_epo_street_name": string,"new_phone": string,"new_signatory_capacity": string,"new_signatory_first_name": string,"new_signatory_last_name": string,"new_tax_office": string,"target_company_id": string }; Returns: undefined
                            },
 "set_company_filing_frequency":
 { Args: { "filing_frequency_effective_from": string,"new_filing_frequency": Database["public"]['Enums']["filing_frequency"],"target_company_id": string }; Returns: undefined
