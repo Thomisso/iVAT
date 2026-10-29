@@ -44,6 +44,8 @@ async function createCompany(page: Page, name: string, ico: string) {
   const companyId = new URL(page.url()).pathname.split("/")[2];
   await page.getByLabel("Effective from").fill("2026-01-01");
   await page.getByRole("button", { name: "Save and continue" }).click();
+  await expect(page).toHaveURL(new RegExp(`/companies/${companyId}/setup/ai-processing$`));
+  await page.getByRole("button", { name: "Continue without AI" }).click();
   await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+$/);
   return companyId;
 }
@@ -89,11 +91,12 @@ test("Company context, final navigation and account return stay explicit", async
     ["Overview", ""], ["Upload", "/upload"], ["Documents", "/documents"],
     ["VAT", "/vat"], ["Settings", "/settings"],
   ] as const;
+  const companyNavigation = page.getByRole("navigation", { name: "Company navigation" });
   for (const [label, suffix] of destinations) {
     await page.getByRole("link", { name: label, exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`/companies/${firstId}${suffix}$`));
-    await expect(page.locator('[aria-current="page"]')).toHaveCount(1);
-    await expect(page.getByRole("link", { name: label, exact: true })).toHaveAttribute("aria-current", "page");
+    await expect(companyNavigation.locator('[aria-current="page"]')).toHaveCount(1);
+    await expect(companyNavigation.getByRole("link", { name: label, exact: true })).toHaveAttribute("aria-current", "page");
   }
   await page.goto(`/companies/${firstId}/vat-reports`);
   await expect(page.getByRole("link", { name: "VAT", exact: true })).toHaveAttribute("aria-current", "page");

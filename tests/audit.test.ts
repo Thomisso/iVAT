@@ -16,23 +16,40 @@ describe("audit log", () => {
 
     const first = await listAuditEventPage(client, organizationId, { page: 1, pageSize: 2 });
     const second = await listAuditEventPage(client, organizationId, { page: 2, pageSize: 2 });
+    const third = await listAuditEventPage(client, organizationId, { page: 3, pageSize: 2 });
 
     expect(first).toEqual({
       events: [
+        expect.objectContaining({
+          action: "company.setup_changed",
+          payload: { state: "completed", step: "filing_frequency" },
+        }),
         expect.objectContaining({ action: "company.filing_frequency_changed" }),
-        expect.objectContaining({ action: "company.created" }),
       ],
       page: 1,
       pageSize: 2,
-      total: 3,
-      pageCount: 2,
+      total: 5,
+      pageCount: 3,
     });
     expect(second).toEqual({
-      events: [expect.objectContaining({ action: "user.signed_up" })],
+      events: [
+        expect.objectContaining({
+          action: "company.setup_changed",
+          payload: { state: "completed", step: "identity" },
+        }),
+        expect.objectContaining({ action: "company.created" }),
+      ],
       page: 2,
       pageSize: 2,
-      total: 3,
-      pageCount: 2,
+      total: 5,
+      pageCount: 3,
+    });
+    expect(third).toEqual({
+      events: [expect.objectContaining({ action: "user.signed_up" })],
+      page: 3,
+      pageSize: 2,
+      total: 5,
+      pageCount: 3,
     });
   });
 
@@ -75,7 +92,7 @@ describe("audit log", () => {
   it("ignores malformed date filters", async () => {
     const { client, organizationId } = await administratorWithCompany();
 
-    expect((await listAuditEventPage(client, organizationId, { to: "2026-99-99" })).total).toBe(3);
+    expect((await listAuditEventPage(client, organizationId, { to: "2026-99-99" })).total).toBe(5);
   });
 
   it("lists the Organization's users for the actor filter without duplicates", async () => {
@@ -179,7 +196,9 @@ describe("audit log", () => {
     expect(events.map((e) => e.action)).toEqual([
       "user.signed_up",
       "company.created",
+      "company.setup_changed",
       "company.filing_frequency_changed",
+      "company.setup_changed",
     ]);
     expect(events[1]).toEqual(
       expect.objectContaining({
@@ -191,6 +210,14 @@ describe("audit log", () => {
         payload: expect.objectContaining({ name: "Novák s.r.o." }),
       }),
     );
+    expect(events[2]).toEqual(expect.objectContaining({
+      action: "company.setup_changed",
+      payload: { state: "completed", step: "identity" },
+    }));
+    expect(events[4]).toEqual(expect.objectContaining({
+      action: "company.setup_changed",
+      payload: { state: "completed", step: "filing_frequency" },
+    }));
   });
 
   it("records a Source File upload", async () => {

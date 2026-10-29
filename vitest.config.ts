@@ -8,6 +8,10 @@ export default defineConfig({
   test: {
     include: ["tests/**/*.test.ts"],
     globalSetup: ["tests/support/global-setup.ts"],
+    // Database tests share one local Supabase stack, including mutable
+    // platform-wide settings. Running files concurrently makes those settings
+    // race and overloads the database's statement timeout in large fixtures.
+    fileParallelism: false,
     testTimeout: 20_000,
   },
 });
