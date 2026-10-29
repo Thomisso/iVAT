@@ -9,7 +9,6 @@ import {
   listPlatformOrganizationCompanies,
 } from "@/application/platform-administration";
 import { listFailedProcessingJobs } from "@/application/processing-administration";
-import { AppSidebar } from "@/components/app-sidebar";
 import { CommandButton } from "@/components/command-button";
 import { DataTable } from "@/components/data-table";
 import { StatusBadge } from "@/components/status-badge";
@@ -29,8 +28,7 @@ export default async function PlatformAdministrationPage() {
 
   return (
     <>
-      <AppSidebar />
-      <main className="dashboard">
+      <main className="dashboard platform-page">
         <header>
           <h1>{t("title")}</h1>
           <p className="iv-muted">{t("intro")}</p>

@@ -1518,6 +1518,19 @@ select:disabled {
   text-decoration: none;
 }
 .organization-company-return:hover { background: #eef1ef; color: var(--shell-blue); }
+.platform-shell-context {
+  min-height: 48px;
+  padding: 7px 8px;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #cbd5d2;
+  border-radius: 7px;
+  background: white;
+  color: #263944;
+}
+.platform-page > .panel { width: 100%; margin: 0; }
 .company-shell-secondary > .company-shell-menu:first-child .company-shell-menu-trigger { min-height: 40px; grid-template-columns: 22px 1fr auto; border-color: transparent; background: transparent; }
 .company-shell-secondary > .company-shell-menu:last-child .company-shell-popover { top: auto; bottom: calc(100% + 6px); }
 .company-shell-content { min-width: 0; }
@@ -1726,6 +1739,7 @@ select:disabled {
   .company-mobile-header > .company-shell-menu .company-shell-menu-trigger { min-height: 43px; padding: 4px 6px; grid-template-columns: 28px minmax(0, 1fr) 12px; }
   .company-mobile-header .company-initial { width: 27px; height: 27px; }
   .company-mobile-header .company-menu-copy small { display: none; }
+  .company-mobile-header > .platform-shell-context { min-height: 43px; padding: 4px 6px; grid-template-columns: 28px minmax(0, 1fr); }
   .company-mobile-actions { display: flex; gap: 4px; }
   .company-mobile-actions .company-shell-menu-trigger { width: 38px; min-height: 38px; padding: 5px; display: grid; grid-template-columns: 1fr; place-items: center; border-color: transparent; background: transparent; }
   .company-mobile-actions .organization-company-return { width: 38px; min-height: 38px; padding: 5px; display: grid; place-items: center; }

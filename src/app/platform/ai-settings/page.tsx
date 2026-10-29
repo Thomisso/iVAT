@@ -11,7 +11,6 @@ import {
   listPlatformAiProviders,
   listPlatformOrganizations,
 } from "@/application/platform-ai";
-import { AppSidebar } from "@/components/app-sidebar";
 import { CommandButton } from "@/components/command-button";
 import { requireUserClient } from "@/lib/supabase/server";
 import { PlatformAiProviderForm } from "./platform-ai-provider-form";
@@ -42,8 +41,7 @@ export default async function PlatformAiSettingsPage() {
 
   return (
     <>
-      <AppSidebar />
-      <main className="dashboard">
+      <main className="dashboard platform-page">
         <header>
           <h1>{t("title")}</h1>
           <p className="iv-muted">{t("intro")}</p>
