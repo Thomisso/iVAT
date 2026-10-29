@@ -81,11 +81,25 @@ async function structuredMessage(
     throw new AnthropicProviderError("Anthropic could not be reached", { transient: true, cause });
   }
   if (!response.ok) {
-    const body = await response.json().catch(() => null) as { error?: { type?: unknown } } | null;
+    const body = await response.json().catch(() => null) as {
+      error?: { type?: unknown; message?: unknown; details?: { error_code?: unknown } };
+    } | null;
     const errorType = body?.error?.type;
+    const errorMessage = body?.error?.message;
+    const specifiedSpendLimit = response.status === 400
+      && errorType === "invalid_request_error"
+      && typeof errorMessage === "string"
+      && (
+        errorMessage.startsWith("You have reached your specified API usage limits")
+        || errorMessage.startsWith("You have reached your specified workspace API usage limits")
+      );
+    const enforcedSpendCap = response.status === 429
+      && errorType === "rate_limit_error"
+      && body?.error?.details?.error_code === "enforced_spend_limit_reached"
+      && response.headers.get("retry-after") === null;
     const classification = response.status === 401 || errorType === "authentication_error"
       ? "invalid_credentials"
-      : response.status === 402 || errorType === "billing_error"
+      : response.status === 402 || errorType === "billing_error" || specifiedSpendLimit || enforcedSpendCap
         ? "provider_credits_exhausted"
         : undefined;
     const platformIntervention = classification !== undefined;

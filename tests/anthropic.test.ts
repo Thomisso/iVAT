@@ -179,13 +179,13 @@ describe("Anthropic AI provider", () => {
   });
 
   it.each([
-    [429, true],
-    [529, true],
-    [401, false],
-  ])("classifies HTTP %i failures for retry", async (status, transient) => {
+    [429, "rate_limit_error", { "retry-after": "2" }, true],
+    [529, "overloaded_error", {}, true],
+    [401, "authentication_error", {}, false],
+  ])("classifies HTTP %i failures for retry", async (status, type, headers, transient) => {
     const baseUrl = await anthropicStandIn((_request, _body, response) => {
-      response.writeHead(status, { "content-type": "application/json" });
-      response.end(JSON.stringify({ type: "error", error: { type: "api_error", message: "unavailable" } }));
+      response.writeHead(status, { "content-type": "application/json", ...headers });
+      response.end(JSON.stringify({ type: "error", error: { type, message: "unavailable" } }));
     });
     const provider = anthropicAiProvider({
       apiKey: "test-secret",
@@ -231,6 +231,63 @@ describe("Anthropic AI provider", () => {
       transient: false,
       platformIntervention: true,
       classification,
+    });
+  });
+
+  it.each([
+    [
+      400,
+      {},
+      {
+        type: "error",
+        error: {
+          type: "invalid_request_error",
+          message: "You have reached your specified API usage limits. Access will resume next month.",
+        },
+        request_id: "req_spend_limit",
+      },
+    ],
+    [
+      429,
+      {},
+      {
+        type: "error",
+        error: {
+          type: "rate_limit_error",
+          message: "You have reached your API usage limits.",
+          details: { error_code: "enforced_spend_limit_reached" },
+        },
+        request_id: "req_tier_cap",
+      },
+    ],
+  ])("classifies Anthropic's documented HTTP %i spend-limit shape as platform intervention", async (
+    status,
+    headers,
+    body,
+  ) => {
+    const baseUrl = await anthropicStandIn((_request, _body, response) => {
+      response.writeHead(status, { "content-type": "application/json", ...headers });
+      response.end(JSON.stringify(body));
+    });
+    const provider = anthropicAiProvider({
+      apiKey: "test-secret",
+      splitModel: "claude-sonnet-split",
+      extractModel: "claude-sonnet-extract",
+      baseUrl,
+    });
+
+    const error = await provider.split({
+      format: "pdf",
+      mediaType: "application/pdf",
+      bytes: new Uint8Array([37, 80, 68, 70]),
+      pageCount: 1,
+    }).catch((caught: unknown) => caught);
+
+    expect(error).toMatchObject({
+      status,
+      transient: false,
+      platformIntervention: true,
+      classification: "provider_credits_exhausted",
     });
   });
 });
