@@ -5,7 +5,9 @@ import {
   acceptInvitation,
   changeMembershipRole,
   inviteMember,
+  listCompanyAccess,
   listMemberships,
+  listPendingInvitations,
   removeMembership,
   type InvitationMailer,
 } from "@/application/memberships";
@@ -58,6 +60,49 @@ async function inviteAndAccept(
 }
 
 describe("Membership invitations", () => {
+  it("lists direct and inherited Company access separately from pending invitations", async () => {
+    const administrator = await administratorWithCompany();
+    const directUser = await inviteAndAccept(administrator);
+    const pendingEmail = uniqueEmail();
+    const mail = capturingMailer();
+
+    expect(await inviteMember(administrator.client, mail.mailer, {
+      organizationId: administrator.organizationId,
+      companyId: administrator.companyId,
+      email: pendingEmail,
+      role: "user",
+      acceptUrl: "http://127.0.0.1:3100/invitations/accept",
+    })).toEqual({ ok: true, value: null });
+
+    const access = await listCompanyAccess(administrator.client, administrator.companyId);
+    expect(access).toHaveLength(2);
+    expect(access).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        email: administrator.email,
+        role: "administrator",
+        source: "organization",
+        manageableMembershipId: null,
+      }),
+      expect.objectContaining({
+        email: directUser.email,
+        role: "user",
+        source: "company",
+        manageableMembershipId: expect.any(String),
+      }),
+    ]));
+    expect(await listPendingInvitations(administrator.client, {
+      organizationId: administrator.organizationId,
+      companyId: administrator.companyId,
+    })).toEqual([
+      expect.objectContaining({
+        email: pendingEmail,
+        role: "user",
+        status: "pending",
+        expiresAt: expect.any(String),
+      }),
+    ]);
+  });
+
   it("lets an Administrator invite a User who accepts a single-use Company link", async () => {
     const administrator = await administratorWithCompany();
     const email = uniqueEmail();
@@ -113,6 +158,11 @@ describe("Membership invitations", () => {
     expect(await changeMembershipRole(member.client, { membershipId: membership.id, role: "administrator" }))
       .toEqual({ ok: false, error: "forbidden" });
     expect(await removeMembership(member.client, membership.id)).toEqual({ ok: false, error: "forbidden" });
+    expect(await listCompanyAccess(member.client, administrator.companyId)).toEqual([]);
+    expect(await listPendingInvitations(member.client, {
+      organizationId: administrator.organizationId,
+      companyId: administrator.companyId,
+    })).toEqual([]);
     expect(mail.sent).toEqual([]);
   });
 
@@ -210,6 +260,11 @@ describe("Membership invitations", () => {
     expect(await changeMembershipRole(b.client, { membershipId: membership.id, role: "administrator" }))
       .toEqual({ ok: false, error: "forbidden" });
     expect(await removeMembership(b.client, membership.id)).toEqual({ ok: false, error: "forbidden" });
+    expect(await listCompanyAccess(b.client, a.companyId)).toEqual([]);
+    expect(await listPendingInvitations(b.client, {
+      organizationId: a.organizationId,
+      companyId: a.companyId,
+    })).toEqual([]);
     expect(await listMemberships(b.client, { organizationId: a.organizationId, companyId: a.companyId })).toEqual([]);
     expect((await b.client.from("invitation").select("id").eq("organization_id", a.organizationId)).data).toEqual([]);
     expect((await b.client.from("membership").select("id").eq("organization_id", a.organizationId)).data).toEqual([]);

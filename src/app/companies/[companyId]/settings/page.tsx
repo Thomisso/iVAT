@@ -53,6 +53,11 @@ export default async function CompanySettingsPage({
             }}
           />
           <Link href={`/companies/${company.id}/setup/filing-frequency`}>{t("editFilingFrequency")}</Link>
+          {role === "administrator" && <section className="company-settings-section">
+            <h2>{t("usersTitle")}</h2>
+            <p>{t("usersIntro")}</p>
+            <Link href={`/companies/${company.id}/members`}>{t("manageUsers")}</Link>
+          </section>}
           <section className="company-settings-section">
             <h2>{ai("title")}</h2>
             <p>{company.aiProcessing

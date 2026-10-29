@@ -11,6 +11,23 @@ export type Membership = {
   role: MembershipRole;
 };
 
+export type CompanyAccess = {
+  membershipId: string;
+  userId: string;
+  email: string;
+  role: MembershipRole;
+  source: "company" | "organization" | "company_and_organization";
+  manageableMembershipId: string | null;
+};
+
+export type PendingInvitation = {
+  id: string;
+  email: string;
+  role: MembershipRole;
+  expiresAt: string;
+  status: "pending" | "expired";
+};
+
 export interface InvitationMailer {
   sendInvitation(message: { email: string; acceptUrl: string }): Promise<void>;
 }
@@ -107,6 +124,49 @@ export async function listMemberships(
     companyId: membership.company_id,
     email: membership.email,
     role: membership.role,
+  }));
+}
+
+export async function listCompanyAccess(
+  client: AppClient,
+  companyId: string,
+): Promise<CompanyAccess[]> {
+  if (!isUuid(companyId)) return [];
+  const { data, error } = await client.rpc("list_company_access", {
+    target_company_id: companyId,
+  });
+  if (error) {
+    if (databaseRefusal(error) === "forbidden") return [];
+    throw error;
+  }
+  return data.map((access) => ({
+    membershipId: access.membership_id,
+    userId: access.user_id,
+    email: access.email,
+    role: access.role,
+    source: access.source as CompanyAccess["source"],
+    manageableMembershipId: access.manageable_membership_id,
+  }));
+}
+
+export async function listPendingInvitations(
+  client: AppClient,
+  input: { organizationId: string; companyId: string | null },
+): Promise<PendingInvitation[]> {
+  if (!isUuid(input.organizationId) || (input.companyId !== null && !isUuid(input.companyId))) return [];
+  let query = client.from("invitation").select("id, email, role, expires_at")
+    .eq("organization_id", input.organizationId)
+    .is("accepted_at", null);
+  query = input.companyId === null ? query.is("company_id", null) : query.eq("company_id", input.companyId);
+  const { data, error } = await query.order("created_at");
+  if (error) throw error;
+  const now = Date.now();
+  return data.map((invitation) => ({
+    id: invitation.id,
+    email: invitation.email,
+    role: invitation.role,
+    expiresAt: invitation.expires_at,
+    status: Date.parse(invitation.expires_at) <= now ? "expired" : "pending",
   }));
 }
 
