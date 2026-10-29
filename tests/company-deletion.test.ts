@@ -31,6 +31,25 @@ async function exportAndComplete(client: AppClient, input: { companyId: string }
   return result;
 }
 
+it("downloads a completed standalone export without changing or deleting the Company", async () => {
+  const company = await administratorWithCompany();
+  const before = await getCompany(company.client, company.companyId);
+
+  const exported = await exportAndComplete(company.client, { companyId: company.companyId });
+
+  if (!exported.ok) throw new Error(exported.error);
+  expect(await getCompanyDataExportStatus(company.client, {
+    companyId: company.companyId,
+    exportId: exported.value.exportId,
+  })).toEqual({ ok: true, value: "completed" });
+  expect(await getCompany(company.client, company.companyId)).toEqual(before);
+  expect(await listMyCompanies(company.client)).toContainEqual({
+    id: company.companyId,
+    organizationId: company.organizationId,
+    name: before?.name,
+  });
+});
+
 it("exports a Company's originals and Document data before retaining it as soft-deleted", async () => {
   const company = await administratorWithCompany();
   const member = await companyMember(company);

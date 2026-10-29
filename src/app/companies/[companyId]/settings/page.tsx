@@ -11,6 +11,7 @@ import { getCompanyFilingDefaults } from "@/application/company-filing-defaults"
 import { listMyOrganizations } from "@/application/organizations";
 import { requireUserClient } from "@/lib/supabase/server";
 import { CompanyForm } from "../../new/company-form";
+import { CompanyDataExportForm } from "./company-data-export-form";
 import { CompanyDeletionForm } from "./company-deletion-form";
 import { AiProviderForm, DisableAiProcessingForm } from "../ai-provider-form";
 import { FilingDefaultsForm } from "./filing-defaults-form";
@@ -101,7 +102,10 @@ export default async function CompanySettingsPage({
             </> : <p className="iv-muted">{ai("administratorOnly")}</p>}
           </section>
           {role === "administrator" && (
-            <CompanyDeletionForm companyId={company.id} />
+            <>
+              <CompanyDataExportForm companyId={company.id} />
+              <CompanyDeletionForm companyId={company.id} />
+            </>
           )}
         </div>
       </main>
