@@ -57,9 +57,11 @@ import {
 } from "@/application/platform-administration";
 import { retryFailedProcessingJob } from "@/application/processing-administration";
 import {
+  deleteUploadBatch,
   dismissCompanyUploadNotifications,
   dismissUploadNotification,
   markCompanyUploadNotificationsRead,
+  markUploadBatchNotificationRead,
   markUploadNotificationRead,
 } from "@/application/upload-batches";
 import { configuredAresRegistry } from "@/ares";
@@ -362,6 +364,23 @@ export async function reprocessDocumentAction(_state: FormState, formData: FormD
       documentId: field(formData, "documentId"),
     }),
   );
+}
+
+/** Runs when a User opens a batch's detail; refreshes the inbox badge in the shell. */
+export async function markUploadBatchNotificationReadAction(batchId: string): Promise<void> {
+  const result = await markUploadBatchNotificationRead(await requireUserClient(), batchId);
+  if (result.ok) refresh();
+}
+
+export async function deleteUploadBatchAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const companyId = field(formData, "companyId");
+  if (field(formData, "confirmed") !== "on") return refused("confirmation_required", formData, []);
+  const result = await deleteUploadBatch(await requireUserClient(), {
+    companyId,
+    batchId: field(formData, "batchId"),
+  });
+  if (!result.ok) return refused(result.error, formData, ["confirmed"]);
+  redirect(`/companies/${companyId}/upload`);
 }
 
 export async function markUploadNotificationReadAction(
