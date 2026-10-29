@@ -834,7 +834,7 @@ isOneToOne: false
                            },
 "resolve_assigned_ai_configuration":
 { Args: { "target_company_id": string }; Returns: {
-              "api_key": string,"extract_model": string,"provider": string,"split_model": string
+              "api_key": string,"extract_model": string,"is_explicit": boolean,"provider": string,"split_model": string
             }[]
                            },
 "resolve_company_ai_provider":

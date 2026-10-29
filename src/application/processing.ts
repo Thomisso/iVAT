@@ -140,7 +140,7 @@ type ProviderAvailability = {
 async function resolveAssignedAiConfiguration(
   system: SystemClient,
   companyId: string,
-): Promise<{ provider: string; configuration: AiProviderConfiguration } | null> {
+): Promise<{ provider: string; configuration: AiProviderConfiguration; isExplicit: boolean } | null> {
   const { data, error } = await system.rpc("resolve_assigned_ai_configuration", {
     target_company_id: companyId,
   });
@@ -149,6 +149,7 @@ async function resolveAssignedAiConfiguration(
   if (!settings) return null;
   return {
     provider: settings.provider,
+    isExplicit: settings.is_explicit,
     configuration: {
       apiKey: settings.api_key,
       splitModel: settings.split_model,
@@ -201,24 +202,34 @@ async function providerAvailability(
   if (data.organization?.blocked_at) {
     return { blocked: true, provider: null, credentialSource: null, configuration: null };
   }
-  const assigned = await resolveAssignedAiConfiguration(system, companyId);
-  if (assigned) {
-    const provider = providers.get(assigned.provider);
-    if (!provider) {
-      throw new AiProviderError(
-        "provider_unavailable_on_worker",
-        `AI provider "${assigned.provider}" is not configured on this worker`,
-        { transient: true },
-      );
-    }
-    return {
-      blocked: false,
-      provider,
-      credentialSource: "platform",
-      configuration: assigned.configuration,
-    };
+  if (!data.ai_processing_enabled) {
+    return { blocked: false, provider: null, credentialSource: null, configuration: null };
   }
-  if (!data.ai_processing_enabled || !data.ai_provider || !data.ai_credential_source) {
+  if (data.ai_credential_source === "platform") {
+    const assigned = await resolveAssignedAiConfiguration(system, companyId);
+    if (assigned) {
+      const provider = providers.get(assigned.provider);
+      if (!provider) {
+        if (assigned.isExplicit) {
+          throw new AiProviderError(
+            "provider_unavailable_on_worker",
+            `AI provider "${assigned.provider}" is not configured on this worker`,
+            { transient: true },
+          );
+        }
+        // Expand-phase defaults may name a provider not deployed to this worker
+        // yet. Preserve the Company's selected legacy platform path until it is.
+      } else {
+        return {
+          blocked: false,
+          provider,
+          credentialSource: "platform",
+          configuration: assigned.configuration,
+        };
+      }
+    }
+  }
+  if (!data.ai_provider || !data.ai_credential_source) {
     return { blocked: false, provider: null, credentialSource: null, configuration: null };
   }
   const provider = providers.get(data.ai_provider);
