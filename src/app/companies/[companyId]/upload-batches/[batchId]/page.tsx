@@ -8,6 +8,7 @@ import { CommandButton } from "@/components/command-button";
 import { RefreshWhile } from "@/components/refresh-while";
 import { StatusBadge } from "@/components/status-badge";
 import { statusBadgeState } from "@/components/status-badge-state";
+import { PageLayout } from "@/components/app-shell";
 import { requireUserClient } from "@/lib/supabase/server";
 
 export default async function UploadBatchPage({
@@ -37,13 +38,13 @@ export default async function UploadBatchPage({
   );
   const reviewHref = `/companies/${companyId}/documents?view=review&batchId=${batch.id}`;
 
-  return <main className="company-workspace upload-batch-workspace">
+  return <PageLayout className="company-workspace upload-batch-workspace" measure="wide">
     <header className="company-page-header upload-batch-header">
       <div><Link href={`/companies/${companyId}/upload`}>{t("backToUpload")}</Link><h1>{t("batchTitle", { date: format.dateTime(new Date(batch.createdAt), { dateStyle: "medium", timeStyle: "short" }) })}</h1><p>{t("batchFiles", { count: batch.actualFileCount, planned: batch.plannedFileCount })}</p></div>
       <span className={`upload-outcome upload-outcome-${batch.outcome}`}>{t(`outcome.${batch.outcome}`)}</span>
     </header>
 
-    {!company.aiProcessing && batch.counts.waiting > 0 && <section className="panel" role="status">
+    {!company.aiProcessingEnabled && batch.counts.waiting > 0 && <section className="panel" role="status">
       <h2>{t("waitingForAi")}</h2><p>{t("waitingForAiHint")}</p>
       {role === "administrator" && <Link href={`/companies/${companyId}/settings`}>{t("configureAi")}</Link>}
     </section>}
@@ -92,5 +93,5 @@ export default async function UploadBatchPage({
       </article>)}
     </section>
     <RefreshWhile active={batch.outcome === "processing"} />
-  </main>;
+  </PageLayout>;
 }

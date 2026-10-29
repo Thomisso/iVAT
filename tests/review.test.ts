@@ -1,7 +1,6 @@
 import { PDFDocument } from "pdf-lib";
 import { describe, expect, it } from "vitest";
 import { listAuditEvents } from "@/application/audit";
-import { enableAiProcessing } from "@/application/companies";
 import {
   approveDocument,
   correctDocument,
@@ -20,7 +19,11 @@ import { uploadSourceFile } from "@/application/source-files";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { signedUpUser } from "./support/clients";
 import { fixtureFile } from "./support/files";
-import { administratorWithCompany, companyMember } from "./support/fixtures";
+import {
+  administratorWithCompany,
+  assignAiConfigurationFixture as enableAiProcessing,
+  companyMember,
+} from "./support/fixtures";
 import { testWorker } from "./support/worker";
 import { fakeExchangeRates } from "@/cnb/fake";
 
@@ -114,7 +117,7 @@ describe("correcting a Document", () => {
     expect(result).toEqual({ ok: true, value: { version: 2 } });
     const versions = await listExtractionVersions(client, companyId, documentId);
     expect(versions.map((v) => [v.version, v.author])).toEqual([
-      [1, { kind: "ai", provider: "fake", model: "fake-extract" }],
+      [1, { kind: "ai" }],
       [2, { kind: "user", userId }],
     ]);
     expect(versions[0].payload).toEqual(SAMPLE_EXTRACTION);

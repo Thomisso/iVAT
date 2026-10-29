@@ -8,7 +8,7 @@ export default async function LogInPage({ searchParams }: PageProps<"/login">) {
   const t = await getTranslations("auth");
   const error = (await searchParams).error;
   return (
-    <main className="panel">
+    <main className="focused-shell-card" id="main-content" tabIndex={-1}>
       <h1>{t("logInTitle")}</h1>
       <FormError error={typeof error === "string" ? error : null} />
       <LogInForm />

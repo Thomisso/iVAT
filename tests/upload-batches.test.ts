@@ -1,17 +1,29 @@
 import { describe, expect, it } from "vitest";
 import {
   beginUploadBatch,
+  countUnreadUploadNotifications,
+  dismissCompanyUploadNotifications,
+  dismissUploadNotification,
   finishUploadBatch,
   getUploadBatch,
   listUploadBatches,
   listUploadNotifications,
+  markCompanyUploadNotificationsRead,
   markUploadNotificationRead,
   uploadNotificationOutcome,
 } from "@/application/upload-batches";
+import { createCompany } from "@/application/companies";
+import { listAuditEvents } from "@/application/audit";
 import { retrySplit, uploadSourceFile } from "@/application/source-files";
 import { listCompanyDocuments, reprocessDocument } from "@/application/documents";
-import { disableAiProcessing, enableAiProcessing } from "@/application/companies";
-import { administratorWithCompany, uploadBatchWithWaitingDocuments } from "./support/fixtures";
+import {
+  administratorWithCompany,
+  assignAiConfigurationFixture as enableAiProcessing,
+  companyDetails,
+  companyMember,
+  removeAiConfigurationFixture as disableAiProcessing,
+  uploadBatchWithWaitingDocuments,
+} from "./support/fixtures";
 import { fixtureFile } from "./support/files";
 import { testWorker } from "./support/worker";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
@@ -209,8 +221,8 @@ describe("upload batches", () => {
     }));
     const firstNotification = (await listUploadNotifications(client, companyId))[0];
     expect(firstNotification).toEqual(expect.objectContaining({ outcome: "partial", reviewCount: 1, failureCount: 1 }));
-    expect(await markUploadNotificationRead(client, firstNotification.id)).toEqual({ ok: true, value: null });
-    expect(await listUploadNotifications(client, companyId, { unreadOnly: true })).toEqual([]);
+    expect(await dismissUploadNotification(client, firstNotification.id)).toEqual({ ok: true, value: null });
+    expect(await listUploadNotifications(client, companyId)).toEqual([]);
 
     const failed = partial?.sourceFiles.flatMap((source) => source.documents).find((document) => document.status === "failed");
     if (!failed) throw new Error("expected a failed Document");
@@ -273,6 +285,79 @@ describe("upload batches", () => {
       (await b.client.from("notification").delete().eq("company_id", a.companyId))
         .error?.code,
     ).toBe("42501");
+  });
+
+  it("scopes bulk inbox actions to one Company and one User without changing audit history", async () => {
+    const admin = await administratorWithCompany("Notification Organization");
+    const member = await companyMember(admin);
+    const second = await createCompany(admin.client, {
+      organizationId: admin.organizationId,
+      ...companyDetails({
+        name: "Second Notification Company",
+        ico: "87654321",
+        vatId: "CZ87654321",
+      }),
+    });
+    if (!second.ok) throw new Error(second.error);
+    const worker = testWorker();
+    await enableAiProcessing(admin.client, worker.jobs, {
+      companyId: admin.companyId,
+      provider: worker.ai,
+    });
+    await enableAiProcessing(admin.client, worker.jobs, {
+      companyId: second.value.id,
+      provider: worker.ai,
+    });
+
+    const completeBatch = async (client: typeof admin.client, companyId: string, fileName: string) => {
+      const batch = await beginUploadBatch(client, { companyId, fileCount: 1 });
+      if (!batch.ok) throw new Error(batch.error);
+      const uploaded = await uploadSourceFile(client, worker.jobs, {
+        companyId,
+        batchId: batch.value.id,
+        fileName,
+        bytes: fixtureFile("receipt.png"),
+      });
+      if (!uploaded.ok) throw new Error(uploaded.error);
+      await finishUploadBatch(client, batch.value.id);
+      await worker.runJobs();
+    };
+
+    await completeBatch(admin.client, admin.companyId, "admin-company-a.png");
+    await completeBatch(admin.client, second.value.id, "admin-company-b.png");
+    await completeBatch(member.client, admin.companyId, "member-company-a.png");
+
+    const adminCompanyA = await listUploadNotifications(admin.client, admin.companyId);
+    const adminCompanyB = await listUploadNotifications(admin.client, second.value.id);
+    const memberCompanyA = await listUploadNotifications(member.client, admin.companyId);
+    expect(adminCompanyA).toHaveLength(1);
+    expect(adminCompanyB).toHaveLength(1);
+    expect(memberCompanyA).toHaveLength(1);
+    expect(await countUnreadUploadNotifications(admin.client, admin.companyId)).toBe(1);
+    expect(await countUnreadUploadNotifications(admin.client, second.value.id)).toBe(1);
+
+    expect(await markCompanyUploadNotificationsRead(admin.client, admin.companyId)).toEqual({
+      ok: true,
+      value: null,
+    });
+    expect((await listUploadNotifications(admin.client, admin.companyId))[0]?.readAt).not.toBeNull();
+    expect(await countUnreadUploadNotifications(admin.client, admin.companyId)).toBe(0);
+    expect((await listUploadNotifications(admin.client, second.value.id))[0]?.readAt).toBeNull();
+    expect((await listUploadNotifications(member.client, admin.companyId))[0]?.readAt).toBeNull();
+
+    expect(await dismissUploadNotification(admin.client, memberCompanyA[0].id)).toEqual({
+      ok: false,
+      error: "forbidden",
+    });
+    const auditBefore = await listAuditEvents(admin.client, admin.organizationId);
+    expect(await dismissCompanyUploadNotifications(admin.client, admin.companyId)).toEqual({
+      ok: true,
+      value: null,
+    });
+    expect(await listUploadNotifications(admin.client, admin.companyId)).toEqual([]);
+    expect(await listUploadNotifications(admin.client, second.value.id)).toHaveLength(1);
+    expect(await listUploadNotifications(member.client, admin.companyId)).toHaveLength(1);
+    expect(await listAuditEvents(admin.client, admin.organizationId)).toEqual(auditBefore);
   });
 
   it("reopens a failed Split batch and replaces failure copy after retry", async () => {

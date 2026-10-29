@@ -22,6 +22,7 @@ import { EmptyState } from "@/components/empty-state";
 import { Notice } from "@/components/notice";
 import { StatusBadge } from "@/components/status-badge";
 import { statusBadgeState } from "@/components/status-badge-state";
+import { PageLayout } from "@/components/app-shell";
 import { formatDocumentDate } from "@/lib/format-date";
 import { CorrectionForm } from "./correction-form";
 import { ReportingAssignmentForm } from "./reporting-assignment-form";
@@ -81,7 +82,7 @@ export default async function DocumentReviewPage({
 
   return (
     <>
-      <main className="review">
+      <PageLayout className="review" measure="wide">
         <header className="review-header">
           <nav className="review-queue-nav" aria-label={t("review.queueNavigation")}>
             <Link href={queueIndex >= 0 ? listHref : `/companies/${companyId}/documents`}>{t("review.backToDocuments")}</Link>
@@ -235,10 +236,7 @@ export default async function DocumentReviewPage({
                           v.payload.documentNumber ?? t("review.notSet"),
                         author:
                           v.author.kind === "ai"
-                            ? t("review.aiAuthor", {
-                                provider: v.author.provider,
-                                model: v.author.model,
-                              })
+                            ? t("review.aiAuthor")
                             : v.author.userId === userId
                               ? t("review.userAuthorYou")
                               : t("review.userAuthor"),
@@ -257,10 +255,10 @@ export default async function DocumentReviewPage({
             </>
           )}
         </section>
-      </main>
+      </PageLayout>
       <RefreshWhile
         active={
-          company.aiProcessing !== null &&
+          company.aiProcessingEnabled &&
           isBeingExtracted(document.status)
         }
       />

@@ -12,7 +12,7 @@ export default async function CompanySetupPage({ params }: PageProps<"/companies
   ]);
   if (!company) notFound();
   const firstBlocking = checklist.find((item) => item.state === "blocking");
-  if (firstBlocking?.step === "identity") redirect(`/companies/${companyId}/settings`);
+  if (firstBlocking?.step === "identity") redirect(`/companies/${companyId}/settings/company`);
   if (firstBlocking?.step === "filing_frequency") redirect(`/companies/${companyId}/setup/filing-frequency`);
-  redirect(`/companies/${companyId}`);
+  redirect(`/companies/${companyId}/settings`);
 }

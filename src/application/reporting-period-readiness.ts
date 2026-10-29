@@ -32,8 +32,7 @@ export type ReadinessFindingCode =
   | "missing_rate"
   | "missing_currency"
   | "error_finding"
-  | "warning_finding"
-  | "rejected";
+  | "warning_finding";
 
 export type ReadinessFinding = {
   code: ReadinessFindingCode;
@@ -73,6 +72,28 @@ export type ReportingPeriodReadinessSource = {
 export type ReportingPeriodReadinessError =
   | "forbidden"
   | "invalid_reporting_period";
+
+export const READINESS_DOCUMENT_FILTERS = ["blockers", "warnings", "rejected"] as const;
+export type ReadinessDocumentFilter = (typeof READINESS_DOCUMENT_FILTERS)[number];
+
+/** Unique Documents represented by one readiness summary or resolved exclusion. */
+export function readinessDocumentIds(
+  readiness: ReportingPeriodReadiness,
+  filter: ReadinessDocumentFilter,
+): string[] {
+  const ids = filter === "rejected"
+    ? readiness.groups.rejected
+    : readiness[filter].map((finding) => finding.documentId);
+  return [...new Set(ids)];
+}
+
+export function readinessDocumentCounts(readiness: ReportingPeriodReadiness) {
+  return {
+    blockers: readinessDocumentIds(readiness, "blockers").length,
+    warnings: readinessDocumentIds(readiness, "warnings").length,
+    rejected: readinessDocumentIds(readiness, "rejected").length,
+  };
+}
 
 type LiveDocument = ReportDocument & { findings: ValidationFinding[] };
 type SavedSourceSnapshot = {
@@ -310,7 +331,12 @@ export async function getReportingPeriodReadiness(
   const blockers: ReadinessFinding[] = [];
   const warnings: ReadinessFinding[] = [];
   for (const document of documents) {
-    if (document.status === "uploaded" || document.status === "processing") {
+    if (
+      document.status === "uploaded"
+      || document.status === "waiting_for_allowance"
+      || document.status === "waiting_for_platform"
+      || document.status === "processing"
+    ) {
       groups.processing.push(document.id);
       blockers.push({ code: "processing", documentId: document.id });
       continue;
@@ -322,7 +348,6 @@ export async function getReportingPeriodReadiness(
     }
     if (document.status === "rejected") {
       groups.rejected.push(document.id);
-      warnings.push({ code: "rejected", documentId: document.id });
       continue;
     }
     if (document.status === "needs_review") {

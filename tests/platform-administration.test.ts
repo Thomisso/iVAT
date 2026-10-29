@@ -5,7 +5,6 @@ import { fakeAiProvider } from "@/ai/fake";
 import { asUserClient } from "@/application/client";
 import { logIn } from "@/application/auth";
 import { listAuditEvents } from "@/application/audit";
-import { enableAiProcessing } from "@/application/companies";
 import { exportCompanyData, getCompanyDataExportStatus } from "@/application/company-deletion";
 import { listDocuments } from "@/application/documents";
 import {
@@ -18,13 +17,17 @@ import {
   listFailedProcessingJobs,
   retryFailedProcessingJob,
 } from "@/application/processing-administration";
+import { listPlatformOperationalProblems } from "@/application/operational-problems";
 import { listSourceFiles, uploadSourceFile } from "@/application/source-files";
 import { beginUploadBatch } from "@/application/upload-batches";
 import {
   createBoss,
   createProcessingQueues,
 } from "@/lib/jobs";
-import { administratorWithCompany } from "./support/fixtures";
+import {
+  administratorWithCompany,
+  assignAiConfigurationFixture as enableAiProcessing,
+} from "./support/fixtures";
 import { anonymousClient, signedUpUser } from "./support/clients";
 import { fixtureFile } from "./support/files";
 import { systemClient, testWorker } from "./support/worker";
@@ -59,6 +62,20 @@ async function superAdministrator() {
 }
 
 describe("SuperAdmin organization console", () => {
+  it("isolates the live operational dashboard to SuperAdmin", async () => {
+    const ordinary = await signedUpUser("Ordinary operational viewer");
+    const superAdmin = await superAdministrator();
+
+    expect(await listPlatformOperationalProblems(ordinary.client)).toEqual({
+      ok: false,
+      error: "forbidden",
+    });
+    expect(await listPlatformOperationalProblems(superAdmin.client)).toEqual({
+      ok: true,
+      value: expect.any(Array),
+    });
+  });
+
   it("lists every Organization and Company only for a SuperAdmin", async () => {
     const target = await administratorWithCompany("Accounting Office");
     const ordinary = await signedUpUser("Ordinary Organization");
@@ -285,9 +302,11 @@ describe("SuperAdmin organization console", () => {
     if (!documentFile.ok) throw new Error(documentFile.error);
     await extractStuck.runNextJob({ final: false });
     const [document] = await listDocuments(target.client, target.companyId, documentFile.value.id);
-    expect(await extractStuck.runJobs({ final: false })).toHaveLength(1);
+    expect(await extractStuck.runJobs({ final: true })).toEqual([
+      expect.objectContaining({ message: "extract provider timed out" }),
+    ]);
     expect((await listDocuments(target.client, target.companyId, documentFile.value.id))[0].status)
-      .toBe("processing");
+      .toBe("failed");
     const ordinary = await signedUpUser("Ordinary Organization");
     process.loadEnvFile(".env.local");
     const boss = createBoss({ supervise: false });
@@ -368,6 +387,18 @@ describe("SuperAdmin organization console", () => {
           }),
           ]),
       }));
+      expect(await listPlatformOperationalProblems(superAdmin.client)).toEqual(expect.objectContaining({
+        ok: true,
+        value: expect.arrayContaining([
+          expect.objectContaining({
+            kind: "terminal_processing_job",
+            affectedDocumentCount: 1,
+            companies: expect.arrayContaining([
+              expect.objectContaining({ id: target.companyId, affectedDocumentCount: 1 }),
+            ]),
+          }),
+        ]),
+      }));
       expect(await retryFailedProcessingJob(ordinary.client, jobId)).toEqual({
         ok: false,
         error: "forbidden",
@@ -393,6 +424,11 @@ describe("SuperAdmin organization console", () => {
         ok: true,
         value: null,
       });
+      const afterDocumentRetry = await listPlatformOperationalProblems(superAdmin.client);
+      if (!afterDocumentRetry.ok) throw new Error(afterDocumentRetry.error);
+      expect(afterDocumentRetry.value.some((problem) => (
+        problem.kind === "terminal_processing_job" && problem.targetIds.includes(document.id)
+      ))).toBe(false);
       expect((await listDocuments(target.client, target.companyId, documentFile.value.id))[0].status)
         .toBe("uploaded");
       expect(await boss.getJobById("extract-document", documentJobId)).toEqual(expect.objectContaining({

@@ -1,5 +1,6 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { failOneDocumentInUploadBatch } from "../tests/support/browser-upload";
+import { assignBrowserAiConfigurationFixture } from "../tests/support/e2e";
 
 const password = "Playwright-password-81";
 
@@ -28,12 +29,13 @@ async function createCompany(page: Page, run: string): Promise<string> {
   await page.getByLabel("Effective from").fill("2026-01-01");
   await page.getByRole("button", { name: "Save and continue" }).click();
   await expect(page).toHaveURL(new RegExp(`/companies/${companyId}/setup/ai-processing$`));
-  await page.getByRole("button", { name: "Continue without AI" }).click();
+  await assignBrowserAiConfigurationFixture(companyId);
+  await page.getByRole("link", { name: "Continue to Company" }).click();
   await expect(page).toHaveURL(new RegExp(`/companies/${companyId}$`));
   return companyId;
 }
 
-test("a batch survives waiting and reload, exposes partial recovery, then hands off its complete queue", async ({
+test("a batch survives reload, exposes partial recovery, then hands off its complete queue", async ({
   baseURL,
   context,
   page,
@@ -44,25 +46,14 @@ test("a batch survives waiting and reload, exposes partial recovery, then hands 
 
   await page.goto(`/companies/${companyId}/upload`);
   await page.locator('input[type="file"]:not([capture])').setInputFiles("tests/fixtures/two-invoices.pdf");
-  await page.getByRole("button", { name: "Upload" }).click();
+  await page.getByRole("button", { name: "Upload", exact: true }).click();
   await expect(page).toHaveURL(/\/upload-batches\/[0-9a-f-]+$/);
   const batchUrl = page.url();
   const batchId = new URL(batchUrl).pathname.split("/").at(-1)!;
-  await expect(page.getByRole("heading", { name: "Waiting for AI setup" })).toBeVisible();
-
-  await page.reload();
-  await expect(page.getByRole("heading", { name: "Waiting for AI setup" })).toBeVisible();
-  await page.getByRole("link", { name: "Set up AI processing" }).click();
-  await page.getByRole("radio").first().check();
-  await page.getByRole("checkbox", {
-    name: /I consent to sending this Company's documents/,
-  }).check();
-  await page.getByRole("button", { name: "Enable AI processing" }).click();
-  await expect(page.getByText(/AI processing is on/)).toBeVisible();
-
-  await page.goto(batchUrl);
   const reviewTwo = page.getByRole("link", { name: "Review 2 Documents" });
   await expect(reviewTwo).toBeVisible({ timeout: 45_000 });
+  await page.reload();
+  await expect(reviewTwo).toBeVisible();
 
   await failOneDocumentInUploadBatch(batchId);
 

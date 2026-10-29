@@ -8,7 +8,7 @@ import {
   type AuditEventFilters,
 } from "@/application/audit";
 import { listMyOrganizations } from "@/application/organizations";
-import { AppSidebar } from "@/components/app-sidebar";
+import { PageContent, PageHeader, PageLayout } from "@/components/app-shell";
 import { Button } from "@/components/button";
 import { DataTable } from "@/components/data-table";
 import { EmptyState } from "@/components/empty-state";
@@ -82,14 +82,12 @@ export default async function OrganizationAuditLogPage({
     payload: event.payload,
   }));
 
-  return (
-    <>
-      <AppSidebar />
-      <main className="dashboard audit-log">
-        <header>
-          <h1>{t("title", { organization: organization.name })}</h1>
-          <p className="iv-muted">{t("intro")}</p>
-        </header>
+  return <PageLayout className="audit-log" measure="wide">
+    <PageHeader
+      description={t("intro")}
+      title={t("title", { organization: organization.name })}
+    />
+    <PageContent measure="wide">
         <form className="form filters" method="get" aria-label={t("filters") }>
           <label className="iv-field-label">
             {t("from")}
@@ -175,7 +173,6 @@ export default async function OrganizationAuditLogPage({
             </Link>
           ) : <span />}
         </nav>
-      </main>
-    </>
-  );
+    </PageContent>
+  </PageLayout>;
 }

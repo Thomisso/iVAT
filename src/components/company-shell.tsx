@@ -5,22 +5,26 @@ import { usePathname } from "next/navigation";
 import {
   startTransition,
   useEffect,
+  useId,
   useRef,
   useState,
   type ReactNode,
 } from "react";
 import { useTranslations } from "next-intl";
 import {
-  logOutAction,
+  dismissCompanyUploadNotificationsAction,
+  dismissUploadNotificationAction,
+  markCompanyUploadNotificationsReadAction,
   markUploadNotificationReadAction,
   rememberCompanyAction,
   selectCompanyAction,
-  setLocaleAction,
 } from "@/app/actions";
 import type { CompanySummary } from "@/application/companies";
 import type { OrganizationSummary } from "@/application/organizations";
 import type { UploadNotification } from "@/application/upload-batches";
+import { AccountActions, AppShell, ContextNavigation } from "@/components/app-shell";
 import { CommandButton } from "@/components/command-button";
+import { AccountMenu, Menu, ShellIcon } from "@/components/shell-controls";
 
 type Destination = "overview" | "upload" | "documents" | "vat" | "settings";
 
@@ -32,70 +36,13 @@ const destinations: Array<{ key: Destination; icon: string; suffix: string }> = 
   { key: "settings", icon: "M9.5 3h5l.6 2.4 2 .8 2.1-1.2 2.5 4.3-1.8 1.6.2 2.2 1.8 1.6-2.5 4.3-2.1-1.2-2 .8-.6 2.4h-5l-.6-2.4-2-.8-2.1 1.2-2.5-4.3 1.8-1.6-.2-2.2-1.8-1.6L4.8 5l2.1 1.2 2-.8L9.5 3Zm2.5 6a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z", suffix: "/settings" },
 ];
 
-function ShellIcon({ path }: { path: string }) {
-  return <svg aria-hidden="true" className="company-shell-icon" viewBox="0 0 24 24"><path d={path} /></svg>;
-}
-
-function BrandMark() {
-  return <svg aria-hidden="true" className="company-brand-mark" viewBox="0 0 32 32"><path className="paper" d="M4 4h10v15l2 3 3-3V4h9v19l-7 6H11l-7-6z" /><path className="check" d="m9 14 7 7 8-11" /></svg>;
-}
-
 function activeDestination(pathname: string, companyId: string): Destination {
   const rest = pathname.slice(`/companies/${companyId}`.length);
   if (rest.startsWith("/documents")) return "documents";
   if (rest.startsWith("/source-files") || rest.startsWith("/upload-batches") || rest.startsWith("/upload")) return "upload";
   if (rest.startsWith("/vat") || rest.startsWith("/vat-reports")) return "vat";
-  if (rest.startsWith("/settings") || rest.startsWith("/members")) return "settings";
+  if (rest.startsWith("/settings") || rest.startsWith("/members") || rest.startsWith("/setup")) return "settings";
   return "overview";
-}
-
-function Menu({ children, label, trigger }: { children: ReactNode; label: string; trigger: ReactNode }) {
-  const [open, setOpen] = useState(false);
-  const button = useRef<HTMLButtonElement>(null);
-  const menu = useRef<HTMLDivElement>(null);
-  const initialFocus = useRef<"first" | "last">("first");
-
-  useEffect(() => {
-    if (!open) return;
-    const items = menu.current?.querySelectorAll<HTMLElement>("[role=menuitem]");
-    items?.[initialFocus.current === "first" ? 0 : items.length - 1]?.focus();
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      setOpen(false);
-      button.current?.focus();
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [open]);
-
-  return <div className="company-shell-menu">
-    <button aria-expanded={open} aria-haspopup="menu" aria-label={label} className="company-shell-menu-trigger" onClick={() => {
-      initialFocus.current = "first";
-      setOpen((value) => !value);
-    }} onKeyDown={(event) => {
-      if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
-      event.preventDefault();
-      initialFocus.current = event.key === "ArrowDown" ? "first" : "last";
-      setOpen(true);
-    }} ref={button} type="button">{trigger}</button>
-    {open && <div aria-label={label} className="company-shell-popover" onClick={(event) => {
-      if (event.target instanceof Element && event.target.closest("a")) setOpen(false);
-    }} onKeyDown={(event) => {
-      const items = [...(menu.current?.querySelectorAll<HTMLElement>("[role=menuitem]") ?? [])];
-      const index = Math.max(0, items.indexOf(document.activeElement as HTMLElement));
-      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-        event.preventDefault();
-        const step = event.key === "ArrowDown" ? 1 : -1;
-        items[(index + step + items.length) % items.length]?.focus();
-      } else if (event.key === "Home" || event.key === "End") {
-        event.preventDefault();
-        items[event.key === "Home" ? 0 : items.length - 1]?.focus();
-      } else if (event.key === "Tab") {
-        setOpen(false);
-      }
-    }} ref={menu} role="menu">{children}</div>}
-  </div>;
 }
 
 function CompanyMenu({ companies, current }: { companies: CompanySummary[]; current: CompanySummary & { ico: string } }) {
@@ -110,58 +57,154 @@ function CompanyMenu({ companies, current }: { companies: CompanySummary[]; curr
   </Menu>;
 }
 
-function AccountMenu({ email }: { email: string }) {
-  const t = useTranslations("shell");
-  const language = useTranslations("language");
-  return <Menu label={t("accountMenu")} trigger={<><span className="profile-avatar" aria-hidden="true">{email.slice(0, 1).toUpperCase()}</span><span className="profile-copy"><strong>{t("account")}</strong><small>{email}</small></span><ShellIcon path="m9 6 6 6-6 6" /></>}>
-    <p className="company-shell-menu-label">{email}</p>
-    <form action={setLocaleAction} aria-label={language("label")} className="company-shell-languages">
-      <button lang="cs" name="locale" role="menuitem" type="submit" value="cs">{language("cs")}</button>
-      <button lang="en" name="locale" role="menuitem" type="submit" value="en">{language("en")}</button>
-    </form>
-    <Link href="/settings/security" role="menuitem">{t("security")}</Link>
-    <form action={logOutAction}><button role="menuitem" type="submit">{t("logOut")}</button></form>
-  </Menu>;
-}
-
 function AdministrationMenu({ companyId, companyRole, organizations, superAdmin }: { companyId: string; companyRole: "administrator" | "user" | null; organizations: OrganizationSummary[]; superAdmin: boolean }) {
   const t = useTranslations("shell");
   const organizationAdmins = organizations.filter((organization) => organization.role === "administrator");
   if (companyRole !== "administrator" && !organizationAdmins.length && !superAdmin) return null;
   return <Menu label={t("administrationMenu")} trigger={<><ShellIcon path="M9.5 3h5l.6 2.4 2 .8 2.1-1.2 2.5 4.3-1.8 1.6.2 2.2 1.8 1.6-2.5 4.3-2.1-1.2-2 .8-.6 2.4h-5l-.6-2.4-2-.8-2.1 1.2-2.5-4.3 1.8-1.6-.2-2.2-1.8-1.6L4.8 5l2.1 1.2 2-.8L9.5 3Zm2.5 6a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z" /><span>{t("administration")}</span><ShellIcon path="m9 6 6 6-6 6" /></>}>
-    {companyRole === "administrator" && <><p className="company-shell-menu-label">{t("companyAdministration")}</p><Link href={`/companies/${companyId}/members`} role="menuitem">{t("users")}</Link></>}
+    {companyRole === "administrator" && <><p className="company-shell-menu-label">{t("companyAdministration")}</p><Link href={`/companies/${companyId}/settings/users`} role="menuitem">{t("users")}</Link></>}
     {organizationAdmins.length > 0 && <p className="company-shell-menu-label">{t("organizationAdministration")}</p>}
     {organizationAdmins.map((organization) => <div className="company-shell-admin-group" key={organization.id}>
       <strong>{organization.name}</strong>
       <Link href={`/organizations/${organization.id}/members`} role="menuitem">{t("users")}</Link>
-      <Link href={`/organizations/${organization.id}/ai-settings`} role="menuitem">{t("aiSettings")}</Link>
-      <Link href={`/organizations/${organization.id}/ai-usage`} role="menuitem">{t("aiUsage")}</Link>
       <Link href={`/organizations/${organization.id}/audit-log`} role="menuitem">{t("auditLog")}</Link>
     </div>)}
     {superAdmin && <><p className="company-shell-menu-label">{t("platformAdministration")}</p><Link href="/platform/administration" role="menuitem">{t("platformOverview")}</Link><Link href="/platform/ai-settings" role="menuitem">{t("platformAi")}</Link><Link href="/platform/ai-usage" role="menuitem">{t("platformUsage")}</Link></>}
   </Menu>;
 }
 
-function UploadNotifications({ notifications }: { notifications: UploadNotification[] }) {
+function NotificationBell({ companyId, notifications, unreadCount }: {
+  companyId: string;
+  notifications: UploadNotification[];
+  unreadCount: number;
+}) {
   const t = useTranslations("uploadWorkspace");
-  if (!notifications.length) return null;
-  return <section aria-label={t("notifications")} className="upload-notifications">
-    {notifications.map((notification) => <aside className={`upload-notification upload-notification-${notification.outcome}`} key={notification.id} role="status">
-      <div>
-        <strong>{t(`notification.${notification.outcome}.title`)}</strong>
-        <p>{t(`notification.${notification.outcome}.body`, {
-          count: notification.fileCount,
-          review: notification.reviewCount,
-          failures: notification.failureCount,
-        })}</p>
-        <Link href={`/companies/${notification.companyId}/upload-batches/${notification.batchId}`}>{t("openBatch")}</Link>
-      </div>
-      <CommandButton action={markUploadNotificationReadAction} fields={{ notificationId: notification.id }} size="sm" variant="ghost">{t("markRead")}</CommandButton>
-    </aside>)}
-  </section>;
+  const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLElement>(null);
+  const titleId = useId();
+  const panelId = useId();
+
+  useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    panel.current?.querySelector<HTMLElement>("[data-notification-close]")?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setOpen(false);
+        trigger.current?.focus();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = [...(panel.current?.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ) ?? [])];
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  const close = () => {
+    setOpen(false);
+    trigger.current?.focus();
+  };
+
+  return <div className="notification-inbox">
+    <button
+      aria-controls={panelId}
+      aria-expanded={open}
+      aria-haspopup="dialog"
+      aria-label={t("notificationBell", { count: unreadCount })}
+      className="notification-bell"
+      onClick={() => setOpen(true)}
+      ref={trigger}
+      type="button"
+    >
+      <ShellIcon path="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" />
+      {unreadCount > 0 && <span aria-hidden="true" className="notification-bell-count">{unreadCount}</span>}
+    </button>
+    {open && <div className="notification-panel-backdrop" onMouseDown={(event) => {
+      if (event.target === event.currentTarget) close();
+    }}>
+      <section
+        aria-labelledby={titleId}
+        aria-modal="true"
+        className="notification-panel"
+        id={panelId}
+        ref={panel}
+        role="dialog"
+      >
+        <header className="notification-panel-header">
+          <div>
+            <h2 id={titleId}>{t("notifications")}</h2>
+            <p>{t("notificationUnread", { count: unreadCount })}</p>
+          </div>
+          <button
+            aria-label={t("closeNotifications")}
+            className="notification-panel-close"
+            data-notification-close
+            onClick={close}
+            type="button"
+          ><ShellIcon path="M6 6l12 12M18 6 6 18" /></button>
+        </header>
+        {notifications.length > 0 ? <>
+          <div className="notification-panel-bulk-actions">
+            {unreadCount > 0 && <CommandButton
+              action={markCompanyUploadNotificationsReadAction}
+              fields={{ companyId }}
+              size="sm"
+              variant="ghost"
+            >{t("markAllRead")}</CommandButton>}
+            <CommandButton
+              action={dismissCompanyUploadNotificationsAction}
+              fields={{ companyId }}
+              size="sm"
+              variant="ghost"
+            >{t("dismissAll")}</CommandButton>
+          </div>
+          <ul className="notification-list">
+            {notifications.map((notification) => <li
+              className={`notification-item notification-item-${notification.outcome}`}
+              data-read={notification.readAt ? "true" : "false"}
+              key={notification.id}
+            >
+              <div className="notification-item-copy">
+                <strong>{t(`notification.${notification.outcome}.title`)}</strong>
+                <p>{t(`notification.${notification.outcome}.body`, {
+                  count: notification.fileCount,
+                  review: notification.reviewCount,
+                  failures: notification.failureCount,
+                })}</p>
+              </div>
+              <div className="notification-item-actions">
+                <Link onClick={() => setOpen(false)} href={`/companies/${notification.companyId}/upload-batches/${notification.batchId}`}>{t("openBatch")}</Link>
+                {!notification.readAt && <CommandButton action={markUploadNotificationReadAction} fields={{ notificationId: notification.id }} size="sm" variant="ghost">{t("markRead")}</CommandButton>}
+                <CommandButton action={dismissUploadNotificationAction} fields={{ notificationId: notification.id }} size="sm" variant="ghost">{t("dismiss")}</CommandButton>
+              </div>
+            </li>)}
+          </ul>
+        </> : <p className="notification-empty">{t("noNotifications")}</p>}
+      </section>
+    </div>}
+  </div>;
 }
 
-export function CompanyShell({ children, companies, company, companyRole, email, organizations, superAdmin, uploadNotifications }: {
+export function CompanyShell({ children, companies, company, companyRole, email, organizations, superAdmin, uploadNotifications, uploadUnreadCount }: {
   children: ReactNode;
   companies: CompanySummary[];
   company: CompanySummary & { ico: string };
@@ -170,6 +213,7 @@ export function CompanyShell({ children, companies, company, companyRole, email,
   organizations: OrganizationSummary[];
   superAdmin: boolean;
   uploadNotifications: UploadNotification[];
+  uploadUnreadCount: number;
 }) {
   const t = useTranslations("shell");
   const app = useTranslations("app");
@@ -179,18 +223,32 @@ export function CompanyShell({ children, companies, company, companyRole, email,
     startTransition(() => { void rememberCompanyAction(company.id); });
   }, [company.id]);
 
-  const navigation = <nav aria-label={t("companyNavigation")} className="company-primary-nav">{destinations.map((destination) => <Link aria-current={active === destination.key ? "page" : undefined} href={`/companies/${company.id}${destination.suffix}`} key={destination.key}><ShellIcon path={destination.icon} /><span>{t(destination.key)}</span></Link>)}</nav>;
-  return <>
-    <a className="company-skip-link" href="#main-content">{t("skip")}</a>
-    <div className="company-shell">
-      <aside className="company-shell-sidebar">
-        <Link aria-label={app("name")} className="company-brand" href="/"><BrandMark /><span>{app("name")}</span></Link>
-        <CompanyMenu companies={companies} current={company} />
-        <div className="company-shell-secondary"><AdministrationMenu companyId={company.id} companyRole={companyRole} organizations={organizations} superAdmin={superAdmin} /><AccountMenu email={email} /></div>
-      </aside>
-      <header className="company-mobile-header"><Link aria-label={app("name")} className="company-brand" href="/"><BrandMark /></Link><CompanyMenu companies={companies} current={company} /><div className="company-mobile-actions"><AdministrationMenu companyId={company.id} companyRole={companyRole} organizations={organizations} superAdmin={superAdmin} /><AccountMenu email={email} /></div></header>
-      {navigation}
-      <div className="company-shell-content" id="main-content" tabIndex={-1}><UploadNotifications notifications={uploadNotifications} />{children}</div>
-    </div>
-  </>;
+  const navigation = <ContextNavigation
+    items={destinations.map((destination) => ({
+      current: active === destination.key,
+      href: `/companies/${company.id}${destination.suffix}`,
+      icon: <ShellIcon path={destination.icon} />,
+      label: t(destination.key),
+    }))}
+    label={t("companyNavigation")}
+  />;
+  const context = <CompanyMenu companies={companies} current={company} />;
+  const accountActions = <AccountActions label={t("account")}>
+    <NotificationBell companyId={company.id} notifications={uploadNotifications} unreadCount={uploadUnreadCount} />
+    <AdministrationMenu
+      companyId={company.id}
+      companyRole={companyRole}
+      organizations={organizations}
+      superAdmin={superAdmin}
+    />
+    <AccountMenu email={email} />
+  </AccountActions>;
+  return <AppShell
+    accountActions={accountActions}
+    brandHref="/"
+    brandLabel={app("name")}
+    context={context}
+    navigation={navigation}
+    skipLabel={t("skip")}
+  >{children}</AppShell>;
 }

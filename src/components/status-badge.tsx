@@ -6,6 +6,8 @@ import { Icon, type IconName } from "./icon";
 
 export type DocumentStatus =
   | "uploaded"
+  | "waiting-for-allowance"
+  | "waiting-for-platform"
   | "splitting"
   | "extracting"
   | "proposed"
@@ -24,6 +26,8 @@ export interface StatusBadgeProps {
 
 const states: Record<DocumentStatus, { tone: string; icon: IconName }> = {
   uploaded: { tone: "neutral", icon: "file" },
+  "waiting-for-allowance": { tone: "warning", icon: "alert" },
+  "waiting-for-platform": { tone: "warning", icon: "alert" },
   splitting: { tone: "ai", icon: "split" },
   extracting: { tone: "ai", icon: "marker" },
   proposed: { tone: "ai", icon: "marker" },

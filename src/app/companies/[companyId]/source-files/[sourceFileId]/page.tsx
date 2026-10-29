@@ -5,7 +5,7 @@ import { mergeDocumentsAction, moveDocumentPageAction, reprocessDocumentAction, 
 import { getCompany, getMyCompanyRole } from "@/application/companies";
 import { documentPeriodLocks, isBeingExtracted, listDocuments, listExtractionVersions } from "@/application/documents";
 import { getSourceFile } from "@/application/source-files";
-import { AppSidebar } from "@/components/app-sidebar";
+import { PageLayout } from "@/components/app-shell";
 import { CommandButton } from "@/components/command-button";
 import { RefreshWhile } from "@/components/refresh-while";
 import { DataTable } from "@/components/data-table";
@@ -41,17 +41,16 @@ export default async function SourceFilePage({
     ? `/companies/${companyId}/source-files/${file.id}/preview`
     : `/companies/${companyId}/source-files/${file.id}/content`;
   const workbook = file.format === "xlsx" || file.format === "xls";
-  // Nothing moves until the Company enables AI processing.
+  // Nothing moves until the platform enables an assigned AI Configuration.
   const processing =
-    company.aiProcessing !== null &&
+    company.aiProcessingEnabled &&
     (file.status === "uploaded" ||
       file.status === "processing" ||
       documents.some((d) => d.status === "uploaded" || d.status === "processing"));
 
   return (
     <>
-      <AppSidebar currentCompanyId={companyId} />
-      <main className="dashboard">
+      <PageLayout className="dashboard" measure="wide">
         <header>
           <p>
             <Link href={`/companies/${companyId}`}>{t("sourceFiles.backToCompany")}</Link>
@@ -77,10 +76,10 @@ export default async function SourceFilePage({
             <StatusBadge status={statusBadgeState(file.status, "source-file")}>
               {t(`sourceFileStatus.${file.status}`)}
             </StatusBadge>
-            {!company.aiProcessing && <span className="iv-muted"> · {t("aiProcessing.waitingTitle")}</span>}
+            {!company.aiProcessingEnabled && <span className="iv-muted"> · {t("aiProcessing.waitingTitle")}</span>}
           </p>
-          {!company.aiProcessing && role === "administrator" && <p>
-            <Link href={`/companies/${companyId}/settings`}>{t("aiProcessing.configureAction")}</Link>
+          {!company.aiProcessingEnabled && role === "administrator" && <p>
+            <Link href={`/companies/${companyId}/settings`}>{t("aiProcessing.viewAllowance")}</Link>
           </p>}
           {file.status === "failed" && (
             <CommandButton
@@ -137,7 +136,7 @@ export default async function SourceFilePage({
                       documentNumber: document.current.payload.documentNumber ?? "—",
                       author:
                         document.current.author.kind === "ai"
-                          ? `${document.current.author.provider} / ${document.current.author.model}`
+                          ? t("review.aiAuthor")
                           : t("documents.userAuthor"),
                     }),
                 },
@@ -257,7 +256,7 @@ export default async function SourceFilePage({
             <img src={contentUrl} alt={file.fileName} />
           )}
         </DocumentViewer>
-      </main>
+      </PageLayout>
       <RefreshWhile active={processing} />
     </>
   );

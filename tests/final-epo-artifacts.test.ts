@@ -1,11 +1,13 @@
 import { strFromU8, unzipSync } from "fflate";
 import { expect, it } from "vitest";
 import { saveCompanyFilingDefaults } from "@/application/company-filing-defaults";
+import { setCompanyFilingFrequency } from "@/application/companies";
 import { exportCompanyData } from "@/application/company-deletion";
 import {
   exportFinalVatReport,
   exportVatReport,
   listVatReportArtifacts,
+  readVatReportArtifact,
 } from "@/application/epo-export";
 import {
   finalizeVatReport,
@@ -101,6 +103,79 @@ it.each(["dphdp3", "dphkh1"] as const)(
     ]);
   },
 );
+
+it("stores and downloads quarterly VAT Return draft and final XML artifacts", async () => {
+  const company = await administratorWithCompany();
+  expect(await setCompanyFilingFrequency(company.client, {
+    companyId: company.companyId,
+    filingFrequency: "quarterly",
+    filingFrequencyEffectiveFrom: "2026-10-01",
+  })).toEqual({ ok: true, value: null });
+  expect(await saveCompanyFilingDefaults(company.client, {
+    companyId: company.companyId,
+    ...filingDefaults,
+  })).toEqual({ ok: true, value: null });
+  expect(await generateVatReport(company.client, {
+    companyId: company.companyId,
+    period: "2026-Q4",
+  })).toEqual({ ok: true, value: { id: expect.any(String) } });
+  expect(await generateVatReport(company.client, {
+    companyId: company.companyId,
+    period: "2026-Q5",
+  })).toEqual({ ok: false, error: "invalid_reporting_period" });
+
+  const user = await companyMember(company);
+  const draft = await exportVatReport(user.client, {
+    companyId: company.companyId,
+    period: "2026-Q4",
+    format: "dphdp3",
+    details: exportDetails,
+  });
+  if (!draft.ok) throw new Error(draft.error);
+  expect(draft.value.fileName).toBe("DRAFT_DPHDP3_2026-Q4.xml");
+  expect(draft.value.mediaType).toBe("application/xml; charset=utf-8");
+  expect(await readVatReportArtifact(user.client, {
+    companyId: company.companyId,
+    artifactId: draft.value.artifactId,
+  })).toEqual({
+    artifact: expect.objectContaining({
+      period: "2026-Q4",
+      format: "dphdp3",
+      kind: "draft",
+      fileName: "DRAFT_DPHDP3_2026-Q4.xml",
+      mediaType: "application/xml; charset=utf-8",
+    }),
+    bytes: draft.value.bytes,
+  });
+
+  expect(await finalizeVatReport(company.client, {
+    companyId: company.companyId,
+    period: "2026-Q4",
+    confirmed: true,
+  })).toEqual({ ok: true, value: null });
+  const final = await exportFinalVatReport(user.client, {
+    companyId: company.companyId,
+    period: "2026-Q4",
+    format: "dphdp3",
+    details: exportDetails,
+  });
+  if (!final.ok) throw new Error(final.error);
+  expect(final.value.fileName).toBe("DPHDP3_2026-Q4.xml");
+  expect(final.value.mediaType).toBe("application/xml; charset=utf-8");
+  expect(await readVatReportArtifact(user.client, {
+    companyId: company.companyId,
+    artifactId: final.value.artifactId,
+  })).toEqual({
+    artifact: expect.objectContaining({
+      period: "2026-Q4",
+      format: "dphdp3",
+      kind: "final",
+      fileName: "DPHDP3_2026-Q4.xml",
+      mediaType: "application/xml; charset=utf-8",
+    }),
+    bytes: final.value.bytes,
+  });
+});
 
 it("puts VAT Reports, lock history, artifact metadata and exact XML bytes in the Company archive", async () => {
   const company = await preparedCompany();
