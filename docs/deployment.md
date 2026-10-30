@@ -503,6 +503,11 @@ The release runtime test builds all four custom AMD64 images and exercises the
 actual deployment command against disposable Compose services and a real SSH
 server with pinned test host keys. GitHub workflow evidence and Roští Compose
 HTTP calls use local Postman stand-ins derived from their published contracts.
+The full host/SSH fixture was verified on Docker Desktop for macOS with Linux
+containers. Its root operator creates private host records, so a native Linux
+nonroot parent needs appropriately privileged test execution for record reads
+and cleanup. This optional full runtime fixture is separate from the 15 focused
+CI tests, which were verified on Linux as a nonroot user.
 This proves caller behavior in the tested scenarios, not the real provider.
 Existing CI and Deployment verification remain required for the exact `main`
 revision. The integration PR records the exact local checks and final combined
