@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import { createClient } from "@supabase/supabase-js";
 import { Client as DatabaseClient } from "pg";
 import type { Database } from "@/lib/database.types";
+import { addLegacyRateBreakdownVersionFixture } from "./rate-breakdown-history";
 
 async function browserFixtureEnvironment() {
   const contents = await fs.readFile(".env.local", "utf8");
@@ -16,6 +17,11 @@ async function browserFixtureClient() {
   return createClient<Database>(environment.NEXT_PUBLIC_SUPABASE_URL, environment.SUPABASE_SECRET_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
+}
+
+export async function addBrowserLegacyRateBreakdownVersionFixture(documentId: string) {
+  const environment = await browserFixtureEnvironment();
+  return addLegacyRateBreakdownVersionFixture(environment.DATABASE_URL, documentId);
 }
 
 /** Controls durable Batch creation instants for browser filtering/pagination coverage. */

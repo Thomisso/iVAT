@@ -446,6 +446,8 @@
     "invalid": "Zadejte platné datum ve tvaru dd.mm.rrrr."
   },
   "errors": {
+    "invalid_download_artifact": "Toto XML nepatří k aktuální verzi přiznání. Stáhněte aktuální výstup znovu.",
+    "download_acknowledgement_failed": "Stahování XML začalo, ale jeho průběh se nepodařilo uložit. Pro potvrzení dokončení ho stáhněte znovu.",
     "identical_file": "Totožný obsah souboru už je v této dávce.",
     "organization_name_required": "Zadejte název organizace.",
     "email_taken": "Účet s tímto e-mailem už existuje.",
@@ -983,8 +985,14 @@
   },
   "vatReports": {
     "wizard": {
+      "draftPartial": "Částečně dokončeno — {count}/2",
+      "draftPartialSkipped": "Částečně dokončeno — {count}/2, druhý export vynechán",
+      "skipDrafts": "Vynechat draftové exporty",
+      "skipRemainingDraft": "Vynechat druhý draftový export",
       "title": "Kroky zpracování DPH",
       "state": {
+        "partial": "Částečně dokončeno",
+        "skipped": "Vynecháno",
         "done": "Hotovo",
         "needs_attention": "Vyžaduje pozornost",
         "blocked": "Blokováno",

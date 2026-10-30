@@ -12,6 +12,7 @@ import {
   validateDocument,
 } from "./document-validation";
 import type { DocumentStatus } from "./documents";
+import { omitZeroRateBreakdownRows } from "./extraction-payload";
 import {
   pdfPages,
   SOURCE_FILE_BUCKET,
@@ -447,13 +448,13 @@ async function extractDocument(
         .eq("id", document.company_id)
         .single();
       if (companyError) throw companyError;
-      const directedPayload = {
+      const directedPayload = omitZeroRateBreakdownRows({
         ...extractedPayload,
         direction: detectDocumentDirection(
           extractedPayload,
           { ico: company.ico, vatId: company.vat_id },
         ),
-      };
+      });
       const conversion = await applyCnbConversion(directedPayload, exchangeRates);
       const payload = conversion.payload;
       const metered = await system.rpc("record_ai_usage", {

@@ -27,12 +27,15 @@ import { GenerateForm } from "./generate-form";
 import { PeriodLockForm } from "./period-lock-form";
 import { PeriodNavigation, PeriodSelector } from "./period-navigation";
 import { ExportForm } from "./export-form";
+import { DraftSkipForm } from "./draft-skip-form";
 
 const stateBadge: Record<VatProcessingStepState, DocumentStatus> = {
   done: "approved",
   needs_attention: "needs-review",
   blocked: "locked",
   not_started: "uploaded",
+  partial: "needs-review",
+  skipped: "uploaded",
 };
 
 export default async function VatReportsPage({
@@ -66,7 +69,7 @@ export default async function VatReportsPage({
     getTranslations(),
   ]);
   if (!wizardResult.ok) notFound();
-  const { readiness, steps, documentsToReview, documentsToReviewCount, locked } = wizardResult.value;
+  const { readiness, steps, documentsToReview, documentsToReviewCount, locked, draftExport } = wizardResult.value;
   const epoAddress = report ? resolveEpoAddress(report.result.company, filingDefaults) : null;
   const readinessCounts = readinessDocumentCounts(readiness);
   const readinessHref = (filter: ReadinessDocumentFilter) => `/companies/${companyId}/documents?${documentQueueQuery(parseDocumentQueue({
@@ -185,7 +188,7 @@ export default async function VatReportsPage({
         return step.state === "blocked" || !report ? null : <>
           <div className="vat-output-action-grid">
             {(["dphdp3", "dphkh1"] as const).map((format) => <ExportForm
-              key={`${period}:${format}`}
+              key={`${period}:${format}:${report.generatedAt}`}
               companyId={companyId}
               format={format}
               period={period}
@@ -199,6 +202,11 @@ export default async function VatReportsPage({
               canEditFilingDefaults={role === "administrator"}
             />)}
           </div>
+          {!locked && draftExport.downloadedFormats.length < 2 && draftExport.skippedFormats.length === 0 && <DraftSkipForm
+            key={report.generatedAt}
+            companyId={companyId} period={period} reportGeneratedAt={report.generatedAt}
+            downloadedCount={draftExport.downloadedFormats.length}
+          />}
           <Link href={periodHref("exports")}>{t("vatReports.wizard.openExportHistory")}</Link>
         </>;
       case "finalize":
@@ -258,7 +266,9 @@ export default async function VatReportsPage({
                 <p>{t(`vatReports.wizard.steps.${step.key}.hint`)}</p>
               </div>
               <StatusBadge status={stateBadge[step.state]}>
-                {t(`vatReports.wizard.state.${step.state}`)}
+                {step.key === "export" && step.state === "partial"
+                  ? t(draftExport.skippedFormats.length ? "vatReports.wizard.draftPartialSkipped" : "vatReports.wizard.draftPartial", { count: draftExport.downloadedFormats.length })
+                  : t(`vatReports.wizard.state.${step.state}`)}
               </StatusBadge>
             </header>
             {(step.reason || step.blockedBy) && <p className="vat-wizard-reason" role="note">
