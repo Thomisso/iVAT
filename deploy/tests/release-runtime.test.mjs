@@ -10,6 +10,7 @@ import { createReleaseBundle } from "../scripts/release-bundle.mjs";
 import { deployPreparedRelease } from "../scripts/connect-release.mjs";
 import { waitForRequiredChecks } from "../scripts/prepare-release.mjs";
 import { resolveReleaseRevision } from "../scripts/release-policy.mjs";
+import { spawnSimulation } from "./simulation-process.mjs";
 
 const source = process.cwd();
 const docker = (...args) => execFileSync("docker", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 600000 }).trim();
@@ -92,8 +93,8 @@ test("the real release command guards and upgrades a disposable production stack
     const releaseArchive = path.join(directory, "release.tar.gz");
     execFileSync("tar", ["--format", "ustar", "-czf", releaseArchive, "-C", bundle, "."], { env: { ...process.env, COPYFILE_DISABLE: "1" } });
     await writeFile(path.join(stack, "test-override.yml"), override("ivat-release155-upgrade:verify"));
-    simulation = spawn("postman", ["simulation", "run", "postman/simulations/release-flow/release-flow.sim.yaml", "--port", String(apiPort), "--no-history", "--output", "ndjson"], { stdio: ["ignore", "pipe", "pipe"] });
-    let simulationLog = ""; simulation.stdout.on("data", chunk => { simulationLog += chunk; }); simulation.stderr.on("data", chunk => { simulationLog += chunk; });
+    simulation = spawnSimulation("postman/simulations/release-flow/release-flow.sim.yaml", apiPort);
+    let simulationLog = ""; simulation.child.stdout.on("data", chunk => { simulationLog += chunk; }); simulation.child.stderr.on("data", chunk => { simulationLog += chunk; });
     const deadline = Date.now() + 15000;
     while (!simulationLog.includes('"type":"listening"') && !simulationLog.includes('"event":"listening"')) { if (Date.now() > deadline) throw new Error("Simulation startup failed"); await new Promise(resolve => setTimeout(resolve, 100)); }
     const deployEnv = { IVAT_DEPLOY_TEST_APP_IMAGE: "ivat-release155-upgrade:verify", IVAT_DISPOSABLE_COMPOSE_OVERRIDE: path.join(stack, "test-override.yml"), IVAT_DEPLOY_LOCK_FILE: path.join(stack, "backup.lock"), IVAT_DEPLOY_LOCK_TIMEOUT: "1", ROSTI_API_URL: `http://host.docker.internal:${apiPort}/rosti/api-n`, ROSTI_API_KEY: "test-provider-secret", IVAT_DEPLOY_PUBLIC_URL: `http://host.docker.internal:${httpPort}/login` };
@@ -221,10 +222,12 @@ exec /usr/local/bin/docker "$@"
     assert.match(simulationLog, /request/);
     assert.match(simulationLog, /ci\.yml/); assert.match(simulationLog, /deployment-check\.yml/);
   } finally {
-    simulation?.kill("SIGINT");
-    try { docker("rm", "-f", sshContainer); } catch { /* disposable cleanup only */ }
-    try { docker(...common, "down", "--volumes", "--remove-orphans"); } catch { /* disposable cleanup only */ }
-    if (process.env.IVAT_KEEP_RUNTIME_FIXTURE !== "1") await rm(directory, { recursive: true, force: true });
-    else console.log("Retained disposable fixture: " + directory);
+    try { await simulation?.stop(); }
+    finally {
+      try { docker("rm", "-f", sshContainer); } catch { /* disposable cleanup only */ }
+      try { docker(...common, "down", "--volumes", "--remove-orphans"); } catch { /* disposable cleanup only */ }
+      if (process.env.IVAT_KEEP_RUNTIME_FIXTURE !== "1") await rm(directory, { recursive: true, force: true });
+      else console.log("Retained disposable fixture: " + directory);
+    }
   }
 });
