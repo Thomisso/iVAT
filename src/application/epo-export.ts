@@ -7,6 +7,7 @@ import {
   type EpoFormat,
 } from "./epo-export-details";
 import { createEpoXml, type EpoXmlError } from "./epo-xml";
+import { exportTiming, type ExportTiming } from "./epo-export-timing";
 import { getVatReport } from "./vat-reports";
 import { isReportingPeriod } from "./vat-rules";
 import type { Json } from "@/lib/database.types";
@@ -27,6 +28,7 @@ export type ExportVatReportError =
   | "report_finalized"
   | "report_not_finalized";
 export type EpoDownload = {
+  timing: ExportTiming;
   artifactId: string;
   reportGeneratedAt: string;
   xml: string;
@@ -55,8 +57,8 @@ export type VatReportArtifact = {
   createdAt: string;
 };
 
-function todayInPrague(): string {
-  return new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Prague" }).format(new Date());
+function todayInPrague(now: Date): string {
+  return new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Prague" }).format(now);
 }
 
 async function resolveExportDetails(
@@ -67,6 +69,7 @@ async function resolveExportDetails(
     format: EpoFormat;
     personType: "legal" | "natural";
     registeredAddress: NonNullable<ExportDetails["address"]>;
+    today: string;
   },
 ): Promise<Result<ExportDetails, "invalid_export_details" | "epo_address_required">> {
   const defaults = await getCompanyFilingDefaults(client, input.companyId);
@@ -78,7 +81,7 @@ async function resolveExportDetails(
     taxOffice: supplied("taxOffice", defaults?.taxOffice),
     territorialOffice: supplied("territorialOffice", defaults?.territorialOffice),
     economicActivity: supplied("economicActivity", defaults?.economicActivity),
-    preparedOn: input.details.preparedOn?.trim() || todayInPrague(),
+    preparedOn: input.details.preparedOn?.trim() || input.today,
     email: supplied("email", defaults?.email),
     phone: supplied("phone", defaults?.phone),
     personType: input.personType === "natural" ? "F" : "P",
@@ -105,15 +108,18 @@ async function exportVatReportArtifact(
     details: Record<string, string>;
   },
   kind: "draft" | "final",
+  now: () => Date,
 ): Promise<Result<EpoDownload, ExportVatReportError>> {
   const report = await getVatReport(client, input.companyId, input.period);
   if (!report) return { ok: false, error: "report_not_found" };
   if (!isEpoFormat(input.format))
     return { ok: false, error: "invalid_export_format" };
+  const today = todayInPrague(now());
   const details = await resolveExportDetails(client, {
     companyId: input.companyId,
     details: input.details,
     format: input.format,
+    today,
     personType: report.result.company.personType,
     registeredAddress: {
       streetName: report.result.company.streetName,
@@ -158,6 +164,7 @@ async function exportVatReportArtifact(
   return {
     ok: true,
     value: {
+      timing: exportTiming({ period: input.period, format: input.format, personType: report.result.company.personType, preparedOn: details.value.preparedOn, today }),
       artifactId: stored.data,
       reportGeneratedAt: report.generatedAt,
       xml: result.value,
@@ -177,8 +184,9 @@ export function exportVatReport(
     format: string;
     details: Record<string, string>;
   },
+  now: () => Date = () => new Date(),
 ): Promise<Result<EpoDownload, ExportVatReportError>> {
-  return exportVatReportArtifact(client, input, "draft");
+  return exportVatReportArtifact(client, input, "draft", now);
 }
 
 /** Saves a new validated final XML artifact for the actively locked snapshot. */
@@ -190,8 +198,9 @@ export function exportFinalVatReport(
     format: string;
     details: Record<string, string>;
   },
+  now: () => Date = () => new Date(),
 ): Promise<Result<EpoDownload, ExportVatReportError>> {
-  return exportVatReportArtifact(client, input, "final");
+  return exportVatReportArtifact(client, input, "final", now);
 }
 
 /** Every immutable XML artifact for the Reporting Period, newest first. */
