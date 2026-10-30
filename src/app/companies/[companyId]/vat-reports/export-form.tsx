@@ -101,7 +101,7 @@ export function ExportForm({
   }
 
   return (
-    <article className="vat-export-card">
+    <article className="vat-export-card" id="export">
       <span className="vat-section-label">{format.toUpperCase()}</span>
       <h3>{t(`formats.${format}`)}</h3>
       <p className="iv-muted">{t("description")}</p>
