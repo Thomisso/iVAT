@@ -1,5 +1,12 @@
 # iVAT visual direction
 
+QA v5 requirements update: the user approved a new supplied PDF identity and
+light authentication design, including shared application styling from its
+page six. [QA v5](../QA_v5.md) supersedes the brand mark, favicon, brand palette
+and authentication composition described below. The remaining workflow,
+navigation, truthful-state, accessibility, language and responsive contracts
+continue to apply. The older prototype remains historical layout prior art.
+
 Status: accepted prototype direction for redesign specification #73. The live
 reference is `/prototype`; use `screen=overview`, `upload`, `documents`,
 `review`, `vat`, `vat-output`, or `settings` to inspect each representative
