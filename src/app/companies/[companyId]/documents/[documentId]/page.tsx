@@ -7,7 +7,8 @@ import {
   reprocessDocumentAction,
   returnDocumentToReviewAction,
 } from "@/app/actions";
-import { getCompany } from "@/application/companies";
+import { getCompany, getMyCompanyRole } from "@/application/companies";
+import { missingReportingPeriodFinding } from "@/application/reporting-years";
 import { currentUserId } from "@/application/auth";
 import { documentQueueQuery, getDocumentQueuePosition } from "@/application/document-queue";
 import {
@@ -43,12 +44,14 @@ export default async function DocumentReviewPage({
   const search = await searchParams;
   const requestedVersion = typeof search.version === "string" ? search.version : undefined;
   const client = await requireUserClient();
-  const [company, document, versions, userId, duplicateWarnings] = await Promise.all([
+  const [company, document, versions, userId, duplicateWarnings, missingPeriod, role] = await Promise.all([
     getCompany(client, companyId),
     getDocument(client, companyId, documentId),
     listExtractionVersions(client, companyId, documentId),
     currentUserId(client),
     listDuplicateWarnings(client, companyId, documentId),
+    missingReportingPeriodFinding(client, companyId, documentId),
+    getMyCompanyRole(client, companyId),
   ]);
   if (!company || !document) notFound();
   const file = await getSourceFile(client, companyId, document.sourceFileId);
@@ -137,6 +140,16 @@ export default async function DocumentReviewPage({
             fields={{ companyId, documentId: document.id }}
           >{t("review.retryExtraction")}</CommandButton>}
           {!current && <Notice>{t("review.notReviewableNote")}</Notice>}
+          {missingPeriod && (
+            <Notice tone="danger">
+              {t(`review.findings.${missingPeriod.code}`, missingPeriod.params)}{" "}
+              {role === "administrator" && missingPeriod.code === "reporting_year_missing" && (
+                <Link href={`/companies/${companyId}/settings/vat?generateYear=${missingPeriod.params?.year}#reporting-years`}>
+                  {t("review.generateReportingYear", { year: missingPeriod.params?.year ?? "" })}
+                </Link>
+              )}
+            </Notice>
+          )}
           {duplicateWarnings.map((warning) => (
             <Notice key={`${warning.kind}-${warning.matchedDocumentId}`} tone="warning">
               {t(`duplicateWarning.${warning.kind}`)}{" "}
