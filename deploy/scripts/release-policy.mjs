@@ -1,3 +1,7 @@
+import { execFileSync } from "node:child_process";
+
+export const REQUIRED_WORKFLOWS = ["ci.yml", "deployment-check.yml"];
+
 export function assertPublishedRelease(eventName, event) {
   const release = event?.release;
   if (eventName !== "release" || event?.action !== "published" ||
@@ -8,11 +12,6 @@ export function assertPublishedRelease(eventName, event) {
   }
   return { releaseId: release.id, tag: release.tag_name };
 }
-import { execFileSync } from "node:child_process";
-
-export const REQUIRED_WORKFLOWS = ["ci.yml", "deployment-check.yml"];
-
-
 export function resolveReleaseRevision(tag, expectedRevision, directory = process.cwd()) {
   if (!/^v\d+\.\d+\.\d+$/.test(tag) || !/^[a-f0-9]{40}$/.test(expectedRevision)) {
     throw new Error("Invalid release tag or commit.");

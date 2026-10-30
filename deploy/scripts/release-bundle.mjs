@@ -19,8 +19,9 @@ export function assertReleaseManifest(manifest) {
       !Number.isSafeInteger(manifest.releaseId) || manifest.releaseId <= 0) throw new Error("Invalid release manifest identity.");
   if (!exactKeys(manifest.images, Object.keys(IMAGE_SERVICES))) throw new Error("Release requires all four image digests.");
   for (const [name, image] of Object.entries(manifest.images)) {
-    if (typeof image !== "string" || !image.startsWith(`ghcr.io/${manifest.repository}/${name}@sha256:`) ||
-        !/^[a-f0-9]{64}$/.test(image.split("@sha256:")[1])) throw new Error(`Invalid immutable image reference: ${name}.`);
+    const prefix = `ghcr.io/${manifest.repository}/${name}@sha256:`;
+    if (typeof image !== "string" || !image.startsWith(prefix) ||
+        !/^[a-f0-9]{64}$/.test(image.slice(prefix.length))) throw new Error(`Invalid immutable image reference: ${name}.`);
   }
   assertPublicBuild(manifest.publicBuild);
   if (!manifest.files || typeof manifest.files !== "object" || Array.isArray(manifest.files)) throw new Error("Invalid release asset inventory.");

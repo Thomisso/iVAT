@@ -24,7 +24,8 @@ export async function waitForRequiredChecks({ repository, revision, token, apiUr
         throw new Error(`GitHub workflow evidence request failed for ${workflow}.`);
       }
       if (!response.ok) throw new Error(`GitHub workflow evidence request failed for ${workflow} (HTTP ${response.status}).`);
-      const body = await response.json();
+      let body;
+      try { body = await response.json(); } catch { throw new Error(`Invalid GitHub workflow evidence for ${workflow}.`); }
       if (!Array.isArray(body.workflow_runs)) throw new Error(`Invalid GitHub workflow evidence for ${workflow}.`);
       evidence[workflow] = body.workflow_runs;
     }
