@@ -12,7 +12,7 @@ import {
   updateCompany,
 } from "@/application/companies";
 import { listAuditEvents } from "@/application/audit";
-import { signedUpUser } from "./support/clients";
+import { provisionedUser } from "./support/clients";
 import {
   administratorWithCompany,
   companyDetails,
@@ -40,7 +40,7 @@ const initialFiling = {
 
 describe("Company creation", () => {
   it("lets the Organization Administrator create a Company and open it", async () => {
-    const { client, organizationId } = await signedUpUser();
+    const { client, organizationId } = await provisionedUser();
 
     const result = await createCompany(client, {
       organizationId,
@@ -74,7 +74,7 @@ describe("Company creation", () => {
   });
 
   it("persists natural-person identity before filing frequency and resumes from the blocking step", async () => {
-    const { client, organizationId } = await signedUpUser();
+    const { client, organizationId } = await provisionedUser();
     const identity = await createCompanyIdentity(client, {
       organizationId,
       ...companyDetails({
@@ -114,7 +114,7 @@ describe("Company creation", () => {
 
 describe("Company details", () => {
   it("are normalized before saving", async () => {
-    const { client, organizationId } = await signedUpUser();
+    const { client, organizationId } = await provisionedUser();
 
     const result = await createCompany(client, {
       organizationId,
@@ -154,7 +154,7 @@ describe("Company details", () => {
     [{ personType: "natural" as const, firstName: "Jana", lastName: "x".repeat(37) }, "last_name_too_long"],
     [{ postalCode: "1200" }, "invalid_postal_code"],
   ])("are refused when invalid: %o", async (override, error) => {
-    const { client, organizationId } = await signedUpUser();
+    const { client, organizationId } = await provisionedUser();
 
     const result = await createCompany(client, { organizationId, ...companyDetails(override) });
 
@@ -163,7 +163,7 @@ describe("Company details", () => {
   });
 
   it("preserves valid registered data that exceeds EPO limits and reports field-specific findings", async () => {
-    const { client, organizationId } = await signedUpUser();
+    const { client, organizationId } = await provisionedUser();
     const streetName = "Dlouhá registrovaná ulice s nezkráceným názvem";
     const city = "Městská část s pravdivým názvem delším než limit EPO formuláře";
 
@@ -293,7 +293,7 @@ describe("Company details", () => {
 
   it("isolates persisted setup state from another Organization", async () => {
     const company = await administratorWithCompany();
-    const outsider = await signedUpUser("Other Organization");
+    const outsider = await provisionedUser("Other Organization");
 
     const visible = await outsider.client
       .from("company_setup_step_state")
@@ -310,7 +310,7 @@ describe("Company details", () => {
 });
 
 it("opening a Company that does not exist finds nothing", async () => {
-  const { client } = await signedUpUser();
+  const { client } = await provisionedUser();
 
   expect(await getCompany(client, "00000000-0000-0000-0000-000000000000")).toBeNull();
   expect(await getCompany(client, "not-a-uuid")).toBeNull();

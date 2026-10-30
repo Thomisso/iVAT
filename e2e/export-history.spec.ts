@@ -1,3 +1,4 @@
+import { provisionAndLogIn } from "./support/accounts";
 import { expect, test } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 
@@ -5,11 +6,7 @@ test("Export History shows a compact table and expandable filing details on desk
   if (!baseURL) throw new Error("Playwright baseURL is required");
   await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseURL }]);
   const run = crypto.randomUUID();
-  await page.goto("/signup");
-  await page.getByLabel("Organization name").fill(`History ${run}`);
-  await page.getByLabel("Email").fill(`history-${run}@example.test`);
-  await page.getByLabel("Password").fill("Playwright-password-1");
-  await page.getByRole("button", { name: "Sign up" }).click();
+  await provisionAndLogIn(page, { organizationName: `History ${run}`, email: `history-${run}@example.test`, password: "Playwright-password-1" });
   await page.getByLabel("Company name").fill(`History Company ${run}`);
   await page.getByLabel("IČO").fill("12345678");
   await page.getByLabel("VAT ID").fill("CZ12345678");

@@ -1,3 +1,4 @@
+import { provisionAndLogIn } from "./support/accounts";
 import { expect, test, type Page } from "@playwright/test";
 import { addBrowserUploadNotificationFixture } from "../tests/support/e2e";
 
@@ -31,11 +32,7 @@ test("the notification bell is a keyboard-accessible current-Company inbox", asy
   await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: new URL(baseURL).origin }]);
   const run = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const email = `notifications-${run}@example.test`;
-  await page.goto("/signup");
-  await page.getByLabel("Organization name").fill(`Notification Organization ${run}`);
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Sign up" }).click();
+  await provisionAndLogIn(page, { organizationName: `Notification Organization ${run}`, email, password });
   await expect(page).toHaveURL(/\/companies\/new$/);
 
   const digits = Date.now().toString().slice(-8);
