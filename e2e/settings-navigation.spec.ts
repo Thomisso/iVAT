@@ -1,15 +1,12 @@
+import { provisionAndLogIn } from "./support/accounts";
 import { createHmac } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import { addBrowserCompanyMemberFixture, promoteBrowserSuperAdminFixture } from "../tests/support/e2e";
 
 const password = "Playwright-password-148";
 
-async function signUp(page: Page, organization: string, email: string) {
-  await page.goto("/signup");
-  await page.getByLabel("Organization name").fill(organization);
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Sign up", exact: true }).click();
+async function provisionAdministrator(page: Page, organization: string, email: string) {
+  await provisionAndLogIn(page, { organizationName: organization, email, password });
   await expect(page).toHaveURL(/\/companies\/new$/);
 }
 
@@ -31,7 +28,7 @@ test("Settings navigation follows actual scoped Roles and a membership-free Supe
   await english();
   const run = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const organization = `Settings Organization ${run}`;
-  await signUp(page, organization, `settings-owner-${run}@example.test`);
+  await provisionAdministrator(page, organization, `settings-owner-${run}@example.test`);
   await page.getByLabel("Company name").fill(`Settings Company ${run}`);
   const ico = Date.now().toString().slice(-8);
   await page.getByLabel("IČO").fill(ico);
@@ -61,7 +58,7 @@ test("Settings navigation follows actual scoped Roles and a membership-free Supe
 
   await context.clearCookies(); await english();
   const userEmail = `settings-user-${run}@example.test`;
-  await signUp(page, `User own Organization ${run}`, userEmail);
+  await provisionAdministrator(page, `User own Organization ${run}`, userEmail);
   await addBrowserCompanyMemberFixture(companyId, userEmail);
   await page.goto(`/companies/${companyId}`);
   await expect(companyNavigation.getByRole("link", { name: "Settings", exact: true })).toHaveCount(0);
@@ -76,7 +73,7 @@ test("Settings navigation follows actual scoped Roles and a membership-free Supe
 
   await context.clearCookies(); await english();
   const companyAdminEmail = `settings-company-admin-${run}@example.test`;
-  await signUp(page, `Company Administrator own Organization ${run}`, companyAdminEmail);
+  await provisionAdministrator(page, `Company Administrator own Organization ${run}`, companyAdminEmail);
   await addBrowserCompanyMemberFixture(companyId, companyAdminEmail, "administrator");
   await page.goto(`/companies/${companyId}/settings`);
   await expect(companyNavigation.getByRole("link", { name: "Settings", exact: true })).toHaveCount(1);
@@ -86,7 +83,7 @@ test("Settings navigation follows actual scoped Roles and a membership-free Supe
 
   await context.clearCookies(); await english();
   const operator = `settings-superadmin-${run}@example.test`;
-  await signUp(page, `Operator own Organization ${run}`, operator);
+  await provisionAdministrator(page, `Operator own Organization ${run}`, operator);
   await promoteBrowserSuperAdminFixture(operator);
   await page.goto(`/companies/${companyId}`);
   await expect(page).toHaveURL(/\/mfa\/enroll$/);

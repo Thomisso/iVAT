@@ -11,7 +11,7 @@ import {
   companyDetails,
   companyMember,
 } from "./support/fixtures";
-import { signedUpUser } from "./support/clients";
+import { provisionedUser } from "./support/clients";
 import { fixtureFile } from "./support/files";
 import { testWorker } from "./support/worker";
 import { addLegacyRateBreakdownVersionFixture } from "./support/rate-breakdown-history";
@@ -148,7 +148,7 @@ it("exports the Reporting Period overview with approved and attention sheets", a
 });
 
 it("classifies a quarterly Company's Documents on VAT Return lines and Control Statement sections", async () => {
-  const owner = await signedUpUser("Quarterly Organization");
+  const owner = await provisionedUser("Quarterly Organization");
   const created = await createCompany(owner.client, {
     organizationId: owner.organizationId,
     ...companyDetails({
@@ -237,7 +237,7 @@ it("classifies a Document with the frequency of its own Reporting Year", async (
 
 it("refuses an invalid Reporting Period and another Organization", async () => {
   const company = await administratorWithCompany();
-  const outsider = await signedUpUser();
+  const outsider = await provisionedUser();
 
   expect(await exportReportingPeriodWorkbook(company.client, {
     companyId: company.companyId,

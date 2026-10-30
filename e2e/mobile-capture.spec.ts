@@ -1,3 +1,4 @@
+import { provisionAndLogIn } from "./support/accounts";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { rotatedHeicFixture } from "../tests/support/files";
@@ -11,11 +12,7 @@ async function english(context: BrowserContext, baseURL: string | undefined) {
 }
 
 async function createCompany(page: Page, run: string): Promise<string> {
-  await page.goto("/signup");
-  await page.getByLabel("Organization name").fill(`Capture Organization ${run}`);
-  await page.getByLabel("Email").fill(`capture-${run}@example.test`);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Sign up" }).click();
+  await provisionAndLogIn(page, { organizationName: `Capture Organization ${run}`, email: `capture-${run}@example.test`, password });
   await page.getByLabel("Company name").fill(`Capture Company ${run}`);
   const digits = Date.now().toString().slice(-8);
   await page.getByLabel("IČO").fill(digits);

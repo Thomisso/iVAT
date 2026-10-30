@@ -1,3 +1,4 @@
+import { provisionAndLogIn } from "./support/accounts";
 import fs from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { SAMPLE_EXTRACTION } from "../src/ai/fake";
@@ -29,11 +30,7 @@ test("an administrator can turn an uploaded Source File into a traceable, export
     { name: "NEXT_LOCALE", value: "en", url: baseUrl },
   ]);
 
-  await page.goto("/signup");
-  await page.getByLabel("Organization name").fill(`E2E Organization ${run}`);
-  await page.getByLabel("Email").fill(`admin-${run}@example.test`);
-  await page.getByLabel("Password").fill("Playwright-password-1");
-  await page.getByRole("button", { name: "Sign up" }).click();
+  await provisionAndLogIn(page, { organizationName: `E2E Organization ${run}`, email: `admin-${run}@example.test`, password: "Playwright-password-1" });
   await expect(page).toHaveURL(/\/companies\/new$/);
 
   const companyName = `E2E Company ${run}`;
@@ -240,11 +237,7 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   await userContext.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseUrl }]);
   const userPage = await userContext.newPage();
   const userEmail = `report-user-${run}@example.test`;
-  await userPage.goto("/signup");
-  await userPage.getByLabel("Organization name").fill(`Report User Organization ${run}`);
-  await userPage.getByLabel("Email").fill(userEmail);
-  await userPage.getByLabel("Password").fill("Playwright-password-1");
-  await userPage.getByRole("button", { name: "Sign up" }).click();
+  await provisionAndLogIn(userPage, { organizationName: `Report User Organization ${run}`, email: userEmail, password: "Playwright-password-1" });
   await expect(userPage).toHaveURL(/\/companies\/new$/);
   await addBrowserCompanyMemberFixture(companyUrl.split("/").at(-1)!, userEmail);
   await userPage.goto(`${companyUrl}/vat-reports?period=2026-10`);

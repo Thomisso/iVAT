@@ -23,7 +23,7 @@ import { getReportingPeriodReadiness } from "@/application/reporting-period-read
 import { generateVatReport, getVatReport } from "@/application/vat-reports";
 import { uploadSourceFile } from "@/application/source-files";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
-import { signedUpUser } from "./support/clients";
+import { provisionedUser } from "./support/clients";
 import { fixtureFile } from "./support/files";
 import {
   administratorWithCompany,
@@ -872,7 +872,7 @@ describe("the Document list", () => {
 
   it("shows nothing of another Organization, even to direct queries", async () => {
     const a = await companyWithDocuments(PURCHASE);
-    const b = await signedUpUser("Organization B");
+    const b = await provisionedUser("Organization B");
 
     const direct = await b.client.from("document_overview").select("id").eq("company_id", a.companyId);
 
@@ -915,7 +915,7 @@ describe("the review workspace", () => {
 
   it("gives another Organization neither the Document nor its pages", async () => {
     const a = await documentInReview();
-    const b = await signedUpUser("Organization B");
+    const b = await provisionedUser("Organization B");
 
     expect(await getDocument(b.client, a.companyId, a.documentId)).toBeNull();
     expect(await readDocumentPages(b.client, a.companyId, a.documentId)).toBeNull();

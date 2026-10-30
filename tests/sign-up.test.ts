@@ -4,7 +4,7 @@ import { inject } from "vitest";
 import { completeGoogleSignIn, startGoogleSignIn } from "@/application/auth";
 import { listMyOrganizations } from "@/application/organizations";
 import { asUserClient, type AppClient } from "@/application/client";
-import { signedUpUser, uniqueEmail } from "./support/clients";
+import { provisionedUser, uniqueEmail } from "./support/clients";
 
 function googleAuthBoundary(result: {
   data: { url: string | null };
@@ -29,7 +29,7 @@ function googleCallbackBoundary(error: { message: string } | null): AppClient {
 
 describe("sign-up", () => {
   it("creates an Organization and makes the user its Administrator", async () => {
-    const { client } = await signedUpUser("Novák s.r.o.");
+    const { client } = await provisionedUser("Novák s.r.o.");
 
     const organizations = await listMyOrganizations(client);
 
