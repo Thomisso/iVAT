@@ -196,11 +196,15 @@ test("real Auth, Company, Organization and Platform surfaces share one accessibl
     await expect(unlimited).toBeVisible();
     await expectCheckboxTextBeside(unlimited);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    const assignmentBox = await assignment.boundingBox();
+    if (!assignmentBox) throw new Error("Company administration row is not rendered");
     for (const control of await assignment.locator('select, input:not([type="hidden"]), button').all()) {
       const bounds = await control.boundingBox();
       if (!bounds) throw new Error("Company administration control is not rendered");
       expect(bounds.x).toBeGreaterThanOrEqual(0);
       expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+      expect(bounds.x).toBeGreaterThanOrEqual(assignmentBox.x);
+      expect(bounds.x + bounds.width).toBeLessThanOrEqual(assignmentBox.x + assignmentBox.width);
     }
     if (width === 1440) expect((await configurationCard.boundingBox())!.width).toBeGreaterThan(800);
     await testInfo.attach(`platform-ai-${width}`, { body: await configurationCard.screenshot({ path: testInfo.outputPath(`platform-ai-${width}.png`) }), contentType: "image/png" });
