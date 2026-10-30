@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import type { CSSProperties, ReactNode } from "react";
 
 export type ContextNavigationItem = {
@@ -10,21 +11,14 @@ export type ContextNavigationItem = {
   label: string;
 };
 
-function BrandMark() {
-  return <svg aria-hidden="true" className="company-brand-mark" viewBox="0 0 32 32">
-    <path className="paper" d="M4 4h10v15l2 3 3-3V4h9v19l-7 6H11l-7-6z" />
-    <path className="check" d="m9 14 7 7 8-11" />
-  </svg>;
-}
-
 export function ShellBrand({ compact = false, href, label }: {
   compact?: boolean;
   href: string;
   label: string;
 }) {
   return <Link aria-label={label} className="app-shell-brand company-brand" href={href}>
-    <BrandMark />
-    {!compact && <span>{label}</span>}
+    <Image alt="" aria-hidden="true" className={compact ? "company-brand-mark" : "brand-logo"}
+      src={compact ? "/brand/mark.svg" : "/brand/logo.svg"} width={compact ? 28 : 103} height={compact ? 28 : 32} unoptimized />
   </Link>;
 }
 
