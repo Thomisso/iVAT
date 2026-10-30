@@ -1193,12 +1193,15 @@ select:disabled {
     padding: var(--space-3);
   }
   .iv-drop {
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
     padding: var(--space-4);
     gap: var(--space-3);
   }
-  .iv-drop .iv-drop-text {
-    flex: 1;
+  .iv-drop .iv-btn {
+    grid-column: 2;
+    justify-self: start;
+    margin-left: 0;
   }
   .panel {
     margin: var(--space-4) auto;

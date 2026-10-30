@@ -32,6 +32,12 @@ test("shared workspaces preserve readable CS/EN layouts and actual human review"
         expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
         expect(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme)).toBe("light");
         await expect(page.getByRole("main").getByRole("heading", { level: 1 }).first()).toBeVisible();
+        if (name === "upload" && width === 360) {
+          const description = await page.locator(".iv-drop-text").boundingBox();
+          const picker = await page.locator(".iv-drop .iv-btn").boundingBox();
+          if (!description || !picker) throw new Error("Visible file picker missing");
+          expect(picker.y).toBeGreaterThanOrEqual(description.y + description.height);
+        }
         if (name === "upload" || width === 360 || width === 1440) await page.screenshot({ path: `test-results/workspace-${name}-${locale}-${width}.png`, fullPage: true });
       }
       if (name === "upload") {
