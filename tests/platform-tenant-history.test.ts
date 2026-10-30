@@ -11,12 +11,43 @@ import { promotedSuperAdministrator } from "./support/platform";
 import { fixtureFile } from "./support/files";
 import { testWorker } from "./support/worker";
 import { exportCompanyData, softDeleteCompany } from "@/application/company-deletion";
-import { downloadPlatformCompanyHistory, getPlatformCompanyHistory, readPlatformCompanySourceFile } from "@/application/platform-company-history";
+import { downloadPlatformCompanyHistory, getPlatformCompanyHistory, readPlatformCompanyArtifact, readPlatformCompanySourceFile } from "@/application/platform-company-history";
 import { strFromU8, unzipSync } from "fflate";
 import { signedUpUser } from "./support/clients";
 import { systemClient } from "./support/worker";
+import { saveCompanyFilingDefaults } from "@/application/company-filing-defaults";
+import { exportVatReport } from "@/application/epo-export";
 
 describe("SuperAdmin support for unavailable tenants", () => {
+  it("preserves archived XML downloads after deletion and refuses an artifact belonging to another Company", async () => {
+    const target = await administratorWithCompany("Archived XML history");
+    const other = await administratorWithCompany("Other XML history");
+    const operator = await promotedSuperAdministrator("XML history operator");
+    expect(await saveCompanyFilingDefaults(target.client, {
+      companyId: target.companyId, taxOffice: "451", territorialOffice: "2003", economicActivity: "621000",
+      signatoryFirstName: "Jana", signatoryLastName: "Nováková", signatoryCapacity: "jednatelka",
+      email: "podatelna@example.test", phone: "+420123456789", epoAddressOverride: null,
+    })).toEqual({ ok: true, value: null });
+    expect((await generateVatReport(target.client, { companyId: target.companyId, period: "2026-10" })).ok).toBe(true);
+    const xml = await exportVatReport(target.client, {
+      companyId: target.companyId, period: "2026-10", format: "dphdp3", details: { preparedOn: "2026-10-29" },
+    });
+    if (!xml.ok) throw new Error(xml.error);
+    const worker = testWorker();
+    const exported = await exportCompanyData(operator.client, worker.jobs, { companyId: target.companyId });
+    if (!exported.ok) throw new Error(exported.error);
+    expect(await worker.runJobs()).toEqual([]);
+    expect((await softDeleteCompany(operator.client, { companyId: target.companyId, exportId: exported.value.exportId })).ok)
+      .toBe(true);
+    expect(await readPlatformCompanyArtifact(operator.client, { companyId: target.companyId, artifactId: xml.value.artifactId }))
+      .toEqual({ ok: true, value: { bytes: xml.value.bytes, fileName: xml.value.fileName, mediaType: xml.value.mediaType } });
+    expect(await readPlatformCompanyArtifact(operator.client, { companyId: other.companyId, artifactId: xml.value.artifactId }))
+      .toEqual({ ok: false, error: "forbidden" });
+    const archive = await downloadPlatformCompanyHistory(operator.client, target.companyId);
+    if (!archive.ok) throw new Error(archive.error);
+    expect(unzipSync(archive.value.bytes)[`vat-report-artifacts/${xml.value.artifactId}/${xml.value.fileName}`])
+      .toEqual(xml.value.bytes);
+  });
   it("reads a deleted Company's retained Documents, versions and audit without restoring access", async () => {
     const target = await administratorWithCompany("Deleted history target");
     const operator = await promotedSuperAdministrator("History operator");
