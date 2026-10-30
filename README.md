@@ -112,6 +112,15 @@ and add `--password-stdin`. To promote an existing identity without creating
 one, use `--user-id <auth-user-uuid>`; a missing UUID is rejected. Repeating the
 command is safe and leaves exactly one SuperAdmin record.
 
+New operators are created through native Auth with a service-only, short-lived
+reserved User id. This skips automatic Organization/Membership provisioning;
+the reservation grants no Role itself and is released after Auth creation.
+Retired ids remain without email so delayed requests fail closed rather than
+falling back to automatic tenant provisioning.
+Promoting an existing User preserves their historical Memberships and credentials.
+Active user lists and counts omit platform SuperAdmins without deleting those
+Memberships. Platform access still requires the operator's own MFA session.
+
 The command accepts only a localhost Supabase URL and reads the secret key from
 the gitignored `.env.local` written by `db:start`; it never prints that key.
 MFA is not seeded. After signing in, the SuperAdmin follows the normal product
