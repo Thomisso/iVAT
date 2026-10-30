@@ -1659,11 +1659,18 @@ select:disabled {
 .upload-section-heading h2,
 .upload-section-heading p { margin: 0; }
 .upload-section-heading > span { min-width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid var(--upload-line); border-radius: var(--radius-full); background: var(--upload-surface); color: var(--upload-ink); font-weight: 700; }
+.upload-history { container-type: inline-size; }
 .upload-batch-list { margin: 0; padding: 0; border-top: 1px solid var(--upload-line-strong); list-style: none; }
 .upload-batch-list li { border-bottom: 1px solid var(--upload-line); }
 .upload-batch-list a { min-height: 64px; padding: 10px 4px; display: grid; grid-template-columns: 150px minmax(220px, 1fr) 180px minmax(220px, 1fr); align-items: center; gap: 16px; color: var(--upload-ink); text-decoration: none; }
 .upload-batch-list a:hover { background: var(--upload-surface); }
 .upload-batch-list a > span:not(.upload-outcome) { color: var(--upload-muted); font-size: 13px; }
+@container (max-width: 52rem) {
+  .upload-batch-list a { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container (max-width: 30rem) {
+  .upload-batch-list a { grid-template-columns: minmax(0, 1fr); gap: var(--space-1); padding: 14px var(--space-1); }
+}
 .upload-history-pagination { margin-top: 18px; display: flex; justify-content: space-between; gap: 20px; }
 .upload-history-pagination a { color: var(--upload-accent); font-weight: 650; }
 .upload-outcome { width: fit-content; padding: 3px 8px; border-radius: var(--radius-sm); background: var(--upload-accent-soft); color: var(--upload-accent); font-size: 12px; font-weight: 700; }
@@ -1961,7 +1968,6 @@ select:disabled {
   .review-queue-nav > span:nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
   .upload-workspace-new,
   .upload-source-row { grid-template-columns: 1fr; }
-  .upload-batch-list a { grid-template-columns: 1fr; gap: 4px; padding: 14px 4px; }
   .upload-lifecycle { grid-template-columns: 1fr; }
   .upload-lifecycle li { min-height: 72px; border-right: 0; border-bottom: 1px solid var(--line); }
   .upload-lifecycle li::after { display: none; }
