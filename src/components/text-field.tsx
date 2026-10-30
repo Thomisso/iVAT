@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, type InputHTMLAttributes } from "react";
+import { useId, type InputHTMLAttributes, type Ref } from "react";
 import { Icon } from "./icon";
 
 export interface TextFieldProps extends InputHTMLAttributes<HTMLInputElement> {
@@ -8,6 +8,7 @@ export interface TextFieldProps extends InputHTMLAttributes<HTMLInputElement> {
   hint?: string;
   error?: string;
   mono?: boolean;
+  ref?: Ref<HTMLInputElement>;
 }
 
 export function TextField({

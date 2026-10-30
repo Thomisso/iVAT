@@ -1,20 +1,20 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getFormatter, getTranslations } from "next-intl/server";
+import { getTranslations } from "next-intl/server";
 import { getCompany } from "@/application/companies";
 import { listReportingPeriods } from "@/application/reporting-period-readiness";
 import { requireUserClient } from "@/lib/supabase/server";
 import { StatusBadge } from "@/components/status-badge";
 import { PageLayout } from "@/components/app-shell";
+import { formatDateTime } from "@/lib/format-date";
 
 export default async function VatPage({ params }: PageProps<"/companies/[companyId]/vat">) {
   const { companyId } = await params;
   const client = await requireUserClient();
-  const [company, periods, t, format] = await Promise.all([
+  const [company, periods, t] = await Promise.all([
     getCompany(client, companyId),
     listReportingPeriods(client, companyId),
     getTranslations("vatReports"),
-    getFormatter(),
   ]);
   if (!company) notFound();
   return <PageLayout className="company-workspace vat-periods-workspace" measure="wide">
@@ -36,9 +36,9 @@ export default async function VatPage({ params }: PageProps<"/companies/[company
           {period.state === "finalized" ? <StatusBadge status="locked">{t("periodState.finalized")}</StatusBadge> : period.state === "draft" ? <StatusBadge status="approved">{t("periodState.draft")}</StatusBadge> : <StatusBadge status="needs-review">{t("periodState.unfinished")}</StatusBadge>}
           {period.oldestUnfinished && <span className="vat-oldest-label">{t("oldestUnfinished")}</span>}
           <small>{period.lockedAt
-            ? t("finalizedAt", { date: format.dateTime(new Date(period.lockedAt), { dateStyle: "medium", timeStyle: "short" }) })
+            ? t("finalizedAt", { date: formatDateTime(period.lockedAt) })
             : period.generatedAt
-              ? t("generatedAt", { date: format.dateTime(new Date(period.generatedAt), { dateStyle: "medium", timeStyle: "short" }) })
+              ? t("generatedAt", { date: formatDateTime(period.generatedAt) })
               : t("notStarted")}</small>
         </div>
         <Link href={`/companies/${companyId}/vat-reports?period=${period.period}`}>{t("openPeriod")}</Link>

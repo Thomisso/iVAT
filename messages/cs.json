@@ -385,6 +385,11 @@
     "openBatch": "Otevřít dávku",
     "markRead": "Označit jako přečtené"
   },
+  "dateInput": {
+    "hint": "Formát dd.mm.rrrr",
+    "placeholder": "dd.mm.rrrr",
+    "invalid": "Zadejte platné datum ve tvaru dd.mm.rrrr."
+  },
   "errors": {
     "organization_name_required": "Zadejte název organizace.",
     "email_taken": "Účet s tímto e-mailem už existuje.",
