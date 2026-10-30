@@ -11,7 +11,8 @@ import {
   missingReportingPeriodFinding,
   setFirstReportingMonth,
 } from "@/application/reporting-years";
-import { listReportingPeriods } from "@/application/reporting-period-readiness";
+import { getReportingPeriodReadiness, listReportingPeriods } from "@/application/reporting-period-readiness";
+import { currentReportingYear } from "@/application/reporting-periods";
 import { finalizeVatReport, generateVatReport } from "@/application/vat-reports";
 import { signedUpUser } from "./support/clients";
 import { fixtureFile } from "./support/files";
@@ -39,7 +40,41 @@ describe("Generating Reporting Years", () => {
       { year: 2026, frequency: "monthly", firstMonth: 1 },
       { year: 2027, frequency: "quarterly", firstMonth: 1 },
     ]);
+    expect((await listAuditEvents(company.client, company.organizationId))
+      .filter((event) => event.action === "reporting_year.generated")
+      .map(({ actorUserId, companyId, payload }) => ({ actorUserId, companyId, payload })))
+      .toEqual(expect.arrayContaining([2024, 2025, 2027].map((year) => ({
+        actorUserId: company.userId,
+        companyId: company.companyId,
+        payload: { year, frequency: "quarterly", first_month: 1 },
+      }))));
   });
+
+  it("generates at most 20 years at once", async () => {
+    const company = await administratorWithCompany();
+
+    expect(await generateReportingYears(company.client, {
+      companyId: company.companyId, fromYear: 2000, toYear: 2020, frequency: "monthly",
+    })).toEqual({ ok: false, error: "too_many_reporting_years" });
+    expect((await generateReportingYears(company.client, {
+      companyId: company.companyId, fromYear: 2006, toYear: 2025, frequency: "monthly",
+    })).ok).toBe(true);
+  });
+
+  it("keeps an existing year's first month when an earlier year is generated", async () => {
+    const company = await administratorWithCompany();
+    await setFirstReportingMonth(company.client, { companyId: company.companyId, year: 2026, firstMonth: 5 });
+
+    expect(await generateReportingYears(company.client, {
+      companyId: company.companyId, fromYear: 2025, toYear: 2026, frequency: "quarterly",
+    })).toEqual({ ok: true, value: { generated: [2025], skipped: [2026] } });
+
+    expect(await listCompanyReportingYears(company.client, company.companyId)).toEqual([
+      { year: 2025, frequency: "quarterly", firstMonth: 1 },
+      { year: 2026, frequency: "monthly", firstMonth: 5 },
+    ]);
+  });
+
 });
 
 describe("Changing a Reporting Year's frequency", () => {
@@ -65,6 +100,14 @@ describe("Changing a Reporting Year's frequency", () => {
       { year: 2026, frequency: "monthly", firstMonth: 1 },
       { year: 2027, frequency: "monthly", firstMonth: 1 },
     ]);
+    expect((await listAuditEvents(company.client, company.organizationId))
+      .filter((event) => event.action === "reporting_year.changed")
+      .map(({ actorUserId, companyId, payload }) => ({ actorUserId, companyId, payload })))
+      .toEqual([{
+        actorUserId: company.userId,
+        companyId: company.companyId,
+        payload: { year: 2027, frequency: { from: "quarterly", to: "monthly" } },
+      }]);
   });
 });
 
@@ -150,9 +193,8 @@ describe("Reporting Year management access", () => {
   });
 });
 
-describe("Documents outside generated Reporting Years", () => {
-  /** One processed outgoing Document with the given Tax Point Date. */
-  async function outgoingDocument(company: Awaited<ReturnType<typeof administratorWithCompany>>, taxPointDate: string) {
+/** One processed outgoing Document with the given Tax Point Date. */
+async function outgoingDocument(company: Awaited<ReturnType<typeof administratorWithCompany>>, taxPointDate: string) {
     const worker = testWorker(fakeAiProvider({
       extract: () => ({
         ...SAMPLE_EXTRACTION,
@@ -174,8 +216,9 @@ describe("Documents outside generated Reporting Years", () => {
     await worker.runJobs();
     const [document] = await listCompanyDocuments(company.client, company.companyId);
     return document.id;
-  }
+}
 
+describe("Documents outside generated Reporting Years", () => {
   it("names the missing year until it is generated, then joins its period", async () => {
     const company = await administratorWithCompany();
     const documentId = await outgoingDocument(company, "2027-03-15");
@@ -207,6 +250,31 @@ describe("Documents outside generated Reporting Years", () => {
       severity: "error",
       code: "tax_point_date_before_first_reporting_month",
       params: { year: "2026", month: "5" },
+    });
+  });
+});
+
+describe("Readiness with Documents outside generated Reporting Years", () => {
+  it("blocks the period a Document without a Reporting Period falls back to, naming the missing year", async () => {
+    const company = await administratorWithCompany();
+    const year = currentReportingYear();
+    await generateReportingYears(company.client, {
+      companyId: company.companyId, fromYear: year, toYear: year, frequency: "monthly",
+    });
+    // Without a Reporting Period, a Document waits in the period it was imported in.
+    const importPeriod = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Prague", year: "numeric", month: "2-digit",
+    }).format(new Date());
+    const documentId = await outgoingDocument(company, "2019-06-15");
+
+    const readiness = await getReportingPeriodReadiness(company.client, {
+      companyId: company.companyId, period: importPeriod,
+    });
+    if (!readiness.ok) throw new Error(readiness.error);
+
+    expect(readiness.value.ready).toBe(false);
+    expect(readiness.value.blockers).toContainEqual({
+      code: "error_finding", documentId, findingCode: "reporting_year_missing",
     });
   });
 });

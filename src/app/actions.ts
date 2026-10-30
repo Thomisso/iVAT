@@ -305,26 +305,33 @@ export async function generateReportingYearsAction(_state: FormState, formData: 
 }
 
 export async function changeReportingYearFrequencyAction(_state: FormState, formData: FormData): Promise<FormState> {
-  return settled(await changeReportingYearFrequency(await requireUserClient(), {
+  const result = await changeReportingYearFrequency(await requireUserClient(), {
     companyId: field(formData, "companyId"),
     year: Number(field(formData, "year")),
     frequency: field(formData, "frequency") as "monthly" | "quarterly",
-  }));
+  });
+  if (!result.ok) return refused(result.error, formData, ["frequency"]);
+  return settled(result);
 }
 
 export async function setFirstReportingMonthAction(_state: FormState, formData: FormData): Promise<FormState> {
-  return settled(await setFirstReportingMonth(await requireUserClient(), {
+  const result = await setFirstReportingMonth(await requireUserClient(), {
     companyId: field(formData, "companyId"),
     year: Number(field(formData, "year")),
     firstMonth: Number(field(formData, "firstMonth")),
-  }));
+  });
+  if (!result.ok) return refused(result.error, formData, ["firstMonth"]);
+  return settled(result);
 }
 
 export async function deleteReportingYearAction(_state: FormState, formData: FormData): Promise<FormState> {
-  return settled(await deleteReportingYear(await requireUserClient(), {
+  if (field(formData, "confirmed") !== "on") return refused("confirmation_required", formData, []);
+  const result = await deleteReportingYear(await requireUserClient(), {
     companyId: field(formData, "companyId"),
     year: Number(field(formData, "year")),
-  }));
+  });
+  if (!result.ok) return refused(result.error, formData, ["confirmed"]);
+  return settled(result);
 }
 
 const FILING_DEFAULT_FIELDS = [

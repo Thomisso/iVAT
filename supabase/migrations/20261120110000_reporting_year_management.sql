@@ -3,6 +3,7 @@
 -- a year. Every command is Administrator-only and audited (ADR-0008, 0009).
 
 -- Existing years are never overwritten; the caller learns which were skipped.
+-- One request generates at most 20 years.
 create or replace function public.generate_company_reporting_years(
   target_company_id uuid,
   from_year integer,
@@ -25,6 +26,10 @@ begin
     or from_year > to_year then
     raise exception 'invalid Reporting Year range'
       using errcode = 'P0001', hint = 'invalid_reporting_year';
+  end if;
+  if to_year - from_year >= 20 then
+    raise exception 'at most 20 Reporting Years at once'
+      using errcode = 'P0001', hint = 'too_many_reporting_years';
   end if;
 
   with inserted as (
