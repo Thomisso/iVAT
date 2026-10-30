@@ -2139,6 +2139,11 @@ select:disabled {
 .vat-wizard-step[data-state="needs_attention"] { border-left-color: #a77c00; }
 .vat-wizard-step[data-state="blocked"] { background: #f7f9f8; }
 .vat-wizard-step > header { padding: 16px 20px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: 14px; }
+.vat-wizard-step > header .iv-badge { max-width: 260px; height: auto; min-height: 22px; white-space: normal; }
+@media (max-width: 720px) {
+  .vat-wizard-step > header { grid-template-columns: auto minmax(0, 1fr); }
+  .vat-wizard-step > header .iv-badge { grid-column: 2; max-width: 100%; }
+}
 .vat-wizard-step h2 { margin: 0; color: var(--shell-navy); font-size: 17px; }
 .vat-wizard-step[data-state="blocked"] h2 { color: #617078; }
 .vat-wizard-step > header p { margin: 3px 0 0; color: #617078; font-size: 13px; }
