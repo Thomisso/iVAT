@@ -1,0 +1,97 @@
+name: Prepare Roští release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    if: github.event.release.draft == false && github.event.release.prerelease == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      revision: ${{ steps.release.outputs.revision }}
+      tag: ${{ steps.release.outputs.tag }}
+      verified-artifact: verified-rosti-release-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      # Validate using main's policy before executing the selected release code.
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Verify stable Release and exact main CI evidence
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node deploy/scripts/prepare-release.mjs verify "$RUNNER_TEMP/verified-release.json"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: verified-rosti-release-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/verified-release.json
+          if-no-files-found: error
+          retention-days: 30
+
+  prepare:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      artifact-name: rosti-release-${{ needs.verify.outputs.revision }}-${{ github.run_id }}-${{ github.run_attempt }}
+    env:
+      ROSTI_PUBLIC_SUPABASE_URL: ${{ vars.ROSTI_PUBLIC_SUPABASE_URL }}
+      ROSTI_PUBLIC_SUPABASE_KEY: ${{ vars.ROSTI_PUBLIC_SUPABASE_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.verify.outputs.revision }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.verify.outputs.verified-artifact }}
+          path: ${{ runner.temp }}
+      - uses: docker/setup-buildx-action@v4
+      - name: Authenticate to repository container registry
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+      - name: Build and publish four explicit AMD64 images
+        run: node deploy/scripts/publish-release-images.mjs "$RUNNER_TEMP/verified-release.json" "$RUNNER_TEMP/release-images.json"
+      - name: Assemble and validate release assets
+        run: |
+          node deploy/scripts/prepare-release.mjs bundle "$RUNNER_TEMP/verified-release.json" "$RUNNER_TEMP/release-images.json" "$RUNNER_TEMP/rosti-release"
+          tar -czf "$RUNNER_TEMP/rosti-release.tar.gz" -C "$RUNNER_TEMP/rosti-release" .
+      - uses: actions/upload-artifact@v7
+        with:
+          name: rosti-release-${{ needs.verify.outputs.revision }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/rosti-release.tar.gz
+          if-no-files-found: error
+          retention-days: 30
+      - name: Summarize prepared release
+        env:
+          REVISION: ${{ needs.verify.outputs.revision }}
+          RELEASE_TAG: ${{ needs.verify.outputs.tag }}
+        run: |
+          {
+            printf 'Prepared %s at `%s`.\n\n' "$RELEASE_TAG" "$REVISION"
+            printf 'All four images use linux/amd64 and immutable digests.\n\n'
+            printf 'The release bundle is attached to this workflow run. Preparation does not deploy production.\n'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Remove registry credentials
+        if: always()
+        run: docker logout ghcr.io
