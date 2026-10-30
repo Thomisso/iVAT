@@ -2343,3 +2343,6 @@ select:disabled {
   .export-artifact-details dl { grid-template-columns: minmax(0, 1fr); }
 }
 .settings-form-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+
+.invitation-link-field { flex-basis: 100%; min-width: 0; }
+.invitation-link-field input { width: 100%; min-width: 0; }
