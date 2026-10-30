@@ -91,9 +91,8 @@ test("empty and draft Reporting Periods expose separate statutory destinations i
   });
   await expect(draftNavigation.getByRole("link")).toHaveCount(4);
   await draftNavigation.getByRole("link", { name: "VAT Return" }).click();
-  await expect(page).toHaveURL(
-    new RegExp(`/companies/${companyId}/vat-reports/2026-01/vat-return$`),
-  );
+  const processingOrigin = `${processingUrl}#vat-step-outputs`;
+  await expect(page).toHaveURL((url) => url.pathname === `/companies/${companyId}/vat-reports/2026-01/vat-return` && url.searchParams.size === 1 && url.searchParams.get("returnTo") === processingOrigin);
   await expect(page).toHaveTitle("VAT Return · 2026-01");
   await expect(page.getByText(`${companyName} · 2026-01`, { exact: true })).toBeVisible();
   await expect(page.getByRole("table", { name: "VAT Return" })).toBeVisible();
@@ -110,9 +109,7 @@ test("empty and draft Reporting Periods expose separate statutory destinations i
     .getByRole("navigation", { name: "Reporting Period destinations" })
     .getByRole("link", { name: "Control Statement" })
     .click();
-  await expect(page).toHaveURL(
-    new RegExp(`/companies/${companyId}/vat-reports/2026-01/control-statement$`),
-  );
+  await expect(page).toHaveURL((url) => url.pathname === `/companies/${companyId}/vat-reports/2026-01/control-statement` && url.searchParams.size === 1 && url.searchParams.get("returnTo") === processingOrigin);
   await expect(page).toHaveTitle("Control Statement · 2026-01");
   await expect(page.getByRole("heading", { name: "Control Statement · 2026-01" })).toBeVisible();
   await expect(page.locator('input[name="format"]')).toHaveValue("dphkh1");
@@ -140,6 +137,7 @@ test("empty and draft Reporting Periods expose separate statutory destinations i
     .getByRole("navigation", { name: "Reporting Period destinations" })
     .getByRole("link", { name: "Export history" })
     .click();
+  await expect(page).toHaveURL((url) => url.pathname === `/companies/${companyId}/vat-reports/2026-01/exports` && url.searchParams.size === 1 && url.searchParams.get("returnTo") === processingOrigin);
   await expect(page.getByText("No stored export artifacts", { exact: true })).toBeVisible();
 
   await setLocale(context, baseURL, "cs");

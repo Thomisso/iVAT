@@ -8,6 +8,7 @@ import { extractJob, splitJob, type JobQueue } from "@/application/processing";
 import { Client as DatabaseClient } from "pg";
 import { inject } from "vitest";
 import { SAMPLE_EXTRACTION } from "@/ai/fake";
+import { selectUploadFiles } from "./files";
 import { signedUpUser } from "./clients";
 import { systemClient } from "./worker";
 
@@ -355,19 +356,22 @@ export async function uploadBatchWithWaitingDocuments(count: number) {
   const { uploadSourceFile } = await import("@/application/source-files");
   const admin = await administratorWithCompany("Paged upload batch");
   const fileCount = Math.ceil(count / 50);
-  const batch = await beginUploadBatch(admin.client, { companyId: admin.companyId, fileCount });
-  if (!batch.ok) throw new Error(batch.error);
   const pdf = await PDFDocument.create();
   for (let page = 0; page < 50; page++) pdf.addPage();
   const bytes = await pdf.save();
+  const selection = selectUploadFiles(Array.from({ length: fileCount }, (_, fileIndex) => ({
+    fileName: `large-${fileIndex}.pdf`,
+    // These are distinct selected Source Files, even when their page counts match.
+    bytes: new Uint8Array([...bytes, ...new TextEncoder().encode(`\n% source ${fileIndex}`)]),
+  })));
+  const batch = await beginUploadBatch(admin.client, { companyId: admin.companyId, fileCount, selectedFiles: selection.selectedFiles });
+  if (!batch.ok) throw new Error(batch.error);
   let created = 0;
-  for (let fileIndex = 0; fileIndex < fileCount; fileIndex++) {
+  for (const file of selection.files) {
     const uploaded = await uploadSourceFile(admin.client, { async send() {} }, {
       companyId: admin.companyId,
       batchId: batch.value.id,
-      fileName: `large-${fileIndex}.pdf`,
-      // These are distinct Source Files, even when their page counts match.
-      bytes: new Uint8Array([...bytes, ...new TextEncoder().encode(`\n% source ${fileIndex}`)]),
+      ...file,
     });
     if (!uploaded.ok) throw new Error(uploaded.error);
     const documentsInFile = Math.min(50, count - created);
@@ -383,4 +387,42 @@ export async function uploadBatchWithWaitingDocuments(count: number) {
   }
   await finishUploadBatch(admin.client, batch.value.id);
   return { ...admin, batchId: batch.value.id };
+}
+
+/** A genuinely historical count-only Batch, created outside current user creation paths. */
+export async function legacyUploadBatchFixture(owner: { organizationId: string; companyId: string; userId: string }, fileCount: number) {
+  const database = new DatabaseClient({ connectionString: inject("databaseUrl") });
+  await database.connect();
+  try {
+    const result = await database.query<{ id: string }>(
+      `insert into public.upload_batch (organization_id, company_id, created_by, file_count, selected_files)
+       values ($1, $2, $3, $4, null) returning id`,
+      [owner.organizationId, owner.companyId, owner.userId, fileCount],
+    );
+    return result.rows[0].id;
+  } finally {
+    await database.end();
+  }
+}
+
+/** Bulk Storage metadata for authenticated listing/RLS tests; no blob-content assertion uses these rows. */
+export async function storageObjectMetadataFixture(names: string[]) {
+  const database = new DatabaseClient({ connectionString: inject("databaseUrl") });
+  await database.connect();
+  try {
+    await database.query(
+      `insert into storage.objects (bucket_id, name, metadata)
+       select 'source-files', name, '{"size":1,"mimetype":"application/pdf"}'::jsonb
+       from unnest($1::text[]) name`,
+      [names],
+    );
+    return async () => {
+      for (let from = 0; from < names.length; from += 1000) {
+        const removed = await systemClient().storage.from("source-files").remove(names.slice(from, from + 1000));
+        if (removed.error) throw removed.error;
+      }
+    };
+  } finally {
+    await database.end();
+  }
 }
