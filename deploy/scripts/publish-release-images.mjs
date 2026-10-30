@@ -31,9 +31,11 @@ async function main() {
       const args = ["buildx", "build", "--platform", "linux/amd64", "--file", build.dockerfile,
         "--tag", `${image}:sha-${revision}-${run}-${attempt}`, "--metadata-file", metadata,
         "--label", `org.opencontainers.image.source=https://github.com/${release.repository}`,
+        "--label", `org.opencontainers.image.version=${release.tag}`,
         "--label", `org.opencontainers.image.revision=${revision}`, "--push"];
       if (name === "app") args.push("--build-arg", `NEXT_PUBLIC_SUPABASE_URL=${publicBuild.supabaseUrl}`,
-        "--build-arg", `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${publicBuild.publishableKey}`);
+        "--build-arg", `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${publicBuild.publishableKey}`,
+        "--build-arg", `IVAT_RELEASE_TAG=${release.tag}`, "--build-arg", `IVAT_RELEASE_REVISION=${revision}`);
       execFileSync("docker", [...args, build.context], { stdio: "inherit" });
       const digest = JSON.parse(await readFile(metadata, "utf8"))["containerimage.digest"];
       if (!/^sha256:[a-f0-9]{64}$/.test(digest)) throw new Error(`Build did not return an immutable digest: ${name}.`);

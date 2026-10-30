@@ -174,6 +174,41 @@ and attempt; older tags are not overwritten. The release bundle references
 their immutable SHA-256 digests. Web, Worker, migrations and the backup helper
 share the same application image.
 
+The verified Release tag and full revision are also passed as explicit app-image
+build arguments (`IVAT_RELEASE_TAG`, `IVAT_RELEASE_REVISION`). The build writes
+`src/lib/build-identity.json` before Next.js compiles, then copies that generated
+source into the runtime image. Login, all account menus and newly generated XML
+therefore describe the same installed build. Runtime environment changes, a newer
+GitHub Release and the package version cannot relabel it. OCI labels record the
+same tag and revision; image references remain immutable digests.
+
+The checked-in metadata is `null`: local development and unversioned builds show
+“Vývojová verze” / “Development version”. Both release inputs must be present and
+valid when building a versioned image. A local production-image check can use
+explicit build arguments without publishing an image. Deployment verification
+uses the disposable tag `v0.0.0` and its checked-out revision to exercise this
+build path; that test identity is never a production release.
+
+New EPO XML identifies its software generator as `<tag>+<full-revision>` (or
+`development`). This is separate from the EPO schema/serializer versions, saved
+VAT Report generation and Period Lock identity. Downloading an archived XML reads
+its stored bytes and hash; deploying a later release never regenerates it.
+
+Focused identity checks:
+
+```bash
+node --test scripts/tests/release-identity.test.mjs deploy/tests/release-prepare.test.mjs
+npx vitest run tests/epo-xml.test.ts tests/epo-export.test.ts tests/epo-artifacts.test.ts tests/final-epo-artifacts.test.ts
+PLAYWRIGHT_BASE_URL=http://127.0.0.1:3102 npx playwright test e2e/release-identity.spec.ts
+```
+
+For an explicitly versioned test build, also set `TEST_RELEASE_TAG` and
+`TEST_RELEASE_REVISION` for the browser test's expected identity. Those variables
+only configure test expectations; the application never reads them. The export
+regression loads two independently prepared source installations against one
+isolated database and checks original draft/final bytes and hashes after the
+software change, for both XML formats.
+
 During the separate activation review, configure repository variables
 `ROSTI_PUBLIC_SUPABASE_URL` and `ROSTI_PUBLIC_SUPABASE_KEY` with the existing
 production public API URL and publishable/anon key. These are public build
@@ -506,9 +541,19 @@ HTTP calls use local Postman stand-ins derived from their published contracts.
 The full host/SSH fixture was verified on Docker Desktop for macOS with Linux
 containers. Its root operator creates private host records, so a native Linux
 nonroot parent needs appropriately privileged test execution for record reads
-and cleanup. This optional full runtime fixture is separate from the 15 focused
+and cleanup. This optional full runtime fixture is separate from the focused
 CI tests, which were verified on Linux as a nonroot user.
 This proves caller behavior in the tested scenarios, not the real provider.
+The #162 fixture now prepares a complete committed source tree, including its
+probe migration and annotated tag, before building the versioned target image.
+It compares the installed source generator and compiled login identity with the
+validated bundle. Its synthetic baseline omits only the probe migration; failure
+injection still uses disposable-only overrides. The new fast source-preparation
+check passed during #162, but the revised full host/SSH runtime fixture was not
+executed while ticket stacks were active. Run
+`IVAT_RELEASE_RUNTIME_TEST=1 node --test deploy/tests/release-runtime.test.mjs`
+under final integration ticket #179 after stopping the ticket stacks, and record
+that result separately from the earlier runtime evidence above.
 Existing CI and Deployment verification remain required for the exact `main`
 revision. The integration PR records the exact local checks and final combined
 test results; no production credentials, live SSH, registry pulls, activation
