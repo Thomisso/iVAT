@@ -55,7 +55,7 @@ test("an invalid invitation keeps the focused brand and explains the refusal acc
   await expect(page.getByRole("navigation", { name: /Company|Organization|Platform/ })).toHaveCount(0);
 });
 
-test("login errors and signup locale changes remain accessible on a narrow screen", async ({ baseURL, context, page }) => {
+test("login errors and locale changes remain accessible on a narrow screen", async ({ baseURL, context, page }) => {
   if (!baseURL) throw new Error("Playwright baseURL is required");
   await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: new URL(baseURL).origin }]);
 
@@ -67,12 +67,12 @@ test("login errors and signup locale changes remain accessible on a narrow scree
   await expect(page.getByRole("alert").filter({ hasText: "Wrong email or password" })).toBeVisible();
   await expect(page.getByLabel("Email")).toHaveValue("missing@example.test");
 
-  await page.goto("/signup");
-  await expectFocusedJourney(page, "Create your account");
+  await page.goto("/login");
+  await expectFocusedJourney(page, "Log in");
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(360);
   await page.getByRole("button", { name: "Čeština" }).click();
-  await expect(page).toHaveURL(/\/signup$/);
-  await expect(page.getByRole("heading", { name: "Vytvořte si účet", level: 1 })).toBeVisible();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole("heading", { name: "Přihlášení", level: 1 })).toBeVisible();
 });
 
 test("account security, MFA enrollment and verification stay focused at desktop and mobile widths", async ({

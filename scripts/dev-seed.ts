@@ -11,7 +11,7 @@ import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
-import { signUp } from "@/application/auth";
+import { logIn } from "@/application/auth";
 import { asUserClient } from "@/application/client";
 import { createCompany } from "@/application/companies";
 import { listMyOrganizations } from "@/application/organizations";
@@ -19,6 +19,7 @@ import { uploadSourceFile } from "@/application/source-files";
 import type { Database } from "@/lib/database.types";
 import { supabasePublishableKey, supabaseUrl } from "@/lib/env";
 import { jobQueue } from "@/lib/jobs";
+import { provisionAccountFixture } from "../tests/support/accounts";
 
 const FIXTURE = path.join(__dirname, "..", "tests", "fixtures", "two-invoices.pdf");
 
@@ -34,14 +35,21 @@ function sessionCookie(session: unknown): string {
 }
 
 async function main() {
+  if (!["localhost", "127.0.0.1", "[::1]"].includes(new URL(supabaseUrl).hostname)) {
+    throw new Error("QA seed only runs against a local Supabase endpoint");
+  }
+  const secretKey = process.env.SUPABASE_SECRET_KEY;
+  if (!secretKey) throw new Error("SUPABASE_SECRET_KEY is required for private QA provisioning");
   const client = asUserClient(
     createClient<Database>(supabaseUrl, supabasePublishableKey, { auth: { persistSession: false } }),
   );
   const email = `qa-${Date.now()}@example.test`;
   const password = randomBytes(12).toString("base64url");
 
-  const signedUp = await signUp(client, { email, password, organizationName: "QA Organization" });
-  if (!signedUp.ok) throw new Error(`Sign-up failed: ${signedUp.error}`);
+  const service = createClient<Database>(supabaseUrl, secretKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  await provisionAccountFixture(service, { email, password, organizationName: "QA Organization" });
+  const loggedIn = await logIn(client, { email, password });
+  if (!loggedIn.ok) throw new Error(`QA sign-in failed: ${loggedIn.error}`);
   const [organization] = await listMyOrganizations(client);
   const company = await createCompany(client, {
     organizationId: organization.id,
