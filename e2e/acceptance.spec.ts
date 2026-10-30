@@ -1,10 +1,12 @@
 import fs from "node:fs/promises";
 import { expect, test } from "@playwright/test";
+import { SAMPLE_EXTRACTION } from "../src/ai/fake";
 import { validateEpoXml } from "../src/application/epo-xml";
 import {
   addBrowserCompanyMemberFixture,
   addBrowserDocumentWarningFixture,
   assignBrowserAiConfigurationFixture,
+  ensureBrowserReportingYearFixture,
 } from "../tests/support/e2e";
 
 test("an administrator can turn an uploaded Source File into a traceable, exportable VAT Report", async ({
@@ -49,6 +51,8 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   const companyUrl = page.url().replace(/\/setup\/ai-processing$/, "");
   const companyId = new URL(companyUrl).pathname.split("/")[2];
   await assignBrowserAiConfigurationFixture(companyId);
+  // Onboarding generates only the current year; the fake extraction is dated in SAMPLE_EXTRACTION's year.
+  await ensureBrowserReportingYearFixture(companyId, Number(SAMPLE_EXTRACTION.taxPointDate!.slice(0, 4)));
   await page.goto(companyUrl);
 
   await page.goto(`${companyUrl}/members`);

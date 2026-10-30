@@ -330,3 +330,66 @@ export async function browserRemediationAuditActions(targetIds: string[]) {
     await database.end();
   }
 }
+
+/** Adds one current Version that sets a Document's Direction and Tax Point Date, for Reporting Period browser coverage. */
+export async function setBrowserDocumentTaxPointFixture(
+  documentId: string,
+  values: { direction: "incoming" | "outgoing"; taxPointDate: string },
+) {
+  const environment = await browserFixtureEnvironment();
+  const database = new DatabaseClient({ connectionString: environment.DATABASE_URL });
+  await database.connect();
+  try {
+    await database.query(
+      `insert into public.extraction_version (
+        organization_id, company_id, document_id, version,
+        author_user_id, payload, findings
+      )
+      select
+        current.organization_id,
+        current.company_id,
+        current.document_id,
+        current.version + 1,
+        membership.user_id,
+        current.payload || jsonb_build_object('direction', $2::text, 'taxPointDate', $3::text),
+        current.findings
+      from public.extraction_version current
+      join public.document document on document.id = current.document_id
+      join lateral (
+        select candidate.user_id
+        from public.membership candidate
+        where candidate.organization_id = document.organization_id
+          and candidate.role = 'administrator'
+          and candidate.user_id is not null
+        order by candidate.company_id nulls first
+        limit 1
+      ) membership on true
+      where current.document_id = $1
+        and current.version = (
+          select max(candidate.version)
+          from public.extraction_version candidate
+          where candidate.document_id = current.document_id
+        )`,
+      [documentId, values.direction, values.taxPointDate],
+    );
+  } finally {
+    await database.end();
+  }
+}
+
+/** Ensures a monthly Reporting Year exists, for browser specs whose fake extraction is dated outside the current year. */
+export async function ensureBrowserReportingYearFixture(companyId: string, year: number) {
+  const environment = await browserFixtureEnvironment();
+  const database = new DatabaseClient({ connectionString: environment.DATABASE_URL });
+  await database.connect();
+  try {
+    await database.query(
+      `insert into public.reporting_year (company_id, organization_id, year, frequency)
+      select id, organization_id, $2, 'monthly' from public.company where id = $1
+      on conflict (company_id, year) do nothing`,
+      [companyId, year],
+    );
+  } finally {
+    await database.end();
+  }
+}
