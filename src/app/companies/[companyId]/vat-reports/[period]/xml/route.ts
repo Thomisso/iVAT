@@ -58,6 +58,7 @@ export async function POST(
       "Content-Disposition": `attachment; filename="${result.value.fileName}"`,
       "X-iVAT-Artifact-ID": result.value.artifactId,
       "X-iVAT-Report-Generated-At": result.value.reportGeneratedAt,
+      ...(result.value.periodLockId ? { "X-iVAT-Period-Lock-ID": result.value.periodLockId } : {}),
     },
   });
 }

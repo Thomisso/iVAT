@@ -115,7 +115,7 @@ it("walks an empty Reporting Period from generation through export to Finalizati
     "done",
     "done",
     "done",
-    "done",
+    "partial",
   ]);
   expect(finalized.ok && finalized.value.locked).toBe(true);
 });

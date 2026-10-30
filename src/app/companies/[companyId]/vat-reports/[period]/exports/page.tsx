@@ -93,7 +93,8 @@ export default async function ExportHistoryPage({
                       <td><VatReportArtifactDownload
                         companyId={companyId} period={period} artifactId={artifact.id}
                         fileName={artifact.fileName} format={artifact.format} kind={artifact.kind}
-                        eligible={!lock && artifact.kind === "draft" && artifact.reportGeneratedAt === report.generatedAt}
+                        eligible={artifact.reportGeneratedAt === report.generatedAt && (artifact.kind === "draft"
+                          ? !lock : !!lock && artifact.periodLockId === lock.id)}
                       /></td>
                     </tr>
                     <tr>
