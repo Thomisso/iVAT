@@ -28,7 +28,7 @@ export function AiConfigurationForm({
   const provider = state.values.provider ?? configuration?.provider ?? providers[0] ?? "";
 
   return (
-    <form action={action} className="form ai-configuration-form">
+    <form action={action} className="form settings-form ai-configuration-form">
       {configuration && <input type="hidden" name="configurationId" value={configuration.id} />}
       <TextField
         name="label"

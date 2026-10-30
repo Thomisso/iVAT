@@ -18,6 +18,7 @@ export default async function CompanyDetailsSettingsPage({ params }: { params: P
   return <section className="company-settings-section">
     <header><h2>{t("companyDetails")}</h2><p>{t("profileIntro")}</p></header>
     <CompanyForm
+      layout="settings"
       organizationId={company.organizationId}
       companyId={company.id}
       initialValues={{
