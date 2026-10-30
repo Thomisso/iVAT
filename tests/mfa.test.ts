@@ -235,8 +235,8 @@ describe("MFA", () => {
       enrolled: true,
       satisfied: true,
     });
-    expect(await listMyCompanies(superAdmin.client)).toEqual([
+    expect(await listMyCompanies(superAdmin.client)).toContainEqual(
       expect.objectContaining({ id: superAdmin.companyId }),
-    ]);
+    );
   });
 });

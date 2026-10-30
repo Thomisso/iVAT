@@ -248,3 +248,48 @@ test("only a SuperAdmin navigates the shared Platform shell without losing exist
     await page.evaluate(() => document.documentElement.scrollWidth),
   ).toBeLessThanOrEqual(360);
 });
+
+test("an MFA-verified SuperAdmin discovers and administers a Company without any target Membership", async ({
+  baseURL, context, page,
+}) => {
+  await english(context, baseURL);
+  const run = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const targetOrganization = `Independent Organization ${run}`;
+  await signUp(page, targetOrganization, `target-${run}@example.test`);
+  const companyId = await createCompany(page, `Independent Company ${run}`, `${Date.now()}`.slice(-8));
+  const service = await serviceClient();
+  const target = await service.from("company").select("organization_id").eq("id", companyId).single();
+  if (target.error) throw target.error;
+
+  await context.clearCookies();
+  await english(context, baseURL);
+  const operatorEmail = `independent-operator-${run}@example.test`;
+  await signUp(page, `Operator Organization ${run}`, operatorEmail);
+  await promoteAndEnroll(page, operatorEmail);
+  await page.goto("/");
+  const companyLink = page.getByRole("button", { name: `Independent Company ${run}`, exact: true });
+  await expect(companyLink).toBeVisible();
+  await companyLink.click();
+  await expect(page).toHaveURL(new RegExp(`/companies/${companyId}$`));
+
+  await page.goto(`/companies/${companyId}/settings/company`);
+  await page.getByLabel("Company name").fill(`Platform updated ${run}`);
+  await page.getByRole("button", { name: "Save settings" }).click();
+  await expect(page).toHaveURL(new RegExp(`/companies/${companyId}/settings$`));
+  await page.goto(`/companies/${companyId}/settings/company`);
+  await expect(page.getByLabel("Company name")).toHaveValue(`Platform updated ${run}`);
+
+  await page.goto(`/organizations/${target.data.organization_id}/members`);
+  await expect(page.getByRole("heading", { name: `Users of ${targetOrganization}` })).toBeVisible();
+  await page.goto(`/organizations/${target.data.organization_id}/audit-log`);
+  await expect(page.getByRole("heading", { name: `Audit log for ${targetOrganization}`, exact: true })).toBeVisible();
+  await expect(page.getByText(operatorEmail, { exact: true }).first()).toBeVisible();
+
+  const users = await service.auth.admin.listUsers();
+  const operatorId = users.data.users.find((user) => user.email === operatorEmail)?.id;
+  if (!operatorId) throw new Error("Operator fixture is missing");
+  const memberships = await service.from("membership").select("id")
+    .eq("user_id", operatorId).eq("organization_id", target.data.organization_id);
+  expect(memberships.error).toBeNull();
+  expect(memberships.data).toEqual([]);
+});
