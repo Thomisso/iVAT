@@ -24,7 +24,7 @@ test("Export History shows a compact table and expandable filing details on desk
   await page.goto(`${companyUrl}/vat-reports?period=2026-01`);
   await page.getByRole("button", { name: "Generate draft", exact: true }).click();
   await page.getByRole("link", { name: "Open VAT Return", exact: true }).click();
-  await page.getByLabel("Preparation date").fill("10.02.2026");
+  await page.getByRole("textbox", { name: "Preparation date", exact: true }).fill("10.02.2026");
   await page.getByRole("combobox", { name: "Tax office", exact: true }).selectOption("451");
   await page.getByLabel("Territorial office").selectOption("2003");
   await page.getByLabel("Economic activity (CZ-NACE)").fill("621000");
