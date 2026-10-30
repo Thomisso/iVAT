@@ -493,6 +493,7 @@
     "organization_name_required": "Zadejte název organizace.",
     "email_taken": "Účet s tímto e-mailem už existuje.",
     "weak_password": "Heslo je příliš slabé. Použijte alespoň 8 znaků.",
+    "registration_closed": "Veřejná registrace je uzavřena. Přihlaste se nebo použijte pozvánku od administrátora.",
     "sign_up_failed": "Registrace se nezdařila. Zkuste to prosím znovu.",
     "google_sign_in_failed": "Přihlášení přes Google se nezdařilo. Zkuste to prosím znovu.",
     "invalid_credentials": "Nesprávný e-mail nebo heslo.",
