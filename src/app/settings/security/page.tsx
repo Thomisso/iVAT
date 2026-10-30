@@ -28,7 +28,7 @@ export default async function SecuritySettingsPage() {
           ) : <Link href="/mfa/enroll">{t("enableAuthenticator")}</Link>}
         </section>
         {organizations.map((organization) => (
-          <section className="form focused-shell-section" key={organization.id}>
+          <section className="form focused-shell-section" id={`organization-${organization.id}`} key={organization.id}>
             <h2>{organization.name}</h2>
             <p>{t("organizationEnforcementIntro")}</p>
             <OrganizationMfaForm organizationId={organization.id} required={organization.required} />

@@ -9,7 +9,7 @@ import { requireUserClient } from "@/lib/supabase/server";
 export default async function CompanyLayout({ children, params }: LayoutProps<"/companies/[companyId]">) {
   const { companyId } = await params;
   const client = await requireUserClient();
-  const [company, companies, companyRole, { organizations, superAdmin }, auth, uploadNotifications, uploadUnreadCount] = await Promise.all([
+  const [company, companies, companyRole, { superAdmin }, auth, uploadNotifications, uploadUnreadCount] = await Promise.all([
     getCompany(client, companyId),
     listMyCompanies(client),
     getMyCompanyRole(client, companyId),
@@ -24,7 +24,6 @@ export default async function CompanyLayout({ children, params }: LayoutProps<"/
     company={company}
     companyRole={companyRole}
     email={auth.email}
-    organizations={organizations}
     superAdmin={superAdmin}
     uploadNotifications={uploadNotifications}
     uploadUnreadCount={uploadUnreadCount}
