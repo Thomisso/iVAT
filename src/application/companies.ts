@@ -391,15 +391,9 @@ export async function getReportingPeriodFrequency(
 
 /** Companies visible through the database's effective tenant authority. */
 export async function listMyCompanies(client: AppClient): Promise<CompanySummary[]> {
-  const companies: CompanySummary[] = [];
-  const pageSize = 500;
-  for (let offset = 0; ; offset += pageSize) {
-    const { data, error } = await client.from("company").select("id, organization_id, name")
-      .order("name").order("id").range(offset, offset + pageSize - 1);
-    if (error) throw error;
-    companies.push(...data.map((c) => ({ id: c.id, organizationId: c.organization_id, name: c.name })));
-    if (data.length < pageSize) return companies;
-  }
+  const { data, error } = await client.rpc("list_company_summaries");
+  if (error) throw error;
+  return data as unknown as CompanySummary[];
 }
 
 /** The current user's effective Role in a Company, including Organization administration. */
