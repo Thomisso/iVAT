@@ -83,9 +83,8 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   if (!reviewBatchUrl) throw new Error("Review Batch URL is missing");
 
   await page.goto(`${companyUrl}/vat-reports?period=2026-10`);
-  await page.getByRole("button", { name: "Generate draft" }).click();
-  await expect(page.getByText("Current data is not ready", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Finalize and lock period" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Generate draft" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Finalize and lock period" })).toHaveCount(0);
   const blockers = page.getByRole("link", { name: "2 blocker Documents" });
   await expect(blockers).toBeVisible();
   await blockers.click();
@@ -125,9 +124,8 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   await expect(page.getByText("No documents match the filters.")).toBeVisible();
 
   await page.goto(`${companyUrl}/vat-reports?period=2026-10`);
-  await expect(page.getByText("Stale", { exact: true }).first()).toBeVisible();
-  await expect(page.getByRole("button", { name: "Finalize and lock period" })).toBeDisabled();
-  await page.getByRole("button", { name: "Generate / regenerate draft" }).click();
+  await expect(page.getByRole("button", { name: "Finalize and lock period" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Generate draft" }).click();
   await expect(page.getByText("This snapshot matches the relevant live Documents.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Finalize and lock period" })).toBeDisabled();
   await page.getByRole("navigation", { name: "Reporting Period destinations" })
