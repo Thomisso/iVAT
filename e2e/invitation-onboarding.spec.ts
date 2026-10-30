@@ -48,7 +48,7 @@ async function invitationLink(email: string, excludedMessageId = "") {
   if (!mailpit) throw new Error("MAILPIT_URL is required for invitation acceptance coverage");
   let messageId = "";
   await expect.poll(async () => {
-    const response = await fetch(`${mailpit}/api/v1/messages?query=${encodeURIComponent(`to:${email}`)}`);
+    const response = await fetch(`${mailpit}/api/v1/search?query=${encodeURIComponent(`to:${email}`)}`);
     const listing = await response.json() as { messages: { ID: string }[] };
     messageId = listing.messages.find((message) => message.ID !== excludedMessageId)?.ID ?? "";
     return messageId;
@@ -76,16 +76,35 @@ test("rendered invitation emails onboard new and existing Users with the right c
   const administratorContext = await browser.newContext();
   await english(administratorContext, baseURL);
   const administratorPage = await administratorContext.newPage();
+  const failedAssets: string[] = [];
+  administratorPage.on("requestfailed", (request) => {
+    const url = new URL(request.url());
+    const error = request.failure()?.errorText;
+    if (url.pathname.startsWith("/_next/static/") && error !== "net::ERR_ABORTED") {
+      failedAssets.push(`${url.pathname}: ${error}`);
+    }
+  });
   await signUp(administratorPage, `Invitation Organization ${run}`, administratorEmail);
   const companyId = await createCompany(administratorPage, companyName, `${Date.now()}`.slice(-8));
-  await administratorPage.setExtraHTTPHeaders({
-    origin: "https://untrusted.example.test",
-    "x-forwarded-host": "untrusted.example.test",
-    "x-forwarded-proto": "https",
+  // Send the hostile headers to the real invitation action only. Applying
+  // them to page resources makes Chromium reject lazy chunks with ERR_INVALID_ARGUMENT.
+  await administratorPage.route(`**/companies/${companyId}/members`, async (route) => {
+    const request = route.request();
+    if (request.method() !== "POST") return route.continue();
+    const response = await route.fetch({
+      headers: {
+        ...request.headers(),
+        origin: "https://untrusted.example.test",
+        "x-forwarded-host": "untrusted.example.test",
+        "x-forwarded-proto": "https",
+      },
+    });
+    await route.fulfill({ response });
   });
 
   const newEmail = `invitation-new-${run}@example.test`;
   await invite(administratorPage, companyId, newEmail);
+  expect(failedAssets).toEqual([]);
   const unusedMessage = await invitationLink(newEmail);
   const unusedLink = new URL(unusedMessage.href);
   expect(unusedLink.origin).toBe(new URL(baseURL).origin);
@@ -146,6 +165,8 @@ test("rendered invitation emails onboard new and existing Users with the right c
   await invalidPage.goto("/invitations/accept?token=invalid");
   await expect(invalidPage.getByText("This invitation link is invalid. Ask an Administrator to send a new invitation."))
     .toBeVisible();
+
+  expect(failedAssets).toEqual([]);
 
   await Promise.all([
     administratorContext.close(),
