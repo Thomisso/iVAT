@@ -64,6 +64,30 @@ worker/            background job runner
 tests/             application-layer tests against the local database
 ```
 
+## Resetting the local database
+
+With the local Supabase stack running, reset the entire local database with:
+
+```bash
+npm run db:reset
+```
+
+**This deletes all local database data and reapplies the migrations.** If the
+stack is stopped, run `npm run db:start` first. To apply new migrations while
+keeping existing data, use `npm run db:migrate` instead.
+
+After a reset, recreate the SuperAdmin:
+
+```bash
+npm run bootstrap:superadmin -- --email operator@example.test
+```
+
+Sign in and enroll TOTP again. Recreate the Companies you need and, for real AI
+processing, recreate the AI Configuration at `/platform/ai-settings` with the
+provider API key and Split and Extraction models. Assign it to the Company and
+ensure AI access is enabled with remaining processing allowance. The reset
+leaves `.env.local` unchanged; keep `AI_PROVIDER=platform` for real providers.
+
 ## Local SuperAdmin bootstrap
 
 `npm run db:reset` applies an intentionally empty seed: it does not preserve or
