@@ -1,18 +1,32 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import type { PersonType } from "@/application/companies";
 import { useTranslations } from "next-intl";
 import type {
   CompanyFilingDefaults,
   ResolvedEpoAddress,
 } from "@/application/company-filing-defaults";
-import { TAX_OFFICES, type EpoFormat } from "@/application/epo-export-details";
+import type { EpoFormat } from "@/application/epo-export-details";
+import { isEconomicActivity, isTerritorialOffice, TERRITORIAL_OFFICES } from "@/application/epo-catalogues";
+import { FilingOfficeFields } from "@/components/filing-office-fields";
 import { TextField } from "@/components/text-field";
 import { Button } from "@/components/button";
 import { FormError } from "@/components/form-error";
 import { DateInput } from "@/components/date-input";
+import { FilingDefaultsForm } from "../settings/filing-defaults-form";
+import { downloadVatReportXml } from "@/lib/vat-report-download";
+import { exportTiming } from "@/application/epo-export-timing";
+import { pragueDate } from "@/application/reporting-periods";
+import { formatDate } from "@/lib/format-date";
+
+function subscribeToClock(changed: () => void) {
+  const timer = window.setInterval(changed, 30_000);
+  window.addEventListener("focus", changed);
+  return () => { window.clearInterval(timer); window.removeEventListener("focus", changed); };
+}
+const todayInPrague = () => pragueDate(new Date().toISOString());
 
 export function ExportForm({
   companyId,
@@ -23,6 +37,9 @@ export function ExportForm({
   defaults,
   epoAddress,
   finalized,
+  presentation = "detail",
+  disabled = false,
+  canEditFilingDefaults = false,
 }: {
   companyId: string;
   format: EpoFormat;
@@ -32,96 +49,107 @@ export function ExportForm({
   defaults: CompanyFilingDefaults | null;
   epoAddress: ResolvedEpoAddress | null;
   finalized: boolean;
+  presentation?: "detail" | "wizard";
+  disabled?: boolean;
+  canEditFilingDefaults?: boolean;
 }) {
   const t = useTranslations("epoExport");
+  const wizardCopy = useTranslations("vatReports.wizard");
+  const wizard = presentation === "wizard";
+  const [opened, setOpened] = useState(!wizard);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const filingDetailsComplete = Boolean(defaults?.taxOffice) && (personType === "natural" || Boolean(
+  const [exportPreparedOn, setExportPreparedOn] = useState(preparedOn);
+  // The server supplies today's initial preparation date; the browser then
+  // follows its clock, including a Prague midnight while the form stays open.
+  const today = useSyncExternalStore(subscribeToClock, todayInPrague, () => preparedOn);
+  const timing = exportTiming({ period, format, personType, preparedOn: exportPreparedOn, today });
+  const request = useRef<AbortController | null>(null);
+  useEffect(() => () => request.current?.abort(), []);
+  const filingDetailsComplete = Boolean(defaults?.taxOffice)
+    && (!defaults?.territorialOffice || isTerritorialOffice(defaults.taxOffice ?? "", defaults.territorialOffice))
+    && (format !== "dphdp3" || isEconomicActivity(defaults?.economicActivity ?? ""))
+    && (personType === "natural" || Boolean(
     defaults?.signatoryFirstName && defaults.signatoryLastName && defaults.signatoryCapacity,
   ));
   const [editing, setEditing] = useState(!filingDetailsComplete);
+  const showFields = opened && (!wizard || Boolean(epoAddress));
   const serializedAddress = epoAddress
     ? `${epoAddress.address.streetName} ${epoAddress.address.houseNumber}${epoAddress.address.orientationNumber ? `/${epoAddress.address.orientationNumber}` : ""}, ${epoAddress.address.postalCode} ${epoAddress.address.city}`
     : null;
 
   async function download(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (disabled || pending) return;
+    if (wizard && !opened && (!filingDetailsComplete || !epoAddress)) {
+      setOpened(true);
+      setEditing(true);
+      return;
+    }
     const form = new FormData(event.currentTarget);
+    const controller = new AbortController();
+    request.current = controller;
     setPending(true);
     setError(null);
     try {
-      const response = await fetch(
-        `/companies/${companyId}/vat-reports/${period}/xml`,
-        { method: "POST", body: form },
-      );
-      if (response.redirected) {
-        window.location.assign(response.url);
-        return;
+      const result = await downloadVatReportXml({
+        url: `/companies/${companyId}/vat-reports/${period}/xml`,
+        companyId, period, format, kind: finalized ? "final" : "draft",
+        body: form, signal: controller.signal,
+      });
+      if (!result.ok) {
+        if (wizard && result.error === "invalid_export_details") {
+          setOpened(true);
+          setEditing(true);
+        }
+        setError(result.error);
       }
-      if (!response.ok) {
-        const failure = await response.json();
-        setError(
-          [
-            "report_not_found",
-            "invalid_export_format",
-            "invalid_export_details",
-            "epo_address_required",
-            "stale_report",
-            "report_finalized",
-            "report_not_finalized",
-            "xml_invalid",
-          ].includes(failure.error)
-            ? failure.error
-            : "export_failed",
-        );
-        return;
-      }
-      if (
-        !response.headers.get("Content-Type")?.startsWith("application/xml")
-      ) {
-        setError("export_failed");
-        return;
-      }
-      const url = URL.createObjectURL(await response.blob());
-      const link = document.createElement("a");
-      link.href = url;
-      const disposition = response.headers.get("Content-Disposition") ?? "";
-      const prefix = finalized ? "" : "DRAFT_";
-      link.download = disposition.match(/filename="([^"]+)"/)?.[1]
-        ?? `${prefix}${String(form.get("format")).toUpperCase()}_${period}.xml`;
-      document.body.append(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch {
-      setError("export_failed");
+      if (!controller.signal.aborted) setError("export_failed");
     } finally {
+      request.current = null;
       setPending(false);
     }
   }
 
   return (
-    <article className="vat-export-card" id="export">
+    <article className="vat-export-card" id={wizard ? undefined : "export"}>
       <span className="vat-section-label">{format.toUpperCase()}</span>
       <h3>{t(`formats.${format}`)}</h3>
-      <p className="iv-muted">{t("description")}</p>
+      {opened && <><p className="iv-muted">{t("description")}</p>
       <div className={`iv-notice ${finalized ? "iv-notice-info" : "iv-notice-warning"}`} role="note">
         <strong>{t(finalized ? "finalNoticeTitle" : "draftWarningTitle")}</strong>
         <p>{t(finalized ? "finalNotice" : "draftWarning")}</p>
-      </div>
+      </div></>}
+      {wizard && opened && !epoAddress && <>
+        <div className="iv-notice iv-notice-warning" role="alert">
+          <p>{t("epoAddressRequired")}</p>
+          {!canEditFilingDefaults && <p>{t("administratorAddressRequired")}</p>}
+        </div>
+        {canEditFilingDefaults && <FilingDefaultsForm companyId={companyId} personType={personType} defaults={defaults} epoOverrideRequired />}
+      </>}
+      {timing.warnings.length > 0 && <div aria-label={t("timingWarnings")} aria-live="polite" className="iv-notice iv-notice-warning vat-export-timing" role="note">
+        <ul>{timing.warnings.map((warning) => <li key={warning}>{t(`timing.${warning}`, { deadline: timing.deadline ? formatDate(timing.deadline) : "" })}</li>)}</ul>
+      </div>}
       <form className="form" onSubmit={download}>
         <input type="hidden" name="format" value={format} />
+        <input type="hidden" name="kind" value={finalized ? "final" : "draft"} />
+        {!showFields && <input type="hidden" name="preparedOn" value={exportPreparedOn} />}
+        {showFields && <>
         <div className="form-row">
           <DateInput
             label={t("preparedOn")}
             name="preparedOn"
             required
-            defaultValue={preparedOn}
+            defaultValue={exportPreparedOn}
+            onValueChange={setExportPreparedOn}
           />
         </div>
         <p>{t("personType")}: {t(personType === "legal" ? "legalPerson" : "naturalPerson")}</p>
         <dl className="epo-export-summary">
           <div><dt>{t("taxOffice")}</dt><dd>{defaults?.taxOffice ? t(`taxOffices.${defaults.taxOffice}`) : t("notSet")}</dd></div>
+          <div><dt>{t("territorialOffice")}</dt><dd>{TERRITORIAL_OFFICES.find((office) => office.code === defaults?.territorialOffice)?.name ?? t("notSet")}</dd></div>
+          {format === "dphdp3" && <div><dt>{t("economicActivity")}</dt><dd>{defaults?.economicActivity ?? t("notSet")}</dd></div>}
           {personType === "legal" && <div><dt>{t("signatory")}</dt><dd>{defaults?.signatoryFirstName
             ? `${defaults.signatoryFirstName} ${defaults.signatoryLastName} · ${defaults.signatoryCapacity}`
             : t("notSet")}</dd></div>}
@@ -130,20 +158,12 @@ export function ExportForm({
           <div><dt>{t("serializedAddress")}</dt><dd>{serializedAddress ?? t("epoAddressMissing")}</dd></div>
           {epoAddress && <div><dt>{t("addressSource")}</dt><dd>{t(`addressSources.${epoAddress.source}`)}</dd></div>}
         </dl>
-        {!epoAddress && <div className="iv-notice iv-notice-warning" role="alert">
+        {!epoAddress && !wizard && <div className="iv-notice iv-notice-warning" role="alert">
           <p>{t("epoAddressRequired")}</p>
           <Link href={`/companies/${companyId}/settings#filing-defaults`}>{t("completeEpoAddress")}</Link>
         </div>}
         {editing ? <>
-          <label className="iv-field-label">
-            {t("taxOffice")}
-            <select name="taxOffice" required defaultValue={defaults?.taxOffice ?? ""}>
-              <option value="">{t("choose")}</option>
-              {TAX_OFFICES.map((code) => (
-                <option key={code} value={code}>{t(`taxOffices.${code}`)}</option>
-              ))}
-            </select>
-          </label>
+          <FilingOfficeFields taxOffice={defaults?.taxOffice} territorialOffice={defaults?.territorialOffice} economicActivity={defaults?.economicActivity} requireTaxOffice requireEconomicActivity={format === "dphdp3"} />
           {personType === "legal" && <fieldset>
             <legend>{t("signatory")}</legend>
             <div className="form-row">
@@ -156,12 +176,14 @@ export function ExportForm({
             <TextField label={t("email")} name="email" type="email" maxLength={255} defaultValue={defaults?.email ?? ""} />
             <TextField label={t("phone")} name="phone" type="tel" maxLength={14} defaultValue={defaults?.phone ?? ""} />
           </div>
-          {filingDetailsComplete && <Button type="button" variant="secondary" onClick={() => setEditing(false)}>{t("useSaved")}</Button>}
+          {filingDetailsComplete && <Button type="button" variant="secondary" onClick={() => { setEditing(false); if (wizard) setOpened(false); }}>{t("useSaved")}</Button>}
         </> : <Button type="button" variant="secondary" onClick={() => setEditing(true)}>{t("editForExport")}</Button>}
+        </>}
         <FormError error={error} />
-        <Button type="submit" disabled={pending || !epoAddress} icon="report">
-          {t(pending ? "preparing" : "download")}
+        <Button type="submit" disabled={pending || disabled || (opened && !epoAddress)} icon="report">
+          {pending ? t("preparing") : wizard && !opened ? wizardCopy(format === "dphdp3" ? "exportVatReturn" : "exportControlStatement") : t("download")}
         </Button>
+        {wizard && !opened && <Button type="button" disabled={pending || disabled} onClick={() => { setOpened(true); setEditing(true); }}>{t("editForExport")}</Button>}
       </form>
     </article>
   );

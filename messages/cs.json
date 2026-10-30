@@ -22,6 +22,11 @@
     "issued": "Vydané doklady"
   },
   "shell": {
+    "superAdmin": "SuperAdmin",
+    "switchToSuperAdmin": "Přepnout do sekce SuperAdmin",
+    "platformSettingsNavigation": "Oblasti nastavení platformy",
+    "platformSettingsTitle": "Nastavení SuperAdmin",
+    "platformSettingsIntro": "V oblastech nastavení vyberte správu organizací a firem, AI konfigurace nebo využití AI.",
     "skip": "Přeskočit na obsah",
     "companyNavigation": "Navigace firmy",
     "organizationNavigation": "Navigace organizace",
@@ -99,6 +104,16 @@
     "logInLink": "Přihlaste se"
   },
   "company": {
+    "organizationSettingsTitle": "Nastavení organizace: {organization}",
+    "organizationSettingsIntro": "Tato nastavení se týkají organizace, která vlastní tuto firmu.",
+    "organizationUsers": "Uživatelé organizace",
+    "organizationUsersIntro": "Spravujte přístupy napříč organizací.",
+    "organizationAudit": "Auditní záznamy organizace",
+    "organizationAuditIntro": "Prohlížejte akce v této organizaci a jejích firmách.",
+    "organizationSecurity": "Zabezpečení organizace",
+    "organizationSecurityIntro": "Spravujte požadavek organizace na MFA.",
+    "organization": "Organizace",
+    "chooseOrganization": "Vyberte organizaci pro tuto firmu",
     "createTitle": "Přidat firmu",
     "createIntro": "Zadejte údaje plátce DPH, za kterého budete DPH vykazovat.",
     "name": "Název firmy",
@@ -134,6 +149,8 @@
     "firstReportingMonthOf": "První měsíc zdaňovacího roku {year}",
     "reportingYearFrequency": "Frekvence podávání zdaňovacího roku {year}",
     "reportingYearActions": "Akce",
+    "changeReportingYearFrequency": "Změnit četnost",
+    "changeReportingYearFirstMonth": "Změnit první měsíc",
     "changeReportingYear": "Změnit",
     "deleteReportingYear": "Smazat {year}",
     "confirmReportingYearDeletion": "Jeho doklady ztratí zdaňovací období",
@@ -261,6 +278,7 @@
     "takeDocumentPhoto": "Vyfotit doklad",
     "captureHint": "Pokud je k dispozici, použije zadní fotoaparát. Každá fotografie bude jeden zdrojový soubor.",
     "photoPreview": "Náhled fotografie",
+    "photoPreviewLabel": "Náhled fotografie {number}: {name}",
     "photoPreviewAlt": "Náhled souboru {name}",
     "onePhotoOneSourceFile": "Tato fotografie bude uložená jako jeden zdrojový soubor.",
     "retakePhoto": "Vyfotit znovu",
@@ -269,7 +287,13 @@
     "draftRestored": "Koncept byl obnoven. Soubor není označený jako nahraný, dokud ho server neuloží.",
     "uploadProgress": "Průběh nahrávání souboru {name}",
     "retryUpload": "Zkusit znovu: {name}",
-    "upload": "Nahrát",
+    "removeFile": "Odebrat {name}",
+    "identicalFileOmitted": "Totožný obsah už je ve frontě; další kopie nebyla přidána.",
+    "retryFailedFiles": "Zkusit nenahrané soubory znovu",
+    "finishBatch": "Dokončit dávku",
+    "finishWithFailures": "Dokončit dávku s nenahranými soubory",
+    "finishWithFailuresHint": "Některé vybrané soubory nelze nahrát. Dokončením dávky můžete připravit novou frontu. Nahrané soubory zůstanou zachované, neúspěšné přenosy se započítají jako chyby a do této dávky už nebude možné nahrávat.",
+    "upload": "Nahrát dávku",
     "uploading": "Nahrávání…",
     "batchComplete": "Zpracování dávky skončilo pro {count, plural, one {# zdrojový soubor} few {# zdrojové soubory} other {# zdrojových souborů}}.",
     "uploadStatus": {
@@ -294,6 +318,19 @@
     "dropTitle": "Přetáhněte sem zdrojový soubor",
     "chooseFile": "Vybrat soubor"
   },
+  "returnContext": {
+      "company": "← Zpět na firmu",
+      "documents": "← Zpět na doklady",
+      "document": "← Zpět na doklad",
+      "processing": "← Zpět na Zpracování",
+      "vatReturn": "← Zpět na přiznání k DPH",
+      "controlStatement": "← Zpět na kontrolní hlášení",
+      "exportHistory": "← Zpět na historii exportů",
+      "periods": "← Zpět na zdaňovací období",
+      "upload": "← Zpět na Nahrání",
+      "batch": "← Zpět na dávku",
+      "sourceFile": "← Zpět na zdrojový soubor"
+  },
   "periodFilter": {
     "label": "Zdaňovací období",
     "all": "Všechna období",
@@ -315,7 +352,9 @@
     "batchFiles": "Uloženo {count} z {planned} vybraných zdrojových souborů",
     "batchSummary": "{waiting} se zpracovává · {review} ke kontrole · {failures} selhalo",
     "noBatches": "Zatím tu není žádná dávka. Začněte přidáním zdrojových souborů.",
-    "noMatchingBatches": "Žádná dávka neobsahuje doklady vybraného období.",
+    "noMatchingBatches": "Ve vybraném rozsahu dat nebyla založena žádná dávka.",
+    "uploadedFrom": "Nahráno od",
+    "uploadedTo": "Nahráno do",
     "outcome": {
       "processing": "Zpracovává se",
       "success": "Dokončeno",
@@ -416,11 +455,15 @@
     }
   },
   "dateInput": {
+    "calendarFor": "Vybrat datum pro {label}",
     "hint": "Formát dd.mm.rrrr",
     "placeholder": "dd.mm.rrrr",
     "invalid": "Zadejte platné datum ve tvaru dd.mm.rrrr."
   },
   "errors": {
+    "invalid_download_artifact": "Toto XML nepatří k aktuální verzi přiznání. Stáhněte aktuální výstup znovu.",
+    "download_acknowledgement_failed": "Stahování XML začalo, ale jeho průběh se nepodařilo uložit. Pro potvrzení dokončení ho stáhněte znovu.",
+    "identical_file": "Totožný obsah souboru už je v této dávce.",
     "organization_name_required": "Zadejte název organizace.",
     "email_taken": "Účet s tímto e-mailem už existuje.",
     "weak_password": "Heslo je příliš slabé. Použijte alespoň 8 znaků.",
@@ -504,8 +547,8 @@
     "report_finalized": "Tento VAT Report je finalizovaný. Místo pracovního XML vytvořte nebo stáhněte finální XML.",
     "report_not_finalized": "Před vytvořením finálního XML tento VAT Report finalizujte.",
     "not_locked": "Toto vykazované období není uzamčené.",
-    "invalid_export_details": "Vyplňte platný finanční úřad, datum a údaje o osobě pro podání.",
-    "invalid_filing_defaults": "Zadejte platné výchozí údaje podání. Vyplňte společně všechny údaje oprávněné osoby a dodržte limity kontaktů EPO.",
+    "invalid_export_details": "Zkontrolujte finanční úřad, odpovídající územní pracoviště, ekonomickou činnost, datum a údaje o osobě pro export.",
+    "invalid_filing_defaults": "Zkontrolujte ekonomickou činnost a výběr úřadu a pracoviště. Vyplňte společně všechny údaje oprávněné osoby a dodržte limity kontaktů EPO.",
     "epo_override_not_required": "Samostatná adresa pro EPO je povolena jen tehdy, když registrovaná adresa překračuje limit schématu.",
     "epo_override_confirmation_required": "Před uložením samostatnou adresu pro EPO potvrďte.",
     "epo_address_required": "Před exportem XML doplňte a potvrďte samostatnou adresu pro EPO v nastavení firmy.",
@@ -680,7 +723,9 @@
     "maxFileBytes": "Maximální velikost zdrojového souboru (bajty)",
     "maxFilePages": "Maximum stran zdrojového souboru",
     "maxBatchFiles": "Maximum zdrojových souborů v dávce",
-    "saveLimits": "Uložit limity nahrávání"
+    "saveLimits": "Uložit limity nahrávání",
+    "retainedHistory": "Dochovaná historie",
+    "companyIdentity": "{name} · IČO {ico}"
   },
   "mfa": {
     "securityTitle": "Zabezpečení",
@@ -861,6 +906,8 @@
       "counterparty_vat_id_required": "Pro tento režim DPH je DIČ protistrany povinné.",
       "unreliable_vat_payer": "Dodavatel je v registru veden jako nespolehlivý plátce DPH.",
       "unpublished_bank_account": "Platební účet není u tohoto dodavatele zveřejněn v registru plátců DPH.",
+      "missing_bank_account": "Není vyplněn platební účet. Zkontrolujte platební údaje; doklad lze i tak schválit.",
+      "bank_account_not_verified": "Dodavatel nebyl nalezen v registru plátců DPH, proto nebylo možné platební účet ověřit. Zkontrolujte jej ručně.",
       "vat_registry_check_not_performed": "Registr plátců DPH nebyl dostupný, proto nebyla provedena kontrola dodavatele a platebního účtu.",
       "direction_unknown": "Směr se nepodařilo určit podle identity firmy. Před schválením jej nastavte.",
       "currency_conversion_not_performed": "Kurz ČNB nebyl dostupný, proto nebylo možné vypočítat částky v CZK.",
@@ -953,8 +1000,15 @@
   },
   "vatReports": {
     "wizard": {
+      "finalPartial": "Částečně dokončeno — {count}/2",
+      "draftPartial": "Částečně dokončeno — {count}/2",
+      "draftPartialSkipped": "Částečně dokončeno — {count}/2, druhý export vynechán",
+      "skipDrafts": "Vynechat draftové exporty",
+      "skipRemainingDraft": "Vynechat druhý draftový export",
       "title": "Kroky zpracování DPH",
       "state": {
+        "partial": "Částečně dokončeno",
+        "skipped": "Vynecháno",
         "done": "Hotovo",
         "needs_attention": "Vyžaduje pozornost",
         "blocked": "Blokováno",
@@ -974,8 +1028,8 @@
           "hint": "Zkontrolujte oba zákonné výstupy uloženého snímku."
         },
         "export": {
-          "title": "Export XML",
-          "hint": "Stáhněte XML pro EPO z přiznání k DPH a z kontrolního hlášení. Každé stažení se uloží do historie exportů."
+          "title": "Export DRAFT XML",
+          "hint": "Vytvořte pracovní XML ke kontrole. Draftové exporty jsou volitelné a neblokují finalizaci."
         },
         "finalize": {
           "title": "Finalizace",
@@ -1190,7 +1244,16 @@
     "description": "Doplňte údaje pro řádné podání. DIČ, název a adresu převezmeme z uloženého návrhu.",
     "format": "Formulář",
     "preparedOn": "Datum vyhotovení",
+    "timingWarnings": "Upozornění na termíny exportu",
+    "timing": {
+      "prepared_on_future": "Datum vyhotovení je po dnešním dni v Praze.",
+      "reporting_period_unfinished": "Vykazované období ještě neskončilo.",
+      "potentially_late_filing": "Možné opožděné řádné podání: lhůta je {deadline}. Dnešní den nebo datum vyhotovení je po ní. Ověřte skutečné podání; XML můžete dál stáhnout.",
+      "control_statement_monthly_required": "Právnické osoby podávají řádné kontrolní hlášení měsíčně i při čtvrtletním přiznání k DPH. Pro tento čtvrtletní výstup neurčujeme řádnou lhůtu; ověřte měsíční období podání. XML můžete dál stáhnout."
+    },
     "taxOffice": "Finanční úřad",
+    "territorialOffice": "Územní pracoviště",
+    "economicActivity": "Ekonomická činnost (CZ-NACE)",
     "choose": "Vyberte",
     "personType": "Typ osoby",
     "legalPerson": "Právnická osoba",
@@ -1210,6 +1273,7 @@
     },
     "epoAddressMissing": "Je nutná potvrzená adresa pro EPO",
     "epoAddressRequired": "Registrovaná adresa překračuje limit schématu EPO. Před stažením XML doplňte a potvrďte samostatnou adresu pro EPO.",
+    "administratorAddressRequired": "Před exportem musí administrátor doplnit a potvrdit adresu firmy pro EPO.",
     "completeEpoAddress": "Doplnit adresu EPO v nastavení firmy",
     "editForExport": "Upravit pro tento export",
     "useSaved": "Použít uložené výchozí údaje",
@@ -1236,5 +1300,40 @@
       "464": "FÚ pro Zlínský kraj",
       "13": "Specializovaný finanční úřad"
     }
+  },
+  "platformHistory": {
+    "title": "Historie firmy: {company}",
+    "deletedNotice": "Smazáno {date}. Dochovaná historie je pouze pro čtení; firma zůstává smazaná.",
+    "blockedNotice": "Organizace je zablokovaná. Běžné zpracování zůstává pozastavené, dokud ji SuperAdmin výslovně neodblokuje.",
+    "readOnlyNotice": "Tento pohled nabízí dochovaná data firmy pouze pro čtení.",
+    "organizationAdministration": "Správa organizace",
+    "companyAdministration": "Správa přístupů do firmy",
+    "organizationAudit": "Auditní historie firmy",
+    "downloadArchive": "Stáhnout dochovaná data firmy",
+    "companyIdentity": "Identita firmy",
+    "sourceFiles": "Zdrojové soubory",
+    "file": "Soubor",
+    "uploadedAt": "Nahráno",
+    "byteSize": "Bajtů",
+    "documents": "Doklady",
+    "document": "Doklad",
+    "pages": "Strany {first}–{last}",
+    "version": "Verze extrakce {version} · {date}",
+    "documentNumber": "Číslo dokladu",
+    "supplier": "Dodavatel",
+    "customer": "Odběratel",
+    "taxPointDate": "Datum zdanitelného plnění",
+    "total": "Celkem",
+    "noDocuments": "Žádné dochované doklady.",
+    "vatReports": "Výstupy DPH",
+    "period": "Zdaňovací období",
+    "generatedAt": "Vygenerováno",
+    "xmlArtifacts": "Archivované XML",
+    "audit": "Auditní historie firmy",
+    "occurredAt": "Kdy",
+    "action": "Akce",
+    "actor": "Kdo",
+    "identityLine": "{name} · IČO {ico} · {vatId}",
+    "notAvailable": "Neuvedeno"
   }
 }

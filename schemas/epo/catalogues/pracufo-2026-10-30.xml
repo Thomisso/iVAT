@@ -1,0 +1,251 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Ciselnik Dotaz="C%3dpracufo%26M%3d10000%26PL%3d2026-10-30%26M%3d10000"  Nazev="pracufo" Verze="51.5.00210">
+<Veta c_pracufo="2103" c_pufo="21" c_ufo="452" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP BENEŠOV" nazu_pracufo="Územní pracoviště v Benešově">
+</Veta>
+<Veta c_pracufo="3004" c_pufo="291" c_ufo="461" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP BRNO IV" nazu_pracufo="Územní pracoviště Brno IV">
+</Veta>
+<Veta c_pracufo="2503" c_pufo="178" c_ufo="456" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP DĚČÍN" nazu_pracufo="Územní pracoviště v Děčíně">
+</Veta>
+<Veta c_pracufo="3102" c_pufo="394" c_ufo="462" d_vzniku="1991-01-01" d_zaniku="" naz_pracufo="ÚP HRANICE" nazu_pracufo="Územní pracoviště v Hranicích">
+</Veta>
+<Veta c_pracufo="2901" c_pufo="314" c_ufo="460" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP JIHLAVA" nazu_pracufo="Územní pracoviště v Jihlavě">
+</Veta>
+<Veta c_pracufo="3213" c_pufo="376" c_ufo="463" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP KOPŘIVNICE" nazu_pracufo="Územní pracoviště v Kopřivnici">
+</Veta>
+<Veta c_pracufo="2509" c_pufo="201" c_ufo="456" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP LOUNY" nazu_pracufo="Územní pracoviště v Lounech">
+</Veta>
+<Veta c_pracufo="3216" c_pufo="384" c_ufo="463" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP OPAVA" nazu_pracufo="Územní pracoviště v Opavě">
+</Veta>
+<Veta c_pracufo="2301" c_pufo="138" c_ufo="454" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP PLZEŇ" nazu_pracufo="Územní pracoviště v Plzni">
+</Veta>
+<Veta c_pracufo="2003" c_pufo="3" c_ufo="451" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP PRAHA 3" nazu_pracufo="Územní pracoviště pro Prahu 3">
+</Veta>
+<Veta c_pracufo="2012" c_pufo="12" c_ufo="451" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP PRAHA-MODŘANY" nazu_pracufo="Územní pracoviště v Praze - Modřanech">
+</Veta>
+<Veta c_pracufo="2512" c_pufo="198" c_ufo="456" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP ROUDNICE NAD LABEM" nazu_pracufo="Územní pracoviště v Roudnici nad Labem">
+</Veta>
+<Veta c_pracufo="2211" c_pufo="105" c_ufo="453" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP STRAKONICE" nazu_pracufo="Územní pracoviště ve Strakonicích">
+</Veta>
+<Veta c_pracufo="2912" c_pufo="330" c_ufo="460" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP TŘEBÍČ" nazu_pracufo="Územní pracoviště v Třebíči">
+</Veta>
+<Veta c_pracufo="2913" c_pufo="353" c_ufo="460" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP VELKÉ MEZIŘÍČÍ" nazu_pracufo="Územní pracoviště ve Velkém Meziříčí">
+</Veta>
+<Veta c_pracufo="3020" c_pufo="346" c_ufo="461" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP ZNOJMO" nazu_pracufo="Územní pracoviště ve Znojmě">
+</Veta>
+<Veta c_pracufo="2104" c_pufo="26" c_ufo="452" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP BEROUN" nazu_pracufo="Územní pracoviště v Berouně">
+</Veta>
+<Veta c_pracufo="3005" c_pufo="293" c_ufo="461" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP BRNO VENKOV" nazu_pracufo="Územní pracoviště Brno-venkov">
+</Veta>
+<Veta c_pracufo="2305" c_pufo="118" c_ufo="454" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP DOMAŽLICE" nazu_pracufo="Územní pracoviště v Domažlicích">
+</Veta>
+<Veta c_pracufo="3011" c_pufo="299" c_ufo="461" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP HUSTOPEČE" nazu_pracufo="Územní pracoviště v Hustopečích">
+</Veta>
+<Veta c_pracufo="2205" c_pufo="86" c_ufo="453" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP JINDŘICHŮV HRADEC" nazu_pracufo="Územní pracoviště v Jindřichově Hradci">
+</Veta>
+<Veta c_pracufo="2112" c_pufo="44" c_ufo="452" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP KRALUPY NAD VLTAVOU" nazu_pracufo="Územní pracoviště v Kralupech nad Vltavou">
+</Veta>
+<Veta c_pracufo="2114" c_pufo="43" c_ufo="452" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP MĚLNÍK" nazu_pracufo="Územní pracoviště v Mělníce">
+</Veta>
+<Veta c_pracufo="3202" c_pufo="389" c_ufo="463" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP OSTRAVA II" nazu_pracufo="Územní pracoviště Ostrava II">
+</Veta>
+<Veta c_pracufo="2303" c_pufo="140" c_ufo="454" d_vzniku="1991-01-01" d_zaniku="" naz_pracufo="ÚP PLZEŇ - JIH" nazu_pracufo="Územní pracoviště Plzeň-jih">
+</Veta>
+<Veta c_pracufo="2004" c_pufo="4" c_ufo="451" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP PRAHA 4" nazu_pracufo="Územní pracoviště pro Prahu 4">
+</Veta>
+<Veta c_pracufo="2101" c_pufo="57" c_ufo="452" d_vzniku="1991-01-01" d_zaniku="" naz_pracufo="ÚP PRAHA-VÝCHOD" nazu_pracufo="Územní pracoviště Praha-východ">
+</Veta>
+<Veta c_pracufo="3307" c_pufo="404" c_ufo="464" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP ROŽNOV POD RADH." nazu_pracufo="Územní pracoviště v Rožnově pod Radhoštěm">
+</Veta>
+<Veta c_pracufo="2808" c_pufo="263" c_ufo="459" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP SVITAVY" nazu_pracufo="Územní pracoviště ve Svitavách">
+</Veta>
+<Veta c_pracufo="3218" c_pufo="364" c_ufo="463" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP TŘINEC" nazu_pracufo="Územní pracoviště v Třinci">
+</Veta>
+<Veta c_pracufo="3018" c_pufo="311" c_ufo="461" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP VESELÍ NAD MORAVOU" nazu_pracufo="Územní pracoviště ve Veselí nad Moravou">
+</Veta>
+<Veta c_pracufo="2811" c_pufo="275" c_ufo="459" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP ŽAMBERK" nazu_pracufo="Územní pracoviště v Žamberku">
+</Veta>
+<Veta c_pracufo="3006" c_pufo="283" c_ufo="461" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP BLANSKO" nazu_pracufo="Územní pracoviště v Blansku">
+</Veta>
+<Veta c_pracufo="3205" c_pufo="358" c_ufo="463" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP BRUNTÁL" nazu_pracufo="Územní pracoviště v Bruntále">
+</Veta>
+<Veta c_pracufo="3207" c_pufo="362" c_ufo="463" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP FRÝDEK-MÍSTEK" nazu_pracufo="Územní pracoviště ve Frýdku-Místku">
+</Veta>
+<Veta c_pracufo="2403" c_pufo="123" c_ufo="455" d_vzniku="1991-01-01" d_zaniku="" naz_pracufo="ÚP CHEB" nazu_pracufo="Územní pracoviště v Chebu">
+</Veta>
+<Veta c_pracufo="2505" c_pufo="183" c_ufo="456" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP KADAŇ" nazu_pracufo="Územní pracoviště v Kadani">
+</Veta>
+<Veta c_pracufo="3214" c_pufo="359" c_ufo="463" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP KRNOV" nazu_pracufo="Územní pracoviště v Krnově">
+</Veta>
+<Veta c_pracufo="2115" c_pufo="48" c_ufo="452" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP MLADÁ BOLESLAV" nazu_pracufo="Územní pracoviště v Mladé Boleslavi">
+</Veta>
+<Veta c_pracufo="3203" c_pufo="390" c_ufo="463" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP OSTRAVA III" nazu_pracufo="Územní pracoviště Ostrava III">
+</Veta>
+<Veta c_pracufo="2302" c_pufo="145" c_ufo="454" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP PLZEŇ-SEVER" nazu_pracufo="Územní pracoviště Plzeň-sever">
+</Veta>
+<Veta c_pracufo="2005" c_pufo="5" c_ufo="451" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP PRAHA 5" nazu_pracufo="Územní pracoviště pro Prahu 5">
+</Veta>
+<Veta c_pracufo="2209" c_pufo="101" c_ufo="453" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP PRACHATICE" nazu_pracufo="Územní pracoviště v Prachaticích">
+</Veta>
+<Veta c_pracufo="2513" c_pufo="179" c_ufo="456" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP RUMBURK" nazu_pracufo="Územní pracoviště v Rumburku">
+</Veta>
+<Veta c_pracufo="3108" c_pufo="381" c_ufo="462" d_vzniku="1991-01-01" d_zaniku="" naz_pracufo="ÚP ŠTERNBERK" nazu_pracufo="Územní pracoviště ve Šternberku">
+</Veta>
+<Veta c_pracufo="2609" c_pufo="260" c_ufo="457" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP TURNOV" nazu_pracufo="Územní pracoviště v Turnově">
+</Veta>
+<Veta c_pracufo="2125" c_pufo="22" c_ufo="452" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP VLAŠIM" nazu_pracufo="Územní pracoviště ve Vlašimi">
+</Veta>
+<Veta c_pracufo="2515" c_pufo="203" c_ufo="456" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP ŽATEC" nazu_pracufo="Územní pracoviště v Žatci">
+</Veta>
+<Veta c_pracufo="3007" c_pufo="284" c_ufo="461" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP BOSKOVICE" nazu_pracufo="Územní pracoviště v Boskovicích">
+</Veta>
+<Veta c_pracufo="3008" c_pufo="298" c_ufo="461" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP BŘECLAV" nazu_pracufo="Územní pracoviště v Břeclavi">
+</Veta>
+<Veta c_pracufo="3210" c_pufo="370" c_ufo="463" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP HAVÍŘOV" nazu_pracufo="Územní pracoviště v Havířově">
+</Veta>
+<Veta c_pracufo="2504" c_pufo="182" c_ufo="456" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP CHOMUTOV" nazu_pracufo="Územní pracoviště v Chomutově">
+</Veta>
+<Veta c_pracufo="2401" c_pufo="128" c_ufo="455" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP KARLOVY VARY" nazu_pracufo="Územní pracoviště v Karlových Varech">
+</Veta>
+<Veta c_pracufo="3304" c_pufo="320" c_ufo="464" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP KROMĚŘÍŽ" nazu_pracufo="Územní pracoviště v Kroměříži">
+</Veta>
+<Veta c_pracufo="2510" c_pufo="206" c_ufo="456" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP MOST" nazu_pracufo="Územní pracoviště v Mostě">
+</Veta>
+<Veta c_pracufo="3201" c_pufo="388" c_ufo="463" d_vzniku="1991-01-01" d_zaniku="" naz_pracufo="ÚP OSTRAVA I." nazu_pracufo="Územní pracoviště Ostrava I">
+</Veta>
+<Veta c_pracufo="2119" c_pufo="55" c_ufo="452" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP PODĚBRADY" nazu_pracufo="Územní pracoviště v Poděbradech">
+</Veta>
+<Veta c_pracufo="2006" c_pufo="6" c_ufo="451" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP PRAHA 6" nazu_pracufo="Územní pracoviště pro Prahu 6">
+</Veta>
+<Veta c_pracufo="3106" c_pufo="325" c_ufo="462" d_vzniku="1991-01-01" d_zaniku="" naz_pracufo="ÚP PROSTĚJOV" nazu_pracufo="Územní pracoviště v Prostějově">
+</Veta>
+<Veta c_pracufo="2712" c_pufo="253" c_ufo="458" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP RYCHNOV NAD KNĚŽ." nazu_pracufo="Územní pracoviště v Rychnově nad Kněžnou">
+</Veta>
+<Veta c_pracufo="3109" c_pufo="398" c_ufo="462" d_vzniku="1991-01-01" d_zaniku="" naz_pracufo="ÚP ŠUMPERK" nazu_pracufo="Územní pracoviště v Šumperku">
+</Veta>
+<Veta c_pracufo="3309" c_pufo="336" c_ufo="464" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP UHERSKÉ HRADIŠTĚ" nazu_pracufo="Územní pracoviště v Uherském Hradišti">
+</Veta>
+<Veta c_pracufo="3312" c_pufo="403" c_ufo="464" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP VSETÍN" nazu_pracufo="Územní pracoviště ve Vsetíně">
+</Veta>
+<Veta c_pracufo="2914" c_pufo="351" c_ufo="460" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP ŽĎÁR NAD SÁZAVOU" nazu_pracufo="Územní pracoviště ve Žďáru nad Sázavou">
+</Veta>
+<Veta c_pracufo="2105" c_pufo="57" c_ufo="452" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP BRANDÝS N.L. - ST.BOL." nazu_pracufo="Územní pracoviště v Brandýse n.L.-Staré Bol.">
+</Veta>
+<Veta c_pracufo="2106" c_pufo="39" c_ufo="452" d_vzniku="1991-01-01" d_zaniku="" naz_pracufo="ÚP ČÁSLAV" nazu_pracufo="Územní pracoviště v Čáslavi">
+</Veta>
+<Veta c_pracufo="2903" c_pufo="223" c_ufo="460" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP HAVLÍČKŮV BROD" nazu_pracufo="Územní pracoviště v Havlíčkově Brodě">
+</Veta>
+<Veta c_pracufo="2804" c_pufo="233" c_ufo="459" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP CHRUDIM" nazu_pracufo="Územní pracoviště v Chrudimi">
+</Veta>
+<Veta c_pracufo="3212" c_pufo="367" c_ufo="463" d_vzniku="1991-01-01" d_zaniku="" naz_pracufo="ÚP KARVINÁ" nazu_pracufo="Územní pracoviště v Karviné">
+</Veta>
+<Veta c_pracufo="2113" c_pufo="38" c_ufo="452" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP KUTNÁ HORA" nazu_pracufo="Územní pracoviště v Kutné Hoře">
+</Veta>
+<Veta c_pracufo="2709" c_pufo="243" c_ufo="458" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP NÁCHOD" nazu_pracufo="Územní pracoviště v Náchodě">
+</Veta>
+<Veta c_pracufo="3306" c_pufo="305" c_ufo="464" d_vzniku="1991-01-01" d_zaniku="" naz_pracufo="ÚP OTROKOVICE" nazu_pracufo="Územní pracoviště v Otrokovicích">
+</Veta>
+<Veta c_pracufo="2102" c_pufo="60" c_ufo="452" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP PRAHA ZÁPAD" nazu_pracufo="Územní pracoviště Praha-západ">
+</Veta>
+<Veta c_pracufo="2007" c_pufo="7" c_ufo="451" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP PRAHA 7" nazu_pracufo="Územní pracoviště pro Prahu 7">
+</Veta>
+<Veta c_pracufo="3107" c_pufo="393" c_ufo="462" d_vzniku="1991-01-01" d_zaniku="" naz_pracufo="ÚP PŘEROV" nazu_pracufo="Územní pracoviště v Přerově">
+</Veta>
+<Veta c_pracufo="2122" c_pufo="59" c_ufo="452" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP ŘÍČANY" nazu_pracufo="Územní pracoviště v Říčanech">
+</Veta>
+<Veta c_pracufo="2212" c_pufo="110" c_ufo="453" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP TÁBOR" nazu_pracufo="Územní pracoviště v Táboře">
+</Veta>
+<Veta c_pracufo="3308" c_pufo="338" c_ufo="464" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP UHERSKÝ BROD" nazu_pracufo="Územní pracoviště v Uherském Brodě">
+</Veta>
+<Veta c_pracufo="2810" c_pufo="274" c_ufo="459" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP VYSOKÉ MÝTO" nazu_pracufo="Územní pracoviště ve Vysokém Mýtě">
+</Veta>
+<Veta c_pracufo="3001" c_pufo="288" c_ufo="461" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP BRNO I" nazu_pracufo="Územní pracoviště Brno I">
+</Veta>
+<Veta c_pracufo="2602" c_pufo="172" c_ufo="457" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP ČESKÁ LÍPA" nazu_pracufo="Územní pracoviště v České Lípě">
+</Veta>
+<Veta c_pracufo="3010" c_pufo="309" c_ufo="461" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP HODONÍN" nazu_pracufo="Územní pracoviště v Hodoníně">
+</Veta>
+<Veta c_pracufo="2604" c_pufo="187" c_ufo="457" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP JABLONEC NAD NISOU" nazu_pracufo="Územní pracoviště v Jablonci nad Nisou">
+</Veta>
+<Veta c_pracufo="2110" c_pufo="30" c_ufo="452" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP KLADNO" nazu_pracufo="Územní pracoviště v Kladně">
+</Veta>
+<Veta c_pracufo="3013" c_pufo="310" c_ufo="461" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP KYJOV" nazu_pracufo="Územní pracoviště v Kyjově">
+</Veta>
+<Veta c_pracufo="3215" c_pufo="374" c_ufo="463" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP NOVÝ JIČÍN" nazu_pracufo="Územní pracoviště v Novém Jičíně">
+</Veta>
+<Veta c_pracufo="2801" c_pufo="248" c_ufo="459" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP PARDUBICE" nazu_pracufo="Územní pracoviště v Pardubicích">
+</Veta>
+<Veta c_pracufo="2001" c_pufo="1" c_ufo="451" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP PRAHA 1" nazu_pracufo="Územní pracoviště pro Prahu 1">
+</Veta>
+<Veta c_pracufo="2008" c_pufo="8" c_ufo="451" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP PRAHA 8" nazu_pracufo="Územní pracoviště pro Prahu 8">
+</Veta>
+<Veta c_pracufo="2120" c_pufo="63" c_ufo="452" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP PŘÍBRAM" nazu_pracufo="Územní pracoviště v Příbrami">
+</Veta>
+<Veta c_pracufo="2607" c_pufo="258" c_ufo="457" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP SEMILY" nazu_pracufo="Územní pracoviště v Semilech">
+</Veta>
+<Veta c_pracufo="2313" c_pufo="160" c_ufo="454" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP TACHOV" nazu_pracufo="Územní pracoviště v Tachově">
+</Veta>
+<Veta c_pracufo="2501" c_pufo="214" c_ufo="456" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP ÚSTÍ NAD LABEM" nazu_pracufo="Územní pracoviště v Ústí nad Labem">
+</Veta>
+<Veta c_pracufo="3019" c_pufo="341" c_ufo="461" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP VYŠKOV" nazu_pracufo="Územní pracoviště ve Vyškově">
+</Veta>
+<Veta c_pracufo="3002" c_pufo="289" c_ufo="461" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP BRNO II" nazu_pracufo="Územní pracoviště Brno II">
+</Veta>
+<Veta c_pracufo="2201" c_pufo="77" c_ufo="453" d_vzniku="1991-01-01" d_zaniku="" naz_pracufo="ÚP ČESKÉ BUDĚJOVICE" nazu_pracufo="Územní pracoviště v Českých Budějovicích">
+</Veta>
+<Veta c_pracufo="2109" c_pufo="27" c_ufo="452" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP HOŘOVICE" nazu_pracufo="Územní pracoviště v Hořovicích">
+</Veta>
+<Veta c_pracufo="3103" c_pufo="399" c_ufo="462" d_vzniku="1991-01-01" d_zaniku="" naz_pracufo="ÚP JESENÍK" nazu_pracufo="Územní pracoviště v Jeseníku">
+</Veta>
+<Veta c_pracufo="2308" c_pufo="133" c_ufo="454" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP KLATOVY" nazu_pracufo="Územní pracoviště v Klatovech">
+</Veta>
+<Veta c_pracufo="2601" c_pufo="192" c_ufo="457" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP LIBEREC" nazu_pracufo="Územní pracoviště v Liberci">
+</Veta>
+<Veta c_pracufo="2118" c_pufo="53" c_ufo="452" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP NYMBURK" nazu_pracufo="Územní pracoviště v Nymburku">
+</Veta>
+<Veta c_pracufo="2910" c_pufo="91" c_ufo="460" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP PELHŘIMOV" nazu_pracufo="Územní pracoviště v Pelhřimově">
+</Veta>
+<Veta c_pracufo="2010" c_pufo="10" c_ufo="451" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP PRAHA 10" nazu_pracufo="Územní pracoviště pro Prahu 10">
+</Veta>
+<Veta c_pracufo="2009" c_pufo="9" c_ufo="451" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP PRAHA 9" nazu_pracufo="Územní pracoviště pro Prahu 9">
+</Veta>
+<Veta c_pracufo="2121" c_pufo="69" c_ufo="452" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP RAKOVNÍK" nazu_pracufo="Územní pracoviště v Rakovníku">
+</Veta>
+<Veta c_pracufo="2124" c_pufo="31" c_ufo="452" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP SLANÝ" nazu_pracufo="Územní pracoviště ve Slaném">
+</Veta>
+<Veta c_pracufo="2514" c_pufo="210" c_ufo="456" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP TEPLICE" nazu_pracufo="Územní pracoviště v Teplicích">
+</Veta>
+<Veta c_pracufo="2809" c_pufo="273" c_ufo="459" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP ÚSTÍ NAD ORLICÍ" nazu_pracufo="Územní pracoviště v Ústí nad Orlicí">
+</Veta>
+<Veta c_pracufo="3110" c_pufo="400" c_ufo="462" d_vzniku="1991-01-01" d_zaniku="" naz_pracufo="ÚP ZÁBŘEH" nazu_pracufo="Územní pracoviště v Zábřehu">
+</Veta>
+<Veta c_pracufo="3003" c_pufo="290" c_ufo="461" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP BRNO III" nazu_pracufo="Územní pracoviště Brno III">
+</Veta>
+<Veta c_pracufo="2203" c_pufo="82" c_ufo="453" d_vzniku="1991-01-01" d_zaniku="" naz_pracufo="ÚP ČESKÝ KRUMLOV" nazu_pracufo="Územní pracoviště v Českém Krumlově">
+</Veta>
+<Veta c_pracufo="2701" c_pufo="228" c_ufo="458" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP HRADEC KRÁLOVÉ" nazu_pracufo="Územní pracoviště v Hradci Králové">
+</Veta>
+<Veta c_pracufo="2707" c_pufo="238" c_ufo="458" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP JIČÍN" nazu_pracufo="Územní pracoviště v Jičíně">
+</Veta>
+<Veta c_pracufo="2111" c_pufo="34" c_ufo="452" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP KOLÍN" nazu_pracufo="Územní pracoviště v Kolíně">
+</Veta>
+<Veta c_pracufo="2507" c_pufo="196" c_ufo="456" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP LITOMĚŘICE" nazu_pracufo="Územní pracoviště v Litoměřicích">
+</Veta>
+<Veta c_pracufo="3101" c_pufo="379" c_ufo="462" d_vzniku="1991-01-01" d_zaniku="" naz_pracufo="ÚP OLOMOUC" nazu_pracufo="Územní pracoviště v Olomouci">
+</Veta>
+<Veta c_pracufo="2208" c_pufo="97" c_ufo="453" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP PÍSEK" nazu_pracufo="Územní pracoviště v Písku">
+</Veta>
+<Veta c_pracufo="2002" c_pufo="2" c_ufo="451" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP PRAHA 2" nazu_pracufo="Územní pracoviště pro Prahu 2">
+</Veta>
+<Veta c_pracufo="2011" c_pufo="11" c_ufo="451" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP PRAHA-JIŽNÍ MĚSTO" nazu_pracufo="Územní pracoviště pro Prahu - Jižní Město">
+</Veta>
+<Veta c_pracufo="2312" c_pufo="150" c_ufo="454" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP ROKYCANY" nazu_pracufo="Územní pracoviště v Rokycanech">
+</Veta>
+<Veta c_pracufo="2407" c_pufo="155" c_ufo="455" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP SOKOLOV" nazu_pracufo="Územní pracoviště v Sokolově">
+</Veta>
+<Veta c_pracufo="2713" c_pufo="268" c_ufo="458" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP TRUTNOV" nazu_pracufo="Územní pracoviště v Trutnově">
+</Veta>
+<Veta c_pracufo="3310" c_pufo="405" c_ufo="464" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP VALAŠSKÉ MEZIŘÍČÍ" nazu_pracufo="Územní pracoviště ve Valašském Meziříčí">
+</Veta>
+<Veta c_pracufo="3301" c_pufo="303" c_ufo="464" d_vzniku="2013-01-01" d_zaniku="" naz_pracufo="ÚP ZLÍN" nazu_pracufo="Územní pracoviště ve Zlíně">
+</Veta>
+</Ciselnik>

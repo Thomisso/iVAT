@@ -14,6 +14,8 @@ const playwrightArguments = cliArguments.filter((argument) => argument !== "--de
 const environment = {
   ...process.env,
   AI_PROVIDER: "fake",
+  VAT_REGISTRY_PROVIDER: "fake",
+  EXCHANGE_RATE_PROVIDER: "fake",
 };
 const managed = [];
 const serviceLogDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "ivat-e2e-"));

@@ -1,9 +1,9 @@
 import * as XLSX from "xlsx";
-import { expect, it } from "vitest";
+import { expect, inject, it } from "vitest";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { exportReportingPeriodWorkbook } from "@/application/reporting-period-excel";
 import { createCompany, setCurrentReportingYear } from "@/application/companies";
-import { approveDocument, listDocuments } from "@/application/documents";
+import { approveDocument, listDocuments, returnDocumentToReview } from "@/application/documents";
 import { uploadSourceFile } from "@/application/source-files";
 import {
   administratorWithCompany,
@@ -14,6 +14,7 @@ import {
 import { signedUpUser } from "./support/clients";
 import { fixtureFile } from "./support/files";
 import { testWorker } from "./support/worker";
+import { addLegacyRateBreakdownVersionFixture } from "./support/rate-breakdown-history";
 
 const COLUMNS = [
   "Document ID",
@@ -71,6 +72,19 @@ async function companyWithOverviewDocuments() {
   }
   return { ...administrator, documentIds };
 }
+
+it("omits historical zero rows from the workbook while retaining meaningful zero VAT and negative amounts", async () => {
+  const company = await companyWithOverviewDocuments();
+  const documentId = company.documentIds[0];
+  expect(await returnDocumentToReview(company.client, { companyId: company.companyId, documentId })).toEqual({ ok: true, value: null });
+  await addLegacyRateBreakdownVersionFixture(inject("databaseUrl"), documentId);
+  const exported = await exportReportingPeriodWorkbook(company.client, { companyId: company.companyId, period: "2026-10" });
+  if (!exported.ok) throw new Error(exported.error);
+  const workbook = XLSX.read(exported.value.bytes, { type: "array" });
+  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets.Attention, { defval: "" })
+    .filter((row) => row["Document ID"] === documentId);
+  expect(rows.map((row) => [row["Net amount"], row["VAT amount"]])).toEqual([[-50, 0], [-100, -20]]);
+});
 
 it("exports the Reporting Period overview with approved and attention sheets", async () => {
   const company = await companyWithOverviewDocuments();

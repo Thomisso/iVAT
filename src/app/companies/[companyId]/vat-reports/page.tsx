@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { companyPageContext, withCompanyReturnTo } from "@/application/return-context";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getCompany, getMyCompanyRole } from "@/application/companies";
+import { getCompanyFilingDefaults, resolveEpoAddress } from "@/application/company-filing-defaults";
 import { documentQueueQuery, parseDocumentQueue } from "@/application/document-queue";
 import {
   listReportingPeriods,
@@ -25,12 +27,16 @@ import { PageLayout } from "@/components/app-shell";
 import { GenerateForm } from "./generate-form";
 import { PeriodLockForm } from "./period-lock-form";
 import { PeriodNavigation, PeriodSelector } from "./period-navigation";
+import { ExportForm } from "./export-form";
+import { DraftSkipForm } from "./draft-skip-form";
 
 const stateBadge: Record<VatProcessingStepState, DocumentStatus> = {
   done: "approved",
   needs_attention: "needs-review",
   blocked: "locked",
   not_started: "uploaded",
+  partial: "needs-review",
+  skipped: "uploaded",
 };
 
 export default async function VatReportsPage({
@@ -55,22 +61,28 @@ export default async function VatReportsPage({
       periods.at(-1)?.period;
   if (!selectedPeriod) notFound();
   const period: string = selectedPeriod;
-  const [report, role, wizardResult, transitions, t] = await Promise.all([
+  const [report, role, wizardResult, transitions, filingDefaults, t] = await Promise.all([
     getVatReport(client, companyId, period),
     getMyCompanyRole(client, companyId),
     getVatProcessingWizard(client, { companyId, period }),
     listVatReportTransitions(client, companyId, period),
+    getCompanyFilingDefaults(client, companyId),
     getTranslations(),
   ]);
   if (!wizardResult.ok) notFound();
-  const { readiness, steps, documentsToReview, documentsToReviewCount, locked } = wizardResult.value;
+  const { readiness, steps, documentsToReview, documentsToReviewCount, locked, draftExport, finalExport, periodLockId } = wizardResult.value;
+  const epoAddress = report ? resolveEpoAddress(report.result.company, filingDefaults) : null;
   const readinessCounts = readinessDocumentCounts(readiness);
-  const readinessHref = (filter: ReadinessDocumentFilter) => `/companies/${companyId}/documents?${documentQueueQuery(parseDocumentQueue({
+  const context = companyPageContext(companyId, `/companies/${companyId}/vat-reports`, { ...query, period });
+  const readinessHref = (filter: ReadinessDocumentFilter) => withCompanyReturnTo(companyId, `/companies/${companyId}/documents?${documentQueueQuery(parseDocumentQueue({
     view: "all",
     readiness: filter,
     reportingPeriod: period,
-  }))}`;
-  const periodHref = (segment: string) => `/companies/${companyId}/vat-reports/${period}/${segment}`;
+  }))}`, `${context}#vat-step-review`);
+  const periodHref = (segment: string) => {
+    const href = `/companies/${companyId}/vat-reports/${period}/${segment}`;
+    return segment === "xlsx" ? href : withCompanyReturnTo(companyId, href, `${context}#vat-step-${segment === "exports" ? "export" : "outputs"}`);
+  };
   const stepNumber = (key: VatProcessingStep["key"]) => VAT_PROCESSING_STEPS.indexOf(key) + 1;
   const stepTitle = (key: VatProcessingStep["key"]) => t(`vatReports.wizard.steps.${key}.title`);
   const groupRows = (
@@ -108,7 +120,7 @@ export default async function VatReportsPage({
                     .filter((finding) => finding.documentId === document.id)
                     .map((finding) => finding.code))];
                   return <li key={document.id}>
-                    <Link href={`/companies/${companyId}/documents/${document.id}`}>
+                    <Link href={withCompanyReturnTo(companyId, `/companies/${companyId}/documents/${document.id}`, `${context}#vat-step-review`)}>
                       {document.documentNumber ?? t("vatReports.documentFallback")}
                     </Link>
                     {document.counterparty?.name && <span>{document.counterparty.name}</span>}
@@ -178,18 +190,49 @@ export default async function VatReportsPage({
           </Link>
         </div>;
       case "export":
-        return step.state === "blocked" ? null : <div className="vat-wizard-actions">
-          <Link className="iv-btn iv-btn-secondary iv-btn-md" href={`${periodHref("vat-return")}#export`}>
-            {t("vatReports.wizard.exportVatReturn")}
-          </Link>
-          <Link className="iv-btn iv-btn-secondary iv-btn-md" href={`${periodHref("control-statement")}#export`}>
-            {t("vatReports.wizard.exportControlStatement")}
-          </Link>
+        return step.state === "blocked" || !report ? null : <>
+          <div className="vat-output-action-grid">
+            {(["dphdp3", "dphkh1"] as const).map((format) => <ExportForm
+              key={`${period}:${format}:${report.generatedAt}`}
+              companyId={companyId}
+              format={format}
+              period={period}
+              preparedOn={new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Prague" }).format(new Date())}
+              personType={report.result.company.personType}
+              defaults={filingDefaults}
+              epoAddress={epoAddress?.ok ? epoAddress.value : null}
+              finalized={false}
+              presentation="wizard"
+              disabled={locked}
+              canEditFilingDefaults={role === "administrator"}
+            />)}
+          </div>
+          {!locked && draftExport.downloadedFormats.length < 2 && draftExport.skippedFormats.length === 0 && <DraftSkipForm
+            key={report.generatedAt}
+            companyId={companyId} period={period} reportGeneratedAt={report.generatedAt}
+            downloadedCount={draftExport.downloadedFormats.length}
+          />}
           <Link href={periodHref("exports")}>{t("vatReports.wizard.openExportHistory")}</Link>
-        </div>;
+        </>;
       case "finalize":
         return <>
           {locked && <p><strong>{t("statusBadge.locked")}</strong></p>}
+          {locked && report && <div className="vat-output-action-grid">
+            {(["dphdp3", "dphkh1"] as const).map((format) => <ExportForm
+              key={`${period}:${format}:${report.generatedAt}:${periodLockId}`}
+              companyId={companyId}
+              format={format}
+              period={period}
+              preparedOn={new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Prague" }).format(new Date())}
+              personType={report.result.company.personType}
+              defaults={filingDefaults}
+              epoAddress={epoAddress?.ok ? epoAddress.value : null}
+              finalized
+              presentation="wizard"
+              canEditFilingDefaults={role === "administrator"}
+            />)}
+          </div>}
+
           {role === "administrator" && (locked || step.state !== "blocked") && (
             <PeriodLockForm
               key={`${period}:${locked ? "locked" : "unlocked"}`}
@@ -224,6 +267,7 @@ export default async function VatReportsPage({
       </header>
       <PeriodSelector companyId={companyId} period={period} periods={periods} />
       <PeriodNavigation
+        returnTo={`${context}#vat-step-outputs`}
         active="processing"
         companyId={companyId}
         period={period}
@@ -244,7 +288,11 @@ export default async function VatReportsPage({
                 <p>{t(`vatReports.wizard.steps.${step.key}.hint`)}</p>
               </div>
               <StatusBadge status={stateBadge[step.state]}>
-                {t(`vatReports.wizard.state.${step.state}`)}
+                {step.key === "export" && step.state === "partial"
+                  ? t(draftExport.skippedFormats.length ? "vatReports.wizard.draftPartialSkipped" : "vatReports.wizard.draftPartial", { count: draftExport.downloadedFormats.length })
+                  : step.key === "finalize" && step.state === "partial"
+                    ? t("vatReports.wizard.finalPartial", { count: finalExport.downloadedFormats.length })
+                    : t(`vatReports.wizard.state.${step.state}`)}
               </StatusBadge>
             </header>
             {(step.reason || step.blockedBy) && <p className="vat-wizard-reason" role="note">

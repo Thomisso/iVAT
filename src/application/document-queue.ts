@@ -6,7 +6,8 @@ import {
   type DocumentStatus,
 } from "./documents";
 import type { Direction } from "./extraction-payload";
-import type { AppClient } from "./client";
+import { isUuid, type AppClient } from "./client";
+import { safeCompanyReturnTo, withCompanyReturnTo } from "./return-context";
 import { NO_REPORTING_PERIOD, parseReportingPeriodFilter } from "./reporting-periods";
 import { getUploadBatch, type UploadBatchWorkspace } from "./upload-batches";
 import {
@@ -147,6 +148,14 @@ export function documentQueueQuery(queue: DocumentQueue): string {
 export function normalizeDocumentQueueQuery(query: string): string {
   const params = new URLSearchParams(query);
   return documentQueueQuery(parseDocumentQueue(Object.fromEntries(params)));
+}
+
+/** Keeps queue continuation and an explicit work origin across authorized review decisions. */
+export function documentDecisionHref(companyId: string, input: { documentId: string; nextDocumentId: string; queueQuery: string; returnTo?: unknown }): string {
+  const query = normalizeDocumentQueueQuery(input.queueQuery);
+  const origin = safeCompanyReturnTo(companyId, input.returnTo);
+  if (isUuid(input.nextDocumentId)) return withCompanyReturnTo(companyId, `/companies/${companyId}/documents/${input.nextDocumentId}?${query}`, origin);
+  return origin ?? `/companies/${companyId}/documents?${query}#document-${input.documentId}`;
 }
 
 /** Resolves a list route's filters, optional upload batch, and complete queue. */

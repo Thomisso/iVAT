@@ -1,0 +1,63 @@
+import { expect, test } from "@playwright/test";
+import { addBrowserDocumentWarningFixture, assignBrowserAiConfigurationFixture } from "../tests/support/e2e";
+
+test("bank advisories stay distinct through correction, approval and Finalization", async ({ context, page, baseURL }) => {
+  if (!baseURL) throw new Error("Playwright base URL is required");
+  await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseURL }]);
+  const run = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  await page.goto("/signup");
+  await page.getByLabel("Organization name").fill(`Bank advisory ${run}`);
+  await page.getByLabel("Email").fill(`bank-advisory-${run}@example.test`);
+  await page.getByLabel("Password").fill("Playwright-password-139");
+  await page.getByRole("button", { name: "Sign up", exact: true }).click();
+  await expect(page).toHaveURL(/\/companies\/new$/);
+  await page.getByLabel("Company name").fill(`Bank Company ${run}`);
+  await page.getByLabel("IČO").fill("25596641");
+  await page.getByLabel("VAT ID").fill("CZ25596641");
+  await page.getByLabel("Street name").fill("Vinohradská");
+  await page.getByLabel("House number").fill("12");
+  await page.getByLabel("City").fill("Praha");
+  await page.getByLabel("Postal code").fill("12000");
+  await page.getByRole("button", { name: "Create company", exact: true }).click();
+  await expect(page).toHaveURL(/\/setup\/filing-frequency$/);
+  await page.getByRole("button", { name: "Save and continue", exact: true }).click();
+  await expect(page).toHaveURL(/\/setup\/ai-processing$/);
+  const companyId = new URL(page.url()).pathname.split("/")[2];
+  await assignBrowserAiConfigurationFixture(companyId);
+  await page.goto(`/companies/${companyId}/upload`);
+  await page.locator('input[type="file"]:not([capture])').setInputFiles("tests/fixtures/receipt.png");
+  await page.getByRole("button", { name: "Upload batch", exact: true }).click();
+  await page.getByRole("link", { name: "Review 1 Document", exact: true }).click({ timeout: 45_000 });
+  await page.getByRole("table", { name: "Documents", exact: true }).getByRole("link").first().click();
+  await expect(page).toHaveURL(/\/documents\/[0-9a-f-]+(?:\?.*)?$/);
+  await expect(page.getByRole("button", { name: "Approve version 1", exact: true })).toBeVisible();
+  const documentId = new URL(page.url()).pathname.split("/").at(-1)!;
+
+  await page.getByLabel("Bank account", { exact: true }).fill("");
+  await page.getByRole("button", { name: "Save corrections", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Approve version 2", exact: true })).toBeVisible();
+  const missing = "No payment account is entered. Check the payment details; you can still approve the Document.";
+  const unpublished = "The payment account is not published for this supplier in the VAT payer registry.";
+  const unavailable = "The VAT payer registry was unavailable, so the supplier and payment account check was not performed.";
+  await expect(page.getByText(missing, { exact: true })).toBeVisible();
+  await expect(page.getByText(unpublished, { exact: true })).toHaveCount(0);
+
+  await page.getByLabel("Bank account", { exact: true }).fill("999999/0100");
+  await page.getByRole("button", { name: "Save corrections", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Approve version 3", exact: true })).toBeVisible();
+  await expect(page.getByText(unpublished, { exact: true })).toBeVisible();
+  await expect(page.getByText(missing, { exact: true })).toHaveCount(0);
+  // Existing immutable-Version fixture represents an unavailable registry result;
+  // application tests separately exercise the actual unavailable/throwing port.
+  await addBrowserDocumentWarningFixture(documentId);
+  await page.reload();
+  await expect(page.getByText(unavailable, { exact: true })).toBeVisible();
+  await expect(page.getByText(unpublished, { exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Approve version 4", exact: true }).click();
+  await expect(page).toHaveURL(/\/documents(?:\?.*)?$/);
+  await page.goto(`/companies/${companyId}/vat-reports?period=2026-10`);
+  await page.getByRole("button", { name: "Generate draft", exact: true }).click();
+  await page.getByRole("checkbox", { name: "I understand that Finalization creates a Period Lock for this snapshot.", exact: true }).check();
+  await page.getByRole("button", { name: "Finalize and lock period", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Unlock period", exact: true })).toBeVisible();
+});

@@ -1,6 +1,6 @@
 import * as XLSX from "xlsx";
 import type { ValidationFinding } from "./document-validation";
-import type { ExtractionPayload, RateBreakdownLine } from "./extraction-payload";
+import { isZeroRateBreakdownLine, type ExtractionPayload, type RateBreakdownLine } from "./extraction-payload";
 import {
   type CompanyDetails,
   getCompany,
@@ -188,7 +188,8 @@ export async function exportReportingPeriodWorkbook(
     const target = document.status === "approved" && !findingText && !exclusions.has(document.id)
       ? included
       : attention;
-    const rates = document.payload?.rateBreakdown.length ? document.payload.rateBreakdown : [null];
+    const meaningfulRates = document.payload?.rateBreakdown.filter((line) => !isZeroRateBreakdownLine(line)) ?? [];
+    const rates = meaningfulRates.length ? meaningfulRates : [null];
     for (const rate of rates) {
       const values = details(document.payload, rate);
       target.push({
