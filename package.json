@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "brand:assets": "tsx scripts/generate-brand-assets.ts",
     "db:start": "node scripts/supabase.mjs start",
     "db:stop": "node scripts/supabase.mjs stop",
     "db:migrate": "node scripts/supabase.mjs migration up",
@@ -60,6 +61,7 @@
     "eslint-config-next": "16.4.3",
     "happy-dom": "^21.0.4",
     "pdfjs-dist": "^6.4.299",
+    "sharp": "0.35.5",
     "supabase": "^2.122.0",
     "typescript": "^5",
     "vitest": "^5.0.5"
