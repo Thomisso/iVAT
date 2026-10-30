@@ -31,6 +31,41 @@ async function createAiCompany(context: BrowserContext, page: Page, baseURL: str
   return companyId;
 }
 
+test("an undetermined VAT Regime stays empty after saving and blocks approval until corrected", async ({ baseURL, context, page }) => {
+  const companyId = await createAiCompany(context, page, baseURL);
+  await page.goto(`/companies/${companyId}/upload`);
+  await page.locator('input[type="file"]:not([capture])').setInputFiles("tests/fixtures/receipt.png");
+  await page.getByRole("button", { name: "Upload batch", exact: true }).click();
+  await page.getByRole("link", { name: "Review 1 Document", exact: true }).click({ timeout: 45_000 });
+  await page.getByRole("table", { name: "Documents", exact: true }).getByRole("link").first().click();
+  await expect(page.getByRole("button", { name: "Approve version 1", exact: true })).toBeVisible();
+  const reviewUrl = page.url();
+  const regime = page.getByRole("combobox", { name: "VAT regime", exact: true });
+  await expect(regime.locator("option")).toHaveCount(6);
+  await regime.selectOption("");
+  await page.getByLabel("Direction", { exact: true }).selectOption("incoming");
+  await page.getByLabel("Bank account", { exact: true }).fill("");
+  await page.getByRole("button", { name: "Save corrections", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Approve version 2", exact: true })).toBeVisible();
+  await page.reload();
+  await expect(regime).toHaveValue("");
+  await expect(regime).toHaveAccessibleDescription("VAT Regime is undetermined. Select it before approval.");
+  await page.getByRole("button", { name: "Approve version 2", exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "Set the document VAT Regime before approving it." })).toBeVisible();
+  await page.goto(`/companies/${companyId}/vat-reports?period=2026-10`);
+  await expect(page.getByRole("link", { name: "1 blocker Document", exact: true })).toBeVisible();
+  await page.goto(reviewUrl);
+  await regime.selectOption("domestic");
+  await page.getByRole("button", { name: "Save corrections", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Approve version 3", exact: true })).toBeVisible();
+  await expect(regime).not.toHaveAttribute("aria-invalid", "true");
+  await expect(page.getByText("No payment account is entered. Check the payment details; you can still approve the Document.", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Approve version 3", exact: true }).click();
+  await expect(page).toHaveURL(/\/documents(?:\?.*)?$/);
+  await page.goto(`/companies/${companyId}/vat-reports?period=2026-10`);
+  await expect(page.getByRole("link", { name: /blocker Document/ })).toHaveCount(0);
+});
+
 test("saved views preserve queue context while review decisions advance through the queue", async ({
   baseURL,
   context,
