@@ -37,7 +37,8 @@ jobs:
           npx vitest run --config deploy/tests/vitest.config.ts tests/processing.test.ts tests/source-files.test.ts tests/ai-configurations.test.ts
       - name: Production web through the reverse proxy
         run: |
-          curl --fail --silent --show-error -H 'Host: app.ivat.cz' http://127.0.0.1:3180/login | rg -q 'Přihlášení'
+          curl --fail --silent --show-error -H 'Host: app.ivat.cz' --output "$RUNNER_TEMP/ivat-login.html" http://127.0.0.1:3180/login
+          grep -Fq 'Přihlášení' "$RUNNER_TEMP/ivat-login.html"
       - name: EPO schema and XML runtime assets in the production image
         run: |
           docker compose --env-file .env.rosti -f docker-compose.rosti.yml exec -T web node_modules/.bin/tsx -e 'import fs from "node:fs";import{validateEpoXml}from"./src/application/epo-xml";validateEpoXml(fs.readFileSync(0,"utf8"),"dphdp3").then(valid=>{if(!valid)process.exit(1)})' < tests/fixtures/epo/domestic-dphdp3.xml
