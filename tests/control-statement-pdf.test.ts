@@ -92,7 +92,7 @@ const report: ComputedVatReport = {
   excludedDocuments: [],
 };
 
-async function pdfText(bytes: Uint8Array) {
+async function pdfPages(bytes: Uint8Array) {
   const task = getDocument({ data: bytes });
   const pdf = await task.promise;
   const pages: string[] = [];
@@ -105,7 +105,11 @@ async function pdfText(bytes: Uint8Array) {
     );
   }
   await task.destroy();
-  return pages.join("\n");
+  return pages;
+}
+
+async function pdfText(bytes: Uint8Array) {
+  return (await pdfPages(bytes)).join("\n");
 }
 
 it("renders saved Control Statement identity, sections, entries and totals", async () => {
@@ -187,6 +191,23 @@ it("continues a section across PDF pages without repeating its heading or losing
   expect(text.match(/Document: PAGE-/g)).toHaveLength(45);
   expect(text).toContain("67500.00");
   expect(text).toContain("12150.00");
+});
+
+it("keeps a section heading with its first entry at a PDF page boundary", async () => {
+  const first = report.controlStatement[0];
+  const boundaryReport: ComputedVatReport = { ...report, controlStatement: [
+    ...Array.from({ length: 4 }, (_, index) => ({
+      ...first, documentNumber: `A4-${index + 1}`,
+      rateBreakdown: index === 0 ? first.rateBreakdown : [first.rateBreakdown[0]],
+    })),
+    { ...first, section: "B.2", documentNumber: "B2-FIRST", rateBreakdown: [first.rateBreakdown[0]] },
+  ] };
+  const pages = await pdfPages(await createControlStatementPdf(controlStatementPreviewData(boundaryReport), englishMessages.vatReports.controlStatementPdf));
+  expect(pages).toHaveLength(2);
+  expect(pages[0]).not.toContain("Section B.2");
+  expect(pages[1]).toContain("Section B.2");
+  expect(pages[1]).toContain("Document: B2-FIRST");
+  expect(pages.join(" ").match(/Section B\.2/g)).toHaveLength(1);
 });
 
 it("omits historical zero rows from preview and PDF while preserving zero VAT, negatives and the snapshot", async () => {

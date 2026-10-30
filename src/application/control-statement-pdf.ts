@@ -151,7 +151,8 @@ export async function createControlStatementPdf(
     y -= 30;
   }
   for (const section of preview.sections) {
-    ensureSpace(84 + metadataOf(section.entries[0]).length * 16);
+    // Keep the heading/header (49pt) with the first entry's metadata and row (37pt).
+    ensureSpace(86 + metadataOf(section.entries[0]).length * 16);
     text(page, font, `${copy.section} ${section.section}`, LEFT, y, 13);
     y -= 26;
     columnHeader();
