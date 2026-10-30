@@ -160,7 +160,7 @@ such as `v0.2.0`, and generate the release notes to inspect the included pull
 requests. Publish a normal Release; drafts and prereleases do not prepare a
 production deployment. Do not move or reuse a published version tag.
 
-The **Prepare Roští release** workflow first resolves the tag to its exact
+The **Release Roští pilot** workflow first resolves the tag to its exact
 commit, including annotated tags, and checks that it belongs to `main`. It
 waits up to 35 minutes for successful **CI** and **Deployment verification**
 runs produced by a push of that exact commit to `main`. A successful test of a
@@ -189,9 +189,12 @@ syntax; runtime environment placeholders remain unresolved until deployment.
 Use `node deploy/scripts/prepare-release.mjs validate <extracted-directory>`
 to validate a downloaded bundle. Do not add or edit files in that directory.
 
-Preparation alone does not contact or change the live Stack. Publishing
-images and artifacts does not mean a version has been deployed. Production
-activation and the subsequent deployment result are separate steps.
+Production deployment is disabled by default. Until the repository variable
+`ROSTI_DEPLOY_ENABLED` is exactly `true`, the deploy job is skipped and the
+workflow only prepares images and artifacts. Merging this implementation does
+not enable it. After the separate activation review, publishing a stable
+Release runs verification, preparation and deployment automatically. A green
+preparation job alone does not establish a deployed release.
 
 If preparation fails, read the failed step, correct the reported CI or public
 configuration problem, and re-run the failed jobs. Each new build attempt
@@ -217,12 +220,108 @@ not preserve Linux extended attributes on bind mounts. Do not use the override
 for the live Stack. Tests use scripted AI and registry adapters, not paid AI
 calls. Production Storage requires a filesystem supporting extended attributes.
 
-After the first verified deployment, `rosticli stacks setup-cicd --target rosti`
-can bind GitHub Actions and the registry to this Stack. Review the generated
-workflow: deploy only trusted commits after CI and deployment verification
-succeed, retain images tagged by commit SHA, and serialize deployments. Do not
-deploy directly from an untrusted pull request. Provider binding, SMTP and the
-off-server backup destination are deployment-specific configuration.
+### Activate separately after review
+
+Keep foundation PR #152 and the automation integration PR as separate reviews.
+Merge them through the normal review process; do not activate from an unmerged
+branch. The first automated Release must select a tested `main` revision that
+contains the reviewed automation and foundation.
+
+Before enabling anything, review these concrete prerequisites together:
+
+1. Confirm Stack `931`, company `7895`, root `/srv/stack`, current `.env`,
+   host Bash, `flock`, `setsid`, GNU `timeout`, Docker Compose and free disk space.
+   Read the running database container's `com.docker.compose.project` label
+   privately and retain that exact project name. Do not guess a new project.
+2. Verify the SSH endpoint and host key fingerprint against a trusted provider
+   channel or an already independently verified connection. Prepare the pinned
+   OpenSSH `known_hosts` entry, including `[host]:port` for a nonstandard port.
+   An unchecked `ssh-keyscan` result is not host verification.
+3. Create reviewed SSH access and a Roští API key limited as the provider allows
+   to the existing Stack/company. Keep private `.env` and Vault values on the
+   Stack. The workflow never downloads or replaces them.
+4. Verify the existing daily cron and cron daemon, the newest completed daily
+   `.tar.gz` plus matching `.images.json`, age at most 26 hours, gzip integrity,
+   and seven-day retention. Confirm previous revision/image records are present
+   and there is no unresolved deployment. No extra release backup, computer
+   copy or external destination is required.
+5. In GitHub **Settings → Secrets and variables → Actions**, configure the
+   following repository settings. This setup uses repository settings and does
+   not require a paid GitHub environment feature.
+
+| Kind | Name | Reviewed value |
+| --- | --- | --- |
+| Variable | `ROSTI_PUBLIC_SUPABASE_URL` | Existing public API origin |
+| Variable | `ROSTI_PUBLIC_SUPABASE_KEY` | Existing public publishable/anon key |
+| Variable | `ROSTI_SSH_HOST`, `ROSTI_SSH_PORT`, `ROSTI_SSH_USER` | Independently verified SSH endpoint |
+| Variable | `ROSTI_COMPOSE_PROJECT` | Existing running Compose project label |
+| Secret | `ROSTI_SSH_KEY` | Dedicated reviewed SSH private key |
+| Secret | `ROSTI_SSH_KNOWN_HOSTS` | Independently verified pinned host entry |
+| Secret | `ROSTI_API_KEY` | Separate Roští API credential |
+| Variable | `ROSTI_DEPLOY_ENABLED` | Leave unset/`false` until activation approval |
+
+The deploy step alone receives these production secrets. Its short-lived
+`GITHUB_TOKEN` has `packages: read`; confirm that the repository-associated
+GHCR packages permit this token to pull all four images. No permanent registry
+password is required on the host. The preparation job has package write access
+but receives no production credentials.
+
+Finally, after the explicit activation review, set `ROSTI_DEPLOY_ENABLED` to
+`true` and publish one monitored stable Release. Watch its Actions run and
+verify public HTTPS, a real login and a representative Document workflow.
+The first live run still needs to establish real SSH trust/access, GHCR access,
+provider API/readback behavior, cron/backup state and production routing.
+Local disposable checks cannot establish those facts. Setting the flag back
+to `false` prevents later deployment jobs; it does not stop a host attempt
+already launched. Do not cancel a running host deployment to disable the next.
+
+### Understand deployment status
+
+The deploy job downloads the exact preparation and verification artifacts from
+that same workflow run and attempt. It validates their Release ID, tag, full
+revision, asset hashes and all four digest references before connecting. It
+does not rebuild or select a `latest` artifact. It verifies the SSH host key,
+uploads only the validated bundle, and launches a detached host-owned command.
+The login shell may be fish; transport invokes explicit `sh` and Bash.
+
+GitHub serializes production jobs with `cancel-in-progress: false`; a newer
+Release does not interrupt an active deployment. GitHub may replace a pending
+job when more Releases queue, so do not assume every queued Release will run.
+The shared host backup lock remains the final authority.
+
+The runner polls durable host status and reports success only after the host
+verified the same revision, attempt and four image references. The Actions
+summary shows the selected revision and, on success, the immutable image
+references. A skipped deploy job means preparation only. A failed preparation
+never launches deployment. A failed preflight may have no deployment attempt
+directory, but its transport directory still records failure.
+
+Each GitHub run/attempt uses `github-<run-id>-<attempt-number>`. Inspect these
+public-safe files privately on the host (replace the example ID):
+
+```bash
+cat deploy/transports/github-123456-1/result
+cat deploy/attempts/github-123456-1/result
+cat deploy/attempts/github-123456-1/phase
+cat deploy/verified-release.json
+```
+
+`running` is unfinished, `success` is verified completion, `failed` requires
+inspection, and `needs-intervention` means migration cleanup cannot yet confirm
+that writes stopped. Transport `host.log` and per-phase logs stay private on
+the host; do not paste them or production configuration into Actions logs.
+The launcher has a 45-minute host deadline including lock wait. Its termination
+path lets the deployment command stop and inspect the migration container; it
+never force-kills uncertain cleanup merely to meet a deadline. The observer
+waits at most 50 minutes and the GitHub job at most 60. Uncertain cleanup can
+outlive both while retaining the host lock for intervention.
+
+Cancellation, timeout or an SSH failure means the runner may not know the
+outcome. The detached host command continues owning its lock and records its
+result even if the runner disappears. Inspect the transport, attempt, actual
+containers and authoritative verified record before retrying. Never infer
+unchanged production from a failed GitHub job. Re-running a failed job uses a
+new attempt ID; it cannot overwrite the earlier record.
 
 Migrations run before web and Worker start. The runner holds a session lock,
 applies each migration in its own transaction and verifies previously applied
@@ -251,73 +350,56 @@ is owned by Roští. For public checks, `/login` on the application must return
 return 401; use an authenticated probe to test API behavior. Do not print
 private keys, sessions, full environment files or decrypted Vault values.
 
-Before each later release, create and retain a backup and record the current
-image IDs. Tag built images by revision before replacing `latest`, and update
-`deploy/release-commit.txt` and `deploy/release-images.txt` after verification.
-For an application rollback with a compatible database schema, restore the
-retained app/proxy image tags to the names referenced by Compose, then run:
+On failure, inspect the attempted phase and the prior verified record together.
+A provider timeout may already have stored Compose; a migration failure may
+have applied earlier migrations. The unresolved marker blocks later releases
+and backup restarts until explicit joint recovery. Preserve diagnostic records
+and retained image tags. Do not rerun blindly or remove the marker to bypass it.
 
-```bash
-docker compose --env-file .env -f docker-compose.rosti.yml up -d --no-build --no-deps --wait web worker proxy
-```
-
-This does not undo migrations. A database rollback requires a separate restore
-decision and the matching database version and encryption keys.
+Choose recovery together with an agent: fix forward with the retained state,
+or select retained application images only after checking schema compatibility.
+Application rollback does not undo migrations. Database restore is a separate
+explicit decision and can discard changes made after the chosen daily backup.
+Verify no migration is writing, reconcile provider and host Compose, verify
+healthy services and the selected revision, then explicitly clear the unresolved
+marker only after recovery is complete. Do not automatically rollback, reset
+production data, regenerate credentials or prune retained images.
 
 ## Backups and recovery
 
-The pilot uses a cold backup, with a short maintenance window. Run this on the
-Stack host, in the directory containing its Compose file:
+The agreed pilot strategy is the existing daily cold backup on the same Roští
+Stack, with seven-day retention. It briefly stops services for a consistent
+snapshot. Deployment checks the latest completed archive and its image
+inventory under the shared lock, requires age at most 26 hours and validates
+integrity. It creates no additional pre-release backup and needs no local
+computer, cloud storage or off-server copy.
 
-```bash
-DEPLOY_ENV_FILE=.env sh deploy/scripts/backup.sh /srv/stack/deploy/backups
-```
-
-The backup container uses GNU tar in Linux with extended attributes enabled.
-It captures PostgreSQL data, database encryption keys, Storage files and their
-metadata, the environment file and Compose configuration. Services are stopped
-for a consistent snapshot and restarted afterwards. The archive and companion
-image inventory are private; copy them to encrypted storage outside this Stack.
-Set up a daily schedule and alert on failures when the host is connected. Local
-archives or provider snapshots alone do not protect against losing the Stack.
-
-For the initial pilot, `backup-daily.sh` keeps seven days of successful local
-snapshots. Install it in the host crontab, preserving existing entries:
+The existing schedule is:
 
 ```cron
 15 3 * * * flock -n /tmp/ivat-backup.lock sh /srv/stack/deploy/scripts/backup-daily.sh >> /srv/stack/deploy/backups/daily.log 2>&1
 ```
 
-The time follows the host timezone. This is a cold backup with a brief daily
-outage. Check `daily.log`; automatic failure alerts and automatic off-server
-copies still require an external destination/monitor. Keep at least a verified
-initial backup outside the Stack before onboarding pilot Users.
+The pilot host timezone was UTC, so this is 03:15 UTC. During activation,
+recheck the installed cron and running daemon, especially after replacing the
+provider's `mgm` container. Inspect `daily.log` privately for failures. No new
+schedule, retention policy or automatic external alert is installed by this
+release workflow. Historical computer copies in the deployment record do
+not create a requirement for future releases.
 
-The pilot host timezone was verified as UTC, so the installed schedule is
-03:15 UTC. Recheck the crontab and running cron service after replacement or
-recreation of the provider's `mgm` container. The current off-server copies
-are manual copies to the operator's computer; no recurring off-server transfer
-or automatic failure notification was configured during the first rollout.
-
-Copy both the printed archive and its `.images.json` companion privately via
-SSH. For example, from the connected local checkout (replace the archive name
-with the one just created):
+For an independently requested manual backup, use the same lock; releases do
+not require this extra step:
 
 ```bash
-umask 077
-archive=ivat-20261030T155043Z.tar.gz
-private_backup_dir="$HOME/.config/ivat/production"
-mkdir -p "$private_backup_dir"
-chmod 700 "$private_backup_dir"
-rosticli stacks ssh --target rosti -- sh -lc "cat /srv/stack/deploy/backups/$archive" > "$private_backup_dir/$archive"
-rosticli stacks ssh --target rosti -- sh -lc "cat /srv/stack/deploy/backups/$archive.images.json" > "$private_backup_dir/$archive.images.json"
-gzip -t "$private_backup_dir/$archive"
+flock -w 900 /tmp/ivat-backup.lock env DEPLOY_ENV_FILE=.env sh deploy/scripts/backup.sh /srv/stack/deploy/backups
 ```
 
-These archives include the environment file and database encryption keys.
-File permissions protect the current local copies; the archive format itself
-does not encrypt them. Preserve the matching service images separately: the
-image inventory records their IDs but does not contain the images.
+The private archive includes PostgreSQL data, database encryption keys, Storage
+files and extended attributes, `.env` and Compose. The matching image inventory
+identifies images but does not contain their bytes; keep retained local image
+tags. Backups on this Stack cannot protect against losing the entire Stack.
+This is an explicitly accepted pilot limitation. The format is not encrypted;
+keep archives and inventories private and out of Git and workflow artifacts.
 
 Restore into an empty, separate Stack using the same PostgreSQL and service
 versions and a checkout of this release:
@@ -341,8 +423,8 @@ file and verify its content type, then sign in before moving DNS.
 Inspect `docker compose ps` after releases. Web health checks `/login`; the
 Worker updates its health file only after reaching its processing queue.
 Monitor both public availability and Worker health. Keep disk usage below the
-profile limit, including Docker images and local backup retention. Do not run
-automatic pruning until the rollback image and independent backup are retained.
+profile limit, including Docker images and seven-day backup retention. Do not automatically
+prune retained recovery images.
 
 ### Controlled deployment command
 
@@ -411,6 +493,18 @@ ports and a named Storage volume. These overrides are rejected for the
 production directory. Run the real command tests with:
 
 ```bash
-node --test deploy/tests/release-host.test.mjs
+node --test deploy/tests/release-prepare.test.mjs deploy/tests/release-host.test.mjs deploy/tests/release-connect.test.mjs
 IVAT_RELEASE_RUNTIME_TEST=1 node --test deploy/tests/release-runtime.test.mjs
 ```
+
+### Verification evidence and remaining live work
+
+The release runtime test builds all four custom AMD64 images and exercises the
+actual deployment command against disposable Compose services and a real SSH
+server with pinned test host keys. GitHub workflow evidence and Roští Compose
+HTTP calls use local Postman stand-ins derived from their published contracts.
+This proves caller behavior in the tested scenarios, not the real provider.
+Existing CI and Deployment verification remain required for the exact `main`
+revision. The integration PR records the exact local checks and final combined
+test results; no production credentials, live SSH, registry pulls, activation
+or monitored production Release were performed while preparing this PR.
