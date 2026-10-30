@@ -92,6 +92,26 @@
     "vatTitle": "VAT",
     "vatDescription": "Work with Reporting Periods and statutory outputs."
   },
+  "passwordRecovery": {
+    "forgotPassword": "Forgot password?",
+    "requestTitle": "Recover your password",
+    "requestIntro": "Enter your email to request a single-use recovery link valid for one hour.",
+    "request": "Send recovery email",
+    "requestSent": "If an account uses this email, you will receive password recovery instructions. Check your inbox and spam folder.",
+    "backToLogin": "Back to login",
+    "resetTitle": "Reset your password",
+    "verifyIntro": "Verify this recovery email to continue. Opening this page does not use the link.",
+    "verifyEmail": "Verify recovery email",
+    "authenticatorIntro": "Enter a code from your existing authenticator. Email recovery does not remove MFA.",
+    "verifyAuthenticator": "Verify authenticator",
+    "newPassword": "New password",
+    "confirmation": "Confirm new password",
+    "savePassword": "Save new password",
+    "complete": "Your password has been changed. Your current session is active and your other sessions have ended.",
+    "continue": "Continue to iVAT",
+    "requestAgain": "Request a new recovery email",
+    "loading": "Checking recovery link…"
+  },
   "auth": {
     "email": "Email",
     "password": "Password",
@@ -487,6 +507,10 @@
     "invalid": "Enter a valid date as dd.mm.yyyy."
   },
   "errors": {
+    "recovery_link_invalid": "This recovery link is invalid, expired or already used. Request a new recovery email.",
+    "recovery_link_expired": "This recovery link expired after one hour. Request a new recovery email.",
+    "recovery_link_used": "This recovery link has already been used. Continue in the browser where you verified it, or request a new email.",
+    "password_recovery_failed": "Password recovery could not be completed. Please try again or request a new email.",
     "invalid_download_artifact": "This XML does not belong to the current report version. Download the current output again.",
     "download_acknowledgement_failed": "The XML download started, but its progress could not be saved. Download it again to confirm completion.",
     "identical_file": "Identical file contents already belong to this batch.",
