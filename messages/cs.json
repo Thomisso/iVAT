@@ -951,6 +951,52 @@
     "rejected": "Zamítnuto"
   },
   "vatReports": {
+    "wizard": {
+      "title": "Kroky zpracování DPH",
+      "state": {
+        "done": "Hotovo",
+        "needs_attention": "Vyžaduje pozornost",
+        "blocked": "Blokováno",
+        "not_started": "Nezahájeno"
+      },
+      "steps": {
+        "review": {
+          "title": "Doklady ke kontrole",
+          "hint": "Vyřešte všechny doklady, které blokují toto zdaňovací období."
+        },
+        "generate": {
+          "title": "Vygenerovat přiznání k DPH",
+          "hint": "Uložte snímek přiznání k DPH ze schválených dokladů."
+        },
+        "outputs": {
+          "title": "Zkontrolovat přiznání k DPH a kontrolní hlášení",
+          "hint": "Zkontrolujte oba zákonné výstupy uloženého snímku."
+        },
+        "export": {
+          "title": "Export XML",
+          "hint": "Stáhněte XML pro EPO z přiznání k DPH a z kontrolního hlášení. Každé stažení se uloží do historie exportů."
+        },
+        "finalize": {
+          "title": "Finalizace",
+          "hint": "Finalizace uzamkne zdaňovací období. Finalizovat smí jen administrátor."
+        }
+      },
+      "reasons": {
+        "documents_need_review": "Doklady v tomto zdaňovacím období ještě vyžadují kontrolu.",
+        "report_missing": "Přiznání k DPH zatím nebylo vygenerováno.",
+        "report_stale": "Doklady se po vygenerování přiznání změnily. Vygenerujte ho znovu.",
+        "warnings": "Některé doklady mají upozornění. Zkontrolujte je před exportem.",
+        "identity_incomplete": "Před finalizací doplňte identitu společnosti.",
+        "administrator_only": "Toto zdaňovací období může finalizovat jen administrátor."
+      },
+      "blockedBy": "Dostupné po dokončení kroku {number} ({title}).",
+      "noDocumentsToReview": "Žádný doklad toto zdaňovací období neblokuje.",
+      "documentsToReview": "Doklady ke kontrole",
+      "showAllDocuments": "Zobrazit {count, plural, one {# doklad} few {# doklady} other {# dokladů}} ve frontě",
+      "exportVatReturn": "Exportovat XML přiznání k DPH",
+      "exportControlStatement": "Exportovat XML kontrolního hlášení",
+      "openExportHistory": "Otevřít historii exportů"
+    },
     "title": "Přiznání a kontrolní hlášení",
     "periodsTitle": "Zdaňovací období",
     "periodsDescription": "Postupujte platnými měsíčními a čtvrtletními obdobími v pořadí podání.",
