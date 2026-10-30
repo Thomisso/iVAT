@@ -2230,4 +2230,16 @@ select:disabled {
 .member-access-source,
 .member-invitation-row > span { color: #617078; }
 .member-invitation-row { display: grid; gap: var(--space-2); }
+
+/* Filing details span the table so long values never collide with labels. */
+.vat-export-history > .iv-table-wrap { display: block; text-align: left; }
+.export-artifact-details { text-align: left; }
+.export-artifact-details summary { cursor: pointer; width: fit-content; }
+.export-artifact-details dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 24px; margin: 16px 0; white-space: normal; }
+.export-artifact-details dl > div { min-width: 0; }
+.export-artifact-details dt { color: var(--ink-muted); }
+.export-artifact-details dd { margin: 4px 0 0; overflow-wrap: anywhere; }
+@media (max-width: 640px) {
+  .export-artifact-details dl { grid-template-columns: minmax(0, 1fr); }
+}
 .settings-form-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
