@@ -9,6 +9,7 @@ import {
   type ControlStatementPreviewData,
 } from "./control-statement-preview";
 import { getVatReport } from "./vat-reports";
+import { formatDate } from "@/lib/format-date";
 
 const fontPath = path.join(
   process.cwd(),
@@ -128,7 +129,7 @@ export async function createControlStatementPdf(
         `${copy.counterpartyVatId}: ${entry.counterpartyVatId}`,
       entry.counterpartyCountry &&
         `${copy.counterpartyCountry}: ${entry.counterpartyCountry}`,
-      entry.taxPointDate && `${copy.taxPointDate}: ${entry.taxPointDate}`,
+      entry.taxPointDate && `${copy.taxPointDate}: ${formatDate(entry.taxPointDate)}`,
       entry.reverseChargeCode &&
         `${copy.supplyCode}: ${entry.reverseChargeCode}`,
     ].filter((value): value is string => Boolean(value));

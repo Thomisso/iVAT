@@ -4,6 +4,7 @@ import { listPlatformAiUsage } from "@/application/ai-usage";
 import { AiUsageTable } from "@/components/ai-usage-table";
 import { Button } from "@/components/button";
 import { requireUserClient } from "@/lib/supabase/server";
+import { DateInput } from "@/components/date-input";
 
 function currentMonth() {
   const now = new Date();
@@ -36,14 +37,8 @@ export default async function PlatformAiUsagePage({ searchParams }: PageProps<"/
           <p className="iv-muted">{t("platformIntro")}</p>
         </header>
         <form className="form filters" method="get" aria-label={t("filters") }>
-          <label className="iv-field-label">
-            {t("from")}
-            <input className="iv-input" type="date" name="from" defaultValue={from} />
-          </label>
-          <label className="iv-field-label">
-            {t("to")}
-            <input className="iv-input" type="date" name="to" defaultValue={to} />
-          </label>
+          <DateInput label={t("from")} name="from" defaultValue={from} />
+          <DateInput label={t("to")} name="to" defaultValue={to} />
           <Button type="submit">{t("filter")}</Button>
         </form>
         <AiUsageTable

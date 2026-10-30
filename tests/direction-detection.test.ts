@@ -18,7 +18,6 @@ describe("automatic Direction detection", () => {
           },
         },
         company,
-        null,
       ),
     ).toBe("outgoing");
   });
@@ -36,14 +35,13 @@ describe("automatic Direction detection", () => {
           },
         },
         company,
-        null,
       ),
     ).toBe("incoming");
   });
 
   it("returns unknown for an invoice when neither party matches the Company", () => {
     expect(
-      detectDocumentDirection(SAMPLE_EXTRACTION, company, null),
+      detectDocumentDirection(SAMPLE_EXTRACTION, company),
     ).toBeNull();
   });
 
@@ -55,7 +53,7 @@ describe("automatic Direction detection", () => {
         documentType,
         supplier: { ...SAMPLE_EXTRACTION.supplier, name: "Foreign shop", ico: null, vatId: "DE123456789" },
         customer: { name: null, ico: null, vatId: null, street: null, city: null, postalCode: null, country: null },
-      }, company, null)).toBe("incoming");
+      }, company)).toBe("incoming");
     },
   );
 
@@ -66,22 +64,7 @@ describe("automatic Direction detection", () => {
       documentType: "receipt",
       supplier: unknown,
       customer: unknown,
-    }, company, null)).toBeNull();
+    }, company)).toBeNull();
   });
 
-  it("uses the upload preselection even when party matching says otherwise", () => {
-    expect(
-      detectDocumentDirection(
-        {
-          ...SAMPLE_EXTRACTION,
-          supplier: {
-            ...SAMPLE_EXTRACTION.supplier,
-            vatId: company.vatId,
-          },
-        },
-        company,
-        "incoming",
-      ),
-    ).toBe("incoming");
-  });
 });

@@ -49,7 +49,6 @@ async function lockedCompanyWithDocuments({
     companyId: company.companyId,
     fileName: "two-invoices.pdf",
     bytes: fixtureFile("two-invoices.pdf"),
-    preselectedDirection: "incoming",
   });
   if (!upload.ok) throw new Error(upload.error);
   expect(await worker.runJobs()).toEqual([]);
@@ -96,7 +95,6 @@ it("preserves a newly uploaded Document for review when Extraction discovers a l
     companyId: company.companyId,
     fileName: "new-invoice.png",
     bytes: fixtureFile("receipt.png"),
-    preselectedDirection: "incoming",
   });
   if (!upload.ok) throw new Error(upload.error);
 
@@ -272,7 +270,6 @@ it("requires confirmation and refuses a stale snapshot, readiness blockers and i
     companyId: stale.companyId,
     fileName: "new-source.pdf",
     bytes: fixtureFile("two-invoices.pdf"),
-    preselectedDirection: "incoming",
   });
   expect(staleUpload.ok).toBe(true);
   expect(await staleWorker.runJobs()).toEqual([]);
@@ -291,7 +288,6 @@ it("requires confirmation and refuses a stale snapshot, readiness blockers and i
     companyId: blocked.companyId,
     fileName: "needs-review.pdf",
     bytes: fixtureFile("two-invoices.pdf"),
-    preselectedDirection: "incoming",
   });
   if (!blockedUpload.ok) throw new Error(blockedUpload.error);
   expect(await worker.runJobs()).toEqual([]);
@@ -323,7 +319,6 @@ it("keeps rejected Documents separate from warnings in the confirmation summary"
     companyId: company.companyId,
     fileName: "warnings.pdf",
     bytes: fixtureFile("two-invoices.pdf"),
-    preselectedDirection: "incoming",
   });
   if (!upload.ok) throw new Error(upload.error);
   expect(await worker.runJobs()).toEqual([]);
