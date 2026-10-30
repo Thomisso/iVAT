@@ -385,6 +385,11 @@
     "openBatch": "Open batch",
     "markRead": "Mark as read"
   },
+  "dateInput": {
+    "hint": "Format dd.mm.yyyy",
+    "placeholder": "dd.mm.yyyy",
+    "invalid": "Enter a valid date as dd.mm.yyyy."
+  },
   "errors": {
     "organization_name_required": "Enter the name of your organization.",
     "email_taken": "An account with this email already exists.",
