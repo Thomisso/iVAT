@@ -100,7 +100,8 @@ type DocumentRow = {
 
 const PAGE_SIZE = 1000;
 
-/** Starts one user-selected group of Source Files after enforcing the platform batch limit. */
+/** Starts a frozen selection within platform limits. Omitting selectedFiles is supported only
+ * for an authorized same-ID retry of an existing legacy count-only Batch; PostgreSQL enforces it. */
 export async function beginUploadBatch(
   client: AppClient,
   input: { companyId: string; fileCount: number; batchId?: string; selectedFiles?: UploadBatchSelection[] },

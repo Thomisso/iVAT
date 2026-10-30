@@ -1222,6 +1222,9 @@ select:disabled {
   --shell-blue: #21628f;
   --shell-blue-soft: #e6f0f6;
   --shell-paper: #fbfbf7;
+  --shell-navigation-line: #cbd5d2;
+  --shell-navigation-ink: #4d5f67;
+  --shell-navigation-hover: #eef1ef;
   min-height: 100dvh;
   display: grid;
   grid-template-columns: 224px minmax(0, 1fr);
@@ -1443,12 +1446,12 @@ select:disabled {
   color: #263944;
 }
 .platform-alert-bell { text-decoration: none; }
-.platform-settings-nav { margin: 24px 32px 0; padding-bottom: 8px; display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid #cbd5d2; }
-.platform-settings-nav a { min-height: 40px; padding: 8px 12px; display: inline-flex; align-items: center; gap: 6px; border-radius: 6px; color: #4d5f67; font-size: 14px; font-weight: 650; text-decoration: none; }
-.platform-settings-nav a:hover { background: #eef1ef; color: var(--shell-blue); }
+.platform-settings-nav { margin: var(--space-6) var(--space-8) 0; padding-bottom: var(--space-2); display: flex; flex-wrap: wrap; gap: var(--space-1); border-bottom: 1px solid var(--shell-navigation-line); }
+.platform-settings-nav a { min-height: var(--control-lg); padding: var(--space-2) var(--space-3); display: inline-flex; align-items: center; gap: calc(var(--space-3) / 2); border-radius: var(--radius-md); color: var(--shell-navigation-ink); font-size: 14px; font-weight: 650; text-decoration: none; }
+.platform-settings-nav a:hover { background: var(--shell-navigation-hover); color: var(--shell-blue); }
 .platform-settings-nav a[aria-current="page"] { background: var(--shell-blue-soft); color: var(--shell-navy); }
 @media (max-width: 719px) {
-  .platform-settings-nav { margin: 20px 14px 0; }
+  .platform-settings-nav { margin: var(--space-5) 14px 0; }
 }
 .platform-page { width: 100%; max-width: 1440px; min-height: 100dvh; padding: clamp(24px, 4vw, 56px); }
 .platform-page > .panel { width: 100%; max-width: none; margin: 0; }
@@ -1835,7 +1838,7 @@ select:disabled {
 .reporting-years { table-layout: fixed; }
 .reporting-years th:first-child { width: 4rem; }
 .reporting-years tbody th { position: static; }
-.reporting-years td { padding: 12px; vertical-align: top; white-space: normal; }
+.reporting-years td { padding: var(--space-3); vertical-align: top; white-space: normal; }
 .reporting-year-change { display: grid; gap: var(--space-2); min-width: 0; }
 .reporting-year-change > .iv-field-label { display: grid; gap: var(--space-1); }
 .reporting-year-change select { width: 100%; min-width: 0; }
@@ -1846,7 +1849,7 @@ select:disabled {
   .reporting-years thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   .reporting-years tbody { display: grid; gap: var(--space-3); }
   .reporting-years tbody tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: var(--radius-md); }
-  .reporting-years tbody th:first-child { grid-column: 1 / -1; width: auto; height: auto; padding: 12px; }
+  .reporting-years tbody th:first-child { grid-column: 1 / -1; width: auto; height: auto; padding: var(--space-3); }
   .reporting-years td { height: auto; min-width: 0; border: 0; }
   .reporting-years td:last-child { grid-column: 1 / -1; border-top: 1px solid var(--line); }
 }

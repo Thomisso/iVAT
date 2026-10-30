@@ -21,7 +21,7 @@ import {
   companyDetails,
   companyMember,
 } from "./support/fixtures";
-import { fixtureFile } from "./support/files";
+import { fixtureFile, selectUploadFiles, selectFixtureFiles } from "./support/files";
 import { systemClient, testWorker } from "./support/worker";
 
 type TestWorker = ReturnType<typeof testWorker>;
@@ -35,14 +35,14 @@ async function finishedBatch(
     { fileName: "receipt.png", fixture: "receipt.png" },
   ],
 ) {
-  const batch = await beginUploadBatch(client, { companyId, fileCount: files.length });
+  const selection = selectUploadFiles(files.map((file) => ({ fileName: file.fileName, bytes: fixtureFile(file.fixture) })));
+  const batch = await beginUploadBatch(client, { companyId, fileCount: files.length, selectedFiles: selection.selectedFiles });
   if (!batch.ok) throw new Error(batch.error);
-  for (const file of files) {
+  for (const file of selection.files) {
     const uploaded = await uploadSourceFile(client, worker.jobs, {
       companyId,
       batchId: batch.value.id,
-      fileName: file.fileName,
-      bytes: fixtureFile(file.fixture),
+      ...file,
     });
     if (!uploaded.ok) throw new Error(uploaded.error);
   }
@@ -158,11 +158,13 @@ describe("Upload Batch deletion", () => {
 
   it("refuses to delete a batch that is still processing", async () => {
     const admin = await companyWithAi();
-    const batch = await beginUploadBatch(admin.client, { companyId: admin.companyId, fileCount: 2 });
+    const selection = selectFixtureFiles("receipt.png", "two-invoices.pdf");
+    const batch = await beginUploadBatch(admin.client, { companyId: admin.companyId, fileCount: 2, selectedFiles: selection.selectedFiles });
     if (!batch.ok) throw new Error(batch.error);
     const uploaded = await uploadSourceFile(admin.client, admin.worker.jobs, {
       companyId: admin.companyId,
       batchId: batch.value.id,
+      sourceFileId: selection.files[0].sourceFileId,
       fileName: "receipt.png",
       bytes: fixtureFile("receipt.png"),
     });

@@ -9,7 +9,7 @@ import {
   assignAiConfigurationFixture as enableAiProcessing,
   setUploadBatchCreationDatesFixture,
 } from "./support/fixtures";
-import { fixtureFile } from "./support/files";
+import { fixtureFile, selectFixtureFiles } from "./support/files";
 import { testWorker } from "./support/worker";
 
 /** A Company with Reporting Year 2026 (monthly) and one Upload Batch per outgoing Document's Tax Point Date. */
@@ -34,11 +34,13 @@ async function companyWithBatchesByTaxPointDate(taxPointDates: string[]) {
   await enableAiProcessing(company.client, worker.jobs, { companyId: company.companyId, provider: worker.ai });
   const batchByDate: Record<string, string> = {};
   for (const date of taxPointDates) {
-    const batch = await beginUploadBatch(company.client, { companyId: company.companyId, fileCount: 1 });
+    const selection = selectFixtureFiles("receipt.png");
+    const batch = await beginUploadBatch(company.client, { companyId: company.companyId, fileCount: 1, selectedFiles: selection.selectedFiles });
     if (!batch.ok) throw new Error(batch.error);
     const uploaded = await uploadSourceFile(company.client, worker.jobs, {
       companyId: company.companyId,
       batchId: batch.value.id,
+      sourceFileId: selection.files[0].sourceFileId,
       fileName: `${date}.png`,
       bytes: fixtureFile("receipt.png"),
     });
@@ -65,7 +67,7 @@ describe("Reporting Period filters", () => {
 
   it("filters Upload Batch creation dates independently of contained Documents and includes empty batches", async () => {
     const { client, companyId, batchByDate } = await companyWithBatchesByTaxPointDate(["2026-03-10", "2026-04-02", "2025-12-01"]);
-    const emptyBatch = await beginUploadBatch(client, { companyId, fileCount: 1 });
+    const emptyBatch = await beginUploadBatch(client, { companyId, fileCount: 1, selectedFiles: selectFixtureFiles("receipt.png").selectedFiles });
     if (!emptyBatch.ok) throw new Error(emptyBatch.error);
 
     await setUploadBatchCreationDatesFixture([

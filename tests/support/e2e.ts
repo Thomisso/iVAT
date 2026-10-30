@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import { selectFixtureFiles } from "./files";
 import { createClient } from "@supabase/supabase-js";
 import { Client as DatabaseClient } from "pg";
 import type { Database } from "@/lib/database.types";
@@ -34,8 +35,8 @@ export async function setBrowserUploadHistoryFixture(companyId: string, entries:
       if (entry.batchId) {
         await database.query("update public.upload_batch set created_at = $3::timestamptz where id = $1 and company_id = $2", [entry.batchId, companyId, entry.createdAt]);
       } else {
-        await database.query(`insert into public.upload_batch (organization_id, company_id, created_by, file_count, created_at)
-          select organization_id, id, created_by, 1, $2::timestamptz from public.company where id = $1`, [companyId, entry.createdAt]);
+        await database.query(`insert into public.upload_batch (organization_id, company_id, created_by, file_count, created_at, selected_files)
+          select organization_id, id, created_by, 1, $2::timestamptz, $3::jsonb from public.company where id = $1`, [companyId, entry.createdAt, JSON.stringify(selectFixtureFiles("receipt.png").selectedFiles)]);
       }
     }
   } finally {
@@ -60,11 +61,11 @@ export async function addBrowserUploadNotificationFixture(companyId: string, ema
     if (!target.rows[0]) throw new Error("Could not prepare browser notification fixture");
     const batch = await database.query<{ id: string }>(
       `insert into public.upload_batch (
-         organization_id, company_id, created_by, file_count,
+         organization_id, company_id, created_by, file_count, selected_files,
          upload_finished_at, processing_finished_at
-       ) values ($1, $2, $3, 1, now(), now())
+       ) values ($1, $2, $3, 1, $4::jsonb, now(), now())
        returning id`,
-      [target.rows[0].organization_id, companyId, target.rows[0].user_id],
+      [target.rows[0].organization_id, companyId, target.rows[0].user_id, JSON.stringify(selectFixtureFiles("receipt.png").selectedFiles)],
     );
     await database.query(
       `insert into public.notification (
