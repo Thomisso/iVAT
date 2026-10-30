@@ -120,6 +120,7 @@ function refused(error: string, formData: FormData, fields: string[]): FormState
 }
 
 const COMPANY_FIELDS = [
+  "organizationId",
   "name",
   "firstName",
   "lastName",

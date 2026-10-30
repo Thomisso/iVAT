@@ -143,16 +143,11 @@ export async function mfaPolicy(client: AppClient): Promise<{
 export async function listOrganizationMfaSettings(client: AppClient): Promise<
   { id: string; name: string; required: boolean }[]
 > {
-  const { data, error } = await client
-    .from("membership")
-    .select("organization:organization_id (id, name, mfa_required)")
-    .is("company_id", null)
-    .eq("role", "administrator")
-    .order("created_at");
+  const { data, error } = await client.rpc("list_organization_administrations");
   if (error) throw error;
-  return data.map(({ organization }) => ({
-    id: organization!.id,
-    name: organization!.name,
-    required: organization!.mfa_required,
+  return (data as unknown as { id: string; name: string; mfaRequired: boolean }[]).map((organization) => ({
+    id: organization.id,
+    name: organization.name,
+    required: organization.mfaRequired,
   }));
 }

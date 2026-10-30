@@ -3,7 +3,8 @@ import type { DocumentStatus } from "./documents";
 import { NO_REPORTING_PERIOD } from "./reporting-periods";
 import { SOURCE_FILE_BUCKET, type SourceFileStatus } from "./source-files";
 
-export type UploadBatchError = "file_required" | "too_many_files" | "forbidden";
+export type UploadBatchError = "file_required" | "too_many_files" | "forbidden" | "invalid_choice" | "identical_file";
+export type UploadBatchSelection = { id: string; sha256: string };
 export type DeleteUploadBatchError = "forbidden" | "batch_processing" | "period_locked";
 export type UploadBatchOutcome = "processing" | "success" | "partial" | "failure";
 
@@ -103,15 +104,18 @@ const PAGE_SIZE = 1000;
 /** Starts one user-selected group of Source Files after enforcing the platform batch limit. */
 export async function beginUploadBatch(
   client: AppClient,
-  input: { companyId: string; fileCount: number },
+  input: { companyId: string; fileCount: number; batchId?: string; selectedFiles?: UploadBatchSelection[] },
 ): Promise<Result<{ id: string }, UploadBatchError>> {
+  if (input.batchId !== undefined && !isUuid(input.batchId)) return { ok: false, error: "invalid_choice" };
   const { data, error } = await client.rpc("begin_upload_batch", {
     target_company_id: input.companyId,
     selected_file_count: input.fileCount,
+    requested_batch_id: input.batchId,
+    selected_files: input.selectedFiles,
   });
   if (error) {
     if (error.code === "42501") return { ok: false, error: "forbidden" };
-    if (error.hint === "file_required" || error.hint === "too_many_files") {
+    if (error.hint === "file_required" || error.hint === "too_many_files" || error.hint === "invalid_choice" || error.hint === "identical_file") {
       return { ok: false, error: error.hint };
     }
     throw error;
