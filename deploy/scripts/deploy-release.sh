@@ -108,7 +108,7 @@ echo "Attempt: $relative"
 set_phase() { phase=$1; printf '%s\n' "$phase" > "$attempt/phase"; }
 set_phase retain
 cp "$stack/docker-compose.rosti.yml" "$attempt/docker-compose-before.yml"
-for name in docker-compose.yml; do [[ ! -f $stack/$name ]] || cp "$stack/$name" "$attempt/$name"; done
+[[ ! -f $stack/docker-compose.yml ]] || cp "$stack/docker-compose.yml" "$attempt/docker-compose.yml"
 for name in verified-release.json release-commit.txt release-images.txt; do [[ ! -f $stack/deploy/$name ]] || cp "$stack/deploy/$name" "$attempt/$name"; done
 compose images --format json > "$attempt/images-before.json"
 compose images -q > "$temporary/prior-image-ids"

@@ -76,7 +76,7 @@ async function probe(stack) {
       const url = new URL(endpoint);
       if (!["http:", "https:"].includes(url.protocol)) throw new Error("Invalid public probe protocol.");
       const status = await new Promise((resolve, reject) => {
-        const request = (url.protocol === "https:" ? httpsRequest : httpRequest)(url, { headers: { Host: production.host, "X-Forwarded-Proto": "https" } }, response => { response.resume(); resolve(response.statusCode); });
+        const request = (url.protocol === "https:" ? httpsRequest : httpRequest)(url, { signal: AbortSignal.timeout(15000), headers: { Host: production.host, "X-Forwarded-Proto": "https" } }, response => { response.resume(); resolve(response.statusCode); });
         request.setTimeout(15000, () => request.destroy(new Error("Public probe timed out.")));
         request.on("error", reject);
         request.end();

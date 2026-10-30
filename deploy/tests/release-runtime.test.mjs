@@ -82,12 +82,16 @@ test("the real release command guards and upgrades a disposable production stack
     const deployEnv = { IVAT_DEPLOY_TEST_APP_IMAGE: "ivat-release155-upgrade:verify", IVAT_DISPOSABLE_COMPOSE_OVERRIDE: path.join(stack, "test-override.yml"), IVAT_DEPLOY_LOCK_FILE: path.join(stack, "backup.lock"), IVAT_DEPLOY_LOCK_TIMEOUT: "1", ROSTI_API_URL: `http://host.docker.internal:${apiPort}/rosti/api-n`, ROSTI_API_KEY: "test-provider-secret", IVAT_DEPLOY_PUBLIC_URL: `http://host.docker.internal:${httpPort}/login` };
     const deploy = (selected = bundle, overrides = {}) => operator(path.join(bundle, "deploy/scripts/deploy-release.sh"), [stack, selected, project], { ...deployEnv, ...overrides });
     const webBefore = docker(...common, "ps", "-q", "web");
-    for (const refusal of ["stale", "missing-inventory", "corrupt"]) {
+    const configurationBefore = await readFile(path.join(stack, "docker-compose.rosti.yml"), "utf8");
+    for (const refusal of ["stale", "missing-archive", "missing-inventory", "corrupt"]) {
       if (refusal === "stale") { const stale = new Date(Date.now() - 27 * 3600000); await utimes(archive, stale, stale); }
+      if (refusal === "missing-archive") await rm(archive);
       if (refusal === "missing-inventory") await rm(archive + ".images.json");
       if (refusal === "corrupt") await writeFile(archive, "bad archive");
       const result = await deploy(); assert.notEqual(result.status, 0, refusal);
       assert.equal(docker(...common, "ps", "-q", "web"), webBefore);
+      assert.equal(await readFile(path.join(stack, "docker-compose.rosti.yml"), "utf8"), configurationBefore);
+      assert.equal(await readFile(path.join(stack, ".env"), "utf8"), originalEnv);
       assert.equal(await readFile(path.join(stack, "deploy/release-commit.txt"), "utf8"), "0".repeat(40) + "\n");
       await writeFile(archive, archiveBytes); await writeFile(archive + ".images.json", inventoryBytes); await utimes(archive, new Date(), new Date());
     }
@@ -104,6 +108,7 @@ exec /usr/local/bin/docker "$@"
     const failureEnv = { PATH: `${bin}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin` };
     const retentionRefused = await deploy(bundle, { ...failureEnv, IVAT_TEST_DOCKER_FAILURE: "retention" });
     assert.notEqual(retentionRefused.status, 0);
+    assert.match(retentionRefused.stderr, /at retain/);
     assert.equal(docker(...common, "ps", "-q", "web"), webBefore);
     await assert.rejects(access(path.join(stack, "deploy/.deployment-unresolved")));
     const lock = spawn("docker", ["run", "--rm", "--entrypoint", "bash", "-v", `${directory}:${directory}`, "ivat-release155-operator:verify", "-c", `flock '${stack}/backup.lock' sh -c 'touch ${stack}/lock-ready; sleep 4'`]);
@@ -113,6 +118,7 @@ exec /usr/local/bin/docker "$@"
     console.log("Inject selected-image producer failure after a real upgrade.");
     const inspectionFailed = await deploy(bundle, { ...failureEnv, IVAT_TEST_DOCKER_FAILURE: "selected-images" });
     assert.notEqual(inspectionFailed.status, 0);
+    assert.match(inspectionFailed.stderr, /at verification/);
     await assert.rejects(access(path.join(stack, "deploy/verified-release.json")));
     assert.equal(await readFile(path.join(stack, "deploy/release-commit.txt"), "utf8"), "0".repeat(40) + "\n");
     assert.equal(docker("inspect", "--format", "{{.State.Running}}", docker(...common, "ps", "-aq", "migrate")), "false");
