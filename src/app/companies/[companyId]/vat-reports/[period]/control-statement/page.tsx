@@ -1,8 +1,10 @@
-import Link from "next/link";
+import { companyPageContext, safeCompanyReturnTo } from "@/application/return-context";
+import { CompanyReturnLink } from "@/components/company-return-link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getCompany } from "@/application/companies";
+import { isZeroRateBreakdownLine } from "@/application/extraction-payload";
 import { getCompanyFilingDefaults, resolveEpoAddress } from "@/application/company-filing-defaults";
 import { getReportingPeriodReadiness } from "@/application/reporting-period-readiness";
 import { getPeriodLock, getVatReport } from "@/application/vat-reports";
@@ -24,9 +26,12 @@ export async function generateMetadata({
 }
 
 export default async function ControlStatementPage({
-  params,
+  params, searchParams,
 }: PageProps<"/companies/[companyId]/vat-reports/[period]/control-statement">) {
   const { companyId, period } = await params;
+  const search = await searchParams;
+  const returnTo = safeCompanyReturnTo(companyId, search.returnTo);
+  const context = companyPageContext(companyId, `/companies/${companyId}/vat-reports/${period}/control-statement`, search);
   const client = await requireUserClient();
   const [company, filingDefaults, report, periodLock, readinessResult, t] = await Promise.all([
     getCompany(client, companyId),
@@ -43,9 +48,7 @@ export default async function ControlStatementPage({
     <PageLayout className="company-workspace vat-reports vat-output-page" measure="wide">
       <header className="company-page-header vat-report-header">
         <p>
-          <Link href={`/companies/${companyId}/vat`}>
-            {t("backToPeriods")}
-          </Link>
+          <CompanyReturnLink companyId={companyId} returnTo={returnTo} fallback={`/companies/${companyId}/vat`} />
         </p>
         <span className="vat-output-context">
           {company.name} · {period}
@@ -59,6 +62,7 @@ export default async function ControlStatementPage({
         </div>
       </header>
       <PeriodNavigation
+        returnTo={returnTo}
         active="controlStatement"
         companyId={companyId}
         period={period}
@@ -76,7 +80,7 @@ export default async function ControlStatementPage({
           <p>{t("noEntries")}</p>
         ) : (
           report.result.controlStatement.map((entry, index) => (
-            <div className="report-section" key={`${entry.section}-${index}`}>
+            <div className="report-section" id={`control-entry-${index}`} key={`${entry.section}-${index}`}>
               <h3>{t("section", { section: entry.section })}</h3>
               {entry.documentNumber && (
                 <p>
@@ -91,7 +95,7 @@ export default async function ControlStatementPage({
               )}
               <DataTable
                 caption={t("section", { section: entry.section })}
-                rows={entry.rateBreakdown.map((rate) => ({
+                rows={entry.rateBreakdown.filter((rate) => !isZeroRateBreakdownLine(rate)).map((rate) => ({
                   ...rate,
                   id: String(rate.rate),
                 }))}
@@ -109,6 +113,7 @@ export default async function ControlStatementPage({
                       <ReportAmount
                         amount={rate.netAmount}
                         companyId={companyId}
+                        returnTo={`${context}#control-entry-${index}`}
                         documentIds={rate.documentIds}
                         documents={report.documents}
                       />
@@ -122,6 +127,7 @@ export default async function ControlStatementPage({
                       <ReportAmount
                         amount={rate.vatAmount}
                         companyId={companyId}
+                        returnTo={`${context}#control-entry-${index}`}
                         documentIds={rate.documentIds}
                         documents={report.documents}
                       />
@@ -133,7 +139,7 @@ export default async function ControlStatementPage({
           ))
         )}
       </section>
-      <ReportIssues companyId={companyId} readiness={readiness} report={report} />
+      <ReportIssues companyId={companyId} readiness={readiness} report={report} returnTo={`${context}#vat-output-issues`} />
       <section className="vat-output-actions">
         <h2>{t("controlStatementActions")}</h2>
         <div className="vat-output-action-grid">

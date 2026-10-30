@@ -13,6 +13,60 @@ import {
 import { signedUpUser } from "./support/clients";
 import { administratorWithCompany, companyDetails, companyMember } from "./support/fixtures";
 
+it("saves the economic activity and territorial office independently from statutory identity", async () => {
+  const company = await administratorWithCompany();
+  const identity = await getCompany(company.client, company.companyId);
+  expect(await saveCompanyFilingDefaults(company.client, {
+    companyId: company.companyId, taxOffice: "451", territorialOffice: "2003", economicActivity: "621000",
+    signatoryFirstName: "Jana", signatoryLastName: "Nováková", signatoryCapacity: "jednatelka",
+    email: "", phone: "", epoAddressOverride: null,
+  })).toEqual({ ok: true, value: null });
+  expect(await getCompanyFilingDefaults(company.client, company.companyId)).toEqual(expect.objectContaining({
+    taxOffice: "451", territorialOffice: "2003", economicActivity: "621000",
+  }));
+  expect(await getCompany(company.client, company.companyId)).toEqual(identity);
+});
+
+it("refuses a territorial office from another tax office at the authoritative database boundary", async () => {
+  const company = await administratorWithCompany();
+  const result = await company.client.rpc("set_company_filing_defaults", {
+    target_company_id: company.companyId,
+    new_tax_office: "451", new_territorial_office: "2103", new_economic_activity: "621000",
+    new_signatory_first_name: "", new_signatory_last_name: "", new_signatory_capacity: "",
+    new_email: "", new_phone: "", new_epo_street_name: "", new_epo_house_number: "",
+    new_epo_orientation_number: "", new_epo_city: "", new_epo_postal_code: "", epo_address_confirmed: false,
+  });
+  expect(result.error?.code).toBe("23503");
+  expect(await getCompanyFilingDefaults(company.client, company.companyId)).toBeNull();
+});
+
+it.each([
+  { taxOffice: "451", territorialOffice: "2103", economicActivity: "621000" },
+  { taxOffice: "", territorialOffice: "2003", economicActivity: "621000" },
+  { taxOffice: "451", territorialOffice: "2003", economicActivity: "999999" },
+])("refuses incompatible or unknown filing catalogue values: %j", async (selection) => {
+  const company = await administratorWithCompany();
+  expect(await saveCompanyFilingDefaults(company.client, {
+    companyId: company.companyId, ...selection,
+    signatoryFirstName: "", signatoryLastName: "", signatoryCapacity: "",
+    email: "", phone: "", epoAddressOverride: null,
+  })).toEqual({ ok: false, error: "invalid_filing_defaults" });
+  expect(await getCompanyFilingDefaults(company.client, company.companyId)).toBeNull();
+});
+
+it("keeps incomplete filing defaults unset and the setup step unfinished", async () => {
+  const company = await administratorWithCompany();
+  expect(await saveCompanyFilingDefaults(company.client, {
+    companyId: company.companyId, taxOffice: "451",
+    signatoryFirstName: "Jana", signatoryLastName: "Nováková", signatoryCapacity: "jednatelka",
+    email: "", phone: "", epoAddressOverride: null,
+  })).toEqual({ ok: true, value: null });
+  expect(await getCompanyFilingDefaults(company.client, company.companyId)).toEqual(expect.objectContaining({
+    economicActivity: null, territorialOffice: null,
+  }));
+  expect(await getCompanySetupChecklist(company.client, company.companyId)).toContainEqual({ step: "filing_defaults", state: "skipped" });
+});
+
 it("saves filing defaults independently from the Company identity", async () => {
   const company = await administratorWithCompany();
   const identityBefore = await getCompany(company.client, company.companyId);
@@ -20,6 +74,8 @@ it("saves filing defaults independently from the Company identity", async () => 
   expect(await saveCompanyFilingDefaults(company.client, {
     companyId: company.companyId,
     taxOffice: "451",
+    territorialOffice: "2003",
+    economicActivity: "621000",
     signatoryFirstName: "Jana",
     signatoryLastName: "Nováková",
     signatoryCapacity: "jednatelka",
@@ -30,6 +86,8 @@ it("saves filing defaults independently from the Company identity", async () => 
 
   expect(await getCompanyFilingDefaults(company.client, company.companyId)).toEqual({
     taxOffice: "451",
+    territorialOffice: "2003",
+    economicActivity: "621000",
     signatoryFirstName: "Jana",
     signatoryLastName: "Nováková",
     signatoryCapacity: "jednatelka",
@@ -50,6 +108,8 @@ it("audits filing-default changes without storing User personal data", async () 
   expect(await saveCompanyFilingDefaults(company.client, {
     companyId: company.companyId,
     taxOffice: "451",
+    territorialOffice: "2003",
+    economicActivity: "621000",
     signatoryFirstName: "Jana",
     signatoryLastName: "Nováková",
     signatoryCapacity: "jednatelka",
@@ -66,6 +126,8 @@ it("audits filing-default changes without storing User personal data", async () 
       targetId: company.companyId,
       payload: {
         tax_office_set: true,
+        economic_activity_set: true,
+        territorial_office_set: true,
         signatory_set: true,
         email_set: true,
         phone_set: true,
@@ -84,6 +146,8 @@ it("lets an Administrator edit filing defaults and refuses a Company User", asyn
   const input = {
     companyId: company.companyId,
     taxOffice: "452",
+    territorialOffice: "2103",
+    economicActivity: "621000",
     signatoryFirstName: "Petr",
     signatoryLastName: "Novák",
     signatoryCapacity: "jednatel",
@@ -98,7 +162,7 @@ it("lets an Administrator edit filing defaults and refuses a Company User", asyn
   });
   expect(await saveCompanyFilingDefaults(user.client, {
     ...input,
-    taxOffice: "453",
+    economicActivity: "622000",
   })).toEqual({ ok: false, error: "forbidden" });
   expect((await getCompanyFilingDefaults(company.client, company.companyId))?.taxOffice).toBe("452");
 });
@@ -113,6 +177,8 @@ it("requires an explicit EPO address confirmation only when the registered addre
   const input = {
     companyId: created.value.id,
     taxOffice: "451",
+    territorialOffice: "2003",
+    economicActivity: "621000",
     signatoryFirstName: "Jana",
     signatoryLastName: "Nováková",
     signatoryCapacity: "jednatelka",
@@ -144,6 +210,8 @@ it("requires an explicit EPO address confirmation only when the registered addre
   })).toEqual({ ok: true, value: null });
   expect(await getCompanyFilingDefaults(administrator.client, created.value.id)).toEqual({
     taxOffice: "451",
+    territorialOffice: "2003",
+    economicActivity: "621000",
     signatoryFirstName: "Jana",
     signatoryLastName: "Nováková",
     signatoryCapacity: "jednatelka",
@@ -166,6 +234,8 @@ it("isolates filing defaults from another Organization", async () => {
   expect(await saveCompanyFilingDefaults(company.client, {
     companyId: company.companyId,
     taxOffice: "451",
+    territorialOffice: "2003",
+    economicActivity: "621000",
     signatoryFirstName: "Jana",
     signatoryLastName: "Nováková",
     signatoryCapacity: "jednatelka",

@@ -30,6 +30,8 @@ sign-in locally, follow [`docs/google-sign-in.md`](docs/google-sign-in.md).
 
 New Companies receive the platform's default AI Configuration and a lifetime allowance of 50 successful Extractions. A SuperAdmin can change assignments, access and allowances; Company users only see their allowance and waiting-Document status. Locally, `AI_PROVIDER=fake` (the default written by `db:start`) Splits every page into its own Document and returns a sample Extraction, so no Document leaves your machine. Set `AI_PROVIDER=platform` for per-Company Anthropic/OpenAI routing through SuperAdmin-owned configurations.
 
+VAT registry and exchange-rate adapters are selected independently. Ordinary operation uses ADIS and ČNB. For fully deterministic local/demo processing, set `VAT_REGISTRY_PROVIDER=fake` and `EXCHANGE_RATE_PROVIDER=fake` in `.env.local`; fake AI alone does not select them. The E2E runner sets all three fake modes explicitly and reuses the existing registry/rate adapters.
+
 ## Scripts
 
 | Command | What it does |

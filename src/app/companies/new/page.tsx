@@ -13,7 +13,7 @@ export default async function NewCompanyPage() {
     getTranslations("nav"),
     listMyOrganizations(client),
   ]);
-  const organization = organizations.find(
+  const administeredOrganizations = organizations.filter(
     (o) => o.role === "administrator",
   );
   return (
@@ -28,11 +28,12 @@ export default async function NewCompanyPage() {
         tabIndex={-1}
       >
         <h1>{t("createTitle")}</h1>
-        {organization ? (
+        {administeredOrganizations.length > 0 ? (
           <>
             <p>{t("createIntro")}</p>
             <CompanyForm
-              organizationId={organization.id}
+              organizationId={administeredOrganizations.length === 1 ? administeredOrganizations[0].id : ""}
+              organizations={administeredOrganizations.length > 1 ? administeredOrganizations : undefined}
               initialValues={{
                 personType: "legal",
               }}

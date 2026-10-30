@@ -19,6 +19,8 @@ import { testWorker } from "./support/worker";
 
 const filingDefaults = {
   taxOffice: "451",
+  territorialOffice: "2003",
+  economicActivity: "621000",
   signatoryFirstName: "Jana",
   signatoryLastName: "Nováková",
   signatoryCapacity: "jednatelka",

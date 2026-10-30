@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
 import * as XLSX from "xlsx";
 
@@ -33,4 +34,14 @@ export function workbookFile(
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(rows, { cellDates: true }), sheetName);
   return new Uint8Array(XLSX.write(workbook, { bookType, type: "buffer", cellDates: true }));
+}
+
+/** A pending Upload Selection with the same stable identities and content hashes used on transfer. */
+export function selectUploadFiles(inputs: { fileName: string; bytes: Uint8Array }[]) {
+  const files = inputs.map((file) => ({ ...file, sourceFileId: randomUUID() }));
+  return { files, selectedFiles: files.map((file) => ({ id: file.sourceFileId, sha256: createHash("sha256").update(file.bytes).digest("hex") })) };
+}
+
+export function selectFixtureFiles(...names: string[]) {
+  return selectUploadFiles(names.map((fileName) => ({ fileName, bytes: fixtureFile(fileName) })));
 }

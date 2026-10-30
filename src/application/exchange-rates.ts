@@ -1,5 +1,5 @@
 import type { ValidationFinding } from "./document-validation";
-import type { CzkConversion, ExtractionPayload, RateBreakdownLine } from "./extraction-payload";
+import { isZeroRateBreakdownLine, type CzkConversion, type ExtractionPayload, type RateBreakdownLine } from "./extraction-payload";
 
 export type CnbRate = {
   currency: string;
@@ -57,7 +57,7 @@ function conversion(payload: ExtractionPayload, rate: CnbRate): CzkConversion | 
   return {
     originalCurrency: payload.currency!, rate: rate.rate, unit: rate.unit,
     rateDate: rate.rateDate, source: rate.source,
-    rateBreakdown: rateBreakdown as RateBreakdownLine[], totals,
+    rateBreakdown: (rateBreakdown as RateBreakdownLine[]).filter((line) => !isZeroRateBreakdownLine(line)), totals,
   };
 }
 

@@ -16,6 +16,9 @@ export async function GET(
       "Content-Type": result.artifact.mediaType,
       "Content-Disposition": `attachment; filename="${result.artifact.fileName}"`,
       "X-Content-Type-Options": "nosniff",
+      "X-iVAT-Artifact-ID": result.artifact.id,
+      "X-iVAT-Report-Generated-At": result.artifact.reportGeneratedAt,
+      ...(result.artifact.periodLockId ? { "X-iVAT-Period-Lock-ID": result.artifact.periodLockId } : {}),
       "Digest": `sha-256=${Buffer.from(result.artifact.sha256, "hex").toString("base64")}`,
     },
   });

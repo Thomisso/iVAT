@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import {
@@ -10,61 +9,22 @@ import {
   ContextNavigation,
 } from "@/components/app-shell";
 import { AccountMenu, ShellIcon } from "@/components/shell-controls";
-import { AdministrationNavigation } from "@/components/administration-navigation";
-import type { OrganizationSummary } from "@/application/organizations";
-
-type Destination = "overview" | "aiSettings" | "aiUsage";
-type DestinationLabel = "platformOverview" | "platformAi" | "platformUsage";
-
-const destinations: Array<{
-  key: Destination;
-  label: DestinationLabel;
-  href: string;
-  icon: string;
-}> = [
-  {
-    key: "overview",
-    label: "platformOverview",
-    href: "/platform/administration",
-    icon: "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z",
-  },
-  {
-    key: "aiSettings",
-    label: "platformAi",
-    href: "/platform/ai-settings",
-    icon: "M12 2a10 10 0 1 0 10 10M12 8v4l3 2",
-  },
-  {
-    key: "aiUsage",
-    label: "platformUsage",
-    href: "/platform/ai-usage",
-    icon: "M4 19V9m6 10V5m6 14v-7m4 7V3",
-  },
-];
-
-function activeDestination(pathname: string): Destination {
-  if (pathname.startsWith("/platform/ai-settings")) return "aiSettings";
-  if (pathname.startsWith("/platform/ai-usage")) return "aiUsage";
-  return "overview";
-}
+import { PlatformSettingsNavigation } from "@/components/platform-settings-navigation";
+import { WorkSectionSwitch } from "@/components/work-section-switch";
 
 export function PlatformShell({
   children,
   companyHref,
   email,
   operationalProblemCount,
-  organizations,
 }: {
   children: ReactNode;
   companyHref: string;
   email: string;
   operationalProblemCount: number;
-  organizations: OrganizationSummary[];
 }) {
   const t = useTranslations("shell");
   const app = useTranslations("app");
-  const pathname = usePathname();
-  const active = activeDestination(pathname);
   const context = (
     <div
       aria-label={t("platformContext")}
@@ -76,22 +36,18 @@ export function PlatformShell({
       </span>
       <span className="company-menu-copy">
         <small>{t("platform")}</small>
-        <strong>{t("administration")}</strong>
+        <strong>{t("superAdmin")}</strong>
       </span>
     </div>
   );
   const navigation = (
     <ContextNavigation
-      items={destinations.map((destination) => ({
-        assistiveDescription: destination.key === "overview" && operationalProblemCount > 0
-          ? t("platformAlertsCount", { count: operationalProblemCount })
-          : undefined,
-        badge: destination.key === "overview" ? operationalProblemCount : undefined,
-        current: destination.key === active,
-        href: destination.href,
-        icon: <ShellIcon path={destination.icon} />,
-        label: t(destination.label),
-      }))}
+      items={[{
+        current: true,
+        href: "/platform/settings",
+        icon: <ShellIcon path="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M5.6 18.4 7 17m10-10 1.4-1.4" />,
+        label: t("settings"),
+      }]}
       label={t("platformNavigation")}
     />
   );
@@ -107,14 +63,7 @@ export function PlatformShell({
           <span aria-hidden="true" className="notification-bell-count">{operationalProblemCount}</span>
         )}
       </Link>
-      <Link
-        aria-label={t("returnToCompany")}
-        className="organization-company-return"
-        href={companyHref}
-      >
-        <ShellIcon path="m15 18-6-6 6-6" />
-        <span>{t("companyWork")}</span>
-      </Link>
+      <WorkSectionSwitch section="platform" companyHref={companyHref} />
       <AccountMenu email={email} />
     </AccountActions>
   );
@@ -122,13 +71,13 @@ export function PlatformShell({
   return (
     <AppShell
       accountActions={accountActions}
-      administration={<AdministrationNavigation currentPath={pathname} organizations={organizations} superAdmin />}
       brandHref="/"
       brandLabel={app("name")}
       context={context}
       navigation={navigation}
       skipLabel={t("skip")}
     >
+      <PlatformSettingsNavigation operationalProblemCount={operationalProblemCount} />
       {children}
     </AppShell>
   );
