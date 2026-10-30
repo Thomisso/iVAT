@@ -66,13 +66,13 @@ describe("processing a Source File", () => {
       {
         id: expect.any(String), companyId, sourceFileId,
         firstPage: 1, lastPage: 1, status: "needs_review",
-        createdAt: expect.any(String), receiptDate: expect.any(String),
+        createdAt: expect.any(String), importDate: expect.any(String),
         claimedReportingPeriod: null,
       },
       {
         id: expect.any(String), companyId, sourceFileId,
         firstPage: 2, lastPage: 2, status: "needs_review",
-        createdAt: expect.any(String), receiptDate: expect.any(String),
+        createdAt: expect.any(String), importDate: expect.any(String),
         claimedReportingPeriod: null,
       },
     ]);

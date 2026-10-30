@@ -2,7 +2,7 @@
 
 The payload of an AI Extraction Version: the structured data an AI provider reads out of one Document. The TypeScript definition is `ExtractionPayload` in [`src/application/extraction-payload.ts`](../src/application/extraction-payload.ts). Change both together.
 
-The payload is a proposal (ADR-0003). Nothing in it counts towards a VAT Report until a human approves the Document. Receipt Date and the claimed Reporting Period belong to the Document, not to the payload.
+The payload is a proposal (ADR-0003). Nothing in it counts towards a VAT Report until a human approves the Document. The Deferred Claim belongs to the Document, not to the payload.
 
 ## Conventions
 

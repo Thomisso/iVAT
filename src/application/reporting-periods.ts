@@ -1,8 +1,18 @@
 import type { ReportingYear } from "./companies";
 import type { ValidationFinding } from "./document-validation";
 
+/** The list filter for Documents without a Reporting Period, such as those outside every generated Reporting Year. */
+export const NO_REPORTING_PERIOD = "none";
+
 export const isReportingPeriod = (value: string): boolean =>
   /^(20\d{2})-(0[1-9]|1[0-2]|Q[1-4])$/.test(value);
+
+/** A list filter from a URL value: a Reporting Period, NO_REPORTING_PERIOD, or undefined for anything else. */
+export function parseReportingPeriodFilter(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const filter = value.trim();
+  return filter === NO_REPORTING_PERIOD || isReportingPeriod(filter) ? filter : undefined;
+}
 
 export function reportingPeriodStart(period: string): string | null {
   const month = /^(20\d{2})-(0[1-9]|1[0-2])$/.exec(period);
@@ -67,4 +77,9 @@ export function reportingPeriodsOf(years: readonly ReportingYear[]): string[] {
 /** The calendar year in Prague, which onboarding generates. */
 export function currentReportingYear(now = new Date()): number {
   return Number(new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Prague", year: "numeric" }).format(now));
+}
+
+/** The Prague calendar date (YYYY-MM-DD) of a timestamp. */
+export function pragueDate(timestamp: string): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Prague" }).format(new Date(timestamp));
 }

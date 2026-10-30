@@ -6,18 +6,15 @@ import { updateDocumentReportingAction } from "@/app/actions";
 import { Button } from "@/components/button";
 import { FormError } from "@/components/form-error";
 import { TextField } from "@/components/text-field";
-import { DateInput } from "@/components/date-input";
 
-/** Receipt Date and an optional later input-VAT claim for an incoming Document. */
+/** The optional Deferred Claim of an incoming Document. */
 export function ReportingAssignmentForm({
   companyId,
   documentId,
-  receiptDate,
   claimedReportingPeriod,
 }: {
   companyId: string;
   documentId: string;
-  receiptDate: string;
   claimedReportingPeriod: string | null;
 }) {
   const t = useTranslations("review.reportingAssignment");
@@ -33,12 +30,6 @@ export function ReportingAssignmentForm({
       <fieldset>
         <legend>{t("title")}</legend>
         <div className="fields">
-          <DateInput
-            label={t("receiptDate")}
-            name="receiptDate"
-            required
-            defaultValue={state.values.receiptDate ?? receiptDate}
-          />
           <TextField
             label={t("claimedReportingPeriod")}
             hint={t("claimedReportingPeriodHint")}
