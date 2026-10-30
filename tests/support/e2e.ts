@@ -1,7 +1,9 @@
 import fs from "node:fs/promises";
+import { selectFixtureFiles } from "./files";
 import { createClient } from "@supabase/supabase-js";
 import { Client as DatabaseClient } from "pg";
 import type { Database } from "@/lib/database.types";
+import { addLegacyRateBreakdownVersionFixture } from "./rate-breakdown-history";
 
 async function browserFixtureEnvironment() {
   const contents = await fs.readFile(".env.local", "utf8");
@@ -16,6 +18,30 @@ async function browserFixtureClient() {
   return createClient<Database>(environment.NEXT_PUBLIC_SUPABASE_URL, environment.SUPABASE_SECRET_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
+}
+
+export async function addBrowserLegacyRateBreakdownVersionFixture(documentId: string) {
+  const environment = await browserFixtureEnvironment();
+  return addLegacyRateBreakdownVersionFixture(environment.DATABASE_URL, documentId);
+}
+
+/** Controls durable Batch creation instants for browser filtering/pagination coverage. */
+export async function setBrowserUploadHistoryFixture(companyId: string, entries: { batchId?: string; createdAt: string }[]) {
+  const environment = await browserFixtureEnvironment();
+  const database = new DatabaseClient({ connectionString: environment.DATABASE_URL });
+  await database.connect();
+  try {
+    for (const entry of entries) {
+      if (entry.batchId) {
+        await database.query("update public.upload_batch set created_at = $3::timestamptz where id = $1 and company_id = $2", [entry.batchId, companyId, entry.createdAt]);
+      } else {
+        await database.query(`insert into public.upload_batch (organization_id, company_id, created_by, file_count, created_at, selected_files)
+          select organization_id, id, created_by, 1, $2::timestamptz, $3::jsonb from public.company where id = $1`, [companyId, entry.createdAt, JSON.stringify(selectFixtureFiles("receipt.png").selectedFiles)]);
+      }
+    }
+  } finally {
+    await database.end();
+  }
 }
 
 /** Adds one durable completed batch and its User-owned notification. */
@@ -35,11 +61,11 @@ export async function addBrowserUploadNotificationFixture(companyId: string, ema
     if (!target.rows[0]) throw new Error("Could not prepare browser notification fixture");
     const batch = await database.query<{ id: string }>(
       `insert into public.upload_batch (
-         organization_id, company_id, created_by, file_count,
+         organization_id, company_id, created_by, file_count, selected_files,
          upload_finished_at, processing_finished_at
-       ) values ($1, $2, $3, 1, now(), now())
+       ) values ($1, $2, $3, 1, $4::jsonb, now(), now())
        returning id`,
-      [target.rows[0].organization_id, companyId, target.rows[0].user_id],
+      [target.rows[0].organization_id, companyId, target.rows[0].user_id, JSON.stringify(selectFixtureFiles("receipt.png").selectedFiles)],
     );
     await database.query(
       `insert into public.notification (
@@ -190,7 +216,7 @@ export async function addBrowserDocumentWarningFixture(documentId: string) {
 }
 
 /** Browser-fixture setup for a user who signed up through the real UI. */
-export async function addBrowserCompanyMemberFixture(companyId: string, email: string) {
+export async function addBrowserCompanyMemberFixture(companyId: string, email: string, role: "administrator" | "user" = "user") {
   const service = await browserFixtureClient();
   const [{ data: company }, { data: users }] = await Promise.all([
     service.from("company").select("organization_id").eq("id", companyId).single(),
@@ -202,7 +228,7 @@ export async function addBrowserCompanyMemberFixture(companyId: string, email: s
     company_id: companyId,
     email,
     organization_id: company.organization_id,
-    role: "user",
+    role,
     user_id: userId,
   });
   if (membership.error) throw membership.error;

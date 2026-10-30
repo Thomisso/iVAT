@@ -69,6 +69,8 @@ it("exports a Company's originals and Document data before retaining it as soft-
   expect(await saveCompanyFilingDefaults(company.client, {
     companyId: company.companyId,
     taxOffice: "451",
+    territorialOffice: "2003",
+    economicActivity: "621000",
     signatoryFirstName: "Jana",
     signatoryLastName: "Nováková",
     signatoryCapacity: "jednatelka",
@@ -122,6 +124,8 @@ it("exports a Company's originals and Document data before retaining it as soft-
     reportingYears: [{ year: 2026, frequency: "monthly", firstMonth: 1 }],
     filingDefaults: expect.objectContaining({
       taxOffice: "451",
+      territorialOffice: "2003",
+      economicActivity: "621000",
       signatoryFirstName: "Jana",
       email: "podatelna@example.test",
       phone: "+420123456789",

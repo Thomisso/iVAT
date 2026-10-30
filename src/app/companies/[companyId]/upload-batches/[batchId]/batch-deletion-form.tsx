@@ -12,8 +12,10 @@ import { Notice } from "@/components/notice";
 export function BatchDeletionForm({
   companyId,
   preview,
+  returnTo,
 }: {
   companyId: string;
+  returnTo?: string;
   preview: UploadBatchDeletionPreview;
 }) {
   const t = useTranslations("uploadWorkspace");
@@ -29,6 +31,7 @@ export function BatchDeletionForm({
     {preview.refusal ? <Notice tone="warning">{t(`deleteRefused.${preview.refusal}`)}</Notice> : <form action={action} className="form">
       <input type="hidden" name="companyId" value={companyId} />
       <input type="hidden" name="batchId" value={preview.batchId} />
+      {returnTo && <input type="hidden" name="returnTo" value={returnTo} />}
       <label className="period-lock-confirmation">
         <input type="checkbox" name="confirmed" required defaultChecked={state.values.confirmed === "on"} />
         <span>{t("deleteConfirmation")}</span>

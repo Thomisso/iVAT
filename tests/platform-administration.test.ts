@@ -29,7 +29,7 @@ import {
   assignAiConfigurationFixture as enableAiProcessing,
 } from "./support/fixtures";
 import { anonymousClient, signedUpUser } from "./support/clients";
-import { fixtureFile } from "./support/files";
+import { fixtureFile, selectUploadFiles } from "./support/files";
 import { systemClient, testWorker } from "./support/worker";
 
 function aal2Client(userId: string) {
@@ -260,6 +260,7 @@ describe("SuperAdmin organization console", () => {
     expect(await beginUploadBatch(target.client, {
       companyId: target.companyId,
       fileCount: 101,
+      selectedFiles: selectUploadFiles(Array.from({ length: 101 }, (_, index) => ({ fileName: `${index}.png`, bytes: new Uint8Array([...fixtureFile("receipt.png"), index]) }))).selectedFiles,
     })).toEqual({ ok: false, error: "too_many_files" });
   });
 

@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { saveCompanyFilingDefaultsAction } from "@/app/actions";
 import type { CompanyFilingDefaults } from "@/application/company-filing-defaults";
 import type { PersonType } from "@/application/companies";
-import { TAX_OFFICES } from "@/application/epo-export-details";
+import { FilingOfficeFields } from "@/components/filing-office-fields";
 import { Button } from "@/components/button";
 import { FormError } from "@/components/form-error";
 import { TextField } from "@/components/text-field";
@@ -22,9 +22,10 @@ export function FilingDefaultsForm({
   epoOverrideRequired: boolean;
 }) {
   const t = useTranslations("filingDefaults");
-  const epo = useTranslations("epoExport");
   const initialValues = {
     taxOffice: defaults?.taxOffice ?? "",
+    territorialOffice: defaults?.territorialOffice ?? "",
+    economicActivity: defaults?.economicActivity ?? "",
     signatoryFirstName: defaults?.signatoryFirstName ?? "",
     signatoryLastName: defaults?.signatoryLastName ?? "",
     signatoryCapacity: defaults?.signatoryCapacity ?? "",
@@ -45,15 +46,7 @@ export function FilingDefaultsForm({
   const [useOverride, setUseOverride] = useState(state.values.useEpoAddressOverride === "yes");
   return <form action={action} className="form settings-form" key={JSON.stringify(state.values)}>
     <input name="companyId" type="hidden" value={companyId} />
-    <label className="iv-field-label">
-      {t("taxOffice")}
-      <select name="taxOffice" defaultValue={state.values.taxOffice ?? ""}>
-        <option value="">{t("notSet")}</option>
-        {TAX_OFFICES.map((code) => <option key={code} value={code}>
-          {epo(`taxOffices.${code}`)}
-        </option>)}
-      </select>
-    </label>
+    <FilingOfficeFields taxOffice={state.values.taxOffice} territorialOffice={state.values.territorialOffice} economicActivity={state.values.economicActivity} />
     {personType === "legal" && <fieldset>
       <legend>{t("signatory")}</legend>
       <div className="form-row">
@@ -78,7 +71,7 @@ export function FilingDefaultsForm({
           type="checkbox"
           value="yes"
         />
-        {t("useEpoAddress")}
+        <span>{t("useEpoAddress")}</span>
       </label>
       {useOverride && <>
         <div className="form-row">
@@ -92,7 +85,7 @@ export function FilingDefaultsForm({
         </div>
         <label className="iv-checkbox-row">
           <input name="epoAddressConfirmed" type="checkbox" value="yes" defaultChecked={state.values.epoAddressConfirmed === "yes"} required />
-          {t("confirmEpoAddress")}
+          <span>{t("confirmEpoAddress")}</span>
         </label>
       </>}
     </fieldset>}

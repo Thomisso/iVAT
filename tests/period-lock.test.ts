@@ -205,7 +205,7 @@ it("only an Administrator finalizes and unlocks a stored VAT Report, and both tr
       actorUserId: company.userId,
       companyId: company.companyId,
       targetType: "vat_report",
-      payload: { period: input.period, warning_count: 0, rejected_document_count: 0 },
+      payload: { period: input.period, warning_count: 0, rejected_document_count: 0, period_lock_id: expect.any(String) },
     }),
   ]);
   expect(events.filter((event) => event.action === "reporting_period.unlocked")).toEqual([
@@ -213,7 +213,7 @@ it("only an Administrator finalizes and unlocks a stored VAT Report, and both tr
       actorUserId: company.userId,
       companyId: company.companyId,
       targetType: "vat_report",
-      payload: { period: input.period },
+      payload: { period: input.period, period_lock_id: expect.any(String) },
     }),
   ]);
   expect(await listVatReportTransitions(user.client, input.companyId, input.period)).toEqual([
@@ -405,6 +405,7 @@ it("finalizes a Reporting Period again after it was unlocked and audits every tr
     expect.objectContaining({ action: "vat_report.finalized" }),
     expect.objectContaining({ action: "reporting_period.unlocked", payload: {
       period: input.period,
+      period_lock_id: expect.any(String),
     } }),
     expect.objectContaining({ action: "vat_report.finalized" }),
   ]);
