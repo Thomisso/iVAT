@@ -324,7 +324,9 @@
     "batchFiles": "Uloženo {count} z {planned} vybraných zdrojových souborů",
     "batchSummary": "{waiting} se zpracovává · {review} ke kontrole · {failures} selhalo",
     "noBatches": "Zatím tu není žádná dávka. Začněte přidáním zdrojových souborů.",
-    "noMatchingBatches": "Žádná dávka neobsahuje doklady vybraného období.",
+    "noMatchingBatches": "Ve vybraném rozsahu dat nebyla založena žádná dávka.",
+    "uploadedFrom": "Nahráno od",
+    "uploadedTo": "Nahráno do",
     "outcome": {
       "processing": "Zpracovává se",
       "success": "Dokončeno",

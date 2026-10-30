@@ -324,7 +324,9 @@
     "batchFiles": "{count} of {planned} selected Source Files stored",
     "batchSummary": "{waiting} processing · {review} ready for review · {failures} failed",
     "noBatches": "No batches yet. Add Source Files to start one.",
-    "noMatchingBatches": "No batch contains Documents of the selected period.",
+    "noMatchingBatches": "No batch was created in the selected date range.",
+    "uploadedFrom": "Uploaded from",
+    "uploadedTo": "Uploaded to",
     "outcome": {
       "processing": "Processing",
       "success": "Finished",
