@@ -34,7 +34,7 @@ import { testWorker } from "./support/worker";
 import { fakeExchangeRates } from "@/cnb/fake";
 import { addLegacyRateBreakdownVersionFixture } from "./support/rate-breakdown-history";
 import { fakeVatPayerRegistry } from "@/vat-registry/fake";
-import { addLegacyUndeterminedVatRegimeFixture } from "./support/vat-regime-history";
+import { addLegacyUndeterminedVatRegimeFixture, setLegacyVatRegimeReadinessFixture } from "./support/vat-regime-history";
 
 /** An Administrator whose Company holds one Document in NeedsReview, Extracted as `extraction`. */
 async function documentInReview(extraction: ExtractionPayload = SAMPLE_EXTRACTION) {
@@ -473,6 +473,21 @@ describe("assigning an incoming Document to a Reporting Period", () => {
 });
 
 describe("approving and rejecting a Document", () => {
+  it("refuses a predecessor draft whose cached blocker count predates the VAT Regime requirement", async () => {
+    const document = await documentInReview();
+    const period = { companyId: document.companyId, period: "2026-10" };
+    expect(await approveDocument(document.client, { ...document, version: 1 })).toEqual({ ok: true, value: null });
+    await addLegacyUndeterminedVatRegimeFixture(inject("databaseUrl"), document.documentId);
+    expect((await generateVatReport(document.client, period)).ok).toBe(true);
+    await setLegacyVatRegimeReadinessFixture(inject("databaseUrl"), document.companyId, period.period);
+    expect((await getVatReport(document.client, document.companyId, period.period))?.finalization.blockerCount).toBe(0);
+    const readiness = await getReportingPeriodReadiness(document.client, period);
+    expect(readiness.ok && readiness.value.snapshot?.freshness).toBe("current");
+    expect(await finalizeVatReport(document.client, { ...period, confirmed: true }))
+      .toEqual({ ok: false, error: "readiness_blocked" });
+    expect((await getDocument(document.client, document.companyId, document.documentId))?.status).toBe("approved");
+  });
+
   it("blocks historical approvals without a VAT Regime without rewriting their immutable findings", async () => {
     const document = await documentInReview();
     const period = { companyId: document.companyId, period: "2026-10" };
