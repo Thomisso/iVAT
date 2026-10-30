@@ -4,6 +4,7 @@ import {
   isEpoFormat,
   parseExportDetails,
   type ExportDetails,
+  type EpoFormat,
 } from "./epo-export-details";
 import { createEpoXml, type EpoXmlError } from "./epo-xml";
 import { getVatReport } from "./vat-reports";
@@ -14,7 +15,7 @@ export const EPO_SCHEMA_VERSIONS = {
   dphdp3: "03.01.04",
   dphkh1: "03.01.15",
 } as const;
-export const EPO_SERIALIZER_VERSION = "1";
+export const EPO_SERIALIZER_VERSION = "2";
 
 export type ExportVatReportError =
   | EpoXmlError
@@ -62,6 +63,7 @@ async function resolveExportDetails(
   input: {
     companyId: string;
     details: Record<string, string>;
+    format: EpoFormat;
     personType: "legal" | "natural";
     registeredAddress: NonNullable<ExportDetails["address"]>;
   },
@@ -73,6 +75,8 @@ async function resolveExportDetails(
     Object.hasOwn(input.details, key) ? input.details[key] : (fallback ?? "");
   const parsed = parseExportDetails({
     taxOffice: supplied("taxOffice", defaults?.taxOffice),
+    territorialOffice: supplied("territorialOffice", defaults?.territorialOffice),
+    economicActivity: supplied("economicActivity", defaults?.economicActivity),
     preparedOn: input.details.preparedOn?.trim() || todayInPrague(),
     email: supplied("email", defaults?.email),
     phone: supplied("phone", defaults?.phone),
@@ -80,7 +84,7 @@ async function resolveExportDetails(
     signatoryFirstName: supplied("signatoryFirstName", defaults?.signatoryFirstName),
     signatoryLastName: supplied("signatoryLastName", defaults?.signatoryLastName),
     signatoryCapacity: supplied("signatoryCapacity", defaults?.signatoryCapacity),
-  });
+  }, input.format);
   if (!parsed.ok) return parsed;
   return {
     ok: true,
@@ -108,6 +112,7 @@ async function exportVatReportArtifact(
   const details = await resolveExportDetails(client, {
     companyId: input.companyId,
     details: input.details,
+    format: input.format,
     personType: report.result.company.personType,
     registeredAddress: {
       streetName: report.result.company.streetName,

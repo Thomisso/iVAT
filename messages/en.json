@@ -1191,6 +1191,8 @@
     "format": "Form",
     "preparedOn": "Preparation date",
     "taxOffice": "Tax office",
+    "territorialOffice": "Territorial office",
+    "economicActivity": "Economic activity (CZ-NACE)",
     "choose": "Select",
     "personType": "Person type",
     "legalPerson": "Legal person",

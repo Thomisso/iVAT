@@ -337,6 +337,8 @@ export async function deleteReportingYearAction(_state: FormState, formData: For
 
 const FILING_DEFAULT_FIELDS = [
   "taxOffice",
+  "territorialOffice",
+  "economicActivity",
   "signatoryFirstName",
   "signatoryLastName",
   "signatoryCapacity",
@@ -359,6 +361,8 @@ export async function saveCompanyFilingDefaultsAction(
   const result = await saveCompanyFilingDefaults(await requireUserClient(), {
     companyId: field(formData, "companyId"),
     taxOffice: field(formData, "taxOffice"),
+    territorialOffice: field(formData, "territorialOffice"),
+    economicActivity: field(formData, "economicActivity"),
     signatoryFirstName: field(formData, "signatoryFirstName"),
     signatoryLastName: field(formData, "signatoryLastName"),
     signatoryCapacity: field(formData, "signatoryCapacity"),

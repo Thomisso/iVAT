@@ -1191,6 +1191,8 @@
     "format": "Formulář",
     "preparedOn": "Datum vyhotovení",
     "taxOffice": "Finanční úřad",
+    "territorialOffice": "Územní pracoviště",
+    "economicActivity": "Ekonomická činnost (CZ-NACE)",
     "choose": "Vyberte",
     "personType": "Typ osoby",
     "legalPerson": "Právnická osoba",

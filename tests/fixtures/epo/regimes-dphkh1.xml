@@ -2,7 +2,7 @@
 <Pisemnost nazevSW="iVAT" verzeSW="0.1.0">
   <DPHKH1 verzePis="03.01.15">
     <VetaD dokument="KH1" k_uladis="DPH" khdph_forma="B" rok="2026" mesic="10" d_poddp="27.10.2026"/>
-    <VetaP c_ufo="451" dic="27082440" typ_ds="P" zkrobchjm="Test &amp; spol. s.r.o." ulice="Na Příkopě" c_pop="1" naz_obce="Praha" psc="11000" stat="ČESKÁ REPUBLIKA" email="qa@example.test" opr_jmeno="Jana" opr_prijmeni="Nováková" opr_postaveni="jednatelka"/>
+    <VetaP c_ufo="451" c_pracufo="2003" dic="27082440" typ_ds="P" zkrobchjm="Test &amp; spol. s.r.o." ulice="Na Příkopě" c_pop="1" naz_obce="Praha" psc="11000" stat="ČESKÁ REPUBLIKA" email="qa@example.test" opr_jmeno="Jana" opr_prijmeni="Nováková" opr_postaveni="jednatelka"/>
     <VetaA1 c_radku="1" dic_odb="45274649" c_evid_dd="RC-1" duzp="01.10.2026" zakl_dane1="1000.00" kod_pred_pl="4"/>
     <VetaA2 c_radku="1" k_stat="DE" vatid_dod="123456789" c_evid_dd="RC-3" dppd="01.10.2026" zakl_dane1="200.00" dan1="42.00"/>
     <VetaA2 c_radku="2" k_stat="SK" vatid_dod="2021234567" c_evid_dd="RC-4" dppd="01.10.2026" zakl_dane2="300.00" dan2="36.00"/>

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Pisemnost nazevSW="iVAT" verzeSW="0.1.0">
   <DPHDP3 verzePis="03.01.04">
-    <VetaD dokument="DP3" k_uladis="DPH" dapdph_forma="B" typ_platce="P" rok="2026" mesic="10" d_poddp="27.10.2026" trans="N"/>
-    <VetaP c_ufo="451" dic="27082440" typ_ds="F" jmeno="Jan" prijmeni="Novák" ulice="Na Příkopě" c_pop="1" naz_obce="Praha" psc="11000" stat="ČESKÁ REPUBLIKA"/>
+    <VetaD c_okec="621000" dokument="DP3" k_uladis="DPH" dapdph_forma="B" typ_platce="P" rok="2026" mesic="10" d_poddp="27.10.2026" trans="N"/>
+    <VetaP c_ufo="451" c_pracufo="2003" dic="27082440" typ_ds="F" jmeno="Jan" prijmeni="Novák" ulice="Na Příkopě" c_pop="1" naz_obce="Praha" psc="11000" stat="ČESKÁ REPUBLIKA"/>
     <Veta1 obrat23="0" dan23="0" obrat5="0" dan5="0"/>
     <Veta4 pln23="0" odp_tuz23_nar="0" pln5="0" odp_tuz5_nar="0" odp_sum_nar="0"/>
     <Veta6 dan_zocelk="0" odp_zocelk="0" dano_da="0"/>
