@@ -1242,6 +1242,13 @@
     "description": "Enter the details for an ordinary filing. VAT ID, name and address come from the saved draft.",
     "format": "Form",
     "preparedOn": "Preparation date",
+    "timingWarnings": "Export timing warnings",
+    "timing": {
+      "prepared_on_future": "The preparation date is after today in Prague.",
+      "reporting_period_unfinished": "The Reporting Period has not ended yet.",
+      "potentially_late_filing": "Potentially late ordinary filing: the deadline is {deadline}. Today or the preparation date is after it. Check the actual filing; you can still download XML.",
+      "control_statement_monthly_required": "Legal persons file ordinary Control Statements monthly, even with quarterly VAT Returns. This quarterly output has no assessed ordinary filing deadline; check the monthly filing period. XML download remains available."
+    },
     "taxOffice": "Tax office",
     "territorialOffice": "Territorial office",
     "economicActivity": "Economic activity (CZ-NACE)",
