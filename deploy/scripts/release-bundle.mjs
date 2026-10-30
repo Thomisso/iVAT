@@ -5,7 +5,8 @@ import path from "node:path";
 export const IMAGE_SERVICES = { app: ["web", "worker", "migrate", "backup"], db: ["db"], gateway: ["gateway"], proxy: ["proxy"] };
 const REQUIRED_ASSETS = ["docker-compose.rosti.yml", "deploy/restore.yml", "deploy/scripts/migrate.mjs", "deploy/scripts/backup.sh", "deploy/scripts/backup-daily.sh", "deploy/scripts/restore.sh", "deploy/scripts/release-bundle.mjs", "deploy/scripts/deploy-release.sh", "deploy/scripts/release-host.mjs", "deploy/scripts/launch-release.sh"];
 const sha256 = value => createHash("sha256").update(value).digest("hex");
-const assetPath = name => name === "docker-compose.rosti.yml" || name === "deploy/restore.yml" || /^deploy\/scripts\/[a-z0-9][a-z0-9._-]*\.(mjs|sh)$/.test(name);
+export const isReleaseAssetPath = name => name === "docker-compose.rosti.yml" || name === "deploy/restore.yml" || /^deploy\/scripts\/[a-z0-9][a-z0-9._-]*\.(mjs|sh)$/.test(name);
+export const isReleaseDirectoryPath = name => ["deploy", "deploy/scripts"].includes(name);
 
 function exactKeys(value, keys) {
   return value && typeof value === "object" && !Array.isArray(value) &&
@@ -26,7 +27,7 @@ export function assertReleaseManifest(manifest) {
   assertPublicBuild(manifest.publicBuild);
   if (!manifest.files || typeof manifest.files !== "object" || Array.isArray(manifest.files)) throw new Error("Invalid release asset inventory.");
   for (const [name, digest] of Object.entries(manifest.files)) {
-    if (!assetPath(name) || !/^[a-f0-9]{64}$/.test(digest)) throw new Error(`Invalid release asset: ${name}.`);
+    if (!isReleaseAssetPath(name) || !/^[a-f0-9]{64}$/.test(digest)) throw new Error(`Invalid release asset: ${name}.`);
   }
   for (const name of REQUIRED_ASSETS) if (!manifest.files[name]) throw new Error(`Missing required release asset: ${name}.`);
   return manifest;
@@ -54,7 +55,7 @@ async function listFiles(directory, prefix = "") {
     const relative = prefix + item.name;
     if (item.isSymbolicLink()) throw new Error("Symbolic links are not permitted in release bundles.");
     if (item.isDirectory()) {
-      if (!["deploy", "deploy/scripts"].includes(relative)) throw new Error(`Unexpected release asset: ${relative}.`);
+      if (!isReleaseDirectoryPath(relative)) throw new Error(`Unexpected release asset: ${relative}.`);
       result.push(...await listFiles(path.join(directory, item.name), `${relative}/`));
     } else if (item.isFile()) result.push(relative);
     else throw new Error(`Unexpected release asset: ${relative}.`);
@@ -103,7 +104,7 @@ export async function createReleaseBundle({ sourceDirectory, outputDirectory, re
   await mkdir(path.join(outputDirectory, "deploy/scripts"), { recursive: true });
   const sourceScripts = path.join(sourceDirectory, "deploy/scripts");
   for (const name of await readdir(sourceScripts)) {
-    if (!assetPath(`deploy/scripts/${name}`) || !(await lstat(path.join(sourceScripts, name))).isFile()) {
+    if (!isReleaseAssetPath(`deploy/scripts/${name}`) || !(await lstat(path.join(sourceScripts, name))).isFile()) {
       throw new Error(`Unexpected source deployment script: ${name}.`);
     }
     await copyFile(path.join(sourceScripts, name), path.join(outputDirectory, "deploy/scripts", name));

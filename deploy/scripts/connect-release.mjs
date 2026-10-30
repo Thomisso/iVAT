@@ -7,7 +7,7 @@ import { spawn } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 import { assertPublishedRelease } from "./release-policy.mjs";
-import { validateReleaseBundle } from "./release-bundle.mjs";
+import { isReleaseAssetPath, isReleaseDirectoryPath, validateReleaseBundle } from "./release-bundle.mjs";
 
 // Decode only the regular files/directories our ustar producer emits. Never
 // extract links, devices, PAX overrides or paths interpreted by a shell/tar.
@@ -36,8 +36,8 @@ export async function inspectReleaseArchive(bytes, verified, event) {
       const name = raw.replace(/^\.\//, "").replace(/\/$/, "");
       const type = field(156, 1);
       const size = octal(field(124, 12));
-      const allowedDirectory = name === "" || ["deploy", "deploy/scripts"].includes(name);
-      const allowedFile = name === "manifest.json" || name === "docker-compose.rosti.yml" || name === "deploy/restore.yml" || /^deploy\/scripts\/[a-z0-9][a-z0-9._-]*\.(mjs|sh)$/.test(name);
+      const allowedDirectory = name === "" || isReleaseDirectoryPath(name);
+      const allowedFile = name === "manifest.json" || isReleaseAssetPath(name);
       if (seen.has(name) || !((type === "5" && allowedDirectory && size === 0) || (["", "0"].includes(type) && allowedFile))) throw new Error("Unsafe or unexpected release archive entry.");
       seen.add(name);
       offset += 512;
