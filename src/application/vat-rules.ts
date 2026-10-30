@@ -18,14 +18,12 @@ export type ReportDocument = {
   extractionVersionId: string | null;
   status: DocumentStatus;
   payload: ExtractionPayload | null;
-  receiptDate?: string;
   claimedReportingPeriod?: string | null;
 };
 
 export type ReportingPeriodDocument = {
   direction: "incoming" | "outgoing" | null;
   taxPointDate: string | null;
-  receiptDate: string;
   claimedReportingPeriod: string | null;
 };
 
@@ -36,24 +34,18 @@ function validDate(value: string | null): value is string {
 }
 
 
-/** Assigns a Document to the Company's Reporting Period in force on its relevant date. */
+/**
+ * Assigns a Document to the Company's Reporting Period of its Tax Point Date
+ * (ADR-0012), or to an incoming Document's later Deferred Claim. Mirrors
+ * `private.document_reporting_period` in the database.
+ */
 export function reportingPeriodForDocument(
   document: ReportingPeriodDocument,
   reportingYears: readonly ReportingYear[],
 ): string | null {
   if (!validDate(document.taxPointDate)) return null;
-  if (document.direction === "outgoing") {
-    return reportingPeriodForDate(document.taxPointDate, reportingYears);
-  }
-  if (document.direction !== "incoming" || !validDate(document.receiptDate)) {
-    return null;
-  }
-  const assigned = reportingPeriodForDate(
-    document.receiptDate > document.taxPointDate
-      ? document.receiptDate
-      : document.taxPointDate,
-    reportingYears,
-  );
+  const assigned = reportingPeriodForDate(document.taxPointDate, reportingYears);
+  if (document.direction !== "incoming") return assigned;
   const claimedStart = document.claimedReportingPeriod
     ? reportingPeriodStart(document.claimedReportingPeriod)
     : null;
@@ -247,7 +239,6 @@ export function computeVatReport(
           {
             direction: payload.direction,
             taxPointDate: payload.taxPointDate,
-            receiptDate: document.receiptDate ?? payload.taxPointDate ?? "",
             claimedReportingPeriod: document.claimedReportingPeriod ?? null,
           },
           reportingYears,
