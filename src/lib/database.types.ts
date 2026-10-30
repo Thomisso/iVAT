@@ -766,6 +766,9 @@ isOneToOne: false
 "finish_upload_batch":
 { Args: { "target_batch_id": string }; Returns: undefined
                            },
+"generate_company_reporting_years":
+{ Args: { "from_year": number,"new_frequency": Database["public"]['Enums']["filing_frequency"],"target_company_id": string,"to_year": number }; Returns: Json
+                           },
 "invitation_onboarding":
 { Args: { "invitation_token": string }; Returns: {
               "invitee_email": string,"invitee_existed": boolean,"onboarding_status": string,"target_company_id": string
@@ -928,6 +931,23 @@ isOneToOne: false
 "update_document_reporting":
 { Args: { "new_claimed_reporting_period": string,"new_receipt_date": string,"target_document_id": string }; Returns: undefined
                            },
+"upload_batches_in_reporting_period":
+{ Args: { "target_company_id": string,"target_period"?: string }; Returns: {
+              "company_id": string,
+"created_at": string,
+"created_by": string,
+"file_count": number,
+"id": string,
+"organization_id": string,
+"processing_finished_at": string | null,
+"upload_finished_at": string | null
+            }[]
+                          SetofOptions: {
+        from: "*"
+        to: "upload_batch"
+        isOneToOne: false
+        isSetofReturn: true
+      } },
 "vat_report_artifact_history":
 { Args: { "target_company_id": string,"target_period": string }; Returns: Json
                            },
