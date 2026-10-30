@@ -35,6 +35,7 @@ import { fakeExchangeRates } from "@/cnb/fake";
 import { addLegacyRateBreakdownVersionFixture } from "./support/rate-breakdown-history";
 import { fakeVatPayerRegistry } from "@/vat-registry/fake";
 import { addLegacyUndeterminedVatRegimeFixture, setLegacyVatRegimeReadinessFixture } from "./support/vat-regime-history";
+import { setLegacyDocumentApprovedFixture } from "./support/legacy-document-approval";
 
 /** An Administrator whose Company holds one Document in NeedsReview, Extracted as `extraction`. */
 async function documentInReview(extraction: ExtractionPayload = SAMPLE_EXTRACTION) {
@@ -84,7 +85,8 @@ describe("correcting a Document", () => {
     expect(legacy.payload.rateBreakdown).toHaveLength(3);
     expect(legacy.payload.confidence).toEqual({ "rateBreakdown.1.netAmount": 0.62, "rateBreakdown.2.vatAmount": 0.45 });
     expect(legacy.findings).toContainEqual({ field: "rateBreakdown.2.vatAmount", severity: "error", code: "rate_vat_amount_mismatch" });
-    expect(await approveDocument(document.client, { ...document, version: 2 })).toEqual({ ok: true, value: null });
+    expect(await approveDocument(document.client, { ...document, version: 2 })).toEqual({ ok: false, error: "document_validation_failed" });
+    await setLegacyDocumentApprovedFixture(inject("databaseUrl"), document.documentId);
     expect((await generateVatReport(document.client, { companyId: document.companyId, period: "2026-10" })).ok).toBe(true);
     const report = await getVatReport(document.client, document.companyId, "2026-10");
     expect(report?.result.excludedDocuments).toEqual([]);
@@ -297,14 +299,18 @@ describe("correcting a Document", () => {
     );
   });
 
-  it("refuses a Rate Breakdown line without its amounts", async () => {
+  it("preserves an unfinished Rate Breakdown line but refuses approval until its amounts are complete", async () => {
     const { client, companyId, documentId } = await documentInReview();
     const payload = { ...SAMPLE_EXTRACTION, rateBreakdown: [{ rate: 21, netAmount: "1000.00", vatAmount: "" }] };
 
     expect(await correctDocument(client, { companyId, documentId, basedOnVersion: 1, payload })).toEqual({
-      ok: false,
-      error: "invalid_amount",
+      ok: true,
+      value: { version: 2 },
     });
+    expect((await listExtractionVersions(client, companyId, documentId))[1].payload).toMatchObject({
+      schemaVersion: 2, rateBreakdown: [{ rate: 21, netAmount: "1000.00", vatAmount: null }],
+    });
+    expect(await approveDocument(client, { companyId, documentId, version: 2 })).toEqual({ ok: false, error: "document_incomplete" });
   });
 
   it("accepts negative amounts of a Credit Note and fields left empty", async () => {
@@ -341,7 +347,7 @@ describe("correcting a Document", () => {
     expect((await listExtractionVersions(client, companyId, documentId))[2].payload.originalDocumentNumber).toBeNull();
   });
 
-  it("refuses a Credit Note whose entered amounts are not negative", async () => {
+  it("preserves a Credit Note draft whose entered amounts are not negative but refuses its approval", async () => {
     const { client, companyId, documentId } = await documentInReview();
     const creditNote: ExtractionPayload = {
       ...SAMPLE_EXTRACTION,
@@ -354,10 +360,11 @@ describe("correcting a Document", () => {
       documentId,
       basedOnVersion: 1,
       payload: creditNote,
-    })).toEqual({ ok: false, error: "invalid_credit_note_amount" });
+    })).toEqual({ ok: true, value: { version: 2 } });
+    expect(await approveDocument(client, { companyId, documentId, version: 2 })).toEqual({ ok: false, error: "invalid_credit_note_amount" });
   });
 
-  it("refuses an all-zero Credit Note correction", async () => {
+  it("preserves an all-zero Credit Note draft but refuses its approval", async () => {
     const { client, companyId, documentId } = await documentInReview();
     const creditNote: ExtractionPayload = {
       ...SAMPLE_EXTRACTION,
@@ -372,7 +379,8 @@ describe("correcting a Document", () => {
       documentId,
       basedOnVersion: 1,
       payload: creditNote,
-    })).toEqual({ ok: false, error: "invalid_credit_note_amount" });
+    })).toEqual({ ok: true, value: { version: 2 } });
+    expect(await approveDocument(client, { companyId, documentId, version: 2 })).toEqual({ ok: false, error: "invalid_credit_note_amount" });
   });
 });
 

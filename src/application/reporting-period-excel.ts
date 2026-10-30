@@ -1,6 +1,6 @@
 import * as XLSX from "xlsx";
 import type { ValidationFinding } from "./document-validation";
-import { isZeroRateBreakdownLine, type ExtractionPayload, type RateBreakdownLine } from "./extraction-payload";
+import { isZeroRateBreakdownLine, type ExtractionPayload, type DraftRateBreakdownLine } from "./extraction-payload";
 import {
   type CompanyDetails,
   getCompany,
@@ -47,14 +47,14 @@ function amount(value: string | null): string | number {
   return Number.isFinite(numeric) ? numeric : value;
 }
 
-function rateGross(line: RateBreakdownLine | null): string | number {
-  if (!line) return "";
+function rateGross(line: DraftRateBreakdownLine | null): string | number {
+  if (!line || line.netAmount === null || line.vatAmount === null) return "";
   const net = Number(line.netAmount);
   const vat = Number(line.vatAmount);
   return Number.isFinite(net) && Number.isFinite(vat) ? net + vat : "";
 }
 
-function details(payload: ExtractionPayload | null, line: RateBreakdownLine | null) {
+function details(payload: ExtractionPayload | null, line: DraftRateBreakdownLine | null) {
   if (!payload) {
     return {
       documentNumber: "",

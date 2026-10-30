@@ -1640,6 +1640,7 @@ select:disabled {
 .review-queue-steps a { color: var(--upload-accent); font-weight: 680; }
 .review-queue-steps [aria-disabled="true"] { color: #9aa6a2; }
 .company-shell-content > .review .review-data { padding: 20px; border: 1px solid var(--upload-line); background: var(--upload-surface); }
+.company-shell-content > .review.manual-document-create { grid-template-columns: minmax(0, 1fr); grid-template-areas: "header" "data"; max-width: 980px; }
 .company-shell-content > .review .review-original > .iv-viewer { top: 24px; border-color: var(--upload-line-strong); }
 @media (max-width: 1050px) {
   .document-queue-filters { grid-template-columns: repeat(2, minmax(150px, 1fr)); }
