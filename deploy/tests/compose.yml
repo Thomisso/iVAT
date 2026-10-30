@@ -1,0 +1,19 @@
+# Local verification only. Never apply this override to the internet-facing Stack.
+services:
+  db:
+    ports:
+      - 127.0.0.1:3183:5432
+  gateway:
+    ports:
+      - 127.0.0.1:3182:8000
+  auth:
+    environment:
+      GOTRUE_DISABLE_SIGNUP: "false"
+  storage:
+    # Docker Desktop for macOS cannot preserve Linux xattrs on bind mounts.
+    # Production uses a Linux bind mount; this volume is test-only.
+    volumes: !override
+      - test-storage:/var/lib/storage
+
+volumes:
+  test-storage:

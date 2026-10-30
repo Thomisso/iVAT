@@ -19,7 +19,7 @@ describe("Source File upload", () => {
   it("returns the same Source File when the client retries after losing the response", async () => {
     const { client, companyId } = await administratorWithCompany();
     const worker = testWorker();
-    const sourceFileId = "00000000-0000-4000-8000-000000000082";
+    const sourceFileId = randomUUID();
     const input = {
       companyId,
       sourceFileId,

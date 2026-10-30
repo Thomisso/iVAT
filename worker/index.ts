@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { writeFileSync } from "node:fs";
 import type { Database } from "@/lib/database.types";
 import type { JobWithMetadata } from "pg-boss";
 import { asSystemClient } from "@/application/client";
@@ -19,9 +20,17 @@ function required(name: string): string {
 }
 
 const boss = createBoss({ supervise: true });
+let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
+
+async function heartbeat() {
+  const path = process.env.WORKER_HEALTH_FILE;
+  if (!path) return;
+  if (!(await boss.getQueue(PROCESSING_JOB_NAMES[0]))) throw new Error("Processing queue is unavailable");
+  writeFileSync(path, String(Date.now()), { mode: 0o600 });
+}
 
 const system = asSystemClient(
-  createClient<Database>(required("NEXT_PUBLIC_SUPABASE_URL"), required("SUPABASE_SECRET_KEY"), {
+  createClient<Database>(process.env.SUPABASE_INTERNAL_URL ?? required("NEXT_PUBLIC_SUPABASE_URL"), required("SUPABASE_SECRET_KEY"), {
     auth: { persistSession: false, autoRefreshToken: false },
   }),
 );
@@ -44,10 +53,18 @@ async function main() {
       await runJob(worker, { name, data: job.data } as ProcessingJob, attempt);
     });
   }
+  await heartbeat();
+  if (process.env.WORKER_HEALTH_FILE) {
+    heartbeatTimer = setInterval(() => {
+      void heartbeat().catch(() => console.error("[worker] heartbeat failed"));
+    }, 30_000);
+    heartbeatTimer.unref();
+  }
   console.log(`[worker] started with AI providers ${providers.map((provider) => provider.name).join(", ")}; waiting for jobs`);
 }
 
 async function shutdown() {
+  clearInterval(heartbeatTimer);
   console.log("[worker] stopping");
   await boss.stop({ graceful: true });
   process.exit(0);

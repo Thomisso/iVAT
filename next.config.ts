@@ -7,6 +7,7 @@ import { UPLOAD_BODY_LIMIT } from "./src/lib/upload-policy";
 // this adds room for multipart overhead so every accepted setting is transportable.
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   // Playwright uses the loopback address while the dev server advertises
   // localhost; permit that same-machine origin so client islands hydrate.
   allowedDevOrigins: ["127.0.0.1"],
