@@ -691,7 +691,9 @@
     "maxFileBytes": "Maximum Source File size (bytes)",
     "maxFilePages": "Maximum pages per Source File",
     "maxBatchFiles": "Maximum Source Files per batch",
-    "saveLimits": "Save upload limits"
+    "saveLimits": "Save upload limits",
+    "retainedHistory": "Retained history",
+    "companyIdentity": "{name} · IČO {ico}"
   },
   "mfa": {
     "securityTitle": "Security",
@@ -1249,5 +1251,40 @@
       "464": "FÚ pro Zlínský kraj",
       "13": "Specializovaný finanční úřad"
     }
+  },
+  "platformHistory": {
+    "title": "Company history: {company}",
+    "deletedNotice": "Deleted on {date}. Retained history is read-only; this Company remains deleted.",
+    "blockedNotice": "This Organization is blocked. Ordinary processing remains paused until a SuperAdmin explicitly unblocks it.",
+    "readOnlyNotice": "This view provides read-only access to retained Company data.",
+    "organizationAdministration": "Organization administration",
+    "companyAdministration": "Company access administration",
+    "organizationAudit": "Company audit history",
+    "downloadArchive": "Download retained Company data",
+    "companyIdentity": "Company identity",
+    "sourceFiles": "Source Files",
+    "file": "File",
+    "uploadedAt": "Uploaded",
+    "byteSize": "Bytes",
+    "documents": "Documents",
+    "document": "Document",
+    "pages": "Pages {first}–{last}",
+    "version": "Extraction Version {version} · {date}",
+    "documentNumber": "Document number",
+    "supplier": "Supplier",
+    "customer": "Customer",
+    "taxPointDate": "Tax Point Date",
+    "total": "Total",
+    "noDocuments": "No retained Documents.",
+    "vatReports": "VAT Reports",
+    "period": "Reporting Period",
+    "generatedAt": "Generated",
+    "xmlArtifacts": "Archived XML",
+    "audit": "Company audit history",
+    "occurredAt": "When",
+    "action": "Action",
+    "actor": "Actor",
+    "identityLine": "{name} · IČO {ico} · {vatId}",
+    "notAvailable": "Not available"
   }
 }
