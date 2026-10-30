@@ -216,13 +216,11 @@ export async function addBrowserTerminalProcessingJobFixture(companyId: string) 
     await database.query(
       `insert into public.source_file (
          id, organization_id, company_id, file_name, format,
-         byte_size, sha256, page_count, uploaded_by, status,
-         preselected_direction
+         byte_size, sha256, page_count, uploaded_by, status
        )
        select
          $2, organization_id, company_id, file_name, format,
-         byte_size, sha256, page_count, uploaded_by, 'failed',
-         preselected_direction
+         byte_size, sha256, page_count, uploaded_by, 'failed'
        from public.source_file
        where id = $1`,
       [source.rows[0].id, retrySourceFileId],

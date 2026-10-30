@@ -5,10 +5,6 @@ import { isUuid, type AppClient, type Result } from "./client";
 import { getCompany } from "./companies";
 import { splitJob, type JobQueue } from "./processing";
 import { workbookToText } from "./workbooks";
-import {
-  DIRECTIONS,
-  type Direction,
-} from "./extraction-payload";
 
 export type SourceFileFormat = "pdf" | "png" | "jpeg" | "heic" | "heif" | "xlsx" | "xls";
 export type ImageSourceFileFormat = "pdf" | "png" | "jpeg" | "heic" | "heif";
@@ -30,7 +26,6 @@ export type SourceFile = {
     sha256: string;
   } | null;
   pageCount: number;
-  preselectedDirection: Direction | null;
   status: SourceFileStatus;
   uploadedAt: string;
 };
@@ -41,7 +36,6 @@ export type UploadSourceFileInput = {
   batchId?: string;
   fileName: string;
   bytes: Uint8Array;
-  preselectedDirection?: Direction;
 };
 export type UploadSourceFileError =
   | "file_required"
@@ -184,12 +178,6 @@ export async function uploadSourceFile(
     return { ok: false, error: "invalid_choice" };
   }
   if (input.batchId !== undefined && !isUuid(input.batchId)) return { ok: false, error: "forbidden" };
-  if (
-    input.preselectedDirection !== undefined &&
-    !DIRECTIONS.includes(input.preselectedDirection)
-  ) {
-    return { ok: false, error: "invalid_choice" };
-  }
   const limits = await getUploadLimits(client);
   if (input.bytes.length > limits.maxFileBytes) return { ok: false, error: "file_too_large" };
   const format = formatOf(fileName);
@@ -207,7 +195,7 @@ export async function uploadSourceFile(
   const id = input.sourceFileId ?? randomUUID();
   const { data: existing, error: existingError } = await client
     .from("source_file")
-    .select("id, upload_batch_id, file_name, format, byte_size, sha256, preselected_direction")
+    .select("id, upload_batch_id, file_name, format, byte_size, sha256")
     .eq("id", id)
     .eq("company_id", company.id)
     .maybeSingle();
@@ -217,8 +205,7 @@ export async function uploadSourceFile(
       && existing.file_name === fileName
       && existing.format === format
       && Number(existing.byte_size) === input.bytes.length
-      && existing.sha256 === sha256
-      && existing.preselected_direction === (input.preselectedDirection ?? null);
+      && existing.sha256 === sha256;
     if (!matches) return { ok: false, error: "invalid_choice" };
     await jobs.send(splitJob(existing.id));
     return { ok: true, value: { id: existing.id } };
@@ -260,7 +247,6 @@ export async function uploadSourceFile(
       ? createHash("sha256").update(derivative).digest("hex")
       : null,
     page_count: pageCount,
-    preselected_direction: input.preselectedDirection ?? null,
   });
   if (error) {
     if (error.code === "42501") return { ok: false, error: "forbidden" };
@@ -270,7 +256,7 @@ export async function uploadSourceFile(
   return { ok: true, value: { id } };
 }
 
-const COLUMNS = "id, company_id, file_name, format, byte_size, sha256, normalized_format, normalized_byte_size, normalized_sha256, page_count, preselected_direction, status, uploaded_at";
+const COLUMNS = "id, company_id, file_name, format, byte_size, sha256, normalized_format, normalized_byte_size, normalized_sha256, page_count, status, uploaded_at";
 
 type SourceFileRow = {
   id: string;
@@ -283,7 +269,6 @@ type SourceFileRow = {
   normalized_byte_size: number | null;
   normalized_sha256: string | null;
   page_count: number;
-  preselected_direction: string | null;
   status: SourceFileStatus;
   uploaded_at: string;
 };
@@ -305,7 +290,6 @@ function toSourceFile(row: SourceFileRow): SourceFile {
           }
         : null,
     pageCount: row.page_count,
-    preselectedDirection: row.preselected_direction as Direction | null,
     status: row.status,
     uploadedAt: row.uploaded_at,
   };
