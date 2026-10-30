@@ -1149,6 +1149,7 @@
     "vatReturn": "Přiznání k DPH",
     "controlStatement": "Kontrolní hlášení",
     "controlStatementHint": "{count, plural, =0 {V tomto snímku není vyplněný žádný oddíl.} one {V tomto snímku je vyplněný # oddíl.} few {V tomto snímku jsou vyplněné # oddíly.} other {V tomto snímku je vyplněno # oddílů.}}",
+    "aggregateEntry": "Souhrnné doklady",
     "documentFallback": "Otevřít doklad",
     "reverseChargeCode": "Kód plnění",
     "rateLabel": "Sazba",
@@ -1205,6 +1206,8 @@
       "rate": "Sazba",
       "taxBaseCzk": "Základ daně (Kč)",
       "vatCzk": "DPH (Kč)",
+      "sectionTotals": "Součty oddílu",
+      "noEntries": "Žádné zahrnuté doklady.",
       "statementTotals": "Součty kontrolního hlášení",
       "subject": "PDF náhled kontrolního hlášení vytvořený aplikací iVAT"
     },
