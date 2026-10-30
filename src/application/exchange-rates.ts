@@ -46,7 +46,7 @@ function conversion(payload: ExtractionPayload, rate: CnbRate): CzkConversion | 
   const rateBreakdown = payload.rateBreakdown.map((line): RateBreakdownLine | null => {
     const netAmount = convertedAmount(line.netAmount, rate);
     const vatAmount = convertedAmount(line.vatAmount, rate);
-    return netAmount === null || vatAmount === null ? null : { ...line, netAmount, vatAmount };
+    return netAmount === null || vatAmount === null || line.rate === null ? null : { rate: line.rate, netAmount, vatAmount };
   });
   const totals = {
     netAmount: convertedAmount(payload.totals.netAmount, rate),

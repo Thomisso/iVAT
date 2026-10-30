@@ -2,7 +2,7 @@
 
 import { useActionState, useState, type ComponentProps } from "react";
 import { useTranslations } from "next-intl";
-import { correctDocumentAction } from "@/app/actions";
+import { correctDocumentAction, createManualDocumentAction } from "@/app/actions";
 import {
   DIRECTIONS,
   DOCUMENT_TYPES,
@@ -32,7 +32,7 @@ export function CorrectionForm({
   aiProposed,
 }: {
   companyId: string;
-  documentId: string;
+  documentId?: string;
   version: number;
   payload: ExtractionPayload;
   findings: ValidationFinding[];
@@ -40,7 +40,7 @@ export function CorrectionForm({
   aiProposed?: boolean;
 }) {
   const t = useTranslations("review");
-  const [state, action, pending] = useActionState(correctDocumentAction, {
+  const [state, action, pending] = useActionState(documentId ? correctDocumentAction : createManualDocumentAction, {
     error: null,
     values: {},
   });
@@ -90,6 +90,7 @@ export function CorrectionForm({
       defaultValue={value(name, payload[name])}
       disabled={!editable}
       error={findingMessage(name)}
+      required={editable && name === "taxPointDate"}
     />
   );
   const amount = (name: string, saved: string | null, label: string) =>
@@ -324,7 +325,7 @@ export function CorrectionForm({
         <>
           <FormError error={state.error} />
           <Button type="submit" disabled={pending}>
-            {t("save")}
+            {t(documentId ? "save" : "createManual")}
           </Button>
         </>
       )}

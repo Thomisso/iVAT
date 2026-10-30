@@ -1642,6 +1642,7 @@ select:disabled {
 .review-queue-steps a { color: var(--upload-accent); font-weight: 680; }
 .review-queue-steps [aria-disabled="true"] { color: #9aa6a2; }
 .company-shell-content > .review .review-data { padding: 20px; border: 1px solid var(--upload-line); background: var(--upload-surface); }
+.company-shell-content > .review.manual-document-create { grid-template-columns: minmax(0, 1fr); grid-template-areas: "header" "data"; max-width: 980px; }
 .company-shell-content > .review .review-original > .iv-viewer { top: 24px; border-color: var(--upload-line-strong); }
 @media (max-width: 1050px) {
   .document-queue-filters { grid-template-columns: repeat(2, minmax(150px, 1fr)); }
@@ -2034,6 +2035,8 @@ select:disabled {
 }
 .report-totals dd { margin: var(--space-2) 0 0; }
 .report-section + .report-section { margin-top: var(--space-5); }
+.control-statement-entry { display: grid; gap: var(--space-1); }
+.control-statement-entry small { color: var(--ink-muted); }
 
 /* Reporting Period timeline and live-readiness processing workspace (#84). */
 .vat-periods-workspace,
@@ -2340,3 +2343,6 @@ select:disabled {
   .export-artifact-details dl { grid-template-columns: minmax(0, 1fr); }
 }
 .settings-form-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+
+.invitation-link-field { flex-basis: 100%; min-width: 0; }
+.invitation-link-field input { width: 100%; min-width: 0; }
