@@ -24,7 +24,7 @@ test("Export History shows a compact table and expandable filing details on desk
   await page.getByRole("button", { name: "Generate draft", exact: true }).click();
   await page.getByRole("link", { name: "Open VAT Return", exact: true }).click();
   await page.getByLabel("Preparation date").fill("10.02.2026");
-  await page.getByLabel("Tax office", { exact: true }).selectOption("451");
+  await page.getByRole("combobox", { name: "Tax office", exact: true }).selectOption("451");
   await page.getByLabel("First name").fill("Jana");
   await page.getByLabel("Last name").fill("Nováková");
   await page.getByLabel("Capacity (e.g. director)").fill("jednatelka");
