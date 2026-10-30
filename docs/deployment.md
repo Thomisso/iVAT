@@ -5,6 +5,9 @@ The application is at `https://app.ivat.cz`; the public Supabase API is at
 `https://api.ivat.cz`. DNS stays at WEDOS with DNSSEC. AI uses the existing
 platform-owned provider configurations.
 
+For the actual Stack identity, deployed revisions, DNS/TLS incident, verification
+results and backup locations, see the [2026-10-30 deployment record](deployments/2026-10-30-rosti-pilot.md).
+
 This is a pilot exception to ADR-0002's original managed Supabase choice.
 Roští manages its hosting infrastructure; we maintain the application images,
 Supabase versions, backups and recovery. Medium (4 GB RAM, 25 GB disk) is an
@@ -82,6 +85,19 @@ starting the proxy on port 80. Keep the provider's canonical
 administration controls operate on the same services. Never modify the separate
 system `mgm` service.
 
+The provider also exposes Compose through its administration and
+[`PUT /api-n/{company_id}/stacks/{stack_id}/compose?call_up=false`](https://admin.rosti.cz/api-n/docs)
+with a `text/plain` body. For subsequent releases, keep the provider-managed
+Compose configuration synchronized through its supported tooling as well as
+the release file. During the initial rollout, the provider's returned
+`compose_b64` matched the release file after upload. Recheck this after future
+updates; an administration edit can replace the canonical Compose file.
+
+Prefer `rosticli stacks ssh --target rosti -- sh -lc '...'` for host commands.
+The host's default shell is fish; `sh -lc` makes the shell syntax in this
+runbook predictable. The CLI maintains its own SSH host-key trust; raw
+OpenSSH does not automatically inherit it.
+
 Only the proxy publishes port 80. PostgreSQL, Auth, REST, Storage and Kong's
 admin interface stay private. Store persistent data under `/srv/stack`:
 `deploy/runtime/db`, `deploy/runtime/db-keys` and `deploy/runtime/storage`.
@@ -95,11 +111,25 @@ create CNAME records `app` and `api`, both pointing to `lb.rosti.cz`, retaining
 the existing NSSET and DNSSEC. Disable redirecting all domains to the first
 domain: the API and application need separate Host routing. Let Roští issue
 HTTPS certificates for both names.
+
 The application proxy redirects forwarded HTTP requests to the configured
 HTTPS hostname, retaining the path and query string. Internal health checks
 remain available without HTTPS.
+
 The API hostname is part of the application build; a temporary hostname must
 be configured before building if it is used instead.
+
+Roští terminates HTTPS before forwarding HTTP to the Stack's port 80; no
+Certbot or public port 443 is needed inside this Compose deployment. First
+issuance can be delayed by DNS validation and retry backoff. Keep confirmed
+DNS stable and ask support for the last error and next retry if issuance does
+not complete. A synthetic ACME-path response alone does not establish the
+status of a real certificate order. See the [provider's domain guide](https://docs.rosti.cz/cs/stacks/quickstart/#nastaveni-domen).
+
+The default `ivat-931.rostiapp.cz` hostname is assigned at Roští, but our
+Nginx only serves the application and API on their configured hostnames.
+`https://ivat-931.rostiapp.cz/healthz` returns `200`; `/` and `/login` return
+`404` by design. That `404` is independent of TLS certificate validity.
 
 Create the operator interactively on the Stack:
 
@@ -123,7 +153,10 @@ cannot override the provider's outer limits.
 
 The deployment verification workflow boots the self-hosted services and
 reuses Application integration tests, in addition to the existing CI checks.
-Its local counterpart is:
+For its local counterpart, use a separate verification checkout with disposable
+`.env.rosti` credentials for these commands. Do not reuse the live environment
+file. The test setup changes the local default AI Configuration, and the
+scenarios create test Organizations, Companies and Documents.
 
 ```bash
 docker compose --env-file .env.rosti -p ivat-deploy-check -f docker-compose.rosti.yml -f deploy/tests/compose.yml up -d --build --wait
@@ -152,6 +185,37 @@ with the previous application release; restoring old application code does not
 undo database migrations. The pilot runner's `ivat_deploy.migration` ledger is
 separate from the local Supabase CLI ledger; preserve it during recovery and
 plan an explicit history conversion before switching migration tooling.
+
+### Inspect a running release
+
+Run these on the Stack host, from `/srv/stack`:
+
+```bash
+docker compose --env-file .env -f docker-compose.rosti.yml ps --all
+docker compose --env-file .env -f docker-compose.rosti.yml logs --tail 100 web worker
+cat deploy/release-commit.txt
+cat deploy/release-images.txt
+```
+
+Eight long-running application services should be healthy; `migrate` should
+have exited with code 0. `backup` only runs when requested, and `system-mgm-1`
+is owned by Roští. For public checks, `/login` on the application must return
+200 over validated HTTPS. The API's `/auth/v1/health` without an API key can
+return 401; use an authenticated probe to test API behavior. Do not print
+private keys, sessions, full environment files or decrypted Vault values.
+
+Before each later release, create and retain a backup and record the current
+image IDs. Tag built images by revision before replacing `latest`, and update
+`deploy/release-commit.txt` and `deploy/release-images.txt` after verification.
+For an application rollback with a compatible database schema, restore the
+retained app/proxy image tags to the names referenced by Compose, then run:
+
+```bash
+docker compose --env-file .env -f docker-compose.rosti.yml up -d --no-build --no-deps --wait web worker proxy
+```
+
+This does not undo migrations. A database rollback requires a separate restore
+decision and the matching database version and encryption keys.
 
 ## Backups and recovery
 
@@ -182,8 +246,40 @@ outage. Check `daily.log`; automatic failure alerts and automatic off-server
 copies still require an external destination/monitor. Keep at least a verified
 initial backup outside the Stack before onboarding pilot Users.
 
+The pilot host timezone was verified as UTC, so the installed schedule is
+03:15 UTC. Recheck the crontab and running cron service after replacement or
+recreation of the provider's `mgm` container. The current off-server copies
+are manual copies to the operator's computer; no recurring off-server transfer
+or automatic failure notification was configured during the first rollout.
+
+Copy both the printed archive and its `.images.json` companion privately via
+SSH. For example, from the connected local checkout (replace the archive name
+with the one just created):
+
+```bash
+umask 077
+archive=ivat-20261030T155043Z.tar.gz
+private_backup_dir="$HOME/.config/ivat/production"
+mkdir -p "$private_backup_dir"
+chmod 700 "$private_backup_dir"
+rosticli stacks ssh --target rosti -- sh -lc "cat /srv/stack/deploy/backups/$archive" > "$private_backup_dir/$archive"
+rosticli stacks ssh --target rosti -- sh -lc "cat /srv/stack/deploy/backups/$archive.images.json" > "$private_backup_dir/$archive.images.json"
+gzip -t "$private_backup_dir/$archive"
+```
+
+These archives include the environment file and database encryption keys.
+File permissions protect the current local copies; the archive format itself
+does not encrypt them. Preserve the matching service images separately: the
+image inventory records their IDs but does not contain the images.
+
 Restore into an empty, separate Stack using the same PostgreSQL and service
 versions and a checkout of this release:
+
+Load the retained matching images first, or rebuild that release with the
+saved environment's public build values. The archive does not ship Docker
+images, and the restore operator itself needs the `app` image. Do not run
+`init.mjs` on the recovery target: `restore.sh` recovers the original environment
+file from the archive before creating containers.
 
 ```bash
 DEPLOY_ENV_FILE=.env sh deploy/scripts/restore.sh /private/backup/ivat-backup.tar.gz
