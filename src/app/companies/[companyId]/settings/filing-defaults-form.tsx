@@ -71,7 +71,7 @@ export function FilingDefaultsForm({
           type="checkbox"
           value="yes"
         />
-        {t("useEpoAddress")}
+        <span>{t("useEpoAddress")}</span>
       </label>
       {useOverride && <>
         <div className="form-row">
@@ -85,7 +85,7 @@ export function FilingDefaultsForm({
         </div>
         <label className="iv-checkbox-row">
           <input name="epoAddressConfirmed" type="checkbox" value="yes" defaultChecked={state.values.epoAddressConfirmed === "yes"} required />
-          {t("confirmEpoAddress")}
+          <span>{t("confirmEpoAddress")}</span>
         </label>
       </>}
     </fieldset>}

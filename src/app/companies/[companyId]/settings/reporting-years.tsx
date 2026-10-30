@@ -28,7 +28,7 @@ export function ReportingYears({ companyId, years, suggestedYear }: {
 }) {
   const t = useTranslations("company");
   return <>
-    {years.length === 0 ? <p className="iv-muted">{t("noReportingYears")}</p> : <div className="iv-table-wrap">
+    {years.length === 0 ? <p className="iv-muted">{t("noReportingYears")}</p> : <div className="reporting-years-workspace">
       <table className="iv-table reporting-years">
         <caption className="sr-only">{t("reportingYearsTitle")}</caption>
         <thead><tr>
@@ -40,10 +40,8 @@ export function ReportingYears({ companyId, years, suggestedYear }: {
         <tbody>{years.map((year, index) => <tr key={year.year}>
           <th scope="row">{year.year}</th>
           <td><FrequencyForm companyId={companyId} year={year} /></td>
-          <td>{index === 0 ? <FirstMonthForm companyId={companyId} year={year} /> : <MonthName month={year.firstMonth} />}</td>
-          <td>
-<DeleteForm companyId={companyId} year={year.year} />
-          </td>
+          <td>{index !== 0 && <span className="reporting-year-cell-label">{t("firstReportingMonth")}</span>}{index === 0 ? <FirstMonthForm companyId={companyId} year={year} /> : <MonthName month={year.firstMonth} />}</td>
+          <td><DeleteForm companyId={companyId} year={year.year} /></td>
         </tr>)}</tbody>
       </table>
     </div>}
@@ -68,7 +66,7 @@ function DeleteForm({ companyId, year }: { companyId: string; year: number }) {
     <input name="year" type="hidden" value={year} />
     <label className="iv-checkbox-row">
       <input name="confirmed" type="checkbox" required defaultChecked={state.values.confirmed === "on"} />
-      {t("confirmReportingYearDeletion", { year })}
+      <span>{t("confirmReportingYearDeletion", { year })}</span>
     </label>
     <Button size="sm" type="submit" variant="danger" disabled={pending}>{t("deleteReportingYear", { year })}</Button>
     <FormError error={state.error} />
@@ -81,7 +79,10 @@ function FrequencyForm({ companyId, year }: { companyId: string; year: Reporting
   return <form action={action} className="reporting-year-change">
     <input name="companyId" type="hidden" value={companyId} />
     <input name="year" type="hidden" value={year.year} />
+    <label className="iv-field-label">
+      {t("filingFrequency")}
     <select
+      className="iv-input"
       aria-label={t("reportingYearFrequency", { year: year.year })}
       defaultValue={state.values.frequency ?? year.frequency}
       key={`${year.frequency}-${state.values.frequency}`}
@@ -90,7 +91,8 @@ function FrequencyForm({ companyId, year }: { companyId: string; year: Reporting
       <option value="monthly">{t("monthly")}</option>
       <option value="quarterly">{t("quarterly")}</option>
     </select>
-    <Button size="sm" type="submit" disabled={pending}>{t("changeReportingYear")}</Button>
+    </label>
+    <Button size="sm" type="submit" disabled={pending}>{t("changeReportingYearFrequency")}</Button>
     <FormError error={state.error} />
   </form>;
 }
@@ -103,7 +105,10 @@ function FirstMonthForm({ companyId, year }: { companyId: string; year: Reportin
   return <form action={action} className="reporting-year-change">
     <input name="companyId" type="hidden" value={companyId} />
     <input name="year" type="hidden" value={year.year} />
+    <label className="iv-field-label">
+      {t("firstReportingMonth")}
     <select
+      className="iv-input"
       aria-label={t("firstReportingMonthOf", { year: year.year })}
       defaultValue={state.values.firstMonth ?? year.firstMonth}
       key={`${year.frequency}-${year.firstMonth}-${state.values.firstMonth}`}
@@ -111,7 +116,8 @@ function FirstMonthForm({ companyId, year }: { companyId: string; year: Reportin
     >
       {months.map((month) => <option key={month} value={month}>{formatMonthName(locale, month)}</option>)}
     </select>
-    <Button size="sm" type="submit" disabled={pending}>{t("changeReportingYear")}</Button>
+    </label>
+    <Button size="sm" type="submit" disabled={pending}>{t("changeReportingYearFirstMonth")}</Button>
     <FormError error={state.error} />
   </form>;
 }
