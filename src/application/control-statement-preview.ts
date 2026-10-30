@@ -1,4 +1,5 @@
 import type { ComputedVatReport } from "./vat-rules";
+import { isZeroRateBreakdownLine } from "./extraction-payload";
 
 export type ControlStatementPreviewData = {
   company: ComputedVatReport["company"];
@@ -37,7 +38,7 @@ export function controlStatementPreviewData(
   return {
     company: report.company,
     period: report.period,
-    entries: report.controlStatement,
+    entries: report.controlStatement.map((entry) => ({ ...entry, rateBreakdown: entry.rateBreakdown.filter((line) => !isZeroRateBreakdownLine(line)) })),
     totals: {
       netAmount: amount(totals.netAmount),
       vatAmount: amount(totals.vatAmount),
