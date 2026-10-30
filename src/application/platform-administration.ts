@@ -1,7 +1,7 @@
 import type { AppClient, Result } from "./client";
 import { MAX_SOURCE_FILE_BYTES } from "@/lib/upload-policy";
 
-export type PlatformCompany = { id: string; name: string; ico: string };
+export type PlatformCompany = { id: string; name: string; ico: string; deletedAt?: string };
 export type PlatformOrganizationCompanyList = {
   id: string;
   name: string;

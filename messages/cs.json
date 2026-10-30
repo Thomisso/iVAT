@@ -691,7 +691,9 @@
     "maxFileBytes": "Maximální velikost zdrojového souboru (bajty)",
     "maxFilePages": "Maximum stran zdrojového souboru",
     "maxBatchFiles": "Maximum zdrojových souborů v dávce",
-    "saveLimits": "Uložit limity nahrávání"
+    "saveLimits": "Uložit limity nahrávání",
+    "retainedHistory": "Dochovaná historie",
+    "companyIdentity": "{name} · IČO {ico}"
   },
   "mfa": {
     "securityTitle": "Zabezpečení",
@@ -1249,5 +1251,40 @@
       "464": "FÚ pro Zlínský kraj",
       "13": "Specializovaný finanční úřad"
     }
+  },
+  "platformHistory": {
+    "title": "Historie firmy: {company}",
+    "deletedNotice": "Smazáno {date}. Dochovaná historie je pouze pro čtení; firma zůstává smazaná.",
+    "blockedNotice": "Organizace je zablokovaná. Běžné zpracování zůstává pozastavené, dokud ji SuperAdmin výslovně neodblokuje.",
+    "readOnlyNotice": "Tento pohled nabízí dochovaná data firmy pouze pro čtení.",
+    "organizationAdministration": "Správa organizace",
+    "companyAdministration": "Správa přístupů do firmy",
+    "organizationAudit": "Auditní historie firmy",
+    "downloadArchive": "Stáhnout dochovaná data firmy",
+    "companyIdentity": "Identita firmy",
+    "sourceFiles": "Zdrojové soubory",
+    "file": "Soubor",
+    "uploadedAt": "Nahráno",
+    "byteSize": "Bajtů",
+    "documents": "Doklady",
+    "document": "Doklad",
+    "pages": "Strany {first}–{last}",
+    "version": "Verze extrakce {version} · {date}",
+    "documentNumber": "Číslo dokladu",
+    "supplier": "Dodavatel",
+    "customer": "Odběratel",
+    "taxPointDate": "Datum zdanitelného plnění",
+    "total": "Celkem",
+    "noDocuments": "Žádné dochované doklady.",
+    "vatReports": "Výstupy DPH",
+    "period": "Zdaňovací období",
+    "generatedAt": "Vygenerováno",
+    "xmlArtifacts": "Archivované XML",
+    "audit": "Auditní historie firmy",
+    "occurredAt": "Kdy",
+    "action": "Akce",
+    "actor": "Kdo",
+    "identityLine": "{name} · IČO {ico} · {vatId}",
+    "notAvailable": "Neuvedeno"
   }
 }
