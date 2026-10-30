@@ -92,6 +92,11 @@ test("final progress follows successful downloads in the current lock cycle acro
     await expect(final.getByText("Partially completed — 0/2", { exact: true })).toBeVisible();
   }
   await finalize();
+  for (const width of [360, 720]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+  }
+  await page.setViewportSize({ width: 1280, height: 900 });
   await expect(generate.getByRole("button", { name: "Generate / regenerate draft", exact: true })).toBeDisabled();
   await expect(drafts.getByRole("button", { name: "Export VAT Return XML", exact: true })).toBeDisabled();
   let failedArtifactId = "";
