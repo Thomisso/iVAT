@@ -34,6 +34,8 @@ export type ControlStatementPdfCopy = {
   rate: string;
   taxBaseCzk: string;
   vatCzk: string;
+  sectionTotals: string;
+  noEntries: string;
   statementTotals: string;
   subject: string;
 };
@@ -122,54 +124,60 @@ export async function createControlStatementPdf(
   });
   let { page, right, y } = pageHeader(document, font, preview, copy, true);
 
-  for (const entry of preview.entries) {
-    const metadataLines = [
-      entry.documentNumber && `${copy.document}: ${entry.documentNumber}`,
-      entry.counterpartyVatId &&
-        `${copy.counterpartyVatId}: ${entry.counterpartyVatId}`,
-      entry.counterpartyCountry &&
-        `${copy.counterpartyCountry}: ${entry.counterpartyCountry}`,
-      entry.taxPointDate && `${copy.taxPointDate}: ${formatDate(entry.taxPointDate)}`,
-      entry.reverseChargeCode &&
-        `${copy.supplyCode}: ${entry.reverseChargeCode}`,
-    ].filter((value): value is string => Boolean(value));
-    const requiredHeight =
-      58 + metadataLines.length * 16 + entry.rateBreakdown.length * 23;
-    if (y - requiredHeight < BOTTOM) {
-      ({ page, right, y } = pageHeader(document, font, preview, copy, false));
-    }
-
-    text(page, font, `${copy.section} ${entry.section}`, LEFT, y, 13);
-    y -= 21;
-    for (const metadata of metadataLines) {
-      text(page, font, metadata, LEFT + 6, y);
-      y -= 16;
-    }
-
-    page.drawRectangle({
-      x: LEFT,
-      y: y - 8,
-      width: right - LEFT,
-      height: 23,
-      color: rgb(0.91, 0.94, 0.97),
-    });
+  function columnHeader() {
+    page.drawRectangle({ x: LEFT, y: y - 8, width: right - LEFT, height: 23, color: rgb(0.91, 0.94, 0.97) });
     text(page, font, copy.rate, LEFT + 6, y);
     rightAligned(page, font, copy.taxBaseCzk, right - 114, y);
     rightAligned(page, font, copy.vatCzk, right - 6, y);
     y -= 23;
-    for (const rate of entry.rateBreakdown) {
-      text(page, font, `${rate.rate}%`, LEFT + 6, y);
-      rightAligned(page, font, rate.netAmount, right - 114, y);
-      rightAligned(page, font, rate.vatAmount, right - 6, y);
-      page.drawLine({
-        start: { x: LEFT, y: y - 8 },
-        end: { x: right, y: y - 8 },
-        thickness: 0.5,
-        color: rgb(0.78, 0.8, 0.83),
-      });
-      y -= 23;
+  }
+  function ensureSpace(height: number, continuingTable = false) {
+    if (y - height >= BOTTOM) return;
+    ({ page, right, y } = pageHeader(document, font, preview, copy, false));
+    if (continuingTable) columnHeader();
+  }
+  function metadataOf(entry: ControlStatementPreviewData["sections"][number]["entries"][number]) {
+    return [
+      entry.documentNumber && `${copy.document}: ${entry.documentNumber}`,
+      entry.counterpartyVatId && `${copy.counterpartyVatId}: ${entry.counterpartyVatId}`,
+      entry.counterpartyCountry && `${copy.counterpartyCountry}: ${entry.counterpartyCountry}`,
+      entry.taxPointDate && `${copy.taxPointDate}: ${formatDate(entry.taxPointDate)}`,
+      entry.reverseChargeCode && `${copy.supplyCode}: ${entry.reverseChargeCode}`,
+    ].filter((value): value is string => Boolean(value));
+  }
+
+  if (!preview.sections.length) {
+    text(page, font, copy.noEntries, LEFT, y);
+    y -= 30;
+  }
+  for (const section of preview.sections) {
+    ensureSpace(84 + metadataOf(section.entries[0]).length * 16);
+    text(page, font, `${copy.section} ${section.section}`, LEFT, y, 13);
+    y -= 26;
+    columnHeader();
+    for (const entry of section.entries) {
+      const metadata = metadataOf(entry);
+      ensureSpace(metadata.length * 16 + 37, true);
+      for (const line of metadata) {
+        ensureSpace(16, true);
+        text(page, font, line, LEFT + 6, y);
+        y -= 16;
+      }
+      for (const rate of entry.rateBreakdown) {
+        ensureSpace(23, true);
+        text(page, font, `${rate.rate}%`, LEFT + 6, y);
+        rightAligned(page, font, rate.netAmount, right - 114, y);
+        rightAligned(page, font, rate.vatAmount, right - 6, y);
+        page.drawLine({ start: { x: LEFT, y: y - 8 }, end: { x: right, y: y - 8 }, thickness: 0.5, color: rgb(0.78, 0.8, 0.83) });
+        y -= 23;
+      }
+      y -= 14;
     }
-    y -= 14;
+    ensureSpace(35, true);
+    text(page, font, copy.sectionTotals, LEFT + 6, y, 11);
+    rightAligned(page, font, section.totals.netAmount, right - 114, y, 11);
+    rightAligned(page, font, section.totals.vatAmount, right - 6, y, 11);
+    y -= 36;
   }
 
   if (y - 70 < BOTTOM) {

@@ -2034,6 +2034,8 @@ select:disabled {
 }
 .report-totals dd { margin: var(--space-2) 0 0; }
 .report-section + .report-section { margin-top: var(--space-5); }
+.control-statement-entry { display: grid; gap: var(--space-1); }
+.control-statement-entry small { color: var(--ink-muted); }
 
 /* Reporting Period timeline and live-readiness processing workspace (#84). */
 .vat-periods-workspace,

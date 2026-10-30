@@ -148,6 +148,47 @@ it("renders saved Control Statement identity, sections, entries and totals", asy
   }
 });
 
+it("groups multiple entries into one ordered section with section totals", async () => {
+  const groupedReport: ComputedVatReport = { ...report, controlStatement: [
+    report.controlStatement[1], report.controlStatement[0],
+    { ...report.controlStatement[0], documentNumber: "CREDIT-002", documentIds: ["document-3"], rateBreakdown: [
+      { rate: 21, netAmount: "-100.00", vatAmount: "-21.00", documentIds: ["document-3"] },
+    ] },
+  ] };
+  const before = JSON.stringify(groupedReport);
+  const text = await pdfText(await createControlStatementPdf(controlStatementPreviewData(groupedReport), englishMessages.vatReports.controlStatementPdf));
+  expect(text.match(/Section A\.4/g)).toHaveLength(1);
+  expect(text.match(/Section B\.3/g)).toHaveLength(1);
+  expect(text.indexOf("Section A.4")).toBeLessThan(text.indexOf("Section B.3"));
+  expect(text.match(/Section totals/g)).toHaveLength(2);
+  for (const literal of ["2026-001", "CREDIT-002", "1400.00", "249.00", "300.00", "63.00", "1700.00", "312.00"]) expect(text).toContain(literal);
+  expect(JSON.stringify(groupedReport)).toBe(before);
+});
+
+it("orders all supported sections and omits every empty section", async () => {
+  const sections = ["B.3", "A.5", "B.1", "A.2", "A.4", "B.2", "A.1"] as const;
+  const preview = controlStatementPreviewData({ ...report, controlStatement: sections.map(section => ({ ...report.controlStatement[0], section })) });
+  expect(preview.sections.map(section => section.section)).toEqual(["A.1", "A.2", "A.4", "A.5", "B.1", "B.2", "B.3"]);
+  const rendered = await pdfText(await createControlStatementPdf(preview, englishMessages.vatReports.controlStatementPdf));
+  expect(rendered.match(/Section [AB]\.\d/g)).toEqual(["Section A.1", "Section A.2", "Section A.4", "Section A.5", "Section B.1", "Section B.2", "Section B.3"]);
+  const empty = controlStatementPreviewData({ ...report, controlStatement: [] });
+  expect(empty.sections).toEqual([]);
+  expect(empty.totals).toEqual({ netAmount: "0.00", vatAmount: "0.00" });
+  const text = await pdfText(await createControlStatementPdf(empty, englishMessages.vatReports.controlStatementPdf));
+  expect(text).toContain("No included Documents.");
+  expect(text).not.toMatch(/Section [AB]\./);
+});
+
+it("continues a section across PDF pages without repeating its heading or losing entries", async () => {
+  const entries = Array.from({ length: 45 }, (_, index) => ({ ...report.controlStatement[0], documentNumber: `PAGE-${String(index + 1).padStart(3, "0")}` }));
+  const text = await pdfText(await createControlStatementPdf(controlStatementPreviewData({ ...report, controlStatement: entries }), englishMessages.vatReports.controlStatementPdf));
+  expect(text.split("\n").length).toBeGreaterThan(1);
+  expect(text.match(/Section A\.4/g)).toHaveLength(1);
+  expect(text.match(/Document: PAGE-/g)).toHaveLength(45);
+  expect(text).toContain("67500.00");
+  expect(text).toContain("12150.00");
+});
+
 it("omits historical zero rows from preview and PDF while preserving zero VAT, negatives and the snapshot", async () => {
   const historical: ComputedVatReport = { ...report, controlStatement: [{ ...report.controlStatement[0], rateBreakdown: [
     { rate: 0, netAmount: "0.00", vatAmount: "0.00", documentIds: [] },
@@ -156,7 +197,7 @@ it("omits historical zero rows from preview and PDF while preserving zero VAT, n
     { rate: 12, netAmount: "-100.00", vatAmount: "-12.00", documentIds: ["three"] },
   ] }] };
   const preview = controlStatementPreviewData(historical);
-  expect(preview.entries[0].rateBreakdown).toHaveLength(3);
+  expect(preview.sections[0].entries[0].rateBreakdown).toHaveLength(3);
   expect(preview.totals).toEqual({ netAmount: "950.00", vatAmount: "198.00" });
   const text = await pdfText(await createControlStatementPdf(preview, englishMessages.vatReports.controlStatementPdf));
   expect(text).toContain("50.00");
