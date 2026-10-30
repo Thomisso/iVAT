@@ -18,7 +18,7 @@ export default async function OrganizationMembersPage({ params }: PageProps<"/or
   ]);
   return <PageLayout className="organization-members" measure="wide">
     <PageHeader title={t("organizationTitle", { organization: organization.name })} />
-    <PageContent measure="narrow">
+    <PageContent measure="wide">
         <MemberManagement
           organizationId={organizationId}
           companyId={null}
