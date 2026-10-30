@@ -103,6 +103,7 @@ test("saved views preserve queue context while review decisions advance through 
   await expect(approve).toBeVisible();
   await approve.click();
   await expect(page.getByText("Document 1 of 1", { exact: true })).toBeVisible();
+  await page.getByLabel("Exclusion reason", { exact: true }).fill("Not a business Document");
   await page.getByRole("button", { name: "Reject" }).click();
   await expect(page).toHaveURL((url) => url.pathname === `/companies/${companyId}/documents` && url.searchParams.get("view") === "review" && url.searchParams.get("batchId") === batchId && /^#document-[0-9a-f-]+$/.test(url.hash));
   await expect(page.getByText("No documents match the filters.")).toBeVisible();

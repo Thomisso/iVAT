@@ -261,15 +261,15 @@ async function failOnFinalAttempt(attempt: Attempt, markFailed: () => Promise<vo
 
 async function recordPlatformIntervention(
   system: SystemClient,
-  targetKind: "source_file" | "document",
-  targetId: string,
+  target: { kind: "source_file"; id: string } | { kind: "document"; id: string; extractionRequestId: string },
   error: AiProviderError,
   availability: ProviderAvailability | undefined,
   state: "waiting_for_platform" | "terminal" = "waiting_for_platform",
 ) {
   const recorded = await system.rpc("record_ai_processing_issue", {
-    target_kind: targetKind,
-    target_id: targetId,
+    target_kind: target.kind,
+    target_id: target.id,
+    target_extraction_request_id: target.kind === "document" ? target.extractionRequestId : undefined,
     target_classification: error.classification,
     target_state: state,
     target_configuration_id: availability?.configurationId ?? error.configurationId ?? undefined,
@@ -341,13 +341,13 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
       });
     } catch (error) {
       if (error instanceof AiProviderError && error.platformIntervention) {
-        await recordPlatformIntervention(system, "source_file", file.id, error, availability);
+        await recordPlatformIntervention(system, { kind: "source_file", id: file.id }, error, availability);
         return;
       }
       if (error instanceof AiProviderError && (attempt.final || !error.transient)) {
-        await recordPlatformIntervention(system, "source_file", file.id, error, availability, "terminal");
+        await recordPlatformIntervention(system, { kind: "source_file", id: file.id }, error, availability, "terminal");
       } else if (attempt.final) {
-        await recordPlatformIntervention(system, "source_file", file.id, new AiProviderError(
+        await recordPlatformIntervention(system, { kind: "source_file", id: file.id }, new AiProviderError(
           "processing_failed",
           "Source File processing failed",
           { transient: false, classification: "processing_failed" },
@@ -390,17 +390,16 @@ async function extractDocument(
   const firstPage = document.first_page;
   const lastPage = document.last_page;
 
-  // Moves the status of this Extraction request only from the given ones (see splitSourceFile).
+  // Company-first CAS shares recovery's lock order and request identity.
   const moveStatus = async (to: DocumentStatus, from: DocumentStatus[]) => {
-    const { data, error } = await system
-      .from("document")
-      .update({ status: to })
-      .eq("id", document.id)
-      .eq("extraction_request_id", document.extraction_request_id)
-      .in("status", from)
-      .select("id");
+    const { data, error } = await system.rpc("move_document_processing_status", {
+      target_document_id: document.id,
+      target_extraction_request_id: document.extraction_request_id,
+      target_status: to,
+      expected_statuses: from,
+    });
     if (error) throw error;
-    return data.length > 0;
+    return data;
   };
 
   let availability: ProviderAvailability | undefined;
@@ -505,13 +504,13 @@ async function extractDocument(
     });
   } catch (error) {
     if (error instanceof AiProviderError && error.platformIntervention) {
-      await recordPlatformIntervention(system, "document", document.id, error, availability);
+      await recordPlatformIntervention(system, { kind: "document", id: document.id, extractionRequestId: document.extraction_request_id }, error, availability);
       return;
     }
     if (error instanceof AiProviderError && (attempt.final || !error.transient)) {
-      await recordPlatformIntervention(system, "document", document.id, error, availability, "terminal");
+      await recordPlatformIntervention(system, { kind: "document", id: document.id, extractionRequestId: document.extraction_request_id }, error, availability, "terminal");
     } else if (attempt.final) {
-      await recordPlatformIntervention(system, "document", document.id, new AiProviderError(
+      await recordPlatformIntervention(system, { kind: "document", id: document.id, extractionRequestId: document.extraction_request_id }, new AiProviderError(
         "processing_failed",
         "Document processing failed",
         { transient: false, classification: "processing_failed" },
