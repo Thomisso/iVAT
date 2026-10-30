@@ -6,6 +6,7 @@ import { updateDocumentReportingAction } from "@/app/actions";
 import { Button } from "@/components/button";
 import { FormError } from "@/components/form-error";
 import { TextField } from "@/components/text-field";
+import { DateInput } from "@/components/date-input";
 
 /** Receipt Date and an optional later input-VAT claim for an incoming Document. */
 export function ReportingAssignmentForm({
@@ -32,10 +33,9 @@ export function ReportingAssignmentForm({
       <fieldset>
         <legend>{t("title")}</legend>
         <div className="fields">
-          <TextField
+          <DateInput
             label={t("receiptDate")}
             name="receiptDate"
-            type="date"
             required
             defaultValue={state.values.receiptDate ?? receiptDate}
           />

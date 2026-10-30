@@ -1,12 +1,13 @@
 "use client";
 
 import { useActionState } from "react";
-import { useFormatter, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { changeMembershipRoleAction, inviteMemberAction, removeMembershipAction } from "@/app/actions";
 import type { CompanyAccess, Membership, PendingInvitation } from "@/application/memberships";
 import { Button } from "./button";
 import { FormError } from "./form-error";
 import { TextField } from "./text-field";
+import { formatDateTime } from "@/lib/format-date";
 
 type ActiveAccess = {
   email: string;
@@ -61,7 +62,6 @@ export function MemberManagement({
   pendingInvitations: PendingInvitation[];
 }) {
   const t = useTranslations("members");
-  const format = useFormatter();
   const [state, action, pending] = useActionState(inviteMemberAction, { error: null, values: {} });
   const activeAccess: ActiveAccess[] = companyAccess ?? (memberships ?? []).map((membership) => ({
     email: membership.email,
@@ -107,7 +107,7 @@ export function MemberManagement({
             <span>{t(invitation.role === "administrator" ? "administrator" : "user")}</span>
             <span>{t(`invitationStatus.${invitation.status}`)}</span>
             <span>{t("expires", {
-              date: format.dateTime(new Date(invitation.expiresAt), { dateStyle: "medium", timeStyle: "short" }),
+              date: formatDateTime(invitation.expiresAt),
             })}</span>
           </li>)}
         </ul>}

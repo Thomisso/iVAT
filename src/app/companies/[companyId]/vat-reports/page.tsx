@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getFormatter, getTranslations } from "next-intl/server";
+import { getTranslations } from "next-intl/server";
 import { getCompany, getCompanySetupChecklist, getMyCompanyRole } from "@/application/companies";
 import { documentQueueQuery, parseDocumentQueue } from "@/application/document-queue";
 import {
@@ -18,7 +18,7 @@ import { isReportingPeriod } from "@/application/vat-rules";
 import { requireUserClient } from "@/lib/supabase/server";
 import { EmptyState } from "@/components/empty-state";
 import { DataTable } from "@/components/data-table";
-import { formatDocumentDate } from "@/lib/format-date";
+import { formatDateTime } from "@/lib/format-date";
 import { PageLayout } from "@/components/app-shell";
 import { GenerateForm } from "./generate-form";
 import { PeriodLockForm } from "./period-lock-form";
@@ -45,7 +45,7 @@ export default async function VatReportsPage({
     : periods.find((candidate) => candidate.oldestUnfinished)?.period ??
       periods.at(-1)?.period;
   if (!period) notFound();
-  const [report, periodLock, role, readinessResult, setup, transitions, t, format] = await Promise.all([
+  const [report, periodLock, role, readinessResult, setup, transitions, t] = await Promise.all([
     getVatReport(client, companyId, period),
     getPeriodLock(client, companyId, period),
     getMyCompanyRole(client, companyId),
@@ -53,7 +53,6 @@ export default async function VatReportsPage({
     getCompanySetupChecklist(client, companyId),
     listVatReportTransitions(client, companyId, period),
     getTranslations(),
-    getFormatter(),
   ]);
   if (!readinessResult.ok) notFound();
   const readiness = readinessResult.value;
@@ -172,10 +171,7 @@ export default async function VatReportsPage({
             <>
               <h2>
                 {t("vatReports.snapshotGenerated", {
-                  date: formatDocumentDate(
-                    readiness.snapshot.generatedAt,
-                    true,
-                  ),
+                  date: formatDateTime(readiness.snapshot.generatedAt),
                 })}
               </h2>
               <p>
@@ -262,10 +258,7 @@ export default async function VatReportsPage({
                 header: t("vatReports.transitionTime"),
                 render: (transition) => (
                   <time dateTime={transition.occurredAt}>
-                    {format.dateTime(new Date(transition.occurredAt), {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                    })}
+                    {formatDateTime(transition.occurredAt)}
                   </time>
                 ),
               },

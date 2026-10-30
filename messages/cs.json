@@ -276,13 +276,7 @@
     "hash": "Otisk SHA-256",
     "status": "Stav",
     "dropTitle": "Přetáhněte sem zdrojový soubor",
-    "chooseFile": "Vybrat soubor",
-    "direction": "Směr",
-    "directionAutomatic": "Určit automaticky podle identity firmy",
-    "directionValue": {
-      "incoming": "Přijatý",
-      "outgoing": "Vydaný"
-    }
+    "chooseFile": "Vybrat soubor"
   },
   "uploadWorkspace": {
     "newBatch": "Přidat zdrojové soubory",
@@ -395,6 +389,11 @@
       "batch_processing": "Dávku lze smazat až po dokončení zpracování.",
       "period_locked": "Doklad z této dávky leží v uzavřeném období. Dávku lze smazat až poté, co Administrator období odemkne."
     }
+  },
+  "dateInput": {
+    "hint": "Formát dd.mm.rrrr",
+    "placeholder": "dd.mm.rrrr",
+    "invalid": "Zadejte platné datum ve tvaru dd.mm.rrrr."
   },
   "errors": {
     "organization_name_required": "Zadejte název organizace.",

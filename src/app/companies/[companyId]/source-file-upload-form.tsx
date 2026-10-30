@@ -4,7 +4,6 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import type { UploadLimits } from "@/application/source-files";
-import { DIRECTIONS, type Direction } from "@/application/extraction-payload";
 import { Button } from "@/components/button";
 import { DropZone } from "@/components/drop-zone";
 import { FormError } from "@/components/form-error";
@@ -19,7 +18,7 @@ type UploadItem = {
   error: string | null;
   retryable: boolean;
 };
-type UploadDraft = { batchId: string | null; direction: Direction | ""; items: UploadItem[] };
+type UploadDraft = { batchId: string | null; items: UploadItem[] };
 type BatchResult = { ok: true; value: { id: string } } | { ok: false; error: string };
 type TransportResult =
   | { kind: "uploaded" }
@@ -87,7 +86,6 @@ function sendFile(
   companyId: string,
   batchId: string,
   item: UploadItem,
-  direction: Direction | "",
   update: (change: Partial<UploadItem>) => void,
 ): Promise<TransportResult> {
   return new Promise((resolve) => {
@@ -107,7 +105,6 @@ function sendFile(
     const data = new FormData();
     data.set("sourceFileId", item.id);
     data.set("batchId", batchId);
-    if (direction) data.set("direction", direction);
     data.set("file", item.file);
     request.send(data);
   });
@@ -117,12 +114,11 @@ async function uploadFile(
   companyId: string,
   batchId: string,
   item: UploadItem,
-  direction: Direction | "",
   update: (change: Partial<UploadItem>) => void,
 ) {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     update({ status: attempt === 0 ? "uploading" : "retrying", error: null });
-    const result = await sendFile(companyId, batchId, item, direction, update);
+    const result = await sendFile(companyId, batchId, item, update);
     if (result.kind === "uploaded") {
       update({ status: "uploaded", progress: 100, error: null, retryable: false });
       return;
@@ -184,7 +180,6 @@ export function SourceFileUploadForm({ companyId, limits }: { companyId: string;
   const itemsRef = useRef<UploadItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  const [direction, setDirection] = useState<Direction | "">("");
   const [batchId, setBatchId] = useState<string | null>(null);
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
@@ -211,7 +206,6 @@ export function SourceFileUploadForm({ companyId, limits }: { companyId: string;
       if (draft?.items.length) {
         itemsRef.current = draft.items;
         setItems(draft.items);
-        setDirection(draft.direction);
         setBatchId(draft.batchId);
         setDraftRestored(true);
       }
@@ -221,8 +215,8 @@ export function SourceFileUploadForm({ companyId, limits }: { companyId: string;
   }, [draftKey]);
 
   useEffect(() => {
-    if (draftLoaded) void writeDraft(draftKey, items.length ? { batchId, direction, items } : null);
-  }, [batchId, direction, draftKey, draftLoaded, items]);
+    if (draftLoaded) void writeDraft(draftKey, items.length ? { batchId, items } : null);
+  }, [batchId, draftKey, draftLoaded, items]);
 
   async function completeBatch(id: string) {
     await finishBrowserUploadBatch(companyId, id);
@@ -230,7 +224,6 @@ export function SourceFileUploadForm({ companyId, limits }: { companyId: string;
     setBatchId(null);
     form.current?.reset();
     replaceItems([]);
-    setDirection("");
     router.push(`/companies/${encodeURIComponent(companyId)}/upload-batches/${encodeURIComponent(id)}`);
   }
 
@@ -244,7 +237,7 @@ export function SourceFileUploadForm({ companyId, limits }: { companyId: string;
           update(index, { status: "refused", error: "file_too_large", retryable: false });
           continue;
         }
-        await uploadFile(companyId, id, item, direction, (change) => update(index, change));
+        await uploadFile(companyId, id, item, (change) => update(index, change));
       }
     };
     await Promise.all(Array.from({ length: Math.min(3, indices.length) }, () => worker()));
@@ -279,7 +272,7 @@ export function SourceFileUploadForm({ companyId, limits }: { companyId: string;
     setPending(true);
     setError(null);
     try {
-      await uploadFile(companyId, batchId, itemsRef.current[index], direction, (change) => update(index, change));
+      await uploadFile(companyId, batchId, itemsRef.current[index], (change) => update(index, change));
       if (!itemsRef.current.some((item) => item.retryable)) await completeBatch(batchId);
     } catch {
       setError("upload_failed");
@@ -301,19 +294,7 @@ export function SourceFileUploadForm({ companyId, limits }: { companyId: string;
 
   return (
     <form ref={form} onSubmit={submit} className="form upload-form">
-      <div className="iv-field">
-        <label className="iv-field-label" htmlFor="upload-direction">{t("direction")}</label>
-        <select
-          id="upload-direction"
-          name="direction"
-          value={direction}
-          disabled={pending || !!batchId}
-          onChange={(event) => setDirection(event.currentTarget.value as Direction | "")}
-        >
-          <option value="">{t("directionAutomatic")}</option>
-          {DIRECTIONS.map((value) => <option key={value} value={value}>{t(`directionValue.${value}`)}</option>)}
-        </select>
-      </div>
+      {/* Shown only on a coarse pointer or a small viewport (globals.css). */}
       <div className="capture-action">
         <label className="iv-btn iv-btn-primary iv-btn-md" htmlFor="document-camera">{t("takeDocumentPhoto")}</label>
         <input

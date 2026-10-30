@@ -6,7 +6,10 @@ export type FakeAiScript = {
   extract?: (input: AiInput) => ExtractionPayload | Promise<ExtractionPayload>;
 };
 
-/** A domestic incoming invoice at 21 %, the fake's default Extraction. */
+/**
+ * A domestic invoice at 21 %, the fake's default Extraction. It is incoming for
+ * a Company whose identity is its customer's.
+ */
 export const SAMPLE_EXTRACTION: ExtractionPayload = {
   schemaVersion: 1,
   documentType: "invoice",
@@ -24,7 +27,15 @@ export const SAMPLE_EXTRACTION: ExtractionPayload = {
     postalCode: "110 00",
     country: "CZ",
   },
-  customer: { name: null, ico: null, vatId: null, street: null, city: null, postalCode: null, country: null },
+  customer: {
+    name: "Novák s.r.o.",
+    ico: "25596641",
+    vatId: "CZ25596641",
+    street: "Vinohradská 12",
+    city: "Praha",
+    postalCode: "120 00",
+    country: "CZ",
+  },
   currency: "CZK",
   rateBreakdown: [{ rate: 21, netAmount: "1000.00", vatAmount: "210.00" }],
   totals: { netAmount: "1000.00", vatAmount: "210.00", grossAmount: "1210.00" },
