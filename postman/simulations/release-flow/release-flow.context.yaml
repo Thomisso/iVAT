@@ -23,6 +23,13 @@ assumptions:
     verification: The 2026-10-30 focused release-host tests passed against this same mock, including successful readback, locked/HTML/mismatch responses and a timeout after stored state changed. Real provider status/readback timing remains an activation check.
     source: postman/simulations/rosti-deployment/rosti-deployment.context.yaml; postman/mocks/rosti-deployment/default.js; deploy/tests/release-host.test.mjs
     updated_at: "2026-10-30"
+  - id: detached-credential-descriptor
+    status: supported
+    claim: The launcher transfers both disposable credential lines through an already-open private descriptor after unlinking the temporary file, without relying on background-open timing.
+    reason: A concurrent-start regression reproduced ENOENT with the previous asynchronous file redirection. Opening in the parent before unlinking removed the race in the repeated test.
+    verification: On 2026-10-30 the 100-concurrent-start test failed on the old code with a missing credentials file and then passed with parent FD inheritance. It also checks the child actually received both lines, durable early failure, duplicate-ID refusal and absence of the temporary credential path. These are local launcher observations, not provider credential validation.
+    source: deploy/tests/release-connect.test.mjs; deploy/scripts/launch-release.sh
+    updated_at: "2026-10-30"
 fingerprints:
   - id: release-156-development
     date: "2026-10-30"
