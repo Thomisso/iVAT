@@ -31,6 +31,7 @@ import {
 } from "./support/fixtures";
 import { testWorker } from "./support/worker";
 import { fakeExchangeRates } from "@/cnb/fake";
+import { fakeVatPayerRegistry } from "@/vat-registry/fake";
 
 /** An Administrator whose Company holds one Document in NeedsReview, Extracted as `extraction`. */
 async function documentInReview(extraction: ExtractionPayload = SAMPLE_EXTRACTION) {
@@ -107,7 +108,7 @@ describe("correcting a Document", () => {
       documentId,
       basedOnVersion: 1,
       payload: SAMPLE_EXTRACTION,
-    });
+    }, fakeExchangeRates(), fakeVatPayerRegistry());
 
     const versions = await listExtractionVersions(client, companyId, documentId);
     expect(versions.map((version) => version.findings)).toEqual([
@@ -581,7 +582,7 @@ describe("checking Document totals", () => {
         ...SAMPLE_EXTRACTION,
         totals: { netAmount: "1000.00", vatAmount: "210.00", grossAmount: "1200.00" },
       },
-    });
+    }, fakeExchangeRates(), fakeVatPayerRegistry());
 
     const versions = await listExtractionVersions(document.client, document.companyId, document.documentId);
     expect(versions[1].findings).toEqual([
