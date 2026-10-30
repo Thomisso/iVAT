@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { saveCompanyFilingDefaults } from "@/application/company-filing-defaults";
-import { exportVatReport } from "@/application/epo-export";
+import { acknowledgeVatReportDownload, exportVatReport } from "@/application/epo-export";
 import { getVatProcessingWizard } from "@/application/vat-processing";
 import { finalizeVatReport, generateVatReport } from "@/application/vat-reports";
 import { approveDocument, listDocuments } from "@/application/documents";
@@ -24,6 +24,22 @@ function stepStates(
     blockedBy,
   }));
 }
+
+it("does not complete a draft output merely because XML was archived", async () => {
+  const company = await administratorWithCompany();
+  const input = { companyId: company.companyId, period: "2026-01" };
+  await generateVatReport(company.client, input);
+  const artifact = await exportVatReport(company.client, {
+    ...input, format: "dphdp3", details: {
+      taxOffice: "451", economicActivity: "621000", preparedOn: "2026-02-10",
+      signatoryFirstName: "Jana", signatoryLastName: "Nováková", signatoryCapacity: "director",
+    },
+  });
+  expect(artifact.ok).toBe(true);
+  expect(stepStates(await getVatProcessingWizard(company.client, input))[3]).toEqual({
+    key: "export", state: "not_started", reason: null, blockedBy: null,
+  });
+});
 
 it("walks an empty Reporting Period from generation through export to Finalization", async () => {
   const company = await administratorWithCompany();
@@ -66,11 +82,16 @@ it("walks an empty Reporting Period from generation through export to Finalizati
     phone: "+420123456789",
     epoAddressOverride: null,
   })).toEqual({ ok: true, value: null });
-  expect((await exportVatReport(company.client, {
-    ...input,
-    format: "dphdp3",
-    details: { preparedOn: "2026-02-10" },
-  })).ok).toBe(true);
+  async function acknowledgeBothOutputs() {
+    for (const format of ["dphdp3", "dphkh1"]) {
+      const exported = await exportVatReport(company.client, { ...input, format, details: { preparedOn: "2026-02-10" } });
+      if (!exported.ok) throw new Error(exported.error);
+      expect(await acknowledgeVatReportDownload(company.client, {
+        ...input, format, artifactId: exported.value.artifactId, reportGeneratedAt: exported.value.reportGeneratedAt,
+      })).toEqual({ ok: true, value: null });
+    }
+  }
+  await acknowledgeBothOutputs();
   expect(stepStates(await getVatProcessingWizard(company.client, input))[3]).toEqual({
     key: "export",
     state: "done",
@@ -84,11 +105,7 @@ it("walks an empty Reporting Period from generation through export to Finalizati
   expect(stepStates(await getVatProcessingWizard(company.client, input))[3]).toEqual({
     key: "export", state: "not_started", reason: null, blockedBy: null,
   });
-  expect((await exportVatReport(company.client, {
-    ...input,
-    format: "dphdp3",
-    details: { preparedOn: "2026-02-10" },
-  })).ok).toBe(true);
+  await acknowledgeBothOutputs();
 
   expect(await finalizeVatReport(company.client, { ...input, confirmed: true }))
     .toEqual({ ok: true, value: null });

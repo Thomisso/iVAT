@@ -446,6 +446,8 @@
     "invalid": "Enter a valid date as dd.mm.yyyy."
   },
   "errors": {
+    "invalid_download_artifact": "This XML does not belong to the current report version. Download the current output again.",
+    "download_acknowledgement_failed": "The XML download started, but its progress could not be saved. Download it again to confirm completion.",
     "identical_file": "Identical file contents already belong to this batch.",
     "organization_name_required": "Enter the name of your organization.",
     "email_taken": "An account with this email already exists.",
@@ -983,8 +985,14 @@
   },
   "vatReports": {
     "wizard": {
+      "draftPartial": "Partially completed — {count}/2",
+      "draftPartialSkipped": "Partially completed — {count}/2, second export skipped",
+      "skipDrafts": "Skip draft exports",
+      "skipRemainingDraft": "Skip the remaining draft export",
       "title": "VAT processing steps",
       "state": {
+        "partial": "Partially completed",
+        "skipped": "Skipped",
         "done": "Done",
         "needs_attention": "Needs attention",
         "blocked": "Blocked",
