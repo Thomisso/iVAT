@@ -1,3 +1,5 @@
+import { listCompanyReportingYears } from "./companies";
+import { reportingPeriodForDate, reportingPeriodsOf, reportingPeriodStart } from "./reporting-periods";
 import type { PostgrestError } from "@supabase/supabase-js";
 import { isUuid, type AppClient, type Result } from "./client";
 import {
@@ -609,4 +611,29 @@ export async function moveDocumentPage(
   if (error) return refusal(error, ["not_correctable", "invalid_split_boundary", "period_locked"]);
   await enqueueCorrectedDocuments(jobs, data);
   return { ok: true, value: null };
+}
+
+/** Selectable Deferred Claims for the current incoming Extraction, including only unlocked generated periods within three years. */
+export async function listDeferredClaimPeriods(client: AppClient, companyId: string, documentId: string): Promise<string[]> {
+  const document = await getDocument(client, companyId, documentId);
+  if (!document) return [];
+  const versions = await listExtractionVersions(client, companyId, documentId);
+  const payload = versions.at(-1)?.payload;
+  const date = payload?.taxPointDate;
+  if (payload?.direction !== "incoming" || !date || !/^20\d{2}-\d{2}-\d{2}$/.test(date)) return [];
+  const parsed = new Date(`${date}T00:00:00Z`);
+  if (Number.isNaN(parsed.valueOf()) || parsed.toISOString().slice(0, 10) !== date) return [];
+  const years = await listCompanyReportingYears(client, companyId);
+  const source = reportingPeriodForDate(date, years);
+  if (!source) return [];
+  const deadline = `${Number(date.slice(0, 4)) + 3}${date.slice(4)}`;
+  const candidates = reportingPeriodsOf(years).filter((period) => {
+    const start = reportingPeriodStart(period)!;
+    return start > reportingPeriodStart(source)! && start <= deadline;
+  });
+  if (!candidates.length) return [];
+  const { data, error } = await client.from("period_lock").select("period").eq("company_id", companyId).in("period", candidates);
+  if (error) throw error;
+  const locked = new Set(data.map((lock) => lock.period));
+  return candidates.filter((period) => !locked.has(period));
 }
