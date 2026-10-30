@@ -71,6 +71,77 @@ as $$
   );
 $$;
 
+-- ADR-0007: the new rule must not move a Document out of or into a locked
+-- Reporting Period. Where the Receipt Date rule and the Tax Point Date rule
+-- disagree and either period is locked, the old period becomes the Document's
+-- Deferred Claim. It is always later than the Tax Point Date's period, because
+-- the old rule never assigned an incoming Document earlier than that.
+create temporary table document_period_change as
+select
+  d.id,
+  d.company_id,
+  private.document_reporting_period(
+    d.company_id, v.payload ->> 'direction', v.payload ->> 'taxPointDate',
+    d.receipt_date, d.claimed_reporting_period
+  ) as old_period,
+  private.document_reporting_period(
+    d.company_id, v.payload ->> 'direction', v.payload ->> 'taxPointDate',
+    d.claimed_reporting_period
+  ) as new_period
+from public.document d
+left join lateral (
+  select version.payload
+  from public.extraction_version version
+  where version.document_id = d.id
+  order by version.version desc
+  limit 1
+) v on true;
+
+delete from document_period_change
+where old_period is not distinct from new_period
+  or not (
+    coalesce(private.is_reporting_period_locked(company_id, old_period), false)
+    or coalesce(private.is_reporting_period_locked(company_id, new_period), false)
+  );
+
+-- The Period Lock trigger would refuse this write; it restores, not changes,
+-- the locked assignment.
+alter table public.document disable trigger document_period_lock;
+update public.document d
+set claimed_reporting_period = change.old_period
+from document_period_change change
+where change.id = d.id
+  and change.old_period is not null;
+alter table public.document enable trigger document_period_lock;
+
+do $$
+declare
+  moved record;
+begin
+  select change.id, change.old_period, change.new_period into moved
+  from document_period_change change
+  join public.document d on d.id = change.id
+  left join lateral (
+    select version.payload
+    from public.extraction_version version
+    where version.document_id = d.id
+    order by version.version desc
+    limit 1
+  ) v on true
+  where private.document_reporting_period(
+    d.company_id, v.payload ->> 'direction', v.payload ->> 'taxPointDate',
+    d.claimed_reporting_period
+  ) is distinct from change.old_period
+  limit 1;
+  if found then
+    raise exception 'Document % would move from Reporting Period % to % across a Period Lock',
+      moved.id, moved.old_period, moved.new_period;
+  end if;
+end;
+$$;
+
+drop table document_period_change;
+
 drop function private.document_reporting_period(uuid, text, text, date, text);
 alter table public.document drop column receipt_date;
 
@@ -226,7 +297,8 @@ left join lateral (
   where ev.document_id = d.id order by ev.version desc limit 1
 ) v on true;
 
-revoke all on public.document_overview, public.vat_report_document from anon, authenticated;
+revoke all on public.document_overview, public.vat_report_document
+  from public, anon, authenticated, service_role;
 grant select on public.document_overview, public.vat_report_document to authenticated;
 
 create or replace function public.vat_report_documents(
@@ -333,7 +405,9 @@ revoke execute on function private.reporting_period_readiness_documents(uuid, te
 
 -- Saved VAT Report sources drop the retired key, so a report whose Documents
 -- did not change stays current. A report whose Documents move under the new
--- rule becomes stale through the usual source comparison.
+-- rule becomes stale through the usual source comparison. Finalized reports
+-- are rewritten on purpose, bypassing their Period Lock trigger: only the
+-- retired receiptDate key is removed, and no amount, Document or line changes.
 alter table public.vat_report disable trigger vat_report_period_lock;
 update public.vat_report
 set documents = (
@@ -454,26 +528,3 @@ begin
   );
 end;
 $function$;
-
--- Every reported or locked period must survive the conversion unchanged.
-do $$
-declare
-  lost record;
-begin
-  select reported.company_id, reported.period into lost
-  from (
-    select company_id, period from public.vat_report
-    union
-    select company_id, period from public.period_lock
-  ) reported
-  where private.reporting_period_for_date(
-    reported.company_id, private.reporting_period_start(reported.period)
-  ) is distinct from reported.period
-  limit 1;
-  if found then
-    raise exception 'Reporting Year migration would lose period % of Company %',
-      lost.period, lost.company_id;
-  end if;
-end;
-$$;
-

@@ -1,5 +1,6 @@
 import { PDFDocument } from "pdf-lib";
-import { describe, expect, it } from "vitest";
+import { Client as DatabaseClient } from "pg";
+import { describe, expect, inject, it } from "vitest";
 import { listAuditEvents } from "@/application/audit";
 import {
   approveDocument,
@@ -16,8 +17,7 @@ import {
 } from "@/application/documents";
 import type { ExtractionPayload } from "@/application/extraction-payload";
 import { getReportingPeriodReadiness } from "@/application/reporting-period-readiness";
-import { getSourceFile, uploadSourceFile } from "@/application/source-files";
-import { formatDate } from "@/lib/format-date";
+import { uploadSourceFile } from "@/application/source-files";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { signedUpUser } from "./support/clients";
 import { fixtureFile } from "./support/files";
@@ -298,16 +298,26 @@ describe("correcting a Document", () => {
 });
 
 describe("assigning an incoming Document to a Reporting Period", () => {
-  it("shows the Import Date of the Document's Source File", async () => {
+  it("shows the Import Date as the Prague calendar date of the Source File upload", async () => {
     const document = await documentInReview();
-    const sourceFile = await getSourceFile(document.client, document.companyId, document.sourceFileId);
-    const shown = await getDocument(document.client, document.companyId, document.documentId);
+    // Test-only setup: 22:30 UTC on 30 September is already 1 October in Prague.
+    const database = new DatabaseClient({ connectionString: inject("databaseUrl") });
+    await database.connect();
+    try {
+      await database.query(
+        "update public.source_file set uploaded_at = '2026-09-30T22:30:00Z' where id = $1",
+        [document.sourceFileId],
+      );
+    } finally {
+      await database.end();
+    }
 
-    expect(shown!.importDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    expect(formatDate(shown!.importDate)).toBe(formatDate(sourceFile!.uploadedAt));
+    expect(
+      (await getDocument(document.client, document.companyId, document.documentId))!.importDate,
+    ).toBe("2026-10-01");
     expect(
       (await listCompanyDocuments(document.client, document.companyId))[0].importDate,
-    ).toBe(shown!.importDate);
+    ).toBe("2026-10-01");
   });
 
   it("stores a Deferred Claim and audits the change", async () => {

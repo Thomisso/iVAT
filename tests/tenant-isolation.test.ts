@@ -343,3 +343,14 @@ describe("tenant isolation", () => {
     expect(companies.error?.code).toBe("42501");
   });
 });
+
+it.each(["document_overview", "vat_report_document"] as const)(
+  "closes the %s view to anonymous and system clients",
+  async (view) => {
+    const anonymous = await anonymousClient().from(view).select("id").limit(1);
+    const system = await systemClient().from(view).select("id").limit(1);
+
+    expect(anonymous.error?.code).toBe("42501");
+    expect(system.error?.code).toBe("42501");
+  },
+);
