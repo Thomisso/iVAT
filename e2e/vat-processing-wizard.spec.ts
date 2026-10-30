@@ -391,7 +391,7 @@ test("wizard exports both draft outputs directly with saved defaults and permits
   await expect(exports.getByRole("button", { name: "Export VAT Return XML", exact: true })).toBeDisabled();
 });
 
-test("an administrator walks the VAT processing wizard from review to Finalization", async ({
+test("combined VAT processing journey recovers uploads, reviews warnings and completes both final lock cycles", async ({
   context,
   page,
 }) => {
@@ -420,10 +420,67 @@ test("an administrator walks the VAT processing wizard from review to Finalizati
   const companyUrl = page.url().replace(/\/setup\/ai-processing$/, "");
   await assignBrowserAiConfigurationFixture(new URL(companyUrl).pathname.split("/")[2]);
 
+  await page.goto(`${companyUrl}/settings/vat`);
+  await page.getByRole("combobox", { name: "Tax office", exact: true }).selectOption("451");
+  await page.getByLabel("Economic activity (CZ-NACE)").fill("621000");
+  await page.getByLabel("First name").fill("Jana");
+  await page.getByLabel("Last name").fill("Nováková");
+  await page.getByLabel("Capacity (e.g. director)").fill("director");
+  await page.getByRole("button", { name: "Save filing defaults", exact: true }).click();
+  await expect(page.getByRole("status").getByText("Filing defaults saved.")).toBeVisible();
+
   await page.goto(`${companyUrl}/upload`);
-  await page.locator('input[type="file"]:not([capture])').setInputFiles("tests/fixtures/two-invoices.pdf");
-  await page.getByRole("button", { name: "Upload" }).click();
-  await expect(page.getByRole("link", { name: "Review 2 Documents" })).toBeVisible({ timeout: 45_000 });
+  const picker = page.locator('input[type="file"]:not([capture])');
+  await picker.setInputFiles("tests/fixtures/receipt.png");
+  await picker.setInputFiles("tests/fixtures/two-invoices.pdf");
+  const queue = page.locator(".upload-items");
+  await expect(queue.getByRole("listitem")).toHaveCount(2);
+  const transfers: { name: string; sourceFileId: string; batchId: string }[] = [];
+  const starts: { batchId: string; fileCount: number; selectedFiles: { id: string; sha256: string }[] }[] = [];
+  await page.route(`${companyUrl}/upload-batches`, async route => {
+    starts.push(route.request().postDataJSON());
+    await route.continue();
+  });
+  await page.route(`${companyUrl}/source-files`, async route => {
+    const bytes = route.request().postDataBuffer();
+    if (!bytes) throw new Error("Source File request has no multipart body");
+    const form = await new Response(Uint8Array.from(bytes), {
+      headers: { "Content-Type": route.request().headers()["content-type"] },
+    }).formData();
+    const file = form.get("file");
+    if (!file || typeof file === "string") throw new Error("Source File request has no file");
+    transfers.push({ name: file.name, sourceFileId: String(form.get("sourceFileId")), batchId: String(form.get("batchId")) });
+    // Exhaust the browser's two automatic attempts so an explicit retry is required.
+    if (file.name === "two-invoices.pdf" && transfers.filter(t => t.name === file.name).length <= 2) {
+      await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ ok: false, error: "upload_failed" }) });
+    } else await route.continue();
+  });
+  await page.getByRole("button", { name: "Upload batch", exact: true }).click();
+  await expect(queue.getByRole("listitem").filter({ hasText: "receipt.png" })).toContainText("Uploaded");
+  const failedFile = queue.getByRole("listitem").filter({ hasText: "two-invoices.pdf" });
+  await expect(failedFile).toContainText("Not uploaded");
+  await expect(failedFile.getByRole("alert")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Retry unsuccessful files", exact: true })).toBeEnabled();
+  await page.reload();
+  await expect(picker).toBeDisabled();
+  await expect(queue.getByRole("listitem")).toHaveCount(2);
+  await page.getByRole("button", { name: "Retry unsuccessful files", exact: true }).click();
+  await expect(page).toHaveURL(/\/upload-batches\/[0-9a-f-]+$/);
+  const batchId = new URL(page.url()).pathname.split("/").at(-1)!;
+  await expect(page.getByRole("link", { name: "Review 3 Documents", exact: true })).toBeVisible({ timeout: 45_000 });
+  await expect(page.getByRole("link", { name: "receipt.png", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "two-invoices.pdf", exact: true })).toBeVisible();
+  expect(starts).toHaveLength(2);
+  expect(starts[0]).toMatchObject({ batchId, fileCount: 2 });
+  expect(starts[1]).toEqual(starts[0]);
+  expect(transfers.filter(t => t.name === "receipt.png")).toHaveLength(1);
+  const pdfTransfers = transfers.filter(t => t.name === "two-invoices.pdf");
+  expect(pdfTransfers).toHaveLength(3);
+  expect(new Set(pdfTransfers.map(t => t.sourceFileId)).size).toBe(1);
+  expect(new Set(transfers.map(t => t.batchId))).toEqual(new Set([batchId]));
+  expect(new Set(transfers.map(t => t.sourceFileId))).toEqual(new Set(starts[0].selectedFiles.map(f => f.id)));
+  await page.unroute(`${companyUrl}/upload-batches`);
+  await page.unroute(`${companyUrl}/source-files`);
 
   const wizardUrl = `${companyUrl}/vat-reports?period=2026-10`;
   await page.goto(wizardUrl);
@@ -448,18 +505,25 @@ test("an administrator walks the VAT processing wizard from review to Finalizati
   await expect(finalize.getByRole("button", { name: "Finalize and lock period" })).toHaveCount(0);
 
   const documentLinks = review.getByRole("listitem").getByRole("link");
-  await expect(documentLinks).toHaveCount(2);
-  for (let remaining = 2; remaining > 0; remaining--) {
+  await expect(documentLinks).toHaveCount(3);
+  for (let remaining = 3; remaining > 0; remaining--) {
     await documentLinks.first().click();
     await expect(page).toHaveURL(/\/documents\/[0-9a-f-]+\?/);
     expect(new URL(page.url()).searchParams.get("returnTo")).toBe(`${new URL(wizardUrl).pathname}?period=2026-10#vat-step-review`);
-    if (remaining === 2) {
+    if (remaining === 3) {
       await page.getByRole("link", { name: "← Back to Processing", exact: true }).click();
       await expect(page).toHaveURL(`${wizardUrl}#vat-step-review`);
       await documentLinks.first().click();
     }
-    await page.getByRole("button", { name: "Approve version 1" }).click();
-    await expect(page.getByRole("button", { name: "Approve version 1" })).toHaveCount(0);
+    if (remaining === 3) {
+      await page.getByLabel("Bank account", { exact: true }).fill("999999/0100");
+      await page.getByRole("button", { name: "Save corrections", exact: true }).click();
+      await expect(page.getByText("The payment account is not published for this supplier in the VAT payer registry.", { exact: true })).toBeVisible();
+    }
+    const approve = page.getByRole("button", { name: remaining === 3 ? "Approve version 2" : "Approve version 1", exact: true });
+    await expect(approve).toBeEnabled();
+    await approve.click();
+    await expect(approve).toHaveCount(0);
     await expect(page).toHaveURL(`${wizardUrl}#vat-step-review`);
     await expect(documentLinks).toHaveCount(remaining - 1);
   }
@@ -493,6 +557,20 @@ test("an administrator walks the VAT processing wizard from review to Finalizati
   await expect(page.getByRole("link", { name: "← Back to Reporting Periods", exact: true })).toHaveAttribute("href", `${new URL(companyUrl).pathname}/vat`);
 
   await page.goto(wizardUrl);
+  const drafts = wizardStep(page, "Export DRAFT XML");
+  await expect(drafts.getByLabel("Preparation date")).toHaveCount(0);
+  const draftDownload = page.waitForEvent("download");
+  await drafts.getByRole("button", { name: "Export VAT Return XML", exact: true }).click();
+  const draft = await draftDownload;
+  expect(draft.suggestedFilename()).toBe("DRAFT_DPHDP3_2026-10.xml");
+  const draftPath = await draft.path();
+  if (!draftPath) throw new Error("Draft XML not downloaded");
+  expect(await readFile(draftPath, "utf8")).toContain("<Pisemnost");
+  await expect(drafts.getByText("Partially completed — 1/2", { exact: true })).toBeVisible();
+  await drafts.getByRole("button", { name: "Skip the remaining draft export", exact: true }).click();
+  await expect(drafts.getByText("Partially completed — 1/2, second export skipped", { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(drafts.getByText("Partially completed — 1/2, second export skipped", { exact: true })).toBeVisible();
   await expect(finalize.getByText("Not started", { exact: true })).toBeVisible();
   await finalize.getByRole("checkbox", {
     name: "I understand that Finalization creates a Period Lock for this snapshot.",
@@ -501,4 +579,46 @@ test("an administrator walks the VAT processing wizard from review to Finalizati
   await expect(finalize.getByRole("button", { name: "Unlock period" })).toBeVisible();
   await expect(finalize.getByText("Partially completed — 0/2", { exact: true })).toBeVisible();
   await expect(generate.getByRole("button", { name: "Generate / regenerate draft" })).toBeDisabled();
+  await expect(drafts.getByRole("button", { name: "Export VAT Return XML", exact: true })).toBeDisabled();
+  const cycles: { lockId: string; generation: string }[] = [];
+  for (let cycle = 0; cycle < 2; cycle++) {
+    for (const [format, fileName, progress] of [
+      ["VAT Return", "DPHDP3_2026-10.xml", "Partially completed — 1/2"],
+      ["Control Statement", "DPHKH1_2026-10.xml", "Done"],
+    ]) {
+      const response = page.waitForResponse(r => r.url().endsWith("/2026-10/xml") && r.request().method() === "POST");
+      const download = page.waitForEvent("download");
+      await finalize.getByRole("button", { name: `Export ${format} XML`, exact: true }).click();
+      const received = await response;
+      expect(received.status()).toBe(200);
+      const identity = { lockId: received.headers()["x-ivat-period-lock-id"], generation: received.headers()["x-ivat-report-generated-at"] };
+      expect(identity.lockId).toMatch(/^[0-9a-f-]{36}$/);
+      if (format === "VAT Return") cycles.push(identity);
+      else expect(identity).toEqual(cycles[cycle]);
+      const file = await download;
+      expect(file.suggestedFilename()).toBe(fileName);
+      const path = await file.path();
+      if (!path) throw new Error("Final XML not downloaded");
+      expect(await readFile(path, "utf8")).toContain("<Pisemnost");
+      await expect(finalize.getByText(progress, { exact: true })).toBeVisible();
+    }
+    await page.reload();
+    await expect(finalize.getByText("Done", { exact: true })).toBeVisible();
+    if (cycle === 0) {
+      await finalize.getByLabel("Unlock reason", { exact: true }).fill("Review the unchanged report again");
+      await finalize.getByRole("checkbox", { name: "I understand that changes may require a new VAT Report and export.", exact: true }).check();
+      await finalize.getByRole("button", { name: "Unlock period", exact: true }).click();
+      await expect(finalize.getByText("Not started", { exact: true })).toBeVisible();
+      await expect(finalize.getByRole("button", { name: "Export VAT Return XML", exact: true })).toHaveCount(0);
+      await finalize.getByRole("checkbox", { name: "I understand that Finalization creates a Period Lock for this snapshot.", exact: true }).check();
+      await finalize.getByRole("button", { name: "Finalize and lock period", exact: true }).click();
+      await expect(finalize.getByText("Partially completed — 0/2", { exact: true })).toBeVisible();
+    }
+  }
+  expect(cycles[1].lockId).not.toBe(cycles[0].lockId);
+  expect(cycles[1].generation).toBe(cycles[0].generation);
+  await drafts.getByRole("link", { name: "Open Export history", exact: true }).click();
+  await page.getByRole("link", { name: "← Back to Processing", exact: true }).click();
+  await expect(page).toHaveURL(`${wizardUrl}#vat-step-export`);
+  await expect(finalize.getByText("Done", { exact: true })).toBeVisible();
 });
