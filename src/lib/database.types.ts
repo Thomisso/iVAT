@@ -798,6 +798,9 @@ isOneToOne: false
               "id": string,"name": string
             }[]
                            },
+"authorize_password_recovery":
+{ Args: { "request_token": string,"verified_session_id": string }; Returns: undefined
+                           },
 "begin_invitation_acceptance":
 { Args: { "invitation_token": string }; Returns: string
                            },
@@ -815,6 +818,9 @@ isOneToOne: false
                            },
 "change_membership_role":
 { Args: { "target_membership_id": string,"target_role": Database["public"]['Enums']["membership_role"] }; Returns: undefined
+                           },
+"claim_password_recovery":
+{ Args: Record<PropertyKey, never>; Returns: string
                            },
 "clear_default_ai_configuration":
 { Args: Record<PropertyKey, never>; Returns: undefined
@@ -863,6 +869,9 @@ isOneToOne: false
 "create_manual_document":
 { Args: { "findings": Json,"payload": Json,"target_company_id": string }; Returns: string
                            },
+"create_password_recovery_request":
+{ Args: { "target_email": string }; Returns: string
+                           },
 "current_company_role":
 { Args: { "target_company_id": string }; Returns: Database["public"]['Enums']["membership_role"]
                            },
@@ -900,6 +909,9 @@ isOneToOne: false
                            },
 "finish_mfa_enrollment":
 { Args: Record<PropertyKey, never>; Returns: (string)[]
+                           },
+"finish_password_recovery":
+{ Args: { "recovery_attempt_id": string,"succeeded": boolean }; Returns: undefined
                            },
 "finish_upload_batch":
 { Args: { "target_batch_id": string }; Returns: undefined
@@ -988,6 +1000,12 @@ isOneToOne: false
                            },
 "move_document_page":
 { Args: { "page": number,"source_document_id": string,"target_document_id": string }; Returns: (string)[]
+                           },
+"password_recovery_link_status":
+{ Args: { "request_token": string }; Returns: string
+                           },
+"password_recovery_status":
+{ Args: Record<PropertyKey, never>; Returns: string
                            },
 "platform_company_history":
 { Args: { "target_company_id": string }; Returns: Json
