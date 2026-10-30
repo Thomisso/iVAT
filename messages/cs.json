@@ -273,6 +273,8 @@
     "removeFile": "Odebrat {name}",
     "identicalFileOmitted": "Totožný obsah už je ve frontě; další kopie nebyla přidána.",
     "retryFailedFiles": "Zkusit nenahrané soubory znovu",
+    "finishWithFailures": "Dokončit dávku s nenahranými soubory",
+    "finishWithFailuresHint": "Některé vybrané soubory nelze nahrát. Dokončením dávky můžete připravit novou frontu. Nahrané soubory zůstanou zachované, neúspěšné přenosy se započítají jako chyby a do této dávky už nebude možné nahrávat.",
     "upload": "Nahrát dávku",
     "uploading": "Nahrávání…",
     "batchComplete": "Zpracování dávky skončilo pro {count, plural, one {# zdrojový soubor} few {# zdrojové soubory} other {# zdrojových souborů}}.",
