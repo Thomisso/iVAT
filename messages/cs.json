@@ -3,6 +3,11 @@
     "name": "iVAT",
     "tagline": "Přiznání k DPH z vašich dokladů"
   },
+  "release": {
+    "version": "Verze {version}",
+    "revision": "Revize {revision}",
+    "development": "Vývojová verze"
+  },
   "language": {
     "label": "Jazyk",
     "cs": "Čeština",
