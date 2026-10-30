@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getFormatter, getTranslations } from "next-intl/server";
+import { getTranslations } from "next-intl/server";
 import { reprocessDocumentAction, retrySplitAction } from "@/app/actions";
 import { getCompany, getMyCompanyRole } from "@/application/companies";
 import { currentUserId } from "@/application/auth";
@@ -11,6 +11,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { statusBadgeState } from "@/components/status-badge-state";
 import { PageLayout } from "@/components/app-shell";
 import { requireUserClient } from "@/lib/supabase/server";
+import { formatDateTime } from "@/lib/format-date";
 import { BatchDeletionForm } from "./batch-deletion-form";
 import { MarkBatchNotificationRead } from "./mark-batch-notification-read";
 
@@ -19,13 +20,12 @@ export default async function UploadBatchPage({
 }: PageProps<"/companies/[companyId]/upload-batches/[batchId]">) {
   const { companyId, batchId } = await params;
   const client = await requireUserClient();
-  const [company, role, userId, batch, t, format] = await Promise.all([
+  const [company, role, userId, batch, t] = await Promise.all([
     getCompany(client, companyId),
     getMyCompanyRole(client, companyId),
     currentUserId(client),
     getUploadBatch(client, companyId, batchId),
     getTranslations("uploadWorkspace"),
-    getFormatter(),
   ]);
   if (!company || !batch) notFound();
   // The database decides who may delete; the Role only decides whether to offer it.
@@ -48,7 +48,7 @@ export default async function UploadBatchPage({
 
   return <PageLayout className="company-workspace upload-batch-workspace" measure="wide">
     <header className="company-page-header upload-batch-header">
-      <div><Link href={`/companies/${companyId}/upload`}>{t("backToUpload")}</Link><h1>{t("batchTitle", { date: format.dateTime(new Date(batch.createdAt), { dateStyle: "medium", timeStyle: "short" }) })}</h1><p>{t("batchFiles", { count: batch.actualFileCount, planned: batch.plannedFileCount })}</p></div>
+      <div><Link href={`/companies/${companyId}/upload`}>{t("backToUpload")}</Link><h1>{t("batchTitle", { date: formatDateTime(batch.createdAt) })}</h1><p>{t("batchFiles", { count: batch.actualFileCount, planned: batch.plannedFileCount })}</p></div>
       <span className={`upload-outcome upload-outcome-${batch.outcome}`}>{t(`outcome.${batch.outcome}`)}</span>
     </header>
 
@@ -89,7 +89,7 @@ export default async function UploadBatchPage({
       <div className="upload-section-heading"><div><h2 id="source-ledger-title">{t("sourceFilesTitle")}</h2><p>{t("sourceFilesHint")}</p></div><span>{batch.actualFileCount}</span></div>
       {batch.sourceFiles.map((source) => <article className="upload-source-row" key={source.id}>
         <header>
-          <div><Link href={`/companies/${companyId}/source-files/${source.id}`}>{source.fileName}</Link><small>{format.dateTime(new Date(source.uploadedAt), { dateStyle: "medium", timeStyle: "short" })}</small></div>
+          <div><Link href={`/companies/${companyId}/source-files/${source.id}`}>{source.fileName}</Link><small>{formatDateTime(source.uploadedAt)}</small></div>
           <StatusBadge status={statusBadgeState(source.status, "source-file")}>{t(`sourceStatus.${source.status}`)}</StatusBadge>
         </header>
         {source.documents.length > 0 ? <ol className="upload-document-list">
