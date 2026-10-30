@@ -34,6 +34,8 @@ export async function GET(
     rate: t("rate"),
     taxBaseCzk: t("taxBaseCzk"),
     vatCzk: t("vatCzk"),
+    sectionTotals: t("sectionTotals"),
+    noEntries: t("noEntries"),
     statementTotals: t("statementTotals"),
     subject: t("subject"),
   } satisfies ControlStatementPdfCopy;
