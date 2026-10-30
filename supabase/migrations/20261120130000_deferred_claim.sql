@@ -1,3 +1,35 @@
+-- Refuse an upgrade that would silently move Documents across a Period Lock.
+-- Administrators must unlock and correct legacy claims outside the new window first.
+do $$
+declare
+  doc record;
+  tax_date date;
+  previous_period text;
+  default_period text;
+begin
+  for doc in
+    select d.*, v.payload from public.document d
+    join lateral (select payload from public.extraction_version where document_id = d.id order by version desc limit 1) v on true
+    where d.claimed_reporting_period is not null
+  loop
+    begin
+      tax_date := (doc.payload ->> 'taxPointDate')::date;
+    exception when datetime_field_overflow or invalid_datetime_format then
+      continue;
+    end;
+    previous_period := private.document_reporting_period(doc.company_id, doc.payload ->> 'direction', doc.payload ->> 'taxPointDate', doc.claimed_reporting_period);
+    default_period := private.document_reporting_period(doc.company_id, doc.payload ->> 'direction', doc.payload ->> 'taxPointDate', null);
+    if previous_period is distinct from default_period
+      and private.reporting_period_start(doc.claimed_reporting_period) > tax_date + interval '3 years'
+      and (private.is_reporting_period_locked(doc.company_id, previous_period)
+        or private.is_reporting_period_locked(doc.company_id, default_period)) then
+      raise exception 'Unlock and correct Deferred Claims outside the three-year window before upgrading'
+        using errcode = 'P0001', hint = 'locked_legacy_deferred_claim';
+    end if;
+  end loop;
+end;
+$$;
+
 -- Deferred Claim validity is enforced at the database boundary, matching the read model.
 create or replace function private.document_reporting_period(
   target_company_id uuid,

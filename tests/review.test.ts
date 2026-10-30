@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { PDFDocument } from "pdf-lib";
 import { Client as DatabaseClient } from "pg";
 import { describe, expect, inject, it } from "vitest";
@@ -853,4 +854,35 @@ it("refuses a Deferred Claim more than three years after the Tax Point Date", as
   expect(await updateDocumentReporting(document.client, { companyId: document.companyId, documentId: document.documentId, claimedReportingPeriod: "2030-01" }))
     .toEqual({ ok: false, error: "invalid_reporting_period" });
   expect(await listDeferredClaimPeriods(document.client, document.companyId, document.documentId)).not.toContain("2030-01");
+});
+
+
+it("refuses the Deferred Claim migration before it moves a locked legacy assignment", async () => {
+  const document = await documentInReview();
+  const { setCurrentReportingYear } = await import("@/application/companies");
+  const { generateVatReport, finalizeVatReport } = await import("@/application/vat-reports");
+  expect(await setCurrentReportingYear(document.client, { companyId: document.companyId, year: 2030, filingFrequency: "monthly" })).toEqual({ ok: true, value: null });
+  const period = { companyId: document.companyId, period: "2030-01" };
+  expect((await generateVatReport(document.client, period)).ok).toBe(true);
+  expect(await finalizeVatReport(document.client, { ...period, confirmed: true })).toEqual({ ok: true, value: null });
+  const original = readFileSync("supabase/migrations/20261120120000_tax_point_date_reporting_period.sql", "utf8");
+  const start = original.indexOf("create function private.document_reporting_period(");
+  const end = original.indexOf("revoke execute on function private.document_reporting_period", start);
+  const oldFunction = original.slice(start, end).replace("create function", "create or replace function");
+  const migration = readFileSync("supabase/migrations/20261120130000_deferred_claim.sql", "utf8");
+  const database = new DatabaseClient({ connectionString: inject("databaseUrl") });
+  await database.connect();
+  try {
+    await database.query("begin");
+    await database.query(oldFunction);
+    // Test-only pre-upgrade fixture, isolated in this transaction.
+    await database.query("alter table public.document disable trigger document_period_lock");
+    await database.query("update public.document set claimed_reporting_period = '2030-01' where id = $1", [document.documentId]);
+    await database.query("alter table public.document enable trigger document_period_lock");
+    await expect(database.query(migration)).rejects.toMatchObject({ hint: "locked_legacy_deferred_claim" });
+  } finally {
+    await database.query("rollback");
+    await database.end();
+  }
+  expect((await listCompanyDocuments(document.client, document.companyId))[0].reportingPeriod).toBe("2026-10");
 });
