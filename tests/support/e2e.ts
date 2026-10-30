@@ -103,9 +103,44 @@ export async function assignBrowserAiConfigurationFixture(companyId: string) {
       "insert into public.platform_ai_provider (provider) values ('fake') on conflict (provider) do nothing",
     );
     await database.query("commit");
+    return { configurationId, label: `Browser test ${configurationId}` };
   } catch (error) {
     await database.query("rollback");
     throw error;
+  } finally {
+    await database.end();
+  }
+}
+
+/** Records AI calls of a Company the way the worker does, through its assigned AI Configuration. */
+export async function recordBrowserAiUsageFixture(
+  companyId: string,
+  calls: { model: string; operation: "split" | "extract"; inputTokens: number; outputTokens: number; providerCostUsd?: number }[],
+) {
+  const environment = await browserFixtureEnvironment();
+  const database = new DatabaseClient({ connectionString: environment.DATABASE_URL });
+  await database.connect();
+  try {
+    for (const call of calls) {
+      await database.query(
+        `select public.record_ai_usage(
+           company.organization_id, company.id, assignment.configuration_id, 'fake', $2, $3,
+           $4, $5, $6, gen_random_uuid(), $7
+         )
+         from public.company company
+         join public.company_ai_configuration assignment on assignment.company_id = company.id
+         where company.id = $1`,
+        [
+          companyId,
+          call.model,
+          call.operation,
+          call.inputTokens,
+          call.outputTokens,
+          call.operation === "split" ? "split-source-file" : "extract-document",
+          call.providerCostUsd ?? null,
+        ],
+      );
+    }
   } finally {
     await database.end();
   }
