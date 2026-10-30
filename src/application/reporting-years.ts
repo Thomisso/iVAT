@@ -1,17 +1,28 @@
 import { isUuid, type AppClient, type Result } from "./client";
-import { FILING_FREQUENCIES, type FilingFrequency } from "./companies";
+import { FILING_FREQUENCIES, listCompanyReportingYears, type FilingFrequency } from "./companies";
 import type { ValidationFinding } from "./document-validation";
+import { reportingPeriodGapFinding } from "./reporting-periods";
 
 // Administrator commands on a Company's Reporting Years (ADR-0013). The
 // database decides who may run them and refuses changes to years in use.
 
-export type GenerateReportingYearsError = "invalid_reporting_year" | "invalid_filing_frequency" | "forbidden";
+export type GenerateReportingYearsError =
+  | "invalid_reporting_year"
+  | "too_many_reporting_years"
+  | "invalid_filing_frequency"
+  | "forbidden";
+
+/** The most years one generation request may create. */
+export const MAX_GENERATED_REPORTING_YEARS = 20;
 
 const validYear = (year: number) => Number.isInteger(year) && year >= 2000 && year <= 2099;
 const validFrequency = (frequency: string): frequency is FilingFrequency =>
   FILING_FREQUENCIES.some((known) => known === frequency);
 
-/** Generates every missing year from `fromYear` through `toYear`; existing years are skipped, never overwritten. */
+/**
+ * Generates every missing year from `fromYear` through `toYear`; existing years
+ * are skipped, never overwritten.
+ */
 export async function generateReportingYears(
   client: AppClient,
   input: { companyId: string; fromYear: number; toYear: number; frequency: FilingFrequency },
@@ -21,6 +32,9 @@ export async function generateReportingYears(
   if (!validYear(input.fromYear) || !validYear(input.toYear) || input.fromYear > input.toYear) {
     return { ok: false, error: "invalid_reporting_year" };
   }
+  if (input.toYear - input.fromYear >= MAX_GENERATED_REPORTING_YEARS) {
+    return { ok: false, error: "too_many_reporting_years" };
+  }
   const { data, error } = await client.rpc("generate_company_reporting_years", {
     target_company_id: input.companyId,
     from_year: input.fromYear,
@@ -28,9 +42,10 @@ export async function generateReportingYears(
     new_frequency: input.frequency,
   });
   if (error) {
-    if (error.code === "42501") return { ok: false, error: "forbidden" };
-    if (error.code === "P0001" && error.hint === "invalid_reporting_year") return { ok: false, error: error.hint };
-    throw error;
+    return changeRefusal(error, [
+      "invalid_reporting_year",
+      "too_many_reporting_years",
+    ] as const);
   }
   const result = data as { generated: number[]; skipped: number[] };
   return { ok: true, value: { generated: result.generated, skipped: result.skipped } };
@@ -120,9 +135,9 @@ export async function setFirstReportingMonth(
 }
 
 /**
- * Why a Document has no Reporting Period, as a blocking finding: its Tax Point
- * Date falls in a year that was never generated, or before the month its year
- * starts. Computed when read, so it disappears as soon as the year exists.
+ * Why a Document has no Reporting Period, as a blocking finding (see
+ * `reportingPeriodGapFinding`). Computed when read, so it disappears as soon as
+ * the missing year exists.
  */
 export async function missingReportingPeriodFinding(
   client: AppClient,
@@ -130,35 +145,16 @@ export async function missingReportingPeriodFinding(
   documentId: string,
 ): Promise<ValidationFinding | null> {
   if (!isUuid(companyId) || !isUuid(documentId)) return null;
-  const { data: document, error } = await client
-    .from("document_overview")
-    .select("tax_point_date, reporting_period")
-    .eq("company_id", companyId)
-    .eq("id", documentId)
-    .maybeSingle();
+  const [{ data: document, error }, years] = await Promise.all([
+    client
+      .from("document_overview")
+      .select("tax_point_date, reporting_period")
+      .eq("company_id", companyId)
+      .eq("id", documentId)
+      .maybeSingle(),
+    listCompanyReportingYears(client, companyId),
+  ]);
   if (error) throw error;
-  const taxPointDate = document?.tax_point_date;
-  if (!taxPointDate || document.reporting_period || !/^20\d{2}-(0[1-9]|1[0-2])-\d{2}$/.test(taxPointDate)) {
-    return null;
-  }
-  const year = taxPointDate.slice(0, 4);
-  const { data: reportingYear, error: yearError } = await client
-    .from("reporting_year")
-    .select("first_month")
-    .eq("company_id", companyId)
-    .eq("year", Number(year))
-    .maybeSingle();
-  if (yearError) throw yearError;
-  if (!reportingYear) {
-    return { field: "taxPointDate", severity: "error", code: "reporting_year_missing", params: { year } };
-  }
-  if (Number(taxPointDate.slice(5, 7)) < reportingYear.first_month) {
-    return {
-      field: "taxPointDate",
-      severity: "error",
-      code: "tax_point_date_before_first_reporting_month",
-      params: { year, month: String(reportingYear.first_month) },
-    };
-  }
-  return null;
+  if (!document || document.reporting_period) return null;
+  return reportingPeriodGapFinding(document.tax_point_date, years);
 }

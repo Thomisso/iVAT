@@ -11,10 +11,10 @@ import {
 } from "@/app/actions";
 import type { ReportingYear } from "@/application/companies";
 import { Button } from "@/components/button";
-import { CommandButton } from "@/components/command-button";
 import { FormError } from "@/components/form-error";
 import { Notice } from "@/components/notice";
 import { TextField } from "@/components/text-field";
+import { formatMonthName } from "@/lib/format-date";
 
 const QUARTER_START_MONTHS = [1, 4, 7, 10];
 const MONTHS = Array.from({ length: 12 }, (_, index) => index + 1);
@@ -42,12 +42,7 @@ export function ReportingYears({ companyId, years, suggestedYear }: {
           <td><FrequencyForm companyId={companyId} year={year} /></td>
           <td>{index === 0 ? <FirstMonthForm companyId={companyId} year={year} /> : <MonthName month={year.firstMonth} />}</td>
           <td>
-            <CommandButton
-              action={deleteReportingYearAction}
-              fields={{ companyId, year: String(year.year) }}
-              variant="danger"
-              size="sm"
-            >{t("deleteReportingYear", { year: year.year })}</CommandButton>
+<DeleteForm companyId={companyId} year={year.year} />
           </td>
         </tr>)}</tbody>
       </table>
@@ -56,15 +51,28 @@ export function ReportingYears({ companyId, years, suggestedYear }: {
   </>;
 }
 
-const monthName = (locale: string, month: number) =>
-  new Intl.DateTimeFormat(locale, { month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(2000, month - 1, 1)));
-
 function MonthName({ month }: { month: number }) {
-  return monthName(useLocale(), month);
+  return formatMonthName(useLocale(), month);
 }
 
 function useCommand(action: (state: FormState, formData: FormData) => Promise<FormState>) {
   return useActionState(action, { error: null, values: {} });
+}
+
+/** Deleting a year takes its Documents out of their Reporting Periods, so it is confirmed first. */
+function DeleteForm({ companyId, year }: { companyId: string; year: number }) {
+  const t = useTranslations("company");
+  const [state, action, pending] = useCommand(deleteReportingYearAction);
+  return <form action={action} className="reporting-year-change">
+    <input name="companyId" type="hidden" value={companyId} />
+    <input name="year" type="hidden" value={year} />
+    <label className="iv-checkbox-row">
+      <input name="confirmed" type="checkbox" required defaultChecked={state.values.confirmed === "on"} />
+      {t("confirmReportingYearDeletion", { year })}
+    </label>
+    <Button size="sm" type="submit" variant="danger" disabled={pending}>{t("deleteReportingYear", { year })}</Button>
+    <FormError error={state.error} />
+  </form>;
 }
 
 function FrequencyForm({ companyId, year }: { companyId: string; year: ReportingYear }) {
@@ -75,8 +83,8 @@ function FrequencyForm({ companyId, year }: { companyId: string; year: Reporting
     <input name="year" type="hidden" value={year.year} />
     <select
       aria-label={t("reportingYearFrequency", { year: year.year })}
-      defaultValue={year.frequency}
-      key={year.frequency}
+      defaultValue={state.values.frequency ?? year.frequency}
+      key={`${year.frequency}-${state.values.frequency}`}
       name="frequency"
     >
       <option value="monthly">{t("monthly")}</option>
@@ -97,11 +105,11 @@ function FirstMonthForm({ companyId, year }: { companyId: string; year: Reportin
     <input name="year" type="hidden" value={year.year} />
     <select
       aria-label={t("firstReportingMonthOf", { year: year.year })}
-      defaultValue={year.firstMonth}
-      key={`${year.frequency}-${year.firstMonth}`}
+      defaultValue={state.values.firstMonth ?? year.firstMonth}
+      key={`${year.frequency}-${year.firstMonth}-${state.values.firstMonth}`}
       name="firstMonth"
     >
-      {months.map((month) => <option key={month} value={month}>{monthName(locale, month)}</option>)}
+      {months.map((month) => <option key={month} value={month}>{formatMonthName(locale, month)}</option>)}
     </select>
     <Button size="sm" type="submit" disabled={pending}>{t("changeReportingYear")}</Button>
     <FormError error={state.error} />

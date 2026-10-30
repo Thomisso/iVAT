@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import {
   approveDocumentAction,
   rejectDocumentAction,
@@ -29,7 +29,7 @@ import { Notice } from "@/components/notice";
 import { StatusBadge } from "@/components/status-badge";
 import { statusBadgeState } from "@/components/status-badge-state";
 import { PageLayout } from "@/components/app-shell";
-import { formatDateTime } from "@/lib/format-date";
+import { formatDateTime, formatMonthName } from "@/lib/format-date";
 import { CorrectionForm } from "./correction-form";
 import { findingMessage } from "./finding-message";
 import { ReportingAssignmentForm } from "./reporting-assignment-form";
@@ -67,7 +67,7 @@ export default async function DocumentReviewPage({
   };
   const locks = await documentPeriodLocks(client, companyId, [document.id]);
   const lockedPeriod = locks[document.id];
-  const t = await getTranslations();
+  const [t, locale] = await Promise.all([getTranslations(), getLocale()]);
   const sourceRows = document.rowSet
     ? await readDocumentRows(client, companyId, document.id)
     : null;
@@ -142,7 +142,12 @@ export default async function DocumentReviewPage({
           {!current && <Notice>{t("review.notReviewableNote")}</Notice>}
           {missingPeriod && (
             <Notice tone="danger">
-              {t(`review.findings.${missingPeriod.code}`, missingPeriod.params)}{" "}
+              {t(`review.findings.${missingPeriod.code}`, {
+                ...missingPeriod.params,
+                month: missingPeriod.params?.month
+                  ? formatMonthName(locale, Number(missingPeriod.params.month))
+                  : "",
+              })}{" "}
               {role === "administrator" && missingPeriod.code === "reporting_year_missing" && (
                 <Link href={`/companies/${companyId}/settings/vat?generateYear=${missingPeriod.params?.year}#reporting-years`}>
                   {t("review.generateReportingYear", { year: missingPeriod.params?.year ?? "" })}

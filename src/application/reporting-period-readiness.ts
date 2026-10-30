@@ -10,6 +10,7 @@ import { listCompanyDocuments } from "./documents";
 import {
   isReportingPeriod,
   reportingPeriodForDate,
+  reportingPeriodGapFinding,
   reportingPeriodsOf,
 } from "./reporting-periods";
 import type { ReportDocument } from "./vat-rules";
@@ -313,12 +314,20 @@ export async function getReportingPeriodReadiness(
   ]);
   const byVersion = await findingsByVersion(client, relevant);
   const source = readinessSource(relevant);
-  const documents: LiveDocument[] = relevant.map((document) => ({
-    ...document,
-    findings: document.extractionVersionId
-      ? byVersion.get(document.extractionVersionId) ?? []
-      : [],
-  }));
+  const assignedIds = new Set(assigned.map((document) => document.id));
+  const documents: LiveDocument[] = relevant.map((document) => {
+    // A Document without a Reporting Period is blocked until its year exists.
+    const gap = assignedIds.has(document.id)
+      ? null
+      : reportingPeriodGapFinding(document.payload?.taxPointDate, reportingYears);
+    return {
+      ...document,
+      findings: [
+        ...(document.extractionVersionId ? byVersion.get(document.extractionVersionId) ?? [] : []),
+        ...(gap ? [gap] : []),
+      ],
+    };
+  });
   const groups: ReportingPeriodReadiness["groups"] = {
     processing: [],
     failed: [],
