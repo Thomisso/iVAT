@@ -7,6 +7,9 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { parseEnv } from "node:util";
 import { createReleaseBundle } from "../scripts/release-bundle.mjs";
+import { deployPreparedRelease } from "../scripts/connect-release.mjs";
+import { waitForRequiredChecks } from "../scripts/prepare-release.mjs";
+import { resolveReleaseRevision } from "../scripts/release-policy.mjs";
 
 const source = process.cwd();
 const docker = (...args) => execFileSync("docker", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 600000 }).trim();
@@ -28,7 +31,8 @@ test("the real release command guards and upgrades a disposable production stack
   const directory = await realpath(await mkdtemp(path.join(tmpdir(), "ivat-release-runtime-")));
   const stack = path.join(directory, "stack");
   const project = "ivat-release155-check";
-  const httpPort = await freePort(), apiPort = await freePort();
+  const httpPort = await freePort(), apiPort = await freePort(), sshPort = await freePort();
+  const sshContainer = "ivat-release156-ssh-check";
   let simulation;
   const common = ["compose", "--project-directory", stack, "--project-name", project, "--env-file", path.join(stack, ".env"), "-f", path.join(stack, "docker-compose.rosti.yml"), "-f", path.join(stack, "test-override.yml")];
   const operator = (script, args = [], env = {}) => command(["run", "--rm", "--entrypoint", "bash", "-v", "/var/run/docker.sock:/var/run/docker.sock", "-v", `${directory}:${directory}`, "-v", `${source}:${source}:ro`, ...Object.entries(env).flatMap(([key, value]) => ["-e", `${key}=${value}`]), "ivat-release155-operator:verify", script, ...args]);
@@ -41,7 +45,7 @@ test("the real release command guards and upgrades a disposable production stack
     docker("build", "-f", "deploy/tests/operator.Dockerfile", "-t", "ivat-release155-operator:verify", ".");
     for (const name of ["db", "gateway", "proxy"]) docker("build", "--platform", "linux/amd64", "-t", `ivat-release155-${name}:verify`, `deploy/${name}`);
     docker("build", "--platform", "linux/amd64", "--build-arg", `NEXT_PUBLIC_SUPABASE_URL=${env.SUPABASE_PUBLIC_URL}`, "--build-arg", `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${env.ANON_KEY}`, "-t", "ivat-release155-app:verify", ".");
-    await writeFile(path.join(directory, "probe.sql"), "create table public.ivat_release_probe (value text); insert into public.ivat_release_probe values ('upgrade-completed');\n");
+    await writeFile(path.join(directory, "probe.sql"), "select pg_sleep(5); create table public.ivat_release_probe (value text); insert into public.ivat_release_probe values ('upgrade-completed');\n");
     await writeFile(path.join(directory, "upgrade.Dockerfile"), "FROM ivat-release155-app:verify\nUSER root\nCOPY probe.sql /app/supabase/migrations/99999999990000_release_probe.sql\nUSER node\n");
     docker("build", "--platform", "linux/amd64", "-f", path.join(directory, "upgrade.Dockerfile"), "-t", "ivat-release155-upgrade:verify", directory);
     await writeFile(path.join(directory, "failure.sql"), "select this_migration_must_fail();\n");
@@ -73,16 +77,50 @@ test("the real release command guards and upgrades a disposable production stack
     const targetCompose = JSON.parse(docker("compose", "-f", "docker-compose.rosti.yml", "config", "--no-interpolate", "--no-path-resolution", "--format", "json"));
     const bundle = path.join(directory, "bundle");
     const images = Object.fromEntries(["app", "db", "gateway", "proxy"].map(name => [name, `ghcr.io/thomisso/ivat/${name}@sha256:${"a".repeat(64)}`]));
-    await createReleaseBundle({ sourceDirectory: source, outputDirectory: bundle, release: { repository: "thomisso/ivat", revision: "1".repeat(40), tag: "v0.2.0", releaseId: 155 }, publicBuild: { supabaseUrl: env.SUPABASE_PUBLIC_URL, publishableKey: env.ANON_KEY }, images, compose: targetCompose });
+    const gitDirectory = path.join(directory, "release-source");
+    await mkdir(gitDirectory);
+    const git = (...args) => execFileSync("git", args, { cwd: gitDirectory, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+    git("init", "-b", "main"); git("config", "user.name", "Release fixture"); git("config", "user.email", "release@example.test");
+    await writeFile(path.join(gitDirectory, "source"), "complete tested main revision\n");
+    git("add", "."); git("commit", "-m", "Release fixture");
+    const revision = git("rev-parse", "HEAD");
+    git("update-ref", "refs/remotes/origin/main", revision); git("tag", "-a", "v0.2.0", "-m", "Release fixture");
+    const release = { repository: "thomisso/ivat", revision, tag: "v0.2.0", releaseId: 155 };
+    const event = { action: "published", repository: { full_name: "Thomisso/iVAT" }, release: { id: 155, tag_name: "v0.2.0", draft: false, prerelease: false } };
+    assert.equal(resolveReleaseRevision(release.tag, revision, gitDirectory), revision);
+    await createReleaseBundle({ sourceDirectory: source, outputDirectory: bundle, release, publicBuild: { supabaseUrl: env.SUPABASE_PUBLIC_URL, publishableKey: env.ANON_KEY }, images, compose: targetCompose });
+    const releaseArchive = path.join(directory, "release.tar.gz");
+    execFileSync("tar", ["--format", "ustar", "-czf", releaseArchive, "-C", bundle, "."], { env: { ...process.env, COPYFILE_DISABLE: "1" } });
     await writeFile(path.join(stack, "test-override.yml"), override("ivat-release155-upgrade:verify"));
-    simulation = spawn("postman", ["simulation", "run", "postman/simulations/rosti-deployment/rosti-deployment.sim.yaml", "--port", String(apiPort), "--no-history", "--output", "ndjson"], { stdio: ["ignore", "pipe", "pipe"] });
+    simulation = spawn("postman", ["simulation", "run", "postman/simulations/release-flow/release-flow.sim.yaml", "--port", String(apiPort), "--no-history", "--output", "ndjson"], { stdio: ["ignore", "pipe", "pipe"] });
     let simulationLog = ""; simulation.stdout.on("data", chunk => { simulationLog += chunk; }); simulation.stderr.on("data", chunk => { simulationLog += chunk; });
     const deadline = Date.now() + 15000;
     while (!simulationLog.includes('"type":"listening"') && !simulationLog.includes('"event":"listening"')) { if (Date.now() > deadline) throw new Error("Simulation startup failed"); await new Promise(resolve => setTimeout(resolve, 100)); }
     const deployEnv = { IVAT_DEPLOY_TEST_APP_IMAGE: "ivat-release155-upgrade:verify", IVAT_DISPOSABLE_COMPOSE_OVERRIDE: path.join(stack, "test-override.yml"), IVAT_DEPLOY_LOCK_FILE: path.join(stack, "backup.lock"), IVAT_DEPLOY_LOCK_TIMEOUT: "1", ROSTI_API_URL: `http://host.docker.internal:${apiPort}/rosti/api-n`, ROSTI_API_KEY: "test-provider-secret", IVAT_DEPLOY_PUBLIC_URL: `http://host.docker.internal:${httpPort}/login` };
     const deploy = (selected = bundle, overrides = {}) => operator(path.join(bundle, "deploy/scripts/deploy-release.sh"), [stack, selected, project], { ...deployEnv, ...overrides });
+    console.log("Connect through real pinned SSH into the disposable host.");
+    execFileSync("ssh-keygen", ["-q", "-t", "ed25519", "-N", "", "-f", path.join(directory, "client")]);
+    await writeFile(path.join(directory, "sshd-environment"), Object.entries(deployEnv).filter(([name]) => name !== "ROSTI_API_KEY").map(([name, value]) => `${name}=${value}`).join("\n") + "\n");
+    docker("run", "-d", "--name", sshContainer, "--entrypoint", "sh", "-p", `127.0.0.1:${sshPort}:22`, "-v", "/var/run/docker.sock:/var/run/docker.sock", "-v", `${directory}:${directory}`, "ivat-release155-operator:verify", "-c", `ssh-keygen -A; mkdir -p /root/.ssh /run/sshd; chmod 700 /root/.ssh; cp '${directory}/client.pub' /root/.ssh/authorized_keys; cp '${directory}/sshd-environment' /root/.ssh/environment; chmod 600 /root/.ssh/*; exec /usr/sbin/sshd -D -e -o PermitRootLogin=prohibit-password -o PasswordAuthentication=no -o PermitUserEnvironment=yes`);
+    const hostKey = docker("exec", sshContainer, "cat", "/etc/ssh/ssh_host_ed25519_key.pub");
+    const connection = { archive: await readFile(releaseArchive), verified: release, event, stack, project, actor: "release-fixture", ssh: { host: "127.0.0.1", port: sshPort, user: "root", privateKey: await readFile(path.join(directory, "client"), "utf8"), knownHosts: `[127.0.0.1]:${sshPort} ${hostKey}` }, pollMs: 50, timeoutMs: 600000 };
+    process.env.GHCR_TOKEN = "test-registry-secret"; process.env.ROSTI_API_KEY = "test-provider-secret";
+    const checks = { repository: release.repository, revision, token: "test-github-secret", apiUrl: `http://127.0.0.1:${apiPort}/github`, timeoutMs: 1000, pollMs: 20 };
+    const controlGithub = behavior => fetch(`${checks.apiUrl}/__control`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ behavior, revision }) });
     const webBefore = docker(...common, "ps", "-q", "web");
     const configurationBefore = await readFile(path.join(stack, "docker-compose.rosti.yml"), "utf8");
+    await assert.rejects(deployPreparedRelease({ ...connection, ssh: { ...connection.ssh, knownHosts: `untrusted.example ${hostKey}` }, attemptId: "github-untrusted-host" }), /SSH transport failed/);
+    await assert.rejects(access(path.join(stack, "deploy/incoming/github-untrusted-host")));
+    await controlGithub("failed");
+    await assert.rejects(async () => { await waitForRequiredChecks(checks); await deployPreparedRelease({ ...connection, attemptId: "github-blocked-checks" }); }, /did not succeed/);
+    await assert.rejects(access(path.join(stack, "deploy/incoming/github-blocked-checks")));
+    assert.equal(docker(...common, "ps", "-q", "web"), webBefore);
+    await controlGithub("eventually-success"); await waitForRequiredChecks(checks);
+    await rm(archive);
+    await assert.rejects(deployPreparedRelease({ ...connection, attemptId: "github-blocked-backup" }), /failed at preflight/);
+    assert.equal((await readFile(path.join(stack, "deploy/transports/github-blocked-backup/result"), "utf8")).trim(), "failed");
+    assert.equal(docker(...common, "ps", "-q", "web"), webBefore);
+    await writeFile(archive, archiveBytes);
     for (const refusal of ["stale", "missing-archive", "missing-inventory", "corrupt"]) {
       if (refusal === "stale") { const stale = new Date(Date.now() - 27 * 3600000); await utimes(archive, stale, stale); }
       if (refusal === "missing-archive") await rm(archive);
@@ -115,19 +153,46 @@ exec /usr/local/bin/docker "$@"
     while (true) { try { await access(path.join(stack, "lock-ready")); break; } catch { await new Promise(resolve => setTimeout(resolve, 50)); } }
     assert.match((await deploy()).stderr, /lock/);
     await new Promise(resolve => lock.on("exit", resolve));
+    console.log("Kill the runner observer during real migration; host must finish with its lock intact.");
+    const connectFixture = path.join(directory, "connection.json");
+    // Disposable test credentials only; never a production configuration.
+    await writeFile(connectFixture, JSON.stringify({ ...connection, archive: undefined, attemptId: "github-disconnect" }), { mode: 0o600 });
+    const observer = spawn(process.execPath, ["--input-type=module", "-e", 'import {readFile} from "node:fs/promises"; import {deployPreparedRelease} from "./deploy/scripts/connect-release.mjs"; const connection=JSON.parse(await readFile(process.argv[1],"utf8")); connection.archive=await readFile(process.argv[2]); await deployPreparedRelease(connection);', connectFixture, releaseArchive], { stdio: ["ignore", "pipe", "pipe"] });
+    let observerErrors = ""; observer.stderr.on("data", bytes => { observerErrors += bytes; });
+    try {
+      const deadline = Date.now() + 60000;
+      while (true) {
+        let phase; try { phase = (await readFile(path.join(stack, "deploy/attempts/github-disconnect/phase"), "utf8")).trim(); } catch { /* not launched yet */ }
+        if (phase === "migration" && docker(...common, "ps", "--status", "running", "-q", "migrate")) break;
+        if (Date.now() > deadline || observer.exitCode !== null) throw new Error("Observer never reached running migration: " + observerErrors);
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      observer.kill("SIGKILL");
+      await access(path.join(stack, "deploy/.deployment-unresolved"));
+      const refused = await operator("-c", [`flock -n '${stack}/backup.lock' true`]);
+      assert.notEqual(refused.status, 0, "runner loss must not release the host deployment lock");
+      const completionDeadline = Date.now() + 60000;
+      while ((await readFile(path.join(stack, "deploy/transports/github-disconnect/result"), "utf8")).trim() === "running") {
+        if (Date.now() > completionDeadline) throw new Error("Detached host did not reach a durable result.");
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      assert.equal((await readFile(path.join(stack, "deploy/transports/github-disconnect/result"), "utf8")).trim(), "success");
+      assert.equal(JSON.parse(await readFile(path.join(stack, "deploy/verified-release.json"), "utf8")).attempt, "deploy/attempts/github-disconnect");
+    } finally { observer.kill("SIGKILL"); await rm(connectFixture); }
     console.log("Inject selected-image producer failure after a real upgrade.");
     const inspectionFailed = await deploy(bundle, { ...failureEnv, IVAT_TEST_DOCKER_FAILURE: "selected-images" });
     assert.notEqual(inspectionFailed.status, 0);
     assert.match(inspectionFailed.stderr, /at verification/);
-    await assert.rejects(access(path.join(stack, "deploy/verified-release.json")));
-    assert.equal(await readFile(path.join(stack, "deploy/release-commit.txt"), "utf8"), "0".repeat(40) + "\n");
+    assert.equal(JSON.parse(await readFile(path.join(stack, "deploy/verified-release.json"), "utf8")).attempt, "deploy/attempts/github-disconnect");
+    assert.equal(await readFile(path.join(stack, "deploy/release-commit.txt"), "utf8"), revision + "\n");
     assert.equal(docker("inspect", "--format", "{{.State.Running}}", docker(...common, "ps", "-aq", "migrate")), "false");
     // Explicit test-only acknowledgment after confirming migration is stopped.
     await rm(path.join(stack, "deploy/.deployment-unresolved"));
     console.log("Run successful upgrade through the actual command.");
-    const success = await deploy(); assert.equal(success.status, 0, success.stderr + success.stdout);
+    const success = await deployPreparedRelease({ ...connection, attemptId: "github-success" });
+    assert.equal(success.revision, revision);
     const verified = JSON.parse(await readFile(path.join(stack, "deploy/verified-release.json"), "utf8"));
-    assert.equal(verified.revision, "1".repeat(40));
+    assert.equal(verified.revision, revision);
     const repeated = await deploy(bundle, { IVAT_DEPLOY_ATTEMPT_ID: path.basename(verified.attempt) });
     assert.notEqual(repeated.status, 0);
     assert.equal((await readFile(path.join(stack, verified.attempt, "result"), "utf8")).trim(), "success");
@@ -148,8 +213,10 @@ exec /usr/local/bin/docker "$@"
     assert.notEqual(blockedBackup.status, 0); assert.match(blockedBackup.stderr, /unresolved deployment/);
     assert.equal(docker(...common, "ps", "-q", "web"), "");
     assert.match(simulationLog, /request/);
+    assert.match(simulationLog, /ci\.yml/); assert.match(simulationLog, /deployment-check\.yml/);
   } finally {
     simulation?.kill("SIGINT");
+    try { docker("rm", "-f", sshContainer); } catch { /* disposable cleanup only */ }
     try { docker(...common, "down", "--volumes", "--remove-orphans"); } catch { /* disposable cleanup only */ }
     if (process.env.IVAT_KEEP_RUNTIME_FIXTURE !== "1") await rm(directory, { recursive: true, force: true });
     else console.log("Retained disposable fixture: " + directory);
