@@ -472,6 +472,7 @@
     "organization_name_required": "Enter the name of your organization.",
     "email_taken": "An account with this email already exists.",
     "weak_password": "The password is too weak. Use at least 8 characters.",
+    "registration_closed": "Public registration is closed. Sign in or use an invitation from your administrator.",
     "sign_up_failed": "Sign-up failed. Please try again.",
     "google_sign_in_failed": "Google sign-in failed. Please try again.",
     "invalid_credentials": "Wrong email or password.",

@@ -1,36 +1,45 @@
 import type { EmailOtpType } from "@supabase/supabase-js";
 import type { AppClient, Result } from "./client";
+import { invitationUrls } from "./invitation-urls";
 
 export type SignUpInput = { email: string; password: string; organizationName: string };
-export type SignUpError = "organization_name_required" | "email_taken" | "weak_password" | "sign_up_failed";
+export type SignUpError = "registration_closed";
 
-/**
- * Registers a user with email and password. The database creates the user's
- * Organization and Administrator Membership in the same transaction (see the
- * `on_auth_user_created` trigger), so a signed-up user always has one.
- */
+/** Public registration is closed; private provisioning is an operator or
+ * administrator-issued invitation boundary, never a fallback from this command. */
 export async function signUp(
-  client: AppClient,
-  input: SignUpInput,
+  _client: AppClient,
+  _input: SignUpInput,
 ): Promise<Result<{ userId: string }, SignUpError>> {
-  const organizationName = input.organizationName.trim();
-  if (!organizationName) return { ok: false, error: "organization_name_required" };
-
-  const { data, error } = await client.auth.signUp({
-    email: input.email.trim(),
-    password: input.password,
-    options: { data: { organization_name: organizationName } },
-  });
-  if (error) {
-    if (error.code === "user_already_exists" || error.code === "email_exists") return { ok: false, error: "email_taken" };
-    if (error.code === "weak_password") return { ok: false, error: "weak_password" };
-    return { ok: false, error: "sign_up_failed" };
-  }
-  if (!data.user) return { ok: false, error: "sign_up_failed" };
-  return { ok: true, value: { userId: data.user.id } };
+  void _client;
+  void _input;
+  return { ok: false, error: "registration_closed" };
 }
 
 export type LogInInput = { email: string; password: string };
+
+export type AuthProviderConfiguration = { supabaseUrl: string; publishableKey: string };
+
+/** Reads public Auth provider configuration. Fail closed when
+ * the provider is unavailable or Auth would permit public account creation. */
+export async function googleSignInAvailable(
+  _client: AppClient,
+  configuration: AuthProviderConfiguration,
+  request: typeof fetch = fetch,
+): Promise<boolean> {
+  try {
+    const response = await request(new URL("auth/v1/settings", `${configuration.supabaseUrl.replace(/\/$/, "")}/`), {
+      headers: { apikey: configuration.publishableKey },
+      cache: "no-store",
+      signal: AbortSignal.timeout(3_000),
+    });
+    if (!response.ok) return false;
+    const settings = await response.json() as { external?: { google?: unknown }; disable_signup?: unknown };
+    return settings.external?.google === true && settings.disable_signup === true;
+  } catch {
+    return false;
+  }
+}
 
 async function applicationAccessAllowed(client: AppClient): Promise<boolean> {
   const { data, error } = await client.rpc("current_user_can_use_application");
@@ -54,11 +63,16 @@ export async function logIn(
 
 export async function startGoogleSignIn(
   client: AppClient,
-  input: { redirectTo: string },
+  input: AuthProviderConfiguration & { appOrigin: string | undefined; authRedirectAllowlist: string | undefined },
+  request: typeof fetch = fetch,
 ): Promise<Result<{ url: string }, "google_sign_in_failed">> {
+  const urls = invitationUrls(input);
+  if (!urls.ok || !(await googleSignInAvailable(client, input, request))) {
+    return { ok: false, error: "google_sign_in_failed" };
+  }
   const { data, error } = await client.auth.signInWithOAuth({
     provider: "google",
-    options: { redirectTo: input.redirectTo, skipBrowserRedirect: true },
+    options: { redirectTo: urls.value.callbackUrl, skipBrowserRedirect: true },
   });
   if (error || !data.url) return { ok: false, error: "google_sign_in_failed" };
   return { ok: true, value: { url: data.url } };

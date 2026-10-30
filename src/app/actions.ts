@@ -1,7 +1,7 @@
 "use server";
 
 import { refresh } from "next/cache";
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import {
   finalizeVatReport,
@@ -81,6 +81,7 @@ import { createRequestClient, requireUserClient } from "@/lib/supabase/server";
 import { isLocale, localeCookie } from "@/i18n/locales";
 import { companyContextCookie, serializeCompanyContext } from "@/lib/company-context";
 import { documentDecisionHref } from "@/application/document-queue";
+import { supabasePublishableKey, supabaseUrl } from "@/lib/env";
 import { safeCompanyReturnTo } from "@/application/return-context";
 
 /**
@@ -159,10 +160,11 @@ export async function logInAction(_state: FormState, formData: FormData): Promis
 }
 
 export async function googleSignInAction(): Promise<void> {
-  const origin = (await headers()).get("origin");
-  if (!origin) redirect("/login?error=google_sign_in_failed");
   const result = await startGoogleSignIn(await createRequestClient(), {
-    redirectTo: new URL("/auth/callback", origin).toString(),
+    appOrigin: process.env.APP_ORIGIN,
+    authRedirectAllowlist: process.env.AUTH_REDIRECT_ALLOWLIST,
+    supabaseUrl,
+    publishableKey: supabasePublishableKey,
   });
   if (!result.ok) redirect("/login?error=google_sign_in_failed");
   redirect(result.value.url);
