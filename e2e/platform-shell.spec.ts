@@ -5,6 +5,8 @@ import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import type { Database } from "../src/lib/database.types";
 import { getCompany } from "../src/application/companies";
 import { asUserClient } from "../src/application/client";
+import { addBrowserCompanyMemberFixture, assignBrowserAiConfigurationFixture } from "../tests/support/e2e";
+import { unzipSync } from "fflate";
 
 const password = "Playwright-password-76";
 
@@ -314,4 +316,89 @@ test("an MFA-verified SuperAdmin discovers and administers a Company without any
     .eq("user_id", operatorId).eq("organization_id", target.data.organization_id);
   expect(memberships.error).toBeNull();
   expect(memberships.data).toEqual([]);
+});
+
+test("SuperAdmin supports a blocked Organization and reads a deleted Company's retained history", async ({
+  baseURL, context, page,
+}) => {
+  await english(context, baseURL);
+  const run = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const organization = `Support target ${run}`;
+  const companyName = `Retained Company ${run}`;
+  const targetEmail = `support-target-${run}@example.test`;
+  await signUp(page, organization, targetEmail);
+  const companyId = await createCompany(page, companyName, `${Date.now()}`.slice(-8));
+  await assignBrowserAiConfigurationFixture(companyId);
+  await page.goto(`/companies/${companyId}/upload`);
+  await page.locator('input[type="file"]:not([capture])').setInputFiles("tests/fixtures/receipt.png");
+  await page.getByRole("button", { name: "Upload batch", exact: true }).click();
+  await expect(page.getByRole("link", { name: "Review 1 Document", exact: true })).toBeVisible({ timeout: 45_000 });
+
+  await context.clearCookies();
+  await english(context, baseURL);
+  const memberEmail = `support-member-${run}@example.test`;
+  await signUp(page, `Support member ${run}`, memberEmail);
+  await addBrowserCompanyMemberFixture(companyId, memberEmail);
+  await context.clearCookies();
+  await english(context, baseURL);
+  const operatorEmail = `support-operator-${run}@example.test`;
+  await signUp(page, `Support operator ${run}`, operatorEmail);
+  await promoteAndEnroll(page, operatorEmail);
+  await page.goto("/platform/administration");
+  const row = page.getByRole("row").filter({ has: page.getByRole("link", { name: organization, exact: true }) });
+  await row.getByRole("button", { name: "Block", exact: true }).click();
+  await expect(row.getByText("Blocked", { exact: true })).toBeVisible();
+  await row.getByRole("link", { name: new RegExp(`^${companyName}`) }).click();
+  await expect(page).toHaveURL(`/platform/companies/${companyId}/history`);
+  await expect(page.getByText("This Organization is blocked. Ordinary processing remains paused until a SuperAdmin explicitly unblocks it."))
+    .toBeVisible();
+  await page.getByRole("link", { name: "Organization administration", exact: true }).click();
+  await expect(page.getByRole("heading", { name: `Users of ${organization}` })).toBeVisible();
+  await expect(page.getByText(targetEmail, { exact: true })).toBeVisible();
+  await page.goto(`/platform/companies/${companyId}/history`);
+  await page.getByRole("link", { name: "Company access administration", exact: true }).click();
+  await expect(page.getByText(targetEmail, { exact: true })).toBeVisible();
+  const memberRow = page.getByRole("listitem").filter({ has: page.getByText(memberEmail, { exact: true }) });
+  await expect(memberRow).toBeVisible();
+  await memberRow.getByRole("combobox", { name: "Role", exact: true }).selectOption("administrator");
+  await memberRow.getByRole("button", { name: "Change Role", exact: true }).click();
+  await expect(memberRow.getByText("Administrator", { exact: true }).first()).toBeVisible();
+  await page.reload();
+  await expect(memberRow.getByRole("combobox", { name: "Role", exact: true })).toHaveValue("administrator");
+  await memberRow.getByRole("button", { name: "Remove access", exact: true }).click();
+  await expect(page.getByText(memberEmail, { exact: true })).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByText(memberEmail, { exact: true })).toHaveCount(0);
+  await expect(page.getByText(targetEmail, { exact: true })).toBeVisible();
+  await page.goto("/platform/administration");
+  await row.getByRole("button", { name: "Unblock", exact: true }).click();
+  await expect(row.getByText("Active", { exact: true })).toBeVisible();
+
+  await page.goto(`/companies/${companyId}/settings/data`);
+  page.once("dialog", (dialog) => dialog.accept());
+  const deletionArchive = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export and delete Company", exact: true }).click();
+  expect((await deletionArchive).suggestedFilename()).toMatch(/^iVAT-company-/);
+  await expect(page).toHaveURL(/\/$/, { timeout: 45_000 });
+  await page.goto("/platform/administration");
+  await row.getByRole("link", { name: new RegExp(`^${companyName}.*Retained history`) }).click();
+  await expect(page).toHaveURL(`/platform/companies/${companyId}/history`);
+  await expect(page.getByText(/Retained history is read-only; this Company remains deleted\./)).toBeVisible();
+  await expect(page.getByText(/^Extraction Version 1/)).toBeVisible();
+  const originalLink = page.getByRole("link", { name: "receipt.png", exact: true });
+  const originalUrl = await originalLink.getAttribute("href");
+  if (!originalUrl) throw new Error("Retained original link is missing");
+  expect(await (await page.request.get(originalUrl)).body()).toEqual(await fs.readFile("tests/fixtures/receipt.png"));
+  const retainedDownload = page.waitForEvent("download");
+  await page.getByRole("link", { name: "Download retained Company data", exact: true }).click();
+  const retained = await retainedDownload;
+  const archivePath = await retained.path();
+  if (!archivePath) throw new Error("Retained archive download failed");
+  const entries = unzipSync(new Uint8Array(await fs.readFile(archivePath)));
+  const originalEntry = Object.keys(entries).find((name) => name.endsWith("/receipt.png"));
+  if (!originalEntry) throw new Error("Retained archive omitted the original");
+  expect(entries[originalEntry]).toEqual(new Uint8Array(await fs.readFile("tests/fixtures/receipt.png")));
+  expect((await page.request.post(`/companies/${companyId}/export`)).ok()).toBe(false);
+  await page.reload();
+  await expect(page.getByText(/Retained history is read-only; this Company remains deleted\./)).toBeVisible();
 });
