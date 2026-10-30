@@ -98,9 +98,13 @@ test("the desktop upload card offers only file selection, aligned with the page"
   await expect(card.getByText("Take document photo")).toBeHidden();
 
   const history = page.getByRole("region", { name: "Batch history" });
-  const [cardBox, historyBox] = await Promise.all([card.boundingBox(), history.boundingBox()]);
-  expect(cardBox?.x).toBe(historyBox?.x);
-  expect(cardBox?.width).toBe(historyBox?.width);
+  for (const width of [1440, 720, 360]) {
+    await page.setViewportSize({ width, height: 900 });
+    const [cardBox, historyBox] = await Promise.all([card.boundingBox(), history.boundingBox()]);
+    expect(cardBox?.x).toBe(historyBox?.x);
+    expect(cardBox?.width).toBe(historyBox?.width);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+  }
 });
 
 test("a permanently refused file remains visible after reload and can finish as a failed batch before a new queue", async ({ baseURL, context, page }) => {
