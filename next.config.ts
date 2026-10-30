@@ -8,8 +8,8 @@ import { UPLOAD_BODY_LIMIT } from "./src/lib/upload-policy";
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  // Invitation capabilities and passwords must never appear in action logs.
-  logging: { serverFunctions: false, incomingRequests: { ignore: [/\/invitations\/accept/, /\/auth\/callback/] } },
+  // Authentication capabilities and passwords must never appear in action logs.
+  logging: { serverFunctions: false, incomingRequests: { ignore: [/\/invitations\/accept/, /\/auth\/callback/, /\/password\//] } },
   // Playwright uses the loopback address while the dev server advertises
   // localhost; permit that same-machine origin so client islands hydrate.
   allowedDevOrigins: ["127.0.0.1"],

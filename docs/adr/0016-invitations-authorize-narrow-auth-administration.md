@@ -43,3 +43,20 @@ Function argument logging is disabled so credentials and links stay out of logs.
 The provider behavior is pinned to [GoTrue v2.197.0 admin creation](https://github.com/supabase/auth/blob/v2.197.0/internal/api/admin.go)
 and [email verification](https://github.com/supabase/auth/blob/v2.197.0/internal/api/verify.go).
 The adapter and real-Auth race tests must be rechecked when upgrading Auth.
+
+Password recovery uses the same narrow trusted-adapter boundary. A private
+one-hour request capability is bound to the Auth User and delivered only inside
+the native recovery email; request responses reveal neither that capability nor
+account existence. Explicit native recovery verification plus that capability
+authorizes a one-use reset intent bound to the returned Auth session. A service-only
+database operation checks the fresh native session and request owner before
+binding them; ordinary clients cannot issue or authorize these intents. This is
+necessary because [pinned Auth classifies OTP, MagicLink and Recovery as recovery
+methods](https://github.com/supabase/auth/blob/v2.197.0/internal/models/factor.go),
+and implicit recovery JWTs use `otp`, so AMR alone cannot establish the
+specific email-recovery request. Native Auth still verifies the email token,
+enforces its one-hour expiry and single use, requires actual AAL2 for an enrolled
+authenticator, updates the password and revokes other refresh sessions. The
+application intent grants no MFA elevation or data access, never removes a
+factor, and writes only private application state; native Auth tables are read
+for identity/session binding, without unsupported changes to their internals.

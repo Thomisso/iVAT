@@ -48,6 +48,19 @@ no Auth account until explicit acceptance. The web server's Auth administration
 key is exposed only through the database-authorized adapter described in
 [ADR-0016](adr/0016-invitations-authorize-narrow-auth-administration.md).
 
+Native email OTPs, including password recovery, expire after 3600 seconds in
+both CLI and production Auth configuration. Invitation capabilities retain their
+separate seven-day lifetime. The proxy serves `recovery.html` only on its private
+template listener; Auth uses the canonical `/password/reset` redirect with a
+fragment carrying both the private request capability and native token hash.
+Opening the link is read-only. Explicit verification establishes the real Auth
+session; enrolled Users must verify their existing authenticator before changing
+their password. Reset success keeps that session and revokes other refresh
+sessions; already-issued access JWTs retain their normal short lifetime.
+Allow only the configured application origin for recovery redirects. Production
+delivery proof must include the captured recipient email and completed reset,
+alongside the separate Invitation onboarding proof.
+
 After upgrading, old hash-only Invitations still work but cannot be reconstructed
 for copying. An Administrator can explicitly generate a replacement, invalidating
 the old link and starting a fresh seven-day window without sending mail. New
