@@ -27,7 +27,6 @@ import {
   type VatPayerRegistry,
 } from "./vat-registry";
 import { detectDocumentDirection } from "./direction-detection";
-import type { Direction } from "./extraction-payload";
 import { applyCnbConversion, type ExchangeRateProvider } from "./exchange-rates";
 import { createHash } from "node:crypto";
 import { buildCompanyDataArchive, type CompanyExportSnapshot } from "./company-data-export";
@@ -374,7 +373,7 @@ async function extractDocument(
 ) {
   const { data: document, error } = await system
     .from("document")
-    .select("id, organization_id, company_id, source_file_id, first_page, last_page, source_sheet, first_row, last_row, status, superseded_at, extraction_request_id, source_file (format, normalized_format, preselected_direction)")
+    .select("id, organization_id, company_id, source_file_id, first_page, last_page, source_sheet, first_row, last_row, status, superseded_at, extraction_request_id, source_file (format, normalized_format)")
     .eq("id", documentId)
     .single();
   if (error) throw error;
@@ -451,7 +450,6 @@ async function extractDocument(
         direction: detectDocumentDirection(
           extractedPayload,
           { ico: company.ico, vatId: company.vat_id },
-          document.source_file!.preselected_direction as Direction | null,
         ),
       };
       const conversion = await applyCnbConversion(directedPayload, exchangeRates);

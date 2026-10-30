@@ -40,7 +40,6 @@ async function companyWithBatchesByTaxPointDate(taxPointDates: string[]) {
       batchId: batch.value.id,
       fileName: `${date}.png`,
       bytes: fixtureFile("receipt.png"),
-      preselectedDirection: "outgoing",
     });
     if (!uploaded.ok) throw new Error(uploaded.error);
     await finishUploadBatch(company.client, batch.value.id);

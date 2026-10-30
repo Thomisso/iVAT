@@ -766,9 +766,6 @@ isOneToOne: false
 "finish_upload_batch":
 { Args: { "target_batch_id": string }; Returns: undefined
                            },
-"generate_company_reporting_years":
-{ Args: { "from_year": number,"new_frequency": Database["public"]['Enums']["filing_frequency"],"target_company_id": string,"to_year": number }; Returns: Json
-                           },
 "invitation_onboarding":
 { Args: { "invitation_token": string }; Returns: {
               "invitee_email": string,"invitee_existed": boolean,"onboarding_status": string,"target_company_id": string
