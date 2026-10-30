@@ -299,14 +299,14 @@ isOneToOne: false
                   ]
                 },"document": {
                   Row: {
-                    "claimed_reporting_period": string | null,"company_id": string,"created_at": string,"extraction_request_id": string,"first_page": number | null,"first_row": number | null,"has_document_image": boolean,"id": string,"last_page": number | null,"last_row": number | null,"organization_id": string,"source_file_id": string | null,"source_sheet": string | null,"status": Database["public"]['Enums']["document_status"],"superseded_at": string | null
+                    "claimed_reporting_period": string | null,"company_id": string,"created_at": string,"excluded_at": string | null,"excluded_by": string | null,"exclusion_reason": string | null,"extraction_request_id": string,"first_page": number | null,"first_row": number | null,"has_document_image": boolean,"id": string,"last_page": number | null,"last_row": number | null,"organization_id": string,"source_file_id": string | null,"source_sheet": string | null,"status": Database["public"]['Enums']["document_status"],"superseded_at": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "claimed_reporting_period"?: string | null,"company_id": string,"created_at"?: string,"extraction_request_id"?: string,"first_page"?: number | null,"first_row"?: number | null,"has_document_image"?: boolean,"id"?: string,"last_page"?: number | null,"last_row"?: number | null,"organization_id": string,"source_file_id"?: string | null,"source_sheet"?: string | null,"status"?: Database["public"]['Enums']["document_status"],"superseded_at"?: string | null
+                    "claimed_reporting_period"?: string | null,"company_id": string,"created_at"?: string,"excluded_at"?: string | null,"excluded_by"?: string | null,"exclusion_reason"?: string | null,"extraction_request_id"?: string,"first_page"?: number | null,"first_row"?: number | null,"has_document_image"?: boolean,"id"?: string,"last_page"?: number | null,"last_row"?: number | null,"organization_id": string,"source_file_id"?: string | null,"source_sheet"?: string | null,"status"?: Database["public"]['Enums']["document_status"],"superseded_at"?: string | null
                   }
                   Update: {
-                    "claimed_reporting_period"?: string | null,"company_id"?: string,"created_at"?: string,"extraction_request_id"?: string,"first_page"?: number | null,"first_row"?: number | null,"has_document_image"?: boolean,"id"?: string,"last_page"?: number | null,"last_row"?: number | null,"organization_id"?: string,"source_file_id"?: string | null,"source_sheet"?: string | null,"status"?: Database["public"]['Enums']["document_status"],"superseded_at"?: string | null
+                    "claimed_reporting_period"?: string | null,"company_id"?: string,"created_at"?: string,"excluded_at"?: string | null,"excluded_by"?: string | null,"exclusion_reason"?: string | null,"extraction_request_id"?: string,"first_page"?: number | null,"first_row"?: number | null,"has_document_image"?: boolean,"id"?: string,"last_page"?: number | null,"last_row"?: number | null,"organization_id"?: string,"source_file_id"?: string | null,"source_sheet"?: string | null,"status"?: Database["public"]['Enums']["document_status"],"superseded_at"?: string | null
                   }
                   Relationships: [
                     {
@@ -965,6 +965,9 @@ isOneToOne: false
 "move_document_page":
 { Args: { "page": number,"source_document_id": string,"target_document_id": string }; Returns: (string)[]
                            },
+"move_document_processing_status":
+{ Args: { "expected_statuses": (Database["public"]['Enums']["document_status"])[],"target_document_id": string,"target_extraction_request_id": string,"target_status": Database["public"]['Enums']["document_status"] }; Returns: boolean
+                           },
 "platform_company_history":
 { Args: { "target_company_id": string }; Returns: Json
                            },
@@ -980,7 +983,7 @@ isOneToOne: false
 { Args: { "findings": Json,"model": string,"payload": Json,"provider": string,"target_document_id": string,"target_extraction_request_id": string,"target_reservation_id": string }; Returns: undefined
                            },
 "record_ai_processing_issue":
-{ Args: { "target_classification": Database["public"]['Enums']["ai_processing_issue_classification"],"target_configuration_id"?: string,"target_id": string,"target_kind": Database["public"]['Enums']["ai_processing_target_kind"],"target_provider"?: string,"target_state": Database["public"]['Enums']["ai_processing_issue_state"] }; Returns: undefined
+{ Args: { "target_classification": Database["public"]['Enums']["ai_processing_issue_classification"],"target_configuration_id"?: string,"target_extraction_request_id"?: string,"target_id": string,"target_kind": Database["public"]['Enums']["ai_processing_target_kind"],"target_provider"?: string,"target_state": Database["public"]['Enums']["ai_processing_issue_state"] }; Returns: undefined
                            },
 "record_ai_usage":
 { Args: { "target_company_id": string,"target_configuration_id": string,"target_input_tokens": number,"target_job_id": string,"target_job_name": string,"target_model": string,"target_operation": string,"target_organization_id": string,"target_output_tokens": number,"target_provider": string,"target_provider_cost_usd"?: number }; Returns: undefined
@@ -989,7 +992,7 @@ isOneToOne: false
 { Args: { "source_ranges": Json,"target_source_file_id": string }; Returns: undefined
                            },
 "reject_document":
-{ Args: { "target_document_id": string }; Returns: undefined
+{ Args: { "rejection_reason"?: string,"target_document_id": string }; Returns: undefined
                            },
 "release_ai_processing_reservation":
 { Args: { "target_reservation_id": string }; Returns: undefined
@@ -1011,12 +1014,15 @@ isOneToOne: false
 "restore_ai_processing_allowance_wait":
 { Args: { "target_company_id": string,"target_document_ids": (string)[] }; Returns: undefined
                            },
+"restore_document":
+{ Args: { "target_document_id": string }; Returns: undefined
+                           },
 "restore_platform_ai_processing_wait":
 { Args: { "target_work": Json }; Returns: undefined
                            },
 "resume_platform_ai_processing":
 { Args: { "target_company_id"?: string,"target_configuration_id"?: string }; Returns: {
-              "classification": Database["public"]['Enums']["ai_processing_issue_classification"],"configuration_id": string,"first_detected_at": string,"provider": string,"target_id": string,"target_kind": Database["public"]['Enums']["ai_processing_target_kind"]
+              "classification": Database["public"]['Enums']["ai_processing_issue_classification"],"configuration_id": string,"extraction_request_id": string,"first_detected_at": string,"provider": string,"target_id": string,"target_kind": Database["public"]['Enums']["ai_processing_target_kind"]
             }[]
                            },
 "retry_failed_processing_job":
@@ -1068,6 +1074,9 @@ isOneToOne: false
                            },
 "split_document":
 { Args: { "split_after_page": number,"target_document_id": string }; Returns: (string)[]
+                           },
+"start_manual_document_review":
+{ Args: { "target_document_id": string }; Returns: undefined
                            },
 "unlock_reporting_period":
 { Args: { "target_company_id": string,"target_period": string,"unlock_confirmed": boolean,"unlock_reason": string }; Returns: undefined

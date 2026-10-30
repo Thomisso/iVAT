@@ -81,6 +81,8 @@ export type Document = {
   importDate: string | null;
   /** An incoming Document's Deferred Claim: input VAT moved to a later Reporting Period. */
   claimedReportingPeriod: string | null;
+  /** Current reasoned exclusion; earlier reasons remain in the Audit Trail. */
+  exclusion?: { reason: string; at: string; userId: string | null };
   /** Present only for a Document identified by workbook rows instead of pages. */
   rowSet?: WorkbookRowSet;
   /** Present and false for row-based Documents, which have no page image. */
@@ -282,7 +284,7 @@ export async function documentPeriodLocks(
   );
 }
 
-const DOCUMENT_COLUMNS = "id, company_id, source_file_id, first_page, last_page, source_sheet, first_row, last_row, has_document_image, status, created_at, claimed_reporting_period, source_file(uploaded_at)";
+const DOCUMENT_COLUMNS = "id, company_id, source_file_id, first_page, last_page, source_sheet, first_row, last_row, has_document_image, status, created_at, claimed_reporting_period, exclusion_reason, excluded_at, excluded_by, source_file(uploaded_at)";
 
 function toDocument(d: {
   id: string;
@@ -297,6 +299,9 @@ function toDocument(d: {
   status: DocumentStatus;
   created_at: string;
   claimed_reporting_period: string | null;
+  exclusion_reason: string | null;
+  excluded_at: string | null;
+  excluded_by: string | null;
   source_file: { uploaded_at: string } | null;
 }): Document {
   const document: Document = {
@@ -310,6 +315,7 @@ function toDocument(d: {
     importDate: d.source_file ? pragueDate(d.source_file.uploaded_at) : null,
     claimedReportingPeriod: d.claimed_reporting_period,
   };
+  if (d.exclusion_reason && d.excluded_at) document.exclusion = { reason: d.exclusion_reason, at: d.excluded_at, userId: d.excluded_by };
   if (d.source_file_id === null) document.hasDocumentImage = false;
   if (d.source_sheet !== null && d.first_row !== null && d.last_row !== null) {
     document.rowSet = { sheetName: d.source_sheet, firstRow: d.first_row, lastRow: d.last_row };
@@ -497,15 +503,39 @@ export async function approveDocument(
   return { ok: true, value: null };
 }
 
-/** Rejects a Document in review, excluding it from VAT Reports and the review queue. */
-export async function rejectDocument(
+/** Takes ownership of unfinished Extraction without requesting or consuming AI work. */
+export async function startManualDocumentReview(
   client: AppClient,
   input: { companyId: string; documentId: string },
-): Promise<Result<null, "not_in_review" | "period_locked" | "forbidden">> {
+): Promise<Result<null, "not_recoverable" | "period_locked" | "forbidden">> {
   const document = await findDocumentId(client, input.companyId, input.documentId);
   if (!document) return { ok: false, error: "forbidden" };
-  const { error } = await client.rpc("reject_document", { target_document_id: document });
-  if (error) return refusal(error, ["not_in_review", "period_locked"]);
+  const { error } = await client.rpc("start_manual_document_review", { target_document_id: document });
+  if (error) return refusal(error, ["not_recoverable", "period_locked"]);
+  return { ok: true, value: null };
+}
+
+/** Reverses exclusion into manual review; it never starts paid processing. */
+export async function restoreDocument(
+  client: AppClient,
+  input: { companyId: string; documentId: string },
+): Promise<Result<null, "not_rejected" | "period_locked" | "forbidden">> {
+  const document = await findDocumentId(client, input.companyId, input.documentId);
+  if (!document) return { ok: false, error: "forbidden" };
+  const { error } = await client.rpc("restore_document", { target_document_id: document });
+  if (error) return refusal(error, ["not_rejected", "period_locked"]);
+  return { ok: true, value: null };
+}
+
+/** Excludes unfinished work with a reason, preserving its original and immutable Versions. */
+export async function rejectDocument(
+  client: AppClient,
+  input: { companyId: string; documentId: string; reason: string },
+): Promise<Result<null, "not_in_review" | "exclusion_reason_required" | "period_locked" | "forbidden">> {
+  const document = await findDocumentId(client, input.companyId, input.documentId);
+  if (!document) return { ok: false, error: "forbidden" };
+  const { error } = await client.rpc("reject_document", { target_document_id: document, rejection_reason: input.reason });
+  if (error) return refusal(error, ["not_in_review", "exclusion_reason_required", "period_locked"]);
   return { ok: true, value: null };
 }
 
