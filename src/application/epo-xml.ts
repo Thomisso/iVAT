@@ -3,6 +3,7 @@ import path from "node:path";
 import type { Result } from "./client";
 import type { ComputedVatReport } from "./vat-rules";
 import { isZeroRateBreakdownLine } from "./extraction-payload";
+import { xmlGeneratorVersion } from "@/lib/release-identity";
 
 import {
   parseExportDetails,
@@ -266,7 +267,7 @@ export async function createEpoXml(
   const name = isReturn ? "DPHDP3" : "DPHKH1";
   const xml = [
     '<?xml version="1.0" encoding="UTF-8"?>',
-    '<Pisemnost nazevSW="iVAT" verzeSW="0.1.0">',
+    `<Pisemnost nazevSW="iVAT" verzeSW="${escapeAttribute(xmlGeneratorVersion)}">`,
     `  <${name} verzePis="${isReturn ? "03.01.04" : "03.01.15"}">`,
     element("VetaD", {
       ...(isReturn ? { c_okec: details.economicActivity } : {}),
