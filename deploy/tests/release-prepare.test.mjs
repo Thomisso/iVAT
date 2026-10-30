@@ -29,11 +29,12 @@ test("workflow evidence polling waits for exact checks and stops at a bounded de
   const revision = "a".repeat(40);
   let conclusion = null;
   let status = 200;
+  let body = null;
   const requests = [];
   const server = createServer((request, response) => {
     requests.push(request.url);
     response.writeHead(status, { "Content-Type": "application/json" });
-    response.end(JSON.stringify({ workflow_runs: [{ id: 10, head_sha: revision, head_branch: "main", event: "push", status: conclusion ? "completed" : "in_progress", conclusion }] }));
+    response.end(body ?? JSON.stringify({ workflow_runs: [{ id: 10, head_sha: revision, head_branch: "main", event: "push", status: conclusion ? "completed" : "in_progress", conclusion }] }));
   });
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
   t.after(() => new Promise(resolve => server.close(resolve)));
@@ -45,6 +46,9 @@ test("workflow evidence polling waits for exact checks and stops at a bounded de
   assert.ok(requests.some(url => url.startsWith("/repos/thomisso/ivat/actions/workflows/deployment-check.yml/runs?")));
   status = 403;
   await assert.rejects(waitForRequiredChecks(options), /GitHub.*403/);
+  status = 200;
+  body = "<html>upstream internal response</html>";
+  await assert.rejects(waitForRequiredChecks(options), /Invalid GitHub workflow evidence/);
 });
 
 test("a release bundle pins every application service and refuses tampered or extra assets", async t => {
@@ -89,6 +93,11 @@ test("a release bundle pins every application service and refuses tampered or ex
   changedManifest.files["../escape.sh"] = "e".repeat(64);
   writeFileSync(path.join(directory, "manifest.json"), JSON.stringify(changedManifest));
   await assert.rejects(validateReleaseBundle(directory), /Invalid release asset/);
+  writeFileSync(path.join(directory, "manifest.json"), originalManifest);
+  const malformedImage = JSON.parse(originalManifest);
+  malformedImage.images.app += `@sha256:${"e".repeat(64)}`;
+  writeFileSync(path.join(directory, "manifest.json"), JSON.stringify(malformedImage));
+  await assert.rejects(validateReleaseBundle(directory), /Invalid immutable image reference/);
   writeFileSync(path.join(directory, "manifest.json"), originalManifest);
   writeFileSync(path.join(directory, "unexpected.sh"), "exit 0\n");
   await assert.rejects(validateReleaseBundle(directory), /Unexpected release asset/);
