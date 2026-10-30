@@ -280,3 +280,18 @@ export function validateDocument(
 
   return findings;
 }
+
+/** Apply today's gross-total warning rule when reading immutable historical findings. */
+export function currentValidationFindings(
+  payload: ExtractionPayload,
+  findings: readonly ValidationFinding[],
+): ValidationFinding[] {
+  const historicalGrossError = findings.some((finding) =>
+    finding.code === "total_gross_amount_mismatch" && finding.severity === "error");
+  if (!historicalGrossError) return [...findings];
+  const grossWarning = validateDocument(payload, CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA)
+    .find((finding) => finding.code === "total_gross_amount_mismatch");
+  return findings.map((finding) => finding.code === "total_gross_amount_mismatch"
+    ? grossWarning ?? { ...finding, severity: "warning" }
+    : finding);
+}

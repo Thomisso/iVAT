@@ -482,6 +482,7 @@
     "stale_version": "Mezitím někdo uložil novější verzi dokladu. Načtěte stránku znovu, abyste ji viděli.",
     "invalid_choice": "Vyberte jednu z nabízených možností.",
     "invalid_amount": "Částky musí být čísla s nejvýše dvěma desetinnými místy, například 1210.00.",
+    "rate_breakdown_totals_mismatch": "Před schválením musí celkový základ a DPH odpovídat rozpisu podle sazeb.",
     "invalid_credit_note_amount": "Částky dobropisu nesmí být kladné a alespoň jedna částka musí být záporná.",
     "invalid_rate": "Sazba DPH musí být procento od 0 do 100.",
     "invalid_date": "Zadejte existující data.",
