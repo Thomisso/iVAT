@@ -73,7 +73,7 @@ export function MemberManagement({
     <div className="member-management">
       <section className="panel">
         <h2>{t("inviteTitle")}</h2>
-        <form action={action} className="form">
+        <form action={action} className="form settings-form">
           <input type="hidden" name="organizationId" value={organizationId} />
           <input type="hidden" name="companyId" value={companyId ?? ""} />
           <TextField label={t("email")} name="email" type="email" defaultValue={state.values.email} required />

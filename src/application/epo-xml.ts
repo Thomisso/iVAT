@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Result } from "./client";
 import type { ComputedVatReport } from "./vat-rules";
+import { isZeroRateBreakdownLine } from "./extraction-payload";
 
 import {
   parseExportDetails,
@@ -55,7 +56,7 @@ function party(report: ComputedVatReport, details: ExportDetails): string {
   const address = details.address ?? c;
   return element("VetaP", {
     c_ufo: details.taxOffice,
-    ...(details.taxOffice === "13" ? { c_pracufo: "4000" } : {}),
+    c_pracufo: details.territorialOffice || undefined,
     dic: c.vatId.replace(/^CZ/, ""),
     typ_ds: details.personType,
     ...(details.personType === "P"
@@ -161,7 +162,7 @@ function controlStatement(report: ComputedVatReport): string[] {
         attributes.zdph_44 = "N";
       }
       if (section !== "A.1") {
-        for (const rate of [...entry.rateBreakdown].sort(
+        for (const rate of entry.rateBreakdown.filter((rate) => !isZeroRateBreakdownLine(rate)).sort(
           (a, b) => b.rate - a.rate,
         )) {
           const index = rate.rate === 21 ? "1" : "2";
@@ -245,6 +246,8 @@ export async function createEpoXml(
 ): Promise<Result<string, EpoXmlError>> {
   const parsed = parseExportDetails({
     taxOffice: details.taxOffice,
+    territorialOffice: details.territorialOffice,
+    economicActivity: details.economicActivity,
     preparedOn: details.preparedOn,
     email: details.email,
     phone: details.phone,
@@ -254,7 +257,7 @@ export async function createEpoXml(
       signatoryLastName: details.signatoryLastName,
       signatoryCapacity: details.signatoryCapacity,
     } : {}),
-  });
+  }, format);
   if (!parsed.ok) return parsed;
   details = { ...parsed.value, address: details.address };
   const [year, periodPart] = report.period.split("-");
@@ -266,6 +269,7 @@ export async function createEpoXml(
     '<Pisemnost nazevSW="iVAT" verzeSW="0.1.0">',
     `  <${name} verzePis="${isReturn ? "03.01.04" : "03.01.15"}">`,
     element("VetaD", {
+      ...(isReturn ? { c_okec: details.economicActivity } : {}),
       dokument: isReturn ? "DP3" : "KH1",
       k_uladis: "DPH",
       ...(isReturn

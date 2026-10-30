@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { randomUUID } from "node:crypto";
 import {
   beginUploadBatch,
   countUnreadUploadNotifications,
@@ -22,18 +23,65 @@ import {
   assignAiConfigurationFixture as enableAiProcessing,
   companyDetails,
   companyMember,
+  legacyUploadBatchFixture,
   removeAiConfigurationFixture as disableAiProcessing,
   uploadBatchWithWaitingDocuments,
 } from "./support/fixtures";
-import { fixtureFile } from "./support/files";
+import { fixtureFile, selectFixtureFiles, selectUploadFiles } from "./support/files";
 import { testWorker } from "./support/worker";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 
 describe("upload batches", () => {
+  it("restores the same started batch after response loss and refuses replacing its frozen file selection", async () => {
+    const { client, companyId } = await administratorWithCompany();
+    const worker = testWorker();
+    const batchId = randomUUID();
+    const sourceFileId = randomUUID();
+    const selectedFiles = [{ id: sourceFileId, sha256: "c414cd0e204de974f73753c7e28d7638e7b3691bb8b1a2bab6b25bb7fed7ce77" }];
+    const input = { companyId, fileCount: 1, batchId, selectedFiles };
+    expect(await Promise.all([beginUploadBatch(client, input), beginUploadBatch(client, input)]))
+      .toEqual([{ ok: true, value: { id: batchId } }, { ok: true, value: { id: batchId } }]);
+    expect(await beginUploadBatch(client, { ...input, selectedFiles: [{ ...selectedFiles[0], id: randomUUID() }] }))
+      .toEqual({ ok: false, error: "invalid_choice" });
+    expect(await uploadSourceFile(client, worker.jobs, {
+      companyId, batchId, sourceFileId: randomUUID(), fileName: "replacement.png", bytes: fixtureFile("receipt.png"),
+    })).toEqual({ ok: false, error: "invalid_choice" });
+    const transfer = { companyId, batchId, sourceFileId, fileName: "receipt.png", bytes: fixtureFile("receipt.png") };
+    expect(await Promise.all([
+      uploadSourceFile(client, worker.jobs, transfer),
+      uploadSourceFile(client, worker.jobs, transfer),
+    ])).toEqual([{ ok: true, value: { id: sourceFileId } }, { ok: true, value: { id: sourceFileId } }]);
+    expect((await getUploadBatch(client, companyId, batchId))?.actualFileCount).toBe(1);
+  });
+  it("refuses concurrent renamed identical files in an existing legacy batch and keeps retries idempotent", async () => {
+    const owner = await administratorWithCompany();
+    const { client, companyId } = owner;
+    const worker = testWorker();
+    const batch = { value: { id: await legacyUploadBatchFixture(owner, 2) } };
+    const first = { companyId, batchId: batch.value.id, sourceFileId: randomUUID(), fileName: "receipt.png", bytes: fixtureFile("receipt.png") };
+    const results = await Promise.all([
+      uploadSourceFile(client, worker.jobs, first),
+      uploadSourceFile(client, worker.jobs, { ...first, sourceFileId: randomUUID(), fileName: "renamed.png" }),
+    ]);
+    expect(results.filter((result) => result.ok)).toHaveLength(1);
+    expect(results.filter((result) => !result.ok)).toEqual([{ ok: false, error: "identical_file" }]);
+    expect((await getUploadBatch(client, companyId, batch.value.id))?.actualFileCount).toBe(1);
+    const successfulInput = results[0].ok ? first : { ...first, sourceFileId: results[1].ok ? results[1].value.id : "", fileName: "renamed.png" };
+    expect(await uploadSourceFile(client, worker.jobs, successfulInput)).toEqual(results.find((result) => result.ok));
+    const different = new Uint8Array([...first.bytes, 1]);
+    const differentUpload = await uploadSourceFile(client, worker.jobs, { ...first, sourceFileId: randomUUID(), bytes: different });
+    expect(differentUpload.ok).toBe(true);
+    expect((await getUploadBatch(client, companyId, batch.value.id))?.actualFileCount).toBe(2);
+    const selection = selectFixtureFiles("receipt.png");
+    const another = await beginUploadBatch(client, { companyId, fileCount: 1, selectedFiles: selection.selectedFiles });
+    if (!another.ok) throw new Error(another.error);
+    expect((await uploadSourceFile(client, worker.jobs, { ...first, batchId: another.value.id, sourceFileId: selection.files[0].sourceFileId })).ok).toBe(true);
+  });
   it("refuses a batch above the platform file-count limit", async () => {
     const { client, companyId } = await administratorWithCompany();
 
-    const result = await beginUploadBatch(client, { companyId, fileCount: 101 });
+    const selection = selectUploadFiles(Array.from({ length: 101 }, (_, index) => ({ fileName: `${index}.png`, bytes: new Uint8Array([...fixtureFile("receipt.png"), index]) })));
+    const result = await beginUploadBatch(client, { companyId, fileCount: 101, selectedFiles: selection.selectedFiles });
 
     expect(result).toEqual({ ok: false, error: "too_many_files" });
   });
@@ -42,16 +90,18 @@ describe("upload batches", () => {
     const { client, companyId } = await administratorWithCompany();
     const worker = testWorker();
     await enableAiProcessing(client, worker.jobs, { companyId, provider: worker.ai });
-    const batch = await beginUploadBatch(client, { companyId, fileCount: 2 });
+    const selection = selectFixtureFiles("two-invoices.pdf", "receipt.png");
+    const batch = await beginUploadBatch(client, { companyId, fileCount: 2, selectedFiles: selection.selectedFiles });
     if (!batch.ok) throw new Error(batch.error);
 
-    for (const [fileName, fixture] of [
+    for (const [index, [fileName, fixture]] of ([
       ["invoices.pdf", "two-invoices.pdf"],
       ["receipt.png", "receipt.png"],
-    ] as const) {
+    ] as const).entries()) {
       const uploaded = await uploadSourceFile(client, worker.jobs, {
         companyId,
         batchId: batch.value.id,
+        sourceFileId: selection.files[index].sourceFileId,
         fileName,
         bytes: fixtureFile(fixture),
       });
@@ -99,11 +149,13 @@ describe("upload batches", () => {
   it("persists a waiting-for-AI batch in Company history", async () => {
     const { client, companyId } = await administratorWithCompany();
     const worker = testWorker();
-    const batch = await beginUploadBatch(client, { companyId, fileCount: 1 });
+    const selection = selectFixtureFiles("receipt.png");
+    const batch = await beginUploadBatch(client, { companyId, fileCount: 1, selectedFiles: selection.selectedFiles });
     if (!batch.ok) throw new Error(batch.error);
     const uploaded = await uploadSourceFile(client, worker.jobs, {
       companyId,
       batchId: batch.value.id,
+      sourceFileId: selection.files[0].sourceFileId,
       fileName: "receipt.png",
       bytes: fixtureFile("receipt.png"),
     });
@@ -127,11 +179,13 @@ describe("upload batches", () => {
     const { client, companyId } = await administratorWithCompany();
     const worker = testWorker();
     await enableAiProcessing(client, worker.jobs, { companyId, provider: worker.ai });
-    const batch = await beginUploadBatch(client, { companyId, fileCount: 1 });
+    const selection = selectFixtureFiles("two-invoices.pdf");
+    const batch = await beginUploadBatch(client, { companyId, fileCount: 1, selectedFiles: selection.selectedFiles });
     if (!batch.ok) throw new Error(batch.error);
     const uploaded = await uploadSourceFile(client, worker.jobs, {
       companyId,
       batchId: batch.value.id,
+      sourceFileId: selection.files[0].sourceFileId,
       fileName: "invoices.pdf",
       bytes: fixtureFile("two-invoices.pdf"),
     });
@@ -158,7 +212,8 @@ describe("upload batches", () => {
   it("paginates durable history instead of hiding older batches", async () => {
     const { client, companyId } = await administratorWithCompany();
     for (let index = 0; index < 25; index++) {
-      const batch = await beginUploadBatch(client, { companyId, fileCount: 1 });
+      const selection = selectFixtureFiles("receipt.png");
+      const batch = await beginUploadBatch(client, { companyId, fileCount: 1, selectedFiles: selection.selectedFiles });
       if (!batch.ok) throw new Error(batch.error);
     }
 
@@ -203,11 +258,13 @@ describe("upload batches", () => {
       },
     }));
     await enableAiProcessing(client, worker.jobs, { companyId, provider: worker.ai });
-    const batch = await beginUploadBatch(client, { companyId, fileCount: 1 });
+    const selection = selectFixtureFiles("two-invoices.pdf");
+    const batch = await beginUploadBatch(client, { companyId, fileCount: 1, selectedFiles: selection.selectedFiles });
     if (!batch.ok) throw new Error(batch.error);
     const uploaded = await uploadSourceFile(client, worker.jobs, {
       companyId,
       batchId: batch.value.id,
+      sourceFileId: selection.files[0].sourceFileId,
       fileName: "invoices.pdf",
       bytes: fixtureFile("two-invoices.pdf"),
     });
@@ -248,14 +305,17 @@ describe("upload batches", () => {
       companyId: a.companyId,
       provider: worker.ai,
     });
+    const selection = selectFixtureFiles("receipt.png");
     const batch = await beginUploadBatch(a.client, {
       companyId: a.companyId,
       fileCount: 1,
+      selectedFiles: selection.selectedFiles,
     });
     if (!batch.ok) throw new Error(batch.error);
     const uploaded = await uploadSourceFile(a.client, worker.jobs, {
       companyId: a.companyId,
       batchId: batch.value.id,
+      sourceFileId: selection.files[0].sourceFileId,
       fileName: "receipt.png",
       bytes: fixtureFile("receipt.png"),
     });
@@ -311,11 +371,13 @@ describe("upload batches", () => {
     });
 
     const completeBatch = async (client: typeof admin.client, companyId: string, fileName: string) => {
-      const batch = await beginUploadBatch(client, { companyId, fileCount: 1 });
+      const selection = selectFixtureFiles("receipt.png");
+      const batch = await beginUploadBatch(client, { companyId, fileCount: 1, selectedFiles: selection.selectedFiles });
       if (!batch.ok) throw new Error(batch.error);
       const uploaded = await uploadSourceFile(client, worker.jobs, {
         companyId,
         batchId: batch.value.id,
+        sourceFileId: selection.files[0].sourceFileId,
         fileName,
         bytes: fixtureFile("receipt.png"),
       });
@@ -379,11 +441,13 @@ describe("upload batches", () => {
       companyId,
       provider: worker.ai,
     });
-    const batch = await beginUploadBatch(client, { companyId, fileCount: 1 });
+    const selection = selectFixtureFiles("receipt.png");
+    const batch = await beginUploadBatch(client, { companyId, fileCount: 1, selectedFiles: selection.selectedFiles });
     if (!batch.ok) throw new Error(batch.error);
     const uploaded = await uploadSourceFile(client, worker.jobs, {
       companyId,
       batchId: batch.value.id,
+      sourceFileId: selection.files[0].sourceFileId,
       fileName: "receipt.png",
       bytes: fixtureFile("receipt.png"),
     });
@@ -428,11 +492,13 @@ describe("upload batches", () => {
       },
     }));
     await enableAiProcessing(admin.client, worker.jobs, { companyId: admin.companyId, provider: worker.ai });
-    const batch = await beginUploadBatch(admin.client, { companyId: admin.companyId, fileCount: 1 });
+    const selection = selectFixtureFiles("two-invoices.pdf");
+    const batch = await beginUploadBatch(admin.client, { companyId: admin.companyId, fileCount: 1, selectedFiles: selection.selectedFiles });
     if (!batch.ok) throw new Error(batch.error);
     const uploaded = await uploadSourceFile(admin.client, worker.jobs, {
       companyId: admin.companyId,
       batchId: batch.value.id,
+      sourceFileId: selection.files[0].sourceFileId,
       fileName: "invoices.pdf",
       bytes: fixtureFile("two-invoices.pdf"),
     });
@@ -469,7 +535,8 @@ describe("upload batches", () => {
   it("refuses to mark notifications read for a batch outside the User's Companies", async () => {
     const a = await administratorWithCompany("Organization A");
     const b = await administratorWithCompany("Organization B");
-    const batch = await beginUploadBatch(a.client, { companyId: a.companyId, fileCount: 1 });
+    const selection = selectFixtureFiles("receipt.png");
+    const batch = await beginUploadBatch(a.client, { companyId: a.companyId, fileCount: 1, selectedFiles: selection.selectedFiles });
     if (!batch.ok) throw new Error(batch.error);
 
     expect(await markUploadBatchNotificationRead(b.client, batch.value.id)).toEqual({ ok: false, error: "forbidden" });

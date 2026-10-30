@@ -8,6 +8,7 @@ The payload is a proposal (ADR-0003). Nothing in it counts towards a VAT Report 
 
 - A field the Document does not show is `null`. It is never guessed.
 - **Amounts** are decimal strings with a dot and two decimals, such as `"1210.00"`, so no value passes through a float. Credit Notes carry negative amounts.
+- New AI Extractions and User corrections omit Rate Breakdown rows only when both net and VAT amounts are zero. Nonzero bases with zero VAT and negative Credit Note amounts remain. The same rule applies to derived CZK rows and presentation; stored historical Extraction Versions stay unchanged. A new AI payload remaps confidence paths to its retained row indexes, while historical review keeps the original indexes for findings and confidence.
 - **Dates** are ISO dates, such as `"2026-10-27"`.
 - **Codes**: currency is ISO 4217 (`"CZK"`) and country is ISO 3166-1 alpha-2 (`"CZ"`).
 - `schemaVersion` is `1`. It goes up when a change is not backwards compatible. Adding an optional field does not need a new version.

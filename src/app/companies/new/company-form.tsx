@@ -95,11 +95,13 @@ function CompanyIdentityFields({ error, values }: { error: string | null; values
 
 export function CompanyForm({
   organizationId,
+  organizations,
   companyId,
   initialValues,
   layout = "single",
 }: {
   organizationId: string;
+  organizations?: { id: string; name: string }[];
   companyId?: string;
   initialValues: Record<string, string>;
   layout?: "single" | "settings";
@@ -115,7 +117,20 @@ export function CompanyForm({
       className={layout === "settings" ? "form settings-form" : "form"}
       key={JSON.stringify(state.values)}
     >
-      <input type="hidden" name="organizationId" value={organizationId} />
+      {organizations ? <label className="iv-field-label">
+        {t("organization")}
+        <select
+          className="iv-input"
+          name="organizationId"
+          defaultValue={state.values.organizationId ?? organizationId}
+          required
+        >
+          <option value="">{t("chooseOrganization")}</option>
+          {organizations.map((organization) => <option key={organization.id} value={organization.id}>
+            {organization.name}
+          </option>)}
+        </select>
+      </label> : <input type="hidden" name="organizationId" value={organizationId} />}
       {companyId && <input type="hidden" name="companyId" value={companyId} />}
       <div className="form-row form-row-action">
         <TextField

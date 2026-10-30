@@ -37,7 +37,7 @@ export function AiProcessingAllowanceForm({
       </label>
       <label className="iv-checkbox">
         <input type="checkbox" name="unlimited" defaultChecked={unlimited} />
-        {t("unlimitedAllowance")}
+        <span>{t("unlimitedAllowance")}</span>
       </label>
       <Button type="submit" size="sm" disabled={pending}>{t("saveAllowance")}</Button>
       <FormError error={state.error} />

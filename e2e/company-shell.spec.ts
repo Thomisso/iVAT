@@ -192,7 +192,7 @@ test("mobile shell menus return focus and role-dependent administration stays pr
   await expect(adminPage.getByRole("button", { name: "Open administration menu" })).toHaveCount(0);
   await adminPage.goto(`/companies/${companyId}/settings`);
   await expect(
-    adminPage.getByRole("navigation", { name: "Administration" }).locator(`a[href="/companies/${companyId}/settings/users"]`),
+    adminPage.getByRole("navigation", { name: "Company settings sections" }).locator(`a[href="/companies/${companyId}/settings/users"]`),
   ).toBeVisible();
 
   for (const width of [360, 720, 1024, 1440]) {
@@ -259,13 +259,13 @@ test("mobile shell menus return focus and role-dependent administration stays pr
   await expect(directAccess.getByText("You are not allowed to do this.")).toBeVisible();
   await expect(role).toHaveValue("user");
   await userPage.goto(`/companies/${companyId}/members`);
-  await expect(userPage).toHaveURL(new RegExp(`/companies/${companyId}/settings$`));
+  await expect(userPage).toHaveURL(new RegExp(`/companies/${companyId}$`));
   for (const destination of ["company", "vat", "users", "data"]) {
     await userPage.goto(`/companies/${companyId}/settings/${destination}`);
-    await expect(userPage).toHaveURL(new RegExp(`/companies/${companyId}/settings$`));
+    await expect(userPage).toHaveURL(new RegExp(`/companies/${companyId}$`));
   }
   await userPage.goto(`/companies/${companyId}/setup/filing-frequency`);
-  await expect(userPage).toHaveURL(new RegExp(`/companies/${companyId}/settings$`));
+  await expect(userPage).toHaveURL(new RegExp(`/companies/${companyId}$`));
   await expect(userPage.locator(`a[href="/companies/${companyId}/settings/users"]`)).toHaveCount(0);
 
   const { error: platformError } = await service.from("platform_user").insert({ role: "super_admin", user_id: adminUserId });
@@ -281,7 +281,7 @@ test("mobile shell menus return focus and role-dependent administration stays pr
   await adminPage.getByRole("link", { name: "I saved the codes" }).click();
   await expect(adminPage).toHaveURL(new RegExp(`/companies/${companyId}$`));
   await expect(
-    adminPage.getByRole("navigation", { name: "Administration" }).getByRole("link", { name: "Platform overview" }),
+    adminPage.getByRole("link", { name: "Switch to SuperAdmin", exact: true }),
   ).toBeVisible();
 
   await adminContext.close();

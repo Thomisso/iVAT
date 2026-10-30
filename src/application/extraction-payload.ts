@@ -116,15 +116,46 @@ function normalizeAmount(amount: string): string {
 
 const normalizeCode = (code: string | null) => code?.replace(/\s/g, "").toUpperCase() ?? null;
 
+/** Only two actual zero amounts make an empty row; missing/invalid amounts stay reviewable. */
+export function isZeroRateBreakdownLine(line: Pick<RateBreakdownLine, "netAmount" | "vatAmount">): boolean {
+  return /^-?0+\.00$/.test(line.netAmount) && /^-?0+\.00$/.test(line.vatAmount);
+}
+
+/** Prepares a new payload without changing the source or misattributing provider confidence. */
+export function omitZeroRateBreakdownRows(payload: ExtractionPayload): ExtractionPayload {
+  const retained = payload.rateBreakdown.flatMap((line, index) =>
+    isZeroRateBreakdownLine(line) ? [] : [{ line, index }]);
+  const newIndices = new Map(retained.map((entry, index) => [entry.index, index]));
+  const confidence = payload.confidence
+    ? Object.fromEntries(Object.entries(payload.confidence).flatMap(([field, value]) => {
+      const path = /^rateBreakdown\.(\d+)\.(.+)$/.exec(field);
+      if (!path) return [[field, value]];
+      const index = newIndices.get(Number(path[1]));
+      return index === undefined ? [] : [[`rateBreakdown.${index}.${path[2]}`, value]];
+    }))
+    : undefined;
+  return {
+    ...payload,
+    rateBreakdown: retained.map((entry) => entry.line),
+    ...(confidence ? { confidence } : {}),
+    ...(payload.czkConversion ? {
+      czkConversion: {
+        ...payload.czkConversion,
+        rateBreakdown: payload.czkConversion.rateBreakdown.filter((line) => !isZeroRateBreakdownLine(line)),
+      },
+    } : {}),
+  };
+}
+
 /**
  * A payload as a person typed it, in the payload's conventions: amounts with a
  * dot and two decimals, codes and VAT IDs in capitals without spaces. Rate
- * Breakdown lines left entirely empty are dropped.
+ * Breakdown lines left entirely empty or with two zero amounts are dropped.
  */
 export function normalizeExtractionPayload(payload: ExtractionPayload): ExtractionPayload {
   const amount = (value: string | null) => (value === null ? null : normalizeAmount(value));
   const party = (p: Party): Party => ({ ...p, vatId: normalizeCode(p.vatId), country: normalizeCode(p.country) });
-  return {
+  return omitZeroRateBreakdownRows({
     ...payload,
     currency: normalizeCode(payload.currency),
     reverseChargeCode: payload.reverseChargeCode?.trim() || null,
@@ -138,7 +169,7 @@ export function normalizeExtractionPayload(payload: ExtractionPayload): Extracti
       vatAmount: amount(payload.totals.vatAmount),
       grossAmount: amount(payload.totals.grossAmount),
     },
-  };
+  });
 }
 
 /** The first convention a payload breaks, or null. Null fields are always allowed. */

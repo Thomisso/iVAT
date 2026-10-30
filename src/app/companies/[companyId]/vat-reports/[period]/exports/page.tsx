@@ -1,3 +1,5 @@
+import { safeCompanyReturnTo, withCompanyReturnTo } from "@/application/return-context";
+import { CompanyReturnLink } from "@/components/company-return-link";
 import Link from "next/link";
 import { Fragment } from "react";
 import type { Metadata } from "next";
@@ -5,7 +7,8 @@ import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getCompany } from "@/application/companies";
 import { listVatReportArtifacts } from "@/application/epo-export";
-import { getVatReport } from "@/application/vat-reports";
+import { getVatReport, getPeriodLock } from "@/application/vat-reports";
+import { VatReportArtifactDownload } from "@/components/vat-report-artifact-download";
 import { requireUserClient } from "@/lib/supabase/server";
 import { EmptyState } from "@/components/empty-state";
 import { PageLayout } from "@/components/app-shell";
@@ -21,14 +24,17 @@ export async function generateMetadata({
 }
 
 export default async function ExportHistoryPage({
-  params,
+  params, searchParams,
 }: PageProps<"/companies/[companyId]/vat-reports/[period]/exports">) {
   const { companyId, period } = await params;
+  const search = await searchParams;
+  const returnTo = safeCompanyReturnTo(companyId, search.returnTo);
   const client = await requireUserClient();
-  const [company, report, artifacts, t, epo] = await Promise.all([
+  const [company, report, artifacts, lock, t, epo] = await Promise.all([
     getCompany(client, companyId),
     getVatReport(client, companyId, period),
     listVatReportArtifacts(client, { companyId, period }),
+    getPeriodLock(client, companyId, period),
     getTranslations("vatReports"),
     getTranslations("epoExport"),
   ]);
@@ -37,9 +43,7 @@ export default async function ExportHistoryPage({
     <PageLayout className="company-workspace vat-reports vat-output-page" measure="wide">
       <header className="company-page-header vat-report-header">
         <p>
-          <Link href={`/companies/${companyId}/vat`}>
-            {t("backToPeriods")}
-          </Link>
+          <CompanyReturnLink companyId={companyId} returnTo={returnTo} fallback={`/companies/${companyId}/vat`} />
         </p>
         <span className="vat-output-context">
           {company.name} · {period}
@@ -48,6 +52,7 @@ export default async function ExportHistoryPage({
         <p>{t("exportHistoryDescription")}</p>
       </header>
       <PeriodNavigation
+        returnTo={returnTo}
         active="exportHistory"
         companyId={companyId}
         period={period}
@@ -85,10 +90,12 @@ export default async function ExportHistoryPage({
                       <td>{epo(`formats.${artifact.format}`)}<br /><small>{t(`artifactKinds.${artifact.kind}`)}</small></td>
                       <td><time dateTime={artifact.createdAt}>{formatDateTime(artifact.createdAt)}</time></td>
                       <td>{artifact.authorEmail ?? artifact.authorUserId}</td>
-                      <td><a
-                        href={`/companies/${companyId}/vat-reports/${period}/artifacts/${artifact.id}`}
-                        download={artifact.fileName}
-                      >{artifact.fileName}</a></td>
+                      <td><VatReportArtifactDownload
+                        companyId={companyId} period={period} artifactId={artifact.id}
+                        fileName={artifact.fileName} format={artifact.format} kind={artifact.kind}
+                        eligible={artifact.reportGeneratedAt === report.generatedAt && (artifact.kind === "draft"
+                          ? !lock : !!lock && artifact.periodLockId === lock.id)}
+                      /></td>
                     </tr>
                     <tr>
                       <td colSpan={5}>
@@ -96,6 +103,8 @@ export default async function ExportHistoryPage({
                           <summary>{t("artifactFilingDetails")}</summary>
                           <dl>
                             <div><dt>{epo("taxOffice")}</dt><dd>{epo(`taxOffices.${details.taxOffice}`)}</dd></div>
+                            <div><dt>{epo("territorialOffice")}</dt><dd>{details.territorialOffice || epo("notSet")}</dd></div>
+                            {artifact.format === "dphdp3" && <div><dt>{epo("economicActivity")}</dt><dd>{details.economicActivity || epo("notSet")}</dd></div>}
                             <div><dt>{epo("preparedOn")}</dt><dd>{formatDate(details.preparedOn)}</dd></div>
                             <div><dt>{epo("signatory")}</dt><dd>{signatory}</dd></div>
                             <div><dt>{epo("email")}</dt><dd>{details.email || epo("notSet")}</dd></div>
@@ -113,10 +122,10 @@ export default async function ExportHistoryPage({
           </div>
         )}
         <div>
-          <Link href={`/companies/${companyId}/vat-reports/${period}/vat-return`}>
+          <Link href={withCompanyReturnTo(companyId, `/companies/${companyId}/vat-reports/${period}/vat-return`, returnTo)}>
             {t("openVatReturn")}
           </Link>
-          <Link href={`/companies/${companyId}/vat-reports/${period}/control-statement`}>
+          <Link href={withCompanyReturnTo(companyId, `/companies/${companyId}/vat-reports/${period}/control-statement`, returnTo)}>
             {t("openControlStatement")}
           </Link>
         </div>
