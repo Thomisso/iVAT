@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Result } from "./client";
 import type { ComputedVatReport } from "./vat-rules";
+import { isZeroRateBreakdownLine } from "./extraction-payload";
 
 import {
   parseExportDetails,
@@ -161,7 +162,7 @@ function controlStatement(report: ComputedVatReport): string[] {
         attributes.zdph_44 = "N";
       }
       if (section !== "A.1") {
-        for (const rate of [...entry.rateBreakdown].sort(
+        for (const rate of entry.rateBreakdown.filter((rate) => !isZeroRateBreakdownLine(rate)).sort(
           (a, b) => b.rate - a.rate,
         )) {
           const index = rate.rate === 21 ? "1" : "2";
