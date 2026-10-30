@@ -46,6 +46,8 @@ AI-authored fields retain their yellow proposal treatment, while review warnings
 approval, locks and errors keep distinct meanings and explicit human actions.
 Upload history uses the common inbox empty state and quieter secondary filters;
 the Company chooser uses the same brand asset without adding a destination.
+On small screens the file picker sits beneath its description so the hint stays
+readable beside the upload icon; camera capture and upload remain separate actions.
 
 `e2e/workspace-style.spec.ts` exercises real saved reports and an AI-authored
 Document returned to review. It checks the Company, Organization, review, reporting
