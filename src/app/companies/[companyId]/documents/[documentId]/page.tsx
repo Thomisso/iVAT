@@ -28,7 +28,7 @@ import { Notice } from "@/components/notice";
 import { StatusBadge } from "@/components/status-badge";
 import { statusBadgeState } from "@/components/status-badge-state";
 import { PageLayout } from "@/components/app-shell";
-import { formatDocumentDate } from "@/lib/format-date";
+import { formatDateTime } from "@/lib/format-date";
 import { CorrectionForm } from "./correction-form";
 import { findingMessage } from "./finding-message";
 import { ReportingAssignmentForm } from "./reporting-assignment-form";
@@ -262,9 +262,9 @@ export default async function DocumentReviewPage({
                     <span className="iv-muted">
                       {v === current
                         ? t("review.currentVersionTime", {
-                            time: formatDocumentDate(v.createdAt, true),
+                            time: formatDateTime(v.createdAt),
                           })
-                        : formatDocumentDate(v.createdAt, true)}
+                        : formatDateTime(v.createdAt)}
                     </span>
                   </li>
                 ))}

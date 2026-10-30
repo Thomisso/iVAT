@@ -14,7 +14,7 @@ import { DataTable } from "@/components/data-table";
 import { ReportingPeriodFilter } from "@/components/reporting-period-filter";
 import { StatusBadge } from "@/components/status-badge";
 import { statusBadgeState } from "@/components/status-badge-state";
-import { formatDocumentDate } from "@/lib/format-date";
+import { formatDate } from "@/lib/format-date";
 import { requireUserClient } from "@/lib/supabase/server";
 
 export default async function DocumentsPage({ params, searchParams }: PageProps<"/companies/[companyId]/documents">) {
@@ -75,7 +75,7 @@ export default async function DocumentsPage({ params, searchParams }: PageProps<
         { key: "counterparty", header: t("documents.counterparty"), render: (document) => <Link href={`/companies/${companyId}/documents/${document.id}?${queueQuery}`}>{document.counterparty?.name ?? document.counterparty?.vatId ?? t("documents.unknownCounterparty")}</Link> },
         { key: "document", header: t("documents.documentNumber"), mono: true, render: (document) => document.documentNumber ?? t("uploadWorkspace.documentPages", { first: document.firstPage, last: document.lastPage }) },
         { key: "direction", header: t("documents.direction"), render: (document) => document.direction ? t(`review.direction.${document.direction}`) : t("review.notSet") },
-        { key: "date", header: t("documents.taxPointDate"), render: (document) => document.taxPointDate ? formatDocumentDate(document.taxPointDate) : t("review.notSet") },
+        { key: "date", header: t("documents.taxPointDate"), render: (document) => document.taxPointDate ? formatDate(document.taxPointDate) : t("review.notSet") },
         { key: "amount", header: t("documents.grossAmount"), align: "right", mono: true, render: (document) => document.grossAmount && document.currency ? format.number(Number(document.grossAmount), { style: "currency", currency: document.currency }) : t("review.notSet") },
         { key: "status", header: t("documents.status"), render: (document) => <StatusBadge status={statusBadgeState(document.status, "document")}>{t(`documentStatus.${document.status}`)}</StatusBadge> },
       ]}
