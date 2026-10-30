@@ -42,7 +42,7 @@ Sjednotit informaci o skutečném zahrnutí do výkazů, vynutit režim DPH pře
 16. As a User recovering MFA, I want to establish a replacement second factor before ordinary protected access, so that recovery does not leave my account unprotected.
 17. As an operator, I want authentication email sent through managed Roští SMTP, so that invitation and recovery delivery work in production.
 18. As an operator, I want iVAT email to use noreply@ivat.cz, so that recipients recognize the application's domain.
-19. As the domain owner, I want the domain and DNS to remain at WEDOS, so that enabling email does not require moving them.
+19. As a domain owner, I want the domain and DNS to remain at WEDOS, so that enabling email does not require moving them.
 20. As an operator, I want the provider's mail DNS records configured and verified, so that production recipients can authenticate iVAT mail.
 21. As a User, I want invitation and recovery email delivery verified end to end, so that configured SMTP is more than a saved setting.
 22. As a User, I want the new iVAT logo and favicon throughout the application, so that the product has one recognizable identity.
