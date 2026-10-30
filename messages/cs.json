@@ -284,6 +284,11 @@
       "outgoing": "Vydaný"
     }
   },
+  "periodFilter": {
+    "label": "Zdaňovací období",
+    "all": "Všechna období",
+    "none": "Bez období"
+  },
   "uploadWorkspace": {
     "newBatch": "Přidat zdrojové soubory",
     "newBatchHint": "Nejprve proběhne přenos. Rozdělení a vytěžení pokračují na pozadí a zůstávají viditelné v této pracovní ploše.",
@@ -297,6 +302,7 @@
     "batchFiles": "Uloženo {count} z {planned} vybraných zdrojových souborů",
     "batchSummary": "{waiting} se zpracovává · {review} ke kontrole · {failures} selhalo",
     "noBatches": "Zatím tu není žádná dávka. Začněte přidáním zdrojových souborů.",
+    "noMatchingBatches": "Žádná dávka neobsahuje doklady vybraného období.",
     "outcome": {
       "processing": "Zpracovává se",
       "success": "Dokončeno",
@@ -701,8 +707,6 @@
     "filters": "Filtry",
     "allStatuses": "Všechny stavy",
     "allDirections": "Přijaté i vydané",
-    "reportingPeriod": "Zdaňovací období",
-    "reportingPeriodPlaceholder": "2026-10",
     "counterparty": "Protistrana",
     "counterpartyHint": "Název, DIČ nebo IČO",
     "findingsOnly": "Pouze doklady s nálezy",

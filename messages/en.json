@@ -284,6 +284,11 @@
       "outgoing": "Outgoing"
     }
   },
+  "periodFilter": {
+    "label": "Reporting Period",
+    "all": "All periods",
+    "none": "No period"
+  },
   "uploadWorkspace": {
     "newBatch": "Add Source Files",
     "newBatchHint": "Transport runs first. Split and Extraction continue in the background and stay visible in this workspace.",
@@ -297,6 +302,7 @@
     "batchFiles": "{count} of {planned} selected Source Files stored",
     "batchSummary": "{waiting} processing · {review} ready for review · {failures} failed",
     "noBatches": "No batches yet. Add Source Files to start one.",
+    "noMatchingBatches": "No batch contains Documents of the selected period.",
     "outcome": {
       "processing": "Processing",
       "success": "Finished",
@@ -701,8 +707,6 @@
     "filters": "Filters",
     "allStatuses": "All statuses",
     "allDirections": "All directions",
-    "reportingPeriod": "Reporting period",
-    "reportingPeriodPlaceholder": "2026-10",
     "counterparty": "Counterparty",
     "counterpartyHint": "Name, VAT ID or IČO",
     "findingsOnly": "Only documents with findings",

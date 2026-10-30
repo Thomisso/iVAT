@@ -8,8 +8,10 @@ import {
   type DocumentSavedView,
 } from "@/application/document-queue";
 import { DOCUMENT_STATUSES } from "@/application/documents";
+import { listReportingPeriods } from "@/application/reporting-period-readiness";
 import { PageContent, PageHeader, PageLayout } from "@/components/app-shell";
 import { DataTable } from "@/components/data-table";
+import { ReportingPeriodFilter } from "@/components/reporting-period-filter";
 import { StatusBadge } from "@/components/status-badge";
 import { statusBadgeState } from "@/components/status-badge-state";
 import { formatDocumentDate } from "@/lib/format-date";
@@ -19,7 +21,10 @@ export default async function DocumentsPage({ params, searchParams }: PageProps<
   const { companyId } = await params;
   const search = await searchParams;
   const client = await requireUserClient();
-  const { queue, batch, documents } = await getDocumentQueue(client, companyId, search);
+  const [{ queue, batch, documents }, periods] = await Promise.all([
+    getDocumentQueue(client, companyId, search),
+    listReportingPeriods(client, companyId),
+  ]);
   const queueQuery = documentQueueQuery(queue);
   const t = await getTranslations();
   const format = await getFormatter();
@@ -55,7 +60,7 @@ export default async function DocumentsPage({ params, searchParams }: PageProps<
       {queue.readiness && <input type="hidden" name="readiness" value={queue.readiness} />}
       {!(["review", "failed", "approved"] as string[]).includes(queue.view) && <label><span>{t("documents.status")}</span><select className="iv-input" name="status" defaultValue={queue.status ?? ""}><option value="">{t("documents.allStatuses")}</option>{DOCUMENT_STATUSES.map((status) => <option key={status} value={status}>{t(`documentStatus.${status}`)}</option>)}</select></label>}
       {!(["incoming", "outgoing"] as string[]).includes(queue.view) && <label><span>{t("documents.direction")}</span><select className="iv-input" name="direction" defaultValue={queue.direction ?? ""}><option value="">{t("documents.allDirections")}</option><option value="incoming">{t("review.direction.incoming")}</option><option value="outgoing">{t("review.direction.outgoing")}</option></select></label>}
-      <label><span>{t("documents.reportingPeriod")}</span><input className="iv-input" name="reportingPeriod" defaultValue={queue.reportingPeriod} placeholder={t("documents.reportingPeriodPlaceholder")} /></label>
+      <ReportingPeriodFilter periods={periods.map((summary) => summary.period)} selected={queue.reportingPeriod} />
       <label><span>{t("documents.counterparty")}</span><input className="iv-input" name="counterparty" defaultValue={queue.counterparty} placeholder={t("documents.counterpartyHint")} /></label>
       <label className="document-findings-filter"><input type="checkbox" name="hasFindings" value="1" defaultChecked={queue.hasFindings} /><span>{t("documents.findingsOnly")}</span></label>
       <button className="iv-btn iv-btn-primary" type="submit">{t("documents.filter")}</button>

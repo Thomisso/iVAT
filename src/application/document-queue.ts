@@ -7,6 +7,7 @@ import {
 } from "./documents";
 import type { Direction } from "./extraction-payload";
 import type { AppClient } from "./client";
+import { NO_REPORTING_PERIOD, parseReportingPeriodFilter } from "./reporting-periods";
 import { getUploadBatch, type UploadBatchWorkspace } from "./upload-batches";
 import {
   getReportingPeriodReadiness,
@@ -76,9 +77,9 @@ export function parseDocumentQueue(search: DocumentQueueSearch): DocumentQueue {
     ? requestedView as DocumentSavedView
     : "review";
   const requestedStatus = stringParam(search.status);
-  const reportingPeriod = stringParam(search.reportingPeriod)?.trim() || undefined;
+  const reportingPeriod = parseReportingPeriodFilter(search.reportingPeriod);
   const requestedReadiness = stringParam(search.readiness);
-  const readiness = reportingPeriod && READINESS_DOCUMENT_FILTERS.includes(requestedReadiness as ReadinessDocumentFilter)
+  const readiness = reportingPeriod && reportingPeriod !== NO_REPORTING_PERIOD && READINESS_DOCUMENT_FILTERS.includes(requestedReadiness as ReadinessDocumentFilter)
     ? requestedReadiness as ReadinessDocumentFilter
     : undefined;
   const status = readiness === "rejected" ? "rejected" : fixedStatus[view] ?? (
