@@ -18,6 +18,9 @@ jobs:
           cache: npm
       - run: npm ci
 
+      - name: Release preparation policy and bundle integrity
+        run: node --test deploy/tests/release-prepare.test.mjs
+
       - name: package-lock.json matches package.json
         run: |
           npm install --package-lock-only --ignore-scripts
