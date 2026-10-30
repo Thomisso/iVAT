@@ -104,7 +104,7 @@ begin
   elsif not exists (
     select 1 from public.company c
     where c.id = target_company_id and c.organization_id = target_organization_id
-  ) or not private.is_company_administrator(target_company_id, target_organization_id) then
+  ) or not private.can_administrate_company_memberships(target_company_id, target_organization_id) then
     raise insufficient_privilege;
   end if;
   if normalized_email !~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$' then
