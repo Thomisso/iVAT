@@ -28,6 +28,7 @@ export type ExportVatReportError =
   | "report_not_finalized";
 export type EpoDownload = {
   artifactId: string;
+  reportGeneratedAt: string;
   xml: string;
   bytes: Uint8Array;
   fileName: string;
@@ -158,6 +159,7 @@ async function exportVatReportArtifact(
     ok: true,
     value: {
       artifactId: stored.data,
+      reportGeneratedAt: report.generatedAt,
       xml: result.value,
       bytes,
       fileName,
@@ -223,4 +225,77 @@ export async function readVatReportArtifact(
     artifact: value.artifact,
     bytes: new Uint8Array(Buffer.from(value.xmlBase64, "base64")),
   };
+}
+
+export type DraftExportProgress = {
+  downloadedFormats: EpoFormat[];
+  skippedFormats: EpoFormat[];
+};
+export type DownloadAcknowledgementInput = {
+  companyId: string;
+  period: string;
+  format: string;
+  artifactId: string;
+  reportGeneratedAt: string;
+};
+export type DownloadAcknowledgementError = "forbidden" | "invalid_download_artifact" | "report_finalized";
+
+function isReportGeneration(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/.test(value)
+    || Number.isNaN(Date.parse(value))) return false;
+  const calendarDate = value.slice(0, 10);
+  return new Date(`${calendarDate}T00:00:00Z`).toISOString().slice(0, 10) === calendarDate;
+}
+
+/** Acknowledges the specific XML only after response receipt and browser download initiation. */
+export async function acknowledgeVatReportDownload(
+  client: AppClient,
+  input: DownloadAcknowledgementInput,
+): Promise<Result<null, DownloadAcknowledgementError>> {
+  if (!isUuid(input.companyId) || !isUuid(input.artifactId) || !isReportingPeriod(input.period)
+    || !isEpoFormat(input.format) || !isReportGeneration(input.reportGeneratedAt)) {
+    return { ok: false, error: "invalid_download_artifact" };
+  }
+  const { error } = await client.rpc("acknowledge_vat_report_download", {
+    target_company_id: input.companyId, target_period: input.period, target_format: input.format,
+    target_artifact_id: input.artifactId, target_report_generated_at: input.reportGeneratedAt,
+  });
+  if (error?.code === "42501") return { ok: false, error: "forbidden" };
+  if (error?.code === "P0001" && (error.hint === "invalid_download_artifact" || error.hint === "report_finalized")) {
+    return { ok: false, error: error.hint };
+  }
+  if (error) throw error;
+  return { ok: true, value: null };
+}
+
+export async function skipVatReportDrafts(
+  client: AppClient,
+  input: { companyId: string; period: string; reportGeneratedAt: string },
+): Promise<Result<null, "forbidden" | "invalid_reporting_period" | "stale_report" | "report_finalized">> {
+  if (!isUuid(input.companyId)) return { ok: false, error: "forbidden" };
+  if (!isReportingPeriod(input.period)) return { ok: false, error: "invalid_reporting_period" };
+  if (!isReportGeneration(input.reportGeneratedAt)) return { ok: false, error: "stale_report" };
+  const { error } = await client.rpc("skip_vat_report_drafts", {
+    target_company_id: input.companyId, target_period: input.period, target_report_generated_at: input.reportGeneratedAt,
+  });
+  if (error?.code === "42501") return { ok: false, error: "forbidden" };
+  if (error?.code === "P0001" && (error.hint === "stale_report" || error.hint === "report_finalized")) {
+    return { ok: false, error: error.hint };
+  }
+  if (error) throw error;
+  return { ok: true, value: null };
+}
+
+/** One database aggregate counts distinct outputs without a PostgREST row-limit truncation. */
+export async function getVatReportDraftProgress(
+  client: AppClient,
+  input: { companyId: string; period: string; reportGeneratedAt: string | null },
+): Promise<DraftExportProgress> {
+  const empty = { downloadedFormats: [], skippedFormats: [] };
+  if (!input.reportGeneratedAt || !isUuid(input.companyId) || !isReportingPeriod(input.period)) return empty;
+  const { data, error } = await client.rpc("vat_report_draft_progress", {
+    target_company_id: input.companyId, target_period: input.period, target_report_generated_at: input.reportGeneratedAt,
+  });
+  if (error) throw error;
+  return data ? data as unknown as DraftExportProgress : empty;
 }

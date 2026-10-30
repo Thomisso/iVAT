@@ -57,6 +57,7 @@ export async function POST(
       "Content-Type": result.value.mediaType,
       "Content-Disposition": `attachment; filename="${result.value.fileName}"`,
       "X-iVAT-Artifact-ID": result.value.artifactId,
+      "X-iVAT-Report-Generated-At": result.value.reportGeneratedAt,
     },
   });
 }

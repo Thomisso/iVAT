@@ -29,6 +29,7 @@ import {
   updateCompanyIdentity,
 } from "@/application/companies";
 import { saveCompanyFilingDefaults } from "@/application/company-filing-defaults";
+import { acknowledgeVatReportDownload, skipVatReportDrafts, type DownloadAcknowledgementInput } from "@/application/epo-export";
 import {
   changeReportingYearFrequency,
   deleteReportingYear,
@@ -670,6 +671,21 @@ export async function generateVatReportAction(_state: FormState, formData: FormD
   });
   if (!result.ok) return refused(result.error, formData, ["period"]);
   redirect(`/companies/${companyId}/vat-reports?period=${encodeURIComponent(period)}`);
+}
+
+export async function acknowledgeVatReportDownloadAction(input: DownloadAcknowledgementInput) {
+  const result = await acknowledgeVatReportDownload(await requireUserClient(), input);
+  if (result.ok) refresh();
+  return result;
+}
+
+export async function skipVatReportDraftsAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const result = await skipVatReportDrafts(await requireUserClient(), {
+    companyId: field(formData, "companyId"), period: field(formData, "period"), reportGeneratedAt: field(formData, "reportGeneratedAt"),
+  });
+  if (!result.ok) return refused(result.error, formData, ["companyId", "period", "reportGeneratedAt"]);
+  refresh();
+  return { error: null, values: {} };
 }
 
 export async function finalizeVatReportAction(_state: FormState, formData: FormData): Promise<FormState> {
