@@ -294,6 +294,14 @@
     "dropTitle": "Přetáhněte sem zdrojový soubor",
     "chooseFile": "Vybrat soubor"
   },
+  "periodFilter": {
+    "label": "Zdaňovací období",
+    "all": "Všechna období",
+    "none": "Bez období",
+    "formLabel": "Filtry dávek",
+    "submit": "Filtrovat",
+    "clear": "Zrušit filtry"
+  },
   "uploadWorkspace": {
     "newBatch": "Přidat zdrojové soubory",
     "newBatchHint": "Nejprve proběhne přenos. Rozdělení a vytěžení pokračují na pozadí a zůstávají viditelné v této pracovní ploše.",
@@ -307,6 +315,7 @@
     "batchFiles": "Uloženo {count} z {planned} vybraných zdrojových souborů",
     "batchSummary": "{waiting} se zpracovává · {review} ke kontrole · {failures} selhalo",
     "noBatches": "Zatím tu není žádná dávka. Začněte přidáním zdrojových souborů.",
+    "noMatchingBatches": "Žádná dávka neobsahuje doklady vybraného období.",
     "outcome": {
       "processing": "Zpracovává se",
       "success": "Dokončeno",
@@ -482,10 +491,9 @@
     "one_file_required": "Vyberte jeden zdrojový soubor k nahrání.",
     "invalid_reporting_period": "Vyberte platné měsíční nebo čtvrtletní zdaňovací období této firmy.",
     "company_setup_incomplete": "Nejprve dokončete povinnou identitu firmy a frekvenci podávání.",
-    "invalid_receipt_date": "Zadejte existující datum přijetí.",
     "invalid_tax_point_date": "Před přiřazením zdaňovacího období nastavte platné DUZP.",
-    "claimed_period_not_later": "Zvolené zdaňovací období musí být pozdější než období určené datem přijetí.",
-    "incoming_required": "Datum přijetí a odklad nároku na odpočet lze nastavit jen u přijatého dokladu.",
+    "claimed_period_not_later": "Odložený nárok musí směřovat do zdaňovacího období pozdějšího, než je období data uskutečnění zdanitelného plnění.",
+    "incoming_required": "Odložit nárok na odpočet lze jen u přijatého dokladu.",
     "stale_report": "Doklady se během výpočtu změnily. Vygenerujte návrh znovu.",
     "readiness_blocked": "Před finalizací vyřešte všechny blokující problémy a přiznání k DPH znovu vygenerujte.",
     "confirmation_required": "Potvrďte, že rozumíte dopadu této akce.",
@@ -732,8 +740,6 @@
     "filters": "Filtry",
     "allStatuses": "Všechny stavy",
     "allDirections": "Přijaté i vydané",
-    "reportingPeriod": "Zdaňovací období",
-    "reportingPeriodPlaceholder": "2026-10",
     "counterparty": "Protistrana",
     "counterpartyHint": "Název, DIČ nebo IČO",
     "findingsOnly": "Pouze doklady s nálezy",
@@ -781,6 +787,7 @@
     "row": "list {sheet}, řádek {row}",
     "rowRange": "list {sheet}, řádky {first}–{last}",
     "status": "Stav",
+    "importDate": "Datum importu",
     "approvedNote": "Schváleno. Doklad se započítá do přiznání k DPH.",
     "rejectedNote": "Zamítnuto. Doklad se do přiznání k DPH nezapočítá.",
     "notReviewableNote": "Doklad ještě není připravený ke kontrole.",
@@ -802,7 +809,6 @@
     "noImage": "Originál tohoto dokladu nelze zobrazit.",
     "reportingAssignment": {
       "title": "Zdaňovací období nároku na odpočet",
-      "receiptDate": "Datum přijetí",
       "claimedReportingPeriod": "Přesunout nárok na odpočet do období",
       "claimedReportingPeriodHint": "Nepovinné. Zadejte pozdější měsíc (2026-12) nebo čtvrtletí (2027-Q1) podle frekvence firmy.",
       "claimedReportingPeriodPlaceholder": "2026-12 nebo 2027-Q1",

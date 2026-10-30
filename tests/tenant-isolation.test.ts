@@ -221,12 +221,10 @@ describe("tenant isolation", () => {
       const reporting = await updateDocumentReporting(b.client, {
         companyId: a.companyId,
         documentId: a.documentId,
-        receiptDate: "2026-11-05",
         claimedReportingPeriod: null,
       });
       const directReporting = await b.client.rpc("update_document_reporting", {
         target_document_id: a.documentId,
-        new_receipt_date: "2026-11-05",
         new_claimed_reporting_period: null as unknown as string,
       });
 
@@ -253,7 +251,6 @@ describe("tenant isolation", () => {
           source_file_id: a.sourceFileId,
           first_page: 1,
           last_page: 1,
-          receipt_date: "2026-10-28",
         }),
         await a.client.from("extraction_version").update({ payload: {} }).eq("id", version.id),
         await a.client.from("extraction_version").delete().eq("id", version.id),
@@ -346,3 +343,14 @@ describe("tenant isolation", () => {
     expect(companies.error?.code).toBe("42501");
   });
 });
+
+it.each(["document_overview", "vat_report_document"] as const)(
+  "closes the %s view to anonymous and system clients",
+  async (view) => {
+    const anonymous = await anonymousClient().from(view).select("id").limit(1);
+    const system = await systemClient().from(view).select("id").limit(1);
+
+    expect(anonymous.error?.code).toBe("42501");
+    expect(system.error?.code).toBe("42501");
+  },
+);

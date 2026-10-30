@@ -29,7 +29,7 @@ import { Notice } from "@/components/notice";
 import { StatusBadge } from "@/components/status-badge";
 import { statusBadgeState } from "@/components/status-badge-state";
 import { PageLayout } from "@/components/app-shell";
-import { formatDateTime, formatMonthName } from "@/lib/format-date";
+import { formatDate, formatDateTime, formatMonthName } from "@/lib/format-date";
 import { CorrectionForm } from "./correction-form";
 import { findingMessage } from "./finding-message";
 import { ReportingAssignmentForm } from "./reporting-assignment-form";
@@ -117,6 +117,9 @@ export default async function DocumentReviewPage({
             <StatusBadge status={statusBadgeState(document.status, "document")}>
               {t(`documentStatus.${document.status}`)}
             </StatusBadge>
+          </p>
+          <p>
+            {t("review.importDate")}: {formatDate(document.importDate)}
           </p>
           {document.status === "approved" && (
             <Notice>{t("review.approvedNote")}</Notice>
@@ -224,7 +227,6 @@ export default async function DocumentReviewPage({
             <ReportingAssignmentForm
               companyId={companyId}
               documentId={document.id}
-              receiptDate={document.receiptDate}
               claimedReportingPeriod={document.claimedReportingPeriod}
             />
           )}

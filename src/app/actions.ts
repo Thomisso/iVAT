@@ -635,14 +635,10 @@ export async function updateDocumentReportingAction(
   const result = await updateDocumentReporting(await requireUserClient(), {
     companyId: field(formData, "companyId"),
     documentId: field(formData, "documentId"),
-    receiptDate: field(formData, "receiptDate"),
     claimedReportingPeriod: optionalField(formData, "claimedReportingPeriod"),
   });
   if (!result.ok) {
-    return refused(result.error, formData, [
-      "receiptDate",
-      "claimedReportingPeriod",
-    ]);
+    return refused(result.error, formData, ["claimedReportingPeriod"]);
   }
   refresh();
   return { error: null, values: {} };
