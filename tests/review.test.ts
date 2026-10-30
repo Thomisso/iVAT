@@ -1,5 +1,6 @@
 import { PDFDocument } from "pdf-lib";
-import { describe, expect, it } from "vitest";
+import { Client as DatabaseClient } from "pg";
+import { describe, expect, inject, it } from "vitest";
 import { listAuditEvents } from "@/application/audit";
 import {
   approveDocument,
@@ -297,7 +298,29 @@ describe("correcting a Document", () => {
 });
 
 describe("assigning an incoming Document to a Reporting Period", () => {
-  it("stores Receipt Date and a later claimed period, and audits the change", async () => {
+  it("shows the Import Date as the Prague calendar date of the Source File upload", async () => {
+    const document = await documentInReview();
+    // Test-only setup: 22:30 UTC on 30 September is already 1 October in Prague.
+    const database = new DatabaseClient({ connectionString: inject("databaseUrl") });
+    await database.connect();
+    try {
+      await database.query(
+        "update public.source_file set uploaded_at = '2026-09-30T22:30:00Z' where id = $1",
+        [document.sourceFileId],
+      );
+    } finally {
+      await database.end();
+    }
+
+    expect(
+      (await getDocument(document.client, document.companyId, document.documentId))!.importDate,
+    ).toBe("2026-10-01");
+    expect(
+      (await listCompanyDocuments(document.client, document.companyId))[0].importDate,
+    ).toBe("2026-10-01");
+  });
+
+  it("stores a Deferred Claim and audits the change", async () => {
     const document = await documentInReview();
     const member = await companyMember(document);
 
@@ -305,19 +328,16 @@ describe("assigning an incoming Document to a Reporting Period", () => {
       await updateDocumentReporting(member.client, {
         companyId: document.companyId,
         documentId: document.documentId,
-        receiptDate: "2026-11-05",
         claimedReportingPeriod: "2026-12",
       }),
     ).toEqual({ ok: true, value: null });
 
     expect(
       await getDocument(member.client, document.companyId, document.documentId),
-    ).toEqual(
-      expect.objectContaining({
-        receiptDate: "2026-11-05",
-        claimedReportingPeriod: "2026-12",
-      }),
-    );
+    ).toEqual(expect.objectContaining({ claimedReportingPeriod: "2026-12" }));
+    expect(
+      (await listCompanyDocuments(member.client, document.companyId))[0].reportingPeriod,
+    ).toBe("2026-12");
     expect(
       (await listAuditEvents(document.client, document.organizationId)).at(-1),
     ).toEqual(
@@ -325,47 +345,49 @@ describe("assigning an incoming Document to a Reporting Period", () => {
         action: "document.reporting_assignment_changed",
         actorUserId: member.userId,
         targetId: document.documentId,
-        payload: expect.objectContaining({
-          receipt_date: expect.objectContaining({ to: "2026-11-05" }),
+        payload: {
           claimed_reporting_period: { from: null, to: "2026-12" },
-        }),
+        },
       }),
     );
   });
 
-  it("refuses a claimed period that is not later than the Receipt Date's period", async () => {
+  it("returns the Document to its Tax Point Date's period when the Deferred Claim is cleared", async () => {
+    const document = await documentInReview();
+    const input = { companyId: document.companyId, documentId: document.documentId };
+    await updateDocumentReporting(document.client, { ...input, claimedReportingPeriod: "2026-12" });
+
+    expect(
+      await updateDocumentReporting(document.client, { ...input, claimedReportingPeriod: null }),
+    ).toEqual({ ok: true, value: null });
+    expect(
+      (await listCompanyDocuments(document.client, document.companyId))[0].reportingPeriod,
+    ).toBe("2026-10");
+  });
+
+  it("refuses a Deferred Claim that is not later than the Tax Point Date's period", async () => {
     const document = await documentInReview();
 
     expect(
       await updateDocumentReporting(document.client, {
         companyId: document.companyId,
         documentId: document.documentId,
-        receiptDate: "2026-11-05",
         claimedReportingPeriod: "2026-10",
       }),
     ).toEqual({ ok: false, error: "claimed_period_not_later" });
     expect(
-      await getDocument(
-        document.client,
-        document.companyId,
-        document.documentId,
-      ),
-    ).toEqual(
-      expect.objectContaining({
-        claimedReportingPeriod: null,
-      }),
-    );
+      await getDocument(document.client, document.companyId, document.documentId),
+    ).toEqual(expect.objectContaining({ claimedReportingPeriod: null }));
   });
 
-  it("refuses Receipt Date assignment for an outgoing Document", async () => {
+  it("refuses a Deferred Claim for an outgoing Document", async () => {
     const document = await documentInReview(CORRECTED);
 
     expect(
       await updateDocumentReporting(document.client, {
         companyId: document.companyId,
         documentId: document.documentId,
-        receiptDate: "2026-11-05",
-        claimedReportingPeriod: null,
+        claimedReportingPeriod: "2026-12",
       }),
     ).toEqual({ ok: false, error: "incoming_required" });
   });

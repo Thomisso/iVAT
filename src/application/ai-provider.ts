@@ -28,8 +28,11 @@ export type AiCallContext = {
   configuration: AiProviderConfiguration;
 };
 
-/** Token counts returned by a provider for one completed request. */
-export type AiUsage = { inputTokens: number; outputTokens: number };
+/**
+ * Token counts returned by a provider for one completed request, with the
+ * request's cost in USD when the provider reports it.
+ */
+export type AiUsage = { inputTokens: number; outputTokens: number; costUsd?: number };
 
 export const AI_PROCESSING_ISSUE_CLASSIFICATIONS = [
   "configuration_missing",

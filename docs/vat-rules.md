@@ -2,9 +2,11 @@
 
 The pure Rules Engine in `src/application/vat-rules.ts` accepts Company details,
 a monthly (`YYYY-MM`) or quarterly (`YYYY-Qn`) Reporting Period and Document
-snapshots. Only Approved Documents assigned to that period contribute. Incoming
-Documents use the later of their Tax Point Date and Receipt Date unless the User
-explicitly claims a later valid period. Shared parsing and the Reporting Year lookup
+snapshots. Only Approved Documents assigned to that period contribute. Every
+Document belongs to the Reporting Period of its Tax Point Date (ADR-0012); an
+incoming Document's Deferred Claim moves it to a later valid period. The Import
+Date never affects the period. `private.document_reporting_period` applies the
+same rule in the database. Shared parsing and the Reporting Year lookup
 (ADR-0013; a date outside every generated year has no Reporting Period) live in
 `src/application/reporting-periods.ts`.
 

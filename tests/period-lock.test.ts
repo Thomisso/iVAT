@@ -119,20 +119,13 @@ it("preserves a newly uploaded Document for review when Extraction discovers a l
   expect(await updateDocumentReporting(company.client, {
     companyId: company.companyId,
     documentId: document.id,
-    receiptDate: "2026-10-15",
-    claimedReportingPeriod: null,
+    claimedReportingPeriod: "2026-11",
   })).toEqual({ ok: false, error: "period_locked" });
 
   expect(await unlockReportingPeriod(company.client, {
     ...period,
     reason: "Review newly received Document",
     confirmed: true,
-  })).toEqual({ ok: true, value: null });
-  expect(await updateDocumentReporting(company.client, {
-    companyId: company.companyId,
-    documentId: document.id,
-    receiptDate: "2026-10-15",
-    claimedReportingPeriod: null,
   })).toEqual({ ok: true, value: null });
   expect(await approveDocument(company.client, {
     companyId: company.companyId,
@@ -503,7 +496,6 @@ it("refuses moving a Document out of a locked Reporting Period", async () => {
     await updateDocumentReporting(company.client, {
       companyId: company.companyId,
       documentId: company.documents[0].id,
-      receiptDate: company.documents[0].receiptDate,
       claimedReportingPeriod: "2026-11",
     }),
   ).toEqual({ ok: false, error: "period_locked" });
@@ -515,7 +507,6 @@ it("refuses moving a Document into a locked Reporting Period", async () => {
     await updateDocumentReporting(company.client, {
       companyId: company.companyId,
       documentId: company.documents[0].id,
-      receiptDate: company.documents[0].receiptDate,
       claimedReportingPeriod: "2026-11",
     }),
   ).toEqual({ ok: false, error: "period_locked" });
