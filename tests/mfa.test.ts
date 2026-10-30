@@ -57,7 +57,7 @@ describe("MFA", () => {
     );
   });
 
-  it("accepts each recovery code only once", async () => {
+  it("refuses the old application-only backup shortcut without consuming prepared codes", async () => {
     const user = await provisionedUser();
     const enrollment = await beginTotpEnrollment(user.client);
     if (!enrollment.ok) throw new Error(enrollment.error);
@@ -73,20 +73,9 @@ describe("MFA", () => {
       email: user.email,
       password: "correct-horse-battery",
     });
-    expect(await verifyRecoveryCode(user.client, recoveryCode!)).toEqual({
-      ok: true,
-      value: null,
-    });
-
-    await logOut(user.client);
-    await logIn(user.client, {
-      email: user.email,
-      password: "correct-horse-battery",
-    });
-    expect(await verifyRecoveryCode(user.client, recoveryCode!)).toEqual({
-      ok: false,
-      error: "invalid_mfa_code",
-    });
+    expect(await verifyRecoveryCode(user.client, recoveryCode!)).toEqual({ ok: false, error: "email_recovery_required" });
+    expect((await mfaStatus(user.client)).recoveryCodesRemaining).toBe(10);
+    expect(await listMyOrganizations(user.client)).toEqual([]);
   });
 
   it("verifies TOTP after login and lets the user disenrol with an audit event", async () => {

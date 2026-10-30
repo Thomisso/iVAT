@@ -16,6 +16,8 @@ export type TotpEnrollment = {
 export async function beginTotpEnrollment(
   client: AppClient,
 ): Promise<Result<TotpEnrollment, MfaError>> {
+  const authorized = await client.rpc("authorize_mfa_maintenance", { operation: "enroll" });
+  if (authorized.error) return { ok: false, error: "mfa_enrollment_failed" };
   const factors = await client.auth.mfa.listFactors();
   if (factors.error) return { ok: false, error: "mfa_enrollment_failed" };
   for (const factor of factors.data.all) {
@@ -65,13 +67,17 @@ export async function mfaStatus(client: AppClient): Promise<{
   factorId: string | null;
   recoveryCodesRemaining: number;
 }> {
-  const [factors, assurance, recovery] = await Promise.all([
+  const [factors, assurance, recovery, replacement] = await Promise.all([
     client.auth.mfa.listFactors(),
     client.auth.mfa.getAuthenticatorAssuranceLevel(),
     client.rpc("mfa_recovery_codes_remaining"),
+    client.rpc("mfa_replacement_status"),
   ]);
   if (factors.error || assurance.error) throw new Error("mfa_status_failed");
-  const factor = factors.data.totp[0] ?? null;
+  if (replacement.error) throw replacement.error;
+  const history = replacement.data as { hasHistory?: boolean; pending?: boolean; factorId?: string | null };
+  const factor = history.hasHistory && !history.pending && history.factorId
+    ? factors.data.totp.find(item => item.id === history.factorId) ?? null : factors.data.totp[0] ?? null;
   return {
     enrolled: factor !== null,
     currentLevel: assurance.data.currentLevel,
@@ -84,10 +90,11 @@ export async function mfaStatus(client: AppClient): Promise<{
 export async function verifyRecoveryCode(
   client: AppClient,
   code: string,
-): Promise<Result<null, "invalid_mfa_code">> {
+): Promise<Result<null, "invalid_mfa_code" | "email_recovery_required">> {
   const { data, error } = await client.rpc("verify_mfa_recovery_code", {
     input_code: code,
   });
+  if (error?.hint === "email_recovery_required") return { ok: false, error: "email_recovery_required" };
   if (error || !data) return { ok: false, error: "invalid_mfa_code" };
   return { ok: true, value: null };
 }
@@ -108,6 +115,8 @@ export async function disenrollMfa(
   client: AppClient,
   factorId: string,
 ): Promise<Result<null, "mfa_disenrollment_failed">> {
+  const authorized = await client.rpc("authorize_mfa_maintenance", { operation: "remove" });
+  if (authorized.error) return { ok: false, error: "mfa_disenrollment_failed" };
   const removed = await client.auth.mfa.unenroll({ factorId });
   if (removed.error) return { ok: false, error: "mfa_disenrollment_failed" };
   const cleanup = await client.rpc("finish_mfa_disenrollment");

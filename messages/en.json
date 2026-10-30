@@ -92,6 +92,28 @@
     "vatTitle": "VAT",
     "vatDescription": "Work with Reporting Periods and statutory outputs."
   },
+  "mfaRecovery": {
+    "loginIntro": "Lost your authenticator? Use email recovery with a prepared backup code to set up a replacement.",
+    "startEmailRecovery": "Start email recovery",
+    "lostAuthenticator": "Lost your authenticator?",
+    "codeIntro": "Use one unused backup MFA code saved during setup. Recovery restricts all your sessions until a replacement authenticator and password reset are complete.",
+    "confirmReplacement": "I want to replace my lost authenticator and restrict my other sessions during recovery.",
+    "useBackupCode": "Use backup code",
+    "resume": "Continue recovery on this device",
+    "replacementTitle": "Set up your replacement authenticator",
+    "replacementIntro": "Your lost authenticator will be replaced. Scan the new setup with your authenticator, then verify a code.",
+    "continueSetup": "If you already saved this replacement setup, enter its code. Otherwise restart setup to show a new QR code.",
+    "startSetup": "Set up replacement authenticator",
+    "restartSetup": "Restart replacement setup",
+    "verifyReplacement": "Verify replacement authenticator",
+    "finishTitle": "Finish account recovery",
+    "finishIntro": "Choose a new password. Recovery ends only after your replacement factor, password and session cleanup are confirmed.",
+    "passwordUpdated": "Your password has already changed. Retry finishing recovery to complete session cleanup safely.",
+    "finish": "Finish recovery",
+    "pendingUnauthorized": "Account recovery is in progress. Verify a fresh recovery email, then continue on the original device or use another unused backup code.",
+    "restricted": "Recovery is restricted. Protected account data remains unavailable until recovery finishes.",
+    "preserveCodes": "Your other unused backup codes remain valid. Keep the original saved codes."
+  },
   "passwordRecovery": {
     "forgotPassword": "Forgot password?",
     "requestTitle": "Recover your password",
@@ -507,6 +529,11 @@
     "invalid": "Enter a valid date as dd.mm.yyyy."
   },
   "errors": {
+    "email_recovery_required": "Verify a fresh password recovery email before using a backup code or continuing recovery.",
+    "mfa_recovery_failed": "MFA recovery could not finish. Your account remains restricted; try again or resume after verifying a new recovery email.",
+    "mfa_recovery_required": "Complete your authorized MFA recovery before using this action.",
+    "mfa_recovery_busy": "Another recovery step is in progress. Wait a moment and try again.",
+    "mfa_replacement_confirmation_required": "Confirm that you want to replace the lost authenticator.",
     "recovery_link_invalid": "This recovery link is invalid, expired or already used. Request a new recovery email.",
     "recovery_link_expired": "This recovery link expired after one hour. Request a new recovery email.",
     "recovery_link_used": "This recovery link has already been used. Continue in the browser where you verified it, or request a new email.",

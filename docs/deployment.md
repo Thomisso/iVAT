@@ -61,6 +61,12 @@ Allow only the configured application origin for recovery redirects. Production
 delivery proof must include the captured recipient email and completed reset,
 alongside the separate Invitation onboarding proof.
 
+Lost-authenticator recovery uses prepared backup codes and the restricted native
+factor-replacement flow described in [MFA recovery](mfa-recovery.md). It does not
+enable experimental native recovery-code APIs or invalidate existing prepared
+codes. The User restriction has no automatic expiry: interrupted recovery must
+resume with legitimate proof, never by clearing a pending flag operationally.
+
 After upgrading, old hash-only Invitations still work but cannot be reconstructed
 for copying. An Administrator can explicitly generate a replacement, invalidating
 the old link and starting a fresh seven-day window without sending mail. New

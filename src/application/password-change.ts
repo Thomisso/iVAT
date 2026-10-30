@@ -4,7 +4,7 @@ export type PasswordVerificationError = "incorrect_current_password" | "password
 export interface PasswordVerifier {
   verify(input: { userId: string; email: string; password: string }): Promise<Result<null, PasswordVerificationError>>;
 }
-export type PasswordChangeError = PasswordVerificationError | "password_change_failed" | "weak_password" | "same_password" | "mfa_verification_required" | "current_password_required" | "password_confirmation_mismatch";
+export type PasswordChangeError = PasswordVerificationError | "password_change_failed" | "weak_password" | "same_password" | "mfa_verification_required" | "mfa_recovery_required" | "current_password_required" | "password_confirmation_mismatch";
 
 /** Normal credential maintenance; first-password setup and recovery use their own flows. */
 export async function changePassword(
@@ -12,6 +12,10 @@ export async function changePassword(
   verifier: PasswordVerifier,
   input: { currentPassword: string; newPassword: string; confirmation: string },
 ): Promise<Result<null, PasswordChangeError>> {
+  const recovery = await client.rpc("mfa_replacement_status");
+  if (recovery.error) throw recovery.error;
+  const state = recovery.data as { pending?: boolean; hasHistory?: boolean; accessAllowed?: boolean };
+  if (state?.pending || state?.hasHistory && !state.accessAllowed) return { ok: false, error: "mfa_recovery_required" };
   if (!input.currentPassword) return { ok: false, error: "current_password_required" };
   if (input.newPassword !== input.confirmation) return { ok: false, error: "password_confirmation_mismatch" };
   if ([...input.newPassword].length < 8) return { ok: false, error: "weak_password" };

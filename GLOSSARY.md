@@ -32,6 +32,10 @@ _Avoid_: Registration, public invitation
 An access level: SuperAdmin grants platform-wide administration across all Organizations and Companies without a Membership. Administrator and User grant scoped access through Memberships.
 _Avoid_: Permission level, profile
 
+**MFA recovery**:
+A User restores access after losing an authenticator by proving email ownership and a prepared backup MFA code, then establishing a replacement authenticator.
+_Avoid_: MFA bypass, backup-code login
+
 ## Documents
 
 **Upload Queue**:
