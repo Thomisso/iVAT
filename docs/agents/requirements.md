@@ -702,8 +702,9 @@ It is intended to serve as a foundation for:
 ### 15.3 VAT logic
 - AI extracts and proposes a VAT Regime. The deterministic Rules Engine assigns VAT Return lines and Control Statement sections (ADR-0003).
 - Reporting Period assignment:
-  - outgoing Documents by Tax Point Date,
-  - incoming Documents by Receipt Date (defaults to upload date, no earlier than the Tax Point Date's period). Users can move them to a later period.
+  - every Document, incoming or outgoing, by Tax Point Date (ADR-0012),
+  - an incoming Document's input VAT can be moved to a later period through a Deferred Claim,
+  - the Import Date (Source File upload date) is shown read-only and never decides the period.
 - Each Company has a monthly or quarterly filing frequency with an effective-from date.
 - Foreign currencies are converted at the ČNB rate for the Tax Point Date. Original amounts, the rate and its source are stored.
 - Only an Administrator can finalize a VAT Report. Finalization locks the period (ADR-0007).

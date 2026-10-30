@@ -324,11 +324,13 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
       const metered = await system.rpc("record_ai_usage", {
         target_organization_id: file.organization_id,
         target_company_id: file.company_id,
+        target_configuration_id: availability.configurationId!,
         target_provider: ai.name,
         target_model: model,
         target_operation: "split",
         target_input_tokens: usage?.inputTokens ?? 0,
         target_output_tokens: usage?.outputTokens ?? 0,
+        target_provider_cost_usd: usage?.costUsd,
         target_job_name: "split-source-file",
         target_job_id: file.id,
       });
@@ -457,11 +459,13 @@ async function extractDocument(
       const metered = await system.rpc("record_ai_usage", {
         target_organization_id: document.organization_id,
         target_company_id: document.company_id,
+        target_configuration_id: availability.configurationId!,
         target_provider: ai.name,
         target_model: model,
         target_operation: "extract",
         target_input_tokens: usage?.inputTokens ?? 0,
         target_output_tokens: usage?.outputTokens ?? 0,
+        target_provider_cost_usd: usage?.costUsd,
         target_job_name: "extract-document",
         target_job_id: document.id,
       });

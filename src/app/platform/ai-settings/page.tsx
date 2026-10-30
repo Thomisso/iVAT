@@ -1,29 +1,32 @@
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { setDefaultAiConfigurationAction } from "@/app/actions";
-import { listAiConfigurationProviders, listAiConfigurations } from "@/application/ai-configurations";
+import { listAiConfigurationProviders, listAiConfigurations, listAiModelPrices } from "@/application/ai-configurations";
 import { listPlatformAiProcessingAllowances } from "@/application/ai-processing-allowance";
 import { listPlatformOrganizationCompanies } from "@/application/platform-administration";
 import { CommandButton } from "@/components/command-button";
 import { requireUserClient } from "@/lib/supabase/server";
 import { AiConfigurationForm } from "./ai-configuration-form";
 import { AiConfigurationAssignmentForm } from "./ai-configuration-assignment-form";
+import { AiModelPricesForm } from "./ai-model-prices-form";
 import { AiProcessingAllowanceForm } from "./ai-processing-allowance-form";
 
 export default async function PlatformAiSettingsPage() {
   const client = await requireUserClient();
-  const [providers, configurations, organizationCompanies, allowances] = await Promise.all([
+  const [providers, configurations, modelPrices, organizationCompanies, allowances] = await Promise.all([
     listAiConfigurationProviders(client),
     listAiConfigurations(client),
+    listAiModelPrices(client),
     listPlatformOrganizationCompanies(client),
     listPlatformAiProcessingAllowances(client),
   ]);
-  if (!providers.ok || !configurations.ok || !organizationCompanies.ok || !allowances.ok) notFound();
+  if (!providers.ok || !configurations.ok || !modelPrices.ok || !organizationCompanies.ok || !allowances.ok) notFound();
   const t = await getTranslations("platformAi");
   const companies = organizationCompanies.value.flatMap((organization) =>
     organization.companies.map((company) => ({ ...company, organizationName: organization.name })),
   );
   const companyNames = new Map(companies.map((company) => [company.id, company.name]));
+  const modelsByConfiguration = new Map(modelPrices.value.map((prices) => [prices.configurationId, prices.models]));
   const allowanceByCompany = new Map(allowances.value.map((allowance) => [allowance.companyId, allowance]));
 
   return (
@@ -72,6 +75,13 @@ export default async function PlatformAiSettingsPage() {
                 <details>
                   <summary>{t("updateConfiguration")}</summary>
                   <AiConfigurationForm providers={providers.value} configuration={configuration} />
+                </details>
+                <details>
+                  <summary>{t("modelPrices")}</summary>
+                  <AiModelPricesForm
+                    configuration={configuration}
+                    models={modelsByConfiguration.get(configuration.id) ?? []}
+                  />
                 </details>
               </article>
             ))}

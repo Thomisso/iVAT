@@ -32,25 +32,53 @@ function document(
   };
 }
 
+it.each(["incoming", "outgoing"] as const)(
+  "assigns an %s Document to the Reporting Period of its Tax Point Date",
+  (direction) => {
+    expect(
+      reportingPeriodForDocument(
+        {
+          direction,
+          taxPointDate: "2026-09-30",
+          claimedReportingPeriod: null,
+        },
+        monthly,
+      ),
+    ).toBe("2026-09");
+  },
+);
+
 it.each([
-  ["2026-10-05", "2026-10"],
-  ["2026-11-05", "2026-11"],
+  ["2026-09", "2026-10"],
+  ["2026-10", "2026-10"],
 ] as const)(
-  "assigns an incoming Document received on %s without claiming before its Tax Point Date",
-  (receiptDate, expectedPeriod) => {
+  "ignores a Deferred Claim of %s that is not later than the Tax Point Date's period",
+  (claimedReportingPeriod, expectedPeriod) => {
     expect(
       reportingPeriodForDocument(
         {
           direction: "incoming",
           taxPointDate: "2026-10-20",
-          receiptDate,
-          claimedReportingPeriod: null,
+          claimedReportingPeriod,
         },
         monthly,
       ),
     ).toBe(expectedPeriod);
   },
 );
+
+it("ignores a Deferred Claim on an outgoing Document", () => {
+  expect(
+    reportingPeriodForDocument(
+      {
+        direction: "outgoing",
+        taxPointDate: "2026-10-20",
+        claimedReportingPeriod: "2026-12",
+      },
+      monthly,
+    ),
+  ).toBe("2026-10");
+});
 
 it("computes a quarterly Company's Documents across all three months", () => {
   const reports = ["2027-01-15", "2027-03-15"].map((taxPointDate, index) => ({
@@ -76,7 +104,6 @@ it("moves an incoming input VAT claim to the explicitly chosen later Reporting P
       {
         direction: "incoming",
         taxPointDate: "2026-10-20",
-        receiptDate: "2026-10-25",
         claimedReportingPeriod: "2026-12",
       },
       monthly,
@@ -98,7 +125,6 @@ it.each([
         {
           direction: "outgoing",
           taxPointDate,
-          receiptDate: "2026-10-28",
           claimedReportingPeriod: null,
         },
         [
