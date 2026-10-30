@@ -119,7 +119,7 @@ async function companyWithReadinessStates() {
     document.status === "needs_review" && document.id !== warningDocument.id,
   );
   if (!rejectable) throw new Error("Rejectable Document not found");
-  expect(await rejectDocument(company.client, {
+  expect(await rejectDocument(company.client, { reason: "Not a business Document",
     companyId: company.companyId,
     documentId: rejectable.id,
   })).toEqual({ ok: true, value: null });
@@ -286,7 +286,7 @@ it("keeps a new snapshot current when unassigned rejected Documents are resolved
   expect(await worker.runJobs()).toEqual([]);
   const documents = await listDocuments(company.client, company.companyId, uploaded.value.id);
   for (const document of documents) {
-    expect(await rejectDocument(company.client, {
+    expect(await rejectDocument(company.client, { reason: "Not a business Document",
       companyId: company.companyId,
       documentId: document.id,
     })).toEqual({ ok: true, value: null });

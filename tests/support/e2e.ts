@@ -1,5 +1,8 @@
 import fs from "node:fs/promises";
-import { selectFixtureFiles } from "./files";
+import { asUserClient } from "@/application/client";
+import { uploadSourceFile } from "@/application/source-files";
+import { listDocuments } from "@/application/documents";
+import { fixtureFile, selectFixtureFiles } from "./files";
 import { createClient } from "@supabase/supabase-js";
 import { Client as DatabaseClient } from "pg";
 import type { Database } from "@/lib/database.types";
@@ -459,4 +462,25 @@ export async function ensureBrowserReportingYearFixture(companyId: string, year:
   } finally {
     await database.end();
   }
+}
+
+/** Real upload/Auth fixture stopped before Extraction, with no AI Configuration. */
+export async function addBrowserUnextractedDocumentFixture(input: { companyId: string; email: string; password: string; status: "failed" | "waiting_for_platform" }) {
+  const environment = await browserFixtureEnvironment();
+  const client = asUserClient(createClient<Database>(environment.NEXT_PUBLIC_SUPABASE_URL, environment.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  }));
+  const signedIn = await client.auth.signInWithPassword({ email: input.email, password: input.password });
+  if (signedIn.error) throw signedIn.error;
+  const uploaded = await uploadSourceFile(client, { async send() {} }, {
+    companyId: input.companyId, fileName: "receipt.png", bytes: fixtureFile("receipt.png"),
+  });
+  if (!uploaded.ok) throw new Error(uploaded.error);
+  const system = await browserFixtureClient();
+  const split = await system.rpc("record_split", { target_source_file_id: uploaded.value.id, source_ranges: [{ firstPage: 1, lastPage: 1 }] });
+  if (split.error) throw split.error;
+  const [document] = await listDocuments(client, input.companyId, uploaded.value.id);
+  const setup = await system.from("document").update({ status: input.status }).eq("id", document.id);
+  if (setup.error) throw setup.error;
+  return document.id;
 }
