@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { uploadSourceFile } from "@/application/source-files";
 import { administratorWithCompany, platformCompanyInventoryFixture, storageObjectMetadataFixture } from "./support/fixtures";
-import { signedUpUser } from "./support/clients";
+import { provisionedUser } from "./support/clients";
 import { fixtureFile } from "./support/files";
 import { testWorker, systemClient } from "./support/worker";
 import { promotedSuperAdministrator } from "./support/platform";
@@ -9,7 +9,7 @@ import { promotedSuperAdministrator } from "./support/platform";
 describe("authenticated Source File Storage access", () => {
   it("lists only the authorized Company's objects among unrelated Companies and objects", async () => {
     const owner = await administratorWithCompany("Storage listing owner");
-    const outsider = await signedUpUser("Storage listing outsider");
+    const outsider = await provisionedUser("Storage listing outsider");
     const uploaded = await uploadSourceFile(owner.client, testWorker().jobs, {
       companyId: owner.companyId, fileName: "receipt.png", bytes: fixtureFile("receipt.png"),
     });

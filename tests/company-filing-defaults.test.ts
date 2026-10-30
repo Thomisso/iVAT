@@ -10,7 +10,7 @@ import {
   getCompanySetupChecklist,
   updateCompanyIdentity,
 } from "@/application/companies";
-import { signedUpUser } from "./support/clients";
+import { provisionedUser } from "./support/clients";
 import { administratorWithCompany, companyDetails, companyMember } from "./support/fixtures";
 
 it("saves the economic activity and territorial office independently from statutory identity", async () => {
@@ -168,7 +168,7 @@ it("lets an Administrator edit filing defaults and refuses a Company User", asyn
 });
 
 it("requires an explicit EPO address confirmation only when the registered address exceeds schema limits", async () => {
-  const administrator = await signedUpUser();
+  const administrator = await provisionedUser();
   const created = await createCompany(administrator.client, {
     organizationId: administrator.organizationId,
     ...companyDetails({ streetName: "Dlouhá registrovaná ulice překračující limit EPO" }),
@@ -230,7 +230,7 @@ it("requires an explicit EPO address confirmation only when the registered addre
 
 it("isolates filing defaults from another Organization", async () => {
   const company = await administratorWithCompany();
-  const outsider = await signedUpUser("Other Organization");
+  const outsider = await provisionedUser("Other Organization");
   expect(await saveCompanyFilingDefaults(company.client, {
     companyId: company.companyId,
     taxOffice: "451",

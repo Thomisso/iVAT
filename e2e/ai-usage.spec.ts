@@ -1,3 +1,4 @@
+import { provisionAndLogIn } from "./support/accounts";
 import { createHmac } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import {
@@ -22,13 +23,9 @@ function authenticatorCode(secret: string) {
   return ((digest.readUInt32BE(offset) & 0x7fffffff) % 1_000_000).toString().padStart(6, "0");
 }
 
-async function signUpWithCompany(page: Page, run: string) {
+async function provisionCompanyAdministrator(page: Page, run: string) {
   const email = `ai-usage-${run}@example.test`;
-  await page.goto("/signup");
-  await page.getByLabel("Organization name").fill(`Usage Organization ${run}`);
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Sign up" }).click();
+  await provisionAndLogIn(page, { organizationName: `Usage Organization ${run}`, email, password });
   await page.getByLabel("Company name").fill(`Usage Company ${run}`);
   const digits = Date.now().toString().slice(-8);
   await page.getByLabel("IČO").fill(digits);
@@ -65,7 +62,7 @@ test("SuperAdmin prices models and filters and groups AI usage with its cost", a
   await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: new URL(baseURL).origin }]);
   await page.setViewportSize({ width: 1440, height: 900 });
   const run = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-  const { companyId, email } = await signUpWithCompany(page, run);
+  const { companyId, email } = await provisionCompanyAdministrator(page, run);
   const configuration = await assignBrowserAiConfigurationFixture(companyId);
   await enrollSuperAdmin(page, email);
 

@@ -14,7 +14,7 @@ import { logIn, logOut } from "@/application/auth";
 import { listAuditEvents } from "@/application/audit";
 import { listMyCompanies } from "@/application/companies";
 import { listMyOrganizations } from "@/application/organizations";
-import { signedUpUser } from "./support/clients";
+import { provisionedUser } from "./support/clients";
 import { administratorWithCompany, companyMember } from "./support/fixtures";
 import { systemClient } from "./support/worker";
 
@@ -43,14 +43,14 @@ function totp(secret: string, at = Date.now()): string {
 
 describe("MFA", () => {
   it("can restart an unfinished TOTP enrollment", async () => {
-    const user = await signedUpUser();
+    const user = await provisionedUser();
 
     expect((await beginTotpEnrollment(user.client)).ok).toBe(true);
     expect((await beginTotpEnrollment(user.client)).ok).toBe(true);
   });
 
   it("enrols and verifies a TOTP authenticator, returns ten recovery codes, and audits the change", async () => {
-    const user = await signedUpUser();
+    const user = await provisionedUser();
 
     const enrollment = await beginTotpEnrollment(user.client);
     expect(enrollment.ok).toBe(true);
@@ -81,7 +81,7 @@ describe("MFA", () => {
   });
 
   it("accepts each recovery code only once", async () => {
-    const user = await signedUpUser();
+    const user = await provisionedUser();
     const enrollment = await beginTotpEnrollment(user.client);
     if (!enrollment.ok) throw new Error(enrollment.error);
     const completed = await completeTotpEnrollment(user.client, {
@@ -113,7 +113,7 @@ describe("MFA", () => {
   });
 
   it("verifies TOTP after login and lets the user disenrol with an audit event", async () => {
-    const user = await signedUpUser();
+    const user = await provisionedUser();
     const enrollment = await beginTotpEnrollment(user.client);
     if (!enrollment.ok) throw new Error(enrollment.error);
     const completed = await completeTotpEnrollment(user.client, {

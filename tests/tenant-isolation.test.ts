@@ -8,7 +8,7 @@ import {
   updateDocumentReporting,
 } from "@/application/documents";
 import { getSourceFile, listSourceFiles, readSourceFile, retrySplit, uploadSourceFile } from "@/application/source-files";
-import { anonymousClient, signedUpUser } from "./support/clients";
+import { anonymousClient, provisionedUser } from "./support/clients";
 import { fixtureFile } from "./support/files";
 import { systemClient, testWorker } from "./support/worker";
 import {
@@ -24,7 +24,7 @@ describe("tenant isolation", () => {
 
   it("hides another Organization and its Companies from the application layer", async () => {
     const a = await administratorWithCompany("Organization A");
-    const b = await signedUpUser("Organization B");
+    const b = await provisionedUser("Organization B");
 
     expect((await listMyOrganizations(b.client)).map((o) => o.name)).toEqual(["Organization B"]);
     expect(await listMyCompanies(b.client)).toEqual([]);
@@ -33,7 +33,7 @@ describe("tenant isolation", () => {
 
   it("refuses to create a Company in another Organization", async () => {
     const a = await administratorWithCompany("Organization A");
-    const b = await signedUpUser("Organization B");
+    const b = await provisionedUser("Organization B");
 
     const result = await createCompany(b.client, { organizationId: a.organizationId, ...companyDetails() });
 
@@ -43,7 +43,7 @@ describe("tenant isolation", () => {
 
   it("returns nothing of another Organization to direct queries under the user's identity", async () => {
     const a = await administratorWithCompany("Organization A");
-    const b = await signedUpUser("Organization B");
+    const b = await provisionedUser("Organization B");
 
     const organizations = await b.client.from("organization").select("id").eq("id", a.organizationId);
     const companies = await b.client.from("company").select("id").eq("organization_id", a.organizationId);
@@ -61,7 +61,7 @@ describe("tenant isolation", () => {
 
   it("refuses direct modification of another Organization under the user's identity", async () => {
     const a = await administratorWithCompany("Organization A");
-    const b = await signedUpUser("Organization B");
+    const b = await provisionedUser("Organization B");
 
     const renameOrganization = await b.client.from("organization").update({ name: "Hijacked" }).eq("id", a.organizationId);
     const renameCompany = await b.client.from("company").update({ name: "Hijacked" }).eq("id", a.companyId);
@@ -104,7 +104,7 @@ describe("tenant isolation", () => {
     });
     if (recorded.error) throw recorded.error;
 
-    const b = await signedUpUser("Issue Organization B");
+    const b = await provisionedUser("Issue Organization B");
     const read = await b.client.from("ai_processing_issue").select("target_id").eq("organization_id", a.organizationId);
     const update = await b.client
       .from("ai_processing_issue")
@@ -134,7 +134,7 @@ describe("tenant isolation", () => {
 
     it("hides another Organization's Source Files and their content", async () => {
       const a = await organizationWithSourceFile();
-      const b = await signedUpUser("Organization B");
+      const b = await provisionedUser("Organization B");
 
       expect(await listSourceFiles(b.client, a.companyId)).toEqual([]);
       expect(await getSourceFile(b.client, a.companyId, a.sourceFileId)).toBeNull();
@@ -143,7 +143,7 @@ describe("tenant isolation", () => {
 
     it("refuses to fetch another Organization's file from storage under the user's identity", async () => {
       const a = await organizationWithSourceFile();
-      const b = await signedUpUser("Organization B");
+      const b = await provisionedUser("Organization B");
 
       const download = await b.client.storage.from("source-files").download(a.path);
       const signedUrl = await b.client.storage.from("source-files").createSignedUrl(a.path, 60);
@@ -158,7 +158,7 @@ describe("tenant isolation", () => {
 
     it("refuses uploads into another Organization's Company", async () => {
       const a = await organizationWithSourceFile();
-      const b = await signedUpUser("Organization B");
+      const b = await provisionedUser("Organization B");
 
       const result = await uploadSourceFile(b.client, testWorker().jobs, { companyId: a.companyId, fileName: "b.pdf", bytes: a.pdf });
       const direct = await b.client.storage
@@ -172,7 +172,7 @@ describe("tenant isolation", () => {
 
     it("refuses direct changes to another Organization's Source Files", async () => {
       const a = await organizationWithSourceFile();
-      const b = await signedUpUser("Organization B");
+      const b = await provisionedUser("Organization B");
 
       const rename = await b.client.from("source_file").update({ file_name: "hijacked.pdf" }).eq("id", a.sourceFileId);
       const deleteRow = await b.client.from("source_file").delete().eq("id", a.sourceFileId);
@@ -203,7 +203,7 @@ describe("tenant isolation", () => {
 
     it("hides another Organization's Documents and Extraction Versions", async () => {
       const a = await organizationWithDocument();
-      const b = await signedUpUser("Organization B");
+      const b = await provisionedUser("Organization B");
 
       const documents = await b.client.from("document").select("id").eq("company_id", a.companyId);
       const versions = await b.client.from("extraction_version").select("id").eq("company_id", a.companyId);
@@ -216,7 +216,7 @@ describe("tenant isolation", () => {
 
     it("refuses to reprocess or retry another Organization's work, even through direct calls", async () => {
       const a = await organizationWithDocument();
-      const b = await signedUpUser("Organization B");
+      const b = await provisionedUser("Organization B");
 
       const reprocess = await reprocessDocument(b.client, a.worker.jobs, { companyId: a.companyId, documentId: a.documentId });
       const retry = await retrySplit(b.client, a.worker.jobs, { companyId: a.companyId, sourceFileId: a.sourceFileId });
@@ -304,7 +304,7 @@ describe("tenant isolation", () => {
       if (reservation.error) throw reservation.error;
       expect(reservation.data).toBe("reserved");
 
-      const b = await signedUpUser("Reservation Organization B");
+      const b = await provisionedUser("Reservation Organization B");
       const read = await b.client.from("ai_processing_reservation").select("id").eq("id", reservationId);
       const update = await b.client
         .from("ai_processing_reservation")

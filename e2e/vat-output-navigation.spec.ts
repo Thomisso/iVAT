@@ -1,3 +1,4 @@
+import { provisionAndLogIn } from "./support/accounts";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 
@@ -34,11 +35,7 @@ async function createCompany(page: Page) {
   const run = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const ico = `${Date.now()}`.slice(-8);
   const companyName = `Output Company ${run}`;
-  await page.goto("/signup");
-  await page.getByLabel("Organization name").fill(`Output Organization ${run}`);
-  await page.getByLabel("Email").fill(`outputs-${run}@example.test`);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Sign up" }).click();
+  await provisionAndLogIn(page, { organizationName: `Output Organization ${run}`, email: `outputs-${run}@example.test`, password });
   await page.getByLabel("Company name").fill(companyName);
   await page.getByLabel("IČO").fill(ico);
   await page.getByLabel("VAT ID").fill(`CZ${ico}`);
