@@ -16,6 +16,7 @@ import { Button } from "@/components/button";
 import { FormError } from "@/components/form-error";
 import { DateInput } from "@/components/date-input";
 import { FilingDefaultsForm } from "../settings/filing-defaults-form";
+import { downloadVatReportXml } from "@/lib/vat-report-download";
 
 export function ExportForm({
   companyId,
@@ -76,56 +77,18 @@ export function ExportForm({
     setPending(true);
     setError(null);
     try {
-      const response = await fetch(
-        `/companies/${companyId}/vat-reports/${period}/xml`,
-        { method: "POST", body: form, signal: controller.signal },
-      );
-      if (response.redirected) {
-        window.location.assign(response.url);
-        return;
-      }
-      if (!response.ok) {
-        const failure = await response.json();
-        if (wizard && failure.error === "invalid_export_details") {
+      const result = await downloadVatReportXml({
+        url: `/companies/${companyId}/vat-reports/${period}/xml`,
+        companyId, period, format, kind: finalized ? "final" : "draft",
+        body: form, signal: controller.signal,
+      });
+      if (!result.ok) {
+        if (wizard && result.error === "invalid_export_details") {
           setOpened(true);
           setEditing(true);
         }
-        setError(
-          [
-            "report_not_found",
-            "invalid_export_format",
-            "invalid_export_details",
-            "epo_address_required",
-            "stale_report",
-            "report_finalized",
-            "report_not_finalized",
-            "xml_invalid",
-            "forbidden",
-          ].includes(failure.error)
-            ? failure.error
-            : "export_failed",
-        );
-        return;
+        setError(result.error);
       }
-      if (
-        !response.headers.get("Content-Type")?.startsWith("application/xml")
-      ) {
-        setError("export_failed");
-        return;
-      }
-      const blob = await response.blob();
-      if (controller.signal.aborted) return;
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      const disposition = response.headers.get("Content-Disposition") ?? "";
-      const prefix = finalized ? "" : "DRAFT_";
-      link.download = disposition.match(/filename="([^"]+)"/)?.[1]
-        ?? `${prefix}${String(form.get("format")).toUpperCase()}_${period}.xml`;
-      document.body.append(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch {
       if (!controller.signal.aborted) setError("export_failed");
     } finally {
