@@ -20,7 +20,7 @@ import {
 } from "@/application/documents";
 import type { ExtractionPayload } from "@/application/extraction-payload";
 import { getReportingPeriodReadiness } from "@/application/reporting-period-readiness";
-import { generateVatReport, getVatReport } from "@/application/vat-reports";
+import { finalizeVatReport, generateVatReport, getVatReport } from "@/application/vat-reports";
 import { uploadSourceFile } from "@/application/source-files";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { provisionedUser } from "./support/clients";
@@ -34,6 +34,7 @@ import { testWorker } from "./support/worker";
 import { fakeExchangeRates } from "@/cnb/fake";
 import { addLegacyRateBreakdownVersionFixture } from "./support/rate-breakdown-history";
 import { fakeVatPayerRegistry } from "@/vat-registry/fake";
+import { addLegacyUndeterminedVatRegimeFixture, setLegacyVatRegimeReadinessFixture } from "./support/vat-regime-history";
 
 /** An Administrator whose Company holds one Document in NeedsReview, Extracted as `extraction`. */
 async function documentInReview(extraction: ExtractionPayload = SAMPLE_EXTRACTION) {
@@ -472,6 +473,95 @@ describe("assigning an incoming Document to a Reporting Period", () => {
 });
 
 describe("approving and rejecting a Document", () => {
+  it("refuses a predecessor draft whose cached blocker count predates the VAT Regime requirement", async () => {
+    const document = await documentInReview();
+    const period = { companyId: document.companyId, period: "2026-10" };
+    expect(await approveDocument(document.client, { ...document, version: 1 })).toEqual({ ok: true, value: null });
+    await addLegacyUndeterminedVatRegimeFixture(inject("databaseUrl"), document.documentId);
+    expect((await generateVatReport(document.client, period)).ok).toBe(true);
+    await setLegacyVatRegimeReadinessFixture(inject("databaseUrl"), document.companyId, period.period);
+    expect((await getVatReport(document.client, document.companyId, period.period))?.finalization.blockerCount).toBe(0);
+    const readiness = await getReportingPeriodReadiness(document.client, period);
+    expect(readiness.ok && readiness.value.snapshot?.freshness).toBe("current");
+    expect(await finalizeVatReport(document.client, { ...period, confirmed: true }))
+      .toEqual({ ok: false, error: "readiness_blocked" });
+    expect((await getDocument(document.client, document.companyId, document.documentId))?.status).toBe("approved");
+  });
+
+  it("blocks historical approvals without a VAT Regime without rewriting their immutable findings", async () => {
+    const document = await documentInReview();
+    const period = { companyId: document.companyId, period: "2026-10" };
+    expect(await approveDocument(document.client, { ...document, version: 1 })).toEqual({ ok: true, value: null });
+    await addLegacyUndeterminedVatRegimeFixture(inject("databaseUrl"), document.documentId);
+    const versions = await listExtractionVersions(document.client, document.companyId, document.documentId);
+    expect(versions.at(-1)?.findings).toContainEqual({
+      field: "proposedVatRegime", severity: "error", code: "vat_regime_required",
+    });
+    const readiness = await getReportingPeriodReadiness(document.client, period);
+    expect(readiness.ok && readiness.value.ready).toBe(false);
+    expect(readiness.ok && readiness.value.blockers).toContainEqual({
+      code: "error_finding", documentId: document.documentId, findingCode: "vat_regime_required",
+    });
+    const [overview] = await listCompanyDocuments(document.client, document.companyId);
+    expect(overview.eligibleForVatReport).toBe(false);
+    expect(overview.findingCount).toBe(1);
+    expect((await generateVatReport(document.client, period)).ok).toBe(true);
+    const report = await getVatReport(document.client, document.companyId, period.period);
+    expect(report?.finalization.blockerCount).toBe(1);
+    expect(report?.result.excludedDocuments).toEqual([
+      { documentId: document.documentId, reason: "manual_classification_required" },
+    ]);
+    expect(await finalizeVatReport(document.client, { ...period, confirmed: true }))
+      .toEqual({ ok: false, error: "readiness_blocked" });
+    expect(await listExtractionVersions(document.client, document.companyId, document.documentId))
+      .toHaveLength(2);
+  });
+
+  it("preserves an undetermined VAT Regime in review and refuses approval until it is supplied", async () => {
+    const document = await documentInReview();
+    const input = { companyId: document.companyId, documentId: document.documentId };
+    expect(await correctDocument(document.client, {
+      ...input,
+      basedOnVersion: 1,
+      payload: { ...SAMPLE_EXTRACTION, proposedVatRegime: null },
+    })).toEqual({ ok: true, value: { version: 2 } });
+    const [, current] = await listExtractionVersions(document.client, input.companyId, input.documentId);
+    expect(current.payload.proposedVatRegime).toBeNull();
+    expect(current.findings).toContainEqual({
+      field: "proposedVatRegime", severity: "error", code: "vat_regime_required",
+    });
+    expect(await approveDocument(document.client, { ...input, version: 2 }))
+      .toEqual({ ok: false, error: "vat_regime_required" });
+    expect((await getDocument(document.client, input.companyId, input.documentId))?.status).toBe("needs_review");
+
+    const readiness = await getReportingPeriodReadiness(document.client, { companyId: input.companyId, period: "2026-10" });
+    expect(readiness.ok && readiness.value.blockers).toContainEqual({
+      code: "error_finding", documentId: input.documentId, findingCode: "vat_regime_required",
+    });
+    expect(await correctDocument(document.client, { ...input, basedOnVersion: 2, payload: SAMPLE_EXTRACTION }))
+      .toEqual({ ok: true, value: { version: 3 } });
+    expect(await approveDocument(document.client, { ...input, version: 3 })).toEqual({ ok: true, value: null });
+    const resolved = await getReportingPeriodReadiness(document.client, { companyId: input.companyId, period: "2026-10" });
+    expect(resolved.ok && resolved.value.ready).toBe(true);
+  });
+
+  it("enforces the required VAT Regime in the database even when supplied findings omit it", async () => {
+    const document = await documentInReview();
+    const saved = await document.client.rpc("correct_document", {
+      target_document_id: document.documentId,
+      based_on_version: 1,
+      payload: { ...SAMPLE_EXTRACTION, proposedVatRegime: null },
+      findings: [],
+    });
+    expect(saved.error).toBeNull();
+    const approval = await document.client.rpc("approve_document", {
+      target_document_id: document.documentId,
+      reviewed_version: 2,
+    });
+    expect(approval.error).toMatchObject({ code: "P0001", hint: "vat_regime_required" });
+    expect((await getDocument(document.client, document.companyId, document.documentId))?.status).toBe("needs_review");
+  });
+
   it("refuses approval of an AI-proposed Credit Note with non-negative amounts", async () => {
     const document = await documentInReview({
       ...SAMPLE_EXTRACTION,
