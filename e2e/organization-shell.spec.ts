@@ -1,3 +1,4 @@
+import { provisionAndLogIn } from "./support/accounts";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 
 const password = "Playwright-password-76";
@@ -7,12 +8,8 @@ async function english(context: BrowserContext, baseURL: string | undefined) {
   await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: new URL(baseURL).origin }]);
 }
 
-async function signUp(page: Page, organization: string, email: string) {
-  await page.goto("/signup");
-  await page.getByLabel("Organization name").fill(organization);
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Sign up" }).click();
+async function provisionAdministrator(page: Page, organization: string, email: string) {
+  await provisionAndLogIn(page, { organizationName: organization, email, password });
   await expect(page).toHaveURL(/\/companies\/new$/);
 }
 
@@ -42,7 +39,7 @@ test("Organization Administrator navigates the shared Organization shell and ret
   const run = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const organizationName = `Ledger Organization ${run}`;
   const companyName = `Selected Company ${run}`;
-  await signUp(page, organizationName, `organization-shell-${run}@example.test`);
+  await provisionAdministrator(page, organizationName, `organization-shell-${run}@example.test`);
   const firstIco = Number(`${Date.now()}`.slice(-8));
   await createCompany(page, `First Company ${run}`, String(firstIco).padStart(8, "0"));
   await page.goto("/companies/new");

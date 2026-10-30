@@ -1,3 +1,4 @@
+import { provisionAndLogIn } from "./support/accounts";
 import { expect, test } from "@playwright/test";
 import { addBrowserDocumentWarningFixture, assignBrowserAiConfigurationFixture } from "../tests/support/e2e";
 
@@ -5,11 +6,7 @@ test("bank advisories stay distinct through correction, approval and Finalizatio
   if (!baseURL) throw new Error("Playwright base URL is required");
   await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseURL }]);
   const run = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-  await page.goto("/signup");
-  await page.getByLabel("Organization name").fill(`Bank advisory ${run}`);
-  await page.getByLabel("Email").fill(`bank-advisory-${run}@example.test`);
-  await page.getByLabel("Password").fill("Playwright-password-139");
-  await page.getByRole("button", { name: "Sign up", exact: true }).click();
+  await provisionAndLogIn(page, { organizationName: `Bank advisory ${run}`, email: `bank-advisory-${run}@example.test`, password: "Playwright-password-139" });
   await expect(page).toHaveURL(/\/companies\/new$/);
   await page.getByLabel("Company name").fill(`Bank Company ${run}`);
   await page.getByLabel("IČO").fill("25596641");

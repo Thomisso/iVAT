@@ -7,7 +7,7 @@ import { listOrganizationMfaSettings, setOrganizationMfaRequired } from "@/appli
 import { inviteMember, listPendingInvitations } from "@/application/memberships";
 import { administratorWithCompany, assignAiConfigurationFixture, companyDetails, companyMember, platformCompanyInventoryFixture } from "./support/fixtures";
 import { promotedSuperAdministrator } from "./support/platform";
-import { signedUpUser } from "./support/clients";
+import { provisionedUser } from "./support/clients";
 import { systemClient, testWorker } from "./support/worker";
 import { uploadSourceFile, readSourceFile } from "@/application/source-files";
 import { approveDocument, listDocuments, returnDocumentToReview } from "@/application/documents";
@@ -62,10 +62,10 @@ describe("membership-independent SuperAdmin authority", () => {
   });
   it("requires MFA at both visibility and command boundaries without expanding ordinary tenant access", async () => {
     const target = await administratorWithCompany("Isolated target");
-    const operator = await signedUpUser("Unverified platform operator");
+    const operator = await provisionedUser("Unverified platform operator");
     const promoted = await systemClient().from("platform_user").insert({ user_id: operator.userId, role: "super_admin" });
     if (promoted.error) throw promoted.error;
-    const ordinary = await signedUpUser("Ordinary outsider");
+    const ordinary = await provisionedUser("Ordinary outsider");
     const member = await companyMember(target);
     for (const actor of [operator, ordinary]) {
       expect(await getCompany(actor.client, target.companyId)).toBeNull();

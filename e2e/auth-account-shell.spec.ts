@@ -1,3 +1,4 @@
+import { provisionAndLogIn } from "./support/accounts";
 import { createHmac } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import { promoteBrowserSuperAdminFixture } from "../tests/support/e2e";
@@ -84,11 +85,7 @@ test("account security, MFA enrollment and verification stay focused at desktop 
   const run = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const email = `auth-shell-${run}@example.test`;
 
-  await page.goto("/signup");
-  await page.getByLabel("Organization name").fill(`Auth Shell ${run}`);
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Sign up" }).click();
+  await provisionAndLogIn(page, { organizationName: `Auth Shell ${run}`, email, password });
   await expect(page).toHaveURL(/\/companies\/new$/);
 
   await page.goto("/settings/security");

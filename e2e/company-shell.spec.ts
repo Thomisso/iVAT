@@ -1,3 +1,4 @@
+import { provisionAndLogIn } from "./support/accounts";
 import fs from "node:fs/promises";
 import { createHmac } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
@@ -22,12 +23,8 @@ function authenticatorCode(secret: string) {
   return number.toString().padStart(6, "0");
 }
 
-async function signUp(page: Page, organization: string, email: string) {
-  await page.goto("/signup");
-  await page.getByLabel("Organization name").fill(organization);
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Sign up" }).click();
+async function provisionAdministrator(page: Page, organization: string, email: string) {
+  await provisionAndLogIn(page, { organizationName: organization, email, password });
   await expect(page).toHaveURL(/\/companies\/new$/);
 }
 
@@ -82,7 +79,7 @@ test("Company context, final navigation and account return stay explicit", async
   await english(context, baseURL);
   const run = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const email = `shell-admin-${run}@example.test`;
-  await signUp(page, `Shell Organization ${run}`, email);
+  await provisionAdministrator(page, `Shell Organization ${run}`, email);
   const firstId = await createCompany(page, `Alpha ${run}`, `${Date.now()}`.slice(-8));
   const secondId = await createCompany(page, `Zeta ${run}`, `${Date.now() + 1}`.slice(-8));
 
@@ -168,7 +165,7 @@ test("mobile shell menus return focus and role-dependent administration stays pr
   await english(adminContext, baseURL);
   const adminPage = await adminContext.newPage();
   const adminEmail = `shell-owner-${run}@example.test`;
-  await signUp(adminPage, `Owner Organization ${run}`, adminEmail);
+  await provisionAdministrator(adminPage, `Owner Organization ${run}`, adminEmail);
   const companyId = await createCompany(adminPage, `Role Company ${run}`, `${Date.now()}`.slice(-8));
 
   await adminPage.setViewportSize({ width: 360, height: 800 });
@@ -227,7 +224,7 @@ test("mobile shell menus return focus and role-dependent administration stays pr
   await english(userContext, baseURL);
   const userPage = await userContext.newPage();
   const userEmail = `shell-user-${run}@example.test`;
-  await signUp(userPage, `User Organization ${run}`, userEmail);
+  await provisionAdministrator(userPage, `User Organization ${run}`, userEmail);
   const service = await serviceClient();
   const [{ data: company }, { data: users }] = await Promise.all([
     service.from("company").select("organization_id").eq("id", companyId).single(),
@@ -292,7 +289,7 @@ test("nested Company routes keep one aligned shell at desktop and mobile widths"
   await english(context, baseURL);
   const run = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const companyName = `Nested Company ${run}`;
-  await signUp(page, `Nested Organization ${run}`, `nested-${run}@example.test`);
+  await provisionAdministrator(page, `Nested Organization ${run}`, `nested-${run}@example.test`);
   const companyId = await createCompany(page, companyName, `${Date.now()}`.slice(-8), true);
 
   await page.goto(`/companies/${companyId}/upload`);

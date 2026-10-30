@@ -1,3 +1,4 @@
+import { provisionAndLogIn } from "./support/accounts";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { failOneDocumentInUploadBatch } from "../tests/support/browser-upload";
 import { assignBrowserAiConfigurationFixture } from "../tests/support/e2e";
@@ -12,11 +13,7 @@ async function english(context: BrowserContext, baseURL: string | undefined) {
 async function createCompany(page: Page, run: string, existingOrganization = false): Promise<string> {
   if (existingOrganization) await page.goto("/companies/new");
   else {
-    await page.goto("/signup");
-    await page.getByLabel("Organization name").fill(`Upload Organization ${run}`);
-    await page.getByLabel("Email").fill(`upload-${run}@example.test`);
-    await page.getByLabel("Password").fill(password);
-    await page.getByRole("button", { name: "Sign up" }).click();
+    await provisionAndLogIn(page, { organizationName: `Upload Organization ${run}`, email: `upload-${run}@example.test`, password });
   }
   await page.getByLabel("Company name").fill(`Upload Company ${run}`);
   const digits = Date.now().toString().slice(-8);

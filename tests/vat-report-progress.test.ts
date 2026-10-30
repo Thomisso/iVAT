@@ -6,7 +6,7 @@ import { finalizeVatReport, generateVatReport, getVatReport } from "@/applicatio
 import { getVatProcessingWizard } from "@/application/vat-processing";
 import { listAuditEvents } from "@/application/audit";
 import { administratorWithCompany, companyMember } from "./support/fixtures";
-import { signedUpUser } from "./support/clients";
+import { provisionedUser } from "./support/clients";
 import { exportCompanyData } from "@/application/company-deletion";
 import { testWorker } from "./support/worker";
 import { strFromU8, unzipSync } from "fflate";
@@ -116,7 +116,7 @@ it("refuses mismatched Company, period, format, generation and artifact identiti
 
 it("isolates both append-only progress tables and their privileged commands across Organizations", async () => {
   const company = await prepared();
-  const outsider = await signedUpUser();
+  const outsider = await provisionedUser();
   const artifact = await exported(company);
   await acknowledgeVatReportDownload(company.client, artifact);
   await skipVatReportDrafts(company.client, { ...company.input, reportGeneratedAt: company.reportGeneratedAt });

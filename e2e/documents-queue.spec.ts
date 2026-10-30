@@ -1,3 +1,4 @@
+import { provisionAndLogIn } from "./support/accounts";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { assignBrowserAiConfigurationFixture, addBrowserLegacyRateBreakdownVersionFixture, setBrowserDocumentTaxPointFixture } from "../tests/support/e2e";
 
@@ -8,11 +9,7 @@ async function createAiCompany(context: BrowserContext, page: Page, baseURL: str
   await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: new URL(baseURL).origin }]);
   const run = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const digits = Date.now().toString().slice(-8);
-  await page.goto("/signup");
-  await page.getByLabel("Organization name").fill(`Queue Organization ${run}`);
-  await page.getByLabel("Email").fill(`queue-${run}@example.test`);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Sign up" }).click();
+  await provisionAndLogIn(page, { organizationName: `Queue Organization ${run}`, email: `queue-${run}@example.test`, password });
   await page.getByLabel("Company name").fill(`Queue Company ${run}`);
   await page.getByLabel("IČO").fill(digits);
   await page.getByLabel("VAT ID").fill(`CZ${digits}`);
