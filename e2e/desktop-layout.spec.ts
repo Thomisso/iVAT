@@ -219,6 +219,30 @@ test("multiline confirmations stay beside their controls and Finalization uses t
   const result = await new AxeBuilder({ page }).analyze();
   expect(result.violations.filter((issue) => issue.impact === "serious" || issue.impact === "critical")).toEqual([]);
   await testInfo.attach("finalization-unlock-wide", { body: await notice.locator("xpath=ancestor::li").screenshot({ path: testInfo.outputPath("finalization-unlock-wide.png") }), contentType: "image/png" });
+  for (const locale of ["en", "cs"]) {
+    await context.addCookies([{ name: "NEXT_LOCALE", value: locale, url: baseURL }]);
+    await page.reload();
+    const finalSection = page.getByRole("heading", { name: locale === "en" ? "Finalize" : "Finalizace", level: 2, exact: true }).locator("xpath=ancestor::li");
+    const exports = finalSection.getByRole("button", { name: locale === "en" ? /^Export (VAT Return|Control Statement) XML$/ : /^Exportovat XML/ });
+    await expect(exports).toHaveCount(2);
+    await expect(finalSection.getByRole("note", { name: locale === "en" ? "Export timing warnings" : "Upozornění na termíny exportu", exact: true })).toHaveCount(2);
+    for (const width of [360, 720, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      for (const action of await exports.all()) {
+        await action.scrollIntoViewIfNeeded();
+        const bounds = await box(action);
+        expect(bounds.x).toBeGreaterThanOrEqual(0);
+        expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+        await action.focus();
+        await expect(action).toBeFocused();
+      }
+      await testInfo.attach(`final-xml-${locale}-${width}`, { body: await finalSection.screenshot({ path: testInfo.outputPath(`final-xml-${locale}-${width}.png`) }), contentType: "image/png" });
+      await expectNoHorizontalOverflow(page);
+    }
+    const result = await new AxeBuilder({ page }).analyze();
+    expect(result.violations.filter((issue) => issue.impact === "serious" || issue.impact === "critical")).toEqual([]);
+  }
+
 });
 
 

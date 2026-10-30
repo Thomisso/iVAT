@@ -2177,7 +2177,7 @@ select:disabled {
 .finalization-summary dd { margin: 4px 0 0; }
 .upload-batch-deletion .iv-btn { align-self: start; max-width: 100%; height: auto; min-height: var(--control-md); white-space: normal; }
 .vat-transition-history > p { color: #617078; }
-.vat-wizard { margin: 0; padding: 0; display: grid; gap: 14px; list-style: none; }
+.vat-wizard { margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; list-style: none; }
 .vat-wizard-step {
   border: 1px solid #d4ddda;
   border-left: 4px solid #b8c4c1;
@@ -2253,10 +2253,11 @@ select:disabled {
 .vat-output-issue-columns li + li { margin-top: 7px; }
 .vat-output-action-grid { display: grid; grid-template-columns: minmax(220px, .7fr) minmax(320px, 1.3fr); gap: 18px; align-items: start; }
 .vat-output-action-grid.is-single { grid-template-columns: minmax(0, 760px); }
-.vat-export-card { height: 100%; padding: 20px; border: 1px solid #d6dfdc; border-radius: 8px; background: #fafbf9; }
+.vat-export-card { min-width: 0; height: 100%; padding: 20px; border: 1px solid #d6dfdc; border-radius: 8px; background: #fafbf9; }
 .vat-export-card h3 { margin: 0; color: var(--shell-navy); font-size: 18px; }
 .vat-export-card > p { margin: 5px 0 16px; color: #617078; }
 .vat-export-card .form { margin-bottom: 0; }
+.vat-export-card .iv-btn { height: auto; min-height: var(--control-md); white-space: normal; }
 .vat-export-timing { margin: 12px 0; }
 .vat-export-timing ul { margin: 0; padding-left: 18px; display: grid; gap: 8px; }
 .epo-export-summary { display: grid; gap: 8px; margin: 0; }
@@ -2275,7 +2276,7 @@ select:disabled {
   .vat-processing-grid { grid-template-columns: 1fr; }
   .vat-period-toolbar { grid-template-columns: 1fr 1fr; }
   .vat-period-toolbar form { grid-column: 1 / -1; grid-row: 1; justify-content: center; }
-  .vat-output-action-grid { grid-template-columns: 1fr; }
+  .vat-output-action-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (max-width: 520px) {

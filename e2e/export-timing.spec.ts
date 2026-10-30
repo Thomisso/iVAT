@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("timing warnings stay independent and permit direct wizard and detail XML downloads", async ({ page, context, baseURL }) => {
+test("timing warnings stay independent and permit direct wizard and detail XML downloads", async ({ page, context, baseURL }, testInfo) => {
   if (!baseURL) throw new Error("Playwright baseURL is required");
   await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseURL }]);
   const run = crypto.randomUUID();
@@ -47,6 +47,18 @@ test("timing warnings stay independent and permit direct wizard and detail XML d
   await expect(card.getByText("The preparation date is after today in Prague.", { exact: true })).toBeVisible();
   await expect(card.getByText("The Reporting Period has not ended yet.", { exact: true })).toBeVisible();
   await expect(card.getByText(/Potentially late ordinary filing/)).toContainText("27.04.2026");
+
+  for (const width of [360, 720]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    const action = card.getByRole("button", { name: "Download XML", exact: true });
+    await action.scrollIntoViewIfNeeded();
+    const bounds = await action.boundingBox();
+    if (!bounds) throw new Error("XML download control is not rendered");
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+    await testInfo.attach(`export-timing-${width}`, { body: await card.screenshot({ path: testInfo.outputPath(`export-timing-${width}.png`) }), contentType: "image/png" });
+  }
   const detail = page.waitForEvent("download");
   await card.getByRole("button", { name: "Download XML", exact: true }).click();
   expect((await detail).suggestedFilename()).toBe("DRAFT_DPHDP3_2026-03.xml");
