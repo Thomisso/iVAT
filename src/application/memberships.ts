@@ -254,12 +254,13 @@ export async function listMemberships(
   input: { organizationId: string; companyId: string | null },
 ): Promise<Membership[]> {
   if (!isUuid(input.organizationId) || (input.companyId !== null && !isUuid(input.companyId))) return [];
-  let query = client.from("membership").select("id, user_id, organization_id, company_id, email, role")
-    .eq("organization_id", input.organizationId);
-  query = input.companyId === null ? query.is("company_id", null) : query.eq("company_id", input.companyId);
-  const { data, error } = await query.order("created_at");
+  const { data, error } = await client.rpc("list_active_memberships", {
+    target_organization_id: input.organizationId,
+    target_company_id: input.companyId as string,
+  });
   if (error) throw error;
-  return data.map((membership) => ({
+  const rows = data as unknown as { id: string; user_id: string; organization_id: string; company_id: string | null; email: string; role: MembershipRole }[];
+  return rows.map((membership) => ({
     id: membership.id,
     userId: membership.user_id,
     organizationId: membership.organization_id,
