@@ -7,6 +7,7 @@ import type { AppClient, Result } from "@/application/client";
 import { extractJob, splitJob, type JobQueue } from "@/application/processing";
 import { Client as DatabaseClient } from "pg";
 import { inject } from "vitest";
+import { SAMPLE_EXTRACTION } from "@/ai/fake";
 import { signedUpUser } from "./clients";
 import { systemClient } from "./worker";
 
@@ -128,19 +129,26 @@ export function companyDetails(
     postalCode: "120 00",
     personType: "legal",
     filingFrequency: "monthly",
-    filingFrequencyEffectiveFrom: "2026-01-01",
+    reportingYear: 2026,
     ...overrides,
   };
 }
 
-/** A signed-up Organization Administrator whose Organization holds one Company. */
+/**
+ * A signed-up Organization Administrator whose Organization holds one Company,
+ * the customer of {@link SAMPLE_EXTRACTION}: the fake's default Extraction is
+ * detected as incoming for it.
+ */
 export async function administratorWithCompany(
   organizationName = "Test Organization",
 ) {
   const user = await signedUpUser(organizationName);
   const result = await createCompany(user.client, {
     organizationId: user.organizationId,
-    ...companyDetails(),
+    ...companyDetails({
+      ico: SAMPLE_EXTRACTION.customer.ico!,
+      vatId: SAMPLE_EXTRACTION.customer.vatId!,
+    }),
   });
   if (!result.ok) throw new Error(`Company creation failed: ${result.error}`);
   return { ...user, companyId: result.value.id };

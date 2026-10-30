@@ -72,7 +72,6 @@ async function createCompany(page: Page, name: string, ico: string) {
   await page.getByRole("button", { name: "Create company" }).click();
   await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+\/setup\/filing-frequency$/);
   const companyId = new URL(page.url()).pathname.split("/")[2];
-  await page.getByLabel("Effective from").fill("2026-01-01");
   await page.getByRole("button", { name: "Save and continue" }).click();
   await expect(page).toHaveURL(new RegExp(`/companies/${companyId}/setup/ai-processing$`));
   await page.goto(`/companies/${companyId}`);
@@ -113,8 +112,7 @@ test("real Auth, Company, Organization and Platform surfaces share one accessibl
   await expectAccessibleSurface(page);
 
   const companyId = await createCompany(page, `Contract Company ${run}`, `${Date.now()}`.slice(-8));
-  await page.getByRole("button", { name: "Open administration menu" }).click();
-  const organizationHref = await page.locator('a[href^="/organizations/"][href$="/members"]').getAttribute("href");
+  const organizationHref = await page.locator('a[href^="/organizations/"][href$="/members"]').first().getAttribute("href");
   if (!organizationHref) throw new Error("Organization context link was not rendered");
 
   await promoteBrowserSuperAdminFixture(email);

@@ -43,7 +43,7 @@ export function FilingDefaultsForm({
     values: initialValues,
   });
   const [useOverride, setUseOverride] = useState(state.values.useEpoAddressOverride === "yes");
-  return <form action={action} className="form" key={JSON.stringify(state.values)}>
+  return <form action={action} className="form settings-form" key={JSON.stringify(state.values)}>
     <input name="companyId" type="hidden" value={companyId} />
     <label className="iv-field-label">
       {t("taxOffice")}

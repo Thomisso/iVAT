@@ -25,10 +25,16 @@ import { prefillCompanyFromAres } from "@/application/ares";
 import {
   createCompanyIdentity,
   getCompany,
-  setCompanyFilingFrequency,
+  setCurrentReportingYear,
   updateCompanyIdentity,
 } from "@/application/companies";
 import { saveCompanyFilingDefaults } from "@/application/company-filing-defaults";
+import {
+  changeReportingYearFrequency,
+  deleteReportingYear,
+  generateReportingYears,
+  setFirstReportingMonth,
+} from "@/application/reporting-years";
 import { changeMembershipRole, completeInvitationOnboarding, inviteMember, removeMembership } from "@/application/memberships";
 import { supabaseInvitationMailer } from "@/application/supabase-invitation-mailer";
 import { invitationUrls } from "@/application/invitation-urls";
@@ -38,6 +44,7 @@ import {
   mergeDocuments,
   moveDocumentPage,
   rejectDocument,
+  returnDocumentToReview,
   reprocessDocument,
   splitDocument,
   updateDocumentReporting,
@@ -48,6 +55,7 @@ import {
   assignCompanyAiConfiguration,
   createAiConfiguration,
   setDefaultAiConfiguration,
+  setAiModelPrices,
   updateAiConfiguration,
 } from "@/application/ai-configurations";
 import { setCompanyAiProcessingAllowance } from "@/application/ai-processing-allowance";
@@ -57,9 +65,11 @@ import {
 } from "@/application/platform-administration";
 import { retryFailedProcessingJob } from "@/application/processing-administration";
 import {
+  deleteUploadBatch,
   dismissCompanyUploadNotifications,
   dismissUploadNotification,
   markCompanyUploadNotificationsRead,
+  markUploadBatchNotificationRead,
   markUploadNotificationRead,
 } from "@/application/upload-batches";
 import { configuredAresRegistry } from "@/ares";
@@ -264,15 +274,65 @@ export async function createCompanyAction(_state: FormState, formData: FormData)
   redirect(`/companies/${result.value.id}/setup/filing-frequency`);
 }
 
-export async function setCompanyFilingFrequencyAction(_state: FormState, formData: FormData): Promise<FormState> {
+export async function setCurrentReportingYearAction(_state: FormState, formData: FormData): Promise<FormState> {
   const companyId = field(formData, "companyId");
-  const result = await setCompanyFilingFrequency(await requireUserClient(), {
+  const result = await setCurrentReportingYear(await requireUserClient(), {
     companyId,
     filingFrequency: field(formData, "filingFrequency") as "monthly" | "quarterly",
-    filingFrequencyEffectiveFrom: field(formData, "filingFrequencyEffectiveFrom"),
   });
-  if (!result.ok) return refused(result.error, formData, ["filingFrequency", "filingFrequencyEffectiveFrom"]);
+  if (!result.ok) return refused(result.error, formData, ["filingFrequency"]);
   redirect(`/companies/${companyId}/setup/ai-processing`);
+}
+
+const REPORTING_YEAR_FIELDS = ["fromYear", "toYear", "frequency"];
+
+/** Returns the generated and skipped years so the form can report both. */
+export async function generateReportingYearsAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const result = await generateReportingYears(await requireUserClient(), {
+    companyId: field(formData, "companyId"),
+    fromYear: Number(field(formData, "fromYear")),
+    toYear: Number(field(formData, "toYear") || field(formData, "fromYear")),
+    frequency: field(formData, "frequency") as "monthly" | "quarterly",
+  });
+  if (!result.ok) return refused(result.error, formData, REPORTING_YEAR_FIELDS);
+  refresh();
+  return {
+    error: null,
+    values: {
+      generated: result.value.generated.join(", "),
+      skipped: result.value.skipped.join(", "),
+    },
+  };
+}
+
+export async function changeReportingYearFrequencyAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const result = await changeReportingYearFrequency(await requireUserClient(), {
+    companyId: field(formData, "companyId"),
+    year: Number(field(formData, "year")),
+    frequency: field(formData, "frequency") as "monthly" | "quarterly",
+  });
+  if (!result.ok) return refused(result.error, formData, ["frequency"]);
+  return settled(result);
+}
+
+export async function setFirstReportingMonthAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const result = await setFirstReportingMonth(await requireUserClient(), {
+    companyId: field(formData, "companyId"),
+    year: Number(field(formData, "year")),
+    firstMonth: Number(field(formData, "firstMonth")),
+  });
+  if (!result.ok) return refused(result.error, formData, ["firstMonth"]);
+  return settled(result);
+}
+
+export async function deleteReportingYearAction(_state: FormState, formData: FormData): Promise<FormState> {
+  if (field(formData, "confirmed") !== "on") return refused("confirmation_required", formData, []);
+  const result = await deleteReportingYear(await requireUserClient(), {
+    companyId: field(formData, "companyId"),
+    year: Number(field(formData, "year")),
+  });
+  if (!result.ok) return refused(result.error, formData, ["confirmed"]);
+  return settled(result);
 }
 
 const FILING_DEFAULT_FIELDS = [
@@ -331,9 +391,6 @@ export async function uploadSourceFileAction(_state: FormState, formData: FormDa
     companyId,
     fileName: file instanceof File ? file.name : "",
     bytes: file instanceof File ? new Uint8Array(await file.arrayBuffer()) : new Uint8Array(),
-    preselectedDirection:
-      (optionalField(formData, "direction") as ExtractionPayload["direction"]) ??
-      undefined,
   });
   if (!result.ok) return refused(result.error, formData, []);
   redirect(`/companies/${companyId}/source-files/${result.value.id}`);
@@ -362,6 +419,23 @@ export async function reprocessDocumentAction(_state: FormState, formData: FormD
       documentId: field(formData, "documentId"),
     }),
   );
+}
+
+/** Runs when a User opens a batch's detail; refreshes the inbox badge in the shell. */
+export async function markUploadBatchNotificationReadAction(batchId: string): Promise<void> {
+  const result = await markUploadBatchNotificationRead(await requireUserClient(), batchId);
+  if (result.ok && result.value.changed) refresh();
+}
+
+export async function deleteUploadBatchAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const companyId = field(formData, "companyId");
+  if (field(formData, "confirmed") !== "on") return refused("confirmation_required", formData, []);
+  const result = await deleteUploadBatch(await requireUserClient(), {
+    companyId,
+    batchId: field(formData, "batchId"),
+  });
+  if (!result.ok) return refused(result.error, formData, ["confirmed"]);
+  redirect(`/companies/${companyId}/upload`);
 }
 
 export async function markUploadNotificationReadAction(
@@ -539,6 +613,15 @@ export async function rejectDocumentAction(_state: FormState, formData: FormData
   redirectAfterDocumentDecision(formData, companyId, documentId);
 }
 
+export async function returnDocumentToReviewAction(_state: FormState, formData: FormData): Promise<FormState> {
+  return settled(
+    await returnDocumentToReview(await requireUserClient(), {
+      companyId: field(formData, "companyId"),
+      documentId: field(formData, "documentId"),
+    }),
+  );
+}
+
 function redirectAfterDocumentDecision(formData: FormData, companyId: string, documentId: string): never {
   const query = normalizeDocumentQueueQuery(field(formData, "queueQuery"));
   const nextDocumentId = field(formData, "nextDocumentId");
@@ -553,14 +636,10 @@ export async function updateDocumentReportingAction(
   const result = await updateDocumentReporting(await requireUserClient(), {
     companyId: field(formData, "companyId"),
     documentId: field(formData, "documentId"),
-    receiptDate: field(formData, "receiptDate"),
     claimedReportingPeriod: optionalField(formData, "claimedReportingPeriod"),
   });
   if (!result.ok) {
-    return refused(result.error, formData, [
-      "receiptDate",
-      "claimedReportingPeriod",
-    ]);
+    return refused(result.error, formData, ["claimedReportingPeriod"]);
   }
   refresh();
   return { error: null, values: {} };
@@ -691,6 +770,40 @@ export async function updateAiConfigurationAction(
     "splitModel",
     "extractModel",
   ]);
+  refresh();
+  return { error: null, values: {} };
+}
+
+/** An empty price is no price; a decimal comma is accepted. */
+function priceField(value: FormDataEntryValue): number | null {
+  const text = String(value).trim().replace(",", ".");
+  return text === "" ? null : Number(text);
+}
+
+export async function setAiModelPricesAction(
+  _state: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const models = formData.getAll("model").map(String);
+  const inputPrices = formData.getAll("inputPricePerMillion");
+  const outputPrices = formData.getAll("outputPricePerMillion");
+  const result = await setAiModelPrices(await requireUserClient(), {
+    configurationId: field(formData, "configurationId"),
+    prices: models.map((model, index) => ({
+      model,
+      inputPricePerMillion: priceField(inputPrices[index] ?? ""),
+      outputPricePerMillion: priceField(outputPrices[index] ?? ""),
+    })),
+  });
+  if (!result.ok) {
+    return {
+      error: result.error,
+      values: Object.fromEntries(models.flatMap((model, index) => [
+        [`inputPricePerMillion:${model}`, String(inputPrices[index] ?? "")],
+        [`outputPricePerMillion:${model}`, String(outputPrices[index] ?? "")],
+      ])),
+    };
+  }
   refresh();
   return { error: null, values: {} };
 }

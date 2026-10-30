@@ -27,7 +27,6 @@ async function createCompany(page: Page, name: string, ico: string) {
   await page.getByRole("button", { name: "Create company" }).click();
   await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+\/setup\/filing-frequency$/);
   const companyId = new URL(page.url()).pathname.split("/")[2];
-  await page.getByLabel("Effective from").fill("2026-01-01");
   await page.getByRole("button", { name: "Save and continue" }).click();
   await expect(page).toHaveURL(new RegExp(`/companies/${companyId}/setup/ai-processing$`));
   await page.goto(`/companies/${companyId}`);
@@ -51,8 +50,9 @@ test("Organization Administrator navigates the shared Organization shell and ret
   const companyId = await createCompany(page, companyName, String(secondIco).padStart(8, "0"));
   await expect(page.getByRole("button", { name: "Choose Company" })).toContainText(companyName);
 
-  await page.getByRole("button", { name: "Open administration menu" }).click();
-  const organizationMembersLink = page.locator('a[href^="/organizations/"][href$="/members"]');
+  const organizationMembersLink = page
+    .getByRole("navigation", { name: "Administration" })
+    .locator('a[href^="/organizations/"][href$="/members"]');
   const membersHref = await organizationMembersLink.getAttribute("href");
   expect(membersHref).toMatch(/^\/organizations\/[0-9a-f-]+\/members$/);
   await organizationMembersLink.click();

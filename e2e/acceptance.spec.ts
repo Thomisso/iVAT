@@ -1,10 +1,12 @@
 import fs from "node:fs/promises";
 import { expect, test } from "@playwright/test";
+import { SAMPLE_EXTRACTION } from "../src/ai/fake";
 import { validateEpoXml } from "../src/application/epo-xml";
 import {
   addBrowserCompanyMemberFixture,
   addBrowserDocumentWarningFixture,
   assignBrowserAiConfigurationFixture,
+  ensureBrowserReportingYearFixture,
 } from "../tests/support/e2e";
 
 test("an administrator can turn an uploaded Source File into a traceable, exportable VAT Report", async ({
@@ -44,12 +46,13 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   await page.getByLabel("Postal code").fill("11000");
   await page.getByRole("button", { name: "Create company" }).click();
   await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+\/setup\/filing-frequency$/);
-  await page.getByLabel("Effective from").fill("2026-01-01");
   await page.getByRole("button", { name: "Save and continue" }).click();
   await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+\/setup\/ai-processing$/, { timeout: 45_000 });
   const companyUrl = page.url().replace(/\/setup\/ai-processing$/, "");
   const companyId = new URL(companyUrl).pathname.split("/")[2];
   await assignBrowserAiConfigurationFixture(companyId);
+  // Onboarding generates only the current year; the fake extraction is dated in SAMPLE_EXTRACTION's year.
+  await ensureBrowserReportingYearFixture(companyId, Number(SAMPLE_EXTRACTION.taxPointDate!.slice(0, 4)));
   await page.goto(companyUrl);
 
   await page.goto(`${companyUrl}/members`);
@@ -80,9 +83,8 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   if (!reviewBatchUrl) throw new Error("Review Batch URL is missing");
 
   await page.goto(`${companyUrl}/vat-reports?period=2026-10`);
-  await page.getByRole("button", { name: "Generate draft" }).click();
-  await expect(page.getByText("Current data is not ready", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Finalize and lock period" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Generate draft" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Finalize and lock period" })).toHaveCount(0);
   const blockers = page.getByRole("link", { name: "2 blocker Documents" });
   await expect(blockers).toBeVisible();
   await blockers.click();
@@ -122,9 +124,8 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   await expect(page.getByText("No documents match the filters.")).toBeVisible();
 
   await page.goto(`${companyUrl}/vat-reports?period=2026-10`);
-  await expect(page.getByText("Stale", { exact: true }).first()).toBeVisible();
-  await expect(page.getByRole("button", { name: "Finalize and lock period" })).toBeDisabled();
-  await page.getByRole("button", { name: "Generate / regenerate draft" }).click();
+  await expect(page.getByRole("button", { name: "Finalize and lock period" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Generate draft" }).click();
   await expect(page.getByText("This snapshot matches the relevant live Documents.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Finalize and lock period" })).toBeDisabled();
   await page.getByRole("navigation", { name: "Reporting Period destinations" })
@@ -219,6 +220,9 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   const artifactHistory = page.getByRole("table", { name: "Stored XML artifacts" });
   await expect(artifactHistory.getByText("Final", { exact: true })).toBeVisible();
   await expect(artifactHistory.getByText("Working", { exact: true })).toBeVisible();
+  await artifactHistory.locator("details")
+    .filter({ has: page.getByText(`final-${run}@example.test`, { exact: true }) })
+    .getByText("Resolved filing details", { exact: true }).click();
   await expect(artifactHistory.getByText(`final-${run}@example.test`, { exact: true })).toBeVisible();
 
   const userContext = await browser.newContext();

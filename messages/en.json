@@ -48,10 +48,8 @@
     "companyWork": "Company work",
     "security": "Security",
     "logOut": "Log out",
-    "administrationMenu": "Open administration menu",
     "administration": "Administration",
     "companyAdministration": "Company administration",
-    "organizationAdministration": "Organization administration",
     "platformAdministration": "Platform administration",
     "users": "Users",
     "auditLog": "Audit log",
@@ -126,11 +124,30 @@
     "filingFrequency": "Filing frequency",
     "monthly": "Monthly",
     "quarterly": "Quarterly",
-    "effectiveFrom": "Effective from",
-    "effectiveFromHint": "A changed frequency applies from this date; earlier reporting periods keep their original frequency.",
-    "filingSetupIntro": "Choose how often this Company files VAT. Quarterly changes start on a calendar-quarter boundary.",
+    "currentReportingYear": "Reporting Year {year}",
+    "currentReportingYearHint": "The frequency applies to every Reporting Period of this calendar year. Other years keep their own frequency.",
+    "reportingYearsTitle": "Reporting Years",
+    "reportingYearsIntro": "Each calendar year has its own filing frequency. Generate years ahead or back; a year's frequency can change, and the year can be deleted, only while none of its Reporting Periods has a VAT Report or Period Lock.",
+    "noReportingYears": "No Reporting Years have been generated yet.",
+    "reportingYear": "Year",
+    "firstReportingMonth": "First month",
+    "firstReportingMonthOf": "First month of Reporting Year {year}",
+    "reportingYearFrequency": "Filing frequency of Reporting Year {year}",
+    "reportingYearActions": "Actions",
+    "changeReportingYear": "Change",
+    "deleteReportingYear": "Delete {year}",
+    "confirmReportingYearDeletion": "Its Documents lose their Reporting Period",
+    "generateReportingYearsTitle": "Generate Reporting Years",
+    "generateReportingYearsIntro": "Generate one year or a range, in the past or ahead. Existing years are kept as they are.",
+    "fromYear": "From year",
+    "toYear": "To year",
+    "toYearHint": "Leave empty to generate one year.",
+    "generateReportingYears": "Generate",
+    "reportingYearsGenerated": "Generated: {years}.",
+    "noReportingYearsGenerated": "No new year was generated.",
+    "reportingYearsSkipped": "Already existed and kept: {years}.",
+    "filingSetupIntro": "Choose how often this Company files VAT in the current Reporting Year.",
     "completeSetup": "Save and continue",
-    "editFilingFrequency": "Edit filing frequency",
     "usersTitle": "Users and access",
     "usersIntro": "Review everyone who can enter this Company and keep invitations separate from active access.",
     "manageUsers": "Manage users",
@@ -148,7 +165,6 @@
     "companyDetailsIntro": "Registered identity and address.",
     "vatAndReporting": "VAT and reporting",
     "vatAndReportingIntro": "Filing frequency, tax office, export defaults and processing status.",
-    "filingScheduleIntro": "Choose how often this Company files VAT.",
     "aiProcessingManagedIntro": "AI processing is assigned and managed by the platform. There are no Company credentials or provider controls.",
     "dataAndDeletion": "Data and deletion",
     "dataAndDeletionIntro": "Export the Company's data or permanently remove the Company after a protected export.",
@@ -276,13 +292,15 @@
     "hash": "SHA-256 hash",
     "status": "Status",
     "dropTitle": "Drop a Source File here",
-    "chooseFile": "Choose a file",
-    "direction": "Direction",
-    "directionAutomatic": "Detect automatically from the Company identity",
-    "directionValue": {
-      "incoming": "Incoming",
-      "outgoing": "Outgoing"
-    }
+    "chooseFile": "Choose a file"
+  },
+  "periodFilter": {
+    "label": "Reporting Period",
+    "all": "All periods",
+    "none": "No period",
+    "formLabel": "Batch filters",
+    "submit": "Filter",
+    "clear": "Clear filters"
   },
   "uploadWorkspace": {
     "newBatch": "Add Source Files",
@@ -297,6 +315,7 @@
     "batchFiles": "{count} of {planned} selected Source Files stored",
     "batchSummary": "{waiting} processing · {review} ready for review · {failures} failed",
     "noBatches": "No batches yet. Add Source Files to start one.",
+    "noMatchingBatches": "No batch contains Documents of the selected period.",
     "outcome": {
       "processing": "Processing",
       "success": "Finished",
@@ -383,7 +402,23 @@
       }
     },
     "openBatch": "Open batch",
-    "markRead": "Mark as read"
+    "markRead": "Mark as read",
+    "deleteTitle": "Delete batch",
+    "deleteHint": "Deletes every Source File of this batch with its stored original and all its Documents, including Approved Documents. This cannot be undone.",
+    "deleteSourceFiles": "Source Files",
+    "deleteDocuments": "Documents",
+    "deleteApprovedDocuments": "Approved Documents",
+    "deleteConfirmation": "I understand that the batch and all of its data will be deleted permanently.",
+    "deleteAction": "Delete batch",
+    "deleteRefused": {
+      "batch_processing": "The batch can be deleted only after processing finishes.",
+      "period_locked": "A Document of this batch lies in a finalized Reporting Period. An Administrator must unlock the period before the batch can be deleted."
+    }
+  },
+  "dateInput": {
+    "hint": "Format dd.mm.yyyy",
+    "placeholder": "dd.mm.yyyy",
+    "invalid": "Enter a valid date as dd.mm.yyyy."
   },
   "errors": {
     "organization_name_required": "Enter the name of your organization.",
@@ -414,7 +449,12 @@
     "invalid_postal_code": "Postal code must have 5 digits.",
     "invalid_person_type": "Select whether the Company is a legal or natural person.",
     "invalid_filing_frequency": "Select monthly or quarterly filing.",
-    "invalid_effective_from": "Enter a valid effective-from date.",
+    "invalid_reporting_year": "Enter a Reporting Year between 2000 and 2099.",
+    "reporting_year_in_use": "A Reporting Period of this year already has a VAT Report or Period Lock, so the year cannot be changed or deleted.",
+    "reporting_year_not_found": "This Reporting Year has not been generated.",
+    "not_first_reporting_year": "Only the earliest Reporting Year can start in a later month, and no year can be generated before it while it is in use.",
+    "too_many_reporting_years": "Generate at most 20 years at once.",
+    "invalid_first_month": "Select a month; a quarterly year starts in January, April, July or October.",
     "ares_company_not_found": "ARES did not find a Company with this IČO.",
     "ares_unavailable": "ARES is temporarily unavailable. Enter the Company details manually or try again.",
     "ico_taken": "A company with this IČO already exists in your organization.",
@@ -438,9 +478,11 @@
     "not_correctable": "Wait until extraction finishes before correcting the split.",
     "invalid_split_boundary": "The selected split correction is no longer valid. Reload the page and try again.",
     "not_in_review": "Only a document that needs review can be changed, approved or rejected.",
+    "not_approved": "Only an approved document can be returned to review.",
     "stale_version": "Someone saved a newer version of this document in the meantime. Reload the page to see it.",
     "invalid_choice": "Choose one of the offered options.",
     "invalid_amount": "Amounts must be numbers with at most two decimals, such as 1210.00.",
+    "rate_breakdown_totals_mismatch": "Net and VAT totals must match the Rate Breakdown before approval.",
     "invalid_credit_note_amount": "Credit Note amounts must not be positive, and at least one amount must be negative.",
     "invalid_rate": "A VAT rate must be a percentage between 0 and 100.",
     "invalid_date": "Enter dates that exist.",
@@ -450,10 +492,9 @@
     "one_file_required": "Choose one Source File to upload.",
     "invalid_reporting_period": "Select a valid monthly or quarterly Reporting Period for this Company.",
     "company_setup_incomplete": "Complete the required Company identity and filing-frequency setup first.",
-    "invalid_receipt_date": "Enter an existing Receipt Date.",
     "invalid_tax_point_date": "Set a valid Tax Point Date before assigning the Reporting Period.",
-    "claimed_period_not_later": "The claimed Reporting Period must be later than the period determined by the Receipt Date.",
-    "incoming_required": "Only an incoming Document can have a Receipt Date and a moved input VAT claim.",
+    "claimed_period_not_later": "The Deferred Claim must be a Reporting Period later than the period of the Tax Point Date.",
+    "incoming_required": "Only an incoming Document can have a Deferred Claim.",
     "stale_report": "Documents changed during generation. Generate the draft again.",
     "readiness_blocked": "Resolve all readiness blockers and generate the VAT Report again before Finalization.",
     "confirmation_required": "Confirm that you understand the effect of this action.",
@@ -479,23 +520,46 @@
     "invalid_credential": "Enter a valid provider credential.",
     "credential_required": "Enter a new credential when changing the provider.",
     "invalid_allowance": "The processing allowance must be a non-negative whole number or unlimited.",
-    "direction_required": "Set the document Direction before approving it."
+    "direction_required": "Set the document Direction before approving it.",
+    "batch_processing": "The batch is still processing. Wait until it finishes.",
+    "invalid_price": "Enter both prices as non-negative numbers, or leave both empty.",
+    "unknown_model": "The AI Configuration does not use this model."
   },
   "aiUsage": {
     "platformNav": "Platform AI usage",
     "platformTitle": "Platform AI usage",
-    "platformIntro": "Requests and tokens across Organizations, grouped by provider and model.",
+    "platformIntro": "Requests, tokens and cost across Organizations. Costs are in USD as recorded at call time.",
     "filters": "AI usage filters",
     "from": "From",
     "to": "To",
     "organization": "Organization",
     "filter": "Filter",
-    "provider": "Provider",
     "model": "Model",
     "requests": "Requests",
     "inputTokens": "Input tokens",
     "outputTokens": "Output tokens",
-    "empty": "No AI usage in this period"
+    "empty": "No AI usage in this period",
+    "company": "Company",
+    "configuration": "AI Configuration",
+    "operation": "Operation",
+    "groupBy": "Group by",
+    "all": "All",
+    "clear": "Clear filters",
+    "cost": "Cost (USD)",
+    "unknownCost": "Unknown",
+    "unknownCostEvents": "Events with unknown cost",
+    "total": "Total",
+    "noConfiguration": "No AI Configuration",
+    "invalidPeriod": "The end of the period must not be before its start.",
+    "operations": { "split": "Split", "extract": "Extraction" },
+    "groupings": {
+      "organization": "Organization",
+      "company": "Company",
+      "ai_configuration": "AI Configuration",
+      "model": "Model",
+      "operation": "Operation",
+      "month": "Month"
+    }
   },
   "auditLog": {
     "organizationNav": "Audit log for {organization}",
@@ -529,7 +593,7 @@
     "title": "Platform AI settings",
     "intro": "Create platform-owned AI Configurations, assign them to Companies and manage lifetime processing allowances.",
     "configurations": "AI Configurations",
-    "configurationsIntro": "Create platform-owned configurations and assign them to Companies. Stored credentials and models are never returned to this screen.",
+    "configurationsIntro": "Create platform-owned configurations and assign them to Companies. Stored credentials are never returned to this screen.",
     "configurationLabel": "Configuration label",
     "provider": "Provider",
     "configurationCredential": "Provider credential",
@@ -550,7 +614,13 @@
     "unlimited": "unlimited",
     "allowanceUsage": "Used {used} of {allowance}; {waiting} Documents are waiting for an increase.",
     "splitModel": "Split model",
-    "extractModel": "Extract model"
+    "extractModel": "Extract model",
+    "modelPrices": "Model prices",
+    "modelPricesFor": "Model prices of {label}",
+    "modelPricesIntro": "Price in USD per one million tokens. New AI usage is costed with these prices; recorded usage keeps its cost. Leave both prices empty for an unpriced model.",
+    "inputPrice": "{model}: input price (USD / 1M tokens)",
+    "outputPrice": "{model}: output price (USD / 1M tokens)",
+    "saveModelPrices": "Save prices"
   },
   "platformAdministration": {
     "nav": "Platform administration",
@@ -699,8 +769,6 @@
     "filters": "Filters",
     "allStatuses": "All statuses",
     "allDirections": "All directions",
-    "reportingPeriod": "Reporting period",
-    "reportingPeriodPlaceholder": "2026-10",
     "counterparty": "Counterparty",
     "counterpartyHint": "Name, VAT ID or IČO",
     "findingsOnly": "Only documents with findings",
@@ -741,12 +809,14 @@
     "retryExtraction": "Retry extraction",
     "lockedTitle": "Reporting period {period} is locked.",
     "lockedNote": "Corrections, decisions, extraction retries, and split changes are disabled while this Reporting Period is finalized and locked.",
+    "generateReportingYear": "Generate Reporting Year {year}",
     "sourceFile": "Source file {fileName}, {pages}",
     "page": "page {page}",
     "pageRange": "pages {first}–{last}",
     "row": "sheet {sheet}, row {row}",
     "rowRange": "sheet {sheet}, rows {first}–{last}",
     "status": "Status",
+    "importDate": "Import Date",
     "approvedNote": "Approved. The document counts towards VAT reports.",
     "rejectedNote": "Rejected. The document is excluded from VAT reports.",
     "notReviewableNote": "The document is not ready for review yet.",
@@ -754,6 +824,7 @@
     "save": "Save corrections",
     "approve": "Approve version {version}",
     "reject": "Reject",
+    "returnToReview": "Return to review",
     "history": "Version history",
     "aiAuthor": "AI",
     "userAuthor": "User",
@@ -767,9 +838,9 @@
     "noImage": "The original of this document cannot be shown.",
     "reportingAssignment": {
       "title": "Input VAT Reporting Period",
-      "receiptDate": "Receipt Date",
+      "defaultPeriod": "Tax Point Date period (no deferral)",
       "claimedReportingPeriod": "Move input VAT claim to",
-      "claimedReportingPeriodHint": "Optional. Enter a later month (2026-12) or quarter (2027-Q1) that matches the Company's filing frequency.",
+      "claimedReportingPeriodHint": "Choose an unlocked later period, at most three years after the Tax Point Date.",
       "claimedReportingPeriodPlaceholder": "2026-12 or 2027-Q1",
       "save": "Save Reporting Period",
       "saving": "Saving…"
@@ -777,8 +848,11 @@
     "findings": {
       "rate_vat_amount_mismatch": "VAT does not match the net amount and rate.",
       "total_net_amount_mismatch": "Total net does not match the rate breakdown.",
+      "reporting_year_missing": "Reporting Year {year} has not been generated, so this Document has no Reporting Period. Generate year {year}.",
+      "tax_point_date_before_first_reporting_month": "The Tax Point Date falls before {month}, when Reporting Year {year} starts, so this Document has no Reporting Period.",
       "total_vat_amount_mismatch": "Total VAT does not match the rate breakdown.",
-      "total_gross_amount_mismatch": "Total incl. VAT is not net plus VAT.",
+      "total_gross_amount_mismatch": "Total incl. VAT differs from net plus VAT by {difference, number, ::.00}.",
+      "total_gross_amount_mismatch_without_difference": "Total incl. VAT is not net plus VAT.",
       "vat_rate_not_valid_on_tax_point_date": "This VAT rate was not valid on the tax point date.",
       "invalid_ico_format": "IČO must contain eight digits.",
       "invalid_ico_checksum": "The IČO checksum is invalid.",
@@ -878,6 +952,52 @@
     "rejected": "Rejected"
   },
   "vatReports": {
+    "wizard": {
+      "title": "VAT processing steps",
+      "state": {
+        "done": "Done",
+        "needs_attention": "Needs attention",
+        "blocked": "Blocked",
+        "not_started": "Not started"
+      },
+      "steps": {
+        "review": {
+          "title": "Documents to review",
+          "hint": "Resolve every Document that blocks this Reporting Period."
+        },
+        "generate": {
+          "title": "Generate VAT Report",
+          "hint": "Save a VAT Report snapshot from the approved Documents."
+        },
+        "outputs": {
+          "title": "Review VAT Return and Control Statement",
+          "hint": "Check both statutory outputs of the saved snapshot."
+        },
+        "export": {
+          "title": "Export XML",
+          "hint": "Download the EPO XML from the VAT Return and the Control Statement. Every download is stored in Export history."
+        },
+        "finalize": {
+          "title": "Finalize",
+          "hint": "Finalization locks the Reporting Period. Only an Administrator can finalize."
+        }
+      },
+      "reasons": {
+        "documents_need_review": "Documents in this Reporting Period still need review.",
+        "report_missing": "No VAT Report has been generated yet.",
+        "report_stale": "Documents changed after the VAT Report was generated. Generate it again.",
+        "warnings": "Some Documents have warnings. Check them before exporting.",
+        "identity_incomplete": "Complete the Company identity before Finalization.",
+        "administrator_only": "Only an Administrator can finalize this Reporting Period."
+      },
+      "blockedBy": "Available once step {number} ({title}) is done.",
+      "noDocumentsToReview": "No Document blocks this Reporting Period.",
+      "documentsToReview": "Documents needing review",
+      "showAllDocuments": "Show all {count, plural, one {# Document} other {# Documents}} in the queue",
+      "exportVatReturn": "Export VAT Return XML",
+      "exportControlStatement": "Export Control Statement XML",
+      "openExportHistory": "Open Export history"
+    },
     "title": "VAT Reports",
     "periodsTitle": "Reporting periods",
     "periodsDescription": "Work through valid monthly and quarterly periods in filing order.",
@@ -1029,6 +1149,9 @@
     "noExportArtifacts": "No stored export artifacts",
     "noExportArtifactsHint": "Create the appropriate statutory output from the VAT Return or Control Statement screen. Stored artifact history will remain period-scoped here.",
     "exportArtifacts": "Stored XML artifacts",
+    "artifactForm": "Form",
+    "artifactActions": "Actions",
+    "artifactChecksum": "SHA-256 checksum",
     "artifactKind": "State",
     "artifactKinds": { "draft": "Working", "final": "Final" },
     "artifactFormat": "Output",

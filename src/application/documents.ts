@@ -1,3 +1,5 @@
+import { listCompanyReportingYears } from "./companies";
+import { reportingPeriodForDate, reportingPeriodsOf, reportingPeriodStart } from "./reporting-periods";
 import type { PostgrestError } from "@supabase/supabase-js";
 import { isUuid, type AppClient, type Result } from "./client";
 import {
@@ -9,9 +11,11 @@ import {
   type ExtractionPayloadError,
 } from "./extraction-payload";
 import { extractJob, type JobQueue } from "./processing";
+import { isReportingPeriod, NO_REPORTING_PERIOD, pragueDate } from "./reporting-periods";
 import {
   CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA,
   validateDocument,
+  currentValidationFindings,
   type ValidationFinding,
 } from "./document-validation";
 import { pdfPages, readSourceFile, SOURCE_FILE_MEDIA_TYPES } from "./source-files";
@@ -43,9 +47,9 @@ export type Document = {
   lastPage: number;
   status: DocumentStatus;
   createdAt: string;
-  /** Defaults to the Source File upload date and determines an incoming claim's earliest period. */
-  receiptDate: string;
-  /** A User's explicit move of input VAT to a later Reporting Period. */
+  /** The Prague calendar date its Source File was uploaded; informational only (ADR-0012). */
+  importDate: string;
+  /** An incoming Document's Deferred Claim: input VAT moved to a later Reporting Period. */
   claimedReportingPeriod: string | null;
   /** Present only for a Document identified by workbook rows instead of pages. */
   rowSet?: WorkbookRowSet;
@@ -82,7 +86,7 @@ export type DocumentOverview = {
   documentNumber: string | null;
   direction: Direction | null;
   taxPointDate: string | null;
-  receiptDate: string;
+  importDate: string;
   claimedReportingPeriod: string | null;
   reportingPeriod: string | null;
   /** The supplier of an incoming Document, the customer of an outgoing one; null while the Direction is unknown. */
@@ -125,7 +129,9 @@ export type DocumentFilters = {
   direction?: Direction;
   /** Source Files that define a durable upload-batch or queue context. */
   sourceFileIds?: string[];
-  /** A month, "2026-10". */
+  /** Specific Documents, for example those a readiness summary names. */
+  documentIds?: string[];
+  /** A Reporting Period ("2026-10", "2026-Q4"), or NO_REPORTING_PERIOD. */
   reportingPeriod?: string;
   /** Part of the counterparty's name, VAT ID or IČO, in any case. */
   counterparty?: string;
@@ -143,19 +149,22 @@ export async function listCompanyDocuments(
 ): Promise<DocumentOverview[]> {
   if (!isUuid(companyId)) return [];
   if (filters.sourceFileIds?.length === 0) return [];
+  if (filters.documentIds?.length === 0) return [];
   const counterparty = filters.counterparty?.trim();
   const documents: DocumentOverview[] = [];
   for (let from = 0; ; from += 1000) {
     let query = client
       .from("document_overview")
       .select(
-        "id, source_file_id, first_page, last_page, status, created_at, version, document_number, direction, tax_point_date, receipt_date, claimed_reporting_period, reporting_period, counterparty_name, counterparty_vat_id, counterparty_ico, currency, gross_amount, finding_count",
+        "id, source_file_id, first_page, last_page, status, created_at, version, document_number, direction, tax_point_date, import_date, claimed_reporting_period, reporting_period, counterparty_name, counterparty_vat_id, counterparty_ico, currency, gross_amount, finding_count",
       )
       .eq("company_id", companyId);
     if (filters.sourceFileIds) query = query.in("source_file_id", filters.sourceFileIds);
+    if (filters.documentIds) query = query.in("id", filters.documentIds);
     if (filters.status) query = query.eq("status", filters.status);
     if (filters.direction) query = query.eq("direction", filters.direction);
-    if (filters.reportingPeriod) query = query.eq("reporting_period", filters.reportingPeriod);
+    if (filters.reportingPeriod === NO_REPORTING_PERIOD) query = query.is("reporting_period", null);
+    else if (filters.reportingPeriod) query = query.eq("reporting_period", filters.reportingPeriod);
     if (counterparty) query = query.ilike("counterparty_search", `%${likeLiteral(counterparty)}%`);
     if (filters.hasFindings) query = query.gt("finding_count", 0);
 
@@ -176,7 +185,8 @@ export async function listCompanyDocuments(
       documentNumber: d.document_number,
       direction: d.direction as Direction | null,
       taxPointDate: d.tax_point_date,
-      receiptDate: d.receipt_date,
+      // Every Document has a Source File, so the view's join always yields a date.
+      importDate: d.import_date!,
       claimedReportingPeriod: d.claimed_reporting_period,
       reportingPeriod: d.reporting_period,
       counterparty: d.direction === null
@@ -234,7 +244,7 @@ export async function documentPeriodLocks(
   );
 }
 
-const DOCUMENT_COLUMNS = "id, company_id, source_file_id, first_page, last_page, source_sheet, first_row, last_row, has_document_image, status, created_at, receipt_date, claimed_reporting_period";
+const DOCUMENT_COLUMNS = "id, company_id, source_file_id, first_page, last_page, source_sheet, first_row, last_row, has_document_image, status, created_at, claimed_reporting_period, source_file(uploaded_at)";
 
 function toDocument(d: {
   id: string;
@@ -248,8 +258,8 @@ function toDocument(d: {
   has_document_image: boolean;
   status: DocumentStatus;
   created_at: string;
-  receipt_date: string;
   claimed_reporting_period: string | null;
+  source_file: { uploaded_at: string };
 }): Document {
   const document: Document = {
     id: d.id,
@@ -259,7 +269,7 @@ function toDocument(d: {
     lastPage: d.last_page,
     status: d.status,
     createdAt: d.created_at,
-    receiptDate: d.receipt_date,
+    importDate: pragueDate(d.source_file.uploaded_at),
     claimedReportingPeriod: d.claimed_reporting_period,
   };
   if (d.source_sheet !== null && d.first_row !== null && d.last_row !== null) {
@@ -358,7 +368,7 @@ export async function listExtractionVersions(
       ? { kind: "user", userId: v.author_user_id }
       : { kind: "ai" },
     payload: v.payload as ExtractionPayload,
-    findings: v.findings as ValidationFinding[],
+    findings: currentValidationFindings(v.payload as ExtractionPayload, v.findings as ValidationFinding[]),
     createdAt: v.created_at,
   }));
 }
@@ -417,7 +427,7 @@ export async function correctDocument(
 export async function approveDocument(
   client: AppClient,
   input: { companyId: string; documentId: string; version: number },
-): Promise<Result<null, "not_in_review" | "stale_version" | "direction_required" | "invalid_credit_note_amount" | "period_locked" | "forbidden">> {
+): Promise<Result<null, "not_in_review" | "stale_version" | "direction_required" | "rate_breakdown_totals_mismatch" | "invalid_credit_note_amount" | "period_locked" | "forbidden">> {
   const document = await findDocumentId(client, input.companyId, input.documentId);
   if (!document) return { ok: false, error: "forbidden" };
   const { error } = await client.rpc("approve_document", {
@@ -428,6 +438,7 @@ export async function approveDocument(
     "not_in_review",
     "stale_version",
     "direction_required",
+    "rate_breakdown_totals_mismatch",
     "invalid_credit_note_amount",
     "period_locked",
   ]);
@@ -446,8 +457,23 @@ export async function rejectDocument(
   return { ok: true, value: null };
 }
 
+/**
+ * Returns an Approved Document to review: its approval is withdrawn, so it
+ * leaves VAT Reports until it is corrected and approved again. Refused while
+ * its Reporting Period has a Period Lock (ADR-0007).
+ */
+export async function returnDocumentToReview(
+  client: AppClient,
+  input: { companyId: string; documentId: string },
+): Promise<Result<null, "not_approved" | "period_locked" | "forbidden">> {
+  const document = await findDocumentId(client, input.companyId, input.documentId);
+  if (!document) return { ok: false, error: "forbidden" };
+  const { error } = await client.rpc("return_document_to_review", { target_document_id: document });
+  if (error) return refusal(error, ["not_approved", "period_locked"]);
+  return { ok: true, value: null };
+}
+
 export type UpdateDocumentReportingError =
-  | "invalid_receipt_date"
   | "invalid_tax_point_date"
   | "invalid_reporting_period"
   | "claimed_period_not_later"
@@ -455,28 +481,18 @@ export type UpdateDocumentReportingError =
   | "period_locked"
   | "forbidden";
 
-function validDate(value: string): boolean {
-  if (!/^20\d{2}-\d{2}-\d{2}$/.test(value)) return false;
-  const date = new Date(`${value}T00:00:00Z`);
-  return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value;
-}
-
-/** Changes an incoming Document's Receipt Date and optional later input-VAT claim. */
+/** Sets or clears an incoming Document's Deferred Claim. */
 export async function updateDocumentReporting(
   client: AppClient,
   input: {
     companyId: string;
     documentId: string;
-    receiptDate: string;
     claimedReportingPeriod: string | null;
   },
 ): Promise<Result<null, UpdateDocumentReportingError>> {
-  if (!validDate(input.receiptDate)) {
-    return { ok: false, error: "invalid_receipt_date" };
-  }
   if (
     input.claimedReportingPeriod !== null &&
-    !/^20\d{2}-(0[1-9]|1[0-2]|Q[1-4])$/.test(input.claimedReportingPeriod)
+    !isReportingPeriod(input.claimedReportingPeriod)
   ) {
     return { ok: false, error: "invalid_reporting_period" };
   }
@@ -484,14 +500,12 @@ export async function updateDocumentReporting(
   if (!document) return { ok: false, error: "forbidden" };
   const { error } = await client.rpc("update_document_reporting", {
     target_document_id: document,
-    new_receipt_date: input.receiptDate,
     // PostgREST accepts SQL null here; generated RPC argument types do not
     // encode nullable function parameters.
     new_claimed_reporting_period: input.claimedReportingPeriod as string,
   });
   if (error) {
     return refusal(error, [
-      "invalid_receipt_date",
       "invalid_tax_point_date",
       "invalid_reporting_period",
       "claimed_period_not_later",
@@ -603,4 +617,29 @@ export async function moveDocumentPage(
   if (error) return refusal(error, ["not_correctable", "invalid_split_boundary", "period_locked"]);
   await enqueueCorrectedDocuments(jobs, data);
   return { ok: true, value: null };
+}
+
+/** Selectable Deferred Claims for the current incoming Extraction, including only unlocked generated periods within three years. */
+export async function listDeferredClaimPeriods(client: AppClient, companyId: string, documentId: string): Promise<string[]> {
+  const document = await getDocument(client, companyId, documentId);
+  if (!document) return [];
+  const versions = await listExtractionVersions(client, companyId, documentId);
+  const payload = versions.at(-1)?.payload;
+  const date = payload?.taxPointDate;
+  if (payload?.direction !== "incoming" || !date || !/^20\d{2}-\d{2}-\d{2}$/.test(date)) return [];
+  const parsed = new Date(`${date}T00:00:00Z`);
+  if (Number.isNaN(parsed.valueOf()) || parsed.toISOString().slice(0, 10) !== date) return [];
+  const years = await listCompanyReportingYears(client, companyId);
+  const source = reportingPeriodForDate(date, years);
+  if (!source) return [];
+  const deadline = `${Number(date.slice(0, 4)) + 3}${date.slice(4)}`;
+  const candidates = reportingPeriodsOf(years).filter((period) => {
+    const start = reportingPeriodStart(period)!;
+    return start > reportingPeriodStart(source)! && start <= deadline;
+  });
+  if (!candidates.length) return [];
+  const { data, error } = await client.from("period_lock").select("period").eq("company_id", companyId).in("period", candidates);
+  if (error) throw error;
+  const locked = new Set(data.map((lock) => lock.period));
+  return candidates.filter((period) => !locked.has(period));
 }

@@ -10,6 +10,13 @@ export type AiConfigurationSummary = {
   assignedCompanyIds: string[];
 };
 
+/** A model an AI Configuration names, with its price in USD per one million tokens, or null when unpriced. */
+export type AiModelPrice = {
+  model: string;
+  inputPricePerMillion: number | null;
+  outputPricePerMillion: number | null;
+};
+
 export async function listAiConfigurationProviders(
   client: AppClient,
 ): Promise<Result<string[], "forbidden">> {
@@ -124,6 +131,52 @@ export async function listAiConfigurations(
     throw error;
   }
   return { ok: true, value: data as unknown as AiConfigurationSummary[] };
+}
+
+export type AiConfigurationModelPrices = { configurationId: string; models: AiModelPrice[] };
+
+/** The models of every AI Configuration with their prices. SuperAdmin with MFA only. */
+export async function listAiModelPrices(
+  client: AppClient,
+): Promise<Result<AiConfigurationModelPrices[], "forbidden">> {
+  const { data, error } = await client.rpc("list_ai_model_prices");
+  if (error) {
+    if (error.code === "42501") return { ok: false, error: "forbidden" };
+    throw error;
+  }
+  return { ok: true, value: data as unknown as AiConfigurationModelPrices[] };
+}
+
+type AiModelPriceError = "forbidden" | "invalid_price" | "unknown_model";
+
+function validPrice(price: number | null) {
+  return price === null || (Number.isFinite(price) && price >= 0);
+}
+
+/**
+ * Sets the prices of the named models of an AI Configuration. A model whose
+ * input and output prices are both null loses its price; recorded usage keeps its cost.
+ */
+export async function setAiModelPrices(
+  client: AppClient,
+  input: { configurationId: string; prices: AiModelPrice[] },
+): Promise<Result<null, AiModelPriceError>> {
+  if (!isUuid(input.configurationId)) return { ok: false, error: "forbidden" };
+  const complete = input.prices.every((price) =>
+    validPrice(price.inputPricePerMillion)
+    && validPrice(price.outputPricePerMillion)
+    && (price.inputPricePerMillion === null) === (price.outputPricePerMillion === null));
+  if (!complete) return { ok: false, error: "invalid_price" };
+  const { error } = await client.rpc("set_ai_model_prices", {
+    target_configuration_id: input.configurationId,
+    prices: input.prices,
+  });
+  if (error) {
+    if (error.code === "42501") return { ok: false, error: "forbidden" };
+    if (error.hint === "invalid_price" || error.hint === "unknown_model") return { ok: false, error: error.hint };
+    throw error;
+  }
+  return { ok: true, value: null };
 }
 
 export async function assignCompanyAiConfiguration(

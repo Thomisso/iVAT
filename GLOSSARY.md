@@ -30,6 +30,10 @@ _Avoid_: Permission level, profile
 
 ## Documents
 
+**Upload Batch**:
+The set of Source Files a User uploaded together into a Company in one upload.
+_Avoid_: Import, job, dávka (in code)
+
 **Source File**:
 A single file uploaded or imported into a Company, preserved unchanged. May contain one or more Documents.
 _Avoid_: Upload, attachment, document (when meaning the file)
@@ -82,6 +86,10 @@ _Avoid_: Duplicate error, conflict
 A Document a human has confirmed; the only kind that counts towards VAT Reports.
 _Avoid_: Validated, verified, final
 
+**Return to Review**:
+Withdrawing a Document's approval so it can be corrected and approved again; possible only outside a Period Lock.
+_Avoid_: Unapprove, reject, reopen
+
 ## VAT
 
 **VAT Regime**:
@@ -93,15 +101,23 @@ The deterministic component that maps a Document's VAT Regime, Direction and Rat
 _Avoid_: Tax calculator, AI classification
 
 **Tax Point Date**:
-The date of the taxable supply (DUZP), which determines the Reporting Period of an outgoing Document.
+The date of the taxable supply (DUZP), which determines the default Reporting Period of every Document.
 _Avoid_: VAT date, issue date (they differ)
 
-**Receipt Date**:
-The date the Company received an incoming Document; the earliest default Reporting Period for claiming input VAT.
-_Avoid_: Upload date (it only defaults to it)
+**Import Date**:
+The date a Document's Source File was uploaded into iVAT; informational only, it never decides a Reporting Period.
+_Avoid_: Receipt Date, received date
+
+**Deferred Claim**:
+The choice to claim an incoming Document's input VAT in a Reporting Period later than the one of its Tax Point Date.
+_Avoid_: Claim move, period override
+
+**Reporting Year**:
+A calendar year generated for a Company with one filing frequency (monthly or quarterly); it may start later than January in the year the Company became a VAT payer.
+_Avoid_: Fiscal year, filing frequency history
 
 **Reporting Period**:
-A month or quarter for which a Company reports VAT, per the Company's filing frequency in force at that time.
+A month or quarter of a Reporting Year for which a Company reports VAT.
 _Avoid_: Tax period, filing period
 
 **VAT Report**:

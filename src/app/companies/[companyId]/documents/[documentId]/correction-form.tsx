@@ -10,9 +10,11 @@ import {
   type ExtractionPayload,
 } from "@/application/extraction-payload";
 import type { ValidationFinding } from "@/application/document-validation";
+import { findingMessage as messageOf } from "./finding-message";
 import { Button } from "@/components/button";
 import { TextField } from "@/components/text-field";
 import { FormError } from "@/components/form-error";
+import { DateInput } from "@/components/date-input";
 
 /**
  * The extracted fields of one Extraction Version. While `editable`, saving
@@ -51,7 +53,9 @@ export function CorrectionForm({
     );
   const findingMessage = (field: string) => {
     const item = finding(field);
-    return item ? t(`findings.${item.code}`) : undefined;
+    if (!item) return undefined;
+    const message = messageOf(item);
+    return t(`findings.${message.key}`, message.values);
   };
 
   // A refused form shows what was submitted; otherwise the version's own value.
@@ -77,8 +81,16 @@ export function CorrectionForm({
       {...props}
     />
   );
-  const date = (name: "issueDate" | "taxPointDate" | "dueDate") =>
-    text(name, payload[name], name, { type: "date" });
+  const date = (name: "issueDate" | "taxPointDate" | "dueDate") => (
+    <DateInput
+      key={name}
+      label={t(`fields.${name}`)}
+      name={name}
+      defaultValue={value(name, payload[name])}
+      disabled={!editable}
+      error={findingMessage(name)}
+    />
+  );
   const amount = (name: string, saved: string | null, label: string) =>
     text(name, saved, label, { inputMode: "decimal" });
   const choice = (

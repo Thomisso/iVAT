@@ -1,15 +1,16 @@
 import Link from "next/link";
+import { Fragment } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getFormatter, getTranslations } from "next-intl/server";
+import { getTranslations } from "next-intl/server";
 import { getCompany } from "@/application/companies";
 import { listVatReportArtifacts } from "@/application/epo-export";
 import { getVatReport } from "@/application/vat-reports";
 import { requireUserClient } from "@/lib/supabase/server";
-import { DataTable } from "@/components/data-table";
 import { EmptyState } from "@/components/empty-state";
 import { PageLayout } from "@/components/app-shell";
 import { PeriodNavigation } from "../../period-navigation";
+import { formatDate, formatDateTime } from "@/lib/format-date";
 
 export async function generateMetadata({
   params,
@@ -24,13 +25,12 @@ export default async function ExportHistoryPage({
 }: PageProps<"/companies/[companyId]/vat-reports/[period]/exports">) {
   const { companyId, period } = await params;
   const client = await requireUserClient();
-  const [company, report, artifacts, t, epo, format] = await Promise.all([
+  const [company, report, artifacts, t, epo] = await Promise.all([
     getCompany(client, companyId),
     getVatReport(client, companyId, period),
     listVatReportArtifacts(client, { companyId, period }),
     getTranslations("vatReports"),
     getTranslations("epoExport"),
-    getFormatter(),
   ]);
   if (!company || !report) notFound();
   return (
@@ -60,37 +60,18 @@ export default async function ExportHistoryPage({
             <p>{t("noExportArtifactsHint")}</p>
           </>
         ) : (
-          <DataTable
-            caption={t("exportArtifacts")}
-            rows={artifacts}
-            columns={[
-              {
-                key: "kind",
-                header: t("artifactKind"),
-                render: (artifact) => t(`artifactKinds.${artifact.kind}`),
-              },
-              {
-                key: "format",
-                header: t("artifactFormat"),
-                render: (artifact) => artifact.format.toUpperCase(),
-              },
-              {
-                key: "createdAt",
-                header: t("artifactCreatedAt"),
-                render: (artifact) => format.dateTime(new Date(artifact.createdAt), {
-                  dateStyle: "medium",
-                  timeStyle: "short",
-                }),
-              },
-              {
-                key: "authorEmail",
-                header: t("artifactAuthor"),
-                render: (artifact) => artifact.authorEmail ?? artifact.authorUserId,
-              },
-              {
-                key: "resolvedDetails",
-                header: t("artifactFilingDetails"),
-                render: (artifact) => {
+          <div className="iv-table-wrap" role="region" aria-label={t("exportArtifacts")} tabIndex={0}>
+            <table className="iv-table">
+              <caption className="sr-only">{t("exportArtifacts")}</caption>
+              <thead><tr>
+                <th scope="col">{t("period")}</th>
+                <th scope="col">{t("artifactForm")}</th>
+                <th scope="col">{t("artifactCreatedAt")}</th>
+                <th scope="col">{t("artifactAuthor")}</th>
+                <th scope="col">{t("artifactActions")}</th>
+              </tr></thead>
+              <tbody>
+                {artifacts.map((artifact) => {
                   const details = artifact.resolvedDetails;
                   const address = details.address
                     ? `${details.address.streetName} ${details.address.houseNumber}${details.address.orientationNumber ? `/${details.address.orientationNumber}` : ""}, ${details.address.postalCode} ${details.address.city}`
@@ -98,38 +79,38 @@ export default async function ExportHistoryPage({
                   const signatory = details.personType === "P"
                     ? `${details.signatoryFirstName} ${details.signatoryLastName} · ${details.signatoryCapacity}`
                     : epo("naturalPerson");
-                  return (
-                    <dl className="epo-export-summary">
-                      <div><dt>{epo("taxOffice")}</dt><dd>{details.taxOffice}</dd></div>
-                      <div><dt>{epo("preparedOn")}</dt><dd>{details.preparedOn}</dd></div>
-                      <div><dt>{epo("signatory")}</dt><dd>{signatory}</dd></div>
-                      <div><dt>{epo("email")}</dt><dd>{details.email || epo("notSet")}</dd></div>
-                      <div><dt>{epo("phone")}</dt><dd>{details.phone || epo("notSet")}</dd></div>
-                      <div><dt>{epo("serializedAddress")}</dt><dd>{address}</dd></div>
-                    </dl>
-                  );
-                },
-              },
-              {
-                key: "sha256",
-                header: "SHA-256",
-                mono: true,
-                render: (artifact) => artifact.sha256.slice(0, 12),
-              },
-              {
-                key: "download",
-                header: t("artifactDownload"),
-                render: (artifact) => (
-                  <a
-                    href={`/companies/${companyId}/vat-reports/${period}/artifacts/${artifact.id}`}
-                    download={artifact.fileName}
-                  >
-                    {artifact.fileName}
-                  </a>
-                ),
-              },
-            ]}
-          />
+                  return <Fragment key={artifact.id}>
+                    <tr>
+                      <td>{artifact.period}</td>
+                      <td>{epo(`formats.${artifact.format}`)}<br /><small>{t(`artifactKinds.${artifact.kind}`)}</small></td>
+                      <td><time dateTime={artifact.createdAt}>{formatDateTime(artifact.createdAt)}</time></td>
+                      <td>{artifact.authorEmail ?? artifact.authorUserId}</td>
+                      <td><a
+                        href={`/companies/${companyId}/vat-reports/${period}/artifacts/${artifact.id}`}
+                        download={artifact.fileName}
+                      >{artifact.fileName}</a></td>
+                    </tr>
+                    <tr>
+                      <td colSpan={5}>
+                        <details className="export-artifact-details">
+                          <summary>{t("artifactFilingDetails")}</summary>
+                          <dl>
+                            <div><dt>{epo("taxOffice")}</dt><dd>{epo(`taxOffices.${details.taxOffice}`)}</dd></div>
+                            <div><dt>{epo("preparedOn")}</dt><dd>{formatDate(details.preparedOn)}</dd></div>
+                            <div><dt>{epo("signatory")}</dt><dd>{signatory}</dd></div>
+                            <div><dt>{epo("email")}</dt><dd>{details.email || epo("notSet")}</dd></div>
+                            <div><dt>{epo("phone")}</dt><dd>{details.phone || epo("notSet")}</dd></div>
+                            <div><dt>{epo("serializedAddress")}</dt><dd>{address}</dd></div>
+                            <div><dt>{t("artifactChecksum")}</dt><dd className="iv-mono">{artifact.sha256}</dd></div>
+                          </dl>
+                        </details>
+                      </td>
+                    </tr>
+                  </Fragment>;
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
         <div>
           <Link href={`/companies/${companyId}/vat-reports/${period}/vat-return`}>

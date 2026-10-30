@@ -1,8 +1,11 @@
+import { readFileSync } from "node:fs";
 import { PDFDocument } from "pdf-lib";
-import { describe, expect, it } from "vitest";
+import { Client as DatabaseClient } from "pg";
+import { describe, expect, inject, it } from "vitest";
 import { listAuditEvents } from "@/application/audit";
 import {
   approveDocument,
+  listDeferredClaimPeriods,
   correctDocument,
   getDocument,
   listCompanyDocuments,
@@ -15,6 +18,8 @@ import {
   type DocumentFilters,
 } from "@/application/documents";
 import type { ExtractionPayload } from "@/application/extraction-payload";
+import { getReportingPeriodReadiness } from "@/application/reporting-period-readiness";
+import { generateVatReport, getVatReport } from "@/application/vat-reports";
 import { uploadSourceFile } from "@/application/source-files";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { signedUpUser } from "./support/clients";
@@ -37,7 +42,6 @@ async function documentInReview(extraction: ExtractionPayload = SAMPLE_EXTRACTIO
     companyId: admin.companyId,
     fileName: "receipt.png",
     bytes: fixtureFile("receipt.png"),
-    preselectedDirection: extraction.direction ?? undefined,
   });
   if (!uploaded.ok) throw new Error(uploaded.error);
   await worker.runJobs();
@@ -45,11 +49,20 @@ async function documentInReview(extraction: ExtractionPayload = SAMPLE_EXTRACTIO
   return { ...admin, worker, sourceFileId: uploaded.value.id, documentId: document.id };
 }
 
+/** SAMPLE_EXTRACTION without the customer identity that would reveal the Company's Direction. */
+const UNDETECTED: ExtractionPayload = {
+  ...SAMPLE_EXTRACTION,
+  direction: null,
+  customer: { ...SAMPLE_EXTRACTION.customer, ico: null, vatId: null },
+};
+
 /** SAMPLE_EXTRACTION as a User corrects it: an outgoing invoice under domestic reverse charge at two rates. */
 const CORRECTED: ExtractionPayload = {
   ...SAMPLE_EXTRACTION,
   documentNumber: "FV-2026-0002",
   direction: "outgoing",
+  supplier: SAMPLE_EXTRACTION.customer,
+  customer: SAMPLE_EXTRACTION.supplier,
   proposedVatRegime: "domestic_reverse_charge",
   reverseChargeCode: "4",
   rateBreakdown: [
@@ -288,7 +301,29 @@ describe("correcting a Document", () => {
 });
 
 describe("assigning an incoming Document to a Reporting Period", () => {
-  it("stores Receipt Date and a later claimed period, and audits the change", async () => {
+  it("shows the Import Date as the Prague calendar date of the Source File upload", async () => {
+    const document = await documentInReview();
+    // Test-only setup: 22:30 UTC on 30 September is already 1 October in Prague.
+    const database = new DatabaseClient({ connectionString: inject("databaseUrl") });
+    await database.connect();
+    try {
+      await database.query(
+        "update public.source_file set uploaded_at = '2026-09-30T22:30:00Z' where id = $1",
+        [document.sourceFileId],
+      );
+    } finally {
+      await database.end();
+    }
+
+    expect(
+      (await getDocument(document.client, document.companyId, document.documentId))!.importDate,
+    ).toBe("2026-10-01");
+    expect(
+      (await listCompanyDocuments(document.client, document.companyId))[0].importDate,
+    ).toBe("2026-10-01");
+  });
+
+  it("stores a Deferred Claim and audits the change", async () => {
     const document = await documentInReview();
     const member = await companyMember(document);
 
@@ -296,19 +331,16 @@ describe("assigning an incoming Document to a Reporting Period", () => {
       await updateDocumentReporting(member.client, {
         companyId: document.companyId,
         documentId: document.documentId,
-        receiptDate: "2026-11-05",
         claimedReportingPeriod: "2026-12",
       }),
     ).toEqual({ ok: true, value: null });
 
     expect(
       await getDocument(member.client, document.companyId, document.documentId),
-    ).toEqual(
-      expect.objectContaining({
-        receiptDate: "2026-11-05",
-        claimedReportingPeriod: "2026-12",
-      }),
-    );
+    ).toEqual(expect.objectContaining({ claimedReportingPeriod: "2026-12" }));
+    expect(
+      (await listCompanyDocuments(member.client, document.companyId))[0].reportingPeriod,
+    ).toBe("2026-12");
     expect(
       (await listAuditEvents(document.client, document.organizationId)).at(-1),
     ).toEqual(
@@ -316,47 +348,49 @@ describe("assigning an incoming Document to a Reporting Period", () => {
         action: "document.reporting_assignment_changed",
         actorUserId: member.userId,
         targetId: document.documentId,
-        payload: expect.objectContaining({
-          receipt_date: expect.objectContaining({ to: "2026-11-05" }),
+        payload: {
           claimed_reporting_period: { from: null, to: "2026-12" },
-        }),
+        },
       }),
     );
   });
 
-  it("refuses a claimed period that is not later than the Receipt Date's period", async () => {
+  it("returns the Document to its Tax Point Date's period when the Deferred Claim is cleared", async () => {
+    const document = await documentInReview();
+    const input = { companyId: document.companyId, documentId: document.documentId };
+    await updateDocumentReporting(document.client, { ...input, claimedReportingPeriod: "2026-12" });
+
+    expect(
+      await updateDocumentReporting(document.client, { ...input, claimedReportingPeriod: null }),
+    ).toEqual({ ok: true, value: null });
+    expect(
+      (await listCompanyDocuments(document.client, document.companyId))[0].reportingPeriod,
+    ).toBe("2026-10");
+  });
+
+  it("refuses a Deferred Claim that is not later than the Tax Point Date's period", async () => {
     const document = await documentInReview();
 
     expect(
       await updateDocumentReporting(document.client, {
         companyId: document.companyId,
         documentId: document.documentId,
-        receiptDate: "2026-11-05",
         claimedReportingPeriod: "2026-10",
       }),
     ).toEqual({ ok: false, error: "claimed_period_not_later" });
     expect(
-      await getDocument(
-        document.client,
-        document.companyId,
-        document.documentId,
-      ),
-    ).toEqual(
-      expect.objectContaining({
-        claimedReportingPeriod: null,
-      }),
-    );
+      await getDocument(document.client, document.companyId, document.documentId),
+    ).toEqual(expect.objectContaining({ claimedReportingPeriod: null }));
   });
 
-  it("refuses Receipt Date assignment for an outgoing Document", async () => {
+  it("refuses a Deferred Claim for an outgoing Document", async () => {
     const document = await documentInReview(CORRECTED);
 
     expect(
       await updateDocumentReporting(document.client, {
         companyId: document.companyId,
         documentId: document.documentId,
-        receiptDate: "2026-11-05",
-        claimedReportingPeriod: null,
+        claimedReportingPeriod: "2026-12",
       }),
     ).toEqual({ ok: false, error: "incoming_required" });
   });
@@ -409,10 +443,7 @@ describe("approving and rejecting a Document", () => {
   });
 
   it("refuses approval while Direction is unknown", async () => {
-    const document = await documentInReview({
-      ...SAMPLE_EXTRACTION,
-      direction: null,
-    });
+    const document = await documentInReview(UNDETECTED);
 
     expect(
       await approveDocument(document.client, { ...document, version: 1 }),
@@ -426,19 +457,24 @@ describe("approving and rejecting a Document", () => {
     ).toBe("needs_review");
   });
 
-  it("allows approval after a User sets the unknown Direction", async () => {
-    const document = await documentInReview({
-      ...SAMPLE_EXTRACTION,
-      direction: null,
-    });
+  it("records a User-set Direction as their Extraction Version, which clears the finding and allows approval", async () => {
+    const document = await documentInReview(UNDETECTED);
 
     expect(
       await correctDocument(document.client, {
         ...document,
         basedOnVersion: 1,
-        payload: SAMPLE_EXTRACTION,
+        payload: { ...UNDETECTED, direction: "incoming" },
       }),
     ).toEqual({ ok: true, value: { version: 2 } });
+
+    const versions = await listExtractionVersions(document.client, document.companyId, document.documentId);
+    expect(versions[0].findings).toContainEqual({ field: "direction", severity: "error", code: "direction_unknown" });
+    expect(versions[1]).toEqual(expect.objectContaining({
+      author: { kind: "user", userId: document.userId },
+      payload: expect.objectContaining({ direction: "incoming" }),
+    }));
+    expect(versions[1].findings).not.toContainEqual(expect.objectContaining({ code: "direction_unknown" }));
     expect(
       await approveDocument(document.client, { ...document, version: 2 }),
     ).toEqual({ ok: true, value: null });
@@ -534,6 +570,95 @@ describe("approving and rejecting a Document", () => {
   });
 });
 
+describe("checking Document totals", () => {
+  it("warns about a gross total that differs from net plus VAT, showing the difference, and still allows approval", async () => {
+    const document = await documentInReview();
+    await correctDocument(document.client, {
+      companyId: document.companyId,
+      documentId: document.documentId,
+      basedOnVersion: 1,
+      payload: {
+        ...SAMPLE_EXTRACTION,
+        totals: { netAmount: "1000.00", vatAmount: "210.00", grossAmount: "1200.00" },
+      },
+    });
+
+    const versions = await listExtractionVersions(document.client, document.companyId, document.documentId);
+    expect(versions[1].findings).toEqual([
+      {
+        field: "totals.grossAmount",
+        severity: "warning",
+        code: "total_gross_amount_mismatch",
+        params: { difference: "10.00" },
+      },
+    ]);
+    expect(await approveDocument(document.client, { ...document, version: 2 })).toEqual({ ok: true, value: null });
+    const readiness = await getReportingPeriodReadiness(document.client, {
+      companyId: document.companyId,
+      period: "2026-10",
+    });
+    if (!readiness.ok) throw new Error(readiness.error);
+    expect(readiness.value.blockers).toEqual([]);
+    expect(readiness.value.warnings).toEqual([
+      { code: "warning_finding", documentId: document.documentId, findingCode: "total_gross_amount_mismatch" },
+    ]);
+  });
+
+  it("reads a historical gross-total error as a warning without rewriting its Extraction Version", async () => {
+    const document = await documentInReview();
+    // An old client recorded this finding before gross mismatches became warnings.
+    const stored = await document.client.rpc("correct_document", {
+      target_document_id: document.documentId,
+      based_on_version: 1,
+      payload: {
+        ...SAMPLE_EXTRACTION,
+        totals: { netAmount: "1000.00", vatAmount: "210.00", grossAmount: "1200.00" },
+      },
+      findings: [{ field: "totals.grossAmount", severity: "error", code: "total_gross_amount_mismatch" }],
+    });
+    expect(stored.error).toBeNull();
+    const versions = await listExtractionVersions(document.client, document.companyId, document.documentId);
+    expect(versions[1].findings).toEqual([{
+      field: "totals.grossAmount", severity: "warning", code: "total_gross_amount_mismatch",
+      params: { difference: "10.00" },
+    }]);
+    expect(await approveDocument(document.client, { ...document, version: 2 })).toEqual({ ok: true, value: null });
+    const readiness = await getReportingPeriodReadiness(document.client, {
+      companyId: document.companyId, period: "2026-10",
+    });
+    if (!readiness.ok) throw new Error(readiness.error);
+    expect(readiness.value.blockers).toEqual([]);
+    expect(readiness.value.warnings).toEqual([{
+      code: "warning_finding", documentId: document.documentId, findingCode: "total_gross_amount_mismatch",
+    }]);
+    expect((await generateVatReport(document.client, {
+      companyId: document.companyId, period: "2026-10",
+    })).ok).toBe(true);
+    expect((await getVatReport(document.client, document.companyId, "2026-10"))?.finalization).toEqual({
+      blockerCount: 0, warningCount: 1, rejectedDocumentCount: 0,
+    });
+  });
+
+  it.each([
+    ["net", { netAmount: "1100.00", vatAmount: "210.00", grossAmount: "1310.00" }],
+    ["VAT", { netAmount: "1000.00", vatAmount: "200.00", grossAmount: "1200.00" }],
+  ])("refuses approval when the %s total disagrees with the Rate Breakdown", async (_name, totals) => {
+    const document = await documentInReview();
+    await correctDocument(document.client, {
+      companyId: document.companyId,
+      documentId: document.documentId,
+      basedOnVersion: 1,
+      payload: { ...SAMPLE_EXTRACTION, totals },
+    });
+    expect(await approveDocument(document.client, { ...document, version: 2 })).toEqual({
+      ok: false, error: "rate_breakdown_totals_mismatch",
+    });
+    expect((await listDocuments(document.client, document.companyId, document.sourceFileId))[0].status)
+      .toBe("needs_review");
+  });
+
+});
+
 describe("the Document list", () => {
   /** An Administrator whose Company holds one Document in review per extraction, Extracted in that order. */
   async function companyWithDocuments(...extractions: ExtractionPayload[]) {
@@ -547,7 +672,6 @@ describe("the Document list", () => {
         companyId: admin.companyId,
         fileName: "receipt.png",
         bytes: fixtureFile("receipt.png"),
-        preselectedDirection: extractions[i].direction ?? undefined,
       });
       if (!uploaded.ok) throw new Error(uploaded.error);
       sourceFileIds.push(uploaded.value.id);
@@ -743,4 +867,52 @@ describe("the review workspace", () => {
     );
     expect(await listExtractionVersions(a.client, a.companyId, a.documentId)).toHaveLength(1);
   });
+});
+
+
+it("offers only later generated periods for a Deferred Claim", async () => {
+  const document = await documentInReview();
+  expect(await listDeferredClaimPeriods(document.client, document.companyId, document.documentId))
+    .toEqual(["2026-11", "2026-12"]);
+});
+
+
+it("refuses a Deferred Claim more than three years after the Tax Point Date", async () => {
+  const document = await documentInReview();
+  const { setCurrentReportingYear } = await import("@/application/companies");
+  await setCurrentReportingYear(document.client, { companyId: document.companyId, year: 2030, filingFrequency: "monthly" });
+  expect(await updateDocumentReporting(document.client, { companyId: document.companyId, documentId: document.documentId, claimedReportingPeriod: "2030-01" }))
+    .toEqual({ ok: false, error: "invalid_reporting_period" });
+  expect(await listDeferredClaimPeriods(document.client, document.companyId, document.documentId)).not.toContain("2030-01");
+});
+
+
+it("refuses the Deferred Claim migration before it moves a locked legacy assignment", async () => {
+  const document = await documentInReview();
+  const { setCurrentReportingYear } = await import("@/application/companies");
+  const { generateVatReport, finalizeVatReport } = await import("@/application/vat-reports");
+  expect(await setCurrentReportingYear(document.client, { companyId: document.companyId, year: 2030, filingFrequency: "monthly" })).toEqual({ ok: true, value: null });
+  const period = { companyId: document.companyId, period: "2030-01" };
+  expect((await generateVatReport(document.client, period)).ok).toBe(true);
+  expect(await finalizeVatReport(document.client, { ...period, confirmed: true })).toEqual({ ok: true, value: null });
+  const original = readFileSync("supabase/migrations/20261120120000_tax_point_date_reporting_period.sql", "utf8");
+  const start = original.indexOf("create function private.document_reporting_period(");
+  const end = original.indexOf("revoke execute on function private.document_reporting_period", start);
+  const oldFunction = original.slice(start, end).replace("create function", "create or replace function");
+  const migration = readFileSync("supabase/migrations/20261120130000_deferred_claim.sql", "utf8");
+  const database = new DatabaseClient({ connectionString: inject("databaseUrl") });
+  await database.connect();
+  try {
+    await database.query("begin");
+    await database.query(oldFunction);
+    // Test-only pre-upgrade fixture, isolated in this transaction.
+    await database.query("alter table public.document disable trigger document_period_lock");
+    await database.query("update public.document set claimed_reporting_period = '2030-01' where id = $1", [document.documentId]);
+    await database.query("alter table public.document enable trigger document_period_lock");
+    await expect(database.query(migration)).rejects.toMatchObject({ hint: "locked_legacy_deferred_claim" });
+  } finally {
+    await database.query("rollback");
+    await database.end();
+  }
+  expect((await listCompanyDocuments(document.client, document.companyId))[0].reportingPeriod).toBe("2026-10");
 });

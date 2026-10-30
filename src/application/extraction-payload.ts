@@ -5,7 +5,7 @@
 // Every field the Document does not show is null. Amounts are decimal strings
 // with a dot and two decimals ("1210.00"), so no value passes through a float;
 // Credit Notes carry negative amounts. Dates are ISO dates ("2026-10-27").
-// Receipt Date and the claimed Reporting Period belong to the Document, not here.
+// The Deferred Claim belongs to the Document, not here.
 
 export const DOCUMENT_TYPES = ["invoice", "credit_note", "debit_note", "receipt", "simplified_tax_document", "other"] as const;
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];

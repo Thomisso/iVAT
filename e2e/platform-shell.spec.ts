@@ -52,7 +52,6 @@ async function createCompany(page: Page, name: string, ico: string) {
     /\/companies\/[0-9a-f-]+\/setup\/filing-frequency$/,
   );
   const companyId = new URL(page.url()).pathname.split("/")[2];
-  await page.getByLabel("Effective from").fill("2026-01-01");
   await page.getByRole("button", { name: "Save and continue" }).click();
   await expect(page).toHaveURL(
     new RegExp(`/companies/${companyId}/setup/ai-processing$`),
@@ -116,9 +115,12 @@ test("only a SuperAdmin navigates the shared Platform shell without losing exist
     `${Date.now()}`.slice(-8),
   );
 
-  await page.getByRole("button", { name: "Open administration menu" }).click();
+  const administration = page.getByRole("navigation", {
+    name: "Administration",
+  });
+  await expect(administration).toBeVisible();
   await expect(
-    page.getByRole("menuitem", { name: "Platform overview" }),
+    administration.getByRole("link", { name: "Platform overview" }),
   ).toHaveCount(0);
   await page.goto("/platform/administration");
   await expect(
@@ -129,7 +131,21 @@ test("only a SuperAdmin navigates the shared Platform shell without losing exist
   ).toHaveCount(0);
 
   await promoteAndEnroll(page, email);
-  await page.goto("/platform/administration");
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`/companies/${companyId}`);
+  await administration
+    .getByRole("group", { name: "Platform administration" })
+    .getByRole("link", { name: "Platform overview" })
+    .click();
+  await expect(page).toHaveURL(/\/platform\/administration$/);
+  await expect(
+    administration
+      .getByRole("group", { name: "Platform administration" })
+      .getByRole("link", { name: "Platform AI usage" }),
+  ).toBeVisible();
+  await expect(
+    administration.getByRole("group", { name: "Company administration" }),
+  ).toHaveCount(0);
 
   const navigation = page.getByRole("navigation", {
     name: "Platform navigation",
@@ -184,9 +200,18 @@ test("only a SuperAdmin navigates the shared Platform shell without losing exist
   await expect(
     navigation.getByRole("link", { name: "Platform AI settings" }),
   ).toHaveAttribute("aria-current", "page");
-  await expect(
-    page.getByRole("heading", { name: "AI configurations", level: 2 }),
-  ).toBeVisible();
+  const configurations = page
+    .getByRole("heading", { name: "AI configurations", level: 2 })
+    .locator("xpath=ancestor::section");
+  await expect(configurations).toBeVisible();
+  const [configurationsBox, labelBox, providerBox] = await Promise.all([
+    configurations.boundingBox(),
+    configurations.getByLabel("Configuration label").first().boundingBox(),
+    configurations.getByLabel("Provider").first().boundingBox(),
+  ]);
+  expect(configurationsBox!.width).toBeGreaterThan(1000);
+  expect(providerBox!.x).toBeGreaterThan(labelBox!.x + labelBox!.width);
+  expect(Math.abs(providerBox!.y - labelBox!.y)).toBeLessThan(2);
   await navigation.getByRole("link", { name: "Platform AI usage" }).click();
   await expect(page).toHaveURL(/\/platform\/ai-usage$/);
   await expect(
