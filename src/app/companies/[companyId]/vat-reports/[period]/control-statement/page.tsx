@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getCompany } from "@/application/companies";
+import { isZeroRateBreakdownLine } from "@/application/extraction-payload";
 import { getCompanyFilingDefaults, resolveEpoAddress } from "@/application/company-filing-defaults";
 import { getReportingPeriodReadiness } from "@/application/reporting-period-readiness";
 import { getPeriodLock, getVatReport } from "@/application/vat-reports";
@@ -91,7 +92,7 @@ export default async function ControlStatementPage({
               )}
               <DataTable
                 caption={t("section", { section: entry.section })}
-                rows={entry.rateBreakdown.map((rate) => ({
+                rows={entry.rateBreakdown.filter((rate) => !isZeroRateBreakdownLine(rate)).map((rate) => ({
                   ...rate,
                   id: String(rate.rate),
                 }))}

@@ -75,6 +75,7 @@ import {
 } from "@/application/upload-batches";
 import { configuredAresRegistry } from "@/ares";
 import { configuredExchangeRates } from "@/cnb";
+import { configuredVatPayerRegistry } from "@/vat-registry";
 import { jobQueue } from "@/lib/jobs";
 import { createRequestClient, requireUserClient } from "@/lib/supabase/server";
 import { isLocale, localeCookie } from "@/i18n/locales";
@@ -588,6 +589,7 @@ export async function correctDocumentAction(_state: FormState, formData: FormDat
       payload: payloadFromForm(formData),
     },
     configuredExchangeRates(),
+    configuredVatPayerRegistry(),
   );
   if (!result.ok) {
     const values = [...formData.entries()].filter(
