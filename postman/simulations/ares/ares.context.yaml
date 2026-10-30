@@ -13,9 +13,9 @@ assumptions:
     status: supported
     claim: Against the local ARES stand-in, Company onboarding preserves street name, house number, orientation number with a letter, city, and postal code as separate form values.
     reason: The Postman request log showed the dependency path was exercised, and Playwright asserted each visible form field before saving.
-    verification: On 2026-10-28, npm run test:e2e -- e2e/company-onboarding.spec.ts passed 2/2; the simulation summary recorded two successful requests, including the readiness probe and the onboarding lookup.
-    source: e2e/company-onboarding.spec.ts; postman/mocks/ares/default.js; focused run on ticket/77-company-onboarding
-    updated_at: "2026-10-28"
+    verification: On 2026-10-30, QA v3 verification observed two Postman request events (readiness and onboarding lookup). Both Company onboarding scenarios passed, and the final complete production E2E suite passed 31/31. This revalidates the local caller path, not the live ARES contract.
+    source: e2e/company-onboarding.spec.ts; postman/mocks/ares/default.js; integration f4d56c1 (QA v3 #115)
+    updated_at: "2026-10-30"
 fingerprints:
   - id: ivat-77-dirty-2026-10-28
     date: "2026-10-28"
