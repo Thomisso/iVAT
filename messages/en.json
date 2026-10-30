@@ -520,23 +520,45 @@
     "credential_required": "Enter a new credential when changing the provider.",
     "invalid_allowance": "The processing allowance must be a non-negative whole number or unlimited.",
     "direction_required": "Set the document Direction before approving it.",
-    "batch_processing": "The batch is still processing. Wait until it finishes."
+    "batch_processing": "The batch is still processing. Wait until it finishes.",
+    "invalid_price": "Enter both prices as non-negative numbers, or leave both empty.",
+    "unknown_model": "The AI Configuration does not use this model."
   },
   "aiUsage": {
     "platformNav": "Platform AI usage",
     "platformTitle": "Platform AI usage",
-    "platformIntro": "Requests and tokens across Organizations, grouped by provider and model.",
+    "platformIntro": "Requests, tokens and cost across Organizations. Costs are in USD as recorded at call time.",
     "filters": "AI usage filters",
     "from": "From",
     "to": "To",
     "organization": "Organization",
     "filter": "Filter",
-    "provider": "Provider",
     "model": "Model",
     "requests": "Requests",
     "inputTokens": "Input tokens",
     "outputTokens": "Output tokens",
-    "empty": "No AI usage in this period"
+    "empty": "No AI usage in this period",
+    "company": "Company",
+    "configuration": "AI Configuration",
+    "operation": "Operation",
+    "groupBy": "Group by",
+    "all": "All",
+    "clear": "Clear filters",
+    "cost": "Cost (USD)",
+    "unknownCost": "Unknown",
+    "unknownCostEvents": "Events with unknown cost",
+    "total": "Total",
+    "noConfiguration": "No AI Configuration",
+    "invalidPeriod": "The end of the period must not be before its start.",
+    "operations": { "split": "Split", "extract": "Extraction" },
+    "groupings": {
+      "organization": "Organization",
+      "company": "Company",
+      "ai_configuration": "AI Configuration",
+      "model": "Model",
+      "operation": "Operation",
+      "month": "Month"
+    }
   },
   "auditLog": {
     "organizationNav": "Audit log for {organization}",
@@ -570,7 +592,7 @@
     "title": "Platform AI settings",
     "intro": "Create platform-owned AI Configurations, assign them to Companies and manage lifetime processing allowances.",
     "configurations": "AI Configurations",
-    "configurationsIntro": "Create platform-owned configurations and assign them to Companies. Stored credentials and models are never returned to this screen.",
+    "configurationsIntro": "Create platform-owned configurations and assign them to Companies. Stored credentials are never returned to this screen.",
     "configurationLabel": "Configuration label",
     "provider": "Provider",
     "configurationCredential": "Provider credential",
@@ -591,7 +613,13 @@
     "unlimited": "unlimited",
     "allowanceUsage": "Used {used} of {allowance}; {waiting} Documents are waiting for an increase.",
     "splitModel": "Split model",
-    "extractModel": "Extract model"
+    "extractModel": "Extract model",
+    "modelPrices": "Model prices",
+    "modelPricesFor": "Model prices of {label}",
+    "modelPricesIntro": "Price in USD per one million tokens. New AI usage is costed with these prices; recorded usage keeps its cost. Leave both prices empty for an unpriced model.",
+    "inputPrice": "{model}: input price (USD / 1M tokens)",
+    "outputPrice": "{model}: output price (USD / 1M tokens)",
+    "saveModelPrices": "Save prices"
   },
   "platformAdministration": {
     "nav": "Platform administration",

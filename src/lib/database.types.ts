@@ -43,6 +43,26 @@ isOneToOne: false
       referencedColumns: ["provider"]
     }
                   ]
+                },"ai_model_price": {
+                  Row: {
+                    "configuration_id": string,"input_price_per_million_usd": number,"model": string,"output_price_per_million_usd": number,"updated_at": string,"updated_by": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "configuration_id": string,"input_price_per_million_usd": number,"model": string,"output_price_per_million_usd": number,"updated_at"?: string,"updated_by"?: string | null
+                  }
+                  Update: {
+                    "configuration_id"?: string,"input_price_per_million_usd"?: number,"model"?: string,"output_price_per_million_usd"?: number,"updated_at"?: string,"updated_by"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "ai_model_price_configuration_id_fkey"
+      columns: ["configuration_id"]
+isOneToOne: false
+      referencedRelation: "ai_configuration"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"ai_processing_issue": {
                   Row: {
                     "classification": Database["public"]['Enums']["ai_processing_issue_classification"],"company_id": string,"configuration_id": string | null,"first_detected_at": string,"organization_id": string,"provider": string | null,"state": Database["public"]['Enums']["ai_processing_issue_state"],"target_id": string,"target_kind": Database["public"]['Enums']["ai_processing_target_kind"],"updated_at": string
@@ -127,17 +147,23 @@ isOneToOne: false
                   ]
                 },"ai_usage_event": {
                   Row: {
-                    "company_id": string,"created_at": string,"id": number,"input_tokens": number,"job_name": string,"job_target_id": string,"model": string,"operation": string,"organization_id": string,"output_tokens": number,"provider": string,"requests": number
+                    "ai_configuration_id": string | null,"company_id": string,"cost_usd": number | null,"created_at": string,"id": number,"input_tokens": number,"job_name": string,"job_target_id": string,"model": string,"operation": string,"organization_id": string,"output_tokens": number,"provider": string,"requests": number
                   }
                   ComputedFields: never
                   Insert: {
-                    "company_id": string,"created_at"?: string,"id"?: never,"input_tokens": number,"job_name": string,"job_target_id": string,"model": string,"operation": string,"organization_id": string,"output_tokens": number,"provider": string,"requests"?: number
+                    "ai_configuration_id"?: string | null,"company_id": string,"cost_usd"?: number | null,"created_at"?: string,"id"?: never,"input_tokens": number,"job_name": string,"job_target_id": string,"model": string,"operation": string,"organization_id": string,"output_tokens": number,"provider": string,"requests"?: number
                   }
                   Update: {
-                    "company_id"?: string,"created_at"?: string,"id"?: never,"input_tokens"?: number,"job_name"?: string,"job_target_id"?: string,"model"?: string,"operation"?: string,"organization_id"?: string,"output_tokens"?: number,"provider"?: string,"requests"?: number
+                    "ai_configuration_id"?: string | null,"company_id"?: string,"cost_usd"?: number | null,"created_at"?: string,"id"?: never,"input_tokens"?: number,"job_name"?: string,"job_target_id"?: string,"model"?: string,"operation"?: string,"organization_id"?: string,"output_tokens"?: number,"provider"?: string,"requests"?: number
                   }
                   Relationships: [
                     {
+      foreignKeyName: "ai_usage_event_ai_configuration_id_fkey"
+      columns: ["ai_configuration_id"]
+isOneToOne: false
+      referencedRelation: "ai_configuration"
+      referencedColumns: ["id"]
+    },{
       foreignKeyName: "ai_usage_event_company_id_organization_id_fkey"
       columns: ["company_id","organization_id"]
 isOneToOne: false
@@ -792,6 +818,9 @@ isOneToOne: false
 "list_ai_configurations":
 { Args: Record<PropertyKey, never>; Returns: Json
                            },
+"list_ai_model_prices":
+{ Args: Record<PropertyKey, never>; Returns: Json
+                           },
 "list_company_access":
 { Args: { "target_company_id": string }; Returns: Json
                            },
@@ -809,9 +838,12 @@ isOneToOne: false
 { Args: Record<PropertyKey, never>; Returns: Json
                            },
 "list_platform_ai_usage":
-{ Args: { "period_from": string,"period_to": string }; Returns: {
-              "input_tokens": number,"model": string,"organization_id": string,"organization_name": string,"output_tokens": number,"provider": string,"requests": number
+{ Args: { "group_by": string,"period_from": string,"period_to": string,"target_company_id"?: string,"target_configuration_id"?: string,"target_model"?: string,"target_operation"?: string,"target_organization_id"?: string }; Returns: {
+              "cost_usd": number,"group_key": string,"group_label": string,"input_tokens": number,"output_tokens": number,"requests": number,"unknown_cost_events": number
             }[]
+                           },
+"list_platform_ai_usage_models":
+{ Args: Record<PropertyKey, never>; Returns: string[]
                            },
 "list_platform_operational_context":
 { Args: Record<PropertyKey, never>; Returns: Json
@@ -857,7 +889,7 @@ isOneToOne: false
 { Args: { "target_classification": Database["public"]['Enums']["ai_processing_issue_classification"],"target_configuration_id"?: string,"target_id": string,"target_kind": Database["public"]['Enums']["ai_processing_target_kind"],"target_provider"?: string,"target_state": Database["public"]['Enums']["ai_processing_issue_state"] }; Returns: undefined
                            },
 "record_ai_usage":
-{ Args: { "target_company_id": string,"target_input_tokens": number,"target_job_id": string,"target_job_name": string,"target_model": string,"target_operation": string,"target_organization_id": string,"target_output_tokens": number,"target_provider": string }; Returns: undefined
+{ Args: { "target_company_id": string,"target_configuration_id": string,"target_input_tokens": number,"target_job_id": string,"target_job_name": string,"target_model": string,"target_operation": string,"target_organization_id": string,"target_output_tokens": number,"target_provider": string,"target_provider_cost_usd"?: number }; Returns: undefined
                            },
 "record_split":
 { Args: { "source_ranges": Json,"target_source_file_id": string }; Returns: undefined
@@ -904,6 +936,9 @@ isOneToOne: false
                            },
 "save_vat_report":
 { Args: { "computed_result": Json,"expected_documents": Json,"target_company_id": string,"target_period": string }; Returns: string
+                           },
+"set_ai_model_prices":
+{ Args: { "prices": Json,"target_configuration_id": string }; Returns: undefined
                            },
 "set_company_ai_processing_allowance":
 { Args: { "target_allowance": number,"target_company_id": string }; Returns: {
