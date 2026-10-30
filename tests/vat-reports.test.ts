@@ -19,7 +19,7 @@ import {
   companyMember,
   companyWithManyReportDocuments,
 } from "./support/fixtures";
-import { signedUpUser } from "./support/clients";
+import { provisionedUser } from "./support/clients";
 import { fixtureFile } from "./support/files";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { testWorker } from "./support/worker";
@@ -176,7 +176,7 @@ it("generates quarterly Reporting Periods when the Company's Reporting Year beco
 });
 it("isolates stored reports and generation from another Organization, including direct database access", async () => {
   const a = await companyWithReportDocuments();
-  const b = await signedUpUser();
+  const b = await provisionedUser();
   const input = { companyId: a.companyId, period: "2026-10" };
   const result = await generateVatReport(a.client, input);
   expect(result.ok).toBe(true);
@@ -222,7 +222,7 @@ it("refuses invalid months without changing a report", async () => {
 });
 
 it("refuses generation until required Company onboarding is complete", async () => {
-  const user = await signedUpUser();
+  const user = await provisionedUser();
   const created = await createCompanyIdentity(user.client, {
     organizationId: user.organizationId,
     ...companyDetails(),

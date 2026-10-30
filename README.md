@@ -144,6 +144,12 @@ npm run db:start
 npm test
 ```
 
+Integration and browser fixtures provision accounts through the isolated Auth
+admin API, then sign in with their real credentials. Browser scenarios still
+use the login UI; they do not need public registration. Privileged setup runs
+only in the test process using the local stack's secret key, with no public
+provisioning endpoint or browser access to that key.
+
 The end-to-end acceptance suite stops this worktree's existing Supabase stack
 without retaining its data, starts only the services needed by the browser
 tests, builds the production Next.js application, and runs it with the worker

@@ -10,7 +10,7 @@ import {
 } from "@/application/documents";
 import { uploadSourceFile } from "@/application/source-files";
 import { fakeAiProvider } from "@/ai/fake";
-import { signedUpUser } from "./support/clients";
+import { provisionedUser } from "./support/clients";
 import {
   administratorWithCompany,
   assignAiConfigurationFixture as enableAiProcessing,
@@ -220,7 +220,7 @@ describe("Split correction", () => {
   it("refuses a non-adjacent correction and a User from another Organization", async () => {
     const context = await processedFourPageFile();
     const documents = await listDocuments(context.client, context.companyId, context.sourceFileId);
-    const outsider = await signedUpUser("Other Organization");
+    const outsider = await provisionedUser("Other Organization");
 
     expect(
       await mergeDocuments(context.client, context.worker.jobs, {

@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Client as DatabaseClient } from "pg";
 import type { Database } from "@/lib/database.types";
 import { addLegacyRateBreakdownVersionFixture } from "./rate-breakdown-history";
+import { provisionAccountFixture, type AccountFixtureInput } from "./accounts";
 
 async function browserFixtureEnvironment() {
   const contents = await fs.readFile(".env.local", "utf8");
@@ -18,6 +19,11 @@ async function browserFixtureClient() {
   return createClient<Database>(environment.NEXT_PUBLIC_SUPABASE_URL, environment.SUPABASE_SECRET_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
+}
+
+/** Runs in Playwright's Node process; privileged credentials never enter the browser. */
+export async function provisionBrowserAccountFixture(input: AccountFixtureInput) {
+  return provisionAccountFixture(await browserFixtureClient(), input);
 }
 
 export async function addBrowserLegacyRateBreakdownVersionFixture(documentId: string) {
@@ -215,7 +221,7 @@ export async function addBrowserDocumentWarningFixture(documentId: string) {
   }
 }
 
-/** Browser-fixture setup for a user who signed up through the real UI. */
+/** Browser-fixture setup for a user whose account was privately provisioned. */
 export async function addBrowserCompanyMemberFixture(companyId: string, email: string, role: "administrator" | "user" = "user") {
   const service = await browserFixtureClient();
   const [{ data: company }, { data: users }] = await Promise.all([
@@ -234,7 +240,7 @@ export async function addBrowserCompanyMemberFixture(companyId: string, email: s
   if (membership.error) throw membership.error;
 }
 
-/** Browser-fixture setup for a SuperAdmin who signed up through the real UI. */
+/** Browser-fixture setup for a SuperAdmin whose account was privately provisioned. */
 export async function promoteBrowserSuperAdminFixture(email: string) {
   const service = await browserFixtureClient();
   const { data: users, error: usersError } = await service.auth.admin.listUsers();

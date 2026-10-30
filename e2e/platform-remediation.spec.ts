@@ -1,3 +1,4 @@
+import { provisionAndLogIn } from "./support/accounts";
 import { createHmac } from "node:crypto";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import {
@@ -29,13 +30,9 @@ async function english(context: BrowserContext, baseURL: string | undefined) {
   await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: new URL(baseURL).origin }]);
 }
 
-async function signUpAndCreateCompany(page: Page, run: string) {
+async function provisionCompanyAdministrator(page: Page, run: string) {
   const email = `platform-remediation-${run}@example.test`;
-  await page.goto("/signup");
-  await page.getByLabel("Organization name").fill(`Remediation Organization ${run}`);
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Sign up" }).click();
+  await provisionAndLogIn(page, { organizationName: `Remediation Organization ${run}`, email, password });
   await page.getByLabel("Company name").fill(`Remediation Company ${run}`);
   const ico = Date.now().toString().slice(-8);
   await page.getByLabel("IČO").fill(ico);
@@ -89,7 +86,7 @@ test("SuperAdmin resolves live Platform alerts in place without mixing Company n
 }) => {
   await english(context, baseURL);
   const run = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-  const { companyId, email } = await signUpAndCreateCompany(page, run);
+  const { companyId, email } = await provisionCompanyAdministrator(page, run);
   await uploadReceipt(page, companyId);
   await expect(page.getByRole("heading", { name: "Waiting for AI setup" })).toBeVisible();
   await addBrowserMissingConfigurationIssueFixture(companyId);

@@ -29,7 +29,7 @@ import {
   administratorWithCompany,
   assignAiConfigurationFixture as enableAiProcessing,
 } from "./support/fixtures";
-import { anonymousClient, signedUpUser } from "./support/clients";
+import { anonymousClient, provisionedUser } from "./support/clients";
 import { fixtureFile, selectUploadFiles } from "./support/files";
 import { systemClient, testWorker } from "./support/worker";
 
@@ -53,7 +53,7 @@ function aal2Client(userId: string) {
 }
 
 async function superAdministrator() {
-  const user = await signedUpUser("Platform Administration");
+  const user = await provisionedUser("Platform Administration");
   const { error } = await systemClient().from("platform_user").insert({
     user_id: user.userId,
     role: "super_admin",
@@ -64,7 +64,7 @@ async function superAdministrator() {
 
 describe("SuperAdmin organization console", () => {
   it("isolates the live operational dashboard to SuperAdmin", async () => {
-    const ordinary = await signedUpUser("Ordinary operational viewer");
+    const ordinary = await provisionedUser("Ordinary operational viewer");
     const superAdmin = await superAdministrator();
 
     expect(await listPlatformOperationalProblems(ordinary.client)).toEqual({
@@ -79,7 +79,7 @@ describe("SuperAdmin organization console", () => {
 
   it("lists every Organization and Company only for a SuperAdmin", async () => {
     const target = await administratorWithCompany("Accounting Office");
-    const ordinary = await signedUpUser("Ordinary Organization");
+    const ordinary = await provisionedUser("Ordinary Organization");
     const superAdmin = await superAdministrator();
 
     expect(await listPlatformOrganizationCompanies(ordinary.client)).toEqual({
@@ -136,7 +136,7 @@ describe("SuperAdmin organization console", () => {
       bytes: fixtureFile("receipt.png"),
     });
     if (!uploaded.ok) throw new Error(uploaded.error);
-    const ordinary = await signedUpUser("Ordinary Organization");
+    const ordinary = await provisionedUser("Ordinary Organization");
     const superAdmin = await superAdministrator();
 
     expect(await setPlatformOrganizationBlocked(ordinary.client, {
@@ -217,7 +217,7 @@ describe("SuperAdmin organization console", () => {
 
   it("lets only a SuperAdmin edit upload limits and applies them to uploads", async () => {
     const target = await administratorWithCompany("Limited Organization");
-    const ordinary = await signedUpUser("Ordinary Organization");
+    const ordinary = await provisionedUser("Ordinary Organization");
     const superAdmin = await superAdministrator();
     const defaultMaxFileBytes = 20 * 1024 * 1024;
     const editedMaxFileBytes = 22 * 1024 * 1024;
@@ -318,7 +318,7 @@ describe("SuperAdmin organization console", () => {
     ]);
     expect((await listDocuments(target.client, target.companyId, documentFile.value.id))[0].status)
       .toBe("failed");
-    const ordinary = await signedUpUser("Ordinary Organization");
+    const ordinary = await provisionedUser("Ordinary Organization");
     process.loadEnvFile(".env.local");
     const boss = createBoss({ supervise: false });
     await boss.start();
