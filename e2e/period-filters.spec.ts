@@ -131,6 +131,15 @@ test("batch date bounds persist through history pages while the Company upload q
   await page.reload();
   await expect(page.locator(".upload-batch-list li")).toHaveCount(2);
   await expect(page.locator(".upload-items li")).toHaveCount(1);
+  const historyUrl = new URL(page.url());
+  const batchLink = page.locator(".upload-batch-list li").first().getByRole("link");
+  const batchId = (await batchLink.getAttribute("href"))!.split("/upload-batches/")[1].split("?")[0];
+  await batchLink.click();
+  await page.getByRole("link", { name: "← Back to Upload", exact: true }).click();
+  historyUrl.hash = `batch-${batchId}`;
+  await expect(page).toHaveURL(historyUrl.href);
+  await expect(page.locator(".upload-batch-list li")).toHaveCount(2);
+  await expect(page.locator(".upload-items li")).toHaveCount(1);
   await page.getByRole("link", { name: "← Newer batches" }).click();
   await expect(page.locator(".upload-batch-list li")).toHaveCount(20);
   await expect(filters.getByLabel("Uploaded from", { exact: true })).toHaveValue("25.10.2026");

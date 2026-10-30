@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { companyPageContext, safeCompanyReturnTo, withCompanyReturnTo } from "@/application/return-context";
+import { CompanyReturnLink } from "@/components/company-return-link";
+
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { reprocessDocumentAction, retrySplitAction } from "@/app/actions";
@@ -16,9 +19,12 @@ import { BatchDeletionForm } from "./batch-deletion-form";
 import { MarkBatchNotificationRead } from "./mark-batch-notification-read";
 
 export default async function UploadBatchPage({
-  params,
+  params, searchParams,
 }: PageProps<"/companies/[companyId]/upload-batches/[batchId]">) {
   const { companyId, batchId } = await params;
+  const search = await searchParams;
+  const returnTo = safeCompanyReturnTo(companyId, search.returnTo);
+  const context = companyPageContext(companyId, `/companies/${companyId}/upload-batches/${batchId}`, search);
   const client = await requireUserClient();
   const [company, role, userId, batch, t] = await Promise.all([
     getCompany(client, companyId),
@@ -44,11 +50,11 @@ export default async function UploadBatchPage({
   const failedDocuments = batch.sourceFiles.flatMap((source) =>
     source.documents.filter((document) => document.status === "failed"),
   );
-  const reviewHref = `/companies/${companyId}/documents?view=review&batchId=${batch.id}`;
+  const reviewHref = withCompanyReturnTo(companyId, `/companies/${companyId}/documents?view=review&batchId=${batch.id}`, context);
 
   return <PageLayout className="company-workspace upload-batch-workspace" measure="wide">
     <header className="company-page-header upload-batch-header">
-      <div><Link href={`/companies/${companyId}/upload`}>{t("backToUpload")}</Link><h1>{t("batchTitle", { date: formatDateTime(batch.createdAt) })}</h1><p>{t("batchFiles", { count: batch.actualFileCount, planned: batch.plannedFileCount })}</p></div>
+      <div><CompanyReturnLink companyId={companyId} returnTo={returnTo} fallback={`/companies/${companyId}/upload`} /><h1>{t("batchTitle", { date: formatDateTime(batch.createdAt) })}</h1><p>{t("batchFiles", { count: batch.actualFileCount, planned: batch.plannedFileCount })}</p></div>
       <span className={`upload-outcome upload-outcome-${batch.outcome}`}>{t(`outcome.${batch.outcome}`)}</span>
     </header>
 
@@ -74,12 +80,12 @@ export default async function UploadBatchPage({
       <div className="upload-section-heading"><div><h2 id="batch-failures-title">{t("failuresTitle")}</h2><p>{t("failuresHint")}</p></div><span>{batch.counts.failures}</span></div>
       {batch.counts.transportFailures > 0 && <p className="upload-failure-row">{t("transportFailures", { count: batch.counts.transportFailures })}</p>}
       {failedSources.map((source) => <div className="upload-failure-row" key={source.id}>
-        <Link href={`/companies/${companyId}/source-files/${source.id}`}>{source.fileName}</Link>
+        <Link href={withCompanyReturnTo(companyId, `/companies/${companyId}/source-files/${source.id}`, `${context}#source-${source.id}`)}>{source.fileName}</Link>
         <span>{t("splitFailed")}</span>
         <CommandButton action={retrySplitAction} fields={{ companyId, sourceFileId: source.id }} size="sm" variant="ai">{t("retrySplit")}</CommandButton>
       </div>)}
       {failedDocuments.map((document) => <div className="upload-failure-row" key={document.id}>
-        <Link href={`/companies/${companyId}/documents/${document.id}`}>{t("documentPages", { first: document.firstPage, last: document.lastPage })}</Link>
+        <Link href={withCompanyReturnTo(companyId, `/companies/${companyId}/documents/${document.id}`, `${context}#document-${document.id}`)}>{t("documentPages", { first: document.firstPage, last: document.lastPage })}</Link>
         <span>{t("extractionFailed")}</span>
         <CommandButton action={reprocessDocumentAction} fields={{ companyId, documentId: document.id }} size="sm" variant="ai">{t("retryExtraction")}</CommandButton>
       </div>)}
@@ -87,20 +93,20 @@ export default async function UploadBatchPage({
 
     <section className="upload-source-ledger" aria-labelledby="source-ledger-title">
       <div className="upload-section-heading"><div><h2 id="source-ledger-title">{t("sourceFilesTitle")}</h2><p>{t("sourceFilesHint")}</p></div><span>{batch.actualFileCount}</span></div>
-      {batch.sourceFiles.map((source) => <article className="upload-source-row" key={source.id}>
+      {batch.sourceFiles.map((source) => <article className="upload-source-row" key={source.id} id={`source-${source.id}`}>
         <header>
-          <div><Link href={`/companies/${companyId}/source-files/${source.id}`}>{source.fileName}</Link><small>{formatDateTime(source.uploadedAt)}</small></div>
+          <div><Link href={withCompanyReturnTo(companyId, `/companies/${companyId}/source-files/${source.id}`, `${context}#source-${source.id}`)}>{source.fileName}</Link><small>{formatDateTime(source.uploadedAt)}</small></div>
           <StatusBadge status={statusBadgeState(source.status, "source-file")}>{t(`sourceStatus.${source.status}`)}</StatusBadge>
         </header>
         {source.documents.length > 0 ? <ol className="upload-document-list">
-          {source.documents.map((document) => <li key={document.id}>
-            <Link href={`/companies/${companyId}/documents/${document.id}`}>{t("documentPages", { first: document.firstPage, last: document.lastPage })}</Link>
+          {source.documents.map((document) => <li key={document.id} id={`document-${document.id}`}>
+            <Link href={withCompanyReturnTo(companyId, `/companies/${companyId}/documents/${document.id}`, `${context}#document-${document.id}`)}>{t("documentPages", { first: document.firstPage, last: document.lastPage })}</Link>
             <StatusBadge status={statusBadgeState(document.status, "document")}>{t(`documentStatus.${document.status}`)}</StatusBadge>
           </li>)}
         </ol> : <p className="iv-muted">{source.status === "failed" ? t("noDocumentsFailed") : t("noDocumentsYet")}</p>}
       </article>)}
     </section>
-    {deletion && <BatchDeletionForm companyId={companyId} preview={deletion} />}
+    {deletion && <BatchDeletionForm companyId={companyId} preview={deletion} returnTo={returnTo ?? undefined} />}
     <RefreshWhile active={batch.outcome === "processing"} />
     <MarkBatchNotificationRead batchId={batch.id} finished={batch.outcome !== "processing"} />
   </PageLayout>;
