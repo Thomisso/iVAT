@@ -275,6 +275,7 @@
     "removeFile": "Remove {name}",
     "identicalFileOmitted": "Identical file contents are already in the queue; another copy was not added.",
     "retryFailedFiles": "Retry unsuccessful files",
+    "finishBatch": "Finish batch",
     "finishWithFailures": "Finish batch with failed files",
     "finishWithFailuresHint": "Some selected files cannot be uploaded. Finish this batch to start a new queue. Uploaded files are kept, unsuccessful transfers remain counted as failures, and this batch can no longer receive files.",
     "upload": "Upload batch",

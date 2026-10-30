@@ -372,6 +372,7 @@ export function SourceFileUploadForm({ companyId, limits }: { companyId: string;
 
   const hasPermanentRefusal = !!batchId && items.some((item) => item.status === "refused" && !item.retryable);
   const hasRetryableFiles = items.some((item) => item.status === "queued" || item.retryable);
+  const allFilesUploaded = items.length > 0 && items.every((item) => item.status === "uploaded");
 
   return (
     <form ref={form} onSubmit={submit} className="form upload-form">
@@ -437,8 +438,8 @@ export function SourceFileUploadForm({ companyId, limits }: { companyId: string;
           </Button>}
         </li>)}
       </ul>}
-      <Button variant="primary" icon="upload" type="submit" disabled={pending || selecting || !draftLoaded || (!!batchId && !hasRetryableFiles)}>
-        {pending ? t("uploading") : batchId ? t("retryFailedFiles") : t("upload")}
+      <Button variant="primary" icon="upload" type="submit" disabled={pending || selecting || !draftLoaded || (!!batchId && !hasRetryableFiles && !allFilesUploaded)}>
+        {pending ? t("uploading") : batchId ? allFilesUploaded ? t("finishBatch") : t("retryFailedFiles") : t("upload")}
       </Button>
       {hasPermanentRefusal && <div>
         <p>{t("finishWithFailuresHint")}</p>
