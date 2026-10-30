@@ -15,6 +15,7 @@ import {
   rejectDocument,
   reprocessDocument,
   updateDocumentReporting,
+  returnDocumentToReview,
   type DocumentFilters,
 } from "@/application/documents";
 import type { ExtractionPayload } from "@/application/extraction-payload";
@@ -31,6 +32,7 @@ import {
 } from "./support/fixtures";
 import { testWorker } from "./support/worker";
 import { fakeExchangeRates } from "@/cnb/fake";
+import { addLegacyRateBreakdownVersionFixture } from "./support/rate-breakdown-history";
 
 /** An Administrator whose Company holds one Document in NeedsReview, Extracted as `extraction`. */
 async function documentInReview(extraction: ExtractionPayload = SAMPLE_EXTRACTION) {
@@ -73,6 +75,78 @@ const CORRECTED: ExtractionPayload = {
 };
 
 describe("correcting a Document", () => {
+  it("keeps historical zero rows immutable while report preparation and later corrections omit them", async () => {
+    const document = await documentInReview();
+    await addLegacyRateBreakdownVersionFixture(inject("databaseUrl"), document.documentId);
+    const [, legacy] = await listExtractionVersions(document.client, document.companyId, document.documentId);
+    expect(legacy.payload.rateBreakdown).toHaveLength(3);
+    expect(legacy.payload.confidence).toEqual({ "rateBreakdown.1.netAmount": 0.62, "rateBreakdown.2.vatAmount": 0.45 });
+    expect(legacy.findings).toContainEqual({ field: "rateBreakdown.2.vatAmount", severity: "error", code: "rate_vat_amount_mismatch" });
+    expect(await approveDocument(document.client, { ...document, version: 2 })).toEqual({ ok: true, value: null });
+    expect((await generateVatReport(document.client, { companyId: document.companyId, period: "2026-10" })).ok).toBe(true);
+    const report = await getVatReport(document.client, document.companyId, "2026-10");
+    expect(report?.result.excludedDocuments).toEqual([]);
+    expect(report?.result.controlStatement.flatMap((entry) => entry.rateBreakdown.map(({ rate, netAmount, vatAmount }) => ({ rate, netAmount, vatAmount })))).toEqual([
+      { rate: 12, netAmount: "-1250.00", vatAmount: "-150.00" },
+      { rate: 21, netAmount: "-2500.00", vatAmount: "-525.00" },
+    ]);
+    expect(await returnDocumentToReview(document.client, document)).toEqual({ ok: true, value: null });
+    expect(await correctDocument(document.client, { ...document, basedOnVersion: 2, payload: legacy.payload }, fakeExchangeRates())).toEqual({ ok: true, value: { version: 3 } });
+    const versions = await listExtractionVersions(document.client, document.companyId, document.documentId);
+    expect(versions[1].payload).toEqual(legacy.payload);
+    expect(versions[2].payload.rateBreakdown).toEqual([
+      { rate: 12, netAmount: "-50.00", vatAmount: "0.00" },
+      { rate: 21, netAmount: "-100.00", vatAmount: "-20.00" },
+    ]);
+  });
+  it("prepares new AI rates and CZK conversion without empty rows and remaps confidence to the retained fields", async () => {
+    const extraction: ExtractionPayload = {
+      ...SAMPLE_EXTRACTION,
+      currency: "EUR",
+      rateBreakdown: [
+        { rate: 0, netAmount: "0.00", vatAmount: "0.00" },
+        { rate: 21, netAmount: "100.00", vatAmount: "21.00" },
+        { rate: 12, netAmount: "50.00", vatAmount: "0.00" },
+        { rate: 12, netAmount: "-0.00", vatAmount: "0.00" },
+      ],
+      totals: { netAmount: "150.00", vatAmount: "21.00", grossAmount: "171.00" },
+      confidence: { documentNumber: 0.98, "rateBreakdown.0.netAmount": 0.99, "rateBreakdown.1.vatAmount": 0.45, "rateBreakdown.2.netAmount": 0.62 },
+    };
+    const document = await documentInReview(extraction);
+    const [version] = await listExtractionVersions(document.client, document.companyId, document.documentId);
+    expect(version.payload.rateBreakdown).toEqual([
+      { rate: 21, netAmount: "100.00", vatAmount: "21.00" },
+      { rate: 12, netAmount: "50.00", vatAmount: "0.00" },
+    ]);
+    expect(version.payload.confidence).toEqual({ documentNumber: 0.98, "rateBreakdown.0.vatAmount": 0.45, "rateBreakdown.1.netAmount": 0.62 });
+    expect(version.payload.czkConversion?.rateBreakdown).toEqual([
+      { rate: 21, netAmount: "2500.00", vatAmount: "525.00" },
+      { rate: 12, netAmount: "1250.00", vatAmount: "0.00" },
+    ]);
+    expect(extraction.rateBreakdown).toHaveLength(4);
+    expect(extraction.confidence?.["rateBreakdown.1.vatAmount"]).toBe(0.45);
+  });
+  it("omits only zero net and VAT rows when preparing corrections, retaining meaningful zero VAT", async () => {
+    const document = await documentInReview();
+    const payload: ExtractionPayload = {
+      ...SAMPLE_EXTRACTION,
+      rateBreakdown: [
+        { rate: 0, netAmount: "0", vatAmount: "0,00" },
+        { rate: 21, netAmount: "1000.00", vatAmount: "210.00" },
+        { rate: 12, netAmount: "50.00", vatAmount: "0.00" },
+        { rate: 12, netAmount: "-0.00", vatAmount: "00.00" },
+      ],
+      totals: { netAmount: "1050.00", vatAmount: "210.00", grossAmount: "1260.00" },
+    };
+    expect(await correctDocument(document.client, { ...document, basedOnVersion: 1, payload })).toEqual({ ok: true, value: { version: 2 } });
+    const versions = await listExtractionVersions(document.client, document.companyId, document.documentId);
+    expect(versions[1].payload.rateBreakdown).toEqual([
+      { rate: 21, netAmount: "1000.00", vatAmount: "210.00" },
+      { rate: 12, netAmount: "50.00", vatAmount: "0.00" },
+    ]);
+    expect(versions[1].payload.totals).toEqual({ netAmount: "1050.00", vatAmount: "210.00", grossAmount: "1260.00" });
+    expect(versions[0].payload.rateBreakdown).toEqual(SAMPLE_EXTRACTION.rateBreakdown);
+  });
   it("re-applies the ČNB rate when currency and Tax Point Date change", async () => {
     const foreign = { ...SAMPLE_EXTRACTION, currency: "EUR", taxPointDate: "2026-10-01" };
     const { client, companyId, documentId } = await documentInReview(foreign);
@@ -238,7 +312,7 @@ describe("correcting a Document", () => {
       documentType: "credit_note",
       dueDate: null,
       originalDocumentNumber: "FV-2026-0001",
-      rateBreakdown: [{ rate: 21, netAmount: "-100.00", vatAmount: "-21.00" }],
+      rateBreakdown: [{ rate: 12, netAmount: "0.00", vatAmount: "0.00" }, { rate: 21, netAmount: "-100.00", vatAmount: "-21.00" }],
       totals: { netAmount: "-100.00", vatAmount: "-21.00", grossAmount: null },
     };
 
