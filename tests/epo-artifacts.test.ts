@@ -90,6 +90,7 @@ it.each([
       targetId: exported.value.artifactId,
       payload: {
         vat_report_id: history[0].vatReportId,
+        period_lock_id: null,
         period: "2026-10",
         format,
         kind: "draft",
