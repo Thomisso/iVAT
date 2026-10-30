@@ -48,7 +48,7 @@ export default async function PlatformCompanyHistoryPage({ params }: PageProps<"
         <h2>{t("documents")}</h2>
         {snapshot.documents.map((document) => <article key={document.id}>
           <h3>{snapshot.sourceFiles.find((file) => file.id === document.sourceFileId)?.fileName ?? t("document")}
-            {" · "}{t("pages", { first: document.firstPage, last: document.lastPage })}</h3>
+            {document.firstPage !== null && document.lastPage !== null && <> · {t("pages", { first: document.firstPage, last: document.lastPage })}</>}</h3>
           {document.extractionVersions.map((version) => <details key={version.id}>
             <summary>{t("version", { version: version.version, date: formatDateTime(version.createdAt) })}</summary>
             <dl>

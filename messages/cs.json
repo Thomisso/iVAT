@@ -563,6 +563,11 @@
     "invalid_credential": "Zadejte platné přihlašovací údaje poskytovatele.",
     "credential_required": "Při změně poskytovatele zadejte nové přihlašovací údaje.",
     "invalid_allowance": "Limit zpracování musí být nezáporné celé číslo nebo neomezený.",
+    "tax_point_date_required": "Pro ruční uložení zadejte platné DUZP.",
+    "document_incomplete": "Doplňte číslo dokladu, DUZP, měnu, rozpis sazeb a celkové částky před schválením.",
+    "counterparty_vat_id_required": "Před schválením doplňte platné DIČ protistrany pro tento režim DPH.",
+    "currency_conversion_required": "Před schválením doplňte přepočet do CZK.",
+    "document_validation_failed": "Před schválením opravte blokující nálezy dokladu.",
     "vat_regime_required": "Před schválením nastavte režim DPH dokladu.",
     "direction_required": "Před schválením nastavte směr dokladu.",
     "batch_processing": "Dávka se ještě zpracovává. Počkejte, až zpracování skončí.",
@@ -787,6 +792,8 @@
     "rejected": "Zamítnuto"
   },
   "documents": {
+    "createManual": "Zadat doklad ručně",
+    "manualDocument": "Ručně zadaný doklad",
     "title": "Doklady",
     "pages": "Strany",
     "rows": "Řádky",
@@ -845,6 +852,10 @@
     "moveFirstToPrevious": "Přesunout stranu {page} do předchozího"
   },
   "review": {
+    "createManual": "Zadat doklad ručně",
+    "manualDocument": "Ručně zadaný doklad",
+    "noSourceFile": "K dokladu není přiložen zdrojový soubor.",
+    "manualDraftHint": "Pro uložení zadejte platné DUZP. Ostatní údaje můžete doplnit později; před schválením musí být úplné.",
     "title": "Kontrola dokladu",
     "backToCompany": "← Zpět na firmu",
     "backToDocuments": "← Zpět na Doklady",
@@ -911,6 +922,7 @@
       "missing_bank_account": "Není vyplněn platební účet. Zkontrolujte platební údaje; doklad lze i tak schválit.",
       "bank_account_not_verified": "Dodavatel nebyl nalezen v registru plátců DPH, proto nebylo možné platební účet ověřit. Zkontrolujte jej ručně.",
       "vat_registry_check_not_performed": "Registr plátců DPH nebyl dostupný, proto nebyla provedena kontrola dodavatele a platebního účtu.",
+      "rate_breakdown_incomplete": "Doplňte sazbu, základ a DPH tohoto řádku.",
       "vat_regime_required": "Režim DPH není určen. Před schválením jej vyberte.",
       "direction_unknown": "Směr se nepodařilo určit podle identity firmy. Před schválením jej nastavte.",
       "currency_conversion_not_performed": "Kurz ČNB nebyl dostupný, proto nebylo možné vypočítat částky v CZK.",
