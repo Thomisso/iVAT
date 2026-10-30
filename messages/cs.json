@@ -149,6 +149,8 @@
     "firstReportingMonthOf": "První měsíc zdaňovacího roku {year}",
     "reportingYearFrequency": "Frekvence podávání zdaňovacího roku {year}",
     "reportingYearActions": "Akce",
+    "changeReportingYearFrequency": "Změnit četnost",
+    "changeReportingYearFirstMonth": "Změnit první měsíc",
     "changeReportingYear": "Změnit",
     "deleteReportingYear": "Smazat {year}",
     "confirmReportingYearDeletion": "Jeho doklady ztratí zdaňovací období",

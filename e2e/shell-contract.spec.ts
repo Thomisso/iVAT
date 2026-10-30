@@ -1,7 +1,8 @@
 import { createHmac } from "node:crypto";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
-import { promoteBrowserSuperAdminFixture } from "../tests/support/e2e";
+import { expectCheckboxTextBeside } from "../tests/support/browser-layout";
+import { assignBrowserAiConfigurationFixture, promoteBrowserSuperAdminFixture } from "../tests/support/e2e";
 
 const password = "Playwright-password-107";
 const viewports = [
@@ -111,11 +112,12 @@ test("real Auth, Company, Organization and Platform surfaces share one accessibl
   await expect(page.getByRole("heading", { name: "Add a company", level: 1 })).toBeVisible();
   await expectAccessibleSurface(page);
 
-  const companyId = await createCompany(page, `Contract Company ${run}`, `${Date.now()}`.slice(-8));
+  const companyId = await createCompany(page, `Contract Company with a long official accounting and advisory business name ${run}`, `${Date.now()}`.slice(-8));
   await page.goto(`/companies/${companyId}/settings`);
   const organizationHref = await page.locator('a[href^="/organizations/"][href$="/members"]').first().getAttribute("href");
   if (!organizationHref) throw new Error("Organization context link was not rendered");
 
+  const configuration = await assignBrowserAiConfigurationFixture(companyId);
   await promoteBrowserSuperAdminFixture(email);
   await page.reload();
   await expect(page).toHaveURL(/\/mfa\/enroll$/);
@@ -184,4 +186,30 @@ test("real Auth, Company, Organization and Platform surfaces share one accessibl
     await page.keyboard.press("Escape");
     await expect(trigger).toBeFocused();
   }
+
+  await page.goto("/platform/ai-settings");
+  const configurationCard = page.getByRole("article").filter({ has: page.getByRole("heading", { name: configuration.label, exact: true }) });
+  const assignment = page.locator(`#company-${companyId}`);
+  const unlimited = assignment.getByRole("checkbox", { name: "Unlimited processing", exact: true });
+  for (const width of [360, 720, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(unlimited).toBeVisible();
+    await expectCheckboxTextBeside(unlimited);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    for (const control of await assignment.locator('select, input:not([type="hidden"]), button').all()) {
+      const bounds = await control.boundingBox();
+      if (!bounds) throw new Error("Company administration control is not rendered");
+      expect(bounds.x).toBeGreaterThanOrEqual(0);
+      expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+    }
+    if (width === 1440) expect((await configurationCard.boundingBox())!.width).toBeGreaterThan(800);
+    await testInfo.attach(`platform-ai-${width}`, { body: await configurationCard.screenshot({ path: testInfo.outputPath(`platform-ai-${width}.png`) }), contentType: "image/png" });
+  }
+  await unlimited.check();
+  const allowanceSaved = page.waitForResponse((response) => response.request().method() === "POST" && Boolean(response.request().postData()?.includes("unlimited")));
+  await assignment.getByRole("button", { name: "Save allowance", exact: true }).click();
+  await allowanceSaved;
+  await page.reload();
+  await expect(unlimited).toBeChecked();
+  await expectAccessibleSurface(page);
 });
