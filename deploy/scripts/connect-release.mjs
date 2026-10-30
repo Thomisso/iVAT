@@ -60,8 +60,9 @@ const quote = value => "'" + value.replaceAll("'", "'\\''") + "'";
 export async function deployPreparedRelease({ archive, verified, event, ssh, project, actor, attemptId, stack = "/srv/stack", pollMs = 5000, timeoutMs = 50 * 60_000 }) {
   // This must complete before any SSH connection or production credential use.
   const manifest = await inspectReleaseArchive(archive, verified, event);
-  if (!/^[a-zA-Z0-9.-]+$/.test(ssh.host) || !Number.isSafeInteger(ssh.port) || ssh.port < 1 || ssh.port > 65535 ||
-      !/^[a-zA-Z0-9_][a-zA-Z0-9_-]*$/.test(ssh.user) || !ssh.privateKey || !ssh.knownHosts?.trim() ||
+  if (!ssh || [ssh.host, ssh.user, project, actor, attemptId, stack, ssh.privateKey, ssh.knownHosts].some(value => typeof value !== "string" || !value.trim()) ||
+      !/^[a-zA-Z0-9.-]+$/.test(ssh.host) || !Number.isSafeInteger(ssh.port) || ssh.port < 1 || ssh.port > 65535 ||
+      !/^[a-zA-Z0-9_][a-zA-Z0-9_-]*$/.test(ssh.user) ||
       !/^[a-z0-9][a-z0-9_-]*$/.test(project) || !/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(actor) ||
       !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$/.test(attemptId) || !/^\/[a-zA-Z0-9/._-]+$/.test(stack) || stack.split("/").includes("..")) throw new Error("Invalid reviewed SSH/deployment configuration.");
   const registry = process.env.GHCR_TOKEN, provider = process.env.ROSTI_API_KEY;

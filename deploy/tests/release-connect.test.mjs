@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { createServer } from "node:net";
 import { createReleaseBundle } from "../scripts/release-bundle.mjs";
-import { inspectReleaseArchive } from "../scripts/connect-release.mjs";
+import { deployPreparedRelease, inspectReleaseArchive } from "../scripts/connect-release.mjs";
 import { waitForRequiredChecks } from "../scripts/prepare-release.mjs";
 
 test("the downloaded archive must be the exact verified Release before transport is possible", async t => {
@@ -25,6 +25,7 @@ test("the downloaded archive must be the exact verified Release before transport
   await assert.rejects(inspectReleaseArchive(bytes, { ...verified, revision: "c".repeat(40) }, event), /does not match/);
   await assert.rejects(inspectReleaseArchive(bytes, verified, { ...event, release: { ...event.release, id: 157 } }), /does not match/);
   await assert.rejects(inspectReleaseArchive(bytes, verified, { ...event, release: { ...event.release, prerelease: true } }), /published stable/);
+  await assert.rejects(deployPreparedRelease({ archive: bytes, verified, event, ssh: { host: "127.0.0.1", port: 22, user: "root", privateKey: "test-only", knownHosts: "test-only" }, actor: "release-test", attemptId: "missing-project" }), /Invalid reviewed SSH\/deployment configuration/);
 });
 
 test("the detached launcher records early failure and refuses duplicate attempt IDs", async t => {

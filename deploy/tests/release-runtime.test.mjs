@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
 import { access, chmod, cp, mkdir, mkdtemp, readFile, realpath, rm, utimes, writeFile } from "node:fs/promises";
-import { createServer } from "node:net";
+import { createConnection, createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { parseEnv } from "node:util";
@@ -100,9 +100,15 @@ test("the real release command guards and upgrades a disposable production stack
     const deploy = (selected = bundle, overrides = {}) => operator(path.join(bundle, "deploy/scripts/deploy-release.sh"), [stack, selected, project], { ...deployEnv, ...overrides });
     console.log("Connect through real pinned SSH into the disposable host.");
     execFileSync("ssh-keygen", ["-q", "-t", "ed25519", "-N", "", "-f", path.join(directory, "client")]);
+    execFileSync("ssh-keygen", ["-q", "-t", "ed25519", "-N", "", "-f", path.join(directory, "host")]);
     await writeFile(path.join(directory, "sshd-environment"), Object.entries(deployEnv).filter(([name]) => name !== "ROSTI_API_KEY").map(([name, value]) => `${name}=${value}`).join("\n") + "\n");
-    docker("run", "-d", "--name", sshContainer, "--entrypoint", "sh", "-p", `127.0.0.1:${sshPort}:22`, "-v", "/var/run/docker.sock:/var/run/docker.sock", "-v", `${directory}:${directory}`, "ivat-release155-operator:verify", "-c", `ssh-keygen -A; mkdir -p /root/.ssh /run/sshd; chmod 700 /root/.ssh; cp '${directory}/client.pub' /root/.ssh/authorized_keys; cp '${directory}/sshd-environment' /root/.ssh/environment; chmod 600 /root/.ssh/*; exec /usr/sbin/sshd -D -e -o PermitRootLogin=prohibit-password -o PasswordAuthentication=no -o PermitUserEnvironment=yes`);
-    const hostKey = docker("exec", sshContainer, "cat", "/etc/ssh/ssh_host_ed25519_key.pub");
+    docker("run", "-d", "--name", sshContainer, "--entrypoint", "sh", "-p", `127.0.0.1:${sshPort}:22`, "-v", "/var/run/docker.sock:/var/run/docker.sock", "-v", `${directory}:${directory}`, "ivat-release155-operator:verify", "-c", `mkdir -p /root/.ssh /run/sshd; chmod 700 /root/.ssh; cp '${directory}/client.pub' /root/.ssh/authorized_keys; cp '${directory}/sshd-environment' /root/.ssh/environment; chmod 600 /root/.ssh/*; exec /usr/sbin/sshd -D -e -h '${directory}/host' -o PermitRootLogin=prohibit-password -o PasswordAuthentication=no -o PermitUserEnvironment=yes`);
+    const hostKey = (await readFile(path.join(directory, "host.pub"), "utf8")).trim();
+    const sshDeadline = Date.now() + 15000;
+    while (!await new Promise(resolve => {
+      const socket = createConnection({ host: "127.0.0.1", port: sshPort });
+      socket.once("connect", () => { socket.destroy(); resolve(true); }); socket.once("error", () => { socket.destroy(); resolve(false); });
+    })) { if (Date.now() > sshDeadline) throw new Error("Disposable SSH host did not start."); await new Promise(resolve => setTimeout(resolve, 50)); }
     const connection = { archive: await readFile(releaseArchive), verified: release, event, stack, project, actor: "release-fixture", ssh: { host: "127.0.0.1", port: sshPort, user: "root", privateKey: await readFile(path.join(directory, "client"), "utf8"), knownHosts: `[127.0.0.1]:${sshPort} ${hostKey}` }, pollMs: 50, timeoutMs: 600000 };
     process.env.GHCR_TOKEN = "test-registry-secret"; process.env.ROSTI_API_KEY = "test-provider-secret";
     const checks = { repository: release.repository, revision, token: "test-github-secret", apiUrl: `http://127.0.0.1:${apiPort}/github`, timeoutMs: 1000, pollMs: 20 };
