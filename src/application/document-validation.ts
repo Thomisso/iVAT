@@ -193,6 +193,9 @@ export function validateDocument(
   if (payload.direction === null) {
     findings.push(error("direction", "direction_unknown"));
   }
+  if (!payload.proposedVatRegime) {
+    findings.push(error("proposedVatRegime", "vat_regime_required"));
+  }
   if (
     payload.proposedVatRegime === "other" ||
     ((payload.proposedVatRegime === "eu_acquisition_of_goods" ||
@@ -300,5 +303,9 @@ export function currentValidationFindings(
     : undefined;
   const current = findings.map<ValidationFinding>((finding) => historicalGrossError && finding.code === "total_gross_amount_mismatch"
     ? grossWarning ?? { ...finding, severity: "warning" } : finding);
-  return [...current, ...paymentFindings(payload).filter((finding) => !current.some((entry) => entry.code === finding.code))];
+  const requiredRegime = !payload.proposedVatRegime
+    ? [error("proposedVatRegime", "vat_regime_required")]
+    : [];
+  return [...current, ...[...paymentFindings(payload), ...requiredRegime]
+    .filter((finding) => !current.some((entry) => entry.code === finding.code))];
 }
