@@ -8,6 +8,7 @@ import {
   omitZeroRateBreakdownRows,
   isZeroRateBreakdownLine,
   type ExtractionPayload,
+  type RateBreakdownLine,
 } from "./extraction-payload";
 import {
   reportingPeriodForDate,
@@ -181,7 +182,9 @@ function exclusion(document: ReportDocument): ExclusionReason | null {
   return null;
 }
 
-function czkPayload(payload: ExtractionPayload): ExtractionPayload {
+type CompleteExtractionPayload = Omit<ExtractionPayload, "rateBreakdown"> & { rateBreakdown: RateBreakdownLine[] };
+
+function czkPayload(payload: CompleteExtractionPayload): CompleteExtractionPayload {
   if (payload.currency === "CZK" || !payload.czkConversion) return payload;
   return {
     ...payload,
@@ -262,7 +265,8 @@ export function computeVatReport(
       excludedDocuments.push({ documentId: document.id, reason });
       continue;
     }
-    const p = czkPayload(payload);
+    // exclusion() refused every incomplete row through validateExtractionPayload.
+    const p = czkPayload(payload as CompleteExtractionPayload);
     const counterparty = p.direction === "incoming" ? p.supplier : p.customer;
     const vatId = counterparty.vatId;
     const domestic = p.proposedVatRegime === "domestic";

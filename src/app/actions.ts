@@ -42,6 +42,7 @@ import { invitationUrls } from "@/application/invitation-urls";
 import {
   approveDocument,
   correctDocument,
+  createManualDocument,
   mergeDocuments,
   moveDocumentPage,
   rejectDocument,
@@ -559,9 +560,10 @@ function payloadFromForm(formData: FormData): ExtractionPayload {
     customer: partyFromForm(formData, "customer"),
     currency: optionalField(formData, "currency"),
     rateBreakdown: lines.map((i) => ({
-      rate: Number(optionalField(formData, `rateBreakdown.${i}.rate`)?.replace(",", ".") ?? NaN),
-      netAmount: field(formData, `rateBreakdown.${i}.netAmount`),
-      vatAmount: field(formData, `rateBreakdown.${i}.vatAmount`),
+      rate: optionalField(formData, `rateBreakdown.${i}.rate`) === null ? null
+        : Number(field(formData, `rateBreakdown.${i}.rate`).replace(",", ".")),
+      netAmount: optionalField(formData, `rateBreakdown.${i}.netAmount`),
+      vatAmount: optionalField(formData, `rateBreakdown.${i}.vatAmount`),
     })),
     totals: {
       netAmount: optionalField(formData, "totals.netAmount"),
@@ -599,6 +601,18 @@ export async function correctDocumentAction(_state: FormState, formData: FormDat
   }
   refresh();
   return { error: null, values: {} };
+}
+
+export async function createManualDocumentAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const companyId = field(formData, "companyId");
+  const result = await createManualDocument(await requireUserClient(), {
+    companyId, payload: payloadFromForm(formData),
+  }, configuredExchangeRates(), configuredVatPayerRegistry());
+  if (!result.ok) return {
+    error: result.error,
+    values: Object.fromEntries([...formData.entries()].filter(([name, value]) => !name.startsWith("$") && typeof value === "string")) as Record<string, string>,
+  };
+  redirect(`/companies/${companyId}/documents/${result.value.id}`);
 }
 
 export async function approveDocumentAction(_state: FormState, formData: FormData): Promise<FormState> {

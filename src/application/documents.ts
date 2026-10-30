@@ -4,12 +4,12 @@ import type { PostgrestError } from "@supabase/supabase-js";
 import { isUuid, type AppClient, type Result } from "./client";
 import {
   normalizeExtractionPayload,
-  validateExtractionPayload,
+  validateManualDocumentPayload,
   type Direction,
   type Party,
   type ExtractionPayload,
-  type ExtractionPayloadError,
   type VatRegime,
+  type ManualDocumentPayloadError,
 } from "./extraction-payload";
 import { extractJob, type JobQueue } from "./processing";
 import { isReportingPeriod, NO_REPORTING_PERIOD, pragueDate } from "./reporting-periods";
@@ -26,6 +26,33 @@ import { vatRegistryFindings, type VatPayerRegistry } from "./vat-registry";
 
 const unavailableExchangeRates: ExchangeRateProvider = { rateFor: async () => null };
 const unavailableVatPayerRegistry: VatPayerRegistry = { check: async () => ({ outcome: "unavailable" }) };
+
+/** Creates the first User-authored Version without fabricating source evidence. */
+export async function createManualDocument(
+  client: AppClient,
+  input: { companyId: string; payload: ExtractionPayload },
+  exchangeRates: ExchangeRateProvider = unavailableExchangeRates,
+  vatRegistry: VatPayerRegistry = unavailableVatPayerRegistry,
+): Promise<Result<{ id: string }, ManualDocumentPayloadError | "forbidden" | "period_locked">> {
+  if (!isUuid(input.companyId)) return { ok: false, error: "forbidden" };
+  let payload = normalizeExtractionPayload(input.payload);
+  const invalid = validateManualDocumentPayload(payload);
+  if (invalid) return { ok: false, error: invalid };
+  delete payload.confidence;
+  const conversion = await applyCnbConversion(payload, exchangeRates);
+  payload = conversion.payload;
+  const { data, error } = await client.rpc("create_manual_document", {
+    target_company_id: input.companyId,
+    payload,
+    findings: [
+      ...validateDocument(payload, CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA),
+      ...(await vatRegistryFindings(vatRegistry, payload)),
+      ...conversion.findings,
+    ],
+  });
+  if (error) return refusal(error, ["period_locked", "tax_point_date_required", "invalid_date"]);
+  return { ok: true, value: { id: data } };
+}
 
 export const DOCUMENT_STATUSES = [
   "uploaded",
@@ -45,19 +72,27 @@ export const isBeingExtracted = (status: DocumentStatus) => status === "uploaded
 export type Document = {
   id: string;
   companyId: string;
-  sourceFileId: string;
-  firstPage: number;
-  lastPage: number;
+  sourceFileId: string | null;
+  firstPage: number | null;
+  lastPage: number | null;
   status: DocumentStatus;
   createdAt: string;
   /** The Prague calendar date its Source File was uploaded; informational only (ADR-0012). */
-  importDate: string;
+  importDate: string | null;
   /** An incoming Document's Deferred Claim: input VAT moved to a later Reporting Period. */
   claimedReportingPeriod: string | null;
   /** Present only for a Document identified by workbook rows instead of pages. */
   rowSet?: WorkbookRowSet;
   /** Present and false for row-based Documents, which have no page image. */
   hasDocumentImage?: false;
+};
+
+/** The source-scoped query can only return real file-backed ranges. */
+export type SourceDocument = Document & {
+  sourceFileId: string;
+  firstPage: number;
+  lastPage: number;
+  importDate: string;
 };
 
 export type ExtractionVersionAuthor =
@@ -80,9 +115,9 @@ export const isEligibleForVatReport = (status: DocumentStatus, vatRegime: VatReg
 /** A Document as the Document list shows it: with the fields of its current Extraction Version. */
 export type DocumentOverview = {
   id: string;
-  sourceFileId: string;
-  firstPage: number;
-  lastPage: number;
+  sourceFileId: string | null;
+  firstPage: number | null;
+  lastPage: number | null;
   status: DocumentStatus;
   createdAt: string;
   /** The current Extraction Version; null until the first Extraction. */
@@ -90,7 +125,7 @@ export type DocumentOverview = {
   documentNumber: string | null;
   direction: Direction | null;
   taxPointDate: string | null;
-  importDate: string;
+  importDate: string | null;
   claimedReportingPeriod: string | null;
   reportingPeriod: string | null;
   /** The supplier of an incoming Document, the customer of an outgoing one; null while the Direction is unknown. */
@@ -189,8 +224,7 @@ export async function listCompanyDocuments(
       documentNumber: d.document_number,
       direction: d.direction as Direction | null,
       taxPointDate: d.tax_point_date,
-      // Every Document has a Source File, so the view's join always yields a date.
-      importDate: d.import_date!,
+      importDate: d.import_date,
       claimedReportingPeriod: d.claimed_reporting_period,
       reportingPeriod: d.reporting_period,
       counterparty: d.direction === null
@@ -253,9 +287,9 @@ const DOCUMENT_COLUMNS = "id, company_id, source_file_id, first_page, last_page,
 function toDocument(d: {
   id: string;
   company_id: string;
-  source_file_id: string;
-  first_page: number;
-  last_page: number;
+  source_file_id: string | null;
+  first_page: number | null;
+  last_page: number | null;
   source_sheet: string | null;
   first_row: number | null;
   last_row: number | null;
@@ -263,7 +297,7 @@ function toDocument(d: {
   status: DocumentStatus;
   created_at: string;
   claimed_reporting_period: string | null;
-  source_file: { uploaded_at: string };
+  source_file: { uploaded_at: string } | null;
 }): Document {
   const document: Document = {
     id: d.id,
@@ -273,9 +307,10 @@ function toDocument(d: {
     lastPage: d.last_page,
     status: d.status,
     createdAt: d.created_at,
-    importDate: pragueDate(d.source_file.uploaded_at),
+    importDate: d.source_file ? pragueDate(d.source_file.uploaded_at) : null,
     claimedReportingPeriod: d.claimed_reporting_period,
   };
+  if (d.source_file_id === null) document.hasDocumentImage = false;
   if (d.source_sheet !== null && d.first_row !== null && d.last_row !== null) {
     document.rowSet = { sheetName: d.source_sheet, firstRow: d.first_row, lastRow: d.last_row };
     document.hasDocumentImage = false;
@@ -284,7 +319,7 @@ function toDocument(d: {
 }
 
 /** The Documents a Source File of the Company was Split into, in page order. */
-export async function listDocuments(client: AppClient, companyId: string, sourceFileId: string): Promise<Document[]> {
+export async function listDocuments(client: AppClient, companyId: string, sourceFileId: string): Promise<SourceDocument[]> {
   if (!isUuid(companyId) || !isUuid(sourceFileId)) return [];
   const { data, error } = await client
     .from("document")
@@ -294,7 +329,13 @@ export async function listDocuments(client: AppClient, companyId: string, source
     .is("superseded_at", null)
     .order("first_page");
   if (error) throw error;
-  return data.map(toDocument);
+  return data.map((row) => {
+    const document = toDocument(row);
+    if (document.sourceFileId === null || document.firstPage === null || document.lastPage === null || document.importDate === null) {
+      throw new Error("Source-scoped Document is missing its real source range");
+    }
+    return { ...document, sourceFileId: document.sourceFileId, firstPage: document.firstPage, lastPage: document.lastPage, importDate: document.importDate };
+  });
 }
 
 /** A Document of the Company, or null when the Company has none with that id. */
@@ -321,7 +362,7 @@ export async function readDocumentPages(
   documentId: string,
 ): Promise<{ fileName: string; mediaType: string; bytes: Uint8Array } | null> {
   const document = await getDocument(client, companyId, documentId);
-  if (!document) return null;
+  if (!document?.sourceFileId || document.firstPage === null || document.lastPage === null) return null;
   const stored = await readSourceFile(client, companyId, document.sourceFileId);
   if (!stored) return null;
   const { file, bytes } = stored;
@@ -329,7 +370,7 @@ export async function readDocumentPages(
   return {
     fileName: file.fileName,
     mediaType: SOURCE_FILE_MEDIA_TYPES[file.format],
-    bytes: file.format === "pdf" ? await pdfPages(bytes, document) : bytes,
+    bytes: file.format === "pdf" ? await pdfPages(bytes, { firstPage: document.firstPage, lastPage: document.lastPage }) : bytes,
   };
 }
 
@@ -340,7 +381,7 @@ export async function readDocumentRows(
   documentId: string,
 ): Promise<(WorkbookRowSet & { fileName: string; text: string }) | null> {
   const document = await getDocument(client, companyId, documentId);
-  if (!document?.rowSet) return null;
+  if (!document?.rowSet || !document.sourceFileId) return null;
   const stored = await readSourceFile(client, companyId, document.sourceFileId);
   if (!stored) return null;
   return {
@@ -378,7 +419,7 @@ export async function listExtractionVersions(
 }
 
 export type CorrectDocumentError =
-  | ExtractionPayloadError
+  | ManualDocumentPayloadError
   | "not_in_review"
   | "stale_version"
   | "period_locked"
@@ -403,7 +444,7 @@ export async function correctDocument(
   vatRegistry: VatPayerRegistry = unavailableVatPayerRegistry,
 ): Promise<Result<{ version: number }, CorrectDocumentError>> {
   let payload = normalizeExtractionPayload(input.payload);
-  const invalid = validateExtractionPayload(payload);
+  const invalid = validateManualDocumentPayload(payload);
   if (invalid) return { ok: false, error: invalid };
   const document = await findDocumentId(client, input.companyId, input.documentId);
   if (!document) return { ok: false, error: "forbidden" };
@@ -421,7 +462,7 @@ export async function correctDocument(
       ...conversion.findings,
     ],
   });
-  if (error) return refusal(error, ["not_in_review", "stale_version", "period_locked"]);
+  if (error) return refusal(error, ["not_in_review", "stale_version", "period_locked", "tax_point_date_required", "invalid_date"]);
   return { ok: true, value: { version } };
 }
 
@@ -433,7 +474,7 @@ export async function correctDocument(
 export async function approveDocument(
   client: AppClient,
   input: { companyId: string; documentId: string; version: number },
-): Promise<Result<null, "not_in_review" | "stale_version" | "direction_required" | "vat_regime_required" | "rate_breakdown_totals_mismatch" | "invalid_credit_note_amount" | "period_locked" | "forbidden">> {
+): Promise<Result<null, "not_in_review" | "stale_version" | "direction_required" | "vat_regime_required" | "document_incomplete" | "document_validation_failed" | "counterparty_vat_id_required" | "currency_conversion_required" | "rate_breakdown_totals_mismatch" | "invalid_credit_note_amount" | "period_locked" | "forbidden">> {
   const document = await findDocumentId(client, input.companyId, input.documentId);
   if (!document) return { ok: false, error: "forbidden" };
   const { error } = await client.rpc("approve_document", {
@@ -445,6 +486,10 @@ export async function approveDocument(
     "stale_version",
     "direction_required",
     "vat_regime_required",
+    "document_incomplete",
+    "document_validation_failed",
+    "counterparty_vat_id_required",
+    "currency_conversion_required",
     "rate_breakdown_totals_mismatch",
     "invalid_credit_note_amount",
     "period_locked",

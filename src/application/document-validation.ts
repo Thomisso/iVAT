@@ -213,7 +213,7 @@ export function validateDocument(
     : undefined;
   if (validRates) {
     payload.rateBreakdown.forEach((line, index) => {
-      if (!validRates.includes(line.rate)) {
+      if (line.rate !== null && !validRates.includes(line.rate)) {
         findings.push(
           error(
             `rateBreakdown.${index}.rate`,
@@ -230,8 +230,9 @@ export function validateDocument(
   payload.rateBreakdown.forEach((line, index) => {
     const netCents = amountCents(line.netAmount);
     const vatCents = amountCents(line.vatAmount);
-    if (netCents === null || vatCents === null) {
+    if (netCents === null || vatCents === null || line.rate === null) {
       everyRateAmountValid = false;
+      findings.push(error(`rateBreakdown.${index}.${line.rate === null ? "rate" : netCents === null ? "netAmount" : "vatAmount"}`, "rate_breakdown_incomplete"));
       return;
     }
     rateNetCents += netCents;
