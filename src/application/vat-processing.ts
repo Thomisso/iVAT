@@ -1,7 +1,7 @@
 import type { AppClient, Result } from "./client";
 import { getCompanySetupChecklist, getMyCompanyRole } from "./companies";
 import { listCompanyDocuments, type DocumentOverview } from "./documents";
-import { getVatReportDraftProgress, type DraftExportProgress } from "./epo-export";
+import { getVatReportDraftProgress, getVatReportExportProgress, type VatReportExportProgress } from "./epo-export";
 import {
   getReportingPeriodReadiness,
   readinessDocumentIds,
@@ -42,7 +42,9 @@ export type VatProcessingWizard = {
   documentsToReview: DocumentOverview[];
   documentsToReviewCount: number;
   locked: boolean;
-  draftExport: DraftExportProgress;
+  draftExport: VatReportExportProgress;
+  finalExport: VatReportExportProgress;
+  periodLockId: string | null;
 };
 
 export const DOCUMENTS_TO_REVIEW_LIMIT = 20;
@@ -74,6 +76,9 @@ export async function getVatProcessingWizard(
       documentIds: blockerIds.slice(0, DOCUMENTS_TO_REVIEW_LIMIT),
     }),
   ]);
+  const finalExport = await getVatReportExportProgress(client, {
+    ...input, reportGeneratedAt: readiness.snapshot?.generatedAt ?? null, kind: "final", periodLockId: lock?.id ?? null,
+  });
   const downloaded = draftExport.downloadedFormats.length;
   const exportStep = step("export", downloaded === 2 ? "done" : downloaded === 1 ? "partial"
     : draftExport.skippedFormats.length === 2 ? "skipped" : "not_started");
@@ -85,7 +90,7 @@ export async function getVatProcessingWizard(
       step("generate", "done"),
       step("outputs", "done"),
       exportStep,
-      step("finalize", "done"),
+      step("finalize", finalExport.downloadedFormats.length === 2 ? "done" : "partial"),
     ];
   } else {
     const review = blockerIds.length > 0
@@ -131,6 +136,8 @@ export async function getVatProcessingWizard(
       documentsToReviewCount: blockerIds.length,
       locked: lock !== null,
       draftExport,
+      finalExport,
+      periodLockId: lock?.id ?? null,
     },
   };
 }

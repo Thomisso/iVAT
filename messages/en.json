@@ -998,6 +998,7 @@
   },
   "vatReports": {
     "wizard": {
+      "finalPartial": "Partially completed — {count}/2",
       "draftPartial": "Partially completed — {count}/2",
       "draftPartialSkipped": "Partially completed — {count}/2, second export skipped",
       "skipDrafts": "Skip draft exports",
