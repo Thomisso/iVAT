@@ -65,7 +65,6 @@ export type ReportingPeriodReadinessSource = {
   documentId: string;
   status: ReportDocument["status"];
   extractionVersionId: string | null;
-  receiptDate: string | null;
   claimedReportingPeriod: string | null;
 };
 
@@ -140,7 +139,6 @@ function readinessSource(
     documentId: document.id,
     status: document.status,
     extractionVersionId: document.extractionVersionId,
-    receiptDate: document.receiptDate ?? null,
     claimedReportingPeriod: document.claimedReportingPeriod ?? null,
   }));
 }
@@ -256,18 +254,21 @@ async function relevantDocuments(
   const assigned = data as unknown as ReportDocument[];
   const assignedIds = new Set(assigned.map((document) => document.id));
   const overviews = await listCompanyDocuments(client, companyId);
+  // A Document without a Reporting Period still blocks the readiness of the
+  // period of its Import Date, so unfinished work is not overlooked. It does
+  // not join that period's VAT Report.
   const candidateIds = overviews
     .filter((document) =>
       !assignedIds.has(document.id) &&
       document.reportingPeriod === null &&
-      reportingPeriodForDate(document.receiptDate, reportingYears) === period,
+      reportingPeriodForDate(document.importDate, reportingYears) === period,
     )
     .map((document) => document.id);
   const candidates: ReportDocument[] = [];
   for (let offset = 0; offset < candidateIds.length; offset += 100) {
     const { data: rows, error: rowsError } = await client
       .from("vat_report_document")
-      .select("id, status, extraction_version_id, payload, receipt_date, claimed_reporting_period")
+      .select("id, status, extraction_version_id, payload, claimed_reporting_period")
       .eq("company_id", companyId)
       .in("id", candidateIds.slice(offset, offset + 100));
     if (rowsError) throw rowsError;
@@ -276,7 +277,6 @@ async function relevantDocuments(
       status: row.status,
       extractionVersionId: row.extraction_version_id,
       payload: row.payload as unknown as ReportDocument["payload"],
-      receiptDate: row.receipt_date,
       claimedReportingPeriod: row.claimed_reporting_period,
     })));
   }
