@@ -324,7 +324,9 @@
     "batchFiles": "Uloženo {count} z {planned} vybraných zdrojových souborů",
     "batchSummary": "{waiting} se zpracovává · {review} ke kontrole · {failures} selhalo",
     "noBatches": "Zatím tu není žádná dávka. Začněte přidáním zdrojových souborů.",
-    "noMatchingBatches": "Žádná dávka neobsahuje doklady vybraného období.",
+    "noMatchingBatches": "Ve vybraném rozsahu dat nebyla založena žádná dávka.",
+    "uploadedFrom": "Nahráno od",
+    "uploadedTo": "Nahráno do",
     "outcome": {
       "processing": "Zpracovává se",
       "success": "Dokončeno",
@@ -989,8 +991,8 @@
           "hint": "Zkontrolujte oba zákonné výstupy uloženého snímku."
         },
         "export": {
-          "title": "Export XML",
-          "hint": "Stáhněte XML pro EPO z přiznání k DPH a z kontrolního hlášení. Každé stažení se uloží do historie exportů."
+          "title": "Export DRAFT XML",
+          "hint": "Vytvořte pracovní XML ke kontrole. Draftové exporty jsou volitelné a neblokují finalizaci."
         },
         "finalize": {
           "title": "Finalizace",
@@ -1227,6 +1229,7 @@
     },
     "epoAddressMissing": "Je nutná potvrzená adresa pro EPO",
     "epoAddressRequired": "Registrovaná adresa překračuje limit schématu EPO. Před stažením XML doplňte a potvrďte samostatnou adresu pro EPO.",
+    "administratorAddressRequired": "Před exportem musí administrátor doplnit a potvrdit adresu firmy pro EPO.",
     "completeEpoAddress": "Doplnit adresu EPO v nastavení firmy",
     "editForExport": "Upravit pro tento export",
     "useSaved": "Použít uložené výchozí údaje",

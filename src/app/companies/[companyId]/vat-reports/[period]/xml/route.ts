@@ -30,9 +30,16 @@ export async function POST(
       typeof value === "string" ? [[key, value]] : [],
     ),
   );
-  const exporter = await getPeriodLock(client, companyId, period)
-    ? exportFinalVatReport
-    : exportVatReport;
+  if (details.kind && details.kind !== "draft" && details.kind !== "final") {
+    return Response.json(
+      { error: "invalid_export_details", message: t("invalid_export_details") },
+      { status: 422, headers },
+    );
+  }
+  // Bind the form's intent: a lock created after rendering a draft action must
+  // refuse that draft, rather than silently archiving a final artifact.
+  const kind = details.kind || (await getPeriodLock(client, companyId, period) ? "final" : "draft");
+  const exporter = kind === "final" ? exportFinalVatReport : exportVatReport;
   const result = await exporter(client, {
     companyId,
     period,
