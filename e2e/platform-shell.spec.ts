@@ -3,6 +3,8 @@ import fs from "node:fs/promises";
 import { createClient } from "@supabase/supabase-js";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import type { Database } from "../src/lib/database.types";
+import { getCompany } from "../src/application/companies";
+import { asUserClient } from "../src/application/client";
 
 const password = "Playwright-password-76";
 
@@ -60,9 +62,9 @@ async function createCompany(page: Page, name: string, ico: string) {
   return companyId;
 }
 
-async function serviceClient() {
+async function localEnvironment() {
   const contents = await fs.readFile(".env.local", "utf8");
-  const environment = Object.fromEntries(
+  return Object.fromEntries(
     contents
       .split("\n")
       .filter(Boolean)
@@ -71,6 +73,10 @@ async function serviceClient() {
         return [line.slice(0, separator), line.slice(separator + 1)];
       }),
   );
+}
+
+async function serviceClient() {
+  const environment = await localEnvironment();
   return createClient<Database>(
     environment.NEXT_PUBLIC_SUPABASE_URL,
     environment.SUPABASE_SECRET_KEY,
@@ -284,6 +290,22 @@ test("an MFA-verified SuperAdmin discovers and administers a Company without any
   await page.goto(`/organizations/${target.data.organization_id}/audit-log`);
   await expect(page.getByRole("heading", { name: `Audit log for ${targetOrganization}`, exact: true })).toBeVisible();
   await expect(page.getByText(operatorEmail, { exact: true }).first()).toBeVisible();
+
+  await page.goto("/companies/new");
+  const organizationChoice = page.getByRole("combobox", { name: "Organization", exact: true });
+  await expect(organizationChoice).toHaveValue("");
+  await organizationChoice.selectOption(target.data.organization_id);
+  const newCompanyId = await createCompany(page, `Explicit target Company ${run}`, `${Date.now()}`.slice(-8));
+  const environment = await localEnvironment();
+  const owner = asUserClient(createClient<Database>(
+    environment.NEXT_PUBLIC_SUPABASE_URL, environment.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    { auth: { autoRefreshToken: false, persistSession: false } },
+  ));
+  const signedIn = await owner.auth.signInWithPassword({ email: `target-${run}@example.test`, password });
+  if (signedIn.error) throw signedIn.error;
+  expect(await getCompany(owner, newCompanyId)).toEqual(expect.objectContaining({
+    organizationId: target.data.organization_id, name: `Explicit target Company ${run}`,
+  }));
 
   const users = await service.auth.admin.listUsers();
   const operatorId = users.data.users.find((user) => user.email === operatorEmail)?.id;
