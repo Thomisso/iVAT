@@ -2,8 +2,8 @@ import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { currentUser } from "@/application/auth";
 import { resolveCompanyContext } from "@/application/company-context";
-import { listMyOrganizations } from "@/application/organizations";
 import { OrganizationShell } from "@/components/organization-shell";
+import { loadAdministrationAccess } from "@/lib/administration-access";
 import { companyContextCookie, parseCompanyContext } from "@/lib/company-context";
 import { requireUserClient } from "@/lib/supabase/server";
 
@@ -11,8 +11,8 @@ export default async function OrganizationLayout({ children, params }: LayoutPro
   const { organizationId } = await params;
   const client = await requireUserClient();
   const remembered = parseCompanyContext((await cookies()).get(companyContextCookie)?.value);
-  const [organizations, auth, companyContext] = await Promise.all([
-    listMyOrganizations(client),
+  const [{ organizations, superAdmin }, auth, companyContext] = await Promise.all([
+    loadAdministrationAccess(),
     currentUser(client),
     resolveCompanyContext(client, remembered),
   ]);
@@ -25,5 +25,6 @@ export default async function OrganizationLayout({ children, params }: LayoutPro
     email={auth.email}
     organization={organization}
     organizations={authorizedOrganizations}
+    superAdmin={superAdmin}
   >{children}</OrganizationShell>;
 }

@@ -22,6 +22,7 @@ import {
 import type { CompanySummary } from "@/application/companies";
 import type { OrganizationSummary } from "@/application/organizations";
 import type { UploadNotification } from "@/application/upload-batches";
+import { AdministrationNavigation } from "@/components/administration-navigation";
 import { AccountActions, AppShell, ContextNavigation } from "@/components/app-shell";
 import { CommandButton } from "@/components/command-button";
 import { AccountMenu, Menu, ShellIcon } from "@/components/shell-controls";
@@ -54,22 +55,6 @@ function CompanyMenu({ companies, current }: { companies: CompanySummary[]; curr
       <button role="menuitem" type="submit">{company.name}{company.id === current.id ? <span>{t("current")}</span> : null}</button>
     </form>)}
     <Link href="/companies/new" role="menuitem">{t("addCompany")}</Link>
-  </Menu>;
-}
-
-function AdministrationMenu({ companyId, companyRole, organizations, superAdmin }: { companyId: string; companyRole: "administrator" | "user" | null; organizations: OrganizationSummary[]; superAdmin: boolean }) {
-  const t = useTranslations("shell");
-  const organizationAdmins = organizations.filter((organization) => organization.role === "administrator");
-  if (companyRole !== "administrator" && !organizationAdmins.length && !superAdmin) return null;
-  return <Menu label={t("administrationMenu")} trigger={<><ShellIcon path="M9.5 3h5l.6 2.4 2 .8 2.1-1.2 2.5 4.3-1.8 1.6.2 2.2 1.8 1.6-2.5 4.3-2.1-1.2-2 .8-.6 2.4h-5l-.6-2.4-2-.8-2.1 1.2-2.5-4.3 1.8-1.6-.2-2.2-1.8-1.6L4.8 5l2.1 1.2 2-.8L9.5 3Zm2.5 6a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z" /><span>{t("administration")}</span><ShellIcon path="m9 6 6 6-6 6" /></>}>
-    {companyRole === "administrator" && <><p className="company-shell-menu-label">{t("companyAdministration")}</p><Link href={`/companies/${companyId}/settings/users`} role="menuitem">{t("users")}</Link></>}
-    {organizationAdmins.length > 0 && <p className="company-shell-menu-label">{t("organizationAdministration")}</p>}
-    {organizationAdmins.map((organization) => <div className="company-shell-admin-group" key={organization.id}>
-      <strong>{organization.name}</strong>
-      <Link href={`/organizations/${organization.id}/members`} role="menuitem">{t("users")}</Link>
-      <Link href={`/organizations/${organization.id}/audit-log`} role="menuitem">{t("auditLog")}</Link>
-    </div>)}
-    {superAdmin && <><p className="company-shell-menu-label">{t("platformAdministration")}</p><Link href="/platform/administration" role="menuitem">{t("platformOverview")}</Link><Link href="/platform/ai-settings" role="menuitem">{t("platformAi")}</Link><Link href="/platform/ai-usage" role="menuitem">{t("platformUsage")}</Link></>}
   </Menu>;
 }
 
@@ -235,16 +220,18 @@ export function CompanyShell({ children, companies, company, companyRole, email,
   const context = <CompanyMenu companies={companies} current={company} />;
   const accountActions = <AccountActions label={t("account")}>
     <NotificationBell companyId={company.id} notifications={uploadNotifications} unreadCount={uploadUnreadCount} />
-    <AdministrationMenu
-      companyId={company.id}
-      companyRole={companyRole}
-      organizations={organizations}
-      superAdmin={superAdmin}
-    />
     <AccountMenu email={email} />
   </AccountActions>;
+  const administration = <AdministrationNavigation
+    companyId={company.id}
+    companyRole={companyRole}
+    currentPath={pathname}
+    organizations={organizations}
+    superAdmin={superAdmin}
+  />;
   return <AppShell
     accountActions={accountActions}
+    administration={administration}
     brandHref="/"
     brandLabel={app("name")}
     context={context}
