@@ -1,4 +1,5 @@
-import Link from "next/link";
+import { companyPageContext, safeCompanyReturnTo } from "@/application/return-context";
+import { CompanyReturnLink } from "@/components/company-return-link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
@@ -25,9 +26,12 @@ export async function generateMetadata({
 }
 
 export default async function VatReturnPage({
-  params,
+  params, searchParams,
 }: PageProps<"/companies/[companyId]/vat-reports/[period]/vat-return">) {
   const { companyId, period } = await params;
+  const search = await searchParams;
+  const returnTo = safeCompanyReturnTo(companyId, search.returnTo);
+  const context = companyPageContext(companyId, `/companies/${companyId}/vat-reports/${period}/vat-return`, search);
   const client = await requireUserClient();
   const [company, filingDefaults, report, periodLock, readinessResult, t] = await Promise.all([
     getCompany(client, companyId),
@@ -45,9 +49,7 @@ export default async function VatReturnPage({
     <PageLayout className="company-workspace vat-reports vat-output-page" measure="wide">
       <header className="company-page-header vat-report-header">
         <p>
-          <Link href={`/companies/${companyId}/vat`}>
-            {t("backToPeriods")}
-          </Link>
+          <CompanyReturnLink companyId={companyId} returnTo={returnTo} fallback={`/companies/${companyId}/vat`} />
         </p>
         <span className="vat-output-context">
           {company.name} · {period}
@@ -61,6 +63,7 @@ export default async function VatReturnPage({
         </div>
       </header>
       <PeriodNavigation
+        returnTo={returnTo}
         active="vatReturn"
         companyId={companyId}
         period={period}
@@ -76,6 +79,7 @@ export default async function VatReturnPage({
         <p>{t("snapshot")}</p>
         <DataTable
           caption={t("vatReturn")}
+          rowId={(line) => `vat-line-${line.line}`}
           rows={preview.lines.map((line) => ({ ...line, id: line.line }))}
           columns={[
             {
@@ -91,6 +95,7 @@ export default async function VatReturnPage({
                 <ReportAmount
                   amount={line.netAmount}
                   companyId={companyId}
+                  returnTo={`${context}#vat-line-${line.line}`}
                   documentIds={line.documentIds}
                   documents={report.documents}
                 />
@@ -104,6 +109,7 @@ export default async function VatReturnPage({
                 <ReportAmount
                   amount={line.vatAmount}
                   companyId={companyId}
+                  returnTo={`${context}#vat-line-${line.line}`}
                   documentIds={line.documentIds}
                   documents={report.documents}
                 />
@@ -129,6 +135,7 @@ export default async function VatReturnPage({
                 <ReportAmount
                   amount={preview.totals[key]}
                   companyId={companyId}
+                  returnTo={context}
                   documentIds={[...documentIds]}
                   documents={report.documents}
                 />
@@ -137,7 +144,7 @@ export default async function VatReturnPage({
           ))}
         </dl>
       </section>
-      <ReportIssues companyId={companyId} readiness={readiness} report={report} />
+      <ReportIssues companyId={companyId} readiness={readiness} report={report} returnTo={`${context}#vat-output-issues`} />
       <section className="vat-output-actions">
         <h2>{t("vatReturnActions")}</h2>
         <div className="vat-output-action-grid">
