@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { AiProvider, AiUsage } from "@/application/ai-provider";
 import { listAiConfigurations, listAiModelPrices, setAiModelPrices } from "@/application/ai-configurations";
-import { listPlatformAiUsage } from "@/application/ai-usage";
+import { addAiUsageModelsFixture } from "./support/ai-usage";
+import { listPlatformAiUsage, listPlatformAiUsageModels } from "@/application/ai-usage";
 import { uploadSourceFile } from "@/application/source-files";
 import { SAMPLE_EXTRACTION } from "@/ai/fake";
 import { fixtureFile } from "./support/files";
@@ -65,6 +66,26 @@ async function configurationOf(client: Parameters<typeof listAiConfigurations>[0
 }
 
 describe("platform AI usage metering", () => {
+  it("includes every model group beyond the PostgREST row limit", async () => {
+    const target = await meteredCompany("Many Usage Models", meteredProvider({
+      split: () => ({ inputTokens: 1, outputTokens: 1 }),
+      extract: () => ({ inputTokens: 1, outputTokens: 1 }),
+    }));
+    const superAdmin = await promotedSuperAdministrator("Complete Usage Analyst");
+    const configuration = await configurationOf(superAdmin.client, target.companyId);
+    await addAiUsageModelsFixture({ ...target, configurationId: configuration.id }, 1001);
+    const usage = await listPlatformAiUsage(superAdmin.client, {
+      ...ALL_TIME, companyId: target.companyId, groupBy: "model",
+    });
+    expect(usage.ok).toBe(true);
+    if (!usage.ok) return;
+    expect(usage.value).toHaveLength(1001);
+    expect(usage.value.reduce((sum, group) => sum + group.requests, 0)).toBe(1001);
+    expect(usage.value.reduce((sum, group) => sum + (group.costUsd ?? 0), 0)).toBe(1001);
+    const models = await listPlatformAiUsageModels(superAdmin.client);
+    expect(models.ok && models.value.includes("many-model-1000")).toBe(true);
+  });
+
   it("summarizes usage across Organizations only for a SuperAdmin with MFA", async () => {
     const target = await meteredCompany("Visible to SuperAdmin", meteredProvider({
       split: () => ({ inputTokens: 10, outputTokens: 4 }),
