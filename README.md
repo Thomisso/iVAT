@@ -126,7 +126,8 @@ Uploading a Source File enqueues a Split job (pg-boss). The worker Splits the fi
 
 ## Git worktrees
 
-For the internet-facing pilot on Roští, see [deployment and recovery](docs/deployment.md).
+For the internet-facing pilot on Roští, see [deployment and recovery](docs/deployment.md)
+and the [2026-10-30 deployment record](docs/deployments/2026-10-30-rosti-pilot.md).
 It runs the application and self-hosted Supabase in one Stack, independently of
 the local Supabase CLI environment.
 
