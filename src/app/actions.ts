@@ -29,6 +29,12 @@ import {
   updateCompanyIdentity,
 } from "@/application/companies";
 import { saveCompanyFilingDefaults } from "@/application/company-filing-defaults";
+import {
+  changeReportingYearFrequency,
+  deleteReportingYear,
+  generateReportingYears,
+  setFirstReportingMonth,
+} from "@/application/reporting-years";
 import { changeMembershipRole, completeInvitationOnboarding, inviteMember, removeMembership } from "@/application/memberships";
 import { supabaseInvitationMailer } from "@/application/supabase-invitation-mailer";
 import { invitationUrls } from "@/application/invitation-urls";
@@ -275,6 +281,57 @@ export async function setCurrentReportingYearAction(_state: FormState, formData:
   });
   if (!result.ok) return refused(result.error, formData, ["filingFrequency"]);
   redirect(`/companies/${companyId}/setup/ai-processing`);
+}
+
+const REPORTING_YEAR_FIELDS = ["fromYear", "toYear", "frequency"];
+
+/** Returns the generated and skipped years so the form can report both. */
+export async function generateReportingYearsAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const result = await generateReportingYears(await requireUserClient(), {
+    companyId: field(formData, "companyId"),
+    fromYear: Number(field(formData, "fromYear")),
+    toYear: Number(field(formData, "toYear") || field(formData, "fromYear")),
+    frequency: field(formData, "frequency") as "monthly" | "quarterly",
+  });
+  if (!result.ok) return refused(result.error, formData, REPORTING_YEAR_FIELDS);
+  refresh();
+  return {
+    error: null,
+    values: {
+      generated: result.value.generated.join(", "),
+      skipped: result.value.skipped.join(", "),
+    },
+  };
+}
+
+export async function changeReportingYearFrequencyAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const result = await changeReportingYearFrequency(await requireUserClient(), {
+    companyId: field(formData, "companyId"),
+    year: Number(field(formData, "year")),
+    frequency: field(formData, "frequency") as "monthly" | "quarterly",
+  });
+  if (!result.ok) return refused(result.error, formData, ["frequency"]);
+  return settled(result);
+}
+
+export async function setFirstReportingMonthAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const result = await setFirstReportingMonth(await requireUserClient(), {
+    companyId: field(formData, "companyId"),
+    year: Number(field(formData, "year")),
+    firstMonth: Number(field(formData, "firstMonth")),
+  });
+  if (!result.ok) return refused(result.error, formData, ["firstMonth"]);
+  return settled(result);
+}
+
+export async function deleteReportingYearAction(_state: FormState, formData: FormData): Promise<FormState> {
+  if (field(formData, "confirmed") !== "on") return refused("confirmation_required", formData, []);
+  const result = await deleteReportingYear(await requireUserClient(), {
+    companyId: field(formData, "companyId"),
+    year: Number(field(formData, "year")),
+  });
+  if (!result.ok) return refused(result.error, formData, ["confirmed"]);
+  return settled(result);
 }
 
 const FILING_DEFAULT_FIELDS = [

@@ -690,6 +690,9 @@ isOneToOne: false
 "cancel_invitation":
 { Args: { "invitation_token": string }; Returns: undefined
                            },
+"change_company_reporting_year_frequency":
+{ Args: { "new_frequency": Database["public"]['Enums']["filing_frequency"],"target_company_id": string,"target_year": number }; Returns: undefined
+                           },
 "change_membership_role":
 { Args: { "target_membership_id": string,"target_role": Database["public"]['Enums']["membership_role"] }; Returns: undefined
                            },
@@ -745,6 +748,9 @@ isOneToOne: false
 "current_user_can_use_application":
 { Args: Record<PropertyKey, never>; Returns: boolean
                            },
+"delete_company_reporting_year":
+{ Args: { "target_company_id": string,"target_year": number }; Returns: undefined
+                           },
 "delete_upload_batch":
 { Args: { "target_batch_id": string }; Returns: (string)[]
                            },
@@ -771,6 +777,9 @@ isOneToOne: false
                            },
 "forget_removed_source_file_objects":
 { Args: { "target_company_id": string }; Returns: undefined
+                           },
+"generate_company_reporting_years":
+{ Args: { "from_year": number,"new_frequency": Database["public"]['Enums']["filing_frequency"],"target_company_id": string,"to_year": number }; Returns: Json
                            },
 "invitation_onboarding":
 { Args: { "invitation_token": string }; Returns: {
@@ -903,6 +912,9 @@ isOneToOne: false
                            },
 "set_company_filing_defaults":
 { Args: { "epo_address_confirmed": boolean,"new_email": string,"new_epo_city": string,"new_epo_house_number": string,"new_epo_orientation_number": string,"new_epo_postal_code": string,"new_epo_street_name": string,"new_phone": string,"new_signatory_capacity": string,"new_signatory_first_name": string,"new_signatory_last_name": string,"new_tax_office": string,"target_company_id": string }; Returns: undefined
+                           },
+"set_company_first_reporting_month":
+{ Args: { "new_first_month": number,"target_company_id": string,"target_year": number }; Returns: undefined
                            },
 "set_company_reporting_year":
 { Args: { "new_frequency": Database["public"]['Enums']["filing_frequency"],"target_company_id": string,"target_year": number }; Returns: undefined

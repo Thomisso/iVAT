@@ -65,3 +65,9 @@ export function parseDateInput(
   const pad = (n: number) => String(n).padStart(2, "0");
   return { ok: true, value: `${year}-${pad(month)}-${pad(day)}` };
 }
+
+/** The name of a calendar month (1–12) in the UI language, such as "květen". */
+export function formatMonthName(locale: string, month: number): string {
+  return new Intl.DateTimeFormat(locale, { month: "long", timeZone: "UTC" })
+    .format(new Date(Date.UTC(2000, month - 1, 1)));
+}
