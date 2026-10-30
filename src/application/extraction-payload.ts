@@ -42,6 +42,13 @@ export type RateBreakdownLine = {
   vatAmount: string;
 };
 
+/** A human can preserve a partially entered row before completing review. */
+export type DraftRateBreakdownLine = {
+  rate: number | null;
+  netAmount: string | null;
+  vatAmount: string | null;
+};
+
 export type CzkConversion = {
   originalCurrency: string;
   /** CZK quoted for `unit` units of the original currency. */
@@ -55,7 +62,7 @@ export type CzkConversion = {
 };
 
 export type ExtractionPayload = {
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
   documentType: DocumentType | null;
   documentNumber: string | null;
   issueDate: string | null;
@@ -66,7 +73,7 @@ export type ExtractionPayload = {
   customer: Party;
   /** ISO 4217, e.g. "CZK". */
   currency: string | null;
-  rateBreakdown: RateBreakdownLine[];
+  rateBreakdown: DraftRateBreakdownLine[];
   totals: { netAmount: string | null; vatAmount: string | null; grossAmount: string | null };
   payment: { variableSymbol: string | null; bankAccount: string | null; iban: string | null };
   proposedVatRegime: VatRegime | null;
@@ -84,6 +91,19 @@ export type ExtractionPayload = {
   confidence?: Record<string, number>;
 };
 
+/** Nothing is inferred for a new manual Document, including its DUZP and Direction. */
+export function emptyDocumentPayload(): ExtractionPayload {
+  const party = (): Party => ({ name: null, ico: null, vatId: null, street: null, city: null, postalCode: null, country: null });
+  return {
+    schemaVersion: 1, documentType: null, documentNumber: null,
+    issueDate: null, taxPointDate: null, dueDate: null, direction: null,
+    supplier: party(), customer: party(), currency: null, rateBreakdown: [],
+    totals: { netAmount: null, vatAmount: null, grossAmount: null },
+    payment: { variableSymbol: null, bankAccount: null, iban: null },
+    proposedVatRegime: null, reverseChargeCode: null, originalDocumentNumber: null,
+  };
+}
+
 export type ExtractionPayloadError =
   | "invalid_choice"
   | "invalid_amount"
@@ -93,6 +113,14 @@ export type ExtractionPayloadError =
   | "invalid_currency"
   | "invalid_country"
   | "invalid_reverse_charge_code";
+
+export type ManualDocumentPayloadError = ExtractionPayloadError | "tax_point_date_required";
+
+/** Manual Versions must always retain a real DUZP, including unfinished drafts. */
+export function validateManualDocumentPayload(payload: ExtractionPayload): ManualDocumentPayloadError | null {
+  if (!payload.taxPointDate) return "tax_point_date_required";
+  return validateExtractionPayload(payload, { draft: true });
+}
 
 /** Whether a value is null or one of the choices. */
 const isChoice = (choices: readonly string[], value: string | null) => value === null || choices.includes(value);
@@ -107,7 +135,8 @@ function isIsoDate(value: string): boolean {
 }
 
 /** An amount as typed ("1 210,5") in the payload's form ("1210.50"); left as typed when it is no number. */
-function normalizeAmount(amount: string): string {
+function normalizeAmount(amount: string | null): string | null {
+  if (amount === null || !amount.trim()) return null;
   const typed = amount.replace(/\s/g, "").replace(",", ".");
   if (!/^-?\d+(\.\d{1,2})?$/.test(typed)) return typed;
   const [whole, decimals = ""] = typed.split(".");
@@ -117,8 +146,9 @@ function normalizeAmount(amount: string): string {
 const normalizeCode = (code: string | null) => code?.replace(/\s/g, "").toUpperCase() ?? null;
 
 /** Only two actual zero amounts make an empty row; missing/invalid amounts stay reviewable. */
-export function isZeroRateBreakdownLine(line: Pick<RateBreakdownLine, "netAmount" | "vatAmount">): boolean {
-  return /^-?0+\.00$/.test(line.netAmount) && /^-?0+\.00$/.test(line.vatAmount);
+export function isZeroRateBreakdownLine(line: Pick<DraftRateBreakdownLine, "netAmount" | "vatAmount">): boolean {
+  return line.netAmount !== null && line.vatAmount !== null
+    && /^-?0+\.00$/.test(line.netAmount) && /^-?0+\.00$/.test(line.vatAmount);
 }
 
 /** Prepares a new payload without changing the source or misattributing provider confidence. */
@@ -155,14 +185,14 @@ export function omitZeroRateBreakdownRows(payload: ExtractionPayload): Extractio
 export function normalizeExtractionPayload(payload: ExtractionPayload): ExtractionPayload {
   const amount = (value: string | null) => (value === null ? null : normalizeAmount(value));
   const party = (p: Party): Party => ({ ...p, vatId: normalizeCode(p.vatId), country: normalizeCode(p.country) });
-  return omitZeroRateBreakdownRows({
+  const normalized = omitZeroRateBreakdownRows({
     ...payload,
     currency: normalizeCode(payload.currency),
     reverseChargeCode: payload.reverseChargeCode?.trim() || null,
     supplier: party(payload.supplier),
     customer: party(payload.customer),
     rateBreakdown: payload.rateBreakdown
-      .filter((line) => !(Number.isNaN(line.rate) && !line.netAmount.trim() && !line.vatAmount.trim()))
+      .filter((line) => !((line.rate === null || Number.isNaN(line.rate)) && !line.netAmount?.trim() && !line.vatAmount?.trim()))
       .map((line) => ({ ...line, netAmount: normalizeAmount(line.netAmount), vatAmount: normalizeAmount(line.vatAmount) })),
     totals: {
       netAmount: amount(payload.totals.netAmount),
@@ -170,11 +200,15 @@ export function normalizeExtractionPayload(payload: ExtractionPayload): Extracti
       grossAmount: amount(payload.totals.grossAmount),
     },
   });
+  return normalized.rateBreakdown.some((line) => line.rate === null || line.netAmount === null || line.vatAmount === null)
+    ? { ...normalized, schemaVersion: 2 }
+    : normalized;
 }
 
 /** The first convention a payload breaks, or null. Null fields are always allowed. */
-export function validateExtractionPayload(payload: ExtractionPayload): ExtractionPayloadError | null {
+export function validateExtractionPayload(payload: ExtractionPayload, { draft = false }: { draft?: boolean } = {}): ExtractionPayloadError | null {
   if (
+    ![1, 2].includes(payload.schemaVersion) ||
     !isChoice(DOCUMENT_TYPES, payload.documentType) ||
     !isChoice(DIRECTIONS, payload.direction) ||
     !isChoice(VAT_REGIMES, payload.proposedVatRegime)
@@ -188,12 +222,14 @@ export function validateExtractionPayload(payload: ExtractionPayload): Extractio
     payload.totals.grossAmount,
   ];
   if (amounts.some((amount) => amount !== null && !AMOUNT.test(amount))) return "invalid_amount";
+  if ((!draft || payload.schemaVersion === 1) && payload.rateBreakdown.some((line) => line.netAmount === null || line.vatAmount === null)) return "invalid_amount";
   if (
+    !draft &&
     payload.documentType === "credit_note"
     && (amounts.some((amount) => amount !== null && Number(amount) > 0)
       || !amounts.some((amount) => amount !== null && Number(amount) < 0))
   ) return "invalid_credit_note_amount";
-  if (payload.rateBreakdown.some((line) => !Number.isFinite(line.rate) || line.rate < 0 || line.rate > 100)) {
+  if (payload.rateBreakdown.some((line) => line.rate === null ? !draft || payload.schemaVersion === 1 : !Number.isFinite(line.rate) || line.rate < 0 || line.rate > 100)) {
     return "invalid_rate";
   }
   const dates = [payload.issueDate, payload.taxPointDate, payload.dueDate];

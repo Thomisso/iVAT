@@ -8,8 +8,11 @@ FROM dependencies AS build
 COPY . .
 ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+ARG IVAT_RELEASE_TAG
+ARG IVAT_RELEASE_REVISION
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN test -n "$NEXT_PUBLIC_SUPABASE_URL" && test -n "$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" && npm run build
+RUN test -n "$NEXT_PUBLIC_SUPABASE_URL" && test -n "$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" \
+    && node scripts/write-release-identity.mjs "$IVAT_RELEASE_TAG" "$IVAT_RELEASE_REVISION" && npm run build
 
 FROM dependencies AS production-dependencies
 RUN npm prune --omit=dev
@@ -23,7 +26,9 @@ COPY --from=build --chown=node:node /app/.next/static ./.next/static
 COPY --chown=node:node package.json package-lock.json tsconfig.json ./
 COPY --chown=node:node messages ./messages
 COPY --chown=node:node schemas ./schemas
-COPY --chown=node:node src ./src
+# Runtime source consumers (including the XML serializer) use the very same
+# generated metadata as the compiled Next.js application.
+COPY --from=build --chown=node:node /app/src ./src
 COPY --chown=node:node worker ./worker
 COPY --chown=node:node scripts/bootstrap-superadmin.ts ./scripts/bootstrap-superadmin.ts
 COPY --chown=node:node supabase/migrations ./supabase/migrations

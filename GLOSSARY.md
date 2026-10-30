@@ -1,6 +1,6 @@
 # iVAT
 
-iVAT turns financial documents uploaded by Czech VAT payers into validated, structured data and produces the Czech VAT return and VAT control statement for a reporting period.
+iVAT turns financial documents uploaded or entered manually by Czech VAT payers into validated, structured data and produces the Czech VAT return and VAT control statement for a reporting period.
 
 ## Tenancy and access
 
@@ -23,6 +23,10 @@ _Avoid_: DIČ (in code), tax ID
 **Membership**:
 A User's access to an Organization or a Company, carrying a Role.
 _Avoid_: Assignment, access grant
+
+**Invitation**:
+A single-use offer for the holder of a specified email address to join an Organization or Company with a specified Role. It expires and may be delivered by email or shared as a link.
+_Avoid_: Registration, public invitation
 
 **Role**:
 An access level: SuperAdmin grants platform-wide administration across all Organizations and Companies without a Membership. Administrator and User grant scoped access through Memberships.
@@ -47,7 +51,7 @@ A single file uploaded or imported into a Company, preserved unchanged. May cont
 _Avoid_: Upload, attachment, document (when meaning the file)
 
 **Document**:
-One financial document (invoice, credit note, receipt, simplified tax document…) identified within a Source File by a page range or row set.
+One financial document (invoice, credit note, receipt, simplified tax document…), entered manually or identified within a Source File by a page range or row set. A Document can exist without a Source File.
 _Avoid_: Doklad (in code), file, record
 
 **Direction**:
@@ -67,7 +71,7 @@ Reading structured data out of a Document. Each run produces a new Extraction Ve
 _Avoid_: Parsing, OCR (as a synonym), recognition
 
 **Extraction Version**:
-An immutable snapshot of a Document's structured data, authored either by an AI provider or by a User's corrections.
+An immutable snapshot of a Document's structured data, authored either by an AI provider or by a User's manual entry or corrections.
 _Avoid_: Revision, edit
 
 **AI Configuration**:
@@ -101,7 +105,7 @@ _Avoid_: Unapprove, reject, reopen
 ## VAT
 
 **VAT Regime**:
-The VAT treatment of a Document (e.g. domestic, domestic reverse charge, EU acquisition of goods, EU received service). Proposed by AI, confirmed by a human.
+The VAT treatment of a Document (e.g. domestic, domestic reverse charge, EU acquisition of goods, EU received service). Selected or confirmed by a human, with an optional AI proposal.
 _Avoid_: Tax code, VAT type, classification
 
 **Rules Engine**:
