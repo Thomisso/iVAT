@@ -48,10 +48,8 @@
     "companyWork": "Company work",
     "security": "Security",
     "logOut": "Log out",
-    "administrationMenu": "Open administration menu",
     "administration": "Administration",
     "companyAdministration": "Company administration",
-    "organizationAdministration": "Organization administration",
     "platformAdministration": "Platform administration",
     "users": "Users",
     "auditLog": "Audit log",
@@ -281,7 +279,10 @@
   "periodFilter": {
     "label": "Reporting Period",
     "all": "All periods",
-    "none": "No period"
+    "none": "No period",
+    "formLabel": "Batch filters",
+    "submit": "Filter",
+    "clear": "Clear filters"
   },
   "uploadWorkspace": {
     "newBatch": "Add Source Files",
@@ -383,7 +384,18 @@
       }
     },
     "openBatch": "Open batch",
-    "markRead": "Mark as read"
+    "markRead": "Mark as read",
+    "deleteTitle": "Delete batch",
+    "deleteHint": "Deletes every Source File of this batch with its stored original and all its Documents, including Approved Documents. This cannot be undone.",
+    "deleteSourceFiles": "Source Files",
+    "deleteDocuments": "Documents",
+    "deleteApprovedDocuments": "Approved Documents",
+    "deleteConfirmation": "I understand that the batch and all of its data will be deleted permanently.",
+    "deleteAction": "Delete batch",
+    "deleteRefused": {
+      "batch_processing": "The batch can be deleted only after processing finishes.",
+      "period_locked": "A Document of this batch lies in a finalized Reporting Period. An Administrator must unlock the period before the batch can be deleted."
+    }
   },
   "dateInput": {
     "hint": "Format dd.mm.yyyy",
@@ -486,7 +498,8 @@
     "invalid_credential": "Enter a valid provider credential.",
     "credential_required": "Enter a new credential when changing the provider.",
     "invalid_allowance": "The processing allowance must be a non-negative whole number or unlimited.",
-    "direction_required": "Set the document Direction before approving it."
+    "direction_required": "Set the document Direction before approving it.",
+    "batch_processing": "The batch is still processing. Wait until it finishes."
   },
   "aiUsage": {
     "platformNav": "Platform AI usage",

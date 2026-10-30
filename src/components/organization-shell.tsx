@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import type { OrganizationSummary } from "@/application/organizations";
+import { AdministrationNavigation } from "@/components/administration-navigation";
 import { AccountActions, AppShell, ContextNavigation } from "@/components/app-shell";
 import { AccountMenu, Menu, ShellIcon } from "@/components/shell-controls";
 
@@ -44,12 +45,13 @@ function OrganizationMenu({ current, organizations }: {
   </Menu>;
 }
 
-export function OrganizationShell({ children, companyHref, email, organization, organizations }: {
+export function OrganizationShell({ children, companyHref, email, organization, organizations, superAdmin }: {
   children: ReactNode;
   companyHref: string;
   email: string;
   organization: OrganizationSummary;
   organizations: OrganizationSummary[];
+  superAdmin: boolean;
 }) {
   const t = useTranslations("shell");
   const app = useTranslations("app");
@@ -75,6 +77,7 @@ export function OrganizationShell({ children, companyHref, email, organization, 
 
   return <AppShell
     accountActions={accountActions}
+    administration={<AdministrationNavigation currentPath={pathname} organizations={organizations} superAdmin={superAdmin} />}
     brandHref="/"
     brandLabel={app("name")}
     context={context}

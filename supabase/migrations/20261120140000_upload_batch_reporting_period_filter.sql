@@ -2,6 +2,9 @@
 -- A batch matches when it holds at least one current Document of the period;
 -- an omitted (null) period matches Documents without a Reporting Period.
 -- Security invoker: RLS on upload_batch, source_file and document still applies.
+
+create index source_file_upload_batch_id_idx on public.source_file (upload_batch_id);
+
 create function public.upload_batches_in_reporting_period(
   target_company_id uuid,
   target_period text default null

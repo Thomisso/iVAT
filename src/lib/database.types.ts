@@ -745,6 +745,9 @@ isOneToOne: false
 "current_user_can_use_application":
 { Args: Record<PropertyKey, never>; Returns: boolean
                            },
+"delete_upload_batch":
+{ Args: { "target_batch_id": string }; Returns: (string)[]
+                           },
 "dismiss_company_upload_notifications":
 { Args: { "target_company_id": string }; Returns: undefined
                            },
@@ -765,6 +768,9 @@ isOneToOne: false
                            },
 "finish_upload_batch":
 { Args: { "target_batch_id": string }; Returns: undefined
+                           },
+"forget_removed_source_file_objects":
+{ Args: { "target_company_id": string }; Returns: undefined
                            },
 "invitation_onboarding":
 { Args: { "invitation_token": string }; Returns: {
@@ -811,6 +817,9 @@ isOneToOne: false
                            },
 "mark_company_upload_notifications_read":
 { Args: { "target_company_id": string }; Returns: undefined
+                           },
+"mark_upload_batch_notification_read":
+{ Args: { "target_batch_id": string }; Returns: boolean
                            },
 "mark_upload_notification_read":
 { Args: { "target_notification_id": string }; Returns: undefined
@@ -927,6 +936,9 @@ isOneToOne: false
                            },
 "update_document_reporting":
 { Args: { "new_claimed_reporting_period": string,"new_receipt_date": string,"target_document_id": string }; Returns: undefined
+                           },
+"upload_batch_deletion_refusal":
+{ Args: { "target_batch_id": string }; Returns: string
                            },
 "upload_batches_in_reporting_period":
 { Args: { "target_company_id": string,"target_period"?: string }; Returns: {
