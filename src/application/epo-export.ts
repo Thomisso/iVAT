@@ -7,6 +7,7 @@ import {
   type EpoFormat,
 } from "./epo-export-details";
 import { createEpoXml, type EpoXmlError } from "./epo-xml";
+import { exportTiming, type ExportTiming } from "./epo-export-timing";
 import { getVatReport } from "./vat-reports";
 import { isReportingPeriod } from "./vat-rules";
 import type { Json } from "@/lib/database.types";
@@ -27,8 +28,10 @@ export type ExportVatReportError =
   | "report_finalized"
   | "report_not_finalized";
 export type EpoDownload = {
+  timing: ExportTiming;
   artifactId: string;
   reportGeneratedAt: string;
+  periodLockId: string | null;
   xml: string;
   bytes: Uint8Array;
   fileName: string;
@@ -40,6 +43,7 @@ export type VatReportArtifact = {
   companyId: string;
   vatReportId: string;
   reportGeneratedAt: string;
+  periodLockId: string | null;
   period: string;
   format: "dphdp3" | "dphkh1";
   kind: "draft" | "final";
@@ -55,8 +59,8 @@ export type VatReportArtifact = {
   createdAt: string;
 };
 
-function todayInPrague(): string {
-  return new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Prague" }).format(new Date());
+function todayInPrague(now: Date): string {
+  return new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Prague" }).format(now);
 }
 
 async function resolveExportDetails(
@@ -67,6 +71,7 @@ async function resolveExportDetails(
     format: EpoFormat;
     personType: "legal" | "natural";
     registeredAddress: NonNullable<ExportDetails["address"]>;
+    today: string;
   },
 ): Promise<Result<ExportDetails, "invalid_export_details" | "epo_address_required">> {
   const defaults = await getCompanyFilingDefaults(client, input.companyId);
@@ -78,7 +83,7 @@ async function resolveExportDetails(
     taxOffice: supplied("taxOffice", defaults?.taxOffice),
     territorialOffice: supplied("territorialOffice", defaults?.territorialOffice),
     economicActivity: supplied("economicActivity", defaults?.economicActivity),
-    preparedOn: input.details.preparedOn?.trim() || todayInPrague(),
+    preparedOn: input.details.preparedOn?.trim() || input.today,
     email: supplied("email", defaults?.email),
     phone: supplied("phone", defaults?.phone),
     personType: input.personType === "natural" ? "F" : "P",
@@ -105,15 +110,18 @@ async function exportVatReportArtifact(
     details: Record<string, string>;
   },
   kind: "draft" | "final",
+  now: () => Date,
 ): Promise<Result<EpoDownload, ExportVatReportError>> {
   const report = await getVatReport(client, input.companyId, input.period);
   if (!report) return { ok: false, error: "report_not_found" };
   if (!isEpoFormat(input.format))
     return { ok: false, error: "invalid_export_format" };
+  const today = todayInPrague(now());
   const details = await resolveExportDetails(client, {
     companyId: input.companyId,
     details: input.details,
     format: input.format,
+    today,
     personType: report.result.company.personType,
     registeredAddress: {
       streetName: report.result.company.streetName,
@@ -158,8 +166,12 @@ async function exportVatReportArtifact(
   return {
     ok: true,
     value: {
+      timing: exportTiming({ period: input.period, format: input.format, personType: report.result.company.personType, preparedOn: details.value.preparedOn, today }),
       artifactId: stored.data,
       reportGeneratedAt: report.generatedAt,
+      periodLockId: kind === "final"
+        ? (await readVatReportArtifact(client, { companyId: report.companyId, artifactId: stored.data }))?.artifact.periodLockId ?? null
+        : null,
       xml: result.value,
       bytes,
       fileName,
@@ -177,8 +189,9 @@ export function exportVatReport(
     format: string;
     details: Record<string, string>;
   },
+  now: () => Date = () => new Date(),
 ): Promise<Result<EpoDownload, ExportVatReportError>> {
-  return exportVatReportArtifact(client, input, "draft");
+  return exportVatReportArtifact(client, input, "draft", now);
 }
 
 /** Saves a new validated final XML artifact for the actively locked snapshot. */
@@ -190,8 +203,9 @@ export function exportFinalVatReport(
     format: string;
     details: Record<string, string>;
   },
+  now: () => Date = () => new Date(),
 ): Promise<Result<EpoDownload, ExportVatReportError>> {
-  return exportVatReportArtifact(client, input, "final");
+  return exportVatReportArtifact(client, input, "final", now);
 }
 
 /** Every immutable XML artifact for the Reporting Period, newest first. */
@@ -227,7 +241,7 @@ export async function readVatReportArtifact(
   };
 }
 
-export type DraftExportProgress = {
+export type VatReportExportProgress = {
   downloadedFormats: EpoFormat[];
   skippedFormats: EpoFormat[];
 };
@@ -237,6 +251,7 @@ export type DownloadAcknowledgementInput = {
   format: string;
   artifactId: string;
   reportGeneratedAt: string;
+  periodLockId?: string | null;
 };
 export type DownloadAcknowledgementError = "forbidden" | "invalid_download_artifact" | "report_finalized";
 
@@ -255,12 +270,14 @@ export async function acknowledgeVatReportDownload(
   input: DownloadAcknowledgementInput,
 ): Promise<Result<null, DownloadAcknowledgementError>> {
   if (!isUuid(input.companyId) || !isUuid(input.artifactId) || !isReportingPeriod(input.period)
-    || !isEpoFormat(input.format) || !isReportGeneration(input.reportGeneratedAt)) {
+    || !isEpoFormat(input.format) || !isReportGeneration(input.reportGeneratedAt)
+    || (input.periodLockId != null && !isUuid(input.periodLockId))) {
     return { ok: false, error: "invalid_download_artifact" };
   }
   const { error } = await client.rpc("acknowledge_vat_report_download", {
     target_company_id: input.companyId, target_period: input.period, target_format: input.format,
     target_artifact_id: input.artifactId, target_report_generated_at: input.reportGeneratedAt,
+    target_period_lock_id: input.periodLockId ?? undefined,
   });
   if (error?.code === "42501") return { ok: false, error: "forbidden" };
   if (error?.code === "P0001" && (error.hint === "invalid_download_artifact" || error.hint === "report_finalized")) {
@@ -288,16 +305,24 @@ export async function skipVatReportDrafts(
   return { ok: true, value: null };
 }
 
-/** One database aggregate counts distinct outputs without a PostgREST row-limit truncation. */
-export async function getVatReportDraftProgress(
+/** One database aggregate counts distinct applicable outputs beyond the PostgREST row limit. */
+export async function getVatReportExportProgress(
   client: AppClient,
-  input: { companyId: string; period: string; reportGeneratedAt: string | null },
-): Promise<DraftExportProgress> {
+  input: { companyId: string; period: string; reportGeneratedAt: string | null; kind: "draft" | "final"; periodLockId?: string | null },
+): Promise<VatReportExportProgress> {
   const empty = { downloadedFormats: [], skippedFormats: [] };
   if (!input.reportGeneratedAt || !isUuid(input.companyId) || !isReportingPeriod(input.period)) return empty;
-  const { data, error } = await client.rpc("vat_report_draft_progress", {
+  const { data, error } = await client.rpc("vat_report_export_progress", {
     target_company_id: input.companyId, target_period: input.period, target_report_generated_at: input.reportGeneratedAt,
+    target_kind: input.kind, target_period_lock_id: input.periodLockId ?? undefined,
   });
   if (error) throw error;
-  return data ? data as unknown as DraftExportProgress : empty;
+  return data ? data as unknown as VatReportExportProgress : empty;
+}
+
+export function getVatReportDraftProgress(
+  client: AppClient,
+  input: { companyId: string; period: string; reportGeneratedAt: string | null },
+): Promise<VatReportExportProgress> {
+  return getVatReportExportProgress(client, { ...input, kind: "draft" });
 }

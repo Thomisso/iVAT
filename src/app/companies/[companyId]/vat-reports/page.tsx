@@ -70,7 +70,7 @@ export default async function VatReportsPage({
     getTranslations(),
   ]);
   if (!wizardResult.ok) notFound();
-  const { readiness, steps, documentsToReview, documentsToReviewCount, locked, draftExport } = wizardResult.value;
+  const { readiness, steps, documentsToReview, documentsToReviewCount, locked, draftExport, finalExport, periodLockId } = wizardResult.value;
   const epoAddress = report ? resolveEpoAddress(report.result.company, filingDefaults) : null;
   const readinessCounts = readinessDocumentCounts(readiness);
   const context = companyPageContext(companyId, `/companies/${companyId}/vat-reports`, { ...query, period });
@@ -217,6 +217,22 @@ export default async function VatReportsPage({
       case "finalize":
         return <>
           {locked && <p><strong>{t("statusBadge.locked")}</strong></p>}
+          {locked && report && <div className="vat-output-action-grid">
+            {(["dphdp3", "dphkh1"] as const).map((format) => <ExportForm
+              key={`${period}:${format}:${report.generatedAt}:${periodLockId}`}
+              companyId={companyId}
+              format={format}
+              period={period}
+              preparedOn={new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Prague" }).format(new Date())}
+              personType={report.result.company.personType}
+              defaults={filingDefaults}
+              epoAddress={epoAddress?.ok ? epoAddress.value : null}
+              finalized
+              presentation="wizard"
+              canEditFilingDefaults={role === "administrator"}
+            />)}
+          </div>}
+
           {role === "administrator" && (locked || step.state !== "blocked") && (
             <PeriodLockForm
               key={`${period}:${locked ? "locked" : "unlocked"}`}
@@ -274,7 +290,9 @@ export default async function VatReportsPage({
               <StatusBadge status={stateBadge[step.state]}>
                 {step.key === "export" && step.state === "partial"
                   ? t(draftExport.skippedFormats.length ? "vatReports.wizard.draftPartialSkipped" : "vatReports.wizard.draftPartial", { count: draftExport.downloadedFormats.length })
-                  : t(`vatReports.wizard.state.${step.state}`)}
+                  : step.key === "finalize" && step.state === "partial"
+                    ? t("vatReports.wizard.finalPartial", { count: finalExport.downloadedFormats.length })
+                    : t(`vatReports.wizard.state.${step.state}`)}
               </StatusBadge>
             </header>
             {(step.reason || step.blockedBy) && <p className="vat-wizard-reason" role="note">

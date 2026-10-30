@@ -5,6 +5,12 @@ export const EPO_FORMATS = ["dphdp3", "dphkh1"] as const;
 export type EpoFormat = (typeof EPO_FORMATS)[number];
 export const isEpoFormat = (value: string): value is EpoFormat =>
   EPO_FORMATS.some((format) => format === value);
+
+export function isExportCalendarDate(value: string): boolean {
+  return /^20\d{2}-\d{2}-\d{2}$/.test(value)
+    && !Number.isNaN(Date.parse(`${value}T00:00:00Z`))
+    && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
+}
 // Official technical c_ufo codes; source and retrieval date: schemas/epo/README.md.
 export const TAX_OFFICES = [
   "451",
@@ -56,10 +62,7 @@ export function parseExportDetails(
   const bounded = (key: string, max: number) =>
     value(key).length > 0 && value(key).length <= max;
   const date = value("preparedOn");
-  const validDate =
-    /^20\d{2}-\d{2}-\d{2}$/.test(date) &&
-    !Number.isNaN(Date.parse(`${date}T00:00:00Z`)) &&
-    new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) === date;
+  const validDate = isExportCalendarDate(date);
   const email = value("email");
   const phone = value("phone");
   const refused = { ok: false, error: "invalid_export_details" } as const;

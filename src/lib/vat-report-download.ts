@@ -45,15 +45,16 @@ export async function downloadVatReportXml(input: {
     link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
-  if (input.kind !== "draft" || input.acknowledge === false) return { ok: true, value: null };
+  if (input.acknowledge === false) return { ok: true, value: null };
   const artifactId = response.headers.get("X-iVAT-Artifact-ID");
   const reportGeneratedAt = response.headers.get("X-iVAT-Report-Generated-At");
-  if (!artifactId || !reportGeneratedAt) return { ok: false, error: "download_acknowledgement_failed" };
+  const periodLockId = response.headers.get("X-iVAT-Period-Lock-ID");
+  if (!artifactId || !reportGeneratedAt || (input.kind === "final" && !periodLockId)) return { ok: false, error: "download_acknowledgement_failed" };
   try {
     return await new Promise<Result<null, DownloadAcknowledgementError>>((resolve, reject) => {
       startTransition(() => {
         acknowledgeVatReportDownloadAction({
-          companyId: input.companyId, period: input.period, format: input.format, artifactId, reportGeneratedAt,
+          companyId: input.companyId, period: input.period, format: input.format, artifactId, reportGeneratedAt, periodLockId,
         }).then(resolve, reject);
       });
     });
