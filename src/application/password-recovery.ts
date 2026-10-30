@@ -2,7 +2,7 @@ import type { AppClient, Result } from "./client";
 import type { Session } from "@supabase/supabase-js";
 
 export type RecoveryLinkError = "recovery_link_invalid" | "recovery_link_expired" | "recovery_link_used";
-export type RecoveryError = RecoveryLinkError | "password_recovery_failed" | "mfa_verification_required" | "weak_password" | "same_password" | "password_confirmation_mismatch";
+export type RecoveryError = RecoveryLinkError | "password_recovery_failed" | "mfa_verification_required" | "mfa_recovery_required" | "weak_password" | "same_password" | "password_confirmation_mismatch";
 
 export interface PasswordRecoveryAuthentication {
   request(email: string): Promise<void>;
@@ -51,7 +51,7 @@ export async function verifyPasswordRecovery(
 function recoveryRefusal(error: { code?: string; hint?: string | null }): RecoveryError | null {
   const hint = error.code === "P0001" ? error.hint : null;
   return hint === "recovery_link_invalid" || hint === "recovery_link_used" || hint === "recovery_link_expired"
-    || hint === "mfa_verification_required" ? hint : null;
+    || hint === "mfa_verification_required" || hint === "mfa_recovery_required" ? hint : null;
 }
 
 export async function recoverPassword(
