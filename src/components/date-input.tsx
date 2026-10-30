@@ -10,13 +10,15 @@ export interface DateInputProps
   name: string;
   /** The stored calendar date (yyyy-mm-dd), or empty. */
   defaultValue?: string;
+  /** Observes the calendar value submitted by manual entry or the calendar. */
+  onValueChange?: (value: string) => void;
 }
 
 /**
  * Czech manual entry and native calendar selection share one calendar-date
  * submission (yyyy-mm-dd), independent of the browser's display locale.
  */
-export function DateInput({ name, defaultValue = "", error, hint, ...props }: DateInputProps) {
+export function DateInput({ name, defaultValue = "", onValueChange, error, hint, ...props }: DateInputProps) {
   const t = useTranslations("dateInput");
   const visible = useRef<HTMLInputElement>(null);
   const [submitted, setSubmitted] = useState(defaultValue);
@@ -27,7 +29,9 @@ export function DateInput({ name, defaultValue = "", error, hint, ...props }: Da
   // message waits until the User leaves the field or tries to submit.
   const read = (input: HTMLInputElement) => {
     const parsed = parseDateInput(input.value);
-    setSubmitted(parsed.ok ? parsed.value : input.value);
+    const value = parsed.ok ? parsed.value : input.value;
+    setSubmitted(value);
+    onValueChange?.(value);
     setCalendarValue(parsed.ok ? parsed.value : "");
     input.setCustomValidity(parsed.ok ? "" : t("invalid"));
     setInvalid(false);
@@ -42,13 +46,14 @@ export function DateInput({ name, defaultValue = "", error, hint, ...props }: Da
     if (!form) return;
     const reset = () => {
       setSubmitted(defaultValue);
+      onValueChange?.(defaultValue);
       setCalendarValue(defaultValue);
       visible.current?.setCustomValidity("");
       setInvalid(false);
     };
     form.addEventListener("reset", reset);
     return () => form.removeEventListener("reset", reset);
-  }, [defaultValue]);
+  }, [defaultValue, onValueChange]);
 
   return (
     <>

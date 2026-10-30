@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import type { PersonType } from "@/application/companies";
 import { useTranslations } from "next-intl";
 import type {
@@ -17,6 +17,16 @@ import { FormError } from "@/components/form-error";
 import { DateInput } from "@/components/date-input";
 import { FilingDefaultsForm } from "../settings/filing-defaults-form";
 import { downloadVatReportXml } from "@/lib/vat-report-download";
+import { exportTiming } from "@/application/epo-export-timing";
+import { pragueDate } from "@/application/reporting-periods";
+import { formatDate } from "@/lib/format-date";
+
+function subscribeToClock(changed: () => void) {
+  const timer = window.setInterval(changed, 30_000);
+  window.addEventListener("focus", changed);
+  return () => { window.clearInterval(timer); window.removeEventListener("focus", changed); };
+}
+const todayInPrague = () => pragueDate(new Date().toISOString());
 
 export function ExportForm({
   companyId,
@@ -49,6 +59,11 @@ export function ExportForm({
   const [opened, setOpened] = useState(!wizard);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [exportPreparedOn, setExportPreparedOn] = useState(preparedOn);
+  // The server supplies today's initial preparation date; the browser then
+  // follows its clock, including a Prague midnight while the form stays open.
+  const today = useSyncExternalStore(subscribeToClock, todayInPrague, () => preparedOn);
+  const timing = exportTiming({ period, format, personType, preparedOn: exportPreparedOn, today });
   const request = useRef<AbortController | null>(null);
   useEffect(() => () => request.current?.abort(), []);
   const filingDetailsComplete = Boolean(defaults?.taxOffice)
@@ -113,17 +128,21 @@ export function ExportForm({
         </div>
         {canEditFilingDefaults && <FilingDefaultsForm companyId={companyId} personType={personType} defaults={defaults} epoOverrideRequired />}
       </>}
+      {timing.warnings.length > 0 && <div aria-label={t("timingWarnings")} aria-live="polite" className="iv-notice iv-notice-warning vat-export-timing" role="note">
+        <ul>{timing.warnings.map((warning) => <li key={warning}>{t(`timing.${warning}`, { deadline: timing.deadline ? formatDate(timing.deadline) : "" })}</li>)}</ul>
+      </div>}
       <form className="form" onSubmit={download}>
         <input type="hidden" name="format" value={format} />
         <input type="hidden" name="kind" value={finalized ? "final" : "draft"} />
-        {!showFields && <input type="hidden" name="preparedOn" value={preparedOn} />}
+        {!showFields && <input type="hidden" name="preparedOn" value={exportPreparedOn} />}
         {showFields && <>
         <div className="form-row">
           <DateInput
             label={t("preparedOn")}
             name="preparedOn"
             required
-            defaultValue={preparedOn}
+            defaultValue={exportPreparedOn}
+            onValueChange={setExportPreparedOn}
           />
         </div>
         <p>{t("personType")}: {t(personType === "legal" ? "legalPerson" : "naturalPerson")}</p>
