@@ -127,8 +127,11 @@ export default async function DocumentReviewPage({
           <p>
             {t("review.importDate")}: {formatDate(document.importDate)}
           </p>
-          {document.status === "approved" && (
+          {document.status === "approved" && current?.payload.proposedVatRegime && (
             <Notice>{t("review.approvedNote")}</Notice>
+          )}
+          {document.status === "approved" && !current?.payload.proposedVatRegime && (
+            <Notice tone="danger">{t("review.approvedWithoutVatRegime")}</Notice>
           )}
           {document.status === "approved" && !lockedPeriod && (
             <CommandButton

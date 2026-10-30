@@ -712,7 +712,7 @@ isOneToOne: false
                   ]
                 },"document_overview": {
                   Row: {
-                    "claimed_reporting_period": string | null,"company_id": string,"counterparty_ico": string | null,"counterparty_name": string | null,"counterparty_search": string | null,"counterparty_vat_id": string | null,"created_at": string,"currency": string | null,"direction": string | null,"document_number": string | null,"finding_count": number | null,"first_page": number,"gross_amount": string | null,"id": string,"import_date": string | null,"last_page": number,"organization_id": string,"reporting_period": string | null,"source_file_id": string,"status": Database["public"]['Enums']["document_status"],"tax_point_date": string | null,"version": number | null
+                    "claimed_reporting_period": string | null,"company_id": string,"counterparty_ico": string | null,"counterparty_name": string | null,"counterparty_search": string | null,"counterparty_vat_id": string | null,"created_at": string,"currency": string | null,"direction": string | null,"document_number": string | null,"finding_count": number | null,"first_page": number,"gross_amount": string | null,"id": string,"import_date": string | null,"last_page": number,"organization_id": string,"proposed_vat_regime": string | null,"reporting_period": string | null,"source_file_id": string,"status": Database["public"]['Enums']["document_status"],"tax_point_date": string | null,"version": number | null
                   }
                   ComputedFields: never
                   Relationships: [
