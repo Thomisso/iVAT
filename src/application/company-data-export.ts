@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { strToU8, zipSync } from "fflate";
-import type { Company, FilingFrequencyHistoryEntry } from "./companies";
+import type { Company, ReportingYear } from "./companies";
 import type { CompanyFilingDefaults } from "./company-filing-defaults";
 import type { Document, ExtractionVersion } from "./documents";
 import type { VatReportArtifact } from "./epo-export";
@@ -15,7 +15,7 @@ export type CompanyExportSnapshot = {
     state: "completed" | "skipped";
     changedAt: string;
   }[];
-  filingFrequencies: FilingFrequencyHistoryEntry[];
+  reportingYears: ReportingYear[];
   sourceFiles: SourceFile[];
   documents: (Document & { supersededAt: string | null; extractionVersions: ExtractionVersion[] })[];
   vatReports: (VatReport & { generatedBy: string })[];
@@ -40,7 +40,7 @@ export async function buildCompanyDataArchive(
   const {
     company,
     setupSteps,
-    filingFrequencies,
+    reportingYears,
     sourceFiles,
     documents,
     vatReports,
@@ -52,7 +52,7 @@ export async function buildCompanyDataArchive(
     return artifact;
   });
   const archive: Record<string, Uint8Array> = {
-    "company.json": json({ ...company, setupSteps, filingFrequencies }),
+    "company.json": json({ ...company, setupSteps, reportingYears }),
     "source-files.json": json(sourceFiles),
     "documents.json": json(documents),
     "vat-reports.json": json(vatReports),

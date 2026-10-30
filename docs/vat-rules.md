@@ -4,8 +4,9 @@ The pure Rules Engine in `src/application/vat-rules.ts` accepts Company details,
 a monthly (`YYYY-MM`) or quarterly (`YYYY-Qn`) Reporting Period and Document
 snapshots. Only Approved Documents assigned to that period contribute. Incoming
 Documents use the later of their Tax Point Date and Receipt Date unless the User
-explicitly claims a later valid period. Shared parsing and effective-dated filing
-frequency rules live in `src/application/reporting-periods.ts`.
+explicitly claims a later valid period. Shared parsing and the Reporting Year lookup
+(ADR-0013; a date outside every generated year has no Reporting Period) live in
+`src/application/reporting-periods.ts`.
 
 The Rules Engine supports CZK amounts at 21% and 12% (including amounts derived
 from a stored ČNB conversion) with full input VAT deduction:

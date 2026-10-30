@@ -2,15 +2,15 @@ import type { AppClient, Result } from "./client";
 import { isUuid } from "./client";
 import {
   getCompany,
-  getFilingFrequencyForPeriod,
-  listCompanyFilingFrequencies,
+  getReportingPeriodFrequency,
+  listCompanyReportingYears,
 } from "./companies";
 import type { ValidationFinding } from "./document-validation";
 import { listCompanyDocuments } from "./documents";
 import {
   isReportingPeriod,
   reportingPeriodForDate,
-  reportingPeriodsThrough,
+  reportingPeriodsOf,
 } from "./reporting-periods";
 import type { ReportDocument } from "./vat-rules";
 
@@ -169,17 +169,15 @@ async function getSavedSourceSnapshot(
   };
 }
 
-/** Lists the Company's valid Reporting Periods and identifies the oldest period without a lock. */
+/** Lists the Reporting Periods of the Company's generated Reporting Years and identifies the oldest period without a lock. */
 export async function listReportingPeriods(
   client: AppClient,
   companyId: string,
-  throughDate = new Date().toISOString().slice(0, 10),
 ): Promise<ReportingPeriodSummary[]> {
   if (!isUuid(companyId)) return [];
   const company = await getCompany(client, companyId);
   if (!company) return [];
-  const history = await listCompanyFilingFrequencies(client, companyId);
-  const periods = reportingPeriodsThrough(throughDate, history);
+  const periods = reportingPeriodsOf(await listCompanyReportingYears(client, companyId));
   if (periods.length === 0) return [];
 
   const reports: { period: string; generated_at: string }[] = [];
@@ -248,7 +246,7 @@ async function relevantDocuments(
   client: AppClient,
   companyId: string,
   period: string,
-  history: Awaited<ReturnType<typeof listCompanyFilingFrequencies>>,
+  reportingYears: Awaited<ReturnType<typeof listCompanyReportingYears>>,
 ): Promise<{ assigned: ReportDocument[]; relevant: ReportDocument[] }> {
   const { data, error } = await client.rpc("vat_report_documents", {
     target_company_id: companyId,
@@ -262,7 +260,7 @@ async function relevantDocuments(
     .filter((document) =>
       !assignedIds.has(document.id) &&
       document.reportingPeriod === null &&
-      reportingPeriodForDate(document.receiptDate, history) === period,
+      reportingPeriodForDate(document.receiptDate, reportingYears) === period,
     )
     .map((document) => document.id);
   const candidates: ReportDocument[] = [];
@@ -299,9 +297,9 @@ export async function getReportingPeriodReadiness(
   }
   const company = await getCompany(client, input.companyId);
   if (!company) return { ok: false, error: "forbidden" };
-  const [frequency, history] = await Promise.all([
-    getFilingFrequencyForPeriod(client, input.companyId, input.period),
-    listCompanyFilingFrequencies(client, input.companyId),
+  const [frequency, reportingYears] = await Promise.all([
+    getReportingPeriodFrequency(client, input.companyId, input.period),
+    listCompanyReportingYears(client, input.companyId),
   ]);
   if (
     frequency === null ||
@@ -310,7 +308,7 @@ export async function getReportingPeriodReadiness(
     return { ok: false, error: "invalid_reporting_period" };
   }
   const [{ assigned, relevant }, report] = await Promise.all([
-    relevantDocuments(client, input.companyId, input.period, history),
+    relevantDocuments(client, input.companyId, input.period, reportingYears),
     getSavedSourceSnapshot(client, input.companyId, input.period),
   ]);
   const byVersion = await findingsByVersion(client, relevant);

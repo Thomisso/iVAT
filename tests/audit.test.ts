@@ -24,7 +24,7 @@ describe("audit log", () => {
           action: "company.setup_changed",
           payload: { state: "completed", step: "filing_frequency" },
         }),
-        expect.objectContaining({ action: "company.filing_frequency_changed" }),
+        expect.objectContaining({ action: "reporting_year.generated" }),
       ],
       page: 1,
       pageSize: 2,
@@ -197,7 +197,7 @@ describe("audit log", () => {
       "user.signed_up",
       "company.created",
       "company.setup_changed",
-      "company.filing_frequency_changed",
+      "reporting_year.generated",
       "company.setup_changed",
     ]);
     expect(events[1]).toEqual(
