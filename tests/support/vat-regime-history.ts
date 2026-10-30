@@ -15,3 +15,14 @@ export async function addLegacyUndeterminedVatRegimeFixture(databaseUrl: string,
     await database.end();
   }
 }
+
+/** A draft generated before missing VAT Regime became a readiness blocker. */
+export async function setLegacyVatRegimeReadinessFixture(databaseUrl: string, companyId: string, period: string) {
+  const database = new DatabaseClient({ connectionString: databaseUrl });
+  await database.connect();
+  try {
+    await database.query("update public.vat_report set blocker_count = 0 where company_id = $1 and period = $2", [companyId, period]);
+  } finally {
+    await database.end();
+  }
+}
