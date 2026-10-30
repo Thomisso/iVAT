@@ -1,7 +1,7 @@
 import type { AppClient, Result } from "./client";
 import { getCompanySetupChecklist, getMyCompanyRole } from "./companies";
 import { listCompanyDocuments, type DocumentOverview } from "./documents";
-import { listVatReportArtifacts } from "./epo-export";
+import { getVatReportDraftProgress, type DraftExportProgress } from "./epo-export";
 import {
   getReportingPeriodReadiness,
   readinessDocumentIds,
@@ -18,7 +18,7 @@ export const VAT_PROCESSING_STEPS = [
   "finalize",
 ] as const;
 export type VatProcessingStepKey = (typeof VAT_PROCESSING_STEPS)[number];
-export type VatProcessingStepState = "done" | "needs_attention" | "blocked" | "not_started";
+export type VatProcessingStepState = "done" | "needs_attention" | "blocked" | "not_started" | "partial" | "skipped";
 export type VatProcessingStepReason =
   | "documents_need_review"
   | "report_missing"
@@ -42,6 +42,7 @@ export type VatProcessingWizard = {
   documentsToReview: DocumentOverview[];
   documentsToReviewCount: number;
   locked: boolean;
+  draftExport: DraftExportProgress;
 };
 
 export const DOCUMENTS_TO_REVIEW_LIMIT = 20;
@@ -64,20 +65,18 @@ export async function getVatProcessingWizard(
   if (!readinessResult.ok) return readinessResult;
   const readiness = readinessResult.value;
   const blockerIds = readinessDocumentIds(readiness, "blockers");
-  const [lock, artifacts, role, setup, documentsToReview] = await Promise.all([
+  const [lock, draftExport, role, setup, documentsToReview] = await Promise.all([
     getPeriodLock(client, input.companyId, input.period),
-    listVatReportArtifacts(client, input),
+    getVatReportDraftProgress(client, { ...input, reportGeneratedAt: readiness.snapshot?.generatedAt ?? null }),
     getMyCompanyRole(client, input.companyId),
     getCompanySetupChecklist(client, input.companyId),
     listCompanyDocuments(client, input.companyId, {
       documentIds: blockerIds.slice(0, DOCUMENTS_TO_REVIEW_LIMIT),
     }),
   ]);
-  const exported = readiness.snapshot !== null && artifacts.some((artifact) =>
-    artifact.vatReportId === readiness.snapshot?.reportId &&
-    artifact.reportGeneratedAt === readiness.snapshot.generatedAt
-  );
-  const exportStep = step("export", exported ? "done" : "not_started");
+  const downloaded = draftExport.downloadedFormats.length;
+  const exportStep = step("export", downloaded === 2 ? "done" : downloaded === 1 ? "partial"
+    : draftExport.skippedFormats.length === 2 ? "skipped" : "not_started");
 
   let steps: VatProcessingStep[];
   if (lock) {
@@ -131,6 +130,7 @@ export async function getVatProcessingWizard(
       documentsToReview,
       documentsToReviewCount: blockerIds.length,
       locked: lock !== null,
+      draftExport,
     },
   };
 }

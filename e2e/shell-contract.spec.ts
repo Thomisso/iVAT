@@ -112,6 +112,7 @@ test("real Auth, Company, Organization and Platform surfaces share one accessibl
   await expectAccessibleSurface(page);
 
   const companyId = await createCompany(page, `Contract Company ${run}`, `${Date.now()}`.slice(-8));
+  await page.goto(`/companies/${companyId}/settings`);
   const organizationHref = await page.locator('a[href^="/organizations/"][href$="/members"]').first().getAttribute("href");
   if (!organizationHref) throw new Error("Organization context link was not rendered");
 
