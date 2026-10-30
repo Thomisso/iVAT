@@ -19,6 +19,7 @@ import {
 } from "@/application/documents";
 import type { ExtractionPayload } from "@/application/extraction-payload";
 import { getReportingPeriodReadiness } from "@/application/reporting-period-readiness";
+import { generateVatReport, getVatReport } from "@/application/vat-reports";
 import { uploadSourceFile } from "@/application/source-files";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { signedUpUser } from "./support/clients";
@@ -603,30 +604,59 @@ describe("checking Document totals", () => {
     ]);
   });
 
-  it("keeps net and VAT totals that disagree with the Rate Breakdown as blocking errors", async () => {
+  it("reads a historical gross-total error as a warning without rewriting its Extraction Version", async () => {
+    const document = await documentInReview();
+    // An old client recorded this finding before gross mismatches became warnings.
+    const stored = await document.client.rpc("correct_document", {
+      target_document_id: document.documentId,
+      based_on_version: 1,
+      payload: {
+        ...SAMPLE_EXTRACTION,
+        totals: { netAmount: "1000.00", vatAmount: "210.00", grossAmount: "1200.00" },
+      },
+      findings: [{ field: "totals.grossAmount", severity: "error", code: "total_gross_amount_mismatch" }],
+    });
+    expect(stored.error).toBeNull();
+    const versions = await listExtractionVersions(document.client, document.companyId, document.documentId);
+    expect(versions[1].findings).toEqual([{
+      field: "totals.grossAmount", severity: "warning", code: "total_gross_amount_mismatch",
+      params: { difference: "10.00" },
+    }]);
+    expect(await approveDocument(document.client, { ...document, version: 2 })).toEqual({ ok: true, value: null });
+    const readiness = await getReportingPeriodReadiness(document.client, {
+      companyId: document.companyId, period: "2026-10",
+    });
+    if (!readiness.ok) throw new Error(readiness.error);
+    expect(readiness.value.blockers).toEqual([]);
+    expect(readiness.value.warnings).toEqual([{
+      code: "warning_finding", documentId: document.documentId, findingCode: "total_gross_amount_mismatch",
+    }]);
+    expect((await generateVatReport(document.client, {
+      companyId: document.companyId, period: "2026-10",
+    })).ok).toBe(true);
+    expect((await getVatReport(document.client, document.companyId, "2026-10"))?.finalization).toEqual({
+      blockerCount: 0, warningCount: 1, rejectedDocumentCount: 0,
+    });
+  });
+
+  it.each([
+    ["net", { netAmount: "1100.00", vatAmount: "210.00", grossAmount: "1310.00" }],
+    ["VAT", { netAmount: "1000.00", vatAmount: "200.00", grossAmount: "1200.00" }],
+  ])("refuses approval when the %s total disagrees with the Rate Breakdown", async (_name, totals) => {
     const document = await documentInReview();
     await correctDocument(document.client, {
       companyId: document.companyId,
       documentId: document.documentId,
       basedOnVersion: 1,
-      payload: {
-        ...SAMPLE_EXTRACTION,
-        totals: { netAmount: "1100.00", vatAmount: "200.00", grossAmount: "1300.00" },
-      },
+      payload: { ...SAMPLE_EXTRACTION, totals },
     });
-    expect(await approveDocument(document.client, { ...document, version: 2 })).toEqual({ ok: true, value: null });
-
-    const readiness = await getReportingPeriodReadiness(document.client, {
-      companyId: document.companyId,
-      period: "2026-10",
+    expect(await approveDocument(document.client, { ...document, version: 2 })).toEqual({
+      ok: false, error: "rate_breakdown_totals_mismatch",
     });
-    if (!readiness.ok) throw new Error(readiness.error);
-    expect(readiness.value.blockers).toEqual([
-      { code: "error_finding", documentId: document.documentId, findingCode: "total_net_amount_mismatch" },
-      { code: "error_finding", documentId: document.documentId, findingCode: "total_vat_amount_mismatch" },
-    ]);
-    expect(readiness.value.warnings).toEqual([]);
+    expect((await listDocuments(document.client, document.companyId, document.sourceFileId))[0].status)
+      .toBe("needs_review");
   });
+
 });
 
 describe("the Document list", () => {
