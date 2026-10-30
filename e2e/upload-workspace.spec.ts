@@ -77,7 +77,7 @@ test("a batch survives reload, exposes partial recovery, then hands off its comp
   await page.getByRole("button", { name: "Retry Extraction" }).click();
   await expect(reviewTwo).toBeVisible({ timeout: 45_000 });
   await reviewTwo.click();
-  await expect(page).toHaveURL(new RegExp(`/companies/${companyId}/documents\\?view=review&batchId=${batchId}$`));
+  await expect(page).toHaveURL((url) => url.pathname === `/companies/${companyId}/documents` && url.searchParams.size === 3 && url.searchParams.get("view") === "review" && url.searchParams.get("batchId") === batchId && url.searchParams.get("returnTo") === `/companies/${companyId}/upload-batches/${batchId}`);
   await expect(page.getByRole("table", { name: "Documents" }).getByRole("link")).toHaveCount(2);
 });
 

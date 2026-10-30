@@ -92,7 +92,16 @@ test("Document period filters remain available while mixed-period batches filter
   await filters.getByRole("button", { name: "Filter" }).click();
   await expect(page).toHaveURL(/createdFrom=2026-03-29&createdTo=2026-03-29/);
   await expect(history).toHaveCount(1);
-  await expect(history.getByRole("link")).toHaveAttribute("href", `/companies/${companyId}/upload-batches/${batchId}`);
+  const batchHref = await history.getByRole("link").getAttribute("href");
+  if (!batchHref) throw new Error("Batch history link is missing");
+  const batchDestination = new URL(batchHref, baseURL);
+  const historyOrigin = `/companies/${companyId}/upload?createdFrom=2026-03-29&createdTo=2026-03-29#batch-${batchId}`;
+  expect(batchDestination.pathname).toBe(`/companies/${companyId}/upload-batches/${batchId}`);
+  expect(Object.fromEntries(batchDestination.searchParams)).toEqual({ returnTo: historyOrigin });
+  await history.getByRole("link").click();
+  await expect(page).toHaveURL((url) => url.pathname === batchDestination.pathname && url.searchParams.size === 1 && url.searchParams.get("returnTo") === historyOrigin);
+  await page.getByRole("link", { name: "← Back to Upload", exact: true }).click();
+  await expect(page).toHaveURL(new URL(historyOrigin, baseURL).href);
   await page.reload();
   await expect(filters.getByLabel("Uploaded from", { exact: true })).toHaveValue("29.03.2026");
   await expect(filters.getByLabel("Uploaded to", { exact: true })).toHaveValue("29.03.2026");
