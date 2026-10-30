@@ -557,14 +557,14 @@ isOneToOne: false
                   ]
                 },"upload_batch": {
                   Row: {
-                    "company_id": string,"created_at": string,"created_by": string,"file_count": number,"id": string,"organization_id": string,"processing_finished_at": string | null,"upload_finished_at": string | null
+                    "company_id": string,"created_at": string,"created_by": string,"file_count": number,"id": string,"organization_id": string,"processing_finished_at": string | null,"selected_files": Json | null,"upload_finished_at": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "company_id": string,"created_at"?: string,"created_by"?: string,"file_count": number,"id"?: string,"organization_id": string,"processing_finished_at"?: string | null,"upload_finished_at"?: string | null
+                    "company_id": string,"created_at"?: string,"created_by"?: string,"file_count": number,"id"?: string,"organization_id": string,"processing_finished_at"?: string | null,"selected_files"?: Json | null,"upload_finished_at"?: string | null
                   }
                   Update: {
-                    "company_id"?: string,"created_at"?: string,"created_by"?: string,"file_count"?: number,"id"?: string,"organization_id"?: string,"processing_finished_at"?: string | null,"upload_finished_at"?: string | null
+                    "company_id"?: string,"created_at"?: string,"created_by"?: string,"file_count"?: number,"id"?: string,"organization_id"?: string,"processing_finished_at"?: string | null,"selected_files"?: Json | null,"upload_finished_at"?: string | null
                   }
                   Relationships: [
                     {
@@ -711,7 +711,7 @@ isOneToOne: false
             }[]
                            },
 "begin_upload_batch":
-{ Args: { "selected_file_count": number,"target_company_id": string }; Returns: string
+{ Args: { "requested_batch_id"?: string,"selected_file_count": number,"selected_files"?: Json,"target_company_id": string }; Returns: string
                            },
 "cancel_invitation":
 { Args: { "invitation_token": string }; Returns: undefined
@@ -1002,6 +1002,7 @@ isOneToOne: false
 "id": string,
 "organization_id": string,
 "processing_finished_at": string | null,
+"selected_files": Json | null,
 "upload_finished_at": string | null
             }[]
                           SetofOptions: {

@@ -9,12 +9,15 @@ async function english(context: BrowserContext, baseURL: string | undefined) {
   await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: new URL(baseURL).origin }]);
 }
 
-async function createCompany(page: Page, run: string): Promise<string> {
-  await page.goto("/signup");
-  await page.getByLabel("Organization name").fill(`Upload Organization ${run}`);
-  await page.getByLabel("Email").fill(`upload-${run}@example.test`);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Sign up" }).click();
+async function createCompany(page: Page, run: string, existingOrganization = false): Promise<string> {
+  if (existingOrganization) await page.goto("/companies/new");
+  else {
+    await page.goto("/signup");
+    await page.getByLabel("Organization name").fill(`Upload Organization ${run}`);
+    await page.getByLabel("Email").fill(`upload-${run}@example.test`);
+    await page.getByLabel("Password").fill(password);
+    await page.getByRole("button", { name: "Sign up" }).click();
+  }
   await page.getByLabel("Company name").fill(`Upload Company ${run}`);
   const digits = Date.now().toString().slice(-8);
   await page.getByLabel("IČO").fill(digits);
@@ -45,8 +48,20 @@ test("a batch survives reload, exposes partial recovery, then hands off its comp
 
   await page.goto(`/companies/${companyId}/upload`);
   await page.locator('input[type="file"]:not([capture])').setInputFiles("tests/fixtures/two-invoices.pdf");
-  await page.getByRole("button", { name: "Upload", exact: true }).click();
+  let batchStarts = 0;
+  await page.route(`**/companies/${companyId}/upload-batches`, async (route) => {
+    batchStarts += 1;
+    if (batchStarts === 1) {
+      await route.fetch();
+      await route.abort("failed");
+    } else await route.continue();
+  });
+  await page.getByRole("button", { name: "Upload batch", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Retry unsuccessful files", exact: true })).toBeVisible();
+  await page.reload();
+  await page.getByRole("button", { name: "Retry unsuccessful files", exact: true }).click();
   await expect(page).toHaveURL(/\/upload-batches\/[0-9a-f-]+$/);
+  expect(batchStarts).toBe(2);
   const batchUrl = page.url();
   const batchId = new URL(batchUrl).pathname.split("/").at(-1)!;
   const reviewTwo = page.getByRole("link", { name: "Review 2 Documents" });
@@ -86,4 +101,118 @@ test("the desktop upload card offers only file selection, aligned with the page"
   const [cardBox, historyBox] = await Promise.all([card.boundingBox(), history.boundingBox()]);
   expect(cardBox?.x).toBe(historyBox?.x);
   expect(cardBox?.width).toBe(historyBox?.width);
+});
+
+test("a permanently refused file remains visible after reload and can finish as a failed batch before a new queue", async ({ baseURL, context, page }) => {
+  await english(context, baseURL);
+  const companyId = await createCompany(page, `refused-${Date.now()}`);
+  await page.goto(`/companies/${companyId}/upload`);
+  const picker = page.locator('input[type="file"]:not([capture])');
+  await picker.setInputFiles([
+    { name: "receipt.png", mimeType: "image/png", buffer: (await import("node:fs")).readFileSync("tests/fixtures/receipt.png") },
+    { name: "corrupt.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.7\nnot really a PDF") },
+  ]);
+  let successfulTransfers = 0;
+  await page.route("**/source-files", async (route) => {
+    if (route.request().postDataBuffer()?.includes(Buffer.from("receipt.png"))) successfulTransfers += 1;
+    await route.continue();
+  });
+  await page.getByRole("button", { name: "Upload batch", exact: true }).click();
+  const failedItem = page.locator(".upload-items li").filter({ hasText: "corrupt.pdf" });
+  await expect(failedItem).toContainText("Not uploaded");
+  await expect(failedItem.getByRole("alert")).toBeVisible();
+  await page.reload();
+  await expect(failedItem).toContainText("Not uploaded");
+  await expect(picker).toBeDisabled();
+  const finishFailed = page.getByRole("button", { name: "Finish batch with failed files", exact: true });
+  await expect(finishFailed).toBeVisible({ timeout: 1_000 });
+  await finishFailed.click();
+  await expect(page).toHaveURL(/\/upload-batches\/[0-9a-f-]+$/);
+  await expect(page.getByText("Finished with failures", { exact: true })).toBeVisible({ timeout: 45_000 });
+  await expect(page.getByRole("link", { name: "receipt.png", exact: true })).toBeVisible();
+  await expect(page.getByText("1 selected file was not stored during transport.", { exact: false })).toBeVisible();
+  await page.goto(`/companies/${companyId}/upload`);
+  await expect(picker).toBeEnabled();
+  await expect(page.locator(".upload-items li")).toHaveCount(0);
+  await picker.setInputFiles("tests/fixtures/receipt.jpg");
+  await expect(page.locator(".upload-items li")).toHaveCount(1);
+  expect(successfulTransfers).toBe(1);
+});
+
+for (const committed of [false, true]) {
+  test(`a lost finish response ${committed ? "after commit" : "before receipt"} reconciles after reload without retransferring successful files`, async ({ baseURL, context, page }) => {
+    await english(context, baseURL);
+    const companyId = await createCompany(page, `finish-${committed}-${Date.now()}`);
+    await page.goto(`/companies/${companyId}/upload`);
+    const picker = page.locator('input[type="file"]:not([capture])');
+    await picker.setInputFiles("tests/fixtures/receipt.png");
+    let sourceTransfers = 0;
+    let finishAttempts = 0;
+    const batchUrls: string[] = [];
+    await page.route("**/source-files", async (route) => {
+      sourceTransfers += 1;
+      await route.continue();
+    });
+    await page.route("**/upload-batches/*/finish", async (route) => {
+      finishAttempts += 1;
+      batchUrls.push(route.request().url());
+      if (finishAttempts === 1) {
+        if (committed) await route.fetch();
+        await route.abort("failed");
+      } else await route.continue();
+    });
+    await page.getByRole("button", { name: "Upload batch", exact: true }).click();
+    await expect(page.locator(".upload-items li")).toContainText("Uploaded");
+    await expect.poll(() => finishAttempts).toBe(1);
+    await expect(page.getByRole("region", { name: "Add Source Files", exact: true }).getByRole("alert")).toBeVisible();
+    await page.reload();
+    const finish = page.getByRole("button", { name: "Finish batch", exact: true });
+    await expect(finish).toBeEnabled({ timeout: 1_000 });
+    await finish.click();
+    await expect(page).toHaveURL(/\/upload-batches\/[0-9a-f-]+$/);
+    await expect(page.getByRole("link", { name: "receipt.png", exact: true })).toBeVisible();
+    expect(sourceTransfers).toBe(1);
+    expect(finishAttempts).toBe(2);
+    expect(batchUrls[1]).toBe(batchUrls[0]);
+    await page.goto(`/companies/${companyId}/upload`);
+    await expect(picker).toBeEnabled();
+    await expect(page.locator(".upload-items li")).toHaveCount(0);
+    await picker.setInputFiles("tests/fixtures/receipt.jpg");
+    await expect(page.locator(".upload-items li")).toHaveCount(1);
+  });
+}
+
+test("successive picks and drops accumulate, explain identical content and restore removable waiting files", async ({ baseURL, context, page }) => {
+  await english(context, baseURL);
+  const companyId = await createCompany(page, `queue-${Date.now()}`);
+  await page.goto(`/companies/${companyId}/upload`);
+  const picker = page.locator('input[type="file"]:not([capture])');
+  await picker.setInputFiles("tests/fixtures/receipt.png");
+  await picker.setInputFiles("tests/fixtures/two-invoices.pdf");
+  const queue = page.locator(".upload-items");
+  await expect(queue.getByRole("listitem")).toHaveCount(2);
+  await picker.setInputFiles({ name: "renamed.png", mimeType: "image/png", buffer: (await import("node:fs")).readFileSync("tests/fixtures/receipt.png") });
+  await expect(page.getByRole("status").filter({ hasText: "Identical file" })).toBeVisible();
+  await expect(queue.getByRole("listitem")).toHaveCount(2);
+  await page.locator(".iv-drop").dispatchEvent("drop", { dataTransfer: await page.evaluateHandle(() => {
+    const transfer = new DataTransfer();
+    transfer.items.add(new File(["different file contents"], "receipt.png", { type: "image/png" }));
+    return transfer;
+  }) });
+  await expect(queue.getByRole("listitem")).toHaveCount(3);
+  await page.reload();
+  await expect(page.getByRole("status").filter({ hasText: "Draft restored" })).toBeVisible();
+  await expect(queue.getByRole("listitem")).toHaveCount(3);
+  await page.getByRole("button", { name: "Remove two-invoices.pdf", exact: true }).click();
+  await expect(queue.getByRole("listitem")).toHaveCount(2);
+  await expect(page.getByRole("button", { name: "Upload batch", exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Batch history" })).not.toContainText("Processing");
+  const otherCompanyId = await createCompany(page, `other-${Date.now()}`, true);
+  await page.goto(`/companies/${otherCompanyId}/upload`);
+  await expect(queue.getByRole("listitem")).toHaveCount(0);
+  await picker.setInputFiles("tests/fixtures/receipt.jpg");
+  await expect(queue.getByRole("listitem")).toHaveCount(1);
+  await page.goto(`/companies/${companyId}/upload`);
+  await expect(queue.getByRole("listitem")).toHaveCount(2);
+  await expect(queue).not.toContainText("receipt.jpg");
 });
