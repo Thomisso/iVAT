@@ -3,6 +3,11 @@
     "name": "iVAT",
     "tagline": "VAT returns from your documents"
   },
+  "release": {
+    "version": "Version {version}",
+    "revision": "Revision {revision}",
+    "development": "Development version"
+  },
   "language": {
     "label": "Language",
     "cs": "Čeština",
