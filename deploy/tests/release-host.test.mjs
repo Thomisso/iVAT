@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { gzipSync } from "node:zlib";
 import { createReleaseBundle } from "../scripts/release-bundle.mjs";
+import { spawnSimulation } from "./simulation-process.mjs";
 
 const root = process.cwd();
 async function fixture() {
@@ -74,7 +75,7 @@ test("provider synchronization verifies stored Compose and never exposes provide
   await new Promise(resolve => net.listen(0, "127.0.0.1", resolve));
   const port = net.address().port;
   await new Promise(resolve => net.close(resolve));
-  const simulation = spawn("postman", ["simulation", "run", "postman/simulations/rosti-deployment/rosti-deployment.sim.yaml", "--port", String(port), "--no-history", "--output", "ndjson"], { stdio: ["ignore", "pipe", "pipe"] });
+  const { child: simulation, stop } = spawnSimulation("postman/simulations/rosti-deployment/rosti-deployment.sim.yaml", port);
   let log = "";
   simulation.stdout.on("data", chunk => { log += chunk; });
   simulation.stderr.on("data", chunk => { log += chunk; });
@@ -105,7 +106,10 @@ test("provider synchronization verifies stored Compose and never exposes provide
       assert.match(result.stderr, /Rošti/);
     }
     assert.match(log, /request/);
-  } finally { simulation.kill("SIGINT"); await rm(f.directory, { recursive: true, force: true }); }
+  } finally {
+    try { await stop(); }
+    finally { await rm(f.directory, { recursive: true, force: true }); }
+  }
 });
 
 test("a deployment bundle cannot omit its controlled entrypoint", async () => {
