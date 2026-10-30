@@ -1,4 +1,5 @@
 import type { Result } from "./client";
+import type { PersonType } from "./companies";
 
 export type AresCompanyDetails = {
   name: string;
@@ -9,6 +10,9 @@ export type AresCompanyDetails = {
   orientationNumber: string;
   city: string;
   postalCode: string;
+  personType?: PersonType;
+  firstName?: string;
+  lastName?: string;
 };
 
 export type AresLookupError = "ares_company_not_found" | "ares_unavailable";
