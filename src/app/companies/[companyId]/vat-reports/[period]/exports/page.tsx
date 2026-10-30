@@ -96,6 +96,8 @@ export default async function ExportHistoryPage({
                           <summary>{t("artifactFilingDetails")}</summary>
                           <dl>
                             <div><dt>{epo("taxOffice")}</dt><dd>{epo(`taxOffices.${details.taxOffice}`)}</dd></div>
+                            <div><dt>{epo("territorialOffice")}</dt><dd>{details.territorialOffice || epo("notSet")}</dd></div>
+                            {artifact.format === "dphdp3" && <div><dt>{epo("economicActivity")}</dt><dd>{details.economicActivity || epo("notSet")}</dd></div>}
                             <div><dt>{epo("preparedOn")}</dt><dd>{formatDate(details.preparedOn)}</dd></div>
                             <div><dt>{epo("signatory")}</dt><dd>{signatory}</dd></div>
                             <div><dt>{epo("email")}</dt><dd>{details.email || epo("notSet")}</dd></div>

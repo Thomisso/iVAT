@@ -17,6 +17,8 @@ import {
 
 const details = {
   taxOffice: "451",
+  territorialOffice: "2003",
+  economicActivity: "621000",
   personType: "P",
   preparedOn: "2026-10-27",
   email: "qa@example.test",
@@ -25,6 +27,53 @@ const details = {
   signatoryLastName: "Nováková",
   signatoryCapacity: "jednatelka",
 };
+it.each(["dphdp3", "dphkh1"])("serializes the selected territorial office and economic activity in validated %s", async (format) => {
+  const company = await administratorWithCompany();
+  await generateVatReport(company.client, { companyId: company.companyId, period: "2026-10" });
+  const result = await exportVatReport(company.client, {
+    companyId: company.companyId, period: "2026-10", format, details,
+  });
+  expect(result.ok).toBe(true);
+  if (!result.ok) throw new Error(result.error);
+  expect(result.value.xml).toContain('c_pracufo="2003"');
+  if (format === "dphdp3") expect(result.value.xml).toContain('c_okec="621000"');
+  else expect(result.value.xml).not.toContain("c_okec");
+});
+
+it("requires VAT Return economic activity while permitting a Control Statement without it", async () => {
+  const company = await administratorWithCompany();
+  await generateVatReport(company.client, { companyId: company.companyId, period: "2026-10" });
+  const input = { companyId: company.companyId, period: "2026-10", details: { ...details, economicActivity: "" } };
+  expect(await exportVatReport(company.client, { ...input, format: "dphdp3" })).toEqual({ ok: false, error: "invalid_export_details" });
+  const control = await exportVatReport(company.client, { ...input, format: "dphkh1" });
+  expect(control.ok).toBe(true);
+  if (!control.ok) throw new Error(control.error);
+  expect(control.value.xml).not.toContain("c_okec");
+});
+
+it("refuses a stale territorial office after a per-export tax-office change", async () => {
+  const company = await administratorWithCompany();
+  await generateVatReport(company.client, { companyId: company.companyId, period: "2026-10" });
+  expect(await exportVatReport(company.client, {
+    companyId: company.companyId, period: "2026-10", format: "dphdp3",
+    details: { ...details, taxOffice: "452" },
+  })).toEqual({ ok: false, error: "invalid_export_details" });
+});
+
+it.each([
+  ["451", false], ["13", true],
+])("preserves the official optional regional office and specialized-office mapping for %s", async (taxOffice, specialized) => {
+  const company = await administratorWithCompany();
+  await generateVatReport(company.client, { companyId: company.companyId, period: "2026-10" });
+  const result = await exportVatReport(company.client, {
+    companyId: company.companyId, period: "2026-10", format: "dphdp3",
+    details: { ...details, taxOffice, territorialOffice: "" },
+  });
+  expect(result.ok).toBe(true);
+  if (!result.ok) throw new Error(result.error);
+  if (specialized) expect(result.value.xml).toContain('c_pracufo="4000"');
+  else expect(result.value.xml).not.toContain("c_pracufo");
+});
 it("a Company User downloads a validated export of the saved draft, even after another approval", async () => {
   const a = await companyWithManyReportDocuments(2);
   const user = await companyMember(a);
@@ -89,6 +138,8 @@ it.each(["dphdp3", "dphkh1"])(
     expect(await saveCompanyFilingDefaults(administrator.client, {
       companyId: company.value.id,
       taxOffice: "451",
+      territorialOffice: "2003",
+      economicActivity: "621000",
       signatoryFirstName: "Jana",
       signatoryLastName: "Nováková",
       signatoryCapacity: "jednatelka",
@@ -118,6 +169,8 @@ it.each(["dphdp3", "dphkh1"])(
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.error);
     expect(result.value.xml).toContain('c_ufo="451"');
+    expect(result.value.xml).toContain('c_pracufo="2003"');
+    if (format === "dphdp3") expect(result.value.xml).toContain('c_okec="621000"');
     expect(result.value.xml).toContain('opr_jmeno="Jana"');
     expect(result.value.xml).toContain('email="podatelna@example.test"');
     expect(result.value.xml).toContain('c_telef="+420123456789"');
@@ -131,6 +184,8 @@ it("uses one-export overrides without mutating the saved filing defaults", async
   expect(await saveCompanyFilingDefaults(company.client, {
     companyId: company.companyId,
     taxOffice: "451",
+    territorialOffice: "2003",
+    economicActivity: "621000",
     signatoryFirstName: "Jana",
     signatoryLastName: "Nováková",
     signatoryCapacity: "jednatelka",
@@ -150,6 +205,8 @@ it("uses one-export overrides without mutating the saved filing defaults", async
     details: {
       preparedOn: "2026-10-27",
       taxOffice: "452",
+      territorialOffice: "2103",
+      economicActivity: "622000",
       signatoryFirstName: "Petr",
       signatoryLastName: "Novák",
       signatoryCapacity: "jednatel",
@@ -161,12 +218,16 @@ it("uses one-export overrides without mutating the saved filing defaults", async
   expect(result.ok).toBe(true);
   if (!result.ok) throw new Error(result.error);
   expect(result.value.xml).toContain('c_ufo="452"');
+  expect(result.value.xml).toContain('c_pracufo="2103"');
+  expect(result.value.xml).toContain('c_okec="622000"');
   expect(result.value.xml).toContain('opr_jmeno="Petr"');
   expect(result.value.xml).toContain('email="one-off@example.test"');
   expect(result.value.xml).not.toContain("c_telef");
   expect(await getCompanyFilingDefaults(company.client, company.companyId)).toEqual(
     expect.objectContaining({
       taxOffice: "451",
+      territorialOffice: "2003",
+      economicActivity: "621000",
       signatoryFirstName: "Jana",
       email: "default@example.test",
       phone: "+420123456789",
@@ -234,6 +295,8 @@ it("uses a natural person's snapshotted identity without silently adding the Use
   expect(await saveCompanyFilingDefaults(administrator.client, {
     companyId: company.value.id,
     taxOffice: "451",
+    territorialOffice: "2003",
+    economicActivity: "621000",
     signatoryFirstName: "",
     signatoryLastName: "",
     signatoryCapacity: "",
