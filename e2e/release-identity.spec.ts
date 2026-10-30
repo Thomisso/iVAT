@@ -5,6 +5,7 @@ import { asUserClient } from "../src/application/client";
 import { createCompany } from "../src/application/companies";
 import { listMyOrganizations } from "../src/application/organizations";
 import type { Database } from "../src/lib/database.types";
+import { provisionAccountFixture } from "../tests/support/accounts";
 
 const password = "Release-identity-password-162";
 
@@ -19,8 +20,7 @@ for (const locale of ["cs", "en"] as const) {
       auth: { persistSession: false, autoRefreshToken: false },
     });
     const email = `release-${crypto.randomUUID()}@example.test`;
-    const created = await service.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { organization_name: "Release identity" } });
-    if (created.error) throw created.error;
+    const userId = await provisionAccountFixture(service, { email, password, organizationName: "Release identity" });
     let organizationId: string | undefined;
     let companyId: string | undefined;
     try {
@@ -56,7 +56,7 @@ for (const locale of ["cs", "en"] as const) {
         const removed = await service.from("company").delete().eq("id", companyId);
         if (removed.error) throw removed.error;
       }
-      const removed = await service.auth.admin.deleteUser(created.data.user.id);
+      const removed = await service.auth.admin.deleteUser(userId);
       if (removed.error) throw removed.error;
       if (organizationId) {
         const deleted = await service.from("organization").delete().eq("id", organizationId);
