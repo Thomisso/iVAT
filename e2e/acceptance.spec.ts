@@ -220,6 +220,9 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   const artifactHistory = page.getByRole("table", { name: "Stored XML artifacts" });
   await expect(artifactHistory.getByText("Final", { exact: true })).toBeVisible();
   await expect(artifactHistory.getByText("Working", { exact: true })).toBeVisible();
+  await artifactHistory.locator("details")
+    .filter({ has: page.getByText(`final-${run}@example.test`, { exact: true }) })
+    .getByText("Filing details", { exact: true }).click();
   await expect(artifactHistory.getByText(`final-${run}@example.test`, { exact: true })).toBeVisible();
 
   const userContext = await browser.newContext();
