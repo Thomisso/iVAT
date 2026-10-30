@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
@@ -19,7 +20,7 @@ export default async function HomePage() {
 
   return <main className="company-chooser-page">
     <section aria-labelledby="company-chooser-title" className="company-chooser-panel">
-      <div className="company-chooser-brand" aria-hidden="true">{app("name")}</div>
+      <div className="company-chooser-brand"><Image src="/brand/logo.svg" alt={app("name")} width={103} height={32} unoptimized /></div>
       <h1 id="company-chooser-title">{t("chooseCompany")}</h1>
       <p>{context.companies.length ? t("chooseCompanyDescription") : t("noCompanies")}</p>
       {context.companies.length > 0 && <div className="company-chooser-list">{context.companies.map((company) => <form action={selectCompanyAction} key={company.id}>

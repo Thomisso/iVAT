@@ -8,6 +8,7 @@ import { listUploadBatches } from "@/application/upload-batches";
 import { requireUserClient } from "@/lib/supabase/server";
 import { PageLayout } from "@/components/app-shell";
 import { DateInput } from "@/components/date-input";
+import { EmptyState } from "@/components/empty-state";
 import { SourceFileUploadForm } from "../source-file-upload-form";
 import { formatDateTime } from "@/lib/format-date";
 
@@ -64,7 +65,7 @@ export default async function UploadPage({
       <form action={`/companies/${companyId}/upload`} aria-label={filter("formLabel")} className="document-queue-filters">
         <DateInput key={`from:${createdFrom}`} label={workspace("uploadedFrom")} name="createdFrom" defaultValue={createdFrom} />
         <DateInput key={`to:${createdTo}`} label={workspace("uploadedTo")} name="createdTo" defaultValue={createdTo} />
-        <button className="iv-btn iv-btn-primary" type="submit">{filter("submit")}</button>
+        <button className="iv-btn iv-btn-ghost" type="submit">{filter("submit")}</button>
         <Link href={`/companies/${companyId}/upload`}>{filter("clear")}</Link>
       </form>
       {visibleBatches.length ? <ol className="upload-batch-list">
@@ -80,7 +81,7 @@ export default async function UploadPage({
             })}</span>
           </Link>
         </li>)}
-      </ol> : <div className="company-workspace-empty"><span aria-hidden="true" /><p>{workspace(createdFrom || createdTo ? "noMatchingBatches" : "noBatches")}</p></div>}
+      </ol> : <EmptyState icon="inbox" title={workspace(createdFrom || createdTo ? "noMatchingBatches" : "noBatches")} />}
       {(historyPage > 1 || hasNextPage) && <nav className="upload-history-pagination" aria-label={workspace("historyPagination")}>
         {historyPage > 1
           ? <Link href={historyHref(historyPage - 1)}>{workspace("newerBatches")}</Link>
