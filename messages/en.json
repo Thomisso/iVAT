@@ -22,6 +22,11 @@
     "issued": "Issued Documents"
   },
   "shell": {
+    "superAdmin": "SuperAdmin",
+    "switchToSuperAdmin": "Switch to SuperAdmin",
+    "platformSettingsNavigation": "Platform settings sections",
+    "platformSettingsTitle": "SuperAdmin settings",
+    "platformSettingsIntro": "Choose Organization and Company administration, AI configurations or AI usage from the settings sections.",
     "skip": "Skip to content",
     "companyNavigation": "Company navigation",
     "organizationNavigation": "Organization navigation",
@@ -99,6 +104,16 @@
     "logInLink": "Log in"
   },
   "company": {
+    "organizationSettingsTitle": "Organization settings: {organization}",
+    "organizationSettingsIntro": "These settings apply to the Organization that owns this Company.",
+    "organizationUsers": "Organization users",
+    "organizationUsersIntro": "Manage access across the Organization.",
+    "organizationAudit": "Organization audit",
+    "organizationAuditIntro": "Inspect actions in this Organization and its Companies.",
+    "organizationSecurity": "Organization security",
+    "organizationSecurityIntro": "Manage the Organization’s MFA requirement.",
+    "organization": "Organization",
+    "chooseOrganization": "Choose the Organization for this Company",
     "createTitle": "Add a company",
     "createIntro": "Enter the details of the VAT payer whose VAT you will report.",
     "name": "Company name",
@@ -134,6 +149,8 @@
     "firstReportingMonthOf": "First month of Reporting Year {year}",
     "reportingYearFrequency": "Filing frequency of Reporting Year {year}",
     "reportingYearActions": "Actions",
+    "changeReportingYearFrequency": "Change frequency",
+    "changeReportingYearFirstMonth": "Change first month",
     "changeReportingYear": "Change",
     "deleteReportingYear": "Delete {year}",
     "confirmReportingYearDeletion": "Its Documents lose their Reporting Period",
@@ -261,6 +278,7 @@
     "takeDocumentPhoto": "Take document photo",
     "captureHint": "Uses the rear camera when your device provides one. Each photo becomes one Source File.",
     "photoPreview": "Photo preview",
+    "photoPreviewLabel": "Photo preview {number}: {name}",
     "photoPreviewAlt": "Preview of {name}",
     "onePhotoOneSourceFile": "This photo will be stored as one Source File.",
     "retakePhoto": "Retake photo",
@@ -269,7 +287,13 @@
     "draftRestored": "Draft restored. No file is marked uploaded until the server stores it.",
     "uploadProgress": "Upload progress for {name}",
     "retryUpload": "Retry {name}",
-    "upload": "Upload",
+    "removeFile": "Remove {name}",
+    "identicalFileOmitted": "Identical file contents are already in the queue; another copy was not added.",
+    "retryFailedFiles": "Retry unsuccessful files",
+    "finishBatch": "Finish batch",
+    "finishWithFailures": "Finish batch with failed files",
+    "finishWithFailuresHint": "Some selected files cannot be uploaded. Finish this batch to start a new queue. Uploaded files are kept, unsuccessful transfers remain counted as failures, and this batch can no longer receive files.",
+    "upload": "Upload batch",
     "uploading": "Uploading…",
     "batchComplete": "Processing finished for {count, plural, one {# Source File} other {# Source Files}} in your batch.",
     "uploadStatus": {
@@ -294,6 +318,19 @@
     "dropTitle": "Drop a Source File here",
     "chooseFile": "Choose a file"
   },
+  "returnContext": {
+      "company": "← Back to Company",
+      "documents": "← Back to Documents",
+      "document": "← Back to Document",
+      "processing": "← Back to Processing",
+      "vatReturn": "← Back to VAT Return",
+      "controlStatement": "← Back to Control Statement",
+      "exportHistory": "← Back to Export history",
+      "periods": "← Back to Reporting Periods",
+      "upload": "← Back to Upload",
+      "batch": "← Back to batch",
+      "sourceFile": "← Back to Source File"
+  },
   "periodFilter": {
     "label": "Reporting Period",
     "all": "All periods",
@@ -315,7 +352,9 @@
     "batchFiles": "{count} of {planned} selected Source Files stored",
     "batchSummary": "{waiting} processing · {review} ready for review · {failures} failed",
     "noBatches": "No batches yet. Add Source Files to start one.",
-    "noMatchingBatches": "No batch contains Documents of the selected period.",
+    "noMatchingBatches": "No batch was created in the selected date range.",
+    "uploadedFrom": "Uploaded from",
+    "uploadedTo": "Uploaded to",
     "outcome": {
       "processing": "Processing",
       "success": "Finished",
@@ -416,11 +455,15 @@
     }
   },
   "dateInput": {
+    "calendarFor": "Choose date for {label}",
     "hint": "Format dd.mm.yyyy",
     "placeholder": "dd.mm.yyyy",
     "invalid": "Enter a valid date as dd.mm.yyyy."
   },
   "errors": {
+    "invalid_download_artifact": "This XML does not belong to the current report version. Download the current output again.",
+    "download_acknowledgement_failed": "The XML download started, but its progress could not be saved. Download it again to confirm completion.",
+    "identical_file": "Identical file contents already belong to this batch.",
     "organization_name_required": "Enter the name of your organization.",
     "email_taken": "An account with this email already exists.",
     "weak_password": "The password is too weak. Use at least 8 characters.",
@@ -504,8 +547,8 @@
     "report_finalized": "This VAT Report is finalized. Create or download its final XML instead.",
     "report_not_finalized": "Finalize this VAT Report before creating its final XML.",
     "not_locked": "This Reporting Period is not locked.",
-    "invalid_export_details": "Enter a valid tax office, date and person details for the filing.",
-    "invalid_filing_defaults": "Enter valid filing defaults. Complete all signatory fields together and keep contacts within EPO limits.",
+    "invalid_export_details": "Check the tax office, compatible territorial office, economic activity, date and person details for the export.",
+    "invalid_filing_defaults": "Check the economic activity and office selection. Complete all signatory fields together and keep contacts within EPO limits.",
     "epo_override_not_required": "A separate EPO address is allowed only when the registered address exceeds a schema limit.",
     "epo_override_confirmation_required": "Confirm the separate EPO address before saving it.",
     "epo_address_required": "Complete and confirm a separate EPO address in Company settings before exporting XML.",
@@ -680,7 +723,9 @@
     "maxFileBytes": "Maximum Source File size (bytes)",
     "maxFilePages": "Maximum pages per Source File",
     "maxBatchFiles": "Maximum Source Files per batch",
-    "saveLimits": "Save upload limits"
+    "saveLimits": "Save upload limits",
+    "retainedHistory": "Retained history",
+    "companyIdentity": "{name} · IČO {ico}"
   },
   "mfa": {
     "securityTitle": "Security",
@@ -861,6 +906,8 @@
       "counterparty_vat_id_required": "The counterparty VAT ID is required for this VAT treatment.",
       "unreliable_vat_payer": "The supplier is listed as an unreliable VAT payer.",
       "unpublished_bank_account": "The payment account is not published for this supplier in the VAT payer registry.",
+      "missing_bank_account": "No payment account is entered. Check the payment details; you can still approve the Document.",
+      "bank_account_not_verified": "The supplier was not found in the VAT payer registry, so its payment account could not be verified. Check it manually.",
       "vat_registry_check_not_performed": "The VAT payer registry was unavailable, so the supplier and payment account check was not performed.",
       "direction_unknown": "Direction could not be detected from the Company identity. Set it before approval.",
       "currency_conversion_not_performed": "The ČNB exchange rate was unavailable, so CZK amounts could not be calculated.",
@@ -953,8 +1000,15 @@
   },
   "vatReports": {
     "wizard": {
+      "finalPartial": "Partially completed — {count}/2",
+      "draftPartial": "Partially completed — {count}/2",
+      "draftPartialSkipped": "Partially completed — {count}/2, second export skipped",
+      "skipDrafts": "Skip draft exports",
+      "skipRemainingDraft": "Skip the remaining draft export",
       "title": "VAT processing steps",
       "state": {
+        "partial": "Partially completed",
+        "skipped": "Skipped",
         "done": "Done",
         "needs_attention": "Needs attention",
         "blocked": "Blocked",
@@ -974,8 +1028,8 @@
           "hint": "Check both statutory outputs of the saved snapshot."
         },
         "export": {
-          "title": "Export XML",
-          "hint": "Download the EPO XML from the VAT Return and the Control Statement. Every download is stored in Export history."
+          "title": "Export DRAFT XML",
+          "hint": "Create working XML for review. Draft exports are optional; they do not block Finalization."
         },
         "finalize": {
           "title": "Finalize",
@@ -1190,7 +1244,16 @@
     "description": "Enter the details for an ordinary filing. VAT ID, name and address come from the saved draft.",
     "format": "Form",
     "preparedOn": "Preparation date",
+    "timingWarnings": "Export timing warnings",
+    "timing": {
+      "prepared_on_future": "The preparation date is after today in Prague.",
+      "reporting_period_unfinished": "The Reporting Period has not ended yet.",
+      "potentially_late_filing": "Potentially late ordinary filing: the deadline is {deadline}. Today or the preparation date is after it. Check the actual filing; you can still download XML.",
+      "control_statement_monthly_required": "Legal persons file ordinary Control Statements monthly, even with quarterly VAT Returns. This quarterly output has no assessed ordinary filing deadline; check the monthly filing period. XML download remains available."
+    },
     "taxOffice": "Tax office",
+    "territorialOffice": "Territorial office",
+    "economicActivity": "Economic activity (CZ-NACE)",
     "choose": "Select",
     "personType": "Person type",
     "legalPerson": "Legal person",
@@ -1210,6 +1273,7 @@
     },
     "epoAddressMissing": "Confirmed EPO address required",
     "epoAddressRequired": "The registered address exceeds an EPO schema limit. Complete and confirm a separate EPO address before downloading XML.",
+    "administratorAddressRequired": "An Administrator must complete and confirm the Company EPO address before export.",
     "completeEpoAddress": "Complete EPO address in Company settings",
     "editForExport": "Edit for this export",
     "useSaved": "Use saved defaults",
@@ -1236,5 +1300,40 @@
       "464": "FÚ pro Zlínský kraj",
       "13": "Specializovaný finanční úřad"
     }
+  },
+  "platformHistory": {
+    "title": "Company history: {company}",
+    "deletedNotice": "Deleted on {date}. Retained history is read-only; this Company remains deleted.",
+    "blockedNotice": "This Organization is blocked. Ordinary processing remains paused until a SuperAdmin explicitly unblocks it.",
+    "readOnlyNotice": "This view provides read-only access to retained Company data.",
+    "organizationAdministration": "Organization administration",
+    "companyAdministration": "Company access administration",
+    "organizationAudit": "Company audit history",
+    "downloadArchive": "Download retained Company data",
+    "companyIdentity": "Company identity",
+    "sourceFiles": "Source Files",
+    "file": "File",
+    "uploadedAt": "Uploaded",
+    "byteSize": "Bytes",
+    "documents": "Documents",
+    "document": "Document",
+    "pages": "Pages {first}–{last}",
+    "version": "Extraction Version {version} · {date}",
+    "documentNumber": "Document number",
+    "supplier": "Supplier",
+    "customer": "Customer",
+    "taxPointDate": "Tax Point Date",
+    "total": "Total",
+    "noDocuments": "No retained Documents.",
+    "vatReports": "VAT Reports",
+    "period": "Reporting Period",
+    "generatedAt": "Generated",
+    "xmlArtifacts": "Archived XML",
+    "audit": "Company audit history",
+    "occurredAt": "When",
+    "action": "Action",
+    "actor": "Actor",
+    "identityLine": "{name} · IČO {ico} · {vatId}",
+    "notAvailable": "Not available"
   }
 }

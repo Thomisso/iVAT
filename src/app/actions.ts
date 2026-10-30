@@ -29,6 +29,7 @@ import {
   updateCompanyIdentity,
 } from "@/application/companies";
 import { saveCompanyFilingDefaults } from "@/application/company-filing-defaults";
+import { acknowledgeVatReportDownload, skipVatReportDrafts, type DownloadAcknowledgementInput } from "@/application/epo-export";
 import {
   changeReportingYearFrequency,
   deleteReportingYear,
@@ -74,12 +75,13 @@ import {
 } from "@/application/upload-batches";
 import { configuredAresRegistry } from "@/ares";
 import { configuredExchangeRates } from "@/cnb";
+import { configuredVatPayerRegistry } from "@/vat-registry";
 import { jobQueue } from "@/lib/jobs";
 import { createRequestClient, requireUserClient } from "@/lib/supabase/server";
 import { isLocale, localeCookie } from "@/i18n/locales";
 import { companyContextCookie, serializeCompanyContext } from "@/lib/company-context";
-import { normalizeDocumentQueueQuery } from "@/application/document-queue";
-import { isUuid } from "@/application/client";
+import { documentDecisionHref } from "@/application/document-queue";
+import { safeCompanyReturnTo } from "@/application/return-context";
 
 /**
  * Form state: an error code that the form translates through the `errors`
@@ -120,6 +122,7 @@ function refused(error: string, formData: FormData, fields: string[]): FormState
 }
 
 const COMPANY_FIELDS = [
+  "organizationId",
   "name",
   "firstName",
   "lastName",
@@ -337,6 +340,8 @@ export async function deleteReportingYearAction(_state: FormState, formData: For
 
 const FILING_DEFAULT_FIELDS = [
   "taxOffice",
+  "territorialOffice",
+  "economicActivity",
   "signatoryFirstName",
   "signatoryLastName",
   "signatoryCapacity",
@@ -359,6 +364,8 @@ export async function saveCompanyFilingDefaultsAction(
   const result = await saveCompanyFilingDefaults(await requireUserClient(), {
     companyId: field(formData, "companyId"),
     taxOffice: field(formData, "taxOffice"),
+    territorialOffice: field(formData, "territorialOffice"),
+    economicActivity: field(formData, "economicActivity"),
     signatoryFirstName: field(formData, "signatoryFirstName"),
     signatoryLastName: field(formData, "signatoryLastName"),
     signatoryCapacity: field(formData, "signatoryCapacity"),
@@ -435,7 +442,7 @@ export async function deleteUploadBatchAction(_state: FormState, formData: FormD
     batchId: field(formData, "batchId"),
   });
   if (!result.ok) return refused(result.error, formData, ["confirmed"]);
-  redirect(`/companies/${companyId}/upload`);
+  redirect(safeCompanyReturnTo(companyId, field(formData, "returnTo")) ?? `/companies/${companyId}/upload`);
 }
 
 export async function markUploadNotificationReadAction(
@@ -582,6 +589,7 @@ export async function correctDocumentAction(_state: FormState, formData: FormDat
       payload: payloadFromForm(formData),
     },
     configuredExchangeRates(),
+    configuredVatPayerRegistry(),
   );
   if (!result.ok) {
     const values = [...formData.entries()].filter(
@@ -623,10 +631,7 @@ export async function returnDocumentToReviewAction(_state: FormState, formData: 
 }
 
 function redirectAfterDocumentDecision(formData: FormData, companyId: string, documentId: string): never {
-  const query = normalizeDocumentQueueQuery(field(formData, "queueQuery"));
-  const nextDocumentId = field(formData, "nextDocumentId");
-  if (isUuid(nextDocumentId)) redirect(`/companies/${companyId}/documents/${nextDocumentId}?${query}`);
-  redirect(`/companies/${companyId}/documents?${query}#document-${documentId}`);
+  redirect(documentDecisionHref(companyId, { documentId, nextDocumentId: field(formData, "nextDocumentId"), queueQuery: field(formData, "queueQuery"), returnTo: field(formData, "returnTo") }));
 }
 
 export async function updateDocumentReportingAction(
@@ -664,7 +669,23 @@ export async function generateVatReportAction(_state: FormState, formData: FormD
     period,
   });
   if (!result.ok) return refused(result.error, formData, ["period"]);
+  refresh();
   redirect(`/companies/${companyId}/vat-reports?period=${encodeURIComponent(period)}`);
+}
+
+export async function acknowledgeVatReportDownloadAction(input: DownloadAcknowledgementInput) {
+  const result = await acknowledgeVatReportDownload(await requireUserClient(), input);
+  if (result.ok) refresh();
+  return result;
+}
+
+export async function skipVatReportDraftsAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const result = await skipVatReportDrafts(await requireUserClient(), {
+    companyId: field(formData, "companyId"), period: field(formData, "period"), reportGeneratedAt: field(formData, "reportGeneratedAt"),
+  });
+  if (!result.ok) return refused(result.error, formData, ["companyId", "period", "reportGeneratedAt"]);
+  refresh();
+  return { error: null, values: {} };
 }
 
 export async function finalizeVatReportAction(_state: FormState, formData: FormData): Promise<FormState> {

@@ -259,14 +259,14 @@ isOneToOne: false
                   ]
                 },"company_filing_defaults": {
                   Row: {
-                    "company_id": string,"email": string | null,"epo_address_confirmed_at": string | null,"epo_city": string | null,"epo_house_number": string | null,"epo_orientation_number": string | null,"epo_postal_code": string | null,"epo_street_name": string | null,"organization_id": string,"phone": string | null,"signatory_capacity": string | null,"signatory_first_name": string | null,"signatory_last_name": string | null,"tax_office": string | null,"updated_at": string,"updated_by": string | null
+                    "company_id": string,"economic_activity": string | null,"email": string | null,"epo_address_confirmed_at": string | null,"epo_city": string | null,"epo_house_number": string | null,"epo_orientation_number": string | null,"epo_postal_code": string | null,"epo_street_name": string | null,"organization_id": string,"phone": string | null,"signatory_capacity": string | null,"signatory_first_name": string | null,"signatory_last_name": string | null,"tax_office": string | null,"territorial_office": string | null,"updated_at": string,"updated_by": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "company_id": string,"email"?: string | null,"epo_address_confirmed_at"?: string | null,"epo_city"?: string | null,"epo_house_number"?: string | null,"epo_orientation_number"?: string | null,"epo_postal_code"?: string | null,"epo_street_name"?: string | null,"organization_id": string,"phone"?: string | null,"signatory_capacity"?: string | null,"signatory_first_name"?: string | null,"signatory_last_name"?: string | null,"tax_office"?: string | null,"updated_at"?: string,"updated_by"?: string | null
+                    "company_id": string,"economic_activity"?: string | null,"email"?: string | null,"epo_address_confirmed_at"?: string | null,"epo_city"?: string | null,"epo_house_number"?: string | null,"epo_orientation_number"?: string | null,"epo_postal_code"?: string | null,"epo_street_name"?: string | null,"organization_id": string,"phone"?: string | null,"signatory_capacity"?: string | null,"signatory_first_name"?: string | null,"signatory_last_name"?: string | null,"tax_office"?: string | null,"territorial_office"?: string | null,"updated_at"?: string,"updated_by"?: string | null
                   }
                   Update: {
-                    "company_id"?: string,"email"?: string | null,"epo_address_confirmed_at"?: string | null,"epo_city"?: string | null,"epo_house_number"?: string | null,"epo_orientation_number"?: string | null,"epo_postal_code"?: string | null,"epo_street_name"?: string | null,"organization_id"?: string,"phone"?: string | null,"signatory_capacity"?: string | null,"signatory_first_name"?: string | null,"signatory_last_name"?: string | null,"tax_office"?: string | null,"updated_at"?: string,"updated_by"?: string | null
+                    "company_id"?: string,"economic_activity"?: string | null,"email"?: string | null,"epo_address_confirmed_at"?: string | null,"epo_city"?: string | null,"epo_house_number"?: string | null,"epo_orientation_number"?: string | null,"epo_postal_code"?: string | null,"epo_street_name"?: string | null,"organization_id"?: string,"phone"?: string | null,"signatory_capacity"?: string | null,"signatory_first_name"?: string | null,"signatory_last_name"?: string | null,"tax_office"?: string | null,"territorial_office"?: string | null,"updated_at"?: string,"updated_by"?: string | null
                   }
                   Relationships: [
                     {
@@ -443,14 +443,14 @@ isOneToOne: false
                   ]
                 },"period_lock": {
                   Row: {
-                    "company_id": string,"locked_at": string,"locked_by": string,"organization_id": string,"period": string,"vat_report_id": string
+                    "company_id": string,"id": string,"locked_at": string,"locked_by": string,"organization_id": string,"period": string,"vat_report_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "company_id": string,"locked_at"?: string,"locked_by": string,"organization_id": string,"period": string,"vat_report_id": string
+                    "company_id": string,"id"?: string,"locked_at"?: string,"locked_by": string,"organization_id": string,"period": string,"vat_report_id": string
                   }
                   Update: {
-                    "company_id"?: string,"locked_at"?: string,"locked_by"?: string,"organization_id"?: string,"period"?: string,"vat_report_id"?: string
+                    "company_id"?: string,"id"?: string,"locked_at"?: string,"locked_by"?: string,"organization_id"?: string,"period"?: string,"vat_report_id"?: string
                   }
                   Relationships: [
                     {
@@ -557,14 +557,14 @@ isOneToOne: false
                   ]
                 },"upload_batch": {
                   Row: {
-                    "company_id": string,"created_at": string,"created_by": string,"file_count": number,"id": string,"organization_id": string,"processing_finished_at": string | null,"upload_finished_at": string | null
+                    "company_id": string,"created_at": string,"created_by": string,"file_count": number,"id": string,"organization_id": string,"processing_finished_at": string | null,"selected_files": Json | null,"upload_finished_at": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "company_id": string,"created_at"?: string,"created_by"?: string,"file_count": number,"id"?: string,"organization_id": string,"processing_finished_at"?: string | null,"upload_finished_at"?: string | null
+                    "company_id": string,"created_at"?: string,"created_by"?: string,"file_count": number,"id"?: string,"organization_id": string,"processing_finished_at"?: string | null,"selected_files"?: Json | null,"upload_finished_at"?: string | null
                   }
                   Update: {
-                    "company_id"?: string,"created_at"?: string,"created_by"?: string,"file_count"?: number,"id"?: string,"organization_id"?: string,"processing_finished_at"?: string | null,"upload_finished_at"?: string | null
+                    "company_id"?: string,"created_at"?: string,"created_by"?: string,"file_count"?: number,"id"?: string,"organization_id"?: string,"processing_finished_at"?: string | null,"selected_files"?: Json | null,"upload_finished_at"?: string | null
                   }
                   Relationships: [
                     {
@@ -603,14 +603,14 @@ isOneToOne: false
                   ]
                 },"vat_report_artifact": {
                   Row: {
-                    "byte_size": number | null,"company_id": string,"created_at": string,"created_by": string,"file_name": string,"format": string,"id": string,"kind": string,"media_type": string,"organization_id": string,"period": string,"report_generated_at": string,"resolved_details": NonNullable<Json>,"schema_version": string,"serializer_version": string,"sha256": string | null,"vat_report_id": string,"xml_bytes": string
+                    "byte_size": number | null,"company_id": string,"created_at": string,"created_by": string,"file_name": string,"format": string,"id": string,"kind": string,"media_type": string,"organization_id": string,"period": string,"period_lock_id": string | null,"report_generated_at": string,"resolved_details": NonNullable<Json>,"schema_version": string,"serializer_version": string,"sha256": string | null,"vat_report_id": string,"xml_bytes": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "byte_size"?: never,"company_id": string,"created_at"?: string,"created_by": string,"file_name": string,"format": string,"id"?: string,"kind": string,"media_type": string,"organization_id": string,"period": string,"report_generated_at": string,"resolved_details": NonNullable<Json>,"schema_version": string,"serializer_version": string,"sha256"?: never,"vat_report_id": string,"xml_bytes": string
+                    "byte_size"?: never,"company_id": string,"created_at"?: string,"created_by": string,"file_name": string,"format": string,"id"?: string,"kind": string,"media_type": string,"organization_id": string,"period": string,"period_lock_id"?: string | null,"report_generated_at": string,"resolved_details": NonNullable<Json>,"schema_version": string,"serializer_version": string,"sha256"?: never,"vat_report_id": string,"xml_bytes": string
                   }
                   Update: {
-                    "byte_size"?: never,"company_id"?: string,"created_at"?: string,"created_by"?: string,"file_name"?: string,"format"?: string,"id"?: string,"kind"?: string,"media_type"?: string,"organization_id"?: string,"period"?: string,"report_generated_at"?: string,"resolved_details"?: NonNullable<Json>,"schema_version"?: string,"serializer_version"?: string,"sha256"?: never,"vat_report_id"?: string,"xml_bytes"?: string
+                    "byte_size"?: never,"company_id"?: string,"created_at"?: string,"created_by"?: string,"file_name"?: string,"format"?: string,"id"?: string,"kind"?: string,"media_type"?: string,"organization_id"?: string,"period"?: string,"period_lock_id"?: string | null,"report_generated_at"?: string,"resolved_details"?: NonNullable<Json>,"schema_version"?: string,"serializer_version"?: string,"sha256"?: never,"vat_report_id"?: string,"xml_bytes"?: string
                   }
                   Relationships: [
                     {
@@ -633,16 +633,68 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
-                },"vat_report_transition": {
+                },"vat_report_download_acknowledgement": {
                   Row: {
-                    "action": string,"actor_user_id": string,"company_id": string,"id": number,"occurred_at": string,"organization_id": string,"period": string,"unlock_reason": string | null,"vat_report_id": string
+                    "acknowledged_at": string,"acknowledged_by": string,"artifact_id": string,"company_id": string,"organization_id": string,"period_lock_id": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "action": string,"actor_user_id": string,"company_id": string,"id"?: never,"occurred_at"?: string,"organization_id": string,"period": string,"unlock_reason"?: string | null,"vat_report_id": string
+                    "acknowledged_at"?: string,"acknowledged_by": string,"artifact_id": string,"company_id": string,"organization_id": string,"period_lock_id"?: string | null
                   }
                   Update: {
-                    "action"?: string,"actor_user_id"?: string,"company_id"?: string,"id"?: never,"occurred_at"?: string,"organization_id"?: string,"period"?: string,"unlock_reason"?: string | null,"vat_report_id"?: string
+                    "acknowledged_at"?: string,"acknowledged_by"?: string,"artifact_id"?: string,"company_id"?: string,"organization_id"?: string,"period_lock_id"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "vat_report_download_acknowled_artifact_id_company_id_organ_fkey"
+      columns: ["artifact_id","company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "vat_report_artifact"
+      referencedColumns: ["id","company_id","organization_id"]
+    },{
+      foreignKeyName: "vat_report_download_acknowledge_company_id_organization_id_fkey"
+      columns: ["company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "company"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
+                },"vat_report_draft_skip": {
+                  Row: {
+                    "company_id": string,"id": string,"organization_id": string,"report_generated_at": string,"skipped_at": string,"skipped_by": string,"skipped_formats": (string)[],"vat_report_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "company_id": string,"id"?: string,"organization_id": string,"report_generated_at": string,"skipped_at"?: string,"skipped_by": string,"skipped_formats": (string)[],"vat_report_id": string
+                  }
+                  Update: {
+                    "company_id"?: string,"id"?: string,"organization_id"?: string,"report_generated_at"?: string,"skipped_at"?: string,"skipped_by"?: string,"skipped_formats"?: (string)[],"vat_report_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "vat_report_draft_skip_company_id_organization_id_fkey"
+      columns: ["company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "company"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "vat_report_draft_skip_vat_report_id_company_id_organizatio_fkey"
+      columns: ["vat_report_id","company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "vat_report"
+      referencedColumns: ["id","company_id","organization_id"]
+    }
+                  ]
+                },"vat_report_transition": {
+                  Row: {
+                    "action": string,"actor_user_id": string,"company_id": string,"id": number,"occurred_at": string,"organization_id": string,"period": string,"period_lock_id": string | null,"unlock_reason": string | null,"vat_report_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "action": string,"actor_user_id": string,"company_id": string,"id"?: never,"occurred_at"?: string,"organization_id": string,"period": string,"period_lock_id"?: string | null,"unlock_reason"?: string | null,"vat_report_id": string
+                  }
+                  Update: {
+                    "action"?: string,"actor_user_id"?: string,"company_id"?: string,"id"?: never,"occurred_at"?: string,"organization_id"?: string,"period"?: string,"period_lock_id"?: string | null,"unlock_reason"?: string | null,"vat_report_id"?: string
                   }
                   Relationships: [
 
@@ -694,6 +746,9 @@ isOneToOne: false
             "accept_invitation":
 { Args: { "invitation_token": string }; Returns: undefined
                            },
+"acknowledge_vat_report_download":
+{ Args: { "target_artifact_id": string,"target_company_id": string,"target_format": string,"target_period": string,"target_period_lock_id"?: string,"target_report_generated_at": string }; Returns: undefined
+                           },
 "approve_document":
 { Args: { "reviewed_version": number,"target_document_id": string }; Returns: undefined
                            },
@@ -711,7 +766,7 @@ isOneToOne: false
             }[]
                            },
 "begin_upload_batch":
-{ Args: { "selected_file_count": number,"target_company_id": string }; Returns: string
+{ Args: { "requested_batch_id"?: string,"selected_file_count": number,"selected_files"?: Json,"target_company_id": string }; Returns: string
                            },
 "cancel_invitation":
 { Args: { "invitation_token": string }; Returns: undefined
@@ -762,6 +817,9 @@ isOneToOne: false
                            },
 "create_invitation":
 { Args: { "target_company_id": string,"target_email": string,"target_organization_id": string,"target_role": Database["public"]['Enums']["membership_role"] }; Returns: string
+                           },
+"current_company_role":
+{ Args: { "target_company_id": string }; Returns: Database["public"]['Enums']["membership_role"]
                            },
 "current_mfa_policy":
 { Args: Record<PropertyKey, never>; Returns: {
@@ -824,10 +882,16 @@ isOneToOne: false
 "list_company_access":
 { Args: { "target_company_id": string }; Returns: Json
                            },
+"list_company_summaries":
+{ Args: Record<PropertyKey, never>; Returns: Json
+                           },
 "list_failed_processing_jobs":
 { Args: Record<PropertyKey, never>; Returns: {
               "error": string,"failed_at": string,"id": string,"name": string,"target_id": string
             }[]
+                           },
+"list_organization_administrations":
+{ Args: Record<PropertyKey, never>; Returns: Json
                            },
 "list_platform_ai_processing_allowances":
 { Args: Record<PropertyKey, never>; Returns: {
@@ -873,6 +937,9 @@ isOneToOne: false
                            },
 "move_document_page":
 { Args: { "page": number,"source_document_id": string,"target_document_id": string }; Returns: (string)[]
+                           },
+"platform_company_history":
+{ Args: { "target_company_id": string }; Returns: Json
                            },
 "platform_upload_limits":
 { Args: Record<PropertyKey, never>; Returns: {
@@ -946,7 +1013,7 @@ isOneToOne: false
             }[]
                            },
 "set_company_filing_defaults":
-{ Args: { "epo_address_confirmed": boolean,"new_email": string,"new_epo_city": string,"new_epo_house_number": string,"new_epo_orientation_number": string,"new_epo_postal_code": string,"new_epo_street_name": string,"new_phone": string,"new_signatory_capacity": string,"new_signatory_first_name": string,"new_signatory_last_name": string,"new_tax_office": string,"target_company_id": string }; Returns: undefined
+{ Args: { "epo_address_confirmed": boolean,"new_economic_activity"?: string,"new_email": string,"new_epo_city": string,"new_epo_house_number": string,"new_epo_orientation_number": string,"new_epo_postal_code": string,"new_epo_street_name": string,"new_phone": string,"new_signatory_capacity": string,"new_signatory_first_name": string,"new_signatory_last_name": string,"new_tax_office": string,"new_territorial_office"?: string,"target_company_id": string }; Returns: undefined
                            },
 "set_company_first_reporting_month":
 { Args: { "new_first_month": number,"target_company_id": string,"target_year": number }; Returns: undefined
@@ -965,6 +1032,9 @@ isOneToOne: false
                            },
 "set_platform_upload_limits":
 { Args: { "target_max_source_file_bytes": number,"target_max_source_file_pages": number,"target_max_upload_batch_files": number }; Returns: undefined
+                           },
+"skip_vat_report_drafts":
+{ Args: { "target_company_id": string,"target_period": string,"target_report_generated_at": string }; Returns: undefined
                            },
 "soft_delete_company":
 { Args: { "target_company_id": string,"target_export_id": string }; Returns: Json
@@ -996,6 +1066,7 @@ isOneToOne: false
 "id": string,
 "organization_id": string,
 "processing_finished_at": string | null,
+"selected_files": Json | null,
 "upload_finished_at": string | null
             }[]
                           SetofOptions: {
@@ -1010,9 +1081,15 @@ isOneToOne: false
 "vat_report_documents":
 { Args: { "target_company_id": string,"target_period": string }; Returns: Json
                            },
+"vat_report_draft_progress":
+{ Args: { "target_company_id": string,"target_period": string,"target_report_generated_at": string }; Returns: Json
+                           },
+"vat_report_export_progress":
+{ Args: { "target_company_id": string,"target_kind": string,"target_period": string,"target_period_lock_id"?: string,"target_report_generated_at": string }; Returns: Json
+                           },
 "vat_report_transition_history":
 { Args: { "target_company_id": string,"target_period": string }; Returns: {
-              "action": string,"actor_email": string,"actor_user_id": string,"id": number,"occurred_at": string,"unlock_reason": string,"vat_report_id": string
+              "action": string,"actor_email": string,"actor_user_id": string,"id": number,"occurred_at": string,"period_lock_id": string,"unlock_reason": string,"vat_report_id": string
             }[]
                            },
 "verify_mfa_recovery_code":

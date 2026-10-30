@@ -7,6 +7,7 @@ import {
   DIRECTIONS,
   DOCUMENT_TYPES,
   VAT_REGIMES,
+  isZeroRateBreakdownLine,
   type ExtractionPayload,
 } from "@/application/extraction-payload";
 import type { ValidationFinding } from "@/application/document-validation";
@@ -44,9 +45,9 @@ export function CorrectionForm({
     values: {},
   });
   const [lines, setLines] = useState(() =>
-    payload.rateBreakdown.map((_, i) => i),
+    payload.rateBreakdown.flatMap((line, index) => isZeroRateBreakdownLine(line) ? [] : [index]),
   );
-  const nextLine = Math.max(-1, ...lines) + 1;
+  const nextLine = Math.max(payload.rateBreakdown.length - 1, ...lines) + 1;
   const finding = (field: string) =>
     findings.find(
       (item) => item.field === field && item.severity === "error",
@@ -287,7 +288,7 @@ export function CorrectionForm({
           <table className="rate-breakdown">
             <thead><tr><th>{t("fields.rate")}</th><th>{t("fields.netAmountCzk")}</th><th>{t("fields.vatAmountCzk")}</th></tr></thead>
             <tbody>
-              {payload.czkConversion.rateBreakdown.map((line, index) => (
+              {payload.czkConversion.rateBreakdown.filter((line) => !isZeroRateBreakdownLine(line)).map((line, index) => (
                 <tr key={`${line.rate}-${index}`}>
                   <td>{line.rate}</td><td className="iv-mono">{line.netAmount}</td><td className="iv-mono">{line.vatAmount}</td>
                 </tr>

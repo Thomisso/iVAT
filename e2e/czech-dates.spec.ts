@@ -42,7 +42,7 @@ test("dates are shown and entered as dd.mm.rrrr regardless of the browser locale
 
   await page.goto(`/companies/${companyId}/upload`);
   await page.locator('input[type="file"]:not([capture])').setInputFiles("tests/fixtures/two-invoices.pdf");
-  await page.getByRole("button", { name: "Upload", exact: true }).click();
+  await page.getByRole("button", { name: "Upload batch", exact: true }).click();
   await expect(page).toHaveURL(/\/upload-batches\/[0-9a-f-]+$/);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
     /^Batch from \d{2}\.\d{2}\.\d{4} \d{2}:\d{2}$/,
@@ -60,7 +60,9 @@ test("dates are shown and entered as dd.mm.rrrr regardless of the browser locale
   const taxPointDate = page.getByLabel("Tax point date", { exact: true });
   await expect(taxPointDate).toHaveValue("01.10.2026");
   await expect(page.getByLabel("Due date", { exact: true })).toHaveValue("15.10.2026");
-  await expect(page.getByText("Format dd.mm.yyyy", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Format dd.mm.yyyy", { exact: true })).toHaveCount(0);
+  const taxPointCalendar = page.getByLabel("Choose date for Tax point date", { exact: true });
+  await expect(taxPointCalendar).toHaveValue("2026-10-01");
   const invalidDate = page.getByRole("alert").filter({ hasText: "Enter a valid date as dd.mm.yyyy." });
   await taxPointDate.fill("2026-10-20");
   await taxPointDate.blur();
@@ -69,10 +71,25 @@ test("dates are shown and entered as dd.mm.rrrr regardless of the browser locale
   await page.getByRole("button", { name: "Save corrections" }).click();
   await expect(invalidDate).toBeVisible();
   await expect(page.getByRole("button", { name: "Approve version 2" })).toHaveCount(0);
-  await taxPointDate.fill("20.10.2026.");
-  await page.getByLabel("Direction", { exact: true }).selectOption("incoming");
+  await taxPointCalendar.fill("2026-10-21");
+  await expect(taxPointDate).toHaveValue("21.10.2026");
+  await expect(invalidDate).toHaveCount(0);
+  const dueDate = page.getByLabel("Due date", { exact: true });
+  const dueCalendar = page.getByLabel("Choose date for Due date", { exact: true });
+  await dueCalendar.fill("");
+  await expect(dueDate).toHaveValue("");
+  await dueDate.fill("1.11.2026");
+  await expect(dueCalendar).toHaveValue("2026-11-01");
   await page.getByRole("button", { name: "Save corrections" }).click();
   await expect(page.getByRole("button", { name: "Approve version 2" })).toBeVisible();
+  await page.reload();
+  await expect(taxPointDate).toHaveValue("21.10.2026");
+  await expect(dueDate).toHaveValue("01.11.2026");
+  await taxPointDate.fill("20.10.2026.");
+  await expect(taxPointCalendar).toHaveValue("2026-10-20");
+  await page.getByLabel("Direction", { exact: true }).selectOption("incoming");
+  await page.getByRole("button", { name: "Save corrections" }).click();
+  await expect(page.getByRole("button", { name: "Approve version 3" })).toBeVisible();
   await expect(page.getByLabel("Tax point date", { exact: true })).toHaveValue("20.10.2026");
   await expect(page.locator("main")).not.toContainText(isoDate);
 });

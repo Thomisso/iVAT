@@ -45,6 +45,8 @@ export type UploadSourceFileError =
   | "content_does_not_match_format"
   | "unreadable_file"
   | "invalid_choice"
+  | "identical_file"
+  | "too_many_files"
   | "forbidden";
 
 export const SOURCE_FILE_BUCKET = "source-files";
@@ -160,6 +162,21 @@ export const sourceFileObjectPath = (companyId: string, sourceFileId: string) =>
 export const sourceFileDerivativeObjectPath = (companyId: string, sourceFileId: string) =>
   `${companyId}/${sourceFileId}/normalized.jpeg`;
 
+/** A lost response or concurrent retry may leave the immutable object stored already. */
+async function storeImmutableObject(
+  client: AppClient,
+  path: string,
+  bytes: Uint8Array,
+  contentType: string,
+) {
+  const { error } = await client.storage.from(SOURCE_FILE_BUCKET).upload(path, bytes, { contentType, upsert: false });
+  if (!error || !("statusCode" in error) || error.statusCode !== "409") return error;
+  const stored = await client.storage.from(SOURCE_FILE_BUCKET).download(path);
+  if (stored.error) return stored.error;
+  const storedHash = createHash("sha256").update(new Uint8Array(await stored.data.arrayBuffer())).digest("hex");
+  return storedHash === createHash("sha256").update(bytes).digest("hex") ? null : error;
+}
+
 /**
  * Stores an uploaded file unchanged as a Source File of the Company. The file
  * is stored before its row is recorded (the database refuses a row without a
@@ -215,21 +232,15 @@ export async function uploadSourceFile(
   if ((format === "heic" || format === "heif") && !derivative) {
     return { ok: false, error: "unreadable_file" };
   }
-  const stored = await client.storage
-    .from(SOURCE_FILE_BUCKET)
-    .upload(sourceFileObjectPath(company.id, id), input.bytes, { contentType: SOURCE_FILE_MEDIA_TYPES[format], upsert: false });
-  if (stored.error) {
-    if ("statusCode" in stored.error && stored.error.statusCode === "403") return { ok: false, error: "forbidden" };
-    throw stored.error;
+  const storedError = await storeImmutableObject(client, sourceFileObjectPath(company.id, id), input.bytes, SOURCE_FILE_MEDIA_TYPES[format]);
+  if (storedError) {
+    if ("statusCode" in storedError && storedError.statusCode === "403") return { ok: false, error: "forbidden" };
+    if ("statusCode" in storedError && storedError.statusCode === "409") return { ok: false, error: "invalid_choice" };
+    throw storedError;
   }
   if (derivative) {
-    const storedDerivative = await client.storage
-      .from(SOURCE_FILE_BUCKET)
-      .upload(sourceFileDerivativeObjectPath(company.id, id), derivative, {
-        contentType: SOURCE_FILE_MEDIA_TYPES.jpeg,
-        upsert: false,
-      });
-    if (storedDerivative.error) throw storedDerivative.error;
+    const derivativeError = await storeImmutableObject(client, sourceFileDerivativeObjectPath(company.id, id), derivative, SOURCE_FILE_MEDIA_TYPES.jpeg);
+    if (derivativeError) throw derivativeError;
   }
 
   const { error } = await client.from("source_file").insert({
@@ -249,7 +260,19 @@ export async function uploadSourceFile(
     page_count: pageCount,
   });
   if (error) {
+    // A concurrent attempt can commit this same immutable identity first.
+    const { data: recorded, error: readError } = await client.from("source_file")
+      .select("id, upload_batch_id, file_name, format, byte_size, sha256")
+      .eq("id", id).eq("company_id", company.id).maybeSingle();
+    if (readError) throw readError;
+    if (recorded && recorded.upload_batch_id === (input.batchId ?? null)
+      && recorded.file_name === fileName && recorded.format === format
+      && Number(recorded.byte_size) === input.bytes.length && recorded.sha256 === sha256) {
+      await jobs.send(splitJob(id));
+      return { ok: true, value: { id } };
+    }
     if (error.code === "42501") return { ok: false, error: "forbidden" };
+    if (error.hint === "identical_file" || error.hint === "too_many_files" || error.hint === "invalid_choice") return { ok: false, error: error.hint };
     throw error;
   }
   await jobs.send(splitJob(id));

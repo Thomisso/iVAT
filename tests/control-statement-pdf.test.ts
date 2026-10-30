@@ -148,6 +148,24 @@ it("renders saved Control Statement identity, sections, entries and totals", asy
   }
 });
 
+it("omits historical zero rows from preview and PDF while preserving zero VAT, negatives and the snapshot", async () => {
+  const historical: ComputedVatReport = { ...report, controlStatement: [{ ...report.controlStatement[0], rateBreakdown: [
+    { rate: 0, netAmount: "0.00", vatAmount: "0.00", documentIds: [] },
+    { rate: 21, netAmount: "1000.00", vatAmount: "210.00", documentIds: ["one"] },
+    { rate: 12, netAmount: "50.00", vatAmount: "0.00", documentIds: ["two"] },
+    { rate: 12, netAmount: "-100.00", vatAmount: "-12.00", documentIds: ["three"] },
+  ] }] };
+  const preview = controlStatementPreviewData(historical);
+  expect(preview.entries[0].rateBreakdown).toHaveLength(3);
+  expect(preview.totals).toEqual({ netAmount: "950.00", vatAmount: "198.00" });
+  const text = await pdfText(await createControlStatementPdf(preview, englishMessages.vatReports.controlStatementPdf));
+  expect(text).toContain("50.00");
+  expect(text).toContain("-100.00");
+  expect(text).toContain("-12.00");
+  expect(text).not.toContain("0%");
+  expect(historical.controlStatement[0].rateBreakdown).toHaveLength(4);
+});
+
 it("renders every PDF-visible label in Czech when the route supplies Czech copy", async () => {
   const text = await pdfText(
     await createControlStatementPdf(

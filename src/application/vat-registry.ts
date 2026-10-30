@@ -43,6 +43,8 @@ export async function vatRegistryFindings(
 ): Promise<ValidationFinding[]> {
   const vatId = payload.supplier.vatId;
   if (!vatId || !/^CZ\d{8,10}$/.test(vatId)) return [];
+  const paymentAccount = payload.payment.iban?.trim() || payload.payment.bankAccount?.trim() || null;
+  const accountField = payload.payment.iban?.trim() ? "payment.iban" : "payment.bankAccount";
 
   let check: VatPayerRegistryCheck;
   try {
@@ -53,13 +55,14 @@ export async function vatRegistryFindings(
   if (check.outcome === "unavailable") {
     return [warning("supplier.vatId", "vat_registry_check_not_performed")];
   }
-  if (check.outcome === "not_found") return [];
+  if (check.outcome === "not_found") {
+    return paymentAccount ? [warning(accountField, "bank_account_not_verified")] : [];
+  }
 
   const findings: ValidationFinding[] = [];
   if (check.unreliable) {
     findings.push(warning("supplier.vatId", "unreliable_vat_payer"));
   }
-  const paymentAccount = payload.payment.iban ?? payload.payment.bankAccount;
   if (
     paymentAccount &&
     !check.publishedAccounts
@@ -68,7 +71,7 @@ export async function vatRegistryFindings(
   ) {
     findings.push(
       warning(
-        payload.payment.iban ? "payment.iban" : "payment.bankAccount",
+        accountField,
         "unpublished_bank_account",
       ),
     );

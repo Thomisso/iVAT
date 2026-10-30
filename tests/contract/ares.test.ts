@@ -13,6 +13,7 @@ contract("reads a Czech VAT payer from the live ARES service", async () => {
       ico: "27082440",
       vatId: "CZ27082440",
       name: expect.any(String),
+      personType: "legal",
       streetName: expect.any(String),
       houseNumber: expect.any(String),
       orientationNumber: expect.any(String),
