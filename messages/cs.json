@@ -22,6 +22,11 @@
     "issued": "Vydané doklady"
   },
   "shell": {
+    "superAdmin": "SuperAdmin",
+    "switchToSuperAdmin": "Přepnout do sekce SuperAdmin",
+    "platformSettingsNavigation": "Oblasti nastavení platformy",
+    "platformSettingsTitle": "Nastavení SuperAdmin",
+    "platformSettingsIntro": "V oblastech nastavení vyberte správu organizací a firem, AI konfigurace nebo využití AI.",
     "skip": "Přeskočit na obsah",
     "companyNavigation": "Navigace firmy",
     "organizationNavigation": "Navigace organizace",
@@ -99,6 +104,14 @@
     "logInLink": "Přihlaste se"
   },
   "company": {
+    "organizationSettingsTitle": "Nastavení organizace: {organization}",
+    "organizationSettingsIntro": "Tato nastavení se týkají organizace, která vlastní tuto firmu.",
+    "organizationUsers": "Uživatelé organizace",
+    "organizationUsersIntro": "Spravujte přístupy napříč organizací.",
+    "organizationAudit": "Auditní záznamy organizace",
+    "organizationAuditIntro": "Prohlížejte akce v této organizaci a jejích firmách.",
+    "organizationSecurity": "Zabezpečení organizace",
+    "organizationSecurityIntro": "Spravujte požadavek organizace na MFA.",
     "organization": "Organizace",
     "chooseOrganization": "Vyberte organizaci pro tuto firmu",
     "createTitle": "Přidat firmu",
@@ -302,6 +315,19 @@
     "status": "Stav",
     "dropTitle": "Přetáhněte sem zdrojový soubor",
     "chooseFile": "Vybrat soubor"
+  },
+  "returnContext": {
+      "company": "← Zpět na firmu",
+      "documents": "← Zpět na doklady",
+      "document": "← Zpět na doklad",
+      "processing": "← Zpět na Zpracování",
+      "vatReturn": "← Zpět na přiznání k DPH",
+      "controlStatement": "← Zpět na kontrolní hlášení",
+      "exportHistory": "← Zpět na historii exportů",
+      "periods": "← Zpět na zdaňovací období",
+      "upload": "← Zpět na Nahrání",
+      "batch": "← Zpět na dávku",
+      "sourceFile": "← Zpět na zdrojový soubor"
   },
   "periodFilter": {
     "label": "Zdaňovací období",

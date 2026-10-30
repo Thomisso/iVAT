@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { companyPageContext, withCompanyReturnTo } from "@/application/return-context";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getCompany, getMyCompanyRole } from "@/application/companies";
@@ -18,6 +19,7 @@ export default async function UploadPage({
 }: PageProps<"/companies/[companyId]/upload">) {
   const { companyId } = await params;
   const query = await searchParams;
+  const context = companyPageContext(companyId, `/companies/${companyId}/upload`, query);
   const requestedPage = Number(typeof query.historyPage === "string" ? query.historyPage : "1");
   const historyPage = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
   const createdFrom = typeof query.createdFrom === "string" ? query.createdFrom : "";
@@ -66,8 +68,8 @@ export default async function UploadPage({
         <Link href={`/companies/${companyId}/upload`}>{filter("clear")}</Link>
       </form>
       {visibleBatches.length ? <ol className="upload-batch-list">
-        {visibleBatches.map((batch) => <li key={batch.id}>
-          <Link href={`/companies/${companyId}/upload-batches/${batch.id}`}>
+        {visibleBatches.map((batch) => <li key={batch.id} id={`batch-${batch.id}`}>
+          <Link href={withCompanyReturnTo(companyId, `/companies/${companyId}/upload-batches/${batch.id}`, `${context}#batch-${batch.id}`)}>
             <span className={`upload-outcome upload-outcome-${batch.outcome}`}>{workspace(`outcome.${batch.outcome}`)}</span>
             <strong>{workspace("batchFiles", { count: batch.actualFileCount, planned: batch.plannedFileCount })}</strong>
             <span>{formatDateTime(batch.createdAt)}</span>

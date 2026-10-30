@@ -126,7 +126,7 @@ test("only a SuperAdmin navigates the shared Platform shell without losing exist
   const administration = page.getByRole("navigation", {
     name: "Administration",
   });
-  await expect(administration).toBeVisible();
+  await expect(administration).toHaveCount(0);
   await expect(
     administration.getByRole("link", { name: "Platform overview" }),
   ).toHaveCount(0);
@@ -141,19 +141,11 @@ test("only a SuperAdmin navigates the shared Platform shell without losing exist
   await promoteAndEnroll(page, email);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`/companies/${companyId}`);
-  await administration
-    .getByRole("group", { name: "Platform administration" })
-    .getByRole("link", { name: "Platform overview" })
-    .click();
+  await page.getByRole("link", { name: "Switch to SuperAdmin", exact: true }).click();
   await expect(page).toHaveURL(/\/platform\/administration$/);
-  await expect(
-    administration
-      .getByRole("group", { name: "Platform administration" })
-      .getByRole("link", { name: "Platform AI usage" }),
-  ).toBeVisible();
-  await expect(
-    administration.getByRole("group", { name: "Company administration" }),
-  ).toHaveCount(0);
+  await expect(administration).toHaveCount(0);
+  const settingsSections = page.getByRole("navigation", { name: "Platform settings sections" });
+  await expect(settingsSections.getByRole("link", { name: "Platform AI usage" })).toBeVisible();
 
   const navigation = page.getByRole("navigation", {
     name: "Platform navigation",
@@ -170,9 +162,9 @@ test("only a SuperAdmin navigates the shared Platform shell without losing exist
   ).toContainText("Platform");
   await expect(
     page.locator('[role="group"][aria-label="Platform context"]:visible'),
-  ).toContainText("Administration");
+  ).toContainText("SuperAdmin");
   await expect(
-    navigation.getByRole("link", { name: "Platform overview" }),
+    navigation.getByRole("link", { name: "Settings", exact: true }),
   ).toHaveAttribute("aria-current", "page");
   await expect(page.getByRole("main")).toHaveCount(1);
   await expect(
@@ -203,10 +195,10 @@ test("only a SuperAdmin navigates the shared Platform shell without losing exist
   ]);
   expect(alignedEdges[0]).toBe(alignedEdges[1]);
 
-  await navigation.getByRole("link", { name: "Platform AI settings" }).click();
+  await settingsSections.getByRole("link", { name: "Platform AI settings" }).click();
   await expect(page).toHaveURL(/\/platform\/ai-settings$/);
   await expect(
-    navigation.getByRole("link", { name: "Platform AI settings" }),
+    settingsSections.getByRole("link", { name: "Platform AI settings" }),
   ).toHaveAttribute("aria-current", "page");
   const configurations = page
     .getByRole("heading", { name: "AI configurations", level: 2 })
@@ -220,10 +212,10 @@ test("only a SuperAdmin navigates the shared Platform shell without losing exist
   expect(configurationsBox!.width).toBeGreaterThan(1000);
   expect(providerBox!.x).toBeGreaterThan(labelBox!.x + labelBox!.width);
   expect(Math.abs(providerBox!.y - labelBox!.y)).toBeLessThan(2);
-  await navigation.getByRole("link", { name: "Platform AI usage" }).click();
+  await settingsSections.getByRole("link", { name: "Platform AI usage" }).click();
   await expect(page).toHaveURL(/\/platform\/ai-usage$/);
   await expect(
-    navigation.getByRole("link", { name: "Platform AI usage" }),
+    settingsSections.getByRole("link", { name: "Platform AI usage" }),
   ).toHaveAttribute("aria-current", "page");
   await expect(
     page.getByRole("heading", { name: "Platform AI usage", level: 1 }),

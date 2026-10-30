@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import type { OrganizationSummary } from "@/application/organizations";
-import { AdministrationNavigation } from "@/components/administration-navigation";
+import { WorkSectionSwitch } from "@/components/work-section-switch";
 import { AccountActions, AppShell, ContextNavigation } from "@/components/app-shell";
 import { AccountMenu, Menu, ShellIcon } from "@/components/shell-controls";
 
@@ -72,12 +72,12 @@ export function OrganizationShell({ children, companyHref, email, organization, 
       <ShellIcon path="m15 18-6-6 6-6" />
       <span>{t("companyWork")}</span>
     </Link>
+    {superAdmin && <WorkSectionSwitch section="company" companyHref={companyHref} />}
     <AccountMenu email={email} />
   </AccountActions>;
 
   return <AppShell
     accountActions={accountActions}
-    administration={<AdministrationNavigation currentPath={pathname} organizations={organizations} superAdmin={superAdmin} />}
     brandHref="/"
     brandLabel={app("name")}
     context={context}

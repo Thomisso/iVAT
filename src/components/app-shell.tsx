@@ -62,7 +62,6 @@ export function AccountActions({ children, label }: { children?: ReactNode; labe
 
 export function AppShell({
   accountActions,
-  administration,
   brandHref,
   brandLabel,
   children,
@@ -72,7 +71,6 @@ export function AppShell({
   skipLabel,
 }: {
   accountActions: ReactNode;
-  administration?: ReactNode;
   brandHref: string;
   brandLabel: string;
   children?: ReactNode;
@@ -89,7 +87,6 @@ export function AppShell({
         {context}
         <div className="app-shell-sidebar-navigation">
           {navigation}
-          {administration}
         </div>
         {accountActions}
       </aside>
