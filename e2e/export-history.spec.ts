@@ -40,7 +40,7 @@ test("Export History shows a compact table and expandable filing details on desk
   await expect(table.getByText("history-", { exact: false })).toBeVisible();
   await expect(table.locator("time")).toHaveText(/^\d{2}\.\d{2}\.\d{4}/);
   await expect(table.getByRole("link", { name: /DRAFT_DPHDP3/ })).toBeVisible();
-  const disclosure = page.getByText("Filing details", { exact: true });
+  const disclosure = page.getByText("Resolved filing details", { exact: true });
   const details = page.getByRole("definition").filter({ hasText: "10.02.2026" });
   await expect(details).toBeHidden();
   for (const width of [1440, 375]) {

@@ -222,7 +222,7 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   await expect(artifactHistory.getByText("Working", { exact: true })).toBeVisible();
   await artifactHistory.locator("details")
     .filter({ has: page.getByText(`final-${run}@example.test`, { exact: true }) })
-    .getByText("Filing details", { exact: true }).click();
+    .getByText("Resolved filing details", { exact: true }).click();
   await expect(artifactHistory.getByText(`final-${run}@example.test`, { exact: true })).toBeVisible();
 
   const userContext = await browser.newContext();
