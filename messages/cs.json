@@ -972,6 +972,7 @@
   },
   "vatReports": {
     "wizard": {
+      "finalPartial": "Částečně dokončeno — {count}/2",
       "draftPartial": "Částečně dokončeno — {count}/2",
       "draftPartialSkipped": "Částečně dokončeno — {count}/2, druhý export vynechán",
       "skipDrafts": "Vynechat draftové exporty",

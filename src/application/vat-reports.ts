@@ -37,6 +37,7 @@ export type GenerateVatReportError =
   "forbidden" | "company_setup_incomplete" | "invalid_reporting_period" | "stale_report" | "period_locked";
 
 export type PeriodLock = {
+  id: string;
   companyId: string;
   period: string;
   vatReportId: string;
@@ -61,6 +62,7 @@ export type UnlockReportingPeriodError =
   | "unlock_reason_too_long";
 
 export type VatReportTransition = {
+  periodLockId: string | null;
   id: number;
   action: "vat_report.finalized" | "reporting_period.unlocked";
   actorUserId: string;
@@ -145,6 +147,7 @@ export async function listVatReportTransitions(
   if (error) throw error;
   return data.map((transition) => ({
     id: transition.id,
+    periodLockId: transition.period_lock_id,
     action: transition.action as VatReportTransition["action"],
     actorUserId: transition.actor_user_id,
     actorEmail: transition.actor_email,
@@ -163,13 +166,14 @@ export async function getPeriodLock(
   if (!isUuid(companyId) || !isReportingPeriod(period)) return null;
   const { data, error } = await client
     .from("period_lock")
-    .select("company_id, period, vat_report_id, locked_by, locked_at")
+    .select("id, company_id, period, vat_report_id, locked_by, locked_at")
     .eq("company_id", companyId)
     .eq("period", period)
     .maybeSingle();
   if (error) throw error;
   return data
     ? {
+        id: data.id,
         companyId: data.company_id,
         period: data.period,
         vatReportId: data.vat_report_id,

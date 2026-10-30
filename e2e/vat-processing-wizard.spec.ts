@@ -29,6 +29,130 @@ async function emptyCompanyForExport(page: Page, street = "Dlouhá") {
   return page.url().replace(/\/setup\/ai-processing$/, "");
 }
 
+test("missing final filing details continue the selected export inline without changing Company defaults", async ({ context, page, baseURL }) => {
+  if (!baseURL) throw new Error("Playwright baseURL is required");
+  await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseURL }]);
+  const companyUrl = await emptyCompanyForExport(page);
+  const wizardUrl = `${companyUrl}/vat-reports?period=2026-01`;
+  await page.goto(wizardUrl);
+  await page.getByRole("button", { name: "Generate draft", exact: true }).click();
+  const final = wizardStep(page, "Finalize");
+  await final.getByRole("checkbox", { name: "I understand that Finalization creates a Period Lock for this snapshot." }).check();
+  await final.getByRole("button", { name: "Finalize and lock period", exact: true }).click();
+  await expect(final.getByText("Partially completed — 0/2", { exact: true })).toBeVisible();
+  for (const [heading, label] of [["VAT Return (DPHDP3)", "Export VAT Return XML"], ["Control Statement (DPHKH1)", "Export Control Statement XML"]]) {
+    const panel = final.getByRole("article").filter({ has: page.getByRole("heading", { name: heading, exact: true }) });
+    await panel.getByRole("button", { name: label, exact: true }).click();
+    await panel.getByRole("combobox", { name: "Tax office", exact: true }).selectOption("451");
+    if (heading.startsWith("VAT Return")) await panel.getByLabel("Economic activity (CZ-NACE)").fill("621000");
+    await panel.getByLabel("First name").fill("Jana");
+    await panel.getByLabel("Last name").fill("Nováková");
+    await panel.getByLabel("Capacity (e.g. director)").fill("director");
+    const download = page.waitForEvent("download");
+    await panel.getByRole("button", { name: "Download XML", exact: true }).click();
+    const file = await (await download).path();
+    if (!file) throw new Error("Final XML not downloaded");
+    expect(await readFile(file, "utf8")).toContain("<Pisemnost");
+    await expect(final.getByText(heading.startsWith("VAT Return") ? "Partially completed — 1/2" : "Done", { exact: true })).toBeVisible();
+    await expect(page).toHaveURL(wizardUrl);
+  }
+  await page.goto(`${companyUrl}/settings/vat`);
+  await expect(page.getByLabel("Economic activity (CZ-NACE)")).toHaveValue("");
+  await expect(page.getByRole("combobox", { name: "Tax office", exact: true })).toHaveValue("");
+});
+
+test("final progress follows successful downloads in the current lock cycle across retries and relocking", async ({ context, page, baseURL }) => {
+  test.setTimeout(120_000);
+  if (!baseURL) throw new Error("Playwright baseURL is required");
+  await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseURL }]);
+  const companyUrl = await emptyCompanyForExport(page);
+  await page.goto(`${companyUrl}/settings/vat`);
+  await page.getByRole("combobox", { name: "Tax office", exact: true }).selectOption("451");
+  await page.getByLabel("Economic activity (CZ-NACE)").fill("621000");
+  await page.getByLabel("First name").fill("Jana");
+  await page.getByLabel("Last name").fill("Nováková");
+  await page.getByLabel("Capacity (e.g. director)").fill("director");
+  await page.getByRole("button", { name: "Save filing defaults" }).click();
+  await expect(page.getByRole("status").getByText("Filing defaults saved.")).toBeVisible();
+  const wizardUrl = `${companyUrl}/vat-reports?period=2026-01`;
+  const historyUrl = `${companyUrl}/vat-reports/2026-01/exports`;
+  await page.goto(wizardUrl);
+  await page.getByRole("button", { name: "Generate draft", exact: true }).click();
+  const generate = wizardStep(page, "Generate VAT Report");
+  const drafts = wizardStep(page, "Export DRAFT XML");
+  const final = wizardStep(page, "Finalize");
+  await expect(final.getByRole("button", { name: "Export VAT Return XML", exact: true })).toHaveCount(0);
+  const draft = page.waitForEvent("download");
+  await drafts.getByRole("button", { name: "Export VAT Return XML", exact: true }).click();
+  await draft;
+  await expect(drafts.getByText("Partially completed — 1/2", { exact: true })).toBeVisible();
+  async function finalize() {
+    await final.getByRole("checkbox", { name: "I understand that Finalization creates a Period Lock for this snapshot." }).check();
+    await final.getByRole("button", { name: "Finalize and lock period", exact: true }).click();
+    await expect(final.getByText("Partially completed — 0/2", { exact: true })).toBeVisible();
+  }
+  await finalize();
+  await expect(generate.getByRole("button", { name: "Generate / regenerate draft", exact: true })).toBeDisabled();
+  await expect(drafts.getByRole("button", { name: "Export VAT Return XML", exact: true })).toBeDisabled();
+  let failedArtifactId = "";
+  let firstLockId = "";
+  await page.route("**/vat-reports/2026-01/xml", async route => {
+    const archived = await route.fetch();
+    expect(archived.status()).toBe(200);
+    failedArtifactId = archived.headers()["x-ivat-artifact-id"];
+    firstLockId = archived.headers()["x-ivat-period-lock-id"];
+    expect(firstLockId).toMatch(/^[0-9a-f-]{36}$/);
+    await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "export_failed" }) });
+  }, { times: 1 });
+  await final.getByRole("button", { name: "Export VAT Return XML", exact: true }).click();
+  await expect(final.getByText("Download failed. Try again.", { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(final.getByText("Partially completed — 0/2", { exact: true })).toBeVisible();
+  await page.goto(historyUrl);
+  const preserved = page.locator(`a[href$="/artifacts/${failedArtifactId}"]`);
+  const retry = page.waitForEvent("download");
+  await preserved.click();
+  expect((await retry).suggestedFilename()).toBe("DPHDP3_2026-01.xml");
+  await expect(preserved).not.toHaveAttribute("aria-disabled", "true");
+  await page.goto(wizardUrl);
+  await expect(final.getByText("Partially completed — 1/2", { exact: true })).toBeVisible();
+  const repeated = page.waitForEvent("download");
+  await final.getByRole("button", { name: "Export VAT Return XML", exact: true }).click();
+  await repeated;
+  await expect(final.getByText("Partially completed — 1/2", { exact: true })).toBeVisible();
+  const second = page.waitForEvent("download");
+  await final.getByRole("button", { name: "Export Control Statement XML", exact: true }).click();
+  expect((await second).suggestedFilename()).toBe("DPHKH1_2026-01.xml");
+  await expect(final.getByText("Done", { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(final.getByText("Done", { exact: true })).toBeVisible();
+  await final.getByLabel("Unlock reason", { exact: true }).fill("Check unchanged report again");
+  await final.getByRole("checkbox", { name: "I understand that changes may require a new VAT Report and export." }).check();
+  await final.getByRole("button", { name: "Unlock period", exact: true }).click();
+  await expect(final.getByText("Not started", { exact: true })).toBeVisible();
+  await expect(final.getByRole("button", { name: "Export VAT Return XML", exact: true })).toHaveCount(0);
+  await finalize();
+  await page.goto(historyUrl);
+  const old = page.locator(`a[href$="/artifacts/${failedArtifactId}"]`);
+  const oldDownload = page.waitForEvent("download");
+  await old.click();
+  await oldDownload;
+  await expect(old).not.toHaveAttribute("aria-disabled", "true");
+  await page.goto(wizardUrl);
+  await expect(final.getByText("Partially completed — 0/2", { exact: true })).toBeVisible();
+  let nextLockId = "";
+  for (const format of ["VAT Return", "Control Statement"]) {
+    const response = page.waitForResponse(r => r.url().endsWith("/2026-01/xml") && r.request().method() === "POST");
+    const download = page.waitForEvent("download");
+    await final.getByRole("button", { name: `Export ${format} XML`, exact: true }).click();
+    await download;
+    nextLockId = (await response).headers()["x-ivat-period-lock-id"];
+    expect(nextLockId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(nextLockId).not.toBe(firstLockId);
+    await expect(final.getByText(format === "VAT Return" ? "Partially completed — 1/2" : "Done", { exact: true })).toBeVisible();
+  }
+});
+
 test("draft progress survives skips, shared users, regeneration and a lost XML response after archiving", async ({ context, page, browser, baseURL }) => {
   test.setTimeout(120_000);
   if (!baseURL) throw new Error("Playwright baseURL is required");
@@ -348,6 +472,6 @@ test("an administrator walks the VAT processing wizard from review to Finalizati
   }).check();
   await finalize.getByRole("button", { name: "Finalize and lock period" }).click();
   await expect(finalize.getByRole("button", { name: "Unlock period" })).toBeVisible();
-  await expect(finalize.getByText("Done", { exact: true })).toBeVisible();
+  await expect(finalize.getByText("Partially completed — 0/2", { exact: true })).toBeVisible();
   await expect(generate.getByRole("button", { name: "Generate / regenerate draft" })).toBeDisabled();
 });
