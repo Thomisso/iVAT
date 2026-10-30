@@ -382,9 +382,13 @@ async function extractDocument(
   if (error) throw error;
   if (
     document.superseded_at !== null
+    || document.source_file_id === null || document.first_page === null || document.last_page === null || document.source_file === null
     || !(["uploaded", "processing", "waiting_for_allowance", "waiting_for_platform"] as DocumentStatus[])
       .includes(document.status)
   ) return;
+  const sourceFileId = document.source_file_id;
+  const firstPage = document.first_page;
+  const lastPage = document.last_page;
 
   // Moves the status of this Extraction request only from the given ones (see splitSourceFile).
   const moveStatus = async (to: DocumentStatus, from: DocumentStatus[]) => {
@@ -430,12 +434,12 @@ async function extractDocument(
       if (!ai) return;
       const processingFile = await downloadForProcessing(system, {
         companyId: document.company_id,
-        id: document.source_file_id,
+        id: sourceFileId,
         format: document.source_file!.format,
         normalizedFormat: document.source_file!.normalized_format,
       });
       const range = document.first_row === null
-        ? { firstPage: document.first_page, lastPage: document.last_page }
+        ? { firstPage, lastPage }
         : { sheetName: document.source_sheet!, firstRow: document.first_row, lastRow: document.last_row! };
       const input = await documentInput(processingFile.format, processingFile.bytes, range);
       const { model, payload: extractedPayload, usage } = await ai.extract(input, {
