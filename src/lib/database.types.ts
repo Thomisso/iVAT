@@ -763,6 +763,9 @@ isOneToOne: false
 "create_invitation":
 { Args: { "target_company_id": string,"target_email": string,"target_organization_id": string,"target_role": Database["public"]['Enums']["membership_role"] }; Returns: string
                            },
+"current_company_role":
+{ Args: { "target_company_id": string }; Returns: Database["public"]['Enums']["membership_role"]
+                           },
 "current_mfa_policy":
 { Args: Record<PropertyKey, never>; Returns: {
               "enrolled": boolean,"required": boolean,"satisfied": boolean
@@ -828,6 +831,9 @@ isOneToOne: false
 { Args: Record<PropertyKey, never>; Returns: {
               "error": string,"failed_at": string,"id": string,"name": string,"target_id": string
             }[]
+                           },
+"list_organization_administrations":
+{ Args: Record<PropertyKey, never>; Returns: Json
                            },
 "list_platform_ai_processing_allowances":
 { Args: Record<PropertyKey, never>; Returns: {

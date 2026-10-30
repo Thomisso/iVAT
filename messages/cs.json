@@ -99,6 +99,8 @@
     "logInLink": "Přihlaste se"
   },
   "company": {
+    "organization": "Organizace",
+    "chooseOrganization": "Vyberte organizaci pro tuto firmu",
     "createTitle": "Přidat firmu",
     "createIntro": "Zadejte údaje plátce DPH, za kterého budete DPH vykazovat.",
     "name": "Název firmy",
