@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { assignBrowserAiConfigurationFixture } from "../tests/support/e2e";
+import { readFile } from "node:fs/promises";
 
 function wizardStep(page: Page, title: string): Locator {
   return page
@@ -7,6 +8,150 @@ function wizardStep(page: Page, title: string): Locator {
     .getByRole("listitem")
     .filter({ has: page.getByRole("heading", { level: 2, name: title, exact: true }) });
 }
+
+async function emptyCompanyForExport(page: Page, street = "Dlouhá") {
+  const run = crypto.randomUUID();
+  await page.goto("/signup");
+  await page.getByLabel("Organization name").fill(`Inline export ${run}`);
+  await page.getByLabel("Email").fill(`inline-${run}@example.test`);
+  await page.getByLabel("Password").fill("Playwright-password-1");
+  await page.getByRole("button", { name: "Sign up" }).click();
+  await page.getByLabel("Company name").fill("Inline export Company");
+  await page.getByLabel("IČO").fill("12345678");
+  await page.getByLabel("VAT ID").fill("CZ12345678");
+  await page.getByLabel("Street name").fill(street);
+  await page.getByLabel("House number").fill("12");
+  await page.getByLabel("City").fill("Praha");
+  await page.getByLabel("Postal code").fill("11000");
+  await page.getByRole("button", { name: "Create company" }).click();
+  await page.getByRole("button", { name: "Save and continue" }).click();
+  await expect(page).toHaveURL(/\/setup\/ai-processing$/);
+  return page.url().replace(/\/setup\/ai-processing$/, "");
+}
+
+test("missing draft details are completed inline and failed downloads preserve entered values", async ({ context, page, baseURL }) => {
+  if (!baseURL) throw new Error("Playwright baseURL is required");
+  await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseURL }]);
+  const companyUrl = await emptyCompanyForExport(page);
+  const wizardUrl = `${companyUrl}/vat-reports?period=2026-01`;
+  await page.goto(wizardUrl);
+  await page.getByRole("button", { name: "Generate draft", exact: true }).click();
+  const exports = wizardStep(page, "Export DRAFT XML");
+  for (const [format, action] of [["VAT Return (DPHDP3)", "Export VAT Return XML"], ["Control Statement (DPHKH1)", "Export Control Statement XML"]]) {
+    const panel = exports.getByRole("article").filter({ has: page.getByRole("heading", { name: format, exact: true }) });
+    await panel.getByRole("button", { name: action, exact: true }).click();
+    await expect(page).toHaveURL(wizardUrl);
+    await panel.getByRole("combobox", { name: "Tax office", exact: true }).selectOption("451");
+    if (format.startsWith("VAT Return")) await panel.getByLabel("Economic activity (CZ-NACE)").fill("621000");
+    await panel.getByLabel("First name").fill("Jana");
+    await panel.getByLabel("Last name").fill("Nováková");
+    await panel.getByLabel("Capacity (e.g. director)").fill("director");
+    await page.route("**/vat-reports/2026-01/xml", async (route) => {
+      await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "export_failed" }) });
+    }, { times: 1 });
+    await panel.getByRole("button", { name: "Download XML" }).click();
+    await expect(panel.getByText("Download failed. Try again.", { exact: true })).toBeVisible();
+    await expect(panel.getByLabel("First name")).toHaveValue("Jana");
+    const download = page.waitForEvent("download");
+    await panel.getByRole("button", { name: "Download XML" }).click();
+    expect((await download).suggestedFilename()).toMatch(/^DRAFT_DPH/);
+  }
+  await page.goto(`${companyUrl}/settings/vat`);
+  await expect(page.getByLabel("Economic activity (CZ-NACE)")).toHaveValue("");
+  await expect(page.getByRole("combobox", { name: "Tax office", exact: true })).toHaveValue("");
+});
+
+test("an Administrator confirms a missing EPO address inside the selected wizard export", async ({ context, page, baseURL }) => {
+  if (!baseURL) throw new Error("Playwright baseURL is required");
+  await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseURL }]);
+  const companyUrl = await emptyCompanyForExport(page, "x".repeat(39));
+  const wizardUrl = `${companyUrl}/vat-reports?period=2026-01`;
+  await page.goto(wizardUrl);
+  await page.getByRole("button", { name: "Generate draft", exact: true }).click();
+  const panel = wizardStep(page, "Export DRAFT XML").getByRole("article").filter({ has: page.getByRole("heading", { name: "VAT Return (DPHDP3)", exact: true }) });
+  await panel.getByRole("button", { name: "Export VAT Return XML", exact: true }).click();
+  await panel.getByRole("combobox", { name: "Tax office", exact: true }).selectOption("451");
+  await panel.getByLabel("Economic activity (CZ-NACE)").fill("621000");
+  await panel.getByLabel("First name").fill("Jana");
+  await panel.getByLabel("Last name").fill("Nováková");
+  await panel.getByLabel("Capacity (e.g. director)").fill("director");
+  await panel.getByRole("checkbox", { name: "Use a separate EPO address" }).check();
+  await panel.getByLabel("Street name").fill("Dlouhá ulice");
+  await panel.getByLabel("House number").fill("12");
+  await panel.getByLabel("City", { exact: true }).fill("Praha");
+  await panel.getByLabel("Postal code").fill("110 00");
+  await panel.getByRole("checkbox", { name: "I confirm this separate address is the intended EPO filing address." }).check();
+  await panel.getByRole("button", { name: "Save filing defaults" }).click();
+  await expect(panel.getByRole("button", { name: "Download XML" })).toBeEnabled();
+  const download = page.waitForEvent("download");
+  await panel.getByRole("button", { name: "Download XML" }).click();
+  const path = await (await download).path();
+  if (!path) throw new Error("Confirmed-address export did not download");
+  expect(await readFile(path, "utf8")).toContain('ulice="Dlouhá ulice"');
+  await expect(page).toHaveURL(wizardUrl);
+});
+
+test("wizard exports both draft outputs directly with saved defaults and permits an explicit one-export edit", async ({ context, page, baseURL }) => {
+  if (!baseURL) throw new Error("Playwright baseURL is required");
+  await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseURL }]);
+  const run = crypto.randomUUID();
+  await page.goto("/signup");
+  await page.getByLabel("Organization name").fill(`Direct export ${run}`);
+  await page.getByLabel("Email").fill(`direct-${run}@example.test`);
+  await page.getByLabel("Password").fill("Playwright-password-1");
+  await page.getByRole("button", { name: "Sign up" }).click();
+  await page.getByLabel("Company name").fill("Direct export Company");
+  await page.getByLabel("IČO").fill("12345678");
+  await page.getByLabel("VAT ID").fill("CZ12345678");
+  await page.getByLabel("Street name").fill("Dlouhá");
+  await page.getByLabel("House number").fill("12");
+  await page.getByLabel("City").fill("Praha");
+  await page.getByLabel("Postal code").fill("11000");
+  await page.getByRole("button", { name: "Create company" }).click();
+  await page.getByRole("button", { name: "Save and continue" }).click();
+  await expect(page).toHaveURL(/\/setup\/ai-processing$/);
+  const companyUrl = page.url().replace(/\/setup\/ai-processing$/, "");
+  await page.goto(`${companyUrl}/settings/vat`);
+  await page.getByRole("combobox", { name: "Tax office", exact: true }).selectOption("451");
+  await page.getByLabel("Economic activity (CZ-NACE)").fill("621000");
+  await page.getByLabel("First name").fill("Jana");
+  await page.getByLabel("Last name").fill("Nováková");
+  await page.getByLabel("Capacity (e.g. director)").fill("director");
+  await page.getByRole("button", { name: "Save filing defaults" }).click();
+  await expect(page.getByRole("status").getByText("Filing defaults saved.")).toBeVisible();
+  const wizardUrl = `${companyUrl}/vat-reports?period=2026-01`;
+  await page.goto(wizardUrl);
+  await page.getByRole("button", { name: "Generate draft", exact: true }).click();
+  const exports = wizardStep(page, "Export DRAFT XML");
+  await expect(exports.getByRole("button", { name: "Export VAT Return XML", exact: true })).toBeVisible();
+  await expect(exports.getByLabel("Preparation date")).toHaveCount(0);
+  for (const [label, fileName] of [["Export VAT Return XML", "DRAFT_DPHDP3_2026-01.xml"], ["Export Control Statement XML", "DRAFT_DPHKH1_2026-01.xml"]]) {
+    const download = page.waitForEvent("download");
+    await exports.getByRole("button", { name: label, exact: true }).click();
+    expect((await download).suggestedFilename()).toBe(fileName);
+    await expect(page).toHaveURL(wizardUrl);
+  }
+  const vatReturn = exports.getByRole("article").filter({ has: page.getByRole("heading", { name: "VAT Return (DPHDP3)", exact: true }) });
+  await vatReturn.getByRole("button", { name: "Edit for this export" }).click();
+  await expect(vatReturn.getByLabel("Economic activity (CZ-NACE)")).toHaveValue("621000");
+  await vatReturn.getByLabel("Economic activity (CZ-NACE)").fill("622000");
+  const override = page.waitForEvent("download");
+  await vatReturn.getByRole("button", { name: "Download XML" }).click();
+  const path = await (await override).path();
+  if (!path) throw new Error("Draft override did not download");
+  expect(await readFile(path, "utf8")).toContain('c_okec="622000"');
+  await page.goto(`${companyUrl}/settings/vat`);
+  await expect(page.getByLabel("Economic activity (CZ-NACE)")).toHaveValue("621000");
+  await page.goto(wizardUrl);
+  const finalization = wizardStep(page, "Finalize");
+  await finalization.getByRole("checkbox", { name: "I understand that Finalization creates a Period Lock for this snapshot." }).check();
+  await finalization.getByRole("button", { name: "Finalize and lock period" }).click();
+  await expect(finalization.getByRole("button", { name: "Unlock period" })).toBeVisible();
+  const staleDraft = await page.request.post(`${companyUrl}/vat-reports/2026-01/xml`, { form: { format: "dphdp3", kind: "draft" } });
+  expect(staleDraft.status()).toBe(422);
+  expect((await staleDraft.json()).error).toBe("report_finalized");
+  await expect(exports.getByRole("button", { name: "Export VAT Return XML", exact: true })).toBeDisabled();
+});
 
 test("an administrator walks the VAT processing wizard from review to Finalization", async ({
   context,
@@ -50,7 +195,7 @@ test("an administrator walks the VAT processing wizard from review to Finalizati
       "Documents to review",
       "Generate VAT Report",
       "Review VAT Return and Control Statement",
-      "Export XML",
+      "Export DRAFT XML",
       "Finalize",
     ]);
   const review = wizardStep(page, "Documents to review");
@@ -84,7 +229,7 @@ test("an administrator walks the VAT processing wizard from review to Finalizati
   await outputs.getByRole("link", { name: "Open VAT Return" }).click();
   await expect(page.getByRole("heading", { name: "VAT Return · 2026-10" })).toBeVisible();
   await page.goto(wizardUrl);
-  await wizardStep(page, "Export XML").getByRole("link", { name: "Open Export history" }).click();
+  await wizardStep(page, "Export DRAFT XML").getByRole("link", { name: "Open Export history" }).click();
   await expect(page).toHaveURL(/\/vat-reports\/2026-10\/exports$/);
 
   await page.goto(wizardUrl);
