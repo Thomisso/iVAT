@@ -1,0 +1,11 @@
+version: 1
+name: Rošti deployment Compose storage
+slug: rosti-deployment
+protocol: http
+port: 4955
+interceptRequests: true
+origin: admin.rosti.cz
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true

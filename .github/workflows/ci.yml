@@ -18,8 +18,11 @@ jobs:
           cache: npm
       - run: npm ci
 
-      - name: Release preparation policy and bundle integrity
-        run: node --test deploy/tests/release-prepare.test.mjs
+      - name: Install Postman CLI for release dependency simulations
+        run: npm install --global postman-cli@1.73.0
+
+      - name: Release policy, bundle integrity and host preflight
+        run: node --test deploy/tests/release-prepare.test.mjs deploy/tests/release-host.test.mjs
 
       - name: package-lock.json matches package.json
         run: |
