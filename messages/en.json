@@ -693,7 +693,9 @@
     "maxFileBytes": "Maximum Source File size (bytes)",
     "maxFilePages": "Maximum pages per Source File",
     "maxBatchFiles": "Maximum Source Files per batch",
-    "saveLimits": "Save upload limits"
+    "saveLimits": "Save upload limits",
+    "retainedHistory": "Retained history",
+    "companyIdentity": "{name} · IČO {ico}"
   },
   "mfa": {
     "securityTitle": "Security",
@@ -987,8 +989,8 @@
           "hint": "Check both statutory outputs of the saved snapshot."
         },
         "export": {
-          "title": "Export XML",
-          "hint": "Download the EPO XML from the VAT Return and the Control Statement. Every download is stored in Export history."
+          "title": "Export DRAFT XML",
+          "hint": "Create working XML for review. Draft exports are optional; they do not block Finalization."
         },
         "finalize": {
           "title": "Finalize",
@@ -1225,6 +1227,7 @@
     },
     "epoAddressMissing": "Confirmed EPO address required",
     "epoAddressRequired": "The registered address exceeds an EPO schema limit. Complete and confirm a separate EPO address before downloading XML.",
+    "administratorAddressRequired": "An Administrator must complete and confirm the Company EPO address before export.",
     "completeEpoAddress": "Complete EPO address in Company settings",
     "editForExport": "Edit for this export",
     "useSaved": "Use saved defaults",
@@ -1251,5 +1254,40 @@
       "464": "FÚ pro Zlínský kraj",
       "13": "Specializovaný finanční úřad"
     }
+  },
+  "platformHistory": {
+    "title": "Company history: {company}",
+    "deletedNotice": "Deleted on {date}. Retained history is read-only; this Company remains deleted.",
+    "blockedNotice": "This Organization is blocked. Ordinary processing remains paused until a SuperAdmin explicitly unblocks it.",
+    "readOnlyNotice": "This view provides read-only access to retained Company data.",
+    "organizationAdministration": "Organization administration",
+    "companyAdministration": "Company access administration",
+    "organizationAudit": "Company audit history",
+    "downloadArchive": "Download retained Company data",
+    "companyIdentity": "Company identity",
+    "sourceFiles": "Source Files",
+    "file": "File",
+    "uploadedAt": "Uploaded",
+    "byteSize": "Bytes",
+    "documents": "Documents",
+    "document": "Document",
+    "pages": "Pages {first}–{last}",
+    "version": "Extraction Version {version} · {date}",
+    "documentNumber": "Document number",
+    "supplier": "Supplier",
+    "customer": "Customer",
+    "taxPointDate": "Tax Point Date",
+    "total": "Total",
+    "noDocuments": "No retained Documents.",
+    "vatReports": "VAT Reports",
+    "period": "Reporting Period",
+    "generatedAt": "Generated",
+    "xmlArtifacts": "Archived XML",
+    "audit": "Company audit history",
+    "occurredAt": "When",
+    "action": "Action",
+    "actor": "Actor",
+    "identityLine": "{name} · IČO {ico} · {vatId}",
+    "notAvailable": "Not available"
   }
 }
