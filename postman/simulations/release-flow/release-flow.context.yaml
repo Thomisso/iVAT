@@ -2,6 +2,13 @@ purpose:
   stands_in_for: GitHub exact-main-push workflow evidence and Roští Compose storage/readback HTTP dependencies of the real release flow.
   unblocks: Verify Release authorization, real SSH transport and disposable Compose upgrades without live services or production credentials.
 assumptions:
+  - id: runtime-identity-matches-prepared-bundle
+    status: unknown
+    claim: The revised disposable host/SSH fixture installs a versioned image built from the complete tagged source represented by its validated bundle, and its compiled login and runtime generator report that same identity.
+    reason: The fixture now commits its probe migration before building and passes that tag and revision into the image build. The new runtime assertions have not yet been exercised through the full host/SSH flow.
+    verification: In the release-162-runtime-fixture-development fingerprint the fast source-preparation regression passed with the full runtime case explicitly skipped. Run the opt-in host/SSH fixture under final integration ticket 179 after ticket stacks stop; no new full-runtime pass is claimed here.
+    source: deploy/tests/release-runtime.test.mjs; docs/deployment.md
+    updated_at: "2026-10-30"
   - id: github-workflow-evidence-contract
     status: supported
     claim: GitHub lists workflow runs for a workflow filename with head_sha, branch and event filters and returns workflow_runs carrying identity, status and conclusion.
@@ -38,6 +45,10 @@ assumptions:
     source: deploy/tests/release-runtime.test.mjs; deploy/scripts/connect-release.mjs; deploy/scripts/launch-release.sh; postman/simulations/release-flow/release-flow.sim.yaml
     updated_at: "2026-10-30"
 fingerprints:
+  - id: release-162-runtime-fixture-development
+    date: "2026-10-30"
+    commit: 707fa4ca7fc3da2b64ba6e1b99d1b2318fba1f98 with dirty ticket 162 runtime fixture correction
+    cli: Postman CLI 1.73.0
   - id: release-162-development
     date: "2026-10-30"
     commit: c6b1345855b792cf1213a331efc377b34eed02c0 with dirty ticket 162 build-identity implementation

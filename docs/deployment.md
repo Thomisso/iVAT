@@ -541,9 +541,19 @@ HTTP calls use local Postman stand-ins derived from their published contracts.
 The full host/SSH fixture was verified on Docker Desktop for macOS with Linux
 containers. Its root operator creates private host records, so a native Linux
 nonroot parent needs appropriately privileged test execution for record reads
-and cleanup. This optional full runtime fixture is separate from the 15 focused
+and cleanup. This optional full runtime fixture is separate from the focused
 CI tests, which were verified on Linux as a nonroot user.
 This proves caller behavior in the tested scenarios, not the real provider.
+The #162 fixture now prepares a complete committed source tree, including its
+probe migration and annotated tag, before building the versioned target image.
+It compares the installed source generator and compiled login identity with the
+validated bundle. Its synthetic baseline omits only the probe migration; failure
+injection still uses disposable-only overrides. The new fast source-preparation
+check passed during #162, but the revised full host/SSH runtime fixture was not
+executed while ticket stacks were active. Run
+`IVAT_RELEASE_RUNTIME_TEST=1 node --test deploy/tests/release-runtime.test.mjs`
+under final integration ticket #179 after stopping the ticket stacks, and record
+that result separately from the earlier runtime evidence above.
 Existing CI and Deployment verification remain required for the exact `main`
 revision. The integration PR records the exact local checks and final combined
 test results; no production credentials, live SSH, registry pulls, activation
