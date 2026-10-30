@@ -375,7 +375,18 @@
       }
     },
     "openBatch": "Otevřít dávku",
-    "markRead": "Označit jako přečtené"
+    "markRead": "Označit jako přečtené",
+    "deleteTitle": "Smazat dávku",
+    "deleteHint": "Smaže všechny zdrojové soubory této dávky včetně uložených originálů a všechny jejich doklady, i schválené. Akci nelze vrátit.",
+    "deleteSourceFiles": "Zdrojové soubory",
+    "deleteDocuments": "Doklady",
+    "deleteApprovedDocuments": "Schválené doklady",
+    "deleteConfirmation": "Rozumím, že dávka a všechna její data budou trvale smazána.",
+    "deleteAction": "Smazat dávku",
+    "deleteRefused": {
+      "batch_processing": "Dávku lze smazat až po dokončení zpracování.",
+      "period_locked": "Doklad z této dávky leží v uzavřeném období. Dávku lze smazat až poté, co Administrator období odemkne."
+    }
   },
   "dateInput": {
     "hint": "Formát dd.mm.rrrr",
@@ -478,7 +489,8 @@
     "invalid_credential": "Zadejte platné přihlašovací údaje poskytovatele.",
     "credential_required": "Při změně poskytovatele zadejte nové přihlašovací údaje.",
     "invalid_allowance": "Limit zpracování musí být nezáporné celé číslo nebo neomezený.",
-    "direction_required": "Před schválením nastavte směr dokladu."
+    "direction_required": "Před schválením nastavte směr dokladu.",
+    "batch_processing": "Dávka se ještě zpracovává. Počkejte, až zpracování skončí."
   },
   "aiUsage": {
     "platformNav": "Využití AI na platformě",

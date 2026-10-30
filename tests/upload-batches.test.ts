@@ -9,6 +9,7 @@ import {
   listUploadBatches,
   listUploadNotifications,
   markCompanyUploadNotificationsRead,
+  markUploadBatchNotificationRead,
   markUploadNotificationRead,
   uploadNotificationOutcome,
 } from "@/application/upload-batches";
@@ -413,5 +414,64 @@ describe("upload batches", () => {
     expect(await listUploadNotifications(client, companyId)).toEqual([
       expect.objectContaining({ outcome: "success", reviewCount: 1, failureCount: 0 }),
     ]);
+  });
+
+  it("marks only the opener's notification read when a finished batch is opened, and reopens it after a retry", async () => {
+    const admin = await administratorWithCompany();
+    const member = await companyMember(admin);
+    let extraction = 0;
+    const worker = testWorker(fakeAiProvider({
+      extract() {
+        extraction += 1;
+        if (extraction === 2) throw new Error("one extraction failed");
+        return { ...SAMPLE_EXTRACTION, documentNumber: `DOC-${extraction}` };
+      },
+    }));
+    await enableAiProcessing(admin.client, worker.jobs, { companyId: admin.companyId, provider: worker.ai });
+    const batch = await beginUploadBatch(admin.client, { companyId: admin.companyId, fileCount: 1 });
+    if (!batch.ok) throw new Error(batch.error);
+    const uploaded = await uploadSourceFile(admin.client, worker.jobs, {
+      companyId: admin.companyId,
+      batchId: batch.value.id,
+      fileName: "invoices.pdf",
+      bytes: fixtureFile("two-invoices.pdf"),
+    });
+    if (!uploaded.ok) throw new Error(uploaded.error);
+    await finishUploadBatch(admin.client, batch.value.id);
+
+    // Opened while still processing: nothing to read yet, completion stays announced.
+    expect(await markUploadBatchNotificationRead(admin.client, batch.value.id)).toEqual({ ok: true, value: { changed: false } });
+    expect(await worker.runJobs()).toEqual([expect.any(Error)]);
+    expect(await countUnreadUploadNotifications(admin.client, admin.companyId)).toBe(1);
+
+    expect(await markUploadBatchNotificationRead(member.client, batch.value.id)).toEqual({ ok: true, value: { changed: false } });
+    expect(await countUnreadUploadNotifications(admin.client, admin.companyId)).toBe(1);
+
+    expect(await markUploadBatchNotificationRead(admin.client, batch.value.id)).toEqual({ ok: true, value: { changed: true } });
+    expect(await markUploadBatchNotificationRead(admin.client, batch.value.id)).toEqual({ ok: true, value: { changed: false } });
+    expect(await listUploadNotifications(admin.client, admin.companyId)).toEqual([
+      expect.objectContaining({ batchId: batch.value.id, readAt: expect.any(String) }),
+    ]);
+    expect(await countUnreadUploadNotifications(admin.client, admin.companyId)).toBe(0);
+
+    const failed = (await getUploadBatch(admin.client, admin.companyId, batch.value.id))?.sourceFiles
+      .flatMap((source) => source.documents)
+      .find((document) => document.status === "failed");
+    if (!failed) throw new Error("expected a failed Document");
+    expect(await reprocessDocument(admin.client, worker.jobs, { companyId: admin.companyId, documentId: failed.id }))
+      .toEqual({ ok: true, value: null });
+    expect(await worker.runJobs()).toEqual([]);
+    expect(await listUploadNotifications(admin.client, admin.companyId)).toEqual([
+      expect.objectContaining({ batchId: batch.value.id, outcome: "success", readAt: null }),
+    ]);
+  });
+
+  it("refuses to mark notifications read for a batch outside the User's Companies", async () => {
+    const a = await administratorWithCompany("Organization A");
+    const b = await administratorWithCompany("Organization B");
+    const batch = await beginUploadBatch(a.client, { companyId: a.companyId, fileCount: 1 });
+    if (!batch.ok) throw new Error(batch.error);
+
+    expect(await markUploadBatchNotificationRead(b.client, batch.value.id)).toEqual({ ok: false, error: "forbidden" });
   });
 });
