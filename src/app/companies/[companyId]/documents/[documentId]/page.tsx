@@ -1,14 +1,15 @@
 import { listDeferredClaimPeriods } from "@/application/documents";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import {
   approveDocumentAction,
   rejectDocumentAction,
   reprocessDocumentAction,
   returnDocumentToReviewAction,
 } from "@/app/actions";
-import { getCompany } from "@/application/companies";
+import { getCompany, getMyCompanyRole } from "@/application/companies";
+import { missingReportingPeriodFinding } from "@/application/reporting-years";
 import { currentUserId } from "@/application/auth";
 import { documentQueueQuery, getDocumentQueuePosition } from "@/application/document-queue";
 import {
@@ -29,7 +30,7 @@ import { Notice } from "@/components/notice";
 import { StatusBadge } from "@/components/status-badge";
 import { statusBadgeState } from "@/components/status-badge-state";
 import { PageLayout } from "@/components/app-shell";
-import { formatDate, formatDateTime } from "@/lib/format-date";
+import { formatDate, formatDateTime, formatMonthName } from "@/lib/format-date";
 import { CorrectionForm } from "./correction-form";
 import { findingMessage } from "./finding-message";
 import { ReportingAssignmentForm } from "./reporting-assignment-form";
@@ -44,12 +45,14 @@ export default async function DocumentReviewPage({
   const search = await searchParams;
   const requestedVersion = typeof search.version === "string" ? search.version : undefined;
   const client = await requireUserClient();
-  const [company, document, versions, userId, duplicateWarnings] = await Promise.all([
+  const [company, document, versions, userId, duplicateWarnings, missingPeriod, role] = await Promise.all([
     getCompany(client, companyId),
     getDocument(client, companyId, documentId),
     listExtractionVersions(client, companyId, documentId),
     currentUserId(client),
     listDuplicateWarnings(client, companyId, documentId),
+    missingReportingPeriodFinding(client, companyId, documentId),
+    getMyCompanyRole(client, companyId),
   ]);
   if (!company || !document) notFound();
   const file = await getSourceFile(client, companyId, document.sourceFileId);
@@ -66,7 +69,7 @@ export default async function DocumentReviewPage({
   const locks = await documentPeriodLocks(client, companyId, [document.id]);
   const lockedPeriod = locks[document.id];
   const deferredClaimPeriods = await listDeferredClaimPeriods(client, companyId, documentId);
-  const t = await getTranslations();
+  const [t, locale] = await Promise.all([getTranslations(), getLocale()]);
   const sourceRows = document.rowSet
     ? await readDocumentRows(client, companyId, document.id)
     : null;
@@ -142,6 +145,21 @@ export default async function DocumentReviewPage({
             fields={{ companyId, documentId: document.id }}
           >{t("review.retryExtraction")}</CommandButton>}
           {!current && <Notice>{t("review.notReviewableNote")}</Notice>}
+          {missingPeriod && (
+            <Notice tone="danger">
+              {t(`review.findings.${missingPeriod.code}`, {
+                ...missingPeriod.params,
+                month: missingPeriod.params?.month
+                  ? formatMonthName(locale, Number(missingPeriod.params.month))
+                  : "",
+              })}{" "}
+              {role === "administrator" && missingPeriod.code === "reporting_year_missing" && (
+                <Link href={`/companies/${companyId}/settings/vat?generateYear=${missingPeriod.params?.year}#reporting-years`}>
+                  {t("review.generateReportingYear", { year: missingPeriod.params?.year ?? "" })}
+                </Link>
+              )}
+            </Notice>
+          )}
           {duplicateWarnings.map((warning) => (
             <Notice key={`${warning.kind}-${warning.matchedDocumentId}`} tone="warning">
               {t(`duplicateWarning.${warning.kind}`)}{" "}
