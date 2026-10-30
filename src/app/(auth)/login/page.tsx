@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { FormError } from "@/components/form-error";
 import { GoogleSignInButton } from "../google-sign-in-button";
@@ -15,9 +14,6 @@ export default async function LogInPage({ searchParams }: PageProps<"/login">) {
       <LogInForm />
       <p><Link href="/password/forgot">{(await getTranslations("passwordRecovery"))("forgotPassword")}</Link></p>
       <GoogleSignInButton />
-      <p>
-        {t("noAccount")} <Link href="/signup">{t("signUpLink")}</Link>
-      </p>
       <ReleaseVersion />
     </main>
   );

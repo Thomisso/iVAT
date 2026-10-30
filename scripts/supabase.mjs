@@ -19,15 +19,7 @@ const git = (...args) => execFileSync("git", args, { encoding: "utf8" }).trim();
 const root = git("rev-parse", "--show-toplevel");
 const dotenv = path.join(root, ".env");
 if (fs.existsSync(dotenv)) process.loadEnvFile(dotenv);
-const supabaseEnv = {
-  ...process.env,
-  // Keep the local stack usable before a developer opts into Google. Real
-  // credentials in the gitignored .env replace these non-secret placeholders.
-  SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID:
-    process.env.SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID || "local-google-client-id-not-configured",
-  SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET:
-    process.env.SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET || "local-google-client-secret-not-configured",
-};
+const supabaseEnv = { ...process.env };
 const isLinkedWorktree =
   fs.realpathSync(path.resolve(root, git("rev-parse", "--git-dir"))) !==
   fs.realpathSync(path.resolve(root, git("rev-parse", "--git-common-dir")));
