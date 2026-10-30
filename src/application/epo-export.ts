@@ -29,6 +29,7 @@ export type ExportVatReportError =
 export type EpoDownload = {
   artifactId: string;
   reportGeneratedAt: string;
+  periodLockId: string | null;
   xml: string;
   bytes: Uint8Array;
   fileName: string;
@@ -40,6 +41,7 @@ export type VatReportArtifact = {
   companyId: string;
   vatReportId: string;
   reportGeneratedAt: string;
+  periodLockId: string | null;
   period: string;
   format: "dphdp3" | "dphkh1";
   kind: "draft" | "final";
@@ -160,6 +162,9 @@ async function exportVatReportArtifact(
     value: {
       artifactId: stored.data,
       reportGeneratedAt: report.generatedAt,
+      periodLockId: kind === "final"
+        ? (await readVatReportArtifact(client, { companyId: report.companyId, artifactId: stored.data }))?.artifact.periodLockId ?? null
+        : null,
       xml: result.value,
       bytes,
       fileName,
@@ -227,7 +232,7 @@ export async function readVatReportArtifact(
   };
 }
 
-export type DraftExportProgress = {
+export type VatReportExportProgress = {
   downloadedFormats: EpoFormat[];
   skippedFormats: EpoFormat[];
 };
@@ -237,6 +242,7 @@ export type DownloadAcknowledgementInput = {
   format: string;
   artifactId: string;
   reportGeneratedAt: string;
+  periodLockId?: string | null;
 };
 export type DownloadAcknowledgementError = "forbidden" | "invalid_download_artifact" | "report_finalized";
 
@@ -255,12 +261,14 @@ export async function acknowledgeVatReportDownload(
   input: DownloadAcknowledgementInput,
 ): Promise<Result<null, DownloadAcknowledgementError>> {
   if (!isUuid(input.companyId) || !isUuid(input.artifactId) || !isReportingPeriod(input.period)
-    || !isEpoFormat(input.format) || !isReportGeneration(input.reportGeneratedAt)) {
+    || !isEpoFormat(input.format) || !isReportGeneration(input.reportGeneratedAt)
+    || (input.periodLockId != null && !isUuid(input.periodLockId))) {
     return { ok: false, error: "invalid_download_artifact" };
   }
   const { error } = await client.rpc("acknowledge_vat_report_download", {
     target_company_id: input.companyId, target_period: input.period, target_format: input.format,
     target_artifact_id: input.artifactId, target_report_generated_at: input.reportGeneratedAt,
+    target_period_lock_id: input.periodLockId ?? undefined,
   });
   if (error?.code === "42501") return { ok: false, error: "forbidden" };
   if (error?.code === "P0001" && (error.hint === "invalid_download_artifact" || error.hint === "report_finalized")) {
@@ -288,16 +296,24 @@ export async function skipVatReportDrafts(
   return { ok: true, value: null };
 }
 
-/** One database aggregate counts distinct outputs without a PostgREST row-limit truncation. */
-export async function getVatReportDraftProgress(
+/** One database aggregate counts distinct applicable outputs beyond the PostgREST row limit. */
+export async function getVatReportExportProgress(
   client: AppClient,
-  input: { companyId: string; period: string; reportGeneratedAt: string | null },
-): Promise<DraftExportProgress> {
+  input: { companyId: string; period: string; reportGeneratedAt: string | null; kind: "draft" | "final"; periodLockId?: string | null },
+): Promise<VatReportExportProgress> {
   const empty = { downloadedFormats: [], skippedFormats: [] };
   if (!input.reportGeneratedAt || !isUuid(input.companyId) || !isReportingPeriod(input.period)) return empty;
-  const { data, error } = await client.rpc("vat_report_draft_progress", {
+  const { data, error } = await client.rpc("vat_report_export_progress", {
     target_company_id: input.companyId, target_period: input.period, target_report_generated_at: input.reportGeneratedAt,
+    target_kind: input.kind, target_period_lock_id: input.periodLockId ?? undefined,
   });
   if (error) throw error;
-  return data ? data as unknown as DraftExportProgress : empty;
+  return data ? data as unknown as VatReportExportProgress : empty;
+}
+
+export function getVatReportDraftProgress(
+  client: AppClient,
+  input: { companyId: string; period: string; reportGeneratedAt: string | null },
+): Promise<VatReportExportProgress> {
+  return getVatReportExportProgress(client, { ...input, kind: "draft" });
 }
