@@ -1,0 +1,6 @@
+# Operator-only recovery into empty persistent directories.
+services:
+  backup:
+    volumes_from: !override
+      - db:rw
+      - storage:rw

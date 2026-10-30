@@ -1,0 +1,14 @@
+.git
+.env*
+node_modules
+.next
+.supabase-worktree
+.demo
+.rostistate*
+deploy/runtime
+deploy/backups
+test-results
+playwright-report
+coverage
+*.tsbuildinfo
+design-system

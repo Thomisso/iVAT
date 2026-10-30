@@ -1,0 +1,50 @@
+name: Deployment verification
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  self-hosted:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      COMPOSE_PROJECT_NAME: ivat-deploy-ci
+      HTTP_BIND: 127.0.0.1:3180
+      AI_PROVIDER: fake
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Generate disposable deployment credentials
+        run: node deploy/scripts/init.mjs
+      - name: Build the production images
+        run: docker compose --env-file .env.rosti -f docker-compose.rosti.yml build
+      - name: Boot the production runtime with local-only test access
+        run: docker compose --env-file .env.rosti -f docker-compose.rosti.yml -f deploy/tests/compose.yml up -d --wait --wait-timeout 240
+      - name: Re-running migrations preserves the deployment
+        run: docker compose --env-file .env.rosti -f docker-compose.rosti.yml run --rm --no-deps migrate
+      - name: Application behavior against self-hosted Supabase
+        run: |
+          docker compose --env-file .env.rosti -f docker-compose.rosti.yml stop worker
+          npx vitest run --config deploy/tests/vitest.config.ts tests/processing.test.ts tests/source-files.test.ts tests/ai-configurations.test.ts
+      - name: Production web through the reverse proxy
+        run: |
+          curl --fail --silent --show-error -H 'Host: app.ivat.cz' --output "$RUNNER_TEMP/ivat-login.html" http://127.0.0.1:3180/login
+          grep -Fq 'Přihlášení' "$RUNNER_TEMP/ivat-login.html"
+      - name: EPO schema and XML runtime assets in the production image
+        run: |
+          docker compose --env-file .env.rosti -f docker-compose.rosti.yml exec -T web node_modules/.bin/tsx -e 'import fs from "node:fs";import{validateEpoXml}from"./src/application/epo-xml";validateEpoXml(fs.readFileSync(0,"utf8"),"dphdp3").then(valid=>{if(!valid)process.exit(1)})' < tests/fixtures/epo/domestic-dphdp3.xml
+      - name: Runtime logs on failure
+        if: failure()
+        run: docker compose --env-file .env.rosti -f docker-compose.rosti.yml logs --tail 100
+      - name: Stop the disposable runtime
+        if: always()
+        run: docker compose --env-file .env.rosti -f docker-compose.rosti.yml -f deploy/tests/compose.yml down
