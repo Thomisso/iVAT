@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { randomUUID } from "node:crypto";
 import {
   beginUploadBatch,
   countUnreadUploadNotifications,
@@ -30,6 +31,48 @@ import { testWorker } from "./support/worker";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 
 describe("upload batches", () => {
+  it("restores the same started batch after response loss and refuses replacing its frozen file selection", async () => {
+    const { client, companyId } = await administratorWithCompany();
+    const worker = testWorker();
+    const batchId = randomUUID();
+    const sourceFileId = randomUUID();
+    const selectedFiles = [{ id: sourceFileId, sha256: "c414cd0e204de974f73753c7e28d7638e7b3691bb8b1a2bab6b25bb7fed7ce77" }];
+    const input = { companyId, fileCount: 1, batchId, selectedFiles };
+    expect(await Promise.all([beginUploadBatch(client, input), beginUploadBatch(client, input)]))
+      .toEqual([{ ok: true, value: { id: batchId } }, { ok: true, value: { id: batchId } }]);
+    expect(await beginUploadBatch(client, { ...input, selectedFiles: [{ ...selectedFiles[0], id: randomUUID() }] }))
+      .toEqual({ ok: false, error: "invalid_choice" });
+    expect(await uploadSourceFile(client, worker.jobs, {
+      companyId, batchId, sourceFileId: randomUUID(), fileName: "replacement.png", bytes: fixtureFile("receipt.png"),
+    })).toEqual({ ok: false, error: "invalid_choice" });
+    expect(await uploadSourceFile(client, worker.jobs, {
+      companyId, batchId, sourceFileId, fileName: "receipt.png", bytes: fixtureFile("receipt.png"),
+    })).toEqual({ ok: true, value: { id: sourceFileId } });
+    expect((await getUploadBatch(client, companyId, batchId))?.actualFileCount).toBe(1);
+  });
+  it("refuses concurrent renamed identical files in one batch and keeps retries idempotent", async () => {
+    const { client, companyId } = await administratorWithCompany();
+    const worker = testWorker();
+    const batch = await beginUploadBatch(client, { companyId, fileCount: 2 });
+    if (!batch.ok) throw new Error(batch.error);
+    const first = { companyId, batchId: batch.value.id, sourceFileId: randomUUID(), fileName: "receipt.png", bytes: fixtureFile("receipt.png") };
+    const results = await Promise.all([
+      uploadSourceFile(client, worker.jobs, first),
+      uploadSourceFile(client, worker.jobs, { ...first, sourceFileId: randomUUID(), fileName: "renamed.png" }),
+    ]);
+    expect(results.filter((result) => result.ok)).toHaveLength(1);
+    expect(results.filter((result) => !result.ok)).toEqual([{ ok: false, error: "identical_file" }]);
+    expect((await getUploadBatch(client, companyId, batch.value.id))?.actualFileCount).toBe(1);
+    const successfulInput = results[0].ok ? first : { ...first, sourceFileId: results[1].ok ? results[1].value.id : "", fileName: "renamed.png" };
+    expect(await uploadSourceFile(client, worker.jobs, successfulInput)).toEqual(results.find((result) => result.ok));
+    const different = new Uint8Array([...first.bytes, 1]);
+    const differentUpload = await uploadSourceFile(client, worker.jobs, { ...first, sourceFileId: randomUUID(), bytes: different });
+    expect(differentUpload.ok).toBe(true);
+    expect((await getUploadBatch(client, companyId, batch.value.id))?.actualFileCount).toBe(2);
+    const another = await beginUploadBatch(client, { companyId, fileCount: 1 });
+    if (!another.ok) throw new Error(another.error);
+    expect((await uploadSourceFile(client, worker.jobs, { ...first, batchId: another.value.id, sourceFileId: randomUUID() })).ok).toBe(true);
+  });
   it("refuses a batch above the platform file-count limit", async () => {
     const { client, companyId } = await administratorWithCompany();
 
