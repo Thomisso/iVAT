@@ -4,6 +4,7 @@ import { administratorWithCompany, platformCompanyInventoryFixture, storageObjec
 import { signedUpUser } from "./support/clients";
 import { fixtureFile } from "./support/files";
 import { testWorker } from "./support/worker";
+import { promotedSuperAdministrator } from "./support/platform";
 
 describe("authenticated Source File Storage access", () => {
   it("lists only the authorized Company's objects among more than 1000 unrelated Companies and objects", async () => {
@@ -37,10 +38,41 @@ describe("authenticated Source File Storage access", () => {
       `${owner.companyId}/ordinary.pdf`, `${owner.companyId}/nested/original.pdf`,
       `${owner.companyId}//double.pdf`, `${owner.companyId}/`,
     ];
-    const denied = [owner.companyId, `/${owner.companyId}/leading.pdf`, `${other.companyId}/foreign.pdf`, `invalid/${owner.companyId}`, ""];
+    const denied = [
+      owner.companyId, `/${owner.companyId}/leading.pdf`, `${other.companyId}/foreign.pdf`,
+      `${owner.companyId.toUpperCase()}/uppercase.pdf`, `${owner.companyId.replaceAll("-", "")}/compact.pdf`,
+      `{${owner.companyId}}/braced.pdf`, `invalid/${owner.companyId}`, "",
+    ];
     const removeMetadata = await storageObjectMetadataFixture([...allowed, ...denied.filter(Boolean)]);
     try {
       const signed = await owner.client.storage.from("source-files").createSignedUrls([...allowed, ...denied], 60);
+      expect(signed.error).toBeNull();
+      for (const path of allowed) {
+        const entry = signed.data?.find((candidate) => candidate.path === path);
+        expect(entry?.error).toBeNull();
+        expect(entry?.signedUrl).toContain("/storage/v1/object/sign/source-files/");
+      }
+      for (const path of denied) {
+        const entry = signed.data?.find((candidate) => candidate.path === path);
+        expect(entry?.error).toBeTruthy();
+        expect(entry?.signedUrl).toBeNull();
+      }
+    } finally {
+      await removeMetadata();
+    }
+  });
+
+  it("preserves verified SuperAdmin inspection of rootless canonical names without accepting alternate UUID spellings", async () => {
+    const target = await administratorWithCompany("Storage inspection target");
+    const operator = await promotedSuperAdministrator("Storage inspection operator");
+    const allowed = [target.companyId, `${target.companyId}/ordinary.pdf`, `${target.companyId}/nested/original.pdf`];
+    const denied = [
+      `${target.companyId.toUpperCase()}/uppercase.pdf`, `${target.companyId.replaceAll("-", "")}/compact.pdf`,
+      `{${target.companyId}}/braced.pdf`, `/${target.companyId}/leading.pdf`, "invalid/object.pdf",
+    ];
+    const removeMetadata = await storageObjectMetadataFixture([...allowed, ...denied]);
+    try {
+      const signed = await operator.client.storage.from("source-files").createSignedUrls([...allowed, ...denied], 60);
       expect(signed.error).toBeNull();
       for (const path of allowed) {
         const entry = signed.data?.find((candidate) => candidate.path === path);
