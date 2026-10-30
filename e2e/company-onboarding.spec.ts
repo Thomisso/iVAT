@@ -30,9 +30,11 @@ test("legal Company setup uses structured ARES data, resumes, and reaches the fo
   const ico = Date.now().toString().slice(-8);
   await signUp(page, run);
 
+  await page.getByLabel("Person type").selectOption("natural");
   await page.getByLabel("IČO").fill(ico);
   await page.getByRole("button", { name: "Prefill from ARES" }).click();
   await expect(page.getByLabel("Company name")).toHaveValue("ARES Test s.r.o.");
+  await expect(page.getByLabel("Person type")).toHaveValue("legal");
   await expect(page.getByLabel("Street name")).toHaveValue("Dlouhá");
   await expect(page.getByLabel("House number")).toHaveValue("12");
   await expect(page.getByLabel("Orientation number (optional)")).toHaveValue("53A");
@@ -56,6 +58,8 @@ test("legal Company setup uses structured ARES data, resumes, and reaches the fo
   await page.goto(`/companies/${companyId}/settings/vat`);
   await page.getByLabel("Tax office").selectOption("451");
   const signatory = page.getByRole("group", { name: "Default authorized signatory" });
+  await expect(signatory.getByLabel("First name")).toHaveValue("");
+  await expect(signatory.getByLabel("Last name")).toHaveValue("");
   await signatory.getByLabel("First name").fill("Jana");
   await signatory.getByLabel("Last name").fill("Nováková");
   await signatory.getByLabel("Capacity (e.g. director)").fill("director");
@@ -77,10 +81,14 @@ test("legal Company setup uses structured ARES data, resumes, and reaches the fo
 test("natural-person setup derives its immutable name and shows precise EPO compatibility feedback", async ({ baseURL, context, page }) => {
   await english(context, baseURL);
   const run = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-  const ico = Date.now().toString().slice(-8);
+  const ico = "90000001";
   await signUp(page, run);
 
-  await page.getByLabel("Person type").selectOption("natural");
+  await page.getByLabel("IČO").fill(ico);
+  await page.getByRole("button", { name: "Prefill from ARES" }).click();
+  await expect(page.getByLabel("Person type")).toHaveValue("natural");
+  await expect(page.getByLabel("First name")).toHaveValue("Marie Anna");
+  await expect(page.getByLabel("Last name")).toHaveValue("Nováková");
   await expect(page.getByLabel("Company name")).toHaveCount(0);
   await page.getByLabel("First name").fill("Jana");
   await page.getByLabel("Last name").fill("Nováková");
@@ -99,8 +107,37 @@ test("natural-person setup derives its immutable name and shows precise EPO comp
   await completeFrequency(page, companyId);
   await expect(page.getByText("Your work for Jana Nováková, in one place.")).toBeVisible();
 
+  await page.goto(`/companies/${companyId}/settings/company`);
+  await page.getByLabel("First name").fill("Changed");
+  await page.getByRole("button", { name: "Prefill from ARES" }).click();
+  await expect(page.getByLabel("First name")).toHaveValue("Marie Anna");
+  await expect(page.getByLabel("Last name")).toHaveValue("Nováková");
+  await page.getByLabel("First name").fill("Jana");
+  await page.getByRole("button", { name: "Save settings" }).click();
+  await expect(page).toHaveURL(new RegExp(`/companies/${companyId}/settings$`));
+
   if (!baseURL) throw new Error("Playwright baseURL is required");
   await context.addCookies([{ name: "NEXT_LOCALE", value: "cs", url: new URL(baseURL).origin }]);
   await page.reload();
+  await page.goto(`/companies/${companyId}`);
   await expect(page.getByRole("heading", { name: "Přehled" })).toBeVisible();
+});
+
+test("incomplete and unavailable ARES identity remains editable without inventing names", async ({ baseURL, context, page }) => {
+  await english(context, baseURL);
+  await signUp(page, `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`);
+  await page.getByLabel("IČO").fill("90000002");
+  await page.getByRole("button", { name: "Prefill from ARES" }).click();
+  await expect(page.getByLabel("Person type")).toHaveValue("natural");
+  await expect(page.getByLabel("First name")).toHaveValue("Marie Anna");
+  await expect(page.getByLabel("Last name")).toHaveValue("");
+  await page.getByLabel("Last name").fill("Ručně doplněná");
+  await page.getByLabel("IČO").fill("90000003");
+  await page.getByRole("button", { name: "Prefill from ARES" }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "ARES" })).toBeVisible();
+  await expect(page.getByLabel("Last name")).toHaveValue("Ručně doplněná");
+  await page.getByLabel("First name").fill("Manual");
+  await page.getByLabel("VAT ID").fill("CZ90000003");
+  await page.getByRole("button", { name: "Create company" }).click();
+  await expect(page).toHaveURL(/\/setup\/filing-frequency$/);
 });
