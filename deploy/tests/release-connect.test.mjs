@@ -34,7 +34,7 @@ test("the detached launcher records early failure and refuses duplicate attempt 
   const bundle = path.join(directory, "bundle");
   await mkdir(path.join(bundle, "deploy/scripts"), { recursive: true });
   await copyFile("deploy/scripts/launch-release.sh", path.join(bundle, "deploy/scripts/launch-release.sh"));
-  await writeFile(path.join(bundle, "deploy/scripts/deploy-release.sh"), "#!/bin/bash\nsleep 0.1\nexit 17\n");
+  await writeFile(path.join(bundle, "deploy/scripts/deploy-release.sh"), '#!/bin/bash\nread -r registry; read -r provider; [[ "$registry" == REGISTRY_PRIVATE && "$provider" == PROVIDER_PRIVATE ]] || exit 99\ntouch "$1/deploy/transports/$IVAT_DEPLOY_ATTEMPT_ID/credentials-received"\nsleep 0.1\nexit 17\n');
   const launch = () => new Promise(resolve => {
     const child = spawn("docker", ["run", "--rm", "-i", "-v", `${directory}:${directory}`, "ivat-release155-operator:verify", "-c", 'bash "$1/deploy/scripts/launch-release.sh" start "$2" "$1" stack test-123 release-test || exit; while [ "$(cat "$2/deploy/transports/test-123/result")" = running ]; do sleep 0.1; done', "bash", bundle, directory]);
     let output = "";
@@ -52,10 +52,14 @@ test("the detached launcher records early failure and refuses duplicate attempt 
     await new Promise(resolve => setTimeout(resolve, 20));
   }
   assert.equal(status, "failed");
+  await readFile(path.join(transport, "credentials-received"));
   assert.doesNotMatch(result.output, /REGISTRY_PRIVATE|PROVIDER_PRIVATE/);
   assert.notEqual((await launch()).status, 0);
   assert.equal((await readFile(path.join(transport, "result"), "utf8")).trim(), "failed");
   await assert.rejects(readFile(path.join(transport, "credentials")), { code: "ENOENT" });
+  await writeFile(path.join(directory, "test-input"), "REGISTRY_PRIVATE\nPROVIDER_PRIVATE\n", { mode: 0o600 });
+  const stress = execFileSync("docker", ["run", "--rm", "-v", `${directory}:${directory}`, "ivat-release155-operator:verify", "-c", 'for i in $(seq 1 100); do bash "$1/deploy/scripts/launch-release.sh" start "$2" "$1" stack "race-$i" release-test < "$2/test-input" >/dev/null & done; wait; sleep 2; for i in $(seq 1 100); do test -f "$2/deploy/transports/race-$i/credentials-received" || exit 42; done', "bash", bundle, directory], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  assert.equal(stress, "");
 });
 
 test("GitHub HTTP evidence stand-in cannot authorize wrong, failed or incomplete main checks", async t => {

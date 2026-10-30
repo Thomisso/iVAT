@@ -22,9 +22,12 @@ case $operation in
     IFS= read -r provider
     [[ -n $registry && -n $provider ]] || exit 1
     printf '%s\n%s\n' "$registry" "$provider" > "$transport/credentials"
-    # Open stdin before unlinking. Only the detached child retains the FD.
-    nohup setsid bash "$bundle/deploy/scripts/launch-release.sh" run "$stack" "$bundle" "$project" "$id" "$actor" < "$transport/credentials" > "$transport/host.log" 2>&1 &
+    # Open in the synchronous parent before unlinking; a background redirection
+    # can otherwise race rm and leave a permanently "running" transport.
+    exec 3< "$transport/credentials"
     rm "$transport/credentials"
+    nohup setsid bash "$bundle/deploy/scripts/launch-release.sh" run "$stack" "$bundle" "$project" "$id" "$actor" <&3 3<&- > "$transport/host.log" 2>&1 &
+    exec 3<&-
     trap - EXIT
     printf 'launched\n'
     ;;
