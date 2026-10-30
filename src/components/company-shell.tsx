@@ -20,9 +20,8 @@ import {
   selectCompanyAction,
 } from "@/app/actions";
 import type { CompanySummary } from "@/application/companies";
-import type { OrganizationSummary } from "@/application/organizations";
 import type { UploadNotification } from "@/application/upload-batches";
-import { AdministrationNavigation } from "@/components/administration-navigation";
+import { WorkSectionSwitch } from "@/components/work-section-switch";
 import { AccountActions, AppShell, ContextNavigation } from "@/components/app-shell";
 import { CommandButton } from "@/components/command-button";
 import { AccountMenu, Menu, ShellIcon } from "@/components/shell-controls";
@@ -189,13 +188,12 @@ function NotificationBell({ companyId, notifications, unreadCount }: {
   </div>;
 }
 
-export function CompanyShell({ children, companies, company, companyRole, email, organizations, superAdmin, uploadNotifications, uploadUnreadCount }: {
+export function CompanyShell({ children, companies, company, companyRole, email, superAdmin, uploadNotifications, uploadUnreadCount }: {
   children: ReactNode;
   companies: CompanySummary[];
   company: CompanySummary & { ico: string };
   email: string;
   companyRole: "administrator" | "user" | null;
-  organizations: OrganizationSummary[];
   superAdmin: boolean;
   uploadNotifications: UploadNotification[];
   uploadUnreadCount: number;
@@ -209,7 +207,7 @@ export function CompanyShell({ children, companies, company, companyRole, email,
   }, [company.id]);
 
   const navigation = <ContextNavigation
-    items={destinations.map((destination) => ({
+    items={destinations.filter((destination) => destination.key !== "settings" || companyRole === "administrator").map((destination) => ({
       current: active === destination.key,
       href: `/companies/${company.id}${destination.suffix}`,
       icon: <ShellIcon path={destination.icon} />,
@@ -220,18 +218,11 @@ export function CompanyShell({ children, companies, company, companyRole, email,
   const context = <CompanyMenu companies={companies} current={company} />;
   const accountActions = <AccountActions label={t("account")}>
     <NotificationBell companyId={company.id} notifications={uploadNotifications} unreadCount={uploadUnreadCount} />
+    {superAdmin && <WorkSectionSwitch section="company" companyHref={`/companies/${company.id}`} />}
     <AccountMenu email={email} />
   </AccountActions>;
-  const administration = <AdministrationNavigation
-    companyId={company.id}
-    companyRole={companyRole}
-    currentPath={pathname}
-    organizations={organizations}
-    superAdmin={superAdmin}
-  />;
   return <AppShell
     accountActions={accountActions}
-    administration={administration}
     brandHref="/"
     brandLabel={app("name")}
     context={context}

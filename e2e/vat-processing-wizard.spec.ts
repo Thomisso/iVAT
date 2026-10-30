@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { assignBrowserAiConfigurationFixture } from "../tests/support/e2e";
+import { addBrowserCompanyMemberFixture, assignBrowserAiConfigurationFixture } from "../tests/support/e2e";
 import { readFile } from "node:fs/promises";
 
 function wizardStep(page: Page, title: string): Locator {
@@ -28,6 +28,115 @@ async function emptyCompanyForExport(page: Page, street = "Dlouhá") {
   await expect(page).toHaveURL(/\/setup\/ai-processing$/);
   return page.url().replace(/\/setup\/ai-processing$/, "");
 }
+
+test("draft progress survives skips, shared users, regeneration and a lost XML response after archiving", async ({ context, page, browser, baseURL }) => {
+  test.setTimeout(120_000);
+  if (!baseURL) throw new Error("Playwright baseURL is required");
+  await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseURL }]);
+  const companyUrl = await emptyCompanyForExport(page);
+  const companyId = new URL(companyUrl).pathname.split("/")[2];
+  await page.goto(`${companyUrl}/settings/vat`);
+  await page.getByRole("combobox", { name: "Tax office", exact: true }).selectOption("451");
+  await page.getByLabel("Economic activity (CZ-NACE)").fill("621000");
+  await page.getByLabel("First name").fill("Jana");
+  await page.getByLabel("Last name").fill("Nováková");
+  await page.getByLabel("Capacity (e.g. director)").fill("director");
+  await page.getByRole("button", { name: "Save filing defaults" }).click();
+  await expect(page.getByRole("status").getByText("Filing defaults saved.")).toBeVisible();
+  const wizardUrl = `${companyUrl}/vat-reports?period=2026-01`;
+  const historyUrl = `${companyUrl}/vat-reports/2026-01/exports`;
+  await page.goto(wizardUrl);
+  await page.getByRole("button", { name: "Generate draft", exact: true }).click();
+  const exports = wizardStep(page, "Export DRAFT XML");
+  const generate = wizardStep(page, "Generate VAT Report");
+  await expect(exports.getByText("Not started", { exact: true })).toBeVisible();
+  await exports.getByRole("button", { name: "Skip draft exports", exact: true }).click();
+  await expect(exports.getByText("Skipped", { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(exports.getByText("Skipped", { exact: true })).toBeVisible();
+  const response = page.waitForResponse(response => response.url().endsWith("/2026-01/xml") && response.request().method() === "POST");
+  const first = page.waitForEvent("download");
+  await exports.getByRole("button", { name: "Export VAT Return XML", exact: true }).click();
+  await first;
+  const oldArtifactId = (await response).headers()["x-ivat-artifact-id"];
+  await expect(exports.getByText("Partially completed — 1/2, second export skipped", { exact: true })).toBeVisible();
+  for (const width of [360, 720]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+  }
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.reload();
+  await expect(exports.getByText("Partially completed — 1/2, second export skipped", { exact: true })).toBeVisible();
+  const repeated = page.waitForEvent("download");
+  await exports.getByRole("button", { name: "Export VAT Return XML", exact: true }).click();
+  await repeated;
+  await expect(exports.getByText("Partially completed — 1/2, second export skipped", { exact: true })).toBeVisible();
+  const second = page.waitForEvent("download");
+  await exports.getByRole("button", { name: "Export Control Statement XML", exact: true }).click();
+  await second;
+  await expect(exports.getByText("Done", { exact: true })).toBeVisible();
+  await generate.getByRole("button", { name: "Generate / regenerate draft", exact: true }).click();
+  await expect(exports.getByText("Not started", { exact: true })).toBeVisible();
+  const newDraft = page.waitForEvent("download");
+  await exports.getByRole("button", { name: "Export VAT Return XML", exact: true }).click();
+  await newDraft;
+  await expect(exports.getByText("Partially completed — 1/2", { exact: true })).toBeVisible();
+  await exports.getByRole("button", { name: "Skip the remaining draft export", exact: true }).click();
+  await expect(exports.getByText("Partially completed — 1/2, second export skipped", { exact: true })).toBeVisible();
+
+  const peerContext = await browser.newContext({ baseURL });
+  try {
+    await peerContext.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseURL }]);
+    const peer = await peerContext.newPage();
+    const email = `shared-${crypto.randomUUID()}@example.test`;
+    await peer.goto("/signup");
+    await peer.getByLabel("Organization name").fill("Shared export User");
+    await peer.getByLabel("Email").fill(email);
+    await peer.getByLabel("Password").fill("Playwright-password-1");
+    await peer.getByRole("button", { name: "Sign up" }).click();
+    await expect(peer).toHaveURL(/\/companies\/new$/);
+    await addBrowserCompanyMemberFixture(companyId, email);
+    await peer.goto(wizardUrl);
+    const peerExports = wizardStep(peer, "Export DRAFT XML");
+    await expect(peerExports.getByText("Partially completed — 1/2, second export skipped", { exact: true })).toBeVisible();
+    const peerDownload = peer.waitForEvent("download");
+    await peerExports.getByRole("button", { name: "Export Control Statement XML", exact: true }).click();
+    await peerDownload;
+    await expect(peerExports.getByText("Done", { exact: true })).toBeVisible();
+  } finally { await peerContext.close(); }
+  await page.reload();
+  await expect(exports.getByText("Done", { exact: true })).toBeVisible();
+
+  await generate.getByRole("button", { name: "Generate / regenerate draft", exact: true }).click();
+  await expect(exports.getByText("Not started", { exact: true })).toBeVisible();
+  let failedArtifactId = "";
+  await page.route("**/vat-reports/2026-01/xml", async route => {
+    const archived = await route.fetch();
+    expect(archived.status()).toBe(200);
+    failedArtifactId = archived.headers()["x-ivat-artifact-id"];
+    await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "export_failed" }) });
+  }, { times: 1 });
+  await exports.getByRole("button", { name: "Export VAT Return XML", exact: true }).click();
+  await expect(exports.getByText("Download failed. Try again.", { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(exports.getByText("Not started", { exact: true })).toBeVisible();
+  await page.goto(historyUrl);
+  const current = page.locator(`a[href$="/artifacts/${failedArtifactId}"]`);
+  await expect(current).toBeVisible();
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const download = page.waitForEvent("download");
+    await current.click();
+    await download;
+    await expect(current).not.toHaveAttribute("aria-disabled", "true");
+  }
+  const historical = page.locator(`a[href$="/artifacts/${oldArtifactId}"]`);
+  const historicalDownload = page.waitForEvent("download");
+  await historical.click();
+  await historicalDownload;
+  await expect(historical).not.toHaveAttribute("aria-disabled", "true");
+  await page.goto(wizardUrl);
+  await expect(exports.getByText("Partially completed — 1/2", { exact: true })).toBeVisible();
+});
 
 test("missing draft details are completed inline and failed downloads preserve entered values", async ({ context, page, baseURL }) => {
   if (!baseURL) throw new Error("Playwright baseURL is required");

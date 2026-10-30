@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getCompany, getMyCompanyRole } from "@/application/companies";
 import { PageLayout } from "@/components/app-shell";
@@ -14,6 +14,7 @@ export default async function CompanySettingsLayout({ children, params }: Layout
     getTranslations("company"),
   ]);
   if (!company) notFound();
+  if (role !== "administrator") redirect(`/companies/${company.id}`);
 
   return <PageLayout className="company-workspace company-settings" measure="wide">
     <header className="company-page-header">

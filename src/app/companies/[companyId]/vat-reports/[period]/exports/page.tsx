@@ -7,7 +7,8 @@ import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getCompany } from "@/application/companies";
 import { listVatReportArtifacts } from "@/application/epo-export";
-import { getVatReport } from "@/application/vat-reports";
+import { getVatReport, getPeriodLock } from "@/application/vat-reports";
+import { VatReportArtifactDownload } from "@/components/vat-report-artifact-download";
 import { requireUserClient } from "@/lib/supabase/server";
 import { EmptyState } from "@/components/empty-state";
 import { PageLayout } from "@/components/app-shell";
@@ -29,10 +30,11 @@ export default async function ExportHistoryPage({
   const search = await searchParams;
   const returnTo = safeCompanyReturnTo(companyId, search.returnTo);
   const client = await requireUserClient();
-  const [company, report, artifacts, t, epo] = await Promise.all([
+  const [company, report, artifacts, lock, t, epo] = await Promise.all([
     getCompany(client, companyId),
     getVatReport(client, companyId, period),
     listVatReportArtifacts(client, { companyId, period }),
+    getPeriodLock(client, companyId, period),
     getTranslations("vatReports"),
     getTranslations("epoExport"),
   ]);
@@ -88,10 +90,11 @@ export default async function ExportHistoryPage({
                       <td>{epo(`formats.${artifact.format}`)}<br /><small>{t(`artifactKinds.${artifact.kind}`)}</small></td>
                       <td><time dateTime={artifact.createdAt}>{formatDateTime(artifact.createdAt)}</time></td>
                       <td>{artifact.authorEmail ?? artifact.authorUserId}</td>
-                      <td><a
-                        href={`/companies/${companyId}/vat-reports/${period}/artifacts/${artifact.id}`}
-                        download={artifact.fileName}
-                      >{artifact.fileName}</a></td>
+                      <td><VatReportArtifactDownload
+                        companyId={companyId} period={period} artifactId={artifact.id}
+                        fileName={artifact.fileName} format={artifact.format} kind={artifact.kind}
+                        eligible={!lock && artifact.kind === "draft" && artifact.reportGeneratedAt === report.generatedAt}
+                      /></td>
                     </tr>
                     <tr>
                       <td colSpan={5}>

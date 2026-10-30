@@ -18,7 +18,7 @@ export default async function PlatformLayout({
   const remembered = parseCompanyContext(
     (await cookies()).get(companyContextCookie)?.value,
   );
-  const [auth, { organizations, superAdmin }, companyContext, operationalProblems] = await Promise.all([
+  const [auth, { superAdmin }, companyContext, operationalProblems] = await Promise.all([
     currentUser(client),
     loadAdministrationAccess(),
     resolveCompanyContext(client, remembered),
@@ -35,7 +35,6 @@ export default async function PlatformLayout({
       }
       email={auth.email}
       operationalProblemCount={operationalProblems.value.length}
-      organizations={organizations}
     >
       {children}
     </PlatformShell>

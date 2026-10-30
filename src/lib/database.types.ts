@@ -633,6 +633,58 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"vat_report_download_acknowledgement": {
+                  Row: {
+                    "acknowledged_at": string,"acknowledged_by": string,"artifact_id": string,"company_id": string,"organization_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "acknowledged_at"?: string,"acknowledged_by": string,"artifact_id": string,"company_id": string,"organization_id": string
+                  }
+                  Update: {
+                    "acknowledged_at"?: string,"acknowledged_by"?: string,"artifact_id"?: string,"company_id"?: string,"organization_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "vat_report_download_acknowled_artifact_id_company_id_organ_fkey"
+      columns: ["artifact_id","company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "vat_report_artifact"
+      referencedColumns: ["id","company_id","organization_id"]
+    },{
+      foreignKeyName: "vat_report_download_acknowledge_company_id_organization_id_fkey"
+      columns: ["company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "company"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
+                },"vat_report_draft_skip": {
+                  Row: {
+                    "company_id": string,"id": string,"organization_id": string,"report_generated_at": string,"skipped_at": string,"skipped_by": string,"skipped_formats": (string)[],"vat_report_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "company_id": string,"id"?: string,"organization_id": string,"report_generated_at": string,"skipped_at"?: string,"skipped_by": string,"skipped_formats": (string)[],"vat_report_id": string
+                  }
+                  Update: {
+                    "company_id"?: string,"id"?: string,"organization_id"?: string,"report_generated_at"?: string,"skipped_at"?: string,"skipped_by"?: string,"skipped_formats"?: (string)[],"vat_report_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "vat_report_draft_skip_company_id_organization_id_fkey"
+      columns: ["company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "company"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "vat_report_draft_skip_vat_report_id_company_id_organizatio_fkey"
+      columns: ["vat_report_id","company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "vat_report"
+      referencedColumns: ["id","company_id","organization_id"]
+    }
+                  ]
                 },"vat_report_transition": {
                   Row: {
                     "action": string,"actor_user_id": string,"company_id": string,"id": number,"occurred_at": string,"organization_id": string,"period": string,"unlock_reason": string | null,"vat_report_id": string
@@ -693,6 +745,9 @@ isOneToOne: false
           Functions: {
             "accept_invitation":
 { Args: { "invitation_token": string }; Returns: undefined
+                           },
+"acknowledge_vat_report_download":
+{ Args: { "target_artifact_id": string,"target_company_id": string,"target_format": string,"target_period": string,"target_report_generated_at": string }; Returns: undefined
                            },
 "approve_document":
 { Args: { "reviewed_version": number,"target_document_id": string }; Returns: undefined
@@ -975,6 +1030,9 @@ isOneToOne: false
 "set_platform_upload_limits":
 { Args: { "target_max_source_file_bytes": number,"target_max_source_file_pages": number,"target_max_upload_batch_files": number }; Returns: undefined
                            },
+"skip_vat_report_drafts":
+{ Args: { "target_company_id": string,"target_period": string,"target_report_generated_at": string }; Returns: undefined
+                           },
 "soft_delete_company":
 { Args: { "target_company_id": string,"target_export_id": string }; Returns: Json
                            },
@@ -1019,6 +1077,9 @@ isOneToOne: false
                            },
 "vat_report_documents":
 { Args: { "target_company_id": string,"target_period": string }; Returns: Json
+                           },
+"vat_report_draft_progress":
+{ Args: { "target_company_id": string,"target_period": string,"target_report_generated_at": string }; Returns: Json
                            },
 "vat_report_transition_history":
 { Args: { "target_company_id": string,"target_period": string }; Returns: {
