@@ -3,6 +3,10 @@
 set -eu
 umask 077
 cd "$(dirname "$0")/../.."
+if [ -e deploy/.deployment-unresolved ]; then
+  echo "Backup refused: unresolved deployment; inspect its attempt before joint recovery." >&2
+  exit 1
+fi
 env_file=${DEPLOY_ENV_FILE:-.env.rosti}
 export DEPLOY_ENV_FILE="$env_file"
 destination=${1:?Pass a private destination directory outside deploy/runtime}
@@ -30,4 +34,4 @@ compose stop
 compose run --rm -T --no-deps backup --xattrs --xattrs-include='*' -czf - /var/lib/postgresql/data /etc/postgresql-custom /var/lib/storage /backup-config > "$archive.partial"
 mv "$archive.partial" "$archive"
 echo "Backup created: $archive"
-echo "Contains database keys and credentials. Copy to private off-server storage."
+echo "Contains database keys and credentials. Keep this archive private."

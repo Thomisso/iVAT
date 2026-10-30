@@ -18,6 +18,16 @@ jobs:
           cache: npm
       - run: npm ci
 
+      - name: Install Postman CLI for release dependency simulations
+        timeout-minutes: 5
+        run: |
+          npm install --global postman-cli@1.73.0
+          postman --version
+
+      - name: Release policy, bundle integrity, transport and host preflight
+        timeout-minutes: 5
+        run: node --test deploy/tests/release-prepare.test.mjs deploy/tests/release-host.test.mjs deploy/tests/release-connect.test.mjs
+
       - name: package-lock.json matches package.json
         run: |
           npm install --package-lock-only --ignore-scripts

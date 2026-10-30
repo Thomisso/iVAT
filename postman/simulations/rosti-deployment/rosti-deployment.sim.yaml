@@ -1,0 +1,8 @@
+simulation: rosti-deployment
+routing: path
+mocks:
+  - name: rosti-deployment
+    routeKey: rosti
+    origin:
+      - admin.rosti.cz
+    path: postman/mocks/rosti-deployment/config.yaml

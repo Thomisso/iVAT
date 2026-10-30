@@ -1,0 +1,30 @@
+purpose:
+  stands_in_for: Roští Compose storage and readback used by the controlled release command.
+  unblocks: Repeatable release and failure tests without production requests or credentials.
+assumptions:
+  - id: compose-storage-contract
+    status: supported
+    claim: The published API accepts text/plain Compose through PUT with call_up=false and exposes stored Compose as compose_b64 on a Stack response.
+    reason: The primary OpenAPI schema declares these inputs and fields. The existing pilot record independently reports matching compose_b64 after upload.
+    verification: Read the provider's published OpenAPI on 2026-10-30; no authenticated request to the live Stack was made. Owner-mock discovery was unavailable because the local Postman CLI was signed out, so this local stand-in was derived from the schema.
+    source: https://admin.rosti.cz/api-n/openapi.json; docs/deployments/2026-10-30-rosti-pilot.md; postman/mocks/rosti-deployment/default.js
+    updated_at: "2026-10-30"
+  - id: compose-status-semantics
+    status: unknown
+    claim: A successful Compose PUT reports numeric status zero or no status and the following Stack read exposes the exact submitted Compose.
+    reason: The schema permits an optional nullable integer status without defining its semantics or visibility timing. The caller rejects a nonzero status and independently verifies readback instead of trusting HTTP 200.
+    verification: Local Postman tests exercised the consumed PUT and GET calls and confirmed exact readback in the modelled successful response. Real response timing and status meaning still require the first monitored activation.
+    source: https://admin.rosti.cz/api-n/openapi.json; deploy/scripts/release-host.mjs; deploy/tests/release-host.test.mjs
+    updated_at: "2026-10-30"
+  - id: caller-stops-on-provider-failure
+    status: supported
+    claim: Against this local stand-in, the real synchronization helper fails for locked updates, HTML gateway errors, mismatching readback and a timed-out write, without printing API keys or unrelated provider environment fields.
+    reason: The tests invoked the actual helper over HTTP through Postman and asserted its exit status and output. The timeout model stores Compose before delaying, so failure does not imply that the provider write was undone.
+    verification: On 2026-10-30 the three focused release-host Node tests passed, including PUT/GET success and all four failure behaviors. This supports caller behavior in those modelled cases only, not live provider correctness.
+    source: deploy/tests/release-host.test.mjs; deploy/scripts/release-host.mjs; postman/mocks/rosti-deployment/default.js
+    updated_at: "2026-10-30"
+fingerprints:
+  - id: release-155-development
+    date: "2026-10-30"
+    commit: deda5d2 with dirty ticket 155 implementation
+    cli: Postman CLI 1.73.0
