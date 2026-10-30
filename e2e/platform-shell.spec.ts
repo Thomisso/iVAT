@@ -1,3 +1,4 @@
+import { provisionAndLogIn } from "./support/accounts";
 import { createHmac } from "node:crypto";
 import fs from "node:fs/promises";
 import { createClient } from "@supabase/supabase-js";
@@ -34,12 +35,8 @@ async function english(context: BrowserContext, baseURL: string | undefined) {
   ]);
 }
 
-async function signUp(page: Page, organization: string, email: string) {
-  await page.goto("/signup");
-  await page.getByLabel("Organization name").fill(organization);
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Sign up" }).click();
+async function provisionAdministrator(page: Page, organization: string, email: string) {
+  await provisionAndLogIn(page, { organizationName: organization, email, password });
   await expect(page).toHaveURL(/\/companies\/new$/);
 }
 
@@ -116,7 +113,7 @@ test("only a SuperAdmin navigates the shared Platform shell without losing exist
   await english(context, baseURL);
   const run = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const email = `platform-shell-${run}@example.test`;
-  await signUp(page, `Platform Organization ${run}`, email);
+  await provisionAdministrator(page, `Platform Organization ${run}`, email);
   const companyId = await createCompany(
     page,
     `Platform Company ${run}`,
@@ -255,7 +252,7 @@ test("an MFA-verified SuperAdmin discovers and administers a Company without any
   await english(context, baseURL);
   const run = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const targetOrganization = `Independent Organization ${run}`;
-  await signUp(page, targetOrganization, `target-${run}@example.test`);
+  await provisionAdministrator(page, targetOrganization, `target-${run}@example.test`);
   const companyId = await createCompany(page, `Independent Company ${run}`, `${Date.now()}`.slice(-8));
   const service = await serviceClient();
   const target = await service.from("company").select("organization_id").eq("id", companyId).single();
@@ -264,7 +261,7 @@ test("an MFA-verified SuperAdmin discovers and administers a Company without any
   await context.clearCookies();
   await english(context, baseURL);
   const operatorEmail = `independent-operator-${run}@example.test`;
-  await signUp(page, `Operator Organization ${run}`, operatorEmail);
+  await provisionAdministrator(page, `Operator Organization ${run}`, operatorEmail);
   await promoteAndEnroll(page, operatorEmail);
   await page.goto("/");
   const companyLink = page.getByRole("button", { name: `Independent Company ${run}`, exact: true });
@@ -318,7 +315,7 @@ test("SuperAdmin supports a blocked Organization and reads a deleted Company's r
   const organization = `Support target ${run}`;
   const companyName = `Retained Company ${run}`;
   const targetEmail = `support-target-${run}@example.test`;
-  await signUp(page, organization, targetEmail);
+  await provisionAdministrator(page, organization, targetEmail);
   const companyId = await createCompany(page, companyName, `${Date.now()}`.slice(-8));
   await assignBrowserAiConfigurationFixture(companyId);
   await page.goto(`/companies/${companyId}/upload`);
@@ -329,12 +326,12 @@ test("SuperAdmin supports a blocked Organization and reads a deleted Company's r
   await context.clearCookies();
   await english(context, baseURL);
   const memberEmail = `support-member-${run}@example.test`;
-  await signUp(page, `Support member ${run}`, memberEmail);
+  await provisionAdministrator(page, `Support member ${run}`, memberEmail);
   await addBrowserCompanyMemberFixture(companyId, memberEmail);
   await context.clearCookies();
   await english(context, baseURL);
   const operatorEmail = `support-operator-${run}@example.test`;
-  await signUp(page, `Support operator ${run}`, operatorEmail);
+  await provisionAdministrator(page, `Support operator ${run}`, operatorEmail);
   await promoteAndEnroll(page, operatorEmail);
   await page.goto("/platform/administration");
   const row = page.getByRole("row").filter({ has: page.getByRole("link", { name: organization, exact: true }) });

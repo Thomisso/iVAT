@@ -1,3 +1,4 @@
+import { provisionAndLogIn } from "./support/accounts";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 
 const administratorPassword = "Playwright-password-76";
@@ -7,12 +8,8 @@ async function english(context: BrowserContext, baseURL: string) {
   await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: new URL(baseURL).origin }]);
 }
 
-async function signUp(page: Page, organization: string, email: string, password = administratorPassword) {
-  await page.goto("/signup");
-  await page.getByLabel("Organization name").fill(organization);
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Sign up" }).click();
+async function provisionAdministrator(page: Page, organization: string, email: string, password = administratorPassword) {
+  await provisionAndLogIn(page, { organizationName: organization, email, password });
   await expect(page).toHaveURL(/\/companies\/new$/);
 }
 
@@ -84,7 +81,7 @@ test("rendered invitation emails onboard new and existing Users with the right c
       failedAssets.push(`${url.pathname}: ${error}`);
     }
   });
-  await signUp(administratorPage, `Invitation Organization ${run}`, administratorEmail);
+  await provisionAdministrator(administratorPage, `Invitation Organization ${run}`, administratorEmail);
   const companyId = await createCompany(administratorPage, companyName, `${Date.now()}`.slice(-8));
   // Send the hostile headers to the real invitation action only. Applying
   // them to page resources makes Chromium reject lazy chunks with ERR_INVALID_ARGUMENT.
@@ -139,7 +136,7 @@ test("rendered invitation emails onboard new and existing Users with the right c
   const existingSetupContext = await browser.newContext();
   await english(existingSetupContext, baseURL);
   const existingSetupPage = await existingSetupContext.newPage();
-  await signUp(existingSetupPage, `Existing Organization ${run}`, existingEmail, existingPassword);
+  await provisionAdministrator(existingSetupPage, `Existing Organization ${run}`, existingEmail, existingPassword);
   await invite(administratorPage, companyId, existingEmail);
   const existingLink = (await invitationLink(existingEmail)).href;
 

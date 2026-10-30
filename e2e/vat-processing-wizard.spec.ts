@@ -1,3 +1,4 @@
+import { provisionAndLogIn } from "./support/accounts";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { addBrowserCompanyMemberFixture, assignBrowserAiConfigurationFixture } from "../tests/support/e2e";
 import { readFile } from "node:fs/promises";
@@ -11,11 +12,7 @@ function wizardStep(page: Page, title: string): Locator {
 
 async function emptyCompanyForExport(page: Page, street = "Dlouhá") {
   const run = crypto.randomUUID();
-  await page.goto("/signup");
-  await page.getByLabel("Organization name").fill(`Inline export ${run}`);
-  await page.getByLabel("Email").fill(`inline-${run}@example.test`);
-  await page.getByLabel("Password").fill("Playwright-password-1");
-  await page.getByRole("button", { name: "Sign up" }).click();
+  await provisionAndLogIn(page, { organizationName: `Inline export ${run}`, email: `inline-${run}@example.test`, password: "Playwright-password-1" });
   await page.getByLabel("Company name").fill("Inline export Company");
   await page.getByLabel("IČO").fill("12345678");
   await page.getByLabel("VAT ID").fill("CZ12345678");
@@ -218,11 +215,7 @@ test("draft progress survives skips, shared users, regeneration and a lost XML r
     await peerContext.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseURL }]);
     const peer = await peerContext.newPage();
     const email = `shared-${crypto.randomUUID()}@example.test`;
-    await peer.goto("/signup");
-    await peer.getByLabel("Organization name").fill("Shared export User");
-    await peer.getByLabel("Email").fill(email);
-    await peer.getByLabel("Password").fill("Playwright-password-1");
-    await peer.getByRole("button", { name: "Sign up" }).click();
+    await provisionAndLogIn(peer, { organizationName: "Shared export User", email, password: "Playwright-password-1" });
     await expect(peer).toHaveURL(/\/companies\/new$/);
     await addBrowserCompanyMemberFixture(companyId, email);
     await peer.goto(wizardUrl);
@@ -333,11 +326,7 @@ test("wizard exports both draft outputs directly with saved defaults and permits
   if (!baseURL) throw new Error("Playwright baseURL is required");
   await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseURL }]);
   const run = crypto.randomUUID();
-  await page.goto("/signup");
-  await page.getByLabel("Organization name").fill(`Direct export ${run}`);
-  await page.getByLabel("Email").fill(`direct-${run}@example.test`);
-  await page.getByLabel("Password").fill("Playwright-password-1");
-  await page.getByRole("button", { name: "Sign up" }).click();
+  await provisionAndLogIn(page, { organizationName: `Direct export ${run}`, email: `direct-${run}@example.test`, password: "Playwright-password-1" });
   await page.getByLabel("Company name").fill("Direct export Company");
   await page.getByLabel("IČO").fill("12345678");
   await page.getByLabel("VAT ID").fill("CZ12345678");
@@ -400,11 +389,7 @@ test("combined VAT processing journey recovers uploads, reviews warnings and com
   const run = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseUrl }]);
 
-  await page.goto("/signup");
-  await page.getByLabel("Organization name").fill(`Wizard Organization ${run}`);
-  await page.getByLabel("Email").fill(`wizard-${run}@example.test`);
-  await page.getByLabel("Password").fill("Playwright-password-1");
-  await page.getByRole("button", { name: "Sign up" }).click();
+  await provisionAndLogIn(page, { organizationName: `Wizard Organization ${run}`, email: `wizard-${run}@example.test`, password: "Playwright-password-1" });
   await expect(page).toHaveURL(/\/companies\/new$/);
   // The fake AI sample's customer, so its Documents are detected as incoming.
   await page.getByLabel("Company name").fill(`Wizard Company ${run}`);

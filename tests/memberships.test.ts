@@ -3,7 +3,6 @@ import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { createClient } from "@supabase/supabase-js";
 import { describe, expect, inject, it } from "vitest";
-import { signUp } from "@/application/auth";
 import { listAuditEvents } from "@/application/audit";
 import {
   acceptInvitation,
@@ -19,7 +18,7 @@ import {
 } from "@/application/memberships";
 import { listMyCompanies } from "@/application/companies";
 import { listMyOrganizations } from "@/application/organizations";
-import { anonymousClient, uniqueEmail } from "./support/clients";
+import { anonymousClient, provisionedAccount, uniqueEmail } from "./support/clients";
 import { administratorWithCompany, companyDetails } from "./support/fixtures";
 import { createCompany } from "@/application/companies";
 import type { Database } from "@/lib/database.types";
@@ -35,14 +34,11 @@ function capturingMailer() {
 }
 
 async function invitedUser(email: string) {
-  const client = anonymousClient();
-  const result = await signUp(client, {
+  return provisionedAccount({
     email,
     password: "correct-horse-battery",
     organizationName: "Ignored for invited users",
   });
-  if (!result.ok) throw new Error(result.error);
-  return { client, userId: result.value.userId };
 }
 
 async function expireInvitation(token: string) {
