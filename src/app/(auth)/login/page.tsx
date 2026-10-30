@@ -13,6 +13,7 @@ export default async function LogInPage({ searchParams }: PageProps<"/login">) {
       <h1>{t("logInTitle")}</h1>
       <FormError error={typeof error === "string" ? error : null} />
       <LogInForm />
+      <p><Link href="/password/forgot">{(await getTranslations("passwordRecovery"))("forgotPassword")}</Link></p>
       <GoogleSignInButton />
       <p>
         {t("noAccount")} <Link href="/signup">{t("signUpLink")}</Link>

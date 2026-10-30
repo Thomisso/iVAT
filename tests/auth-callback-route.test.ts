@@ -29,6 +29,14 @@ afterEach(() => {
 });
 
 describe("Auth callback route", () => {
+  it("keeps legacy recovery callbacks read-only and redirects their tokens to the trusted landing fragment", async () => {
+    process.env.APP_ORIGIN = "https://app.example.test";
+    process.env.AUTH_REDIRECT_ALLOWLIST = "https://app.example.test/auth/callback";
+    const nextUrl = new URL("http://untrusted.example.test/auth/callback?token_hash=unused&type=recovery&request=proof&next=https://untrusted.example.test");
+    const response = await GET({ url: nextUrl.toString(), nextUrl } as NextRequest);
+    expect(response.headers.get("location")).toBe("https://app.example.test/password/reset#request=proof&token_hash=unused");
+    expect(auth.verifyEmailOtp).not.toHaveBeenCalled();
+  });
   it("redirects to the configured public origin when the request host is internal", async () => {
     process.env.APP_ORIGIN = "https://app.example.test";
     process.env.AUTH_REDIRECT_ALLOWLIST = "https://app.example.test/auth/callback";

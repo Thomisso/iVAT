@@ -150,7 +150,7 @@ async function main() {
   environment.PLAYWRIGHT_BASE_URL = baseUrl;
   environment.APP_ORIGIN = new URL(baseUrl).origin;
   environment.AUTH_REDIRECT_ALLOWLIST = `${environment.APP_ORIGIN}/auth/callback`;
-  environment.SUPABASE_E2E_REDIRECT_URL = `${environment.AUTH_REDIRECT_ALLOWLIST}?**`;
+  environment.SUPABASE_E2E_REDIRECT_URL = `${environment.APP_ORIGIN}/**`;
   const port = new URL(baseUrl).port;
   const aresPort = await availablePort();
   environment.ARES_BASE_URL = `http://127.0.0.1:${aresPort}/ares/ekonomicke-subjekty-v-be/rest/ekonomicke-subjekty`;
