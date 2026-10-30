@@ -43,3 +43,8 @@ export function reportingPeriodsOf(years: readonly ReportingYear[]): string[] {
 export function currentReportingYear(now = new Date()): number {
   return Number(new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Prague", year: "numeric" }).format(now));
 }
+
+/** The Prague calendar date (YYYY-MM-DD) of a timestamp. */
+export function pragueDate(timestamp: string): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Prague" }).format(new Date(timestamp));
+}
