@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { withCompanyReturnTo } from "@/application/return-context";
 import { getLocale, getTranslations } from "next-intl/server";
 import { Money } from "@/components/money";
 import {
@@ -12,11 +13,13 @@ export async function ReportAmount({
   companyId,
   documentIds,
   documents,
+  returnTo,
 }: {
   amount: string;
   companyId: string;
   documentIds: string[];
   documents: VatReport["documents"];
+  returnTo?: string;
 }) {
   const [locale, t] = await Promise.all([
     getLocale(),
@@ -32,7 +35,7 @@ export async function ReportAmount({
           const document = documents.find((candidate) => candidate.id === documentId);
           return (
             <li key={documentId}>
-              <Link href={`/companies/${companyId}/documents/${documentId}`}>
+              <Link href={withCompanyReturnTo(companyId, `/companies/${companyId}/documents/${documentId}`, returnTo)}>
                 {document?.payload?.documentNumber ?? t("documentFallback")}
               </Link>
             </li>
@@ -47,23 +50,25 @@ export async function ReportIssues({
   companyId,
   readiness,
   report,
+  returnTo,
 }: {
   companyId: string;
   readiness: ReportingPeriodReadiness;
   report: VatReport;
+  returnTo?: string;
 }) {
   const t = await getTranslations("vatReports");
   const counts = readinessDocumentCounts(readiness);
   const documentLink = (documentId: string) => {
     const document = report.documents.find((candidate) => candidate.id === documentId);
     return (
-      <Link href={`/companies/${companyId}/documents/${documentId}`}>
+      <Link href={withCompanyReturnTo(companyId, `/companies/${companyId}/documents/${documentId}`, returnTo)}>
         {document?.payload?.documentNumber ?? t("documentFallback")}
       </Link>
     );
   };
   return (
-    <section className="vat-output-issues" aria-labelledby="vat-output-issues-title">
+    <section id="vat-output-issues" className="vat-output-issues" aria-labelledby="vat-output-issues-title">
       <header>
         <div>
           <span className="vat-section-label">{t("beforeExport")}</span>
