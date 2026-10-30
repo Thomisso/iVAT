@@ -10,6 +10,8 @@ import {
   ContextNavigation,
 } from "@/components/app-shell";
 import { AccountMenu, ShellIcon } from "@/components/shell-controls";
+import { AdministrationNavigation } from "@/components/administration-navigation";
+import type { OrganizationSummary } from "@/application/organizations";
 
 type Destination = "overview" | "aiSettings" | "aiUsage";
 type DestinationLabel = "platformOverview" | "platformAi" | "platformUsage";
@@ -51,15 +53,18 @@ export function PlatformShell({
   companyHref,
   email,
   operationalProblemCount,
+  organizations,
 }: {
   children: ReactNode;
   companyHref: string;
   email: string;
   operationalProblemCount: number;
+  organizations: OrganizationSummary[];
 }) {
   const t = useTranslations("shell");
   const app = useTranslations("app");
-  const active = activeDestination(usePathname());
+  const pathname = usePathname();
+  const active = activeDestination(pathname);
   const context = (
     <div
       aria-label={t("platformContext")}
@@ -117,6 +122,7 @@ export function PlatformShell({
   return (
     <AppShell
       accountActions={accountActions}
+      administration={<AdministrationNavigation currentPath={pathname} organizations={organizations} superAdmin />}
       brandHref="/"
       brandLabel={app("name")}
       context={context}

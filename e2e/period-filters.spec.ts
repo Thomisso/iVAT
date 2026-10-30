@@ -1,4 +1,5 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { currentReportingYear } from "../src/application/reporting-periods";
 import { assignBrowserAiConfigurationFixture, setBrowserDocumentTaxPointFixture } from "../tests/support/e2e";
 
 const password = "Playwright-password-83";
@@ -43,6 +44,8 @@ test("Documents and Upload Batches filter by Reporting Period and by No period",
   page,
 }) => {
   const companyId = await createAiCompany(context, page, baseURL);
+  // Onboarding generates only the current Reporting Year (monthly), so the previous year has No period.
+  const year = currentReportingYear();
   await page.goto(`/companies/${companyId}/upload`);
   await page.locator('input[type="file"]:not([capture])').setInputFiles("tests/fixtures/two-invoices.pdf");
   await page.getByRole("button", { name: "Upload" }).click();
@@ -55,14 +58,14 @@ test("Documents and Upload Batches filter by Reporting Period and by No period",
     const href = await table.getByRole("link").nth(index).getAttribute("href");
     return href!.split("/documents/")[1].split("?")[0];
   }));
-  await setBrowserDocumentTaxPointFixture(inPeriod, { direction: "outgoing", taxPointDate: "2026-03-10" });
-  await setBrowserDocumentTaxPointFixture(outsideYears, { direction: "outgoing", taxPointDate: "2025-12-01" });
+  await setBrowserDocumentTaxPointFixture(inPeriod, { direction: "outgoing", taxPointDate: `${year}-03-10` });
+  await setBrowserDocumentTaxPointFixture(outsideYears, { direction: "outgoing", taxPointDate: `${year - 1}-12-01` });
 
   await page.goto(`/companies/${companyId}/documents?view=all`);
-  await filterByPeriod(page, "Filters", "2026-03");
-  await expect(page).toHaveURL(/reportingPeriod=2026-03/);
+  await filterByPeriod(page, "Filters", `${year}-03`);
+  await expect(page).toHaveURL(new RegExp(`reportingPeriod=${year}-03`));
   await page.reload();
-  await expect(page.getByRole("form", { name: "Filters" }).getByLabel("Reporting Period")).toHaveValue("2026-03");
+  await expect(page.getByRole("form", { name: "Filters" }).getByLabel("Reporting Period")).toHaveValue(`${year}-03`);
   await expect(table.getByRole("link")).toHaveCount(1);
   await expect(table.getByRole("link")).toHaveAttribute("href", new RegExp(`/documents/${inPeriod}\\?`));
   await filterByPeriod(page, "Filters", "No period");
@@ -72,9 +75,12 @@ test("Documents and Upload Batches filter by Reporting Period and by No period",
 
   await page.goto(`/companies/${companyId}/upload`);
   const history = page.locator(".upload-batch-list li");
-  await filterByPeriod(page, "Filters", "2026-04");
+  await filterByPeriod(page, "Batch filters", `${year}-03`);
+  await expect(page).toHaveURL(new RegExp(`reportingPeriod=${year}-03`));
+  await expect(history).toHaveCount(1);
+  await filterByPeriod(page, "Batch filters", `${year}-04`);
   await expect(page.getByText("No batch contains Documents of the selected period.")).toBeVisible();
-  await filterByPeriod(page, "Filters", "No period");
+  await filterByPeriod(page, "Batch filters", "No period");
   await expect(page).toHaveURL(/reportingPeriod=none/);
   await expect(history).toHaveCount(1);
   await page.reload();

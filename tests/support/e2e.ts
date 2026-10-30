@@ -376,3 +376,20 @@ export async function setBrowserDocumentTaxPointFixture(
     await database.end();
   }
 }
+
+/** Ensures a monthly Reporting Year exists, for browser specs whose fake extraction is dated outside the current year. */
+export async function ensureBrowserReportingYearFixture(companyId: string, year: number) {
+  const environment = await browserFixtureEnvironment();
+  const database = new DatabaseClient({ connectionString: environment.DATABASE_URL });
+  await database.connect();
+  try {
+    await database.query(
+      `insert into public.reporting_year (company_id, organization_id, year, frequency)
+      select id, organization_id, $2, 'monthly' from public.company where id = $1
+      on conflict (company_id, year) do nothing`,
+      [companyId, year],
+    );
+  } finally {
+    await database.end();
+  }
+}

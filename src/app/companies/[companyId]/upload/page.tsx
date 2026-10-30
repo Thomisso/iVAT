@@ -1,9 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { getCompany, getMyCompanyRole } from "@/application/companies";
-import { listReportingPeriods } from "@/application/reporting-period-readiness";
-import { parseReportingPeriodFilter } from "@/application/reporting-periods";
+import { getCompany, getMyCompanyRole, listCompanyReportingYears } from "@/application/companies";
+import { parseReportingPeriodFilter, reportingPeriodsOf } from "@/application/reporting-periods";
 import { getUploadLimits } from "@/application/source-files";
 import { listUploadBatches } from "@/application/upload-batches";
 import { requireUserClient } from "@/lib/supabase/server";
@@ -28,7 +27,7 @@ export default async function UploadPage({
     historyPage: String(page),
   })}`;
   const client = await requireUserClient();
-  const [company, role, limits, batches, periods, t, ai, workspace, filter] = await Promise.all([
+  const [company, role, limits, batches, reportingYears, t, ai, workspace, filter] = await Promise.all([
     getCompany(client, companyId),
     getMyCompanyRole(client, companyId),
     getUploadLimits(client),
@@ -37,11 +36,11 @@ export default async function UploadPage({
       offset: (historyPage - 1) * HISTORY_PAGE_SIZE,
       reportingPeriod,
     }),
-    listReportingPeriods(client, companyId),
+    listCompanyReportingYears(client, companyId),
     getTranslations("shell"),
     getTranslations("aiProcessing"),
     getTranslations("uploadWorkspace"),
-    getTranslations("documents"),
+    getTranslations("periodFilter"),
   ]);
   if (!company) notFound();
   const hasNextPage = batches.length > HISTORY_PAGE_SIZE;
@@ -59,10 +58,10 @@ export default async function UploadPage({
     </section>
     <section className="upload-history" aria-labelledby="upload-history-title">
       <div className="upload-section-heading"><div><h2 id="upload-history-title">{workspace("history")}</h2><p>{workspace("historyHint")}</p></div><span>{workspace("historyPage", { page: historyPage })}</span></div>
-      <form action={`/companies/${companyId}/upload`} aria-label={filter("filters")} className="document-queue-filters">
-        <ReportingPeriodFilter periods={periods.map((summary) => summary.period)} selected={reportingPeriod} />
-        <button className="iv-btn iv-btn-primary" type="submit">{filter("filter")}</button>
-        <Link href={`/companies/${companyId}/upload`}>{filter("clearFilters")}</Link>
+      <form action={`/companies/${companyId}/upload`} aria-label={filter("formLabel")} className="document-queue-filters">
+        <ReportingPeriodFilter periods={reportingPeriodsOf(reportingYears)} selected={reportingPeriod} />
+        <button className="iv-btn iv-btn-primary" type="submit">{filter("submit")}</button>
+        <Link href={`/companies/${companyId}/upload`}>{filter("clear")}</Link>
       </form>
       {visibleBatches.length ? <ol className="upload-batch-list">
         {visibleBatches.map((batch) => <li key={batch.id}>
