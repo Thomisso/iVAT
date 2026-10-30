@@ -5,10 +5,10 @@ import {
   epoIdentityFindings,
   getCompany,
   getCompanySetupChecklist,
-  getFilingFrequencyForPeriod,
-  listCompanyFilingFrequencies,
+  getReportingPeriodFrequency,
+  listCompanyReportingYears,
   listMyCompanies,
-  setCompanyFilingFrequency,
+  setCurrentReportingYear,
   updateCompany,
 } from "@/application/companies";
 import { listAuditEvents } from "@/application/audit";
@@ -35,7 +35,7 @@ const novak = {
 
 const initialFiling = {
   filingFrequency: "monthly" as const,
-  filingFrequencyEffectiveFrom: "2026-01-01",
+  reportingYear: 2026,
 };
 
 describe("Company creation", () => {
@@ -60,12 +60,14 @@ describe("Company creation", () => {
       orientationNumber: null,
       aiProcessingEnabled: false,
     });
-    expect(await listCompanyFilingFrequencies(client, result.value.id)).toEqual([
-      { frequency: "monthly", effectiveFrom: "2026-01-01" },
+    expect(await listCompanyReportingYears(client, result.value.id)).toEqual([
+      { year: 2026, frequency: "monthly", firstMonth: 1 },
     ]);
     expect(
-      await getFilingFrequencyForPeriod(client, result.value.id, "2026-10"),
+      await getReportingPeriodFrequency(client, result.value.id, "2026-10"),
     ).toBe("monthly");
+    expect(await getReportingPeriodFrequency(client, result.value.id, "2026-Q4")).toBeNull();
+    expect(await getReportingPeriodFrequency(client, result.value.id, "2027-01")).toBeNull();
     expect(await listMyCompanies(client)).toEqual([
       { id: result.value.id, organizationId, name: "Novák s.r.o." },
     ]);
@@ -99,10 +101,10 @@ describe("Company creation", () => {
       { step: "filing_defaults", state: "skipped" },
       { step: "ai_processing", state: "skipped" },
     ]);
-    expect(await setCompanyFilingFrequency(client, {
+    expect(await setCurrentReportingYear(client, {
       companyId: identity.value.id,
       filingFrequency: "quarterly",
-      filingFrequencyEffectiveFrom: "2026-04-01",
+      year: 2026,
     })).toEqual({ ok: true, value: null });
     expect((await getCompanySetupChecklist(client, identity.value.id))[1]).toEqual({
       step: "filing_frequency", state: "completed",
@@ -188,7 +190,7 @@ describe("Company details", () => {
     expect(result).toEqual({ ok: false, error: "ico_taken" });
   });
 
-  it("keeps effective-dated filing frequency history and audits Company changes", async () => {
+  it("updates the Reporting Year with Company settings and audits Company changes", async () => {
     const { client, userId, organizationId, companyId } =
       await administratorWithCompany();
     const existing = await getCompany(client, companyId);
@@ -200,7 +202,7 @@ describe("Company details", () => {
       name: "Novák účetnictví s.r.o.",
       personType: "legal",
       filingFrequency: "quarterly",
-      filingFrequencyEffectiveFrom: "2027-01-01",
+      reportingYear: 2027,
     });
 
     expect(result).toEqual({ ok: true, value: null });
@@ -210,18 +212,18 @@ describe("Company details", () => {
         personType: "legal",
       }),
     );
-    expect(await listCompanyFilingFrequencies(client, companyId)).toEqual([
-      { frequency: "monthly", effectiveFrom: "2026-01-01" },
-      { frequency: "quarterly", effectiveFrom: "2027-01-01" },
+    expect(await listCompanyReportingYears(client, companyId)).toEqual([
+      { year: 2026, frequency: "monthly", firstMonth: 1 },
+      { year: 2027, frequency: "quarterly", firstMonth: 1 },
     ]);
     expect(
-      await getFilingFrequencyForPeriod(client, companyId, "2026-12"),
+      await getReportingPeriodFrequency(client, companyId, "2026-12"),
     ).toBe("monthly");
     expect(
-      await getFilingFrequencyForPeriod(client, companyId, "2027-Q2"),
+      await getReportingPeriodFrequency(client, companyId, "2027-Q2"),
     ).toBe("quarterly");
     const relevantEvents = (await listAuditEvents(client, organizationId)).filter(
-      (event) => event.action === "company.updated" || event.action === "company.filing_frequency_changed",
+      (event) => event.action === "company.updated" || event.action === "reporting_year.generated",
     );
     expect(relevantEvents.slice(-2)).toEqual([
       expect.objectContaining({
@@ -236,12 +238,13 @@ describe("Company details", () => {
         }),
       }),
       expect.objectContaining({
-        action: "company.filing_frequency_changed",
+        action: "reporting_year.generated",
         actorUserId: userId,
         companyId,
         payload: {
-          effective_from: "2027-01-01",
+          year: 2027,
           frequency: "quarterly",
+          first_month: 1,
         },
       }),
     ]);
@@ -258,7 +261,7 @@ describe("Company details", () => {
       ...existing,
       name: "Administrator changed this",
       filingFrequency: "monthly" as const,
-      filingFrequencyEffectiveFrom: "2026-01-01",
+      reportingYear: 2026,
     };
 
     expect(await updateCompany(administrator.client, change)).toEqual({
@@ -273,37 +276,19 @@ describe("Company details", () => {
     );
   });
 
-  it("enforces quarter boundaries across the full filing-frequency history", async () => {
+  it("removes the filing-frequency history commands", async () => {
     const company = await administratorWithCompany();
-    expect(await setCompanyFilingFrequency(company.client, {
+    for (const legacy of ["update_company", "set_company_filing_frequency"]) {
+      const { error } = await (company.client.rpc as unknown as (name: string, args: object) => Promise<{
+        error: { code: string } | null;
+      }>)(legacy, { target_company_id: company.companyId });
+      expect(error?.code).toBe("PGRST202");
+    }
+    expect(await setCurrentReportingYear(company.client, {
       companyId: company.companyId,
       filingFrequency: "quarterly",
-      filingFrequencyEffectiveFrom: "2027-01-01",
-    })).toEqual({ ok: true, value: null });
-
-    expect(await setCompanyFilingFrequency(company.client, {
-      companyId: company.companyId,
-      filingFrequency: "monthly",
-      filingFrequencyEffectiveFrom: "2027-02-01",
-    })).toEqual({ ok: false, error: "invalid_effective_from" });
-    expect(await listCompanyFilingFrequencies(company.client, company.companyId)).toEqual([
-      { frequency: "monthly", effectiveFrom: "2026-01-01" },
-      { frequency: "quarterly", effectiveFrom: "2027-01-01" },
-    ]);
-
-    const legacyBypass = await company.client.rpc("update_company", {
-      target_company_id: company.companyId,
-      company_name: "Legacy bypass",
-      company_ico: "27082440",
-      company_vat_id: "CZ27082440",
-      company_street: "Legacy 1",
-      company_city: "Praha",
-      company_postal_code: "110 00",
-      company_person_type: "legal",
-      new_filing_frequency: "monthly",
-      filing_frequency_effective_from: "2027-02-01",
-    });
-    expect(legacyBypass.error?.code).toBe("42501");
+      year: 1999,
+    })).toEqual({ ok: false, error: "invalid_reporting_year" });
   });
 
   it("isolates persisted setup state from another Organization", async () => {

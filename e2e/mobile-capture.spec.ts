@@ -27,7 +27,6 @@ async function createCompany(page: Page, run: string): Promise<string> {
   await page.getByRole("button", { name: "Create company" }).click();
   await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+\/setup\/filing-frequency$/);
   const companyId = new URL(page.url()).pathname.split("/")[2];
-  await page.getByLabel("Effective from").fill("01.01.2026");
   await page.getByRole("button", { name: "Save and continue" }).click();
   await expect(page).toHaveURL(new RegExp(`/companies/${companyId}/setup/ai-processing$`));
   await assignBrowserAiConfigurationFixture(companyId);

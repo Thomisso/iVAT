@@ -147,7 +147,7 @@ it("includes an incoming Document only in its Receipt Date or explicitly later c
   ).toEqual([documentId]);
 });
 
-it("generates quarterly Reporting Periods when the Company's filing frequency changes", async () => {
+it("generates quarterly Reporting Periods when the Company's Reporting Year becomes quarterly", async () => {
   const company = await companyWithReportDocuments();
   const details = await getCompany(company.client, company.companyId);
   if (!details) throw new Error("Company not found");
@@ -156,7 +156,7 @@ it("generates quarterly Reporting Periods when the Company's filing frequency ch
       companyId: company.companyId,
       ...details,
       filingFrequency: "quarterly",
-      filingFrequencyEffectiveFrom: "2026-01-01",
+      reportingYear: 2026,
     }),
   ).toEqual({ ok: true, value: null });
 
@@ -260,7 +260,7 @@ it("stores canonical structured Company identity in an immutable VAT Report snap
     streetName: "Nová ulice",
     houseNumber: "99",
     filingFrequency: "monthly",
-    filingFrequencyEffectiveFrom: "2026-01-01",
+    reportingYear: 2026,
   });
 
   expect((await getVatReport(company.client, company.companyId, "2026-10"))!.result.company)

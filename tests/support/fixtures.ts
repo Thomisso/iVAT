@@ -128,7 +128,7 @@ export function companyDetails(
     postalCode: "120 00",
     personType: "legal",
     filingFrequency: "monthly",
-    filingFrequencyEffectiveFrom: "2026-01-01",
+    reportingYear: 2026,
     ...overrides,
   };
 }

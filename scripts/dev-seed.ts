@@ -57,7 +57,7 @@ async function main() {
     postalCode: "110 00",
     personType: "legal",
     filingFrequency: "monthly",
-    filingFrequencyEffectiveFrom: "2026-01-01",
+    reportingYear: 2026,
   });
   if (!company.ok) throw new Error(`Company creation failed: ${company.error}`);
   const companyId = company.value.id;

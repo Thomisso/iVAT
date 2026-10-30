@@ -1,5 +1,5 @@
 import { isUuid, type AppClient, type Result } from "./client";
-import { reportingPeriodStart, validFilingEffectiveFrom } from "./reporting-periods";
+import { currentReportingYear, reportingPeriodsOf } from "./reporting-periods";
 
 export type CompanyDetails = {
   name: string;
@@ -40,9 +40,11 @@ export const PERSON_TYPES = ["legal", "natural"] as const;
 export type PersonType = (typeof PERSON_TYPES)[number];
 export const FILING_FREQUENCIES = ["monthly", "quarterly"] as const;
 export type FilingFrequency = (typeof FILING_FREQUENCIES)[number];
-export type FilingFrequencyHistoryEntry = {
+/** One calendar year of a Company with one filing frequency, starting in `firstMonth` (ADR-0013). */
+export type ReportingYear = {
+  year: number;
   frequency: FilingFrequency;
-  effectiveFrom: string;
+  firstMonth: number;
 };
 
 export type CompanySetupStep = "identity" | "filing_frequency" | "filing_defaults" | "ai_processing";
@@ -61,7 +63,8 @@ export type CompanySummary = { id: string; organizationId: string; name: string 
 
 export type CompanySettingsInput = CompanyIdentityInput & {
   filingFrequency: FilingFrequency;
-  filingFrequencyEffectiveFrom: string;
+  /** Defaults to the current year; callers that must not depend on the clock pass it. */
+  reportingYear?: number;
 };
 
 export type CreateCompanyInput = CompanySettingsInput & { organizationId: string };
@@ -82,9 +85,16 @@ export type CompanyDetailsError =
   | "invalid_postal_code"
   | "invalid_person_type"
   | "invalid_filing_frequency"
-  | "invalid_effective_from";
+  | "invalid_reporting_year";
+
+export type SetCurrentReportingYearError =
+  | "invalid_filing_frequency"
+  | "invalid_reporting_year"
+  | "reporting_year_in_use"
+  | "forbidden";
 
 export type CreateCompanyError = CompanyDetailsError | "ico_taken" | "forbidden";
+export type UpdateCompanyError = CreateCompanyError | SetCurrentReportingYearError;
 
 export type EpoIdentityFinding = {
   field: "streetName" | "orientationNumber" | "city";
@@ -158,8 +168,8 @@ function validateCompanySettings(input: CompanySettingsInput): CompanyDetailsErr
   if (!FILING_FREQUENCIES.some((frequency) => frequency === input.filingFrequency)) {
     return "invalid_filing_frequency";
   }
-  if (!validFilingEffectiveFrom(input.filingFrequency, input.filingFrequencyEffectiveFrom)) {
-    return "invalid_effective_from";
+  if (input.reportingYear !== undefined && !validReportingYear(input.reportingYear)) {
+    return "invalid_reporting_year";
   }
   return null;
 }
@@ -193,26 +203,28 @@ export async function createCompanyIdentity(
   return { ok: true, value: { id: data } };
 }
 
-export async function setCompanyFilingFrequency(
+const validReportingYear = (year: number) => Number.isInteger(year) && year >= 2000 && year <= 2099;
+
+/** Onboarding and filing settings: creates or updates the current Reporting Year with the chosen frequency. */
+export async function setCurrentReportingYear(
   client: AppClient,
-  input: { companyId: string; filingFrequency: FilingFrequency; filingFrequencyEffectiveFrom: string },
-): Promise<Result<null, CompanyDetailsError | "forbidden">> {
+  input: { companyId: string; filingFrequency: FilingFrequency; year?: number },
+): Promise<Result<null, SetCurrentReportingYearError>> {
   if (!isUuid(input.companyId)) return { ok: false, error: "forbidden" };
   if (!FILING_FREQUENCIES.some((frequency) => frequency === input.filingFrequency)) {
     return { ok: false, error: "invalid_filing_frequency" };
   }
-  if (!validFilingEffectiveFrom(input.filingFrequency, input.filingFrequencyEffectiveFrom)) {
-    return { ok: false, error: "invalid_effective_from" };
-  }
-  const { error } = await client.rpc("set_company_filing_frequency", {
+  const year = input.year ?? currentReportingYear();
+  if (!validReportingYear(year)) return { ok: false, error: "invalid_reporting_year" };
+  const { error } = await client.rpc("set_company_reporting_year", {
     target_company_id: input.companyId,
-    new_filing_frequency: input.filingFrequency,
-    filing_frequency_effective_from: input.filingFrequencyEffectiveFrom,
+    target_year: year,
+    new_frequency: input.filingFrequency,
   });
   if (error) {
     if (error.code === "42501") return { ok: false, error: "forbidden" };
-    if (error.code === "P0001" && error.hint === "invalid_effective_from") {
-      return { ok: false, error: "invalid_effective_from" };
+    if (error.code === "P0001" && (error.hint === "invalid_reporting_year" || error.hint === "reporting_year_in_use")) {
+      return { ok: false, error: error.hint };
     }
     throw error;
   }
@@ -229,8 +241,15 @@ export async function createCompany(
   if (invalid) return { ok: false, error: invalid };
   const created = await createCompanyIdentity(client, { organizationId: input.organizationId, ...details });
   if (!created.ok) return created;
-  const filing = await setCompanyFilingFrequency(client, { companyId: created.value.id, ...input });
-  if (!filing.ok) return filing;
+  const filing = await setCurrentReportingYear(client, {
+    companyId: created.value.id,
+    filingFrequency: input.filingFrequency,
+    year: input.reportingYear,
+  });
+  if (!filing.ok) {
+    if (filing.error === "reporting_year_in_use") throw new Error("A new Company has no VAT Reports");
+    return { ok: false, error: filing.error };
+  }
   return created;
 }
 
@@ -267,7 +286,7 @@ export async function updateCompanyIdentity(
 export async function updateCompany(
   client: AppClient,
   input: UpdateCompanyInput,
-): Promise<Result<null, CreateCompanyError>> {
+): Promise<Result<null, UpdateCompanyError>> {
   if (!isUuid(input.companyId)) return { ok: false, error: "forbidden" };
   const details = normalizeCompanyIdentity(input);
   const normalized = { ...input, ...details };
@@ -275,7 +294,11 @@ export async function updateCompany(
   if (invalid) return { ok: false, error: invalid };
   const updated = await updateCompanyIdentity(client, { companyId: input.companyId, ...details });
   if (!updated.ok) return updated;
-  return setCompanyFilingFrequency(client, { ...input, companyId: input.companyId });
+  return setCurrentReportingYear(client, {
+    companyId: input.companyId,
+    filingFrequency: input.filingFrequency,
+    year: input.reportingYear,
+  });
 }
 
 export async function getCompany(client: AppClient, companyId: string): Promise<Company | null> {
@@ -310,27 +333,21 @@ export async function getCompany(client: AppClient, companyId: string): Promise<
   };
 }
 
-export async function listCompanyFilingFrequencies(
+export async function listCompanyReportingYears(
   client: AppClient,
   companyId: string,
-): Promise<FilingFrequencyHistoryEntry[]> {
+): Promise<ReportingYear[]> {
   if (!isUuid(companyId)) return [];
-  const pageSize = 1_000;
-  const history: { frequency: FilingFrequency; effective_from: string }[] = [];
-  for (let offset = 0; ; offset += pageSize) {
-    const { data, error } = await client
-      .from("company_filing_frequency")
-      .select("frequency, effective_from")
-      .eq("company_id", companyId)
-      .order("effective_from")
-      .range(offset, offset + pageSize - 1);
-    if (error) throw error;
-    history.push(...data);
-    if (data.length < pageSize) break;
-  }
-  return history.map((entry) => ({
+  const { data, error } = await client
+    .from("reporting_year")
+    .select("year, frequency, first_month")
+    .eq("company_id", companyId)
+    .order("year");
+  if (error) throw error;
+  return data.map((entry) => ({
+    year: entry.year,
     frequency: entry.frequency,
-    effectiveFrom: entry.effective_from,
+    firstMonth: entry.first_month,
   }));
 }
 
@@ -352,24 +369,24 @@ export async function getCompanySetupChecklist(
   }));
 }
 
-/** The filing frequency in force on the first day of a Reporting Period. */
-export async function getFilingFrequencyForPeriod(
+/** The frequency of a Reporting Period's year, or null when the period is not in a generated Reporting Year. */
+export async function getReportingPeriodFrequency(
   client: AppClient,
   companyId: string,
   period: string,
 ): Promise<FilingFrequency | null> {
-  const start = reportingPeriodStart(period);
-  if (!isUuid(companyId) || !start) return null;
+  const year = Number(period.slice(0, 4));
+  if (!isUuid(companyId) || !/^20\d{2}-/.test(period)) return null;
   const { data, error } = await client
-    .from("company_filing_frequency")
-    .select("frequency")
+    .from("reporting_year")
+    .select("year, frequency, first_month")
     .eq("company_id", companyId)
-    .lte("effective_from", start)
-    .order("effective_from", { ascending: false })
-    .limit(1)
+    .eq("year", year)
     .maybeSingle();
   if (error) throw error;
-  return data?.frequency ?? null;
+  if (!data) return null;
+  const reportingYear = { year: data.year, frequency: data.frequency, firstMonth: data.first_month };
+  return reportingPeriodsOf([reportingYear]).includes(period) ? data.frequency : null;
 }
 
 /** Companies the current user can access, directly or as Organization Administrator. */
