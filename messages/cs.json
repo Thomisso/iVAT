@@ -838,8 +838,9 @@
     "noImage": "Originál tohoto dokladu nelze zobrazit.",
     "reportingAssignment": {
       "title": "Zdaňovací období nároku na odpočet",
+      "defaultPeriod": "Podle DUZP (bez odložení)",
       "claimedReportingPeriod": "Přesunout nárok na odpočet do období",
-      "claimedReportingPeriodHint": "Nepovinné. Zadejte pozdější měsíc (2026-12) nebo čtvrtletí (2027-Q1) podle frekvence firmy.",
+      "claimedReportingPeriodHint": "Vyberte nezamčené pozdější období, nejvýše tři roky od DUZP.",
       "claimedReportingPeriodPlaceholder": "2026-12 nebo 2027-Q1",
       "save": "Uložit zdaňovací období",
       "saving": "Ukládání…"

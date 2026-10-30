@@ -1,3 +1,4 @@
+import { listDeferredClaimPeriods } from "@/application/documents";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
@@ -67,6 +68,7 @@ export default async function DocumentReviewPage({
   };
   const locks = await documentPeriodLocks(client, companyId, [document.id]);
   const lockedPeriod = locks[document.id];
+  const deferredClaimPeriods = await listDeferredClaimPeriods(client, companyId, documentId);
   const [t, locale] = await Promise.all([getTranslations(), getLocale()]);
   const sourceRows = document.rowSet
     ? await readDocumentRows(client, companyId, document.id)
@@ -223,11 +225,12 @@ export default async function DocumentReviewPage({
           ) : (
             <EmptyState icon="file" title={t("review.noExtraction")} />
           )}
-          {current?.payload.direction === "incoming" && !lockedPeriod && (
+          {current?.payload.direction === "incoming" && (
             <ReportingAssignmentForm
               companyId={companyId}
               documentId={document.id}
               claimedReportingPeriod={document.claimedReportingPeriod}
+              periods={deferredClaimPeriods}
             />
           )}
           {reviewing && (
