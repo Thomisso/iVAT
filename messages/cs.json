@@ -261,7 +261,9 @@
     },
     "invitationStatus": {
       "pending": "Čeká na přijetí",
-      "expired": "Platnost skončila"
+      "expired": "Platnost skončila",
+      "cancelled": "Zrušena",
+      "replaced": "Nahrazena"
     },
     "acceptTitle": "Přijmout pozvánku",
     "acceptIntro": "Přijetím pozvánky získáte jako uživatel přístup k organizaci nebo firmě.",
@@ -270,7 +272,26 @@
     "logInToAcceptTitle": "Přihlaste se pro přijetí",
     "existingUserIntro": "Použijte své stávající přihlašovací údaje. Vaše heslo se nezmění.",
     "newPassword": "Nové heslo",
-    "accept": "Přijmout pozvánku"
+    "accept": "Přijmout pozvánku",
+    "generateLink": "Vygenerovat link",
+    "invitationLink": "Odkaz pozvánky",
+    "copyLink": "Zkopírovat link",
+    "linkCopied": "Odkaz zkopírován",
+    "copyManually": "Označte a zkopírujte odkaz výše.",
+    "replaceLink": "Vygenerovat nový link",
+    "cancelInvitation": "Zrušit pozvánku",
+    "legacyLinkIntro": "Tento starší odkaz nelze znovu zkopírovat. Pro kopírování vygenerujte nový.",
+    "loadingInvitation": "Načítání pozvánky…",
+    "wrongAccountIntro": "Jste přihlášeni jiným účtem. Odhlaste se a přijměte pozvánku pod určeným e-mailem.",
+    "signOutToAccept": "Odhlásit a pokračovat",
+    "signedInIntro": "Přijměte pozvánku pod přihlášeným účtem.",
+    "emailMessage": {
+      "subject": "Vaše pozvánka do iVAT",
+      "heading": "Pozvánka do iVAT",
+      "introduction": "Otevřete pozvánku a výslovně přijměte přístup. Nový uživatel si zvolí heslo, existující použije stávající přihlášení.",
+      "linkLabel": "Otevřít pozvánku",
+      "expiry": "Pozvánka je jednorázová a platí sedm dní od vytvoření."
+    }
   },
   "dashboard": {
     "companies": "Firmy"
@@ -577,7 +598,12 @@
     "direction_required": "Před schválením nastavte směr dokladu.",
     "batch_processing": "Dávka se ještě zpracovává. Počkejte, až zpracování skončí.",
     "invalid_price": "Zadejte obě ceny jako nezáporná čísla, nebo obě nechte prázdné.",
-    "unknown_model": "Konfigurace AI tento model nepoužívá."
+    "unknown_model": "Konfigurace AI tento model nepoužívá.",
+    "invitation_cancelled": "Tato pozvánka byla zrušena. Požádejte administrátora o novou.",
+    "invitation_replaced": "Tato pozvánka byla nahrazena. Použijte nový odkaz od administrátora.",
+    "invitation_busy": "Probíhá přijímání pozvánky. Za chvíli to zkuste znovu.",
+    "invitation_identity_changed": "Tento účet již existuje. Obnovte pozvánku a použijte stávající přihlašovací údaje.",
+    "invitation_unavailable": "Pozvánku se nepodařilo načíst. Obnovte stránku a zkuste to znovu."
   },
   "aiUsage": {
     "platformNav": "Využití AI na platformě",

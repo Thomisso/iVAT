@@ -11,10 +11,12 @@ export function AcceptInvitationForm({
   token,
   email,
   existingUser,
+  alreadyAuthenticated = false,
 }: {
   token: string;
   email: string;
   existingUser: boolean;
+  alreadyAuthenticated?: boolean;
 }) {
   const t = useTranslations("members");
   const auth = useTranslations("auth");
@@ -22,17 +24,15 @@ export function AcceptInvitationForm({
   return (
     <form action={action} className="form">
       <input type="hidden" name="token" value={token} />
-      {existingUser ? (
-        <TextField label={auth("email")} type="email" value={email} readOnly />
-      ) : null}
-      <TextField
+      <TextField label={auth("email")} type="email" value={email} readOnly />
+      {!alreadyAuthenticated && <TextField
         label={existingUser ? auth("password") : t("newPassword")}
         type="password"
         name="password"
         autoComplete={existingUser ? "current-password" : "new-password"}
         minLength={existingUser ? undefined : 8}
         required
-      />
+      />}
       <FormError error={state.error} />
       <Button type="submit" variant="primary" disabled={pending}>{t("accept")}</Button>
     </form>
