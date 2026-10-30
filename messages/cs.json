@@ -693,7 +693,9 @@
     "maxFileBytes": "Maximální velikost zdrojového souboru (bajty)",
     "maxFilePages": "Maximum stran zdrojového souboru",
     "maxBatchFiles": "Maximum zdrojových souborů v dávce",
-    "saveLimits": "Uložit limity nahrávání"
+    "saveLimits": "Uložit limity nahrávání",
+    "retainedHistory": "Dochovaná historie",
+    "companyIdentity": "{name} · IČO {ico}"
   },
   "mfa": {
     "securityTitle": "Zabezpečení",
@@ -987,8 +989,8 @@
           "hint": "Zkontrolujte oba zákonné výstupy uloženého snímku."
         },
         "export": {
-          "title": "Export XML",
-          "hint": "Stáhněte XML pro EPO z přiznání k DPH a z kontrolního hlášení. Každé stažení se uloží do historie exportů."
+          "title": "Export DRAFT XML",
+          "hint": "Vytvořte pracovní XML ke kontrole. Draftové exporty jsou volitelné a neblokují finalizaci."
         },
         "finalize": {
           "title": "Finalizace",
@@ -1225,6 +1227,7 @@
     },
     "epoAddressMissing": "Je nutná potvrzená adresa pro EPO",
     "epoAddressRequired": "Registrovaná adresa překračuje limit schématu EPO. Před stažením XML doplňte a potvrďte samostatnou adresu pro EPO.",
+    "administratorAddressRequired": "Před exportem musí administrátor doplnit a potvrdit adresu firmy pro EPO.",
     "completeEpoAddress": "Doplnit adresu EPO v nastavení firmy",
     "editForExport": "Upravit pro tento export",
     "useSaved": "Použít uložené výchozí údaje",
@@ -1251,5 +1254,40 @@
       "464": "FÚ pro Zlínský kraj",
       "13": "Specializovaný finanční úřad"
     }
+  },
+  "platformHistory": {
+    "title": "Historie firmy: {company}",
+    "deletedNotice": "Smazáno {date}. Dochovaná historie je pouze pro čtení; firma zůstává smazaná.",
+    "blockedNotice": "Organizace je zablokovaná. Běžné zpracování zůstává pozastavené, dokud ji SuperAdmin výslovně neodblokuje.",
+    "readOnlyNotice": "Tento pohled nabízí dochovaná data firmy pouze pro čtení.",
+    "organizationAdministration": "Správa organizace",
+    "companyAdministration": "Správa přístupů do firmy",
+    "organizationAudit": "Auditní historie firmy",
+    "downloadArchive": "Stáhnout dochovaná data firmy",
+    "companyIdentity": "Identita firmy",
+    "sourceFiles": "Zdrojové soubory",
+    "file": "Soubor",
+    "uploadedAt": "Nahráno",
+    "byteSize": "Bajtů",
+    "documents": "Doklady",
+    "document": "Doklad",
+    "pages": "Strany {first}–{last}",
+    "version": "Verze extrakce {version} · {date}",
+    "documentNumber": "Číslo dokladu",
+    "supplier": "Dodavatel",
+    "customer": "Odběratel",
+    "taxPointDate": "Datum zdanitelného plnění",
+    "total": "Celkem",
+    "noDocuments": "Žádné dochované doklady.",
+    "vatReports": "Výstupy DPH",
+    "period": "Zdaňovací období",
+    "generatedAt": "Vygenerováno",
+    "xmlArtifacts": "Archivované XML",
+    "audit": "Auditní historie firmy",
+    "occurredAt": "Kdy",
+    "action": "Akce",
+    "actor": "Kdo",
+    "identityLine": "{name} · IČO {ico} · {vatId}",
+    "notAvailable": "Neuvedeno"
   }
 }
