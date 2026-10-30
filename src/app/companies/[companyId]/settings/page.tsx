@@ -2,7 +2,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getCompany, getCompanySetupChecklist, getMyCompanyRole } from "@/application/companies";
-import { AdministrationNavigation } from "@/components/administration-navigation";
 import { Icon } from "@/components/icon";
 import { loadAdministrationAccess } from "@/lib/administration-access";
 import { requireUserClient } from "@/lib/supabase/server";
@@ -10,7 +9,7 @@ import { requireUserClient } from "@/lib/supabase/server";
 export default async function CompanySettingsPage({ params }: PageProps<"/companies/[companyId]/settings">) {
   const { companyId } = await params;
   const client = await requireUserClient();
-  const [company, checklist, role, { organizations, superAdmin }, shell, t] = await Promise.all([
+  const [company, checklist, role, { organizations }, shell, t] = await Promise.all([
     getCompany(client, companyId),
     getCompanySetupChecklist(client, companyId),
     getMyCompanyRole(client, companyId),
@@ -19,6 +18,7 @@ export default async function CompanySettingsPage({ params }: PageProps<"/compan
     getTranslations("company"),
   ]);
   if (!company) notFound();
+  const organization = organizations.find((item) => item.id === company.organizationId && item.role === "administrator");
 
   const checklistHref = (step: (typeof checklist)[number]["step"]) => {
     if (step === "identity") return `/companies/${companyId}/settings/company`;
@@ -45,6 +45,17 @@ export default async function CompanySettingsPage({ params }: PageProps<"/compan
         </Link>)}
       </div>
     </section> : <p className="iv-muted">{t("administratorSettingsOnly")}</p>}
+    {organization && role === "administrator" && <section
+      aria-label={t("organizationSettingsTitle", { organization: organization.name })}
+      className="company-settings-destinations"
+    >
+      <header><h2>{t("organizationSettingsTitle", { organization: organization.name })}</h2><p>{t("organizationSettingsIntro")}</p></header>
+      <div>
+        <Link href={`/organizations/${organization.id}/members`}><strong>{t("organizationUsers")}</strong><span>{t("organizationUsersIntro")}</span></Link>
+        <Link href={`/organizations/${organization.id}/audit-log`}><strong>{t("organizationAudit")}</strong><span>{t("organizationAuditIntro")}</span></Link>
+        <Link href={`/settings/security#organization-${organization.id}`}><strong>{t("organizationSecurity")}</strong><span>{t("organizationSecurityIntro")}</span></Link>
+      </div>
+    </section>}
     <section aria-labelledby="setup-checklist-title" className="company-setup-checklist">
       <header><h2 id="setup-checklist-title">{shell("setupChecklist")}</h2><p>{shell("setupChecklistIntro")}</p></header>
       <ol>{checklist.map((item) => <li data-state={item.state} key={item.step}>
@@ -53,12 +64,5 @@ export default async function CompanySettingsPage({ params }: PageProps<"/compan
         {role === "administrator" && <Link href={checklistHref(item.step)}>{shell("setupOpen")}</Link>}
       </li>)}</ol>
     </section>
-    <AdministrationNavigation
-      className="company-settings-administration"
-      companyId={company.id}
-      companyRole={role}
-      organizations={organizations}
-      superAdmin={superAdmin}
-    />
   </>;
 }

@@ -209,7 +209,7 @@ export async function addBrowserDocumentWarningFixture(documentId: string) {
 }
 
 /** Browser-fixture setup for a user who signed up through the real UI. */
-export async function addBrowserCompanyMemberFixture(companyId: string, email: string) {
+export async function addBrowserCompanyMemberFixture(companyId: string, email: string, role: "administrator" | "user" = "user") {
   const service = await browserFixtureClient();
   const [{ data: company }, { data: users }] = await Promise.all([
     service.from("company").select("organization_id").eq("id", companyId).single(),
@@ -221,7 +221,7 @@ export async function addBrowserCompanyMemberFixture(companyId: string, email: s
     company_id: companyId,
     email,
     organization_id: company.organization_id,
-    role: "user",
+    role,
     user_id: userId,
   });
   if (membership.error) throw membership.error;

@@ -1433,6 +1433,13 @@ select:disabled {
   color: #263944;
 }
 .platform-alert-bell { text-decoration: none; }
+.platform-settings-nav { margin: 24px 32px 0; padding-bottom: 8px; display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid #cbd5d2; }
+.platform-settings-nav a { min-height: 40px; padding: 8px 12px; display: inline-flex; align-items: center; gap: 6px; border-radius: 6px; color: #4d5f67; font-size: 14px; font-weight: 650; text-decoration: none; }
+.platform-settings-nav a:hover { background: #eef1ef; color: var(--shell-blue); }
+.platform-settings-nav a[aria-current="page"] { background: var(--shell-blue-soft); color: var(--shell-navy); }
+@media (max-width: 719px) {
+  .platform-settings-nav { margin: 20px 14px 0; }
+}
 .platform-page { width: 100%; max-width: 1440px; min-height: 100dvh; padding: clamp(24px, 4vw, 56px); }
 .platform-page > .panel { width: 100%; max-width: none; margin: 0; }
 .operational-problems { display: grid; gap: var(--space-4); }
