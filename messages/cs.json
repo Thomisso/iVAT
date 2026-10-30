@@ -874,6 +874,8 @@
       "counterparty_vat_id_required": "Pro tento režim DPH je DIČ protistrany povinné.",
       "unreliable_vat_payer": "Dodavatel je v registru veden jako nespolehlivý plátce DPH.",
       "unpublished_bank_account": "Platební účet není u tohoto dodavatele zveřejněn v registru plátců DPH.",
+      "missing_bank_account": "Není vyplněn platební účet. Zkontrolujte platební údaje; doklad lze i tak schválit.",
+      "bank_account_not_verified": "Dodavatel nebyl nalezen v registru plátců DPH, proto nebylo možné platební účet ověřit. Zkontrolujte jej ručně.",
       "vat_registry_check_not_performed": "Registr plátců DPH nebyl dostupný, proto nebyla provedena kontrola dodavatele a platebního účtu.",
       "direction_unknown": "Směr se nepodařilo určit podle identity firmy. Před schválením jej nastavte.",
       "currency_conversion_not_performed": "Kurz ČNB nebyl dostupný, proto nebylo možné vypočítat částky v CZK.",
