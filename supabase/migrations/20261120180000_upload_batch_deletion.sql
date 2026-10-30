@@ -24,7 +24,8 @@ $$;
 
 -- Stored objects of deleted Source Files. The database deletes the rows; the
 -- application then removes the objects through the Storage API, which only
--- deletes objects listed here.
+-- deletes objects listed here. A record stays until its object is gone, so a
+-- failed removal is retried by the Company's next batch deletion.
 create table private.deleted_source_file_object (
   name text primary key,
   organization_id uuid not null,
@@ -52,12 +53,60 @@ create policy "company members remove deleted source file objects" on storage.ob
   for delete to authenticated
   using (bucket_id = 'source-files' and private.can_remove_deleted_source_file_object(name));
 
+-- Why a batch cannot be deleted now, or null. Shared by the confirmation
+-- preview and the deletion, so the preview never offers a refused deletion.
+-- Every Document counts, superseded ones included, exactly as the Period Lock
+-- trigger checks them on delete.
+create function private.upload_batch_deletion_refusal(batch public.upload_batch)
+returns text
+language sql stable security definer set search_path = ''
+as $$
+  select case
+    when batch.upload_finished_at is null or batch.processing_finished_at is null then 'batch_processing'
+    when exists (
+      select 1
+      from public.source_file sf
+      join public.document d on d.source_file_id = sf.id
+      cross join lateral (
+        select private.document_reporting_period_for(d, (
+          select v.payload from public.extraction_version v
+          where v.document_id = d.id
+          order by v.version desc
+          limit 1
+        )) as period
+      ) assigned
+      where sf.upload_batch_id = batch.id
+        and assigned.period is not null
+        and private.is_reporting_period_locked(d.company_id, assigned.period)
+    ) then 'period_locked'
+  end;
+$$;
+
+create function public.upload_batch_deletion_refusal(target_batch_id uuid)
+returns text
+language plpgsql stable security definer set search_path = ''
+as $$
+declare
+  batch public.upload_batch;
+begin
+  select * into batch from public.upload_batch where id = target_batch_id;
+  if not found or not private.can_access_company(batch.company_id, batch.organization_id) then
+    raise exception 'not allowed' using errcode = '42501';
+  end if;
+  return private.upload_batch_deletion_refusal(batch);
+end;
+$$;
+
+-- Deletes the batch and returns every stored object the caller should now
+-- remove: this batch's and any still pending from earlier deletions in the
+-- same Company.
 create function public.delete_upload_batch(target_batch_id uuid)
 returns text[]
 language plpgsql security definer set search_path = ''
 as $$
 declare
   batch public.upload_batch;
+  refusal text;
   source_ids uuid[];
   document_ids uuid[];
   object_names text[];
@@ -73,9 +122,13 @@ begin
     ) then
     raise exception 'not allowed' using errcode = '42501';
   end if;
-  if batch.upload_finished_at is null or batch.processing_finished_at is null then
+  refusal := private.upload_batch_deletion_refusal(batch);
+  if refusal = 'batch_processing' then
     raise exception 'the Upload Batch is still processing'
       using errcode = 'P0001', hint = 'batch_processing';
+  elsif refusal = 'period_locked' then
+    raise exception 'the Reporting Period is locked'
+      using errcode = 'P0001', hint = 'period_locked';
   end if;
 
   select coalesce(array_agg(sf.id), '{}') into source_ids
@@ -90,8 +143,7 @@ begin
   where d.source_file_id = any(source_ids);
 
   set constraints public.extraction_version_document_id_company_id_organization_id_fkey deferred;
-  -- The Period Lock trigger refuses the whole deletion (period_locked) when
-  -- any Document lies in a locked Reporting Period.
+  -- The Period Lock trigger still guards each deleted Document.
   with deleted as (
     delete from public.document d
     where d.source_file_id = any(source_ids)
@@ -105,14 +157,13 @@ begin
   where (i.target_kind = 'document' and i.target_id = any(document_ids))
     or (i.target_kind = 'source_file' and i.target_id = any(source_ids));
 
-  select coalesce(array_agg(o.name), '{}') into object_names
+  insert into private.deleted_source_file_object (name, organization_id, company_id)
+  select o.name, batch.organization_id, batch.company_id
   from storage.objects o
   join unnest(source_ids) as source(id)
     on o.name = batch.company_id::text || '/' || source.id::text
     or o.name like batch.company_id::text || '/' || source.id::text || '/%'
-  where o.bucket_id = 'source-files';
-  insert into private.deleted_source_file_object (name, organization_id, company_id)
-  select name, batch.organization_id, batch.company_id from unnest(object_names) as name
+  where o.bucket_id = 'source-files'
   on conflict (name) do nothing;
 
   delete from public.source_file sf where sf.id = any(source_ids);
@@ -132,35 +183,70 @@ begin
       'approvedDocumentCount', approved_document_count
     )
   );
+
+  select coalesce(array_agg(o.name order by o.name), '{}') into object_names
+  from private.deleted_source_file_object o
+  where o.company_id = batch.company_id;
   return object_names;
+end;
+$$;
+
+-- Forgets removal records whose stored object no longer exists.
+create function public.forget_removed_source_file_objects(target_company_id uuid)
+returns void
+language plpgsql security definer set search_path = ''
+as $$
+declare
+  target public.company;
+begin
+  select * into target from public.company where id = target_company_id;
+  if not found or not private.can_access_company(target.id, target.organization_id) then
+    raise exception 'not allowed' using errcode = '42501';
+  end if;
+  delete from private.deleted_source_file_object o
+  where o.company_id = target.id
+    and not exists (
+      select 1 from storage.objects stored
+      where stored.bucket_id = 'source-files' and stored.name = o.name
+    );
 end;
 $$;
 
 -- Opening a finished batch marks the caller's notification for it as read. A
 -- batch still processing keeps it unread, so its completion is still announced.
+-- Returns whether a notification changed.
 create function public.mark_upload_batch_notification_read(target_batch_id uuid)
-returns void
+returns boolean
 language plpgsql security definer set search_path = ''
 as $$
 declare
   batch public.upload_batch;
+  changed integer;
 begin
   select * into batch from public.upload_batch where id = target_batch_id;
   if not found or not private.can_access_company(batch.company_id, batch.organization_id) then
     raise exception 'not allowed' using errcode = '42501';
   end if;
   if batch.processing_finished_at is null then
-    return;
+    return false;
   end if;
   update public.notification
-  set read_at = coalesce(read_at, now())
+  set read_at = now()
   where user_id = auth.uid()
     and kind = 'upload_batch_finished'
-    and payload ->> 'batchId' = batch.id::text;
+    and payload ->> 'batchId' = batch.id::text
+    and read_at is null;
+  get diagnostics changed = row_count;
+  return changed > 0;
 end;
 $$;
 
-revoke execute on function public.delete_upload_batch(uuid) from public, anon;
-revoke execute on function public.mark_upload_batch_notification_read(uuid) from public, anon;
-grant execute on function public.delete_upload_batch(uuid) to authenticated;
-grant execute on function public.mark_upload_batch_notification_read(uuid) to authenticated;
+revoke execute on function private.upload_batch_deletion_refusal(public.upload_batch) from public;
+revoke execute on function public.delete_upload_batch(uuid),
+  public.upload_batch_deletion_refusal(uuid),
+  public.forget_removed_source_file_objects(uuid),
+  public.mark_upload_batch_notification_read(uuid) from public, anon;
+grant execute on function public.delete_upload_batch(uuid),
+  public.upload_batch_deletion_refusal(uuid),
+  public.forget_removed_source_file_objects(uuid),
+  public.mark_upload_batch_notification_read(uuid) to authenticated;

@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { getCompanyAiProcessingAllowance } from "@/application/ai-processing-allowance";
 import { listAuditEvents } from "@/application/audit";
 import { approveDocument, listCompanyDocuments, listExtractionVersions } from "@/application/documents";
 import { finalizeVatReport, generateVatReport } from "@/application/vat-reports";
@@ -98,7 +99,7 @@ describe("Upload Batch deletion", () => {
       documentId: approved,
       version: 1,
     })).toEqual({ ok: true, value: null });
-    expect(await getUploadBatchDeletionPreview(member.client, admin.companyId, batchId)).toEqual({
+    expect(await getUploadBatchDeletionPreview(member.client, (await getUploadBatch(member.client, admin.companyId, batchId))!)).toEqual({
       batchId,
       createdBy: member.userId,
       sourceFileCount: 2,
@@ -169,7 +170,7 @@ describe("Upload Batch deletion", () => {
     const input = { companyId: admin.companyId, batchId: batch.value.id };
 
     expect(await deleteUploadBatch(admin.client, input)).toEqual({ ok: false, error: "batch_processing" });
-    expect(await getUploadBatchDeletionPreview(admin.client, admin.companyId, batch.value.id)).toEqual(
+    expect(await getUploadBatchDeletionPreview(admin.client, (await getUploadBatch(admin.client, admin.companyId, batch.value.id))!)).toEqual(
       expect.objectContaining({ sourceFileCount: 1, refusal: "batch_processing" }),
     );
     await finishUploadBatch(admin.client, batch.value.id);
@@ -196,7 +197,7 @@ describe("Upload Batch deletion", () => {
       ok: false,
       error: "period_locked",
     });
-    expect(await getUploadBatchDeletionPreview(admin.client, admin.companyId, batchId)).toEqual(
+    expect(await getUploadBatchDeletionPreview(admin.client, (await getUploadBatch(admin.client, admin.companyId, batchId))!)).toEqual(
       expect.objectContaining({ documentCount: 3, approvedDocumentCount: 3, refusal: "period_locked" }),
     );
 
@@ -206,5 +207,56 @@ describe("Upload Batch deletion", () => {
     expect(objectsBefore).toHaveLength(2);
     expect(await listExtractionVersions(admin.client, admin.companyId, documentIds[0])).toHaveLength(1);
     expect(await listUploadNotifications(admin.client, admin.companyId)).toHaveLength(1);
+  });
+
+  it("keeps the AI Processing Allowance consumed by a deleted batch", async () => {
+    const admin = await companyWithAi();
+    const batchId = await finishedBatch(admin.client, admin.worker, admin.companyId);
+    expect(await getCompanyAiProcessingAllowance(admin.client, admin.companyId)).toEqual({
+      ok: true,
+      value: { used: 3, allowance: 50, waitingDocuments: 0 },
+    });
+
+    expect(await deleteUploadBatch(admin.client, { companyId: admin.companyId, batchId })).toEqual({
+      ok: true,
+      value: null,
+    });
+
+    expect(await getCompanyAiProcessingAllowance(admin.client, admin.companyId)).toEqual({
+      ok: true,
+      value: { used: 3, allowance: 50, waitingDocuments: 0 },
+    });
+  });
+
+  it("still deletes a batch when Storage fails, and removes its stored objects with the next deletion", async () => {
+    const admin = await companyWithAi();
+    const first = await finishedBatch(admin.client, admin.worker, admin.companyId, [
+      { fileName: "first.png", fixture: "receipt.png" },
+    ]);
+    const second = await finishedBatch(admin.client, admin.worker, admin.companyId, [
+      { fileName: "second.png", fixture: "receipt.png" },
+    ]);
+    const unavailableStorage = new Proxy(admin.client, {
+      get(target, property, receiver) {
+        if (property !== "storage") return Reflect.get(target, property, receiver);
+        return {
+          from: () => ({
+            remove: async () => ({ data: null, error: new Error("Storage unavailable") }),
+          }),
+        };
+      },
+    });
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    expect(await deleteUploadBatch(unavailableStorage, { companyId: admin.companyId, batchId: first }))
+      .toEqual({ ok: true, value: null });
+    expect(errors).toHaveBeenCalled();
+    errors.mockRestore();
+    expect(await getUploadBatch(admin.client, admin.companyId, first)).toBeNull();
+    expect(await storedObjectNames(admin.companyId)).toHaveLength(2);
+
+    expect(await deleteUploadBatch(admin.client, { companyId: admin.companyId, batchId: second }))
+      .toEqual({ ok: true, value: null });
+    expect(await storedObjectNames(admin.companyId)).toEqual([]);
   });
 });

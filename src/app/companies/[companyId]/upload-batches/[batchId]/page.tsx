@@ -19,18 +19,19 @@ export default async function UploadBatchPage({
 }: PageProps<"/companies/[companyId]/upload-batches/[batchId]">) {
   const { companyId, batchId } = await params;
   const client = await requireUserClient();
-  const [company, role, userId, batch, deletion, t, format] = await Promise.all([
+  const [company, role, userId, batch, t, format] = await Promise.all([
     getCompany(client, companyId),
     getMyCompanyRole(client, companyId),
     currentUserId(client),
     getUploadBatch(client, companyId, batchId),
-    getUploadBatchDeletionPreview(client, companyId, batchId),
     getTranslations("uploadWorkspace"),
     getFormatter(),
   ]);
   if (!company || !batch) notFound();
   // The database decides who may delete; the Role only decides whether to offer it.
-  const mayOfferDeletion = deletion && (role === "administrator" || deletion.createdBy === userId);
+  const deletion = role === "administrator" || batch.createdBy === userId
+    ? await getUploadBatchDeletionPreview(client, batch)
+    : null;
 
   const phases = [
     { key: "transport", count: batch.actualFileCount, active: !batch.uploadFinishedAt },
@@ -99,7 +100,7 @@ export default async function UploadBatchPage({
         </ol> : <p className="iv-muted">{source.status === "failed" ? t("noDocumentsFailed") : t("noDocumentsYet")}</p>}
       </article>)}
     </section>
-    {mayOfferDeletion && <BatchDeletionForm companyId={companyId} preview={deletion} />}
+    {deletion && <BatchDeletionForm companyId={companyId} preview={deletion} />}
     <RefreshWhile active={batch.outcome === "processing"} />
     <MarkBatchNotificationRead batchId={batch.id} finished={batch.outcome !== "processing"} />
   </PageLayout>;
