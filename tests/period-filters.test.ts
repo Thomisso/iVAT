@@ -7,8 +7,9 @@ import { beginUploadBatch, finishUploadBatch, listUploadBatches } from "@/applic
 import {
   administratorWithCompany,
   assignAiConfigurationFixture as enableAiProcessing,
+  setUploadBatchCreationDatesFixture,
 } from "./support/fixtures";
-import { fixtureFile } from "./support/files";
+import { fixtureFile, selectFixtureFiles } from "./support/files";
 import { testWorker } from "./support/worker";
 
 /** A Company with Reporting Year 2026 (monthly) and one Upload Batch per outgoing Document's Tax Point Date. */
@@ -33,11 +34,13 @@ async function companyWithBatchesByTaxPointDate(taxPointDates: string[]) {
   await enableAiProcessing(company.client, worker.jobs, { companyId: company.companyId, provider: worker.ai });
   const batchByDate: Record<string, string> = {};
   for (const date of taxPointDates) {
-    const batch = await beginUploadBatch(company.client, { companyId: company.companyId, fileCount: 1 });
+    const selection = selectFixtureFiles("receipt.png");
+    const batch = await beginUploadBatch(company.client, { companyId: company.companyId, fileCount: 1, selectedFiles: selection.selectedFiles });
     if (!batch.ok) throw new Error(batch.error);
     const uploaded = await uploadSourceFile(company.client, worker.jobs, {
       companyId: company.companyId,
       batchId: batch.value.id,
+      sourceFileId: selection.files[0].sourceFileId,
       fileName: `${date}.png`,
       bytes: fixtureFile("receipt.png"),
     });
@@ -62,17 +65,19 @@ describe("Reporting Period filters", () => {
       .toEqual(["2025-12-01"]);
   });
 
-  it("filters Upload Batches to those containing Documents of a Reporting Period or of No period", async () => {
+  it("filters Upload Batch creation dates independently of contained Documents and includes empty batches", async () => {
     const { client, companyId, batchByDate } = await companyWithBatchesByTaxPointDate(["2026-03-10", "2026-04-02", "2025-12-01"]);
-    const emptyBatch = await beginUploadBatch(client, { companyId, fileCount: 1 });
+    const emptyBatch = await beginUploadBatch(client, { companyId, fileCount: 1, selectedFiles: selectFixtureFiles("receipt.png").selectedFiles });
     if (!emptyBatch.ok) throw new Error(emptyBatch.error);
 
-    const batchIds = async (reportingPeriod?: string) =>
-      (await listUploadBatches(client, companyId, { reportingPeriod })).map((batch) => batch.id);
-
-    expect(await batchIds("2026-04")).toEqual([batchByDate["2026-04-02"]]);
-    expect(await batchIds(NO_REPORTING_PERIOD)).toEqual([batchByDate["2025-12-01"]]);
-    expect(await batchIds("2026-05")).toEqual([]);
-    expect(await batchIds()).toHaveLength(4);
+    await setUploadBatchCreationDatesFixture([
+      { batchId: batchByDate["2026-03-10"], createdAt: "2026-03-28T23:00:00.000Z" },
+      { batchId: batchByDate["2026-04-02"], createdAt: "2026-03-29T21:59:59.999Z" },
+      { batchId: batchByDate["2025-12-01"], createdAt: "2026-03-29T22:00:00.000Z" },
+      { batchId: emptyBatch.value.id, createdAt: "2026-03-29T12:00:00.000Z" },
+    ]);
+    expect((await listUploadBatches(client, companyId, { createdFrom: "2026-03-29", createdTo: "2026-03-29" })).map((batch) => batch.id))
+      .toEqual([batchByDate["2026-04-02"], emptyBatch.value.id, batchByDate["2026-03-10"]]);
+    expect(await listUploadBatches(client, companyId)).toHaveLength(4);
   });
 });

@@ -50,9 +50,8 @@ test("Organization Administrator navigates the shared Organization shell and ret
   const companyId = await createCompany(page, companyName, String(secondIco).padStart(8, "0"));
   await expect(page.getByRole("button", { name: "Choose Company" })).toContainText(companyName);
 
-  const organizationMembersLink = page
-    .getByRole("navigation", { name: "Administration" })
-    .locator('a[href^="/organizations/"][href$="/members"]');
+  await page.getByRole("navigation", { name: "Company navigation" }).getByRole("link", { name: "Settings", exact: true }).click();
+  const organizationMembersLink = page.locator('a[href^="/organizations/"][href$="/members"]');
   const membersHref = await organizationMembersLink.getAttribute("href");
   expect(membersHref).toMatch(/^\/organizations\/[0-9a-f-]+\/members$/);
   await organizationMembersLink.click();

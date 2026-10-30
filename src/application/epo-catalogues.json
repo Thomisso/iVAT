@@ -1,0 +1,5343 @@
+{
+  "territorialOffices": [
+    {
+      "code": "2001",
+      "taxOffice": "451",
+      "name": "Územní pracoviště pro Prahu 1"
+    },
+    {
+      "code": "2002",
+      "taxOffice": "451",
+      "name": "Územní pracoviště pro Prahu 2"
+    },
+    {
+      "code": "2003",
+      "taxOffice": "451",
+      "name": "Územní pracoviště pro Prahu 3"
+    },
+    {
+      "code": "2004",
+      "taxOffice": "451",
+      "name": "Územní pracoviště pro Prahu 4"
+    },
+    {
+      "code": "2005",
+      "taxOffice": "451",
+      "name": "Územní pracoviště pro Prahu 5"
+    },
+    {
+      "code": "2006",
+      "taxOffice": "451",
+      "name": "Územní pracoviště pro Prahu 6"
+    },
+    {
+      "code": "2007",
+      "taxOffice": "451",
+      "name": "Územní pracoviště pro Prahu 7"
+    },
+    {
+      "code": "2008",
+      "taxOffice": "451",
+      "name": "Územní pracoviště pro Prahu 8"
+    },
+    {
+      "code": "2009",
+      "taxOffice": "451",
+      "name": "Územní pracoviště pro Prahu 9"
+    },
+    {
+      "code": "2010",
+      "taxOffice": "451",
+      "name": "Územní pracoviště pro Prahu 10"
+    },
+    {
+      "code": "2011",
+      "taxOffice": "451",
+      "name": "Územní pracoviště pro Prahu - Jižní Město"
+    },
+    {
+      "code": "2012",
+      "taxOffice": "451",
+      "name": "Územní pracoviště v Praze - Modřanech"
+    },
+    {
+      "code": "2101",
+      "taxOffice": "452",
+      "name": "Územní pracoviště Praha-východ"
+    },
+    {
+      "code": "2102",
+      "taxOffice": "452",
+      "name": "Územní pracoviště Praha-západ"
+    },
+    {
+      "code": "2103",
+      "taxOffice": "452",
+      "name": "Územní pracoviště v Benešově"
+    },
+    {
+      "code": "2104",
+      "taxOffice": "452",
+      "name": "Územní pracoviště v Berouně"
+    },
+    {
+      "code": "2105",
+      "taxOffice": "452",
+      "name": "Územní pracoviště v Brandýse n.L.-Staré Bol."
+    },
+    {
+      "code": "2106",
+      "taxOffice": "452",
+      "name": "Územní pracoviště v Čáslavi"
+    },
+    {
+      "code": "2109",
+      "taxOffice": "452",
+      "name": "Územní pracoviště v Hořovicích"
+    },
+    {
+      "code": "2110",
+      "taxOffice": "452",
+      "name": "Územní pracoviště v Kladně"
+    },
+    {
+      "code": "2111",
+      "taxOffice": "452",
+      "name": "Územní pracoviště v Kolíně"
+    },
+    {
+      "code": "2112",
+      "taxOffice": "452",
+      "name": "Územní pracoviště v Kralupech nad Vltavou"
+    },
+    {
+      "code": "2113",
+      "taxOffice": "452",
+      "name": "Územní pracoviště v Kutné Hoře"
+    },
+    {
+      "code": "2114",
+      "taxOffice": "452",
+      "name": "Územní pracoviště v Mělníce"
+    },
+    {
+      "code": "2115",
+      "taxOffice": "452",
+      "name": "Územní pracoviště v Mladé Boleslavi"
+    },
+    {
+      "code": "2118",
+      "taxOffice": "452",
+      "name": "Územní pracoviště v Nymburku"
+    },
+    {
+      "code": "2119",
+      "taxOffice": "452",
+      "name": "Územní pracoviště v Poděbradech"
+    },
+    {
+      "code": "2120",
+      "taxOffice": "452",
+      "name": "Územní pracoviště v Příbrami"
+    },
+    {
+      "code": "2121",
+      "taxOffice": "452",
+      "name": "Územní pracoviště v Rakovníku"
+    },
+    {
+      "code": "2122",
+      "taxOffice": "452",
+      "name": "Územní pracoviště v Říčanech"
+    },
+    {
+      "code": "2124",
+      "taxOffice": "452",
+      "name": "Územní pracoviště ve Slaném"
+    },
+    {
+      "code": "2125",
+      "taxOffice": "452",
+      "name": "Územní pracoviště ve Vlašimi"
+    },
+    {
+      "code": "2201",
+      "taxOffice": "453",
+      "name": "Územní pracoviště v Českých Budějovicích"
+    },
+    {
+      "code": "2203",
+      "taxOffice": "453",
+      "name": "Územní pracoviště v Českém Krumlově"
+    },
+    {
+      "code": "2205",
+      "taxOffice": "453",
+      "name": "Územní pracoviště v Jindřichově Hradci"
+    },
+    {
+      "code": "2208",
+      "taxOffice": "453",
+      "name": "Územní pracoviště v Písku"
+    },
+    {
+      "code": "2209",
+      "taxOffice": "453",
+      "name": "Územní pracoviště v Prachaticích"
+    },
+    {
+      "code": "2211",
+      "taxOffice": "453",
+      "name": "Územní pracoviště ve Strakonicích"
+    },
+    {
+      "code": "2212",
+      "taxOffice": "453",
+      "name": "Územní pracoviště v Táboře"
+    },
+    {
+      "code": "2301",
+      "taxOffice": "454",
+      "name": "Územní pracoviště v Plzni"
+    },
+    {
+      "code": "2302",
+      "taxOffice": "454",
+      "name": "Územní pracoviště Plzeň-sever"
+    },
+    {
+      "code": "2303",
+      "taxOffice": "454",
+      "name": "Územní pracoviště Plzeň-jih"
+    },
+    {
+      "code": "2305",
+      "taxOffice": "454",
+      "name": "Územní pracoviště v Domažlicích"
+    },
+    {
+      "code": "2308",
+      "taxOffice": "454",
+      "name": "Územní pracoviště v Klatovech"
+    },
+    {
+      "code": "2312",
+      "taxOffice": "454",
+      "name": "Územní pracoviště v Rokycanech"
+    },
+    {
+      "code": "2313",
+      "taxOffice": "454",
+      "name": "Územní pracoviště v Tachově"
+    },
+    {
+      "code": "2401",
+      "taxOffice": "455",
+      "name": "Územní pracoviště v Karlových Varech"
+    },
+    {
+      "code": "2403",
+      "taxOffice": "455",
+      "name": "Územní pracoviště v Chebu"
+    },
+    {
+      "code": "2407",
+      "taxOffice": "455",
+      "name": "Územní pracoviště v Sokolově"
+    },
+    {
+      "code": "2501",
+      "taxOffice": "456",
+      "name": "Územní pracoviště v Ústí nad Labem"
+    },
+    {
+      "code": "2503",
+      "taxOffice": "456",
+      "name": "Územní pracoviště v Děčíně"
+    },
+    {
+      "code": "2504",
+      "taxOffice": "456",
+      "name": "Územní pracoviště v Chomutově"
+    },
+    {
+      "code": "2505",
+      "taxOffice": "456",
+      "name": "Územní pracoviště v Kadani"
+    },
+    {
+      "code": "2507",
+      "taxOffice": "456",
+      "name": "Územní pracoviště v Litoměřicích"
+    },
+    {
+      "code": "2509",
+      "taxOffice": "456",
+      "name": "Územní pracoviště v Lounech"
+    },
+    {
+      "code": "2510",
+      "taxOffice": "456",
+      "name": "Územní pracoviště v Mostě"
+    },
+    {
+      "code": "2512",
+      "taxOffice": "456",
+      "name": "Územní pracoviště v Roudnici nad Labem"
+    },
+    {
+      "code": "2513",
+      "taxOffice": "456",
+      "name": "Územní pracoviště v Rumburku"
+    },
+    {
+      "code": "2514",
+      "taxOffice": "456",
+      "name": "Územní pracoviště v Teplicích"
+    },
+    {
+      "code": "2515",
+      "taxOffice": "456",
+      "name": "Územní pracoviště v Žatci"
+    },
+    {
+      "code": "2601",
+      "taxOffice": "457",
+      "name": "Územní pracoviště v Liberci"
+    },
+    {
+      "code": "2602",
+      "taxOffice": "457",
+      "name": "Územní pracoviště v České Lípě"
+    },
+    {
+      "code": "2604",
+      "taxOffice": "457",
+      "name": "Územní pracoviště v Jablonci nad Nisou"
+    },
+    {
+      "code": "2607",
+      "taxOffice": "457",
+      "name": "Územní pracoviště v Semilech"
+    },
+    {
+      "code": "2609",
+      "taxOffice": "457",
+      "name": "Územní pracoviště v Turnově"
+    },
+    {
+      "code": "2701",
+      "taxOffice": "458",
+      "name": "Územní pracoviště v Hradci Králové"
+    },
+    {
+      "code": "2707",
+      "taxOffice": "458",
+      "name": "Územní pracoviště v Jičíně"
+    },
+    {
+      "code": "2709",
+      "taxOffice": "458",
+      "name": "Územní pracoviště v Náchodě"
+    },
+    {
+      "code": "2712",
+      "taxOffice": "458",
+      "name": "Územní pracoviště v Rychnově nad Kněžnou"
+    },
+    {
+      "code": "2713",
+      "taxOffice": "458",
+      "name": "Územní pracoviště v Trutnově"
+    },
+    {
+      "code": "2801",
+      "taxOffice": "459",
+      "name": "Územní pracoviště v Pardubicích"
+    },
+    {
+      "code": "2804",
+      "taxOffice": "459",
+      "name": "Územní pracoviště v Chrudimi"
+    },
+    {
+      "code": "2808",
+      "taxOffice": "459",
+      "name": "Územní pracoviště ve Svitavách"
+    },
+    {
+      "code": "2809",
+      "taxOffice": "459",
+      "name": "Územní pracoviště v Ústí nad Orlicí"
+    },
+    {
+      "code": "2810",
+      "taxOffice": "459",
+      "name": "Územní pracoviště ve Vysokém Mýtě"
+    },
+    {
+      "code": "2811",
+      "taxOffice": "459",
+      "name": "Územní pracoviště v Žamberku"
+    },
+    {
+      "code": "2901",
+      "taxOffice": "460",
+      "name": "Územní pracoviště v Jihlavě"
+    },
+    {
+      "code": "2903",
+      "taxOffice": "460",
+      "name": "Územní pracoviště v Havlíčkově Brodě"
+    },
+    {
+      "code": "2910",
+      "taxOffice": "460",
+      "name": "Územní pracoviště v Pelhřimově"
+    },
+    {
+      "code": "2912",
+      "taxOffice": "460",
+      "name": "Územní pracoviště v Třebíči"
+    },
+    {
+      "code": "2913",
+      "taxOffice": "460",
+      "name": "Územní pracoviště ve Velkém Meziříčí"
+    },
+    {
+      "code": "2914",
+      "taxOffice": "460",
+      "name": "Územní pracoviště ve Žďáru nad Sázavou"
+    },
+    {
+      "code": "3001",
+      "taxOffice": "461",
+      "name": "Územní pracoviště Brno I"
+    },
+    {
+      "code": "3002",
+      "taxOffice": "461",
+      "name": "Územní pracoviště Brno II"
+    },
+    {
+      "code": "3003",
+      "taxOffice": "461",
+      "name": "Územní pracoviště Brno III"
+    },
+    {
+      "code": "3004",
+      "taxOffice": "461",
+      "name": "Územní pracoviště Brno IV"
+    },
+    {
+      "code": "3005",
+      "taxOffice": "461",
+      "name": "Územní pracoviště Brno-venkov"
+    },
+    {
+      "code": "3006",
+      "taxOffice": "461",
+      "name": "Územní pracoviště v Blansku"
+    },
+    {
+      "code": "3007",
+      "taxOffice": "461",
+      "name": "Územní pracoviště v Boskovicích"
+    },
+    {
+      "code": "3008",
+      "taxOffice": "461",
+      "name": "Územní pracoviště v Břeclavi"
+    },
+    {
+      "code": "3010",
+      "taxOffice": "461",
+      "name": "Územní pracoviště v Hodoníně"
+    },
+    {
+      "code": "3011",
+      "taxOffice": "461",
+      "name": "Územní pracoviště v Hustopečích"
+    },
+    {
+      "code": "3013",
+      "taxOffice": "461",
+      "name": "Územní pracoviště v Kyjově"
+    },
+    {
+      "code": "3018",
+      "taxOffice": "461",
+      "name": "Územní pracoviště ve Veselí nad Moravou"
+    },
+    {
+      "code": "3019",
+      "taxOffice": "461",
+      "name": "Územní pracoviště ve Vyškově"
+    },
+    {
+      "code": "3020",
+      "taxOffice": "461",
+      "name": "Územní pracoviště ve Znojmě"
+    },
+    {
+      "code": "3101",
+      "taxOffice": "462",
+      "name": "Územní pracoviště v Olomouci"
+    },
+    {
+      "code": "3102",
+      "taxOffice": "462",
+      "name": "Územní pracoviště v Hranicích"
+    },
+    {
+      "code": "3103",
+      "taxOffice": "462",
+      "name": "Územní pracoviště v Jeseníku"
+    },
+    {
+      "code": "3106",
+      "taxOffice": "462",
+      "name": "Územní pracoviště v Prostějově"
+    },
+    {
+      "code": "3107",
+      "taxOffice": "462",
+      "name": "Územní pracoviště v Přerově"
+    },
+    {
+      "code": "3108",
+      "taxOffice": "462",
+      "name": "Územní pracoviště ve Šternberku"
+    },
+    {
+      "code": "3109",
+      "taxOffice": "462",
+      "name": "Územní pracoviště v Šumperku"
+    },
+    {
+      "code": "3110",
+      "taxOffice": "462",
+      "name": "Územní pracoviště v Zábřehu"
+    },
+    {
+      "code": "3201",
+      "taxOffice": "463",
+      "name": "Územní pracoviště Ostrava I"
+    },
+    {
+      "code": "3202",
+      "taxOffice": "463",
+      "name": "Územní pracoviště Ostrava II"
+    },
+    {
+      "code": "3203",
+      "taxOffice": "463",
+      "name": "Územní pracoviště Ostrava III"
+    },
+    {
+      "code": "3205",
+      "taxOffice": "463",
+      "name": "Územní pracoviště v Bruntále"
+    },
+    {
+      "code": "3207",
+      "taxOffice": "463",
+      "name": "Územní pracoviště ve Frýdku-Místku"
+    },
+    {
+      "code": "3210",
+      "taxOffice": "463",
+      "name": "Územní pracoviště v Havířově"
+    },
+    {
+      "code": "3212",
+      "taxOffice": "463",
+      "name": "Územní pracoviště v Karviné"
+    },
+    {
+      "code": "3213",
+      "taxOffice": "463",
+      "name": "Územní pracoviště v Kopřivnici"
+    },
+    {
+      "code": "3214",
+      "taxOffice": "463",
+      "name": "Územní pracoviště v Krnově"
+    },
+    {
+      "code": "3215",
+      "taxOffice": "463",
+      "name": "Územní pracoviště v Novém Jičíně"
+    },
+    {
+      "code": "3216",
+      "taxOffice": "463",
+      "name": "Územní pracoviště v Opavě"
+    },
+    {
+      "code": "3218",
+      "taxOffice": "463",
+      "name": "Územní pracoviště v Třinci"
+    },
+    {
+      "code": "3301",
+      "taxOffice": "464",
+      "name": "Územní pracoviště ve Zlíně"
+    },
+    {
+      "code": "3304",
+      "taxOffice": "464",
+      "name": "Územní pracoviště v Kroměříži"
+    },
+    {
+      "code": "3306",
+      "taxOffice": "464",
+      "name": "Územní pracoviště v Otrokovicích"
+    },
+    {
+      "code": "3307",
+      "taxOffice": "464",
+      "name": "Územní pracoviště v Rožnově pod Radhoštěm"
+    },
+    {
+      "code": "3308",
+      "taxOffice": "464",
+      "name": "Územní pracoviště v Uherském Brodě"
+    },
+    {
+      "code": "3309",
+      "taxOffice": "464",
+      "name": "Územní pracoviště v Uherském Hradišti"
+    },
+    {
+      "code": "3310",
+      "taxOffice": "464",
+      "name": "Územní pracoviště ve Valašském Meziříčí"
+    },
+    {
+      "code": "3312",
+      "taxOffice": "464",
+      "name": "Územní pracoviště ve Vsetíně"
+    },
+    {
+      "code": "4000",
+      "taxOffice": "13",
+      "name": "Specializovaný finanční úřad"
+    }
+  ],
+  "economicActivities": [
+    {
+      "code": "10000",
+      "name": "ROSTLINNÁ A ŽIVOČIŠNÁ VÝROBA, MYSLIVOST A SOUVISEJÍCÍ ČINNOSTI"
+    },
+    {
+      "code": "11000",
+      "name": "PĚSTOVÁNÍ PLODIN JINÝCH NEŽ TRVALÝCH"
+    },
+    {
+      "code": "11100",
+      "name": "PĚSTOVÁNÍ OBILOVIN JINÝCH NEŽ RÝŽE, LUŠTĚNIN A OLEJNATÝCH SEMEN"
+    },
+    {
+      "code": "11200",
+      "name": "PĚSTOVÁNÍ RÝŽE"
+    },
+    {
+      "code": "11300",
+      "name": "PĚSTOVÁNÍ ZELENINY A MELOUNŮ, KOŘENŮ A HLÍZ"
+    },
+    {
+      "code": "11400",
+      "name": "PĚSTOVÁNÍ CUKROVÉ TŘTINY"
+    },
+    {
+      "code": "11500",
+      "name": "PĚSTOVÁNÍ TABÁKU"
+    },
+    {
+      "code": "11600",
+      "name": "PĚSTOVÁNÍ PŘADNÝCH ROSTLIN"
+    },
+    {
+      "code": "11900",
+      "name": "PĚSTOVÁNÍ OSTATNÍCH PLODIN JINÝCH NEŽ TRVALÝCH"
+    },
+    {
+      "code": "12000",
+      "name": "PĚSTOVÁNÍ TRVALÝCH PLODIN"
+    },
+    {
+      "code": "12100",
+      "name": "PĚSTOVÁNÍ VINNÝCH HROZNŮ"
+    },
+    {
+      "code": "12200",
+      "name": "PĚSTOVÁNÍ TROPICKÉHO A SUBTROPICKÉHO OVOCE"
+    },
+    {
+      "code": "12300",
+      "name": "PĚSTOVÁNÍ CITRUSOVÝCH PLODŮ"
+    },
+    {
+      "code": "12400",
+      "name": "PĚSTOVÁNÍ JÁDROVÉHO A PECKOVÉHO OVOCE"
+    },
+    {
+      "code": "12500",
+      "name": "PĚSTOVÁNÍ OSTATNÍHO STROMOVÉHO A KEŘOVÉHO OVOCE A OŘECHŮ"
+    },
+    {
+      "code": "12600",
+      "name": "PĚSTOVÁNÍ OLEJNATÝCH PLODŮ"
+    },
+    {
+      "code": "12700",
+      "name": "PĚSTOVÁNÍ ROSTLIN PRO VÝROBU NÁPOJŮ"
+    },
+    {
+      "code": "12800",
+      "name": "PĚSTOVÁNÍ KOŘENÍ A AROMATICKÝCH, LÉČIVÝCH A FARMACEUTICKÝCH ROSTLIN"
+    },
+    {
+      "code": "12900",
+      "name": "PĚSTOVÁNÍ OSTATNÍCH TRVALÝCH PLODIN"
+    },
+    {
+      "code": "13000",
+      "name": "MNOŽENÍ ROSTLIN"
+    },
+    {
+      "code": "14000",
+      "name": "ŽIVOČIŠNÁ VÝROBA"
+    },
+    {
+      "code": "14100",
+      "name": "CHOV MLÉČNÉHO SKOTU"
+    },
+    {
+      "code": "14200",
+      "name": "CHOV OSTATNÍHO SKOTU A BUVOLŮ"
+    },
+    {
+      "code": "14300",
+      "name": "CHOV KONÍ A OSTATNÍCH KOŇOVITÝCH"
+    },
+    {
+      "code": "14400",
+      "name": "CHOV VELBLOUDŮ A VELBLOUDOVITÝCH"
+    },
+    {
+      "code": "14500",
+      "name": "CHOV OVCÍ A KOZ"
+    },
+    {
+      "code": "14600",
+      "name": "CHOV PRASAT"
+    },
+    {
+      "code": "14700",
+      "name": "CHOV DRŮBEŽE"
+    },
+    {
+      "code": "14800",
+      "name": "CHOV OSTATNÍCH ZVÍŘAT"
+    },
+    {
+      "code": "14900",
+      "name": "CHOV OSTATNÍCH ZVÍŘAT"
+    },
+    {
+      "code": "14910",
+      "name": "CHOV DROBNÝCH HOSPODÁŘSKÝCH ZVÍŘAT"
+    },
+    {
+      "code": "14920",
+      "name": "CHOV KOŽEŠINOVÝCH ZVÍŘAT"
+    },
+    {
+      "code": "14930",
+      "name": "CHOV ZVÍŘAT PRO ZÁJMOVÝ CHOV"
+    },
+    {
+      "code": "14990",
+      "name": "CHOV OSTATNÍCH ZVÍŘAT J. N."
+    },
+    {
+      "code": "15000",
+      "name": "SMÍŠENÉ HOSPODAŘENÍ"
+    },
+    {
+      "code": "16000",
+      "name": "PODPŮRNÉ ČINNOSTI PRO ZEMĚDĚLSTVÍ A POSKLIZŇOVÉ ČINNOSTI"
+    },
+    {
+      "code": "16100",
+      "name": "PODPŮRNÉ ČINNOSTI PRO ROSTLINNOU VÝROBU"
+    },
+    {
+      "code": "16200",
+      "name": "PODPŮRNÉ ČINNOSTI PRO ŽIVOČIŠNOU VÝROBU"
+    },
+    {
+      "code": "16300",
+      "name": "POSKLIZŇOVÉ ČINNOSTI A ZPRACOVÁNÍ OSIVA PRO ÚČELY MNOŽENÍ"
+    },
+    {
+      "code": "16400",
+      "name": "ZPRACOVÁNÍ OSIVA PRO ÚČELY MNOŽENÍ"
+    },
+    {
+      "code": "17000",
+      "name": "LOV A ODCHYT DIVOKÝCH ZVÍŘAT A SOUVISEJÍCÍ ČINNOSTI"
+    },
+    {
+      "code": "20000",
+      "name": "LESNICTVÍ A TĚŽBA DŘEVA"
+    },
+    {
+      "code": "21000",
+      "name": "PĚSTOVÁNÍ LESA A JINÉ ČINNOSTI V OBLASTI LESNICTVÍ"
+    },
+    {
+      "code": "22000",
+      "name": "TĚŽBA DŘEVA"
+    },
+    {
+      "code": "23000",
+      "name": "SBĚR A ZÍSKÁVÁNÍ VOLNĚ ROSTOUCÍCH PLODŮ A MATERIÁLŮ, KROMĚ DŘEVA"
+    },
+    {
+      "code": "24000",
+      "name": "PODPŮRNÉ ČINNOSTI PRO LESNICTVÍ"
+    },
+    {
+      "code": "30000",
+      "name": "RYBOLOV A AKVAKULTURA"
+    },
+    {
+      "code": "31000",
+      "name": "RYBOLOV"
+    },
+    {
+      "code": "31100",
+      "name": "MOŘSKÝ RYBOLOV"
+    },
+    {
+      "code": "31200",
+      "name": "SLADKOVODNÍ RYBOLOV"
+    },
+    {
+      "code": "32000",
+      "name": "AKVAKULTURA"
+    },
+    {
+      "code": "32100",
+      "name": "MOŘSKÁ AKVAKULTURA"
+    },
+    {
+      "code": "32200",
+      "name": "SLADKOVODNÍ AKVAKULTURA"
+    },
+    {
+      "code": "33000",
+      "name": "PODPŮRNÉ ČINNOSTI PRO RYBOLOV A AKVAKULTURU"
+    },
+    {
+      "code": "50000",
+      "name": "TĚŽBA ČERNÉHO A HNĚDÉHO UHLÍ"
+    },
+    {
+      "code": "51000",
+      "name": "TĚŽBA ČERNÉHO UHLÍ"
+    },
+    {
+      "code": "51010",
+      "name": "TĚŽBA ČERNÉHO UHLÍ, KROMĚ ÚPRAVY"
+    },
+    {
+      "code": "51020",
+      "name": "ÚPRAVA ČERNÉHO UHLÍ"
+    },
+    {
+      "code": "52000",
+      "name": "TĚŽBA HNĚDÉHO UHLÍ"
+    },
+    {
+      "code": "52010",
+      "name": "TĚŽBA HNĚDÉHO UHLÍ JINÉHO NEŽ LIGNITU, KROMĚ ÚPRAVY"
+    },
+    {
+      "code": "52020",
+      "name": "ÚPRAVA HNĚDÉHO UHLÍ JINÉHO NEŽ LIGNITU"
+    },
+    {
+      "code": "52030",
+      "name": "TĚŽBA LIGNITU, KROMĚ ÚPRAVY"
+    },
+    {
+      "code": "52040",
+      "name": "ÚPRAVA LIGNITU"
+    },
+    {
+      "code": "60000",
+      "name": "TĚŽBA ROPY A ZEMNÍHO PLYNU"
+    },
+    {
+      "code": "61000",
+      "name": "TĚŽBA ROPY"
+    },
+    {
+      "code": "62000",
+      "name": "TĚŽBA ZEMNÍHO PLYNU"
+    },
+    {
+      "code": "70000",
+      "name": "TĚŽBA RUD"
+    },
+    {
+      "code": "71000",
+      "name": "TĚŽBA ŽELEZNÝCH RUD"
+    },
+    {
+      "code": "71010",
+      "name": "TĚŽBA ŽELEZNÝCH RUD, KROMĚ ÚPRAVY"
+    },
+    {
+      "code": "71020",
+      "name": "ÚPRAVA ŽELEZNÝCH RUD"
+    },
+    {
+      "code": "72000",
+      "name": "TĚŽBA NEŽELEZNÝCH RUD"
+    },
+    {
+      "code": "72100",
+      "name": "TĚŽBA URANOVÝCH A THORIOVÝCH RUD"
+    },
+    {
+      "code": "72110",
+      "name": "TĚŽBA URANOVÝCH A THORIOVÝCH RUD, KROMĚ ÚPRAVY"
+    },
+    {
+      "code": "72120",
+      "name": "ÚPRAVA URANOVÝCH A THORIOVÝCH RUD"
+    },
+    {
+      "code": "72900",
+      "name": "TĚŽBA OSTATNÍCH NEŽELEZNÝCH RUD"
+    },
+    {
+      "code": "72910",
+      "name": "TĚŽBA OSTATNÍCH NEŽELEZNÝCH RUD, KROMĚ ÚPRAVY"
+    },
+    {
+      "code": "72920",
+      "name": "ÚPRAVA OSTATNÍCH NEŽELEZNÝCH RUD"
+    },
+    {
+      "code": "80000",
+      "name": "TĚŽBA A DOBÝVÁNÍ OSTATNÍCH NEROSTNÝCH SUROVIN"
+    },
+    {
+      "code": "81000",
+      "name": "DOBÝVÁNÍ KAMENE, PÍSKŮ A JÍLŮ"
+    },
+    {
+      "code": "81100",
+      "name": "DOBÝVÁNÍ KAMENE, VÁPENCE, SÁDROVCE, BŘIDLICE A JINÉHO KAMENE, TAKÉ PRO VÝTVARNÉ ÚČELY"
+    },
+    {
+      "code": "81200",
+      "name": "PROVOZ PÍSKOVEN A ŠTĚRKOPÍSKOVEN A TĚŽBA JÍLŮ A KAOLINU"
+    },
+    {
+      "code": "89000",
+      "name": "TĚŽBA A DOBÝVÁNÍ NEROSTNÝCH SUROVIN J. N."
+    },
+    {
+      "code": "89100",
+      "name": "TĚŽBA CHEMICKÝCH MINERÁLŮ A MINERÁLŮ PRO VÝROBU HNOJIV"
+    },
+    {
+      "code": "89200",
+      "name": "TĚŽBA RAŠELINY"
+    },
+    {
+      "code": "89300",
+      "name": "TĚŽBA SOLI"
+    },
+    {
+      "code": "89900",
+      "name": "TĚŽBA A DOBÝVÁNÍ OSTATNÍCH NEROSTNÝCH SUROVIN J. N."
+    },
+    {
+      "code": "90000",
+      "name": "PODPŮRNÉ ČINNOSTI PRO TĚŽBU A DOBÝVÁNÍ NEROSTNÝCH SUROVIN"
+    },
+    {
+      "code": "91000",
+      "name": "PODPŮRNÉ ČINNOSTI PRO TĚŽBU ROPY A ZEMNÍHO PLYNU"
+    },
+    {
+      "code": "99000",
+      "name": "PODPŮRNÉ ČINNOSTI PRO TĚŽBU A DOBÝVÁNÍ OSTATNÍCH NEROSTNÝCH SUROVIN"
+    },
+    {
+      "code": "99010",
+      "name": "PODPŮRNÉ ČINNOSTI PRO TĚŽBU ČERNÉHO UHLÍ"
+    },
+    {
+      "code": "99020",
+      "name": "PODPŮRNÉ ČINNOSTI PRO TĚŽBU HNĚDÉHO UHLÍ, KROMĚ LIGNITU"
+    },
+    {
+      "code": "99030",
+      "name": "PODPŮRNÉ ČINNOSTI PRO TĚŽBU LIGNITU"
+    },
+    {
+      "code": "99040",
+      "name": "PODPŮRNÉ ČINNOSTI PRO TĚŽBU ŽELEZNÝCH RUD"
+    },
+    {
+      "code": "99050",
+      "name": "PODPŮRNÉ ČINNOSTI PRO TĚŽBU URANOVÝCH A THORIOVÝCH RUD"
+    },
+    {
+      "code": "99060",
+      "name": "PODPŮRNÉ ČINNOSTI PRO TĚŽBU OSTATNÍCH NEŽELEZNÝCH RUD"
+    },
+    {
+      "code": "99090",
+      "name": "PODPŮRNÉ ČINNOSTI PRO TĚŽBU A DOBÝVÁNÍ OSTATNÍCH NEROSTNÝCH SUROVIN J. N."
+    },
+    {
+      "code": "100000",
+      "name": "VÝROBA POTRAVINÁŘSKÝCH VÝROBKŮ"
+    },
+    {
+      "code": "101000",
+      "name": "ZPRACOVÁNÍ A KONZERVOVÁNÍ MASA A VÝROBA MASNÝCH VÝROBKŮ"
+    },
+    {
+      "code": "101100",
+      "name": "ZPRACOVÁNÍ A KONZERVOVÁNÍ MASA, KROMĚ DRŮBEŽÍHO MASA"
+    },
+    {
+      "code": "101200",
+      "name": "ZPRACOVÁNÍ A KONZERVOVÁNÍ DRŮBEŽÍHO MASA"
+    },
+    {
+      "code": "101300",
+      "name": "VÝROBA MASNÝCH VÝROBKŮ A VÝROBKŮ Z DRŮBEŽÍHO MASA"
+    },
+    {
+      "code": "102000",
+      "name": "ZPRACOVÁNÍ A KONZERVOVÁNÍ RYB, KORÝŠŮ A MĚKKÝŠŮ"
+    },
+    {
+      "code": "103000",
+      "name": "ZPRACOVÁNÍ A KONZERVOVÁNÍ OVOCE A ZELENINY"
+    },
+    {
+      "code": "103100",
+      "name": "ZPRACOVÁNÍ A KONZERVOVÁNÍ BRAMBOR"
+    },
+    {
+      "code": "103200",
+      "name": "VÝROBA OVOCNÝCH A ZELENINOVÝCH ŠŤÁV"
+    },
+    {
+      "code": "103900",
+      "name": "OSTATNÍ ZPRACOVÁNÍ A KONZERVOVÁNÍ OVOCE A ZELENINY"
+    },
+    {
+      "code": "104000",
+      "name": "VÝROBA ROSTLINNÝCH A ŽIVOČIŠNÝCH OLEJŮ A TUKŮ"
+    },
+    {
+      "code": "104100",
+      "name": "VÝROBA OLEJŮ A TUKŮ"
+    },
+    {
+      "code": "104200",
+      "name": "VÝROBA MARGARÍNU A PODOBNÝCH JEDLÝCH TUKŮ"
+    },
+    {
+      "code": "105000",
+      "name": "VÝROBA MLÉČNÝCH VÝROBKŮ, VÝROBA ZMRZLINY A LEDU K LIDSKÉ SPOTŘEBĚ"
+    },
+    {
+      "code": "105100",
+      "name": "VÝROBA MLÉČNÝCH VÝROBKŮ"
+    },
+    {
+      "code": "105200",
+      "name": "VÝROBA ZMRZLINY A LEDU K LIDSKÉ SPOTŘEBĚ"
+    },
+    {
+      "code": "106000",
+      "name": "VÝROBA MLÝNSKÝCH A ŠKROBÁRENSKÝCH VÝROBKŮ"
+    },
+    {
+      "code": "106100",
+      "name": "VÝROBA MLÝNSKÝCH VÝROBKŮ"
+    },
+    {
+      "code": "106200",
+      "name": "VÝROBA ŠKROBÁRENSKÝCH VÝROBKŮ"
+    },
+    {
+      "code": "107000",
+      "name": "VÝROBA PEKAŘSKÝCH, CUKRÁŘSKÝCH A JINÝCH MOUČNÝCH VÝROBKŮ"
+    },
+    {
+      "code": "107100",
+      "name": "VÝROBA PEKAŘSKÝCH A CUKRÁŘSKÝCH VÝROBKŮ, KROMĚ TRVANLIVÝCH"
+    },
+    {
+      "code": "107200",
+      "name": "VÝROBA SUCHARŮ, SUŠENEK A TRVANLIVÝCH PEKAŘSKÝCH A CUKRÁŘSKÝCH VÝROBKŮ"
+    },
+    {
+      "code": "107300",
+      "name": "VÝROBA MOUČNÝCH VÝROBKŮ"
+    },
+    {
+      "code": "108000",
+      "name": "VÝROBA OSTATNÍCH POTRAVINÁŘSKÝCH VÝROBKŮ"
+    },
+    {
+      "code": "108100",
+      "name": "VÝROBA CUKRU"
+    },
+    {
+      "code": "108200",
+      "name": "VÝROBA KAKAA, ČOKOLÁDY A CUKROVINEK"
+    },
+    {
+      "code": "108300",
+      "name": "ZPRACOVÁNÍ ČAJE A KÁVY"
+    },
+    {
+      "code": "108400",
+      "name": "VÝROBA KOŘENÍ A PŘÍSAD PRO OCHUCENÍ"
+    },
+    {
+      "code": "108500",
+      "name": "VÝROBA HOTOVÝCH POKRMŮ"
+    },
+    {
+      "code": "108600",
+      "name": "VÝROBA HOMOGENIZOVANÝCH POTRAVINÁŘSKÝCH PŘÍPRAVKŮ A DIETETICKÝCH POTRAVIN"
+    },
+    {
+      "code": "108900",
+      "name": "VÝROBA OSTATNÍCH POTRAVINÁŘSKÝCH VÝROBKŮ J. N."
+    },
+    {
+      "code": "109000",
+      "name": "VÝROBA KRMIV"
+    },
+    {
+      "code": "109100",
+      "name": "VÝROBA KRMIV PRO HOSPODÁŘSKÁ ZVÍŘATA"
+    },
+    {
+      "code": "109200",
+      "name": "VÝROBA KRMIV PRO ZVÍŘATA V ZÁJMOVÉM CHOVU"
+    },
+    {
+      "code": "110000",
+      "name": "VÝROBA NÁPOJŮ"
+    },
+    {
+      "code": "110100",
+      "name": "DESTILACE, REKTIFIKACE A MÍCHANÍ LIHOVIN"
+    },
+    {
+      "code": "110200",
+      "name": "VÝROBA VÍNA Z VINNÝCH HROZNŮ"
+    },
+    {
+      "code": "110300",
+      "name": "VÝROBA CIDERŮ A JINÝCH KVAŠENÝCH OVOCNÝCH NÁPOJŮ"
+    },
+    {
+      "code": "110400",
+      "name": "VÝROBA OSTATNÍCH NEDESTILOVANÝCH KVAŠENÝCH NÁPOJŮ"
+    },
+    {
+      "code": "110500",
+      "name": "VÝROBA PIVA"
+    },
+    {
+      "code": "110600",
+      "name": "VÝROBA SLADU"
+    },
+    {
+      "code": "110700",
+      "name": "VÝROBA NEALKOHOLICKÝCH NÁPOJŮ A BALENÝCH VOD"
+    },
+    {
+      "code": "120000",
+      "name": "VÝROBA TABÁKOVÝCH VÝROBKŮ"
+    },
+    {
+      "code": "130000",
+      "name": "VÝROBA TEXTILIÍ"
+    },
+    {
+      "code": "131000",
+      "name": "ÚPRAVA A SPŘÁDÁNÍ TEXTILNÍCH VLÁKEN A PŘÍZE"
+    },
+    {
+      "code": "132000",
+      "name": "TKANÍ TEXTILIÍ"
+    },
+    {
+      "code": "133000",
+      "name": "KONEČNÁ ÚPRAVA TEXTILIÍ"
+    },
+    {
+      "code": "139000",
+      "name": "VÝROBA OSTATNÍCH TEXTILIÍ"
+    },
+    {
+      "code": "139100",
+      "name": "VÝROBA PLETENÝCH A HÁČKOVANÝCH TEXTILIÍ"
+    },
+    {
+      "code": "139200",
+      "name": "VÝROBA BYTOVÉHO TEXTILU A KONFEKČNÍCH BYTOVÝCH TEXTILIÍ"
+    },
+    {
+      "code": "139300",
+      "name": "VÝROBA KOBERCŮ A KOBERCOVÝCH PŘEDLOŽEK"
+    },
+    {
+      "code": "139400",
+      "name": "VÝROBA LAN, PROVAZŮ A SÍŤOVANÝCH VÝROBKŮ"
+    },
+    {
+      "code": "139500",
+      "name": "VÝROBA NETKANÝCH TEXTILIÍ A VÝROBKŮ Z NICH"
+    },
+    {
+      "code": "139600",
+      "name": "VÝROBA OSTATNÍCH TECHNICKÝCH A PRŮMYSLOVÝCH TEXTILIÍ"
+    },
+    {
+      "code": "139900",
+      "name": "VÝROBA OSTATNÍCH TEXTILIÍ J. N."
+    },
+    {
+      "code": "140000",
+      "name": "VÝROBA ODĚVŮ"
+    },
+    {
+      "code": "141000",
+      "name": "VÝROBA PLETENÝCH A HÁČKOVANÝCH ODĚVŮ"
+    },
+    {
+      "code": "141010",
+      "name": "VÝROBA PLETENÝCH A HÁČKOVANÝCH PUNČOCHOVÝCH VÝROBKŮ"
+    },
+    {
+      "code": "141090",
+      "name": "VÝROBA OSTATNÍCH PLETENÝCH A HÁČKOVANÝCH ODĚVŮ"
+    },
+    {
+      "code": "141100",
+      "name": "VÝROBA KOŽENÝCH ODĚVŮ"
+    },
+    {
+      "code": "141200",
+      "name": "VÝROBA PRACOVNÍCH ODĚVŮ"
+    },
+    {
+      "code": "141300",
+      "name": "VÝROBA OSTATNÍCH SVRCHNÍCH ODĚVŮ"
+    },
+    {
+      "code": "141400",
+      "name": "VÝROBA OSOBNÍHO PRÁDLA"
+    },
+    {
+      "code": "141900",
+      "name": "VÝROBA OSTATNÍCH ODĚVŮ A ODĚVNÍCH DOPLŇKŮ"
+    },
+    {
+      "code": "142000",
+      "name": "VÝROBA OSTATNÍCH ODĚVŮ A ODĚVNÍCH DOPLŇKŮ"
+    },
+    {
+      "code": "142100",
+      "name": "VÝROBA SVRCHNÍCH ODĚVŮ"
+    },
+    {
+      "code": "142200",
+      "name": "VÝROBA OSOBNÍHO PRÁDLA"
+    },
+    {
+      "code": "142300",
+      "name": "VÝROBA PRACOVNÍCH ODĚVŮ"
+    },
+    {
+      "code": "142400",
+      "name": "VÝROBA KOŽENÝCH ODĚVŮ A KOŽEŠINOVÝCH VÝROBKŮ"
+    },
+    {
+      "code": "142900",
+      "name": "VÝROBA OSTATNÍCH ODĚVŮ A ODĚVNÍCH DOPLŇKŮ J. N."
+    },
+    {
+      "code": "143000",
+      "name": "VÝROBA PLETENÝCH A HÁČKOVANÝCH ODĚVŮ"
+    },
+    {
+      "code": "143100",
+      "name": "VÝROBA PLETENÝCH A HÁČKOVANÝCH PUNČOCHOVÝCH VÝROBKŮ"
+    },
+    {
+      "code": "143900",
+      "name": "VÝROBA OSTATNÍCH PLETENÝCH A HÁČKOVANÝCH ODĚVŮ"
+    },
+    {
+      "code": "150000",
+      "name": "VÝROBA USNÍ A SOUVISEJÍCÍCH VÝROBKŮ Z JAKÝCHKOLI MATERIÁLŮ"
+    },
+    {
+      "code": "151000",
+      "name": "ČINĚNÍ, ÚPRAVA, BARVENÍ USNÍ A KOŽEŠIN; VÝROBA ZAVAZADEL, KABELEK, SEDLÁŘSKÝCH A ŘEMENÁŘSKÝCH VÝROBKŮ"
+    },
+    {
+      "code": "151100",
+      "name": "ČINĚNÍ, ÚPRAVA, BARVENÍ USNÍ A KOŽEŠIN"
+    },
+    {
+      "code": "151200",
+      "name": "VÝROBA ZAVAZADEL, KABELEK, SEDLÁŘSKÝCH A ŘEMENÁŘSKÝCH VÝROBKŮ Z JAKÝCHKOLI MATERIÁLŮ"
+    },
+    {
+      "code": "152000",
+      "name": "VÝROBA OBUVI"
+    },
+    {
+      "code": "152010",
+      "name": "VÝROBA OBUVI S USŇOVÝM SVRŠKEM"
+    },
+    {
+      "code": "152090",
+      "name": "VÝROBA OSTATNÍ OBUVI"
+    },
+    {
+      "code": "160000",
+      "name": "ZPRACOVÁNÍ DŘEVA, VÝROBA DŘEVĚNÝCH, KORKOVÝCH, PROUTĚNÝCH A SLAMĚNÝCH VÝROBKŮ, KROMĚ NÁBYTKU"
+    },
+    {
+      "code": "161000",
+      "name": "PILAŘSKÁ VÝROBA A IMPREGNACE DŘEVA; ZPRACOVÁNÍ A KONEČNÁ ÚPRAVA DŘEVA"
+    },
+    {
+      "code": "161100",
+      "name": "PILAŘSKÁ VÝROBA A IMPREGNACE DŘEVA"
+    },
+    {
+      "code": "161200",
+      "name": "ZPRACOVÁNÍ A KONEČNÁ ÚPRAVA DŘEVA"
+    },
+    {
+      "code": "162000",
+      "name": "VÝROBA DŘEVĚNÝCH, KORKOVÝCH, PROUTĚNÝCH A SLAMĚNÝCH VÝROBKŮ"
+    },
+    {
+      "code": "162100",
+      "name": "VÝROBA DÝH A DESEK NA BÁZI DŘEVA"
+    },
+    {
+      "code": "162200",
+      "name": "VÝROBA SESTAVENÝCH PARKETOVÝCH PODLAH"
+    },
+    {
+      "code": "162300",
+      "name": "VÝROBA OSTATNÍCH VÝROBKŮ STAVEBNÍHO TRUHLÁŘSTVÍ A TESAŘSTVÍ"
+    },
+    {
+      "code": "162400",
+      "name": "VÝROBA DŘEVĚNÝCH OBALŮ"
+    },
+    {
+      "code": "162500",
+      "name": "VÝROBA DŘEVĚNÝCH DVEŘÍ A OKEN"
+    },
+    {
+      "code": "162600",
+      "name": "VÝROBA PEVNÝCH PALIV Z ROSTLINNÉ BIOMASY"
+    },
+    {
+      "code": "162700",
+      "name": "KONEČNÁ ÚPRAVA DŘEVĚNÝCH VÝROBKŮ"
+    },
+    {
+      "code": "162800",
+      "name": "VÝROBA OSTATNÍCH DŘEVĚNÝCH, KORKOVÝCH, PROUTĚNÝCH A SLAMĚNÝCH VÝROBKŮ"
+    },
+    {
+      "code": "162900",
+      "name": "VÝROBA OSTATNÍCH DŘEVĚNÝCH, KORKOVÝCH, PROUTĚNÝCH A SLAMĚNÝCH VÝROBKŮ, KROMĚ NÁBYTKU"
+    },
+    {
+      "code": "170000",
+      "name": "VÝROBA PAPÍRU A VÝROBKŮ Z PAPÍRU"
+    },
+    {
+      "code": "171000",
+      "name": "VÝROBA BUNIČINY, PAPÍRU A LEPENKY"
+    },
+    {
+      "code": "171100",
+      "name": "VÝROBA BUNIČINY"
+    },
+    {
+      "code": "171110",
+      "name": "VÝROBA CHEMICKÝCH BUNIČIN"
+    },
+    {
+      "code": "171120",
+      "name": "VÝROBA MECHANICKÝCH VLÁKNIN"
+    },
+    {
+      "code": "171130",
+      "name": "VÝROBA OSTATNÍCH PAPÍRENSKÝCH VLÁKNIN"
+    },
+    {
+      "code": "171190",
+      "name": "VÝROBA OSTATNÍCH PAPÍRENSKÝCH VLÁKNIN"
+    },
+    {
+      "code": "171200",
+      "name": "VÝROBA PAPÍRU A LEPENKY"
+    },
+    {
+      "code": "172000",
+      "name": "VÝROBA VÝROBKŮ Z PAPÍRU A LEPENKY"
+    },
+    {
+      "code": "172100",
+      "name": "VÝROBA VLNITÉHO PAPÍRU A LEPENKY, PAPÍROVÝCH A LEPENKOVÝCH OBALŮ"
+    },
+    {
+      "code": "172200",
+      "name": "VÝROBA DOMÁCÍCH POTŘEB, HYGIENICKÝCH A TOALETNÍCH VÝROBKŮ Z PAPÍRU"
+    },
+    {
+      "code": "172300",
+      "name": "VÝROBA KANCELÁŘSKÝCH POTŘEB Z PAPÍRU"
+    },
+    {
+      "code": "172400",
+      "name": "VÝROBA TAPET"
+    },
+    {
+      "code": "172500",
+      "name": "VÝROBA OSTATNÍCH VÝROBKŮ Z PAPÍRU A LEPENKY"
+    },
+    {
+      "code": "172900",
+      "name": "VÝROBA OSTATNÍCH VÝROBKŮ Z PAPÍRU A LEPENKY"
+    },
+    {
+      "code": "180000",
+      "name": "TISK A ROZMNOŽOVÁNÍ NAHRANÝCH NOSIČŮ"
+    },
+    {
+      "code": "181000",
+      "name": "TISK A ČINNOSTI SOUVISEJÍCÍ S TISKEM"
+    },
+    {
+      "code": "181100",
+      "name": "TISK NOVIN"
+    },
+    {
+      "code": "181200",
+      "name": "OSTATNÍ TISK"
+    },
+    {
+      "code": "181300",
+      "name": "PŘÍPRAVA TISKU A DIGITÁLNÍCH DAT"
+    },
+    {
+      "code": "181400",
+      "name": "VÁZÁNÍ A SOUVISEJÍCÍ ČINNOSTI"
+    },
+    {
+      "code": "182000",
+      "name": "ROZMNOŽOVÁNÍ NAHRANÝCH NOSIČŮ"
+    },
+    {
+      "code": "190000",
+      "name": "VÝROBA KOKSU A RAFINOVANÝCH ROPNÝCH PRODUKTŮ"
+    },
+    {
+      "code": "191000",
+      "name": "VÝROBA KOKSÁRENSKÝCH PRODUKTŮ"
+    },
+    {
+      "code": "192000",
+      "name": "VÝROBA RAFINOVANÝCH ROPNÝCH PRODUKTŮ A PRODUKTŮ Z FOSILNÍCH PALIV"
+    },
+    {
+      "code": "200000",
+      "name": "VÝROBA CHEMICKÝCH LÁTEK A CHEMICKÝCH VÝROBKŮ"
+    },
+    {
+      "code": "201000",
+      "name": "VÝROBA ZÁKLADNÍCH CHEMICKÝCH LÁTEK, HNOJIV A DUSÍKATÝCH SLOUČENIN, PLASTŮ A SYNTETICKÉHO KAUČUKU V PRIMÁRNÍCH FORMÁCH"
+    },
+    {
+      "code": "201100",
+      "name": "VÝROBA TECHNICKÝCH PLYNŮ"
+    },
+    {
+      "code": "201200",
+      "name": "VÝROBA BARVIV A PIGMENTŮ"
+    },
+    {
+      "code": "201300",
+      "name": "VÝROBA JINÝCH ZÁKLADNÍCH ANORGANICKÝCH CHEMICKÝCH LÁTEK"
+    },
+    {
+      "code": "201400",
+      "name": "VÝROBA JINÝCH ZÁKLADNÍCH ORGANICKÝCH CHEMICKÝCH LÁTEK"
+    },
+    {
+      "code": "201410",
+      "name": "VÝROBA BIOETANOLU (BIOLIHU) PRO POHON MOTORŮ A PRO VÝROBU SMĚSÍ A KOMPONENT PALIV PRO POHON MOTORŮ"
+    },
+    {
+      "code": "201490",
+      "name": "VÝROBA OSTATNÍCH ZÁKLADNÍCH ORGANICKÝCH CHEMICKÝCH LÁTEK"
+    },
+    {
+      "code": "201500",
+      "name": "VÝROBA HNOJIV A DUSÍKATÝCH SLOUČENIN"
+    },
+    {
+      "code": "201600",
+      "name": "VÝROBA PLASTŮ V PRIMÁRNÍCH FORMÁCH"
+    },
+    {
+      "code": "201700",
+      "name": "VÝROBA SYNTETICKÉHO KAUČUKU V PRIMÁRNÍCH FORMÁCH"
+    },
+    {
+      "code": "202000",
+      "name": "VÝROBA PESTICIDŮ, DEZINFEKČNÍCH PROSTŘEDKŮ A JINÝCH AGROCHEMICKÝCH PŘÍPRAVKŮ"
+    },
+    {
+      "code": "203000",
+      "name": "VÝROBA BAREV, LAKŮ A JINÝCH NÁTĚROVÝCH HMOT, TISKAŘSKÝCH BAREV A TMELŮ"
+    },
+    {
+      "code": "204000",
+      "name": "VÝROBA MYCÍCH, ČISTICÍCH A LEŠTICÍCH PROSTŘEDKŮ"
+    },
+    {
+      "code": "204100",
+      "name": "VÝROBA MÝDEL, DETERGENTŮ A ČISTICÍCH A LEŠTICÍCH PROSTŘEDKŮ"
+    },
+    {
+      "code": "204200",
+      "name": "VÝROBA PARFÉMŮ A TOALETNÍCH PŘÍPRAVKŮ"
+    },
+    {
+      "code": "205000",
+      "name": "VÝROBA OSTATNÍCH CHEMICKÝCH VÝROBKŮ"
+    },
+    {
+      "code": "205100",
+      "name": "VÝROBA KAPALNÝCH BIOPALIV"
+    },
+    {
+      "code": "205200",
+      "name": "VÝROBA KLIHŮ"
+    },
+    {
+      "code": "205300",
+      "name": "VÝROBA VONNÝCH SILIC"
+    },
+    {
+      "code": "205900",
+      "name": "VÝROBA OSTATNÍCH CHEMICKÝCH VÝROBKŮ J. N."
+    },
+    {
+      "code": "205910",
+      "name": "VÝROBA ADITIV DO POHONNÝCH HMOT NA BÁZI ETHYLTERCBUTYLÉTERU (ETBE) A METHYLTERCBUTYLÉTERU (MTBE)"
+    },
+    {
+      "code": "205990",
+      "name": "VÝROBA JINÝCH CHEMICKÝCH VÝROBKŮ J. N."
+    },
+    {
+      "code": "206000",
+      "name": "VÝROBA CHEMICKÝCH VLÁKEN"
+    },
+    {
+      "code": "210000",
+      "name": "VÝROBA ZÁKLADNÍCH FARMACEUTICKÝCH VÝROBKŮ A FARMACEUTICKÝCH PŘÍPRAVKŮ"
+    },
+    {
+      "code": "211000",
+      "name": "VÝROBA ZÁKLADNÍCH FARMACEUTICKÝCH VÝROBKŮ"
+    },
+    {
+      "code": "212000",
+      "name": "VÝROBA FARMACEUTICKÝCH PŘÍPRAVKŮ"
+    },
+    {
+      "code": "220000",
+      "name": "VÝROBA PRYŽOVÝCH A PLASTOVÝCH VÝROBKŮ"
+    },
+    {
+      "code": "221000",
+      "name": "VÝROBA PRYŽOVÝCH VÝROBKŮ"
+    },
+    {
+      "code": "221100",
+      "name": "VÝROBA PRYŽOVÝCH PLÁŠŤŮ A DUŠÍ A PROTEKTOROVÁNÍ PNEUMATIK"
+    },
+    {
+      "code": "221200",
+      "name": "VÝROBA OSTATNÍCH PRYŽOVÝCH VÝROBKŮ"
+    },
+    {
+      "code": "221900",
+      "name": "VÝROBA OSTATNÍCH PRYŽOVÝCH VÝROBKŮ"
+    },
+    {
+      "code": "222000",
+      "name": "VÝROBA PLASTOVÝCH VÝROBKŮ"
+    },
+    {
+      "code": "222100",
+      "name": "VÝROBA PLASTOVÝCH DESEK, FÓLIÍ, HADIC, TRUBEK A PROFILŮ"
+    },
+    {
+      "code": "222200",
+      "name": "VÝROBA PLASTOVÝCH OBALŮ"
+    },
+    {
+      "code": "222300",
+      "name": "VÝROBA PLASTOVÝCH DVEŘÍ A OKEN"
+    },
+    {
+      "code": "222400",
+      "name": "VÝROBA PLASTOVÝCH VÝROBKŮ PRO STAVEBNICTVÍ"
+    },
+    {
+      "code": "222500",
+      "name": "ZPRACOVÁNÍ A KONEČNÁ ÚPRAVA PLASTOVÝCH VÝROBKŮ"
+    },
+    {
+      "code": "222600",
+      "name": "VÝROBA OSTATNÍCH PLASTOVÝCH VÝROBKŮ"
+    },
+    {
+      "code": "222900",
+      "name": "VÝROBA OSTATNÍCH PLASTOVÝCH VÝROBKŮ"
+    },
+    {
+      "code": "230000",
+      "name": "VÝROBA OSTATNÍCH NEKOVOVÝCH MINERÁLNÍCH VÝROBKŮ"
+    },
+    {
+      "code": "231000",
+      "name": "VÝROBA SKLA A SKLENĚNÝCH VÝROBKŮ"
+    },
+    {
+      "code": "231100",
+      "name": "VÝROBA PLOCHÉHO SKLA"
+    },
+    {
+      "code": "231200",
+      "name": "TVAROVÁNÍ A ZPRACOVÁNÍ PLOCHÉHO SKLA"
+    },
+    {
+      "code": "231300",
+      "name": "VÝROBA DUTÉHO SKLA"
+    },
+    {
+      "code": "231400",
+      "name": "VÝROBA SKLENĚNÝCH VLÁKEN"
+    },
+    {
+      "code": "231500",
+      "name": "VÝROBA A ZPRACOVÁNÍ OSTATNÍHO SKLA, VČETNĚ TECHNICKÉHO SKLA"
+    },
+    {
+      "code": "231900",
+      "name": "VÝROBA A ZPRACOVÁNÍ OSTATNÍHO SKLA VČ. TECHNICKÉHO"
+    },
+    {
+      "code": "232000",
+      "name": "VÝROBA ŽÁRUVZDORNÝCH VÝROBKŮ"
+    },
+    {
+      "code": "233000",
+      "name": "VÝROBA STAVEBNÍCH VÝROBKŮ Z JÍLOVITÝCH MATERIÁLŮ"
+    },
+    {
+      "code": "233100",
+      "name": "VÝROBA KERAMICKÝCH OBKLADAČEK A DLAŽDIC"
+    },
+    {
+      "code": "233200",
+      "name": "VÝROBA PÁLENÝCH ZDICÍCH MATERIÁLŮ, TAŠEK, DLAŽDIC A PODOBNÝCH VÝROBKŮ"
+    },
+    {
+      "code": "234000",
+      "name": "VÝROBA OSTATNÍCH PORCELÁNOVÝCH A KERAMICKÝCH VÝROBKŮ"
+    },
+    {
+      "code": "234100",
+      "name": "VÝROBA PORCELÁNOVÝCH A KERAMICKÝCH VÝROBKŮ PŘEVÁŽNĚ PRO DOMÁCNOST A DEKORAČNÍCH PŘEDMĚTŮ"
+    },
+    {
+      "code": "234200",
+      "name": "VÝROBA KERAMICKÝCH SANITÁRNÍCH VÝROBKŮ"
+    },
+    {
+      "code": "234300",
+      "name": "VÝROBA KERAMICKÝCH IZOLÁTORŮ A IZOLAČNÍHO PŘÍSLUŠENSTVÍ"
+    },
+    {
+      "code": "234400",
+      "name": "VÝROBA OSTATNÍCH TECHNICKÝCH KERAMICKÝCH VÝROBKŮ"
+    },
+    {
+      "code": "234500",
+      "name": "VÝROBA OSTATNÍCH KERAMICKÝCH VÝROBKŮ"
+    },
+    {
+      "code": "234900",
+      "name": "VÝROBA OSTATNÍCH KERAMICKÝCH VÝROBKŮ"
+    },
+    {
+      "code": "235000",
+      "name": "VÝROBA CEMENTU, VÁPNA A SÁDRY"
+    },
+    {
+      "code": "235100",
+      "name": "VÝROBA CEMENTU"
+    },
+    {
+      "code": "235200",
+      "name": "VÝROBA VÁPNA A SÁDRY"
+    },
+    {
+      "code": "236000",
+      "name": "VÝROBA BETONOVÝCH, CEMENTOVÝCH A SÁDROVÝCH VÝROBKŮ"
+    },
+    {
+      "code": "236100",
+      "name": "VÝROBA BETONOVÝCH VÝROBKŮ PRO STAVEBNÍ ÚČELY"
+    },
+    {
+      "code": "236200",
+      "name": "VÝROBA SÁDROVÝCH VÝROBKŮ PRO STAVEBNÍ ÚČELY"
+    },
+    {
+      "code": "236300",
+      "name": "VÝROBA BETONU PŘIPRAVENÉHO K LITÍ"
+    },
+    {
+      "code": "236400",
+      "name": "VÝROBA MALT"
+    },
+    {
+      "code": "236500",
+      "name": "VÝROBA VLÁKNOCEMENTOVÝCH VÝROBKŮ"
+    },
+    {
+      "code": "236600",
+      "name": "VÝROBA OSTATNÍCH BETONOVÝCH, CEMENTOVÝCH A SÁDROVÝCH VÝROBKŮ"
+    },
+    {
+      "code": "236900",
+      "name": "VÝROBA OSTATNÍCH BETONOVÝCH, CEMENTOVÝCH A SÁDROVÝCH VÝROBKŮ"
+    },
+    {
+      "code": "237000",
+      "name": "ŘEZÁNÍ, TVAROVÁNÍ A KONEČNÁ ÚPRAVA KAMENŮ"
+    },
+    {
+      "code": "239000",
+      "name": "VÝROBA BRUSIV A OSTATNÍCH NEKOVOVÝCH MINERÁLNÍCH VÝROBKŮ J. N."
+    },
+    {
+      "code": "239100",
+      "name": "VÝROBA BRUSIV"
+    },
+    {
+      "code": "239900",
+      "name": "VÝROBA OSTATNÍCH NEKOVOVÝCH MINERÁLNÍCH VÝROBKŮ J. N."
+    },
+    {
+      "code": "240000",
+      "name": "VÝROBA ZÁKLADNÍCH KOVŮ"
+    },
+    {
+      "code": "241000",
+      "name": "VÝROBA SUROVÉHO ŽELEZA, OCELI A FEROSLITIN"
+    },
+    {
+      "code": "241010",
+      "name": "VÝROBA ZÁKLADNÍCH HUTNÍCH VÝROBKŮ ZE ŽELEZA A OCELI, VÝROBA SUROVÉHO ŽELEZA A OCELI"
+    },
+    {
+      "code": "241020",
+      "name": "VÝROBA PLOCHÝCH VÝROBKŮ ZE ŽELEZA NEBO OCELI VÁLCOVANÝCH ZA TEPLA NEBO ZA STUDENA, KROMĚ ÚZKÝCH PÁSŮ VÁLCOVANÝCH ZA STUDENA"
+    },
+    {
+      "code": "241030",
+      "name": "VÝROBA TYČÍ A PRUTŮ ZE ŽELEZA NEBO OCELI VÁLCOVANÝCH ZA TEPLA"
+    },
+    {
+      "code": "241090",
+      "name": "VÝROBA SUROVÉHO ŽELEZA, OCELI A FEROSLITIN J. N."
+    },
+    {
+      "code": "242000",
+      "name": "VÝROBA OCELOVÝCH TRUB, TRUBEK, DUTÝCH PROFILŮ A SOUVISEJÍCÍCH POTRUBNÍCH TVAROVEK"
+    },
+    {
+      "code": "243000",
+      "name": "VÝROBA OSTATNÍCH VÝROBKŮ ZÍSKANÝCH PRIMÁRNÍM ZPRACOVÁNÍM OCELI"
+    },
+    {
+      "code": "243100",
+      "name": "TAŽENÍ OCELOVÝCH TYČÍ ZA STUDENA"
+    },
+    {
+      "code": "243200",
+      "name": "VÁLCOVÁNÍ OCELOVÝCH ÚZKÝCH PÁSŮ ZA STUDENA"
+    },
+    {
+      "code": "243300",
+      "name": "TVÁŘENÍ OCELOVÝCH PROFILŮ ZA STUDENA"
+    },
+    {
+      "code": "243400",
+      "name": "TAŽENÍ OCELOVÉHO DRÁTU ZA STUDENA"
+    },
+    {
+      "code": "244000",
+      "name": "VÝROBA A HUTNÍ ZPRACOVÁNÍ DRAHÝCH A JINÝCH NEŽELEZNÝCH KOVŮ"
+    },
+    {
+      "code": "244100",
+      "name": "VÝROBA A HUTNÍ ZPRACOVÁNÍ DRAHÝCH KOVŮ"
+    },
+    {
+      "code": "244200",
+      "name": "VÝROBA A HUTNÍ ZPRACOVÁNÍ HLINÍKU"
+    },
+    {
+      "code": "244300",
+      "name": "VÝROBA A HUTNÍ ZPRACOVÁNÍ OLOVA, ZINKU A CÍNU"
+    },
+    {
+      "code": "244400",
+      "name": "VÝROBA A HUTNÍ ZPRACOVÁNÍ MĚDI"
+    },
+    {
+      "code": "244500",
+      "name": "VÝROBA A HUTNÍ ZPRACOVÁNÍ OSTATNÍCH NEŽELEZNÝCH KOVŮ"
+    },
+    {
+      "code": "244600",
+      "name": "ZPRACOVÁNÍ JADERNÉHO PALIVA"
+    },
+    {
+      "code": "245000",
+      "name": "ODLÉVÁNÍ KOVŮ"
+    },
+    {
+      "code": "245100",
+      "name": "ODLÉVÁNÍ LITINY"
+    },
+    {
+      "code": "245110",
+      "name": "ODLÉVÁNÍ LITINY S LUPÍNKOVÝM GRAFITEM"
+    },
+    {
+      "code": "245120",
+      "name": "ODLÉVÁNÍ LITINY S KULIČKOVÝM GRAFITEM"
+    },
+    {
+      "code": "245190",
+      "name": "ODLÉVÁNÍ OSTATNÍ LITINY"
+    },
+    {
+      "code": "245200",
+      "name": "ODLÉVÁNÍ OCELI"
+    },
+    {
+      "code": "245210",
+      "name": "ODLÉVÁNÍ UHLÍKATÝCH OCELÍ"
+    },
+    {
+      "code": "245220",
+      "name": "ODLÉVÁNÍ LEGOVANÝCH OCELÍ"
+    },
+    {
+      "code": "245300",
+      "name": "ODLÉVÁNÍ LEHKÝCH KOVŮ"
+    },
+    {
+      "code": "245400",
+      "name": "ODLÉVÁNÍ OSTATNÍCH NEŽELEZNÝCH KOVŮ"
+    },
+    {
+      "code": "250000",
+      "name": "VÝROBA KOVOVÝCH VÝROBKŮ, KROMĚ STROJŮ A ZAŘÍZENÍ"
+    },
+    {
+      "code": "251000",
+      "name": "VÝROBA KONSTRUKČNÍCH KOVOVÝCH VÝROBKŮ"
+    },
+    {
+      "code": "251100",
+      "name": "VÝROBA KOVOVÝCH KONSTRUKCÍ A JEJICH DÍLŮ"
+    },
+    {
+      "code": "251200",
+      "name": "VÝROBA KOVOVÝCH DVEŘÍ A OKEN"
+    },
+    {
+      "code": "252000",
+      "name": "VÝROBA KOVOVÝCH CISTEREN, NÁDRŽÍ A PODOBNÝCH NÁDOB"
+    },
+    {
+      "code": "252100",
+      "name": "VÝROBA RADIÁTORŮ K ÚSTŘEDNÍMU TOPENÍ A PARNÍCH KOTLŮ"
+    },
+    {
+      "code": "252200",
+      "name": "VÝROBA OSTATNÍCH KOVOVÝCH CISTEREN, NÁDRŽÍ A PODOBNÝCH NÁDOB"
+    },
+    {
+      "code": "252900",
+      "name": "VÝROBA KOVOVÝCH NÁDRŽÍ A ZÁSOBNÍKŮ"
+    },
+    {
+      "code": "253000",
+      "name": "VÝROBA ZBRANÍ A STŘELIVA"
+    },
+    {
+      "code": "254000",
+      "name": "KOVÁNÍ A TVÁŘENÍ KOVŮ A PRÁŠKOVÁ METALURGIE"
+    },
+    {
+      "code": "255000",
+      "name": "POVRCHOVÉ ÚPRAVY A ZUŠLECHŤOVÁNÍ KOVŮ; OBRÁBĚNÍ"
+    },
+    {
+      "code": "255100",
+      "name": "POVLAKOVÁNÍ KOVŮ"
+    },
+    {
+      "code": "255200",
+      "name": "TEPELNÉ ZPRACOVÁNÍ KOVŮ"
+    },
+    {
+      "code": "255300",
+      "name": "OBRÁBĚNÍ KOVŮ"
+    },
+    {
+      "code": "256000",
+      "name": "VÝROBA NOŽÍŘSKÝCH VÝROBKŮ, NÁSTROJŮ A ŽELEZÁŘSKÝCH VÝROBKŮ"
+    },
+    {
+      "code": "256100",
+      "name": "VÝROBA NOŽÍŘSKÝCH VÝROBKŮ"
+    },
+    {
+      "code": "256200",
+      "name": "VÝROBA ZÁMKŮ A KOVÁNÍ"
+    },
+    {
+      "code": "256300",
+      "name": "VÝROBA NÁSTROJŮ A NÁŘADÍ"
+    },
+    {
+      "code": "257000",
+      "name": "VÝROBA NOŽÍŘSKÝCH VÝROBKŮ, NÁSTROJŮ A ŽELEZÁŘSKÝCH VÝROBKŮ"
+    },
+    {
+      "code": "257100",
+      "name": "VÝROBA NOŽÍŘSKÝCH VÝROBKŮ"
+    },
+    {
+      "code": "257200",
+      "name": "VÝROBA ZÁMKŮ A KOVÁNÍ"
+    },
+    {
+      "code": "257300",
+      "name": "VÝROBA NÁSTROJŮ A NÁŘADÍ"
+    },
+    {
+      "code": "259000",
+      "name": "VÝROBA OSTATNÍCH KOVOVÝCH VÝROBKŮ"
+    },
+    {
+      "code": "259100",
+      "name": "VÝROBA OCELOVÝCH SUDŮ A PODOBNÝCH NÁDOB"
+    },
+    {
+      "code": "259200",
+      "name": "VÝROBA OBALŮ Z LEHKÝCH KOVŮ"
+    },
+    {
+      "code": "259300",
+      "name": "VÝROBA DRÁTĚNÝCH VÝROBKŮ, ŘETĚZŮ A PRUŽIN"
+    },
+    {
+      "code": "259400",
+      "name": "VÝROBA SPOJOVACÍCH MATERIÁLŮ A VÝROBKŮ SE ZÁVITY"
+    },
+    {
+      "code": "259900",
+      "name": "VÝROBA OSTATNÍCH KOVOVÝCH VÝROBKŮ J. N."
+    },
+    {
+      "code": "260000",
+      "name": "VÝROBA POČÍTAČŮ A ELEKTRONICKÝCH A OPTICKÝCH PŘÍSTROJŮ A ZAŘÍZENÍ"
+    },
+    {
+      "code": "261000",
+      "name": "VÝROBA ELEKTRONICKÝCH SOUČÁSTEK A DESEK"
+    },
+    {
+      "code": "261100",
+      "name": "VÝROBA ELEKTRONICKÝCH SOUČÁSTEK"
+    },
+    {
+      "code": "261200",
+      "name": "VÝROBA OSAZENÝCH ELEKTRONICKÝCH DESEK"
+    },
+    {
+      "code": "262000",
+      "name": "VÝROBA POČÍTAČŮ A PERIFERNÍCH ZAŘÍZENÍ"
+    },
+    {
+      "code": "263000",
+      "name": "VÝROBA KOMUNIKAČNÍCH ZAŘÍZENÍ"
+    },
+    {
+      "code": "264000",
+      "name": "VÝROBA SPOTŘEBNÍ ELEKTRONIKY"
+    },
+    {
+      "code": "265000",
+      "name": "VÝROBA MĚŘICÍCH, ZKUŠEBNÍCH A ČASOMĚRNÝCH PŘÍSTROJŮ"
+    },
+    {
+      "code": "265100",
+      "name": "VÝROBA MĚŘICÍCH, ZKUŠEBNÍCH A NAVIGAČNÍCH PŘÍSTROJŮ"
+    },
+    {
+      "code": "265200",
+      "name": "VÝROBA ČASOMĚRNÝCH PŘÍSTROJŮ"
+    },
+    {
+      "code": "266000",
+      "name": "VÝROBA OZAŘOVACÍCH, ELEKTROLÉČEBNÝCH A ELEKTROTERAPEUTICKÝCH PŘÍSTROJŮ"
+    },
+    {
+      "code": "267000",
+      "name": "VÝROBA OPTICKÝCH PŘÍSTROJŮ A ZAŘÍZENÍ, MAGNETICKÝCH A OPTICKÝCH MÉDIÍ A FOTOGRAFICKÝCH PŘÍSTROJŮ A ZAŘÍZENÍ"
+    },
+    {
+      "code": "268000",
+      "name": "VÝROBA MAGNETICKÝCH A OPTICKÝCH MÉDIÍ"
+    },
+    {
+      "code": "270000",
+      "name": "VÝROBA ELEKTRICKÝCH ZAŘÍZENÍ"
+    },
+    {
+      "code": "271000",
+      "name": "VÝROBA ELEKTRICKÝCH MOTORŮ, GENERÁTORŮ, TRANSFORMÁTORŮ A ELEKTRICKÝCH ROZVODNÝCH A KONTROLNÍCH ZAŘÍZENÍ"
+    },
+    {
+      "code": "271100",
+      "name": "VÝROBA ELEKTRICKÝCH MOTORŮ, GENERÁTORŮ A TRANSFORMÁTORŮ"
+    },
+    {
+      "code": "271200",
+      "name": "VÝROBA ELEKTRICKÝCH ROZVODNÝCH A KONTROLNÍCH ZAŘÍZENÍ"
+    },
+    {
+      "code": "272000",
+      "name": "VÝROBA BATERIÍ A AKUMULÁTORŮ"
+    },
+    {
+      "code": "273000",
+      "name": "VÝROBA OPTICKÝCH A ELEKTRICKÝCH KABELŮ, ELEKTRICKÝCH VODIČŮ A ELEKTROINSTALAČNÍCH ZAŘÍZENÍ"
+    },
+    {
+      "code": "273100",
+      "name": "VÝROBA OPTICKÝCH KABELŮ"
+    },
+    {
+      "code": "273200",
+      "name": "VÝROBA OSTATNÍCH ELEKTRONICKÝCH A ELEKTRICKÝCH VODIČŮ A KABELŮ"
+    },
+    {
+      "code": "273300",
+      "name": "VÝROBA ELEKTROINSTALAČNÍCH ZAŘÍZENÍ"
+    },
+    {
+      "code": "274000",
+      "name": "VÝROBA OSVĚTLOVACÍCH ZAŘÍZENÍ"
+    },
+    {
+      "code": "275000",
+      "name": "VÝROBA SPOTŘEBIČŮ PŘEVÁŽNĚ PRO DOMÁCNOST"
+    },
+    {
+      "code": "275100",
+      "name": "VÝROBA ELEKTRICKÝCH SPOTŘEBIČŮ PŘEVÁŽNĚ PRO DOMÁCNOST"
+    },
+    {
+      "code": "275200",
+      "name": "VÝROBA NEELEKTRICKÝCH SPOTŘEBIČŮ PŘEVÁŽNĚ PRO DOMÁCNOST"
+    },
+    {
+      "code": "279000",
+      "name": "VÝROBA OSTATNÍCH ELEKTRICKÝCH ZAŘÍZENÍ"
+    },
+    {
+      "code": "280000",
+      "name": "VÝROBA STROJŮ A ZAŘÍZENÍ J. N."
+    },
+    {
+      "code": "281000",
+      "name": "VÝROBA STROJŮ A ZAŘÍZENÍ PRO VŠEOBECNÉ ÚČELY"
+    },
+    {
+      "code": "281100",
+      "name": "VÝROBA MOTORŮ A TURBÍN, KROMĚ MOTORŮ PRO LETADLA, AUTOMOBILY A MOTOCYKLY"
+    },
+    {
+      "code": "281200",
+      "name": "VÝROBA HYDRAULICKÝCH ZAŘÍZENÍ"
+    },
+    {
+      "code": "281300",
+      "name": "VÝROBA OSTATNÍCH ČERPADEL A KOMPRESORŮ"
+    },
+    {
+      "code": "281400",
+      "name": "VÝROBA OSTATNÍCH POTRUBNÍCH ARMATUR"
+    },
+    {
+      "code": "281500",
+      "name": "VÝROBA LOŽISEK, OZUBENÝCH KOL, PŘEVODŮ A HNACÍCH PRVKŮ"
+    },
+    {
+      "code": "282000",
+      "name": "VÝROBA OSTATNÍCH STROJŮ A ZAŘÍZENÍ PRO VŠEOBECNÉ ÚČELY"
+    },
+    {
+      "code": "282100",
+      "name": "VÝROBA PECÍ, KOTLŮ A STÁLÝCH TEPELNÝCH ZAŘÍZENÍ PRO DOMÁCNOSTI"
+    },
+    {
+      "code": "282200",
+      "name": "VÝROBA ZDVIHACÍCH A MANIPULAČNÍCH ZAŘÍZENÍ"
+    },
+    {
+      "code": "282300",
+      "name": "VÝROBA KANCELÁŘSKÝCH STROJŮ A ZAŘÍZENÍ, KROMĚ POČÍTAČŮ A PERIFERNÍCH ZAŘÍZENÍ"
+    },
+    {
+      "code": "282400",
+      "name": "VÝROBA RUČNÍCH MECHANIZOVANÝCH NÁSTROJŮ"
+    },
+    {
+      "code": "282500",
+      "name": "VÝROBA KLIMATIZAČNÍCH ZAŘÍZENÍ JINÝCH NEŽ PRO DOMÁCNOST"
+    },
+    {
+      "code": "282900",
+      "name": "VÝROBA OSTATNÍCH STROJŮ A ZAŘÍZENÍ PRO VŠEOBECNÉ ÚČELY J. N."
+    },
+    {
+      "code": "283000",
+      "name": "VÝROBA ZEMĚDĚLSKÝCH A LESNICKÝCH STROJŮ"
+    },
+    {
+      "code": "284000",
+      "name": "VÝROBA TVÁŘECÍCH STROJŮ NA OPRACOVÁNÍ KOVŮ A OBRÁBĚCÍCH STROJŮ"
+    },
+    {
+      "code": "284100",
+      "name": "VÝROBA TVÁŘECÍCH A OBRÁBĚCÍCH STROJŮ NA OPRACOVÁNÍ KOVŮ"
+    },
+    {
+      "code": "284200",
+      "name": "VÝROBA OSTATNÍCH OBRÁBĚCÍCH STROJŮ"
+    },
+    {
+      "code": "284900",
+      "name": "VÝROBA OSTATNÍCH OBRÁBĚCÍCH STROJŮ"
+    },
+    {
+      "code": "289000",
+      "name": "VÝROBA OSTATNÍCH STROJŮ PRO SPECIÁLNÍ ÚČELY"
+    },
+    {
+      "code": "289100",
+      "name": "VÝROBA STROJŮ PRO METALURGII"
+    },
+    {
+      "code": "289200",
+      "name": "VÝROBA STROJŮ PRO TĚŽBU, DOBÝVÁNÍ A STAVEBNICTVÍ"
+    },
+    {
+      "code": "289300",
+      "name": "VÝROBA STROJŮ NA VÝROBU POTRAVIN, NÁPOJŮ A ZPRACOVÁNÍ TABÁKU"
+    },
+    {
+      "code": "289400",
+      "name": "VÝROBA STROJŮ NA VÝROBU TEXTILU, ODĚVNÍCH VÝROBKŮ A VÝROBKŮ Z USNÍ"
+    },
+    {
+      "code": "289500",
+      "name": "VÝROBA STROJŮ A PŘÍSTROJŮ NA VÝROBU PAPÍRU A LEPENKY"
+    },
+    {
+      "code": "289600",
+      "name": "VÝROBA STROJŮ NA VÝROBU PLASTŮ A PRYŽE"
+    },
+    {
+      "code": "289700",
+      "name": "VÝROBA STROJŮ PRO ADITIVNÍ VÝROBU"
+    },
+    {
+      "code": "289900",
+      "name": "VÝROBA OSTATNÍCH STROJŮ PRO SPECIÁLNÍ ÚČELY J. N."
+    },
+    {
+      "code": "290000",
+      "name": "VÝROBA MOTOROVÝCH VOZIDEL, PŘÍVĚSŮ A NÁVĚSŮ"
+    },
+    {
+      "code": "291000",
+      "name": "VÝROBA MOTOROVÝCH VOZIDEL"
+    },
+    {
+      "code": "292000",
+      "name": "VÝROBA KAROSERIÍ MOTOROVÝCH VOZIDEL; VÝROBA PŘÍVĚSŮ A NÁVĚSŮ"
+    },
+    {
+      "code": "293000",
+      "name": "VÝROBA DÍLŮ A PŘÍSLUŠENSTVÍ PRO MOTOROVÁ VOZIDLA"
+    },
+    {
+      "code": "293100",
+      "name": "VÝROBA ELEKTRICKÉHO A ELEKTRONICKÉHO ZAŘÍZENÍ PRO MOTOROVÁ VOZIDLA"
+    },
+    {
+      "code": "293200",
+      "name": "VÝROBA OSTATNÍCH DÍLŮ A PŘÍSLUŠENSTVÍ PRO MOTOROVÁ VOZIDLA"
+    },
+    {
+      "code": "300000",
+      "name": "VÝROBA OSTATNÍCH DOPRAVNÍCH PROSTŘEDKŮ A ZAŘÍZENÍ"
+    },
+    {
+      "code": "301000",
+      "name": "STAVBA LODÍ A ČLUNŮ"
+    },
+    {
+      "code": "301100",
+      "name": "STAVBA CIVILNÍCH LODÍ A PLAVIDEL"
+    },
+    {
+      "code": "301200",
+      "name": "STAVBA REKREAČNÍCH A SPORTOVNÍCH ČLUNŮ"
+    },
+    {
+      "code": "301300",
+      "name": "STAVBA VOJENSKÝCH LODÍ A PLAVIDEL"
+    },
+    {
+      "code": "302000",
+      "name": "VÝROBA ŽELEZNIČNÍCH LOKOMOTIV A KOLEJOVÝCH VOZIDEL"
+    },
+    {
+      "code": "303000",
+      "name": "VÝROBA LETADEL, KOSMICKÝCH LODÍ A SOUVISEJÍCÍCH ZAŘÍZENÍ"
+    },
+    {
+      "code": "303100",
+      "name": "VÝROBA CIVILNÍCH LETADEL, KOSMICKÝCH LODÍ A SOUVISEJÍCÍCH ZAŘÍZENÍ"
+    },
+    {
+      "code": "303200",
+      "name": "VÝROBA VOJENSKÝCH LETADEL, KOSMICKÝCH LODÍ A SOUVISEJÍCÍCH ZAŘÍZENÍ"
+    },
+    {
+      "code": "304000",
+      "name": "VÝROBA VOJENSKÝCH BOJOVÝCH VOZIDEL"
+    },
+    {
+      "code": "309000",
+      "name": "VÝROBA DOPRAVNÍCH PROSTŘEDKŮ A ZAŘÍZENÍ J. N."
+    },
+    {
+      "code": "309100",
+      "name": "VÝROBA MOTOCYKLŮ"
+    },
+    {
+      "code": "309200",
+      "name": "VÝROBA JÍZDNÍCH KOL A VOZÍKŮ PRO INVALIDY"
+    },
+    {
+      "code": "309900",
+      "name": "VÝROBA OSTATNÍCH DOPRAVNÍCH PROSTŘEDKŮ A ZAŘÍZENÍ J. N."
+    },
+    {
+      "code": "310000",
+      "name": "VÝROBA NÁBYTKU"
+    },
+    {
+      "code": "310100",
+      "name": "VÝROBA KANCELÁŘSKÉHO NÁBYTKU A ZAŘÍZENÍ OBCHODŮ"
+    },
+    {
+      "code": "310200",
+      "name": "VÝROBA KUCHYŇSKÉHO NÁBYTKU"
+    },
+    {
+      "code": "310300",
+      "name": "VÝROBA MATRACÍ"
+    },
+    {
+      "code": "310900",
+      "name": "VÝROBA OSTATNÍHO NÁBYTKU"
+    },
+    {
+      "code": "320000",
+      "name": "OSTATNÍ ZPRACOVATELSKÝ PRŮMYSL"
+    },
+    {
+      "code": "321000",
+      "name": "VÝROBA KLENOTŮ, BIŽUTERIE A PŘÍBUZNÝCH VÝROBKŮ"
+    },
+    {
+      "code": "321100",
+      "name": "RAŽENÍ MINCÍ"
+    },
+    {
+      "code": "321200",
+      "name": "VÝROBA KLENOTŮ A PŘÍBUZNÝCH VÝROBKŮ"
+    },
+    {
+      "code": "321300",
+      "name": "VÝROBA BIŽUTERIE A PŘÍBUZNÝCH VÝROBKŮ"
+    },
+    {
+      "code": "322000",
+      "name": "VÝROBA HUDEBNÍCH NÁSTROJŮ"
+    },
+    {
+      "code": "323000",
+      "name": "VÝROBA SPORTOVNÍCH POTŘEB"
+    },
+    {
+      "code": "324000",
+      "name": "VÝROBA HER A HRAČEK"
+    },
+    {
+      "code": "325000",
+      "name": "VÝROBA LÉKAŘSKÝCH A DENTÁLNÍCH NÁSTROJŮ A POTŘEB"
+    },
+    {
+      "code": "329000",
+      "name": "ZPRACOVATELSKÝ PRŮMYSL J. N."
+    },
+    {
+      "code": "329100",
+      "name": "VÝROBA KOŠŤAT A KARTÁČNICKÝCH VÝROBKŮ"
+    },
+    {
+      "code": "329900",
+      "name": "OSTATNÍ ZPRACOVATELSKÝ PRŮMYSL J. N."
+    },
+    {
+      "code": "330000",
+      "name": "OPRAVY, ÚDRŽBA A INSTALACE STROJŮ A ZAŘÍZENÍ"
+    },
+    {
+      "code": "331000",
+      "name": "OPRAVY A ÚDRŽBA KOVOVÝCH VÝROBKŮ, STROJŮ A ZAŘÍZENÍ"
+    },
+    {
+      "code": "331100",
+      "name": "OPRAVY A ÚDRŽBA KOVOVÝCH VÝROBKŮ"
+    },
+    {
+      "code": "331200",
+      "name": "OPRAVY A ÚDRŽBA STROJŮ"
+    },
+    {
+      "code": "331300",
+      "name": "OPRAVY A ÚDRŽBA ELEKTRONICKÝCH A OPTICKÝCH PŘÍSTROJŮ A ZAŘÍZENÍ"
+    },
+    {
+      "code": "331400",
+      "name": "OPRAVY A ÚDRŽBA ELEKTRICKÝCH ZAŘÍZENÍ"
+    },
+    {
+      "code": "331500",
+      "name": "OPRAVY A ÚDRŽBA CIVILNÍCH LODÍ A ČLUNŮ"
+    },
+    {
+      "code": "331600",
+      "name": "OPRAVY A ÚDRŽBA CIVILNÍCH LETADEL A KOSMICKÝCH LODÍ"
+    },
+    {
+      "code": "331700",
+      "name": "OPRAVY A ÚDRŽBA OSTATNÍCH CIVILNÍCH DOPRAVNÍCH PROSTŘEDKŮ A ZAŘÍZENÍ"
+    },
+    {
+      "code": "331710",
+      "name": "OPRAVY A ÚDRŽBA KOLEJOVÝCH VOZIDEL"
+    },
+    {
+      "code": "331790",
+      "name": "OPRAVY A ÚDRŽBA OSTATNÍCH CIVILNÍCH DOPRAVNÍCH PROSTŘEDKŮ A ZAŘÍZENÍ J. N."
+    },
+    {
+      "code": "331800",
+      "name": "OPRAVY A ÚDRŽBA VOJENSKÝCH BOJOVÝCH VOZIDEL, LODÍ, ČLUNŮ, LETADEL A KOSMICKÝCH LODÍ"
+    },
+    {
+      "code": "331810",
+      "name": "OPRAVY A ÚDRŽBA VOJENSKÝCH BOJOVÝCH VOZIDEL"
+    },
+    {
+      "code": "331820",
+      "name": "OPRAVY A ÚDRŽBA VOJENSKÝCH LODÍ A ČLUNŮ"
+    },
+    {
+      "code": "331830",
+      "name": "OPRAVY A ÚDRŽBA VOJENSKÝCH LETADEL A KOSMICKÝCH LODÍ"
+    },
+    {
+      "code": "331900",
+      "name": "OPRAVY A ÚDRŽBA OSTATNÍCH ZAŘÍZENÍ"
+    },
+    {
+      "code": "332000",
+      "name": "INSTALACE PRŮMYSLOVÝCH STROJŮ A ZAŘÍZENÍ"
+    },
+    {
+      "code": "350000",
+      "name": "DODÁVÁNÍ ELEKTŘINY, PLYNU, PÁRY A KLIMATIZOVANÉHO VZDUCHU"
+    },
+    {
+      "code": "351000",
+      "name": "VÝROBA, PŘENOS A DISTRIBUCE ELEKTŘINY"
+    },
+    {
+      "code": "351100",
+      "name": "VÝROBA ELEKTŘINY Z NEOBNOVITELNÝCH ZDROJŮ"
+    },
+    {
+      "code": "351200",
+      "name": "VÝROBA ELEKTŘINY Z OBNOVITELNÝCH ZDROJŮ"
+    },
+    {
+      "code": "351300",
+      "name": "PŘENOS ELEKTŘINY"
+    },
+    {
+      "code": "351400",
+      "name": "DISTRIBUCE ELEKTŘINY"
+    },
+    {
+      "code": "351500",
+      "name": "OBCHOD S ELEKTŘINOU"
+    },
+    {
+      "code": "351600",
+      "name": "SKLADOVÁNÍ ELEKTŘINY"
+    },
+    {
+      "code": "352000",
+      "name": "VÝROBA PLYNU A DISTRIBUCE PLYNNÝCH PALIV PROSTŘEDNICTVÍM SÍTÍ"
+    },
+    {
+      "code": "352100",
+      "name": "VÝROBA PLYNU"
+    },
+    {
+      "code": "352200",
+      "name": "DISTRIBUCE PLYNNÝCH PALIV PROSTŘEDNICTVÍM SÍTÍ"
+    },
+    {
+      "code": "352300",
+      "name": "OBCHOD S PLYNEM PROSTŘEDNICTVÍM SÍTÍ"
+    },
+    {
+      "code": "352400",
+      "name": "SKLADOVÁNÍ PLYNU JAKO SOUČÁST SLUŽEB SÍŤOVÝCH DODÁVEK"
+    },
+    {
+      "code": "353000",
+      "name": "DODÁVÁNÍ PÁRY A KLIMATIZOVANÉHO VZDUCHU"
+    },
+    {
+      "code": "353010",
+      "name": "VÝROBA A DISTRIBUCE PÁRY"
+    },
+    {
+      "code": "353020",
+      "name": "VÝROBA A DISTRIBUCE KLIMATIZOVANÉHO VZDUCHU"
+    },
+    {
+      "code": "353030",
+      "name": "VÝROBA A DISTRIBUCE CHLADICÍ VODY"
+    },
+    {
+      "code": "353040",
+      "name": "VÝROBU LEDU PRO CHLADICÍ ÚČELY"
+    },
+    {
+      "code": "353050",
+      "name": "VÝROBA CHLADICÍ VODY"
+    },
+    {
+      "code": "353060",
+      "name": "ROZVOD CHLADICÍ VODY"
+    },
+    {
+      "code": "353070",
+      "name": "VÝROBA LEDU"
+    },
+    {
+      "code": "354000",
+      "name": "ČINNOSTI MAKLÉŘŮ A AGENTŮ V OBLASTI ELEKTRICKÉ ENERGIE A ZEMNÍHO PLYNU"
+    },
+    {
+      "code": "360000",
+      "name": "SHROMAŽĎOVÁNÍ, ÚPRAVA A DISTRIBUCE VODY"
+    },
+    {
+      "code": "370000",
+      "name": "ČINNOSTI SOUVISEJÍCÍ S ODPADNÍMI VODAMI"
+    },
+    {
+      "code": "380000",
+      "name": "SBĚR ODPADŮ, ZPRACOVÁNÍ ODPADŮ K DALŠÍMU VYUŽITÍ A ODSTRAŇOVÁNÍ ODPADŮ"
+    },
+    {
+      "code": "381000",
+      "name": "SBĚR ODPADŮ"
+    },
+    {
+      "code": "381100",
+      "name": "SBĚR ODPADŮ, KROMĚ NEBEZPEČNÝCH"
+    },
+    {
+      "code": "381200",
+      "name": "SBĚR NEBEZPEČNÝCH ODPADŮ"
+    },
+    {
+      "code": "382000",
+      "name": "ZPRACOVÁNÍ ODPADŮ K DALŠÍMU VYUŽITÍ"
+    },
+    {
+      "code": "382100",
+      "name": "ZPRACOVÁNÍ ODPADŮ K ZÍSKÁNÍ MATERIÁLŮ K DALŠÍMU VYUŽITÍ"
+    },
+    {
+      "code": "382200",
+      "name": "ZPRACOVÁNÍ ODPADŮ K ENERGETICKÉMU VYUŽITÍ"
+    },
+    {
+      "code": "382300",
+      "name": "ZPRACOVÁNÍ ODPADŮ K OSTATNÍMU VYUŽITÍ"
+    },
+    {
+      "code": "383000",
+      "name": "ODSTRAŇOVÁNÍ ODPADŮ BEZ DALŠÍHO VYUŽITÍ"
+    },
+    {
+      "code": "383100",
+      "name": "SPALOVÁNÍ ODPADŮ BEZ ENERGETICKÉHO VYUŽITÍ"
+    },
+    {
+      "code": "383200",
+      "name": "SKLÁDKOVÁNÍ NEBO TRVALÉ ULOŽENÍ ODPADŮ"
+    },
+    {
+      "code": "383300",
+      "name": "OSTATNÍ ODSTRAŇOVÁNÍ ODPADŮ"
+    },
+    {
+      "code": "390000",
+      "name": "SANACE A JINÉ ČINNOSTI SOUVISEJÍCÍ S ODPADY"
+    },
+    {
+      "code": "410000",
+      "name": "VÝSTAVBA BYTOVÝCH A NEBYTOVÝCH BUDOV"
+    },
+    {
+      "code": "411000",
+      "name": "DEVELOPERSKÁ ČINNOST"
+    },
+    {
+      "code": "412000",
+      "name": "VÝSTAVBA BYTOVÝCH A NEBYTOVÝCH BUDOV"
+    },
+    {
+      "code": "412010",
+      "name": "VÝSTAVBA BYTOVÝCH BUDOV"
+    },
+    {
+      "code": "412020",
+      "name": "VÝSTAVBA NEBYTOVÝCH BUDOV"
+    },
+    {
+      "code": "420000",
+      "name": "VÝSTAVBA INŽENÝRSKÝCH DĚL"
+    },
+    {
+      "code": "421000",
+      "name": "VÝSTAVBA SILNIC A ŽELEZNIC"
+    },
+    {
+      "code": "421100",
+      "name": "VÝSTAVBA SILNIC A DÁLNIC"
+    },
+    {
+      "code": "421200",
+      "name": "VÝSTAVBA ŽELEZNIC A PODZEMNÍCH DRAH"
+    },
+    {
+      "code": "421300",
+      "name": "VÝSTAVBA MOSTŮ A TUNELŮ"
+    },
+    {
+      "code": "422000",
+      "name": "VÝSTAVBA INŽENÝRSKÝCH SÍTÍ"
+    },
+    {
+      "code": "422100",
+      "name": "VÝSTAVBA INŽENÝRSKÝCH SÍTÍ PRO KAPALINY A PLYNY"
+    },
+    {
+      "code": "422110",
+      "name": "VÝSTAVBA INŽENÝRSKÝCH SÍTÍ PRO KAPALINY"
+    },
+    {
+      "code": "422120",
+      "name": "VÝSTAVBA INŽENÝRSKÝCH SÍTÍ PRO PLYNY"
+    },
+    {
+      "code": "422200",
+      "name": "VÝSTAVBA INŽENÝRSKÝCH SÍTÍ PRO ELEKTŘINU A TELEKOMUNIKACE"
+    },
+    {
+      "code": "429000",
+      "name": "VÝSTAVBA OSTATNÍCH INŽENÝRSKÝCH DĚL"
+    },
+    {
+      "code": "429100",
+      "name": "VÝSTAVBA VODNÍCH DĚL"
+    },
+    {
+      "code": "429900",
+      "name": "VÝSTAVBA OSTATNÍCH INŽENÝRSKÝCH DĚL J. N."
+    },
+    {
+      "code": "430000",
+      "name": "SPECIALIZOVANÉ STAVEBNÍ ČINNOSTI"
+    },
+    {
+      "code": "431000",
+      "name": "DEMOLICE A PŘÍPRAVA STAVENIŠTĚ"
+    },
+    {
+      "code": "431100",
+      "name": "DEMOLICE"
+    },
+    {
+      "code": "431200",
+      "name": "PŘÍPRAVA STAVENIŠTĚ"
+    },
+    {
+      "code": "431300",
+      "name": "PRŮZKUMNÉ VRTNÉ PRÁCE"
+    },
+    {
+      "code": "432000",
+      "name": "ELEKTROINSTALAČNÍ, INSTALATÉRSKÉ A OSTATNÍ STAVEBNĚ INSTALAČNÍ ČINNOSTI"
+    },
+    {
+      "code": "432100",
+      "name": "ELEKTRICKÉ INSTALACE"
+    },
+    {
+      "code": "432200",
+      "name": "INSTALACE ROZVODŮ VODY, ODPADU, TOPENÍ A KLIMATIZACE"
+    },
+    {
+      "code": "432210",
+      "name": "INSTALACE VODOVODNÍCH, ODPADNÍCH A PLYNOVÝCH ZAŘÍZENÍ A ROZVODŮ"
+    },
+    {
+      "code": "432220",
+      "name": "INSTALACE TEPELNÝCH, CHLADICÍCH A KLIMATIZAČNÍCH ZAŘÍZENÍ A ROZVODŮ"
+    },
+    {
+      "code": "432300",
+      "name": "INSTALACE IZOLACÍ"
+    },
+    {
+      "code": "432400",
+      "name": "OSTATNÍ STAVEBNÍ INSTALACE"
+    },
+    {
+      "code": "432900",
+      "name": "OSTATNÍ STAVEBNÍ INSTALACE"
+    },
+    {
+      "code": "433000",
+      "name": "KOMPLETAČNÍ A DOKONČOVACÍ STAVEBNÍ PRÁCE"
+    },
+    {
+      "code": "433100",
+      "name": "OMÍTKÁŘSKÉ PRÁCE"
+    },
+    {
+      "code": "433200",
+      "name": "TRUHLÁŘSKÉ PRÁCE"
+    },
+    {
+      "code": "433300",
+      "name": "OBKLÁDÁNÍ STĚN A POKLÁDÁNÍ PODLAHOVÝCH KRYTIN"
+    },
+    {
+      "code": "433400",
+      "name": "SKLENÁŘSKÉ, MALÍŘSKÉ A NATĚRAČSKÉ PRÁCE"
+    },
+    {
+      "code": "433410",
+      "name": "SKLENÁŘSKÉ PRÁCE"
+    },
+    {
+      "code": "433420",
+      "name": "MALÍŘSKÉ A NATĚRAČSKÉ PRÁCE"
+    },
+    {
+      "code": "433500",
+      "name": "OSTATNÍ KOMPLETAČNÍ A DOKONČOVACÍ STAVEBNÍ PRÁCE"
+    },
+    {
+      "code": "433900",
+      "name": "OSTATNÍ KOMPLETAČNÍ A DOKONČOVACÍ PRÁCE"
+    },
+    {
+      "code": "434000",
+      "name": "SPECIALIZOVANÉ STAVEBNÍ ČINNOSTI PŘI VÝSTAVBĚ BUDOV"
+    },
+    {
+      "code": "434100",
+      "name": "POKRÝVAČSKÉ PRÁCE"
+    },
+    {
+      "code": "434200",
+      "name": "OSTATNÍ SPECIALIZOVANÉ STAVEBNÍ ČINNOSTI PŘI VÝSTAVBĚ BUDOV"
+    },
+    {
+      "code": "435000",
+      "name": "SPECIALIZOVANÉ STAVEBNÍ ČINNOSTI PŘI VÝSTAVBĚ INŽENÝRSKÝCH DĚL"
+    },
+    {
+      "code": "436000",
+      "name": "ZPROSTŘEDKOVÁNÍ V OBLASTI SPECIALIZOVANÝCH STAVEBNÍCH ČINNOSTÍ"
+    },
+    {
+      "code": "439000",
+      "name": "OSTATNÍ SPECIALIZOVANÉ STAVEBNÍ ČINNOSTI"
+    },
+    {
+      "code": "439100",
+      "name": "ZEDNICKÉ PRÁCE"
+    },
+    {
+      "code": "439900",
+      "name": "OSTATNÍ SPECIALIZOVANÉ STAVEBNÍ ČINNOSTI J. N."
+    },
+    {
+      "code": "439910",
+      "name": "MONTÁŽ A DEMONTÁŽ LEŠENÍ A BEDNĚNÍ"
+    },
+    {
+      "code": "439990",
+      "name": "JINÉ SPECIALIZOVANÉ STAVEBNÍ ČINNOSTI J. N."
+    },
+    {
+      "code": "450000",
+      "name": "VELKOOBCHOD, MALOOBCHOD A OPRAVY MOTOROVÝCH VOZIDEL"
+    },
+    {
+      "code": "451000",
+      "name": "OBCHOD S MOTOROVÝMI VOZIDLY, KROMĚ MOTOCYKLŮ"
+    },
+    {
+      "code": "451100",
+      "name": "OBCHOD S AUTOMOBILY A JINÝMI LEHKÝMI MOTOROVÝMI VOZIDLY"
+    },
+    {
+      "code": "451900",
+      "name": "OBCHOD S OSTATNÍMI MOTOROVÝMI VOZIDLY, KROMĚ MOTOCYKLŮ"
+    },
+    {
+      "code": "452000",
+      "name": "OPRAVY A ÚDRŽBA MOTOROVÝCH VOZIDEL, KROMĚ MOTOCYKLŮ"
+    },
+    {
+      "code": "453000",
+      "name": "OBCHOD S DÍLY A PŘÍSLUŠENSTVÍM PRO MOTOROVÁ VOZIDLA, KROMĚ MOTOCYKLŮ"
+    },
+    {
+      "code": "453100",
+      "name": "VELKOOBCHOD S DÍLY A PŘÍSLUŠENSTVÍM PRO MOTOROVÁ VOZIDLA, KROMĚ MOTOCYKLŮ"
+    },
+    {
+      "code": "453200",
+      "name": "MALOOBCHOD S DÍLY A PŘÍSLUŠENSTVÍM PRO MOTOROVÁ VOZIDLA, KROMĚ MOTOCYKLŮ"
+    },
+    {
+      "code": "454000",
+      "name": "OBCHOD, OPRAVY A ÚDRŽBA MOTOCYKLŮ, JEJICH DÍLŮ A PŘÍSLUŠENSTVÍ"
+    },
+    {
+      "code": "460000",
+      "name": "VELKOOBCHOD"
+    },
+    {
+      "code": "461000",
+      "name": "ZPROSTŘEDKOVÁNÍ V OBLASTI VELKOOBCHODU ZA PROVIZI"
+    },
+    {
+      "code": "461100",
+      "name": "ZPROSTŘEDKOVÁNÍ V OBLASTI VELKOOBCHODU ZA PROVIZI SE ZÁKLADNÍMI ZEMĚDĚLSKÝMI PRODUKTY, ŽIVÝMI ZVÍŘATY, TEXTILNÍMI SUROVINAMI A POLOTOVARY"
+    },
+    {
+      "code": "461200",
+      "name": "ZPROSTŘEDKOVÁNÍ V OBLASTI VELKOOBCHODU ZA PROVIZI S PALIVY, RUDAMI, KOVY A TECHNICKÝMI CHEMIKÁLIEMI"
+    },
+    {
+      "code": "461300",
+      "name": "ZPROSTŘEDKOVÁNÍ V OBLASTI VELKOOBCHODU ZA PROVIZI SE DŘEVEM A STAVEBNÍMI MATERIÁLY"
+    },
+    {
+      "code": "461400",
+      "name": "ZPROSTŘEDKOVÁNÍ V OBLASTI VELKOOBCHODU ZA PROVIZI SE STROJI, PRŮMYSLOVÝM ZAŘÍZENÍM, LODĚMI A LETADLY"
+    },
+    {
+      "code": "461500",
+      "name": "ZPROSTŘEDKOVÁNÍ V OBLASTI VELKOOBCHODU ZA PROVIZI S NÁBYTKEM, ŽELEZÁŘSKÝM ZBOŽÍM A POTŘEBAMI PŘEVÁŽNĚ PRO DOMÁCNOST"
+    },
+    {
+      "code": "461600",
+      "name": "ZPROSTŘEDKOVÁNÍ V OBLASTI VELKOOBCHODU ZA PROVIZI S TEXTILEM, ODĚVY, KOŽEŠINAMI, OBUVÍ A KOŽENÝMI VÝROBKY"
+    },
+    {
+      "code": "461700",
+      "name": "ZPROSTŘEDKOVÁNÍ V OBLASTI VELKOOBCHODU ZA PROVIZI S POTRAVINAMI, NÁPOJI A TABÁKOVÝMI VÝROBKY"
+    },
+    {
+      "code": "461800",
+      "name": "ZPROSTŘEDKOVÁNÍ V OBLASTI SPECIALIZOVANÉHO VELKOOBCHODU ZA PROVIZI S OSTATNÍM ZBOŽÍM"
+    },
+    {
+      "code": "461810",
+      "name": "ZPROSTŘEDKOVÁNÍ VELKOOBCHODU A VELKOOBCHOD V ZASTOUPENÍ S PAPÍRENSKÝMI VÝROBKY"
+    },
+    {
+      "code": "461890",
+      "name": "ZPROSTŘEDKOVÁNÍ SPECIALIZOVANÉHO VELKOOBCHODU A VELKOOBCHOD V ZASTOUPENÍ S OSTATNÍMI VÝROBKY J. N."
+    },
+    {
+      "code": "461900",
+      "name": "ZPROSTŘEDKOVÁNÍ V OBLASTI NESPECIALIZOVANÉHO VELKOOBCHODU ZA PROVIZI"
+    },
+    {
+      "code": "462000",
+      "name": "VELKOOBCHOD SE ZÁKLADNÍMI ZEMĚDĚLSKÝMI PRODUKTY A ŽIVÝMI ZVÍŘATY"
+    },
+    {
+      "code": "462100",
+      "name": "VELKOOBCHOD S OBILÍM, SUROVÝM TABÁKEM, OSIVY A KRMIVY"
+    },
+    {
+      "code": "462200",
+      "name": "VELKOOBCHOD S KVĚTINAMI A JINÝMI ROSTLINAMI"
+    },
+    {
+      "code": "462300",
+      "name": "VELKOOBCHOD S ŽIVÝMI ZVÍŘATY"
+    },
+    {
+      "code": "462400",
+      "name": "VELKOOBCHOD SE SUROVÝMI KŮŽEMI, KOŽEŠINAMI A USNĚMI"
+    },
+    {
+      "code": "463000",
+      "name": "VELKOOBCHOD S POTRAVINAMI, NÁPOJI A TABÁKOVÝMI VÝROBKY"
+    },
+    {
+      "code": "463100",
+      "name": "VELKOOBCHOD S OVOCEM A ZELENINOU"
+    },
+    {
+      "code": "463200",
+      "name": "VELKOOBCHOD S MASEM, MASNÝMI VÝROBKY, RYBAMI A RYBÍMI VÝROBKY"
+    },
+    {
+      "code": "463300",
+      "name": "VELKOOBCHOD S MLÉČNÝMI VÝROBKY, VEJCI, JEDLÝMI OLEJI A TUKY"
+    },
+    {
+      "code": "463400",
+      "name": "VELKOOBCHOD S NÁPOJI"
+    },
+    {
+      "code": "463500",
+      "name": "VELKOOBCHOD S TABÁKOVÝMI VÝROBKY"
+    },
+    {
+      "code": "463600",
+      "name": "VELKOOBCHOD S CUKREM, ČOKOLÁDOU A CUKROVINKAMI"
+    },
+    {
+      "code": "463700",
+      "name": "VELKOOBCHOD S KÁVOU, ČAJEM, KAKAEM A KOŘENÍM"
+    },
+    {
+      "code": "463800",
+      "name": "SPECIALIZOVANÝ VELKOOBCHOD S OSTATNÍMI POTRAVINAMI"
+    },
+    {
+      "code": "463900",
+      "name": "NESPECIALIZOVANÝ VELKOOBCHOD S POTRAVINAMI, NÁPOJI A TABÁKOVÝMI VÝROBKY"
+    },
+    {
+      "code": "464000",
+      "name": "VELKOOBCHOD S VÝROBKY PŘEVÁŽNĚ PRO DOMÁCNOST"
+    },
+    {
+      "code": "464100",
+      "name": "VELKOOBCHOD S TEXTILEM"
+    },
+    {
+      "code": "464200",
+      "name": "VELKOOBCHOD S ODĚVY A OBUVÍ"
+    },
+    {
+      "code": "464210",
+      "name": "VELKOOBCHOD S ODĚVY"
+    },
+    {
+      "code": "464220",
+      "name": "VELKOOBCHOD S OBUVÍ"
+    },
+    {
+      "code": "464300",
+      "name": "VELKOOBCHOD S ELEKTROSPOTŘEBIČI A ELEKTRONIKOU PŘEVÁŽNĚ PRO DOMÁCNOST"
+    },
+    {
+      "code": "464400",
+      "name": "VELKOOBCHOD S PORCELÁNOVÝMI, KERAMICKÝMI A SKLENĚNÝMI VÝROBKY A ČISTICÍMI PROSTŘEDKY"
+    },
+    {
+      "code": "464410",
+      "name": "VELKOOBCHOD S PORCELÁNOVÝMI, KERAMICKÝMI A SKLENĚNÝMI VÝROBKY"
+    },
+    {
+      "code": "464420",
+      "name": "VELKOOBCHOD S PRACÍMI A ČISTICÍMI PROSTŘEDKY"
+    },
+    {
+      "code": "464500",
+      "name": "VELKOOBCHOD S PARFÉMY A KOSMETICKÝMI PŘÍPRAVKY"
+    },
+    {
+      "code": "464600",
+      "name": "VELKOOBCHOD S FARMACEUTICKÝMI A ZDRAVOTNICKÝMI VÝROBKY"
+    },
+    {
+      "code": "464700",
+      "name": "VELKOOBCHOD S NÁBYTKEM, KOBERCI A OSVĚTLOVACÍMI ZAŘÍZENÍMI PRO DOMÁCNOSTI, KANCELÁŘE A OBCHODY"
+    },
+    {
+      "code": "464800",
+      "name": "VELKOOBCHOD S HODINAMI, HODINKAMI A KLENOTY"
+    },
+    {
+      "code": "464900",
+      "name": "VELKOOBCHOD S OSTATNÍMI VÝROBKY PŘEVÁŽNĚ PRO DOMÁCNOST"
+    },
+    {
+      "code": "465000",
+      "name": "VELKOOBCHOD S POČÍTAČOVÝMI A KOMUNIKAČNÍMI ZAŘÍZENÍMI"
+    },
+    {
+      "code": "465100",
+      "name": "VELKOOBCHOD S POČÍTAČI, POČÍTAČOVÝM PERIFERNÍM ZAŘÍZENÍM A SOFTWAREM"
+    },
+    {
+      "code": "465200",
+      "name": "VELKOOBCHOD S ELEKTRONICKÝM A TELEKOMUNIKAČNÍM ZAŘÍZENÍM A JEHO DÍLY"
+    },
+    {
+      "code": "466000",
+      "name": "VELKOOBCHOD S OSTATNÍMI STROJI, STROJNÍM ZAŘÍZENÍM A PŘÍSLUŠENSTVÍM"
+    },
+    {
+      "code": "466100",
+      "name": "VELKOOBCHOD SE ZEMĚDĚLSKÝMI STROJI, STROJNÍM ZAŘÍZENÍM A PŘÍSLUŠENSTVÍM"
+    },
+    {
+      "code": "466200",
+      "name": "VELKOOBCHOD S OBRÁBĚCÍMI STROJI"
+    },
+    {
+      "code": "466300",
+      "name": "VELKOOBCHOD S TĚŽEBNÍMI A STAVEBNÍMI STROJI A ZAŘÍZENÍM"
+    },
+    {
+      "code": "466400",
+      "name": "VELKOOBCHOD S OSTATNÍMI STROJI A ZAŘÍZENÍM"
+    },
+    {
+      "code": "466500",
+      "name": "VELKOOBCHOD S KANCELÁŘSKÝM NÁBYTKEM"
+    },
+    {
+      "code": "466600",
+      "name": "VELKOOBCHOD S OSTATNÍMI KANCELÁŘSKÝMI STROJI A ZAŘÍZENÍM"
+    },
+    {
+      "code": "466900",
+      "name": "VELKOOBCHOD S OSTATNÍMI STROJI A ZAŘÍZENÍM"
+    },
+    {
+      "code": "467000",
+      "name": "VELKOOBCHOD S MOTOROVÝMI VOZIDLY, MOTOCYKLY, JEJICH DÍLY A PŘÍSLUŠENSTVÍM"
+    },
+    {
+      "code": "467100",
+      "name": "VELKOOBCHOD S MOTOROVÝMI VOZIDLY"
+    },
+    {
+      "code": "467110",
+      "name": "VELKOOBCHOD S PEVNÝMI PALIVY A PŘÍBUZNÝMI VÝROBKY"
+    },
+    {
+      "code": "467120",
+      "name": "VELKOOBCHOD S KAPALNÝMI PALIVY A PŘÍBUZNÝMI VÝROBKY"
+    },
+    {
+      "code": "467130",
+      "name": "VELKOOBCHOD S PLYNNÝMI PALIVY A PŘÍBUZNÝMI VÝROBKY"
+    },
+    {
+      "code": "467200",
+      "name": "VELKOOBCHOD S DÍLY A PŘÍSLUŠENSTVÍM PRO MOTOROVÁ VOZIDLA"
+    },
+    {
+      "code": "467300",
+      "name": "VELKOOBCHOD S MOTOCYKLY A JEJICH DÍLY A PŘÍSLUŠENSTVÍM"
+    },
+    {
+      "code": "467400",
+      "name": "VELKOOBCHOD S ŽELEZÁŘSKÝM ZBOŽÍM, INSTALATÉRSKÝMI A TOPENÁŘSKÝMI POTŘEBAMI"
+    },
+    {
+      "code": "467500",
+      "name": "VELKOOBCHOD S CHEMICKÝMI VÝROBKY"
+    },
+    {
+      "code": "467600",
+      "name": "VELKOOBCHOD S OSTATNÍMI MEZIPRODUKTY"
+    },
+    {
+      "code": "467610",
+      "name": "VELKOOBCHOD S PAPÍRENSKÝMI MEZIPRODUKTY"
+    },
+    {
+      "code": "467690",
+      "name": "VELKOOBCHOD S OSTATNÍMI MEZIPRODUKTY J. N."
+    },
+    {
+      "code": "467700",
+      "name": "VELKOOBCHOD S ODPADEM A ŠROTEM"
+    },
+    {
+      "code": "468000",
+      "name": "OSTATNÍ SPECIALIZOVANÝ VELKOOBCHOD"
+    },
+    {
+      "code": "468100",
+      "name": "VELKOOBCHOD S PEVNÝMI, KAPALNÝMI A PLYNNÝMI PALIVY A PŘÍBUZNÝMI VÝROBKY"
+    },
+    {
+      "code": "468200",
+      "name": "VELKOOBCHOD S RUDAMI, KOVY A HUTNÍMI VÝROBKY"
+    },
+    {
+      "code": "468300",
+      "name": "VELKOOBCHOD SE DŘEVEM, STAVEBNÍMI MATERIÁLY A SANITÁRNÍM VYBAVENÍM"
+    },
+    {
+      "code": "468400",
+      "name": "VELKOOBCHOD S ŽELEZÁŘSKÝM ZBOŽÍM A INSTALATÉRSKÝMI A TOPENÁŘSKÝMI POTŘEBAMI"
+    },
+    {
+      "code": "468500",
+      "name": "VELKOOBCHOD S CHEMICKÝMI VÝROBKY"
+    },
+    {
+      "code": "468600",
+      "name": "VELKOOBCHOD S OSTATNÍMI MEZIPRODUKTY"
+    },
+    {
+      "code": "468700",
+      "name": "VELKOOBCHOD S ODPADEM A ŠROTEM"
+    },
+    {
+      "code": "468900",
+      "name": "OSTATNÍ SPECIALIZOVANÝ VELKOOBCHOD J. N."
+    },
+    {
+      "code": "469000",
+      "name": "NESPECIALIZOVANÝ VELKOOBCHOD"
+    },
+    {
+      "code": "470000",
+      "name": "MALOOBCHOD"
+    },
+    {
+      "code": "471000",
+      "name": "NESPECIALIZOVANÝ MALOOBCHOD"
+    },
+    {
+      "code": "471100",
+      "name": "NESPECIALIZOVANÝ MALOOBCHOD S PŘEVAHOU POTRAVIN, NÁPOJŮ A TABÁKOVÝCH VÝROBKŮ"
+    },
+    {
+      "code": "471200",
+      "name": "OSTATNÍ NESPECIALIZOVANÝ MALOOBCHOD"
+    },
+    {
+      "code": "471900",
+      "name": "OSTATNÍ MALOOBCHOD V NESPECIALIZOVANÝCH PRODEJNÁCH"
+    },
+    {
+      "code": "472000",
+      "name": "MALOOBCHOD S POTRAVINAMI, NÁPOJI A TABÁKOVÝMI VÝROBKY"
+    },
+    {
+      "code": "472100",
+      "name": "MALOOBCHOD S OVOCEM A ZELENINOU"
+    },
+    {
+      "code": "472200",
+      "name": "MALOOBCHOD S MASEM A MASNÝMI VÝROBKY"
+    },
+    {
+      "code": "472300",
+      "name": "MALOOBCHOD S RYBAMI, KORÝŠI A MĚKKÝŠI"
+    },
+    {
+      "code": "472400",
+      "name": "MALOOBCHOD S PEKAŘSKÝMI A CUKRÁŘSKÝMI VÝROBKY A CUKROVINKAMI"
+    },
+    {
+      "code": "472500",
+      "name": "MALOOBCHOD S NÁPOJI"
+    },
+    {
+      "code": "472600",
+      "name": "MALOOBCHOD S TABÁKOVÝMI VÝROBKY"
+    },
+    {
+      "code": "472700",
+      "name": "SPECIALIZOVANÝ MALOOBCHOD S OSTATNÍMI POTRAVINAMI"
+    },
+    {
+      "code": "472900",
+      "name": "OSTATNÍ MALOOBCHOD S POTRAVINAMI VE SPECIALIZOVANÝCH PRODEJNÁCH"
+    },
+    {
+      "code": "473000",
+      "name": "MALOOBCHOD S POHONNÝMI HMOTAMI"
+    },
+    {
+      "code": "474000",
+      "name": "MALOOBCHOD S POČÍTAČOVÝM A KOMUNIKAČNÍM ZAŘÍZENÍM"
+    },
+    {
+      "code": "474100",
+      "name": "MALOOBCHOD S POČÍTAČI, POČÍTAČOVÝM PERIFERNÍM ZAŘÍZENÍM A SOFTWAREM"
+    },
+    {
+      "code": "474200",
+      "name": "MALOOBCHOD S TELEKOMUNIKAČNÍM ZAŘÍZENÍM"
+    },
+    {
+      "code": "474300",
+      "name": "MALOOBCHOD S AUDIO- A VIDEOZAŘÍZENÍM"
+    },
+    {
+      "code": "475000",
+      "name": "MALOOBCHOD S OSTATNÍMI VÝROBKY PŘEVÁŽNĚ PRO DOMÁCNOST"
+    },
+    {
+      "code": "475100",
+      "name": "MALOOBCHOD S TEXTILEM"
+    },
+    {
+      "code": "475200",
+      "name": "MALOOBCHOD S ŽELEZÁŘSKÝM ZBOŽÍM, STAVEBNÍMI MATERIÁLY, BARVAMI A SKLEM"
+    },
+    {
+      "code": "475300",
+      "name": "MALOOBCHOD S KOBERCI, PODLAHOVÝMI KRYTINAMI A NÁSTĚNNÝMI OBKLADY"
+    },
+    {
+      "code": "475400",
+      "name": "MALOOBCHOD S ELEKTROSPOTŘEBIČI A ELEKTRONIKOU PŘEVÁŽNĚ PRO DOMÁCNOST"
+    },
+    {
+      "code": "475500",
+      "name": "MALOOBCHOD S NÁBYTKEM, OSVĚTLOVACÍMI ZAŘÍZENÍMI, NÁDOBÍM A OSTATNÍMI VÝROBKY PŘEVÁŽNĚ PRO DOMÁCNOST"
+    },
+    {
+      "code": "475900",
+      "name": "MALOOBCHOD S NÁBYTKEM, SVÍTIDLY A OSTATNÍMI VÝROBKY PŘEVÁŽNĚ PRO DOMÁCNOST VE SPECIALIZOVANÝCH PRODEJNÁCH"
+    },
+    {
+      "code": "476000",
+      "name": "MALOOBCHOD S VÝROBKY PRO KULTURNÍ ROZHLED A REKREACI"
+    },
+    {
+      "code": "476100",
+      "name": "MALOOBCHOD S KNIHAMI"
+    },
+    {
+      "code": "476200",
+      "name": "MALOOBCHOD S NOVINAMI A OSTATNÍMI PERIODICKÝMI PUBLIKACEMI A PAPÍRNICKÝM ZBOŽÍM"
+    },
+    {
+      "code": "476210",
+      "name": "MALOOBCHOD S NOVINAMI A OSTATNÍMI PERIODICKÝMI PUBLIKACEMI"
+    },
+    {
+      "code": "476220",
+      "name": "MALOOBCHOD S PAPÍRNICKÝM ZBOŽÍM"
+    },
+    {
+      "code": "476300",
+      "name": "MALOOBCHOD SE SPORTOVNÍM VYBAVENÍM"
+    },
+    {
+      "code": "476400",
+      "name": "MALOOBCHOD S HRAMI A HRAČKAMI"
+    },
+    {
+      "code": "476500",
+      "name": "MALOOBCHOD S HRAMI A HRAČKAMI"
+    },
+    {
+      "code": "476900",
+      "name": "MALOOBCHOD S VÝROBKY PRO KULTURNÍ ROZHLED A REKREACI J. N."
+    },
+    {
+      "code": "477000",
+      "name": "MALOOBCHOD S OSTATNÍM ZBOŽÍM, KROMĚ MOTOROVÝCH VOZIDEL A MOTOCYKLŮ"
+    },
+    {
+      "code": "477100",
+      "name": "MALOOBCHOD S ODĚVY"
+    },
+    {
+      "code": "477200",
+      "name": "MALOOBCHOD S OBUVÍ A KOŽENÝMI VÝROBKY"
+    },
+    {
+      "code": "477300",
+      "name": "MALOOBCHOD S FARMACEUTICKÝMI VÝROBKY"
+    },
+    {
+      "code": "477400",
+      "name": "MALOOBCHOD SE ZDRAVOTNICKÝMI A ORTOPEDICKÝMI VÝROBKY"
+    },
+    {
+      "code": "477500",
+      "name": "MALOOBCHOD S KOSMETICKÝMI A TOALETNÍMI VÝROBKY"
+    },
+    {
+      "code": "477600",
+      "name": "MALOOBCHOD S KVĚTINAMI, ROSTLINAMI, HNOJIVY, ZVÍŘATY PRO ZÁJMOVÝ CHOV A KRMIVY PRO NĚ"
+    },
+    {
+      "code": "477700",
+      "name": "MALOOBCHOD S HODINAMI, HODINKAMI A KLENOTY"
+    },
+    {
+      "code": "477800",
+      "name": "MALOOBCHOD S OSTATNÍM NOVÝM ZBOŽÍM"
+    },
+    {
+      "code": "477810",
+      "name": "MALOOBCHOD S FOTOGRAFICKÝM A OPTICKÝM ZAŘÍZENÍM A POTŘEBAMI"
+    },
+    {
+      "code": "477820",
+      "name": "MALOOBCHOD S PEVNÝMI PALIVY"
+    },
+    {
+      "code": "477830",
+      "name": "MALOOBCHOD S KAPALNÝMI PALIVY (KROMĚ POHONNÝCH HMOT)"
+    },
+    {
+      "code": "477840",
+      "name": "MALOOBCHOD S PLYNNÝMI PALIVY (KROMĚ POHONNÝCH HMOT)"
+    },
+    {
+      "code": "477890",
+      "name": "OSTATNÍ MALOOBCHOD S NOVÝM ZBOŽÍM VE SPECIALIZOVANÝCH PRODEJNÁCH J. N."
+    },
+    {
+      "code": "477900",
+      "name": "MALOOBCHOD S POUŽITÝM ZBOŽÍM"
+    },
+    {
+      "code": "477910",
+      "name": "MALOOBCHOD S POUŽITÝMI KNIHAMI A STAROŽITNOSTMI"
+    },
+    {
+      "code": "477990",
+      "name": "MALOOBCHOD S OSTATNÍM POUŽITÝM ZBOŽÍM"
+    },
+    {
+      "code": "478000",
+      "name": "MALOOBCHOD S MOTOROVÝMI VOZIDLY, MOTOCYKLY, JEJICH DÍLY A PŘÍSLUŠENSTVÍM"
+    },
+    {
+      "code": "478100",
+      "name": "MALOOBCHOD S MOTOROVÝMI VOZIDLY"
+    },
+    {
+      "code": "478200",
+      "name": "MALOOBCHOD S DÍLY A PŘÍSLUŠENSTVÍM PRO MOTOROVÁ VOZIDLA"
+    },
+    {
+      "code": "478300",
+      "name": "MALOOBCHOD S MOTOCYKLY A DÍLY A PŘÍSLUŠENSTVÍM PRO MOTOCYKLY"
+    },
+    {
+      "code": "478900",
+      "name": "MALOOBCHOD S OSTATNÍM ZBOŽÍM VE STÁNCÍCH A NA TRZÍCH"
+    },
+    {
+      "code": "479000",
+      "name": "ZPROSTŘEDKOVÁNÍ V OBLASTI MALOOBCHODU"
+    },
+    {
+      "code": "479100",
+      "name": "ZPROSTŘEDKOVÁNÍ V OBLASTI NESPECIALIZOVANÉHO MALOOBCHODU"
+    },
+    {
+      "code": "479110",
+      "name": "MALOOBCHOD PROSTŘEDNICTVÍM INTERNETU"
+    },
+    {
+      "code": "479120",
+      "name": "MALOOBCHOD PROSTŘEDNICTVÍM ZÁSILKOVÉ SLUŽBY (JINÝ NEŽ PROSTŘEDNICTVÍM INTERNETU)"
+    },
+    {
+      "code": "479200",
+      "name": "ZPROSTŘEDKOVÁNÍ V OBLASTI SPECIALIZOVANÉHO MALOOBCHODU"
+    },
+    {
+      "code": "479900",
+      "name": "OSTATNÍ MALOOBCHOD MIMO PRODEJNY, STÁNKY A TRHY"
+    },
+    {
+      "code": "490000",
+      "name": "POZEMNÍ A POTRUBNÍ DOPRAVA"
+    },
+    {
+      "code": "491000",
+      "name": "KOLEJOVÁ OSOBNÍ DOPRAVA"
+    },
+    {
+      "code": "491100",
+      "name": "ŽELEZNIČNÍ OSOBNÍ DOPRAVA"
+    },
+    {
+      "code": "491200",
+      "name": "OSTATNÍ KOLEJOVÁ OSOBNÍ DOPRAVA"
+    },
+    {
+      "code": "492000",
+      "name": "KOLEJOVÁ NÁKLADNÍ DOPRAVA"
+    },
+    {
+      "code": "493000",
+      "name": "OSTATNÍ POZEMNÍ OSOBNÍ DOPRAVA"
+    },
+    {
+      "code": "493100",
+      "name": "PRAVIDELNÁ SILNIČNÍ OSOBNÍ DOPRAVA"
+    },
+    {
+      "code": "493200",
+      "name": "NEPRAVIDELNÁ SILNIČNÍ OSOBNÍ DOPRAVA"
+    },
+    {
+      "code": "493300",
+      "name": "OSOBNÍ DOPRAVA VOZIDLEM S ŘIDIČEM NA VYŽÁDÁNÍ"
+    },
+    {
+      "code": "493400",
+      "name": "OSOBNÍ DOPRAVA VISUTÝMI LANOVKAMI A LYŽAŘSKÝMI VLEKY"
+    },
+    {
+      "code": "493900",
+      "name": "OSTATNÍ POZEMNÍ OSOBNÍ DOPRAVA J. N."
+    },
+    {
+      "code": "493910",
+      "name": "MEZIMĚSTSKÁ PRAVIDELNÁ POZEMNÍ OSOBNÍ DOPRAVA"
+    },
+    {
+      "code": "493920",
+      "name": "OSOBNÍ DOPRAVA LANOVKOU NEBO VLEKEM"
+    },
+    {
+      "code": "493930",
+      "name": "NEPRAVIDELNÁ POZEMNÍ OSOBNÍ DOPRAVA"
+    },
+    {
+      "code": "493990",
+      "name": "JINÁ POZEMNÍ OSOBNÍ DOPRAVA J. N."
+    },
+    {
+      "code": "494000",
+      "name": "SILNIČNÍ NÁKLADNÍ DOPRAVA A STĚHOVACÍ SLUŽBY"
+    },
+    {
+      "code": "494100",
+      "name": "SILNIČNÍ NÁKLADNÍ DOPRAVA"
+    },
+    {
+      "code": "494200",
+      "name": "STĚHOVACÍ SLUŽBY"
+    },
+    {
+      "code": "495000",
+      "name": "POTRUBNÍ DOPRAVA"
+    },
+    {
+      "code": "495010",
+      "name": "POTRUBNÍ DOPRAVA ROPOVODEM"
+    },
+    {
+      "code": "495020",
+      "name": "POTRUBNÍ DOPRAVA PLYNOVODEM"
+    },
+    {
+      "code": "495090",
+      "name": "POTRUBNÍ DOPRAVA OSTATNÍ"
+    },
+    {
+      "code": "500000",
+      "name": "VODNÍ DOPRAVA"
+    },
+    {
+      "code": "501000",
+      "name": "NÁMOŘNÍ A POBŘEŽNÍ OSOBNÍ DOPRAVA"
+    },
+    {
+      "code": "502000",
+      "name": "NÁMOŘNÍ A POBŘEŽNÍ NÁKLADNÍ DOPRAVA"
+    },
+    {
+      "code": "503000",
+      "name": "VNITROZEMSKÁ VODNÍ OSOBNÍ DOPRAVA"
+    },
+    {
+      "code": "504000",
+      "name": "VNITROZEMSKÁ VODNÍ NÁKLADNÍ DOPRAVA"
+    },
+    {
+      "code": "510000",
+      "name": "LETECKÁ DOPRAVA"
+    },
+    {
+      "code": "511000",
+      "name": "LETECKÁ OSOBNÍ DOPRAVA"
+    },
+    {
+      "code": "511010",
+      "name": "VNITROSTÁTNÍ PRAVIDELNÁ LETECKÁ OSOBNÍ DOPRAVA"
+    },
+    {
+      "code": "511020",
+      "name": "VNITROSTÁTNÍ NEPRAVIDELNÁ LETECKÁ OSOBNÍ DOPRAVA"
+    },
+    {
+      "code": "511030",
+      "name": "MEZINÁRODNÍ PRAVIDELNÁ LETECKÁ OSOBNÍ DOPRAVA"
+    },
+    {
+      "code": "511040",
+      "name": "MEZINÁRODNÍ NEPRAVIDELNÁ LETECKÁ OSOBNÍ DOPRAVA"
+    },
+    {
+      "code": "511090",
+      "name": "OSTATNÍ LETECKÁ OSOBNÍ DOPRAVA"
+    },
+    {
+      "code": "512000",
+      "name": "LETECKÁ NÁKLADNÍ DOPRAVA A KOSMICKÁ DOPRAVA"
+    },
+    {
+      "code": "512100",
+      "name": "LETECKÁ NÁKLADNÍ DOPRAVA"
+    },
+    {
+      "code": "512200",
+      "name": "KOSMICKÁ DOPRAVA"
+    },
+    {
+      "code": "520000",
+      "name": "SKLADOVÁNÍ A PODPŮRNÉ ČINNOSTI PRO DOPRAVU"
+    },
+    {
+      "code": "521000",
+      "name": "SKLADOVÁNÍ"
+    },
+    {
+      "code": "522000",
+      "name": "PODPŮRNÉ ČINNOSTI PRO DOPRAVU"
+    },
+    {
+      "code": "522100",
+      "name": "ČINNOSTI SOUVISEJÍCÍ S POZEMNÍ DOPRAVOU"
+    },
+    {
+      "code": "522200",
+      "name": "ČINNOSTI SOUVISEJÍCÍ S VODNÍ DOPRAVOU"
+    },
+    {
+      "code": "522300",
+      "name": "ČINNOSTI SOUVISEJÍCÍ S LETECKOU DOPRAVOU"
+    },
+    {
+      "code": "522400",
+      "name": "MANIPULACE S NÁKLADEM"
+    },
+    {
+      "code": "522500",
+      "name": "LOGISTICKÉ ČINNOSTI"
+    },
+    {
+      "code": "522600",
+      "name": "OSTATNÍ PODPŮRNÉ ČINNOSTI PRO DOPRAVU"
+    },
+    {
+      "code": "522900",
+      "name": "OSTATNÍ VEDLEJŠÍ ČINNOSTI V DOPRAVĚ"
+    },
+    {
+      "code": "523000",
+      "name": "ZPROSTŘEDKOVÁNÍ V OBLASTI DOPRAVY"
+    },
+    {
+      "code": "523100",
+      "name": "ZPROSTŘEDKOVÁNÍ V OBLASTI NÁKLADNÍ DOPRAVY"
+    },
+    {
+      "code": "523200",
+      "name": "ZPROSTŘEDKOVÁNÍ V OBLASTI OSOBNÍ DOPRAVY"
+    },
+    {
+      "code": "530000",
+      "name": "POŠTOVNÍ A KURÝRNÍ ČINNOSTI"
+    },
+    {
+      "code": "531000",
+      "name": "ZÁKLADNÍ POŠTOVNÍ SLUŽBY POSKYTOVANÉ NA ZÁKLADĚ POŠTOVNÍ LICENCE"
+    },
+    {
+      "code": "532000",
+      "name": "OSTATNÍ POŠTOVNÍ A KURÝRNÍ ČINNOSTI"
+    },
+    {
+      "code": "533000",
+      "name": "ZPROSTŘEDKOVÁNÍ V OBLASTI POŠTOVNÍCH A KURÝRNÍCH ČINNOSTÍ"
+    },
+    {
+      "code": "550000",
+      "name": "POSKYTOVÁNÍ UBYTOVÁNÍ"
+    },
+    {
+      "code": "551000",
+      "name": "UBYTOVÁNÍ V HOTELÍCH A PODOBNÝCH UBYTOVACÍCH ZAŘÍZENÍCH"
+    },
+    {
+      "code": "551010",
+      "name": "HOTELY"
+    },
+    {
+      "code": "551020",
+      "name": "MOTELY, BOTELY"
+    },
+    {
+      "code": "551090",
+      "name": "OSTATNÍ PODOBNÁ UBYTOVACÍ ZAŘÍZENÍ"
+    },
+    {
+      "code": "552000",
+      "name": "REKREAČNÍ A OSTATNÍ KRÁTKODOBÉ UBYTOVÁNÍ"
+    },
+    {
+      "code": "553000",
+      "name": "KEMPY A PARKOVIŠTĚ PRO REKREAČNÍ VOZIDLA"
+    },
+    {
+      "code": "554000",
+      "name": "ZPROSTŘEDKOVÁNÍ V OBLASTI UBYTOVÁNÍ"
+    },
+    {
+      "code": "559000",
+      "name": "OSTATNÍ UBYTOVÁNÍ"
+    },
+    {
+      "code": "559010",
+      "name": "UBYTOVÁNÍ V ZAŘÍZENÝCH PRONÁJMECH"
+    },
+    {
+      "code": "559020",
+      "name": "UBYTOVÁNÍ VE VYSOKOŠKOLSKÝCH KOLEJÍCH, DOMOVECH MLÁDEŽE"
+    },
+    {
+      "code": "559090",
+      "name": "OSTATNÍ UBYTOVÁNÍ J. N."
+    },
+    {
+      "code": "560000",
+      "name": "POSKYTOVÁNÍ STRAVOVÁNÍ A PODÁVÁNÍ NÁPOJŮ"
+    },
+    {
+      "code": "561000",
+      "name": "POSKYTOVÁNÍ STRAVOVÁNÍ V RESTAURACÍCH, U STÁNKŮ A MOBILNÍCH ZAŘÍZENÍ"
+    },
+    {
+      "code": "561100",
+      "name": "POSKYTOVÁNÍ STRAVOVÁNÍ V RESTAURACÍCH"
+    },
+    {
+      "code": "561200",
+      "name": "POSKYTOVÁNÍ STRAVOVÁNÍ U STÁNKŮ A MOBILNÍCH ZAŘÍZENÍ"
+    },
+    {
+      "code": "562000",
+      "name": "CATERINGOVÉ ČINNOSTI, POSKYTOVÁNÍ SMLUVNÍCH A OSTATNÍCH STRAVOVACÍCH SLUŽEB"
+    },
+    {
+      "code": "562100",
+      "name": "CATERINGOVÉ ČINNOSTI"
+    },
+    {
+      "code": "562200",
+      "name": "POSKYTOVÁNÍ SMLUVNÍCH A OSTATNÍCH STRAVOVACÍCH SLUŽEB"
+    },
+    {
+      "code": "562900",
+      "name": "POSKYTOVÁNÍ OSTATNÍCH STRAVOVACÍCH SLUŽEB"
+    },
+    {
+      "code": "562910",
+      "name": "STRAVOVÁNÍ V ZÁVODNÍCH KUCHYNÍCH"
+    },
+    {
+      "code": "562920",
+      "name": "STRAVOVÁNÍ VE ŠKOLNÍCH ZAŘÍZENÍCH, MENZÁCH"
+    },
+    {
+      "code": "562990",
+      "name": "POSKYTOVÁNÍ JINÝCH STRAVOVACÍCH SLUŽEB J. N."
+    },
+    {
+      "code": "563000",
+      "name": "PODÁVÁNÍ NÁPOJŮ"
+    },
+    {
+      "code": "564000",
+      "name": "ZPROSTŘEDKOVÁNÍ V OBLASTI STRAVOVÁNÍ A PODÁVÁNÍ NÁPOJŮ"
+    },
+    {
+      "code": "580000",
+      "name": "VYDAVATELSKÉ ČINNOSTI"
+    },
+    {
+      "code": "581000",
+      "name": "VYDÁVÁNÍ KNIH, NOVIN A OSTATNÍ VYDAVATELSKÉ ČINNOSTI, KROMĚ VYDÁVÁNÍ SOFTWARU"
+    },
+    {
+      "code": "581100",
+      "name": "VYDÁVÁNÍ KNIH"
+    },
+    {
+      "code": "581200",
+      "name": "VYDÁVÁNÍ NOVIN"
+    },
+    {
+      "code": "581210",
+      "name": "VYDÁVÁNÍ TIŠTĚNÝCH NOVIN"
+    },
+    {
+      "code": "581220",
+      "name": "VYDÁVÁNÍ NOVIN V JINÝCH FORMÁCH NEŽ TIŠTĚNÝCH"
+    },
+    {
+      "code": "581300",
+      "name": "VYDÁVÁNÍ ČASOPISŮ A OSTATNÍCH PERIODIK"
+    },
+    {
+      "code": "581310",
+      "name": "VYDÁVÁNÍ TIŠTĚNÝCH ČASOPISŮ"
+    },
+    {
+      "code": "581320",
+      "name": "VYDÁVÁNÍ ČASOPISŮ V JINÝCH FORMÁCH NEŽ TIŠTĚNÝCH"
+    },
+    {
+      "code": "581390",
+      "name": "VYDÁVÁNÍ OSTATNÍCH PERIODIK"
+    },
+    {
+      "code": "581400",
+      "name": "VYDÁVÁNÍ ČASOPISŮ A OSTATNÍCH PERIODICKÝCH PUBLIKACÍ"
+    },
+    {
+      "code": "581900",
+      "name": "OSTATNÍ VYDAVATELSKÉ ČINNOSTI, KROMĚ VYDÁVÁNÍ SOFTWARU"
+    },
+    {
+      "code": "582000",
+      "name": "VYDÁVÁNÍ SOFTWARU"
+    },
+    {
+      "code": "582100",
+      "name": "VYDÁVÁNÍ VIDEOHER"
+    },
+    {
+      "code": "582900",
+      "name": "OSTATNÍ VYDÁVÁNÍ SOFTWARU"
+    },
+    {
+      "code": "590000",
+      "name": "ČINNOSTI V OBLASTI FILMŮ, VIDEOZÁZNAMŮ A TELEVIZNÍCH POŘADŮ, POŘIZOVÁNÍ ZVUKOVÝCH NAHRÁVEK A HUDEBNÍ VYDAVATELSKÉ ČINNOSTI"
+    },
+    {
+      "code": "591000",
+      "name": "ČINNOSTI V OBLASTI FILMŮ, VIDEOZÁZNAMŮ A TELEVIZNÍCH POŘADŮ"
+    },
+    {
+      "code": "591100",
+      "name": "PRODUKCE FILMŮ, VIDEOZÁZNAMŮ A TELEVIZNÍCH POŘADŮ"
+    },
+    {
+      "code": "591200",
+      "name": "POSTPRODUKCE FILMŮ, VIDEOZÁZNAMŮ A TELEVIZNÍCH POŘADŮ"
+    },
+    {
+      "code": "591300",
+      "name": "DISTRIBUCE FILMŮ A VIDEOZÁZNAMŮ"
+    },
+    {
+      "code": "591400",
+      "name": "PROMÍTÁNÍ FILMŮ"
+    },
+    {
+      "code": "592000",
+      "name": "POŘIZOVÁNÍ ZVUKOVÝCH NAHRÁVEK A HUDEBNÍ VYDAVATELSKÉ ČINNOSTI"
+    },
+    {
+      "code": "600000",
+      "name": "TVORBA PROGRAMŮ, VYSÍLÁNÍ, ČINNOSTI ZPRAVODAJSKÝCH TISKOVÝCH KANCELÁŘÍ A AGENTUR A OSTATNÍ ČINNOSTI SOUVISEJÍCÍ S DISTRIBUCÍ OBSAHU"
+    },
+    {
+      "code": "601000",
+      "name": "ROZHLASOVÉ VYSÍLÁNÍ A DISTRIBUCE ZVUKOVÝCH ZÁZNAMŮ"
+    },
+    {
+      "code": "601010",
+      "name": "ROZHLASOVÉ VYSÍLÁNÍ"
+    },
+    {
+      "code": "601020",
+      "name": "DISTRIBUCE ZVUKOVÝCH ZÁZNAMŮ"
+    },
+    {
+      "code": "602000",
+      "name": "TVORBA TELEVIZNÍCH PROGRAMŮ, TELEVIZNÍ VYSÍLÁNÍ A DISTRIBUCE VIDEOZÁZNAMŮ"
+    },
+    {
+      "code": "603000",
+      "name": "ČINNOSTI ZPRAVODAJSKÝCH KANCELÁŘÍ A AGENTUR A OSTATNÍ ČINNOSTI SOUVISEJÍCÍ S DISTRIBUCÍ OBSAHU"
+    },
+    {
+      "code": "603100",
+      "name": "ČINNOSTI ZPRAVODAJSKÝCH KANCELÁŘÍ A AGENTUR"
+    },
+    {
+      "code": "603900",
+      "name": "OSTATNÍ ČINNOSTI SOUVISEJÍCÍ S DISTRIBUCÍ OBSAHU"
+    },
+    {
+      "code": "610000",
+      "name": "TELEKOMUNIKAČNÍ ČINNOSTI"
+    },
+    {
+      "code": "611000",
+      "name": "ČINNOSTI SOUVISEJÍCÍ S KABELOVOU, BEZDRÁTOVOU A SATELITNÍ TELEKOMUNIKAČNÍ SÍTÍ"
+    },
+    {
+      "code": "611010",
+      "name": "POSKYTOVÁNÍ HLASOVÝCH SLUŽEB PŘES PEVNOU TELEKOMUNIKAČNÍ SÍŤ"
+    },
+    {
+      "code": "611020",
+      "name": "PRONÁJEM PEVNÉ TELEKOMUNIKAČNÍ SÍTĚ"
+    },
+    {
+      "code": "611030",
+      "name": "PŘENOS DAT PŘES PEVNOU TELEKOMUNIKAČNÍ SÍŤ"
+    },
+    {
+      "code": "611040",
+      "name": "POSKYTOVÁNÍ PŘÍSTUPU K INTERNETU PŘES PEVNOU TELEKOMUNIKAČNÍ SÍŤ"
+    },
+    {
+      "code": "611090",
+      "name": "OSTATNÍ ČINNOSTI SOUVISEJÍCÍ S PEVNOU TELEKOMUNIKAČNÍ SÍTÍ"
+    },
+    {
+      "code": "612000",
+      "name": "ČINNOSTI V OBLASTI PŘEPRODEJE TELEKOMUNIKAČNÍCH SLUŽEB A ZPROSTŘEDKOVÁNÍ TELEKOMUNIKAČNÍCH ČINNOSTÍ"
+    },
+    {
+      "code": "612010",
+      "name": "POSKYTOVÁNÍ HLASOVÝCH SLUŽEB PŘES BEZDRÁTOVOU TELEKOMUNIKAČNÍ SÍŤ"
+    },
+    {
+      "code": "612020",
+      "name": "PRONÁJEM BEZDRÁTOVÉ TELEKOMUNIKAČNÍ SÍTĚ"
+    },
+    {
+      "code": "612030",
+      "name": "PŘENOS DAT PŘES BEZDRÁTOVOU TELEKOMUNIKAČNÍ SÍŤ"
+    },
+    {
+      "code": "612040",
+      "name": "POSKYTOVÁNÍ PŘÍSTUPU K INTERNETU PŘES BEZDRÁTOVOU TELEKOMUNIKAČNÍ SÍŤ"
+    },
+    {
+      "code": "612090",
+      "name": "OSTATNÍ ČINNOSTI SOUVISEJÍCÍ S BEZDRÁTOVOU TELEKOMUNIKAČNÍ SÍTÍ"
+    },
+    {
+      "code": "613000",
+      "name": "ČINNOSTI SOUVISEJÍCÍ SE SATELITNÍ TELEKOMUNIKAČNÍ SÍTÍ"
+    },
+    {
+      "code": "619000",
+      "name": "OSTATNÍ TELEKOMUNIKAČNÍ ČINNOSTI"
+    },
+    {
+      "code": "620000",
+      "name": "POČÍTAČOVÉ PROGRAMOVÁNÍ, PORADENSTVÍ A SOUVISEJÍCÍ ČINNOSTI"
+    },
+    {
+      "code": "620100",
+      "name": "PROGRAMOVÁNÍ"
+    },
+    {
+      "code": "620200",
+      "name": "PORADENSTVÍ V OBLASTI INFORMAČNÍCH TECHNOLOGIÍ"
+    },
+    {
+      "code": "620300",
+      "name": "SPRÁVA POČÍTAČOVÉHO VYBAVENÍ"
+    },
+    {
+      "code": "620900",
+      "name": "OSTATNÍ ČINNOSTI V OBLASTI INFORMAČNÍCH TECHNOLOGIÍ"
+    },
+    {
+      "code": "621000",
+      "name": "POČÍTAČOVÉ PROGRAMOVÁNÍ"
+    },
+    {
+      "code": "621010",
+      "name": "PROGRAMOVÁNÍ A VÝVOJ POČÍTAČOVÝCH HER, HERNÍHO SOFTWARU A HERNÍCH NÁSTROJŮ"
+    },
+    {
+      "code": "621090",
+      "name": "OSTATNÍ POČÍTAČOVÉ PROGRAMOVÁNÍ"
+    },
+    {
+      "code": "622000",
+      "name": "PORADENSTVÍ V OBLASTI POČÍTAČŮ A SPRÁVA POČÍTAČOVÝCH SYSTÉMŮ"
+    },
+    {
+      "code": "629000",
+      "name": "OSTATNÍ ČINNOSTI V OBLASTI INFORMAČNÍCH TECHNOLOGIÍ A POČÍTAČŮ"
+    },
+    {
+      "code": "630000",
+      "name": "POSKYTOVÁNÍ POČÍTAČOVÉ INFRASTRUKTURY, ZPRACOVÁNÍ DAT, HOSTING A OSTATNÍ INFORMAČNÍ ČINNOSTI"
+    },
+    {
+      "code": "631000",
+      "name": "POSKYTOVÁNÍ POČÍTAČOVÉ INFRASTRUKTURY, ZPRACOVÁNÍ DAT, HOSTING A SOUVISEJÍCÍ ČINNOSTI"
+    },
+    {
+      "code": "631100",
+      "name": "ČINNOSTI SOUVISEJÍCÍ SE ZPRACOVÁNÍM DAT A HOSTINGEM"
+    },
+    {
+      "code": "631200",
+      "name": "ČINNOSTI SOUVISEJÍCÍ S WEBOVÝMI PORTÁLY"
+    },
+    {
+      "code": "639000",
+      "name": "ČINNOSTI WEBOVÝCH VYHLEDÁVACÍCH PORTÁLŮ A OSTATNÍ INFORMAČNÍ ČINNOSTI"
+    },
+    {
+      "code": "639100",
+      "name": "ČINNOSTI WEBOVÝCH VYHLEDÁVACÍCH PORTÁLŮ"
+    },
+    {
+      "code": "639200",
+      "name": "OSTATNÍ INFORMAČNÍ ČINNOSTI"
+    },
+    {
+      "code": "639900",
+      "name": "OSTATNÍ INFORMAČNÍ ČINNOSTI J. N."
+    },
+    {
+      "code": "640000",
+      "name": "FINANČNÍ ČINNOSTI, KROMĚ POJIŠŤOVÁNÍ A PENZIJNÍHO FINANCOVÁNÍ"
+    },
+    {
+      "code": "641000",
+      "name": "PENĚŽNÍ ZPROSTŘEDKOVÁNÍ"
+    },
+    {
+      "code": "641100",
+      "name": "CENTRÁLNÍ BANKOVNICTVÍ"
+    },
+    {
+      "code": "641900",
+      "name": "OSTATNÍ PENĚŽNÍ ZPROSTŘEDKOVÁNÍ"
+    },
+    {
+      "code": "642000",
+      "name": "ČINNOSTI HOLDINGOVÝCH SPOLEČNOSTÍ A ÚČELOVÝCH FINANČNÍCH SPOLEČNOSTÍ"
+    },
+    {
+      "code": "642100",
+      "name": "ČINNOSTI HOLDINGOVÝCH SPOLEČNOSTÍ"
+    },
+    {
+      "code": "642200",
+      "name": "ČINNOSTI ÚČELOVÝCH FINANČNÍCH SPOLEČNOSTÍ"
+    },
+    {
+      "code": "643000",
+      "name": "ČINNOSTI SVĚŘENSKÝCH A JINÝCH FONDŮ A PODOBNÝCH FINANČNÍCH ENTIT"
+    },
+    {
+      "code": "643100",
+      "name": "ČINNOSTI INVESTIČNÍCH FONDŮ PENĚŽNÍHO TRHU A INVESTIČNÍCH FONDŮ JINÝCH NEŽ PENĚŽNÍHO TRHU"
+    },
+    {
+      "code": "643200",
+      "name": "ČINNOSTI SVĚŘENSKÝCH FONDŮ, MAJETKOVÝCH A AGENTURNÍCH ÚČTŮ"
+    },
+    {
+      "code": "649000",
+      "name": "OSTATNÍ FINANČNÍ ČINNOSTI, KROMĚ POJIŠŤOVÁNÍ A PENZIJNÍHO FINANCOVÁNÍ"
+    },
+    {
+      "code": "649100",
+      "name": "FINANČNÍ LEASING"
+    },
+    {
+      "code": "649200",
+      "name": "OSTATNÍ POSKYTOVÁNÍ ÚVĚRŮ"
+    },
+    {
+      "code": "649210",
+      "name": "POSKYTOVÁNÍ SPOTŘEBITELSKÝCH ÚVĚRŮ SPOLEČNOSTMI, KTERÉ NEPŘIJÍMAJÍ VKLADY"
+    },
+    {
+      "code": "649220",
+      "name": "POSKYTOVÁNÍ JINÝCH ÚVĚRŮ SPOLEČNOSTMI, KTERÉ NEPŘIJÍMAJÍ VKLADY"
+    },
+    {
+      "code": "649230",
+      "name": "ČINNOSTI ZASTAVÁREN"
+    },
+    {
+      "code": "649240",
+      "name": "FAKTORINGOVÉ ČINNOSTI"
+    },
+    {
+      "code": "649290",
+      "name": "OSTATNÍ POSKYTOVÁNÍ ÚVĚRŮ J. N."
+    },
+    {
+      "code": "649900",
+      "name": "OSTATNÍ FINANČNÍ ČINNOSTI, KROMĚ POJIŠŤOVÁNÍ A PENZIJNÍHO FINANCOVÁNÍ J. N."
+    },
+    {
+      "code": "649910",
+      "name": "OBCHODOVÁNÍ S CENNÝMI PAPÍRY NA VLASTNÍ ÚČET"
+    },
+    {
+      "code": "649920",
+      "name": "OBCHODOVÁNÍ S CENNÝMI PAPÍRY NA VLASTNÍ ÚČET"
+    },
+    {
+      "code": "649990",
+      "name": "JINÉ FINANČNÍ ČINNOSTI, KROMĚ POJIŠŤOVÁNÍ A PENZIJNÍHO FINANCOVÁNÍ J. N."
+    },
+    {
+      "code": "650000",
+      "name": "POJIŠŤOVACÍ A ZAJIŠŤOVACÍ ČINNOSTI, PENZIJNÍ FINANCOVÁNÍ, KROMĚ POVINNÉHO SOCIÁLNÍHO ZABEZPEČENÍ"
+    },
+    {
+      "code": "651000",
+      "name": "POJIŠŤOVACÍ ČINNOSTI"
+    },
+    {
+      "code": "651100",
+      "name": "ČINNOSTI V OBLASTI ŽIVOTNÍHO POJIŠTĚNÍ"
+    },
+    {
+      "code": "651200",
+      "name": "ČINNOSTI V OBLASTI NEŽIVOTNÍHO POJIŠTĚNÍ"
+    },
+    {
+      "code": "652000",
+      "name": "ZAJIŠŤOVACÍ ČINNOSTI"
+    },
+    {
+      "code": "653000",
+      "name": "PENZIJNÍ FINANCOVÁNÍ"
+    },
+    {
+      "code": "660000",
+      "name": "POMOCNÉ ČINNOSTI K FINANČNÍM A POJIŠŤOVACÍM ČINNOSTEM"
+    },
+    {
+      "code": "661000",
+      "name": "POMOCNÉ ČINNOSTI K FINANČNÍM ČINNOSTEM, KROMĚ POJIŠŤOVÁNÍ A PENZIJNÍHO FINANCOVÁNÍ"
+    },
+    {
+      "code": "661100",
+      "name": "ŘÍZENÍ A SPRÁVA FINANČNÍCH TRHŮ"
+    },
+    {
+      "code": "661200",
+      "name": "OBCHODOVÁNÍ S CENNÝMI PAPÍRY A KOMODITAMI NA BURZÁCH"
+    },
+    {
+      "code": "661900",
+      "name": "OSTATNÍ POMOCNÉ ČINNOSTI K FINANČNÍM ČINNOSTEM, KROMĚ POJIŠŤOVÁNÍ A PENZIJNÍHO FINANCOVÁNÍ"
+    },
+    {
+      "code": "662000",
+      "name": "POMOCNÉ ČINNOSTI K POJIŠŤOVÁNÍ A PENZIJNÍMU FINANCOVÁNÍ"
+    },
+    {
+      "code": "662100",
+      "name": "VYHODNOCOVÁNÍ RIZIK A ŠKOD"
+    },
+    {
+      "code": "662200",
+      "name": "ČINNOSTI POJIŠŤOVACÍCH MAKLÉŘŮ A AGENTŮ"
+    },
+    {
+      "code": "662900",
+      "name": "POMOCNÉ ČINNOSTI K POJIŠŤOVÁNÍ A PENZIJNÍMU FINANCOVÁNÍ J. N."
+    },
+    {
+      "code": "663000",
+      "name": "SPRÁVA FONDŮ"
+    },
+    {
+      "code": "680000",
+      "name": "ČINNOSTI V OBLASTI NEMOVITOSTÍ"
+    },
+    {
+      "code": "681000",
+      "name": "ČINNOSTI V OBLASTI VLASTNÍCH NEMOVITOSTÍ A DEVELOPERSKÉ ČINNOSTI"
+    },
+    {
+      "code": "681100",
+      "name": "NÁKUP A NÁSLEDNÝ PRODEJ VLASTNÍCH NEMOVITOSTÍ"
+    },
+    {
+      "code": "681200",
+      "name": "DEVELOPERSKÉ ČINNOSTI"
+    },
+    {
+      "code": "682000",
+      "name": "PRONÁJEM A SPRÁVA VLASTNÍCH NEBO PRONAJATÝCH NEMOVITOSTÍ"
+    },
+    {
+      "code": "682010",
+      "name": "PRONÁJEM VLASTNÍCH NEBO PRONAJATÝCH NEMOVITOSTÍ S BYTOVÝMI PROSTORY"
+    },
+    {
+      "code": "682020",
+      "name": "PRONÁJEM VLASTNÍCH NEBO PRONAJATÝCH NEMOVITOSTÍ S NEBYTOVÝMI PROSTORY"
+    },
+    {
+      "code": "682030",
+      "name": "SPRÁVA VLASTNÍCH NEBO PRONAJATÝCH NEMOVITOSTÍ S BYTOVÝMI PROSTORY"
+    },
+    {
+      "code": "682040",
+      "name": "SPRÁVA VLASTNÍCH NEBO PRONAJATÝCH NEMOVITOSTÍ S NEBYTOVÝMI PROSTORY"
+    },
+    {
+      "code": "683000",
+      "name": "ČINNOSTI V OBLASTI NEMOVITOSTÍ NA ZÁKLADĚ SMLOUVY NEBO DOHODY"
+    },
+    {
+      "code": "683100",
+      "name": "ZPROSTŘEDKOVÁNÍ V OBLASTI NEMOVITOSTÍ"
+    },
+    {
+      "code": "683200",
+      "name": "OSTATNÍ ČINNOSTI V OBLASTI NEMOVITOSTÍ NA ZÁKLADĚ SMLOUVY NEBO DOHODY"
+    },
+    {
+      "code": "690000",
+      "name": "PRÁVNÍ A ÚČETNICKÉ ČINNOSTI"
+    },
+    {
+      "code": "691000",
+      "name": "PRÁVNÍ ČINNOSTI"
+    },
+    {
+      "code": "692000",
+      "name": "ÚČETNICKÉ A AUDITORSKÉ ČINNOSTI; DAŇOVÉ PORADENSTVÍ"
+    },
+    {
+      "code": "700000",
+      "name": "ČINNOSTI ŘÍZENÍ PODNIKŮ A PORADENSTVÍ V OBLASTI PODNIKÁNÍ"
+    },
+    {
+      "code": "701000",
+      "name": "ČINNOSTI ŘÍZENÍ PODNIKŮ"
+    },
+    {
+      "code": "702000",
+      "name": "PORADENSTVÍ V OBLASTI PODNIKÁNÍ A ŘÍZENÍ PODNIKŮ"
+    },
+    {
+      "code": "702100",
+      "name": "PORADENSTVÍ V OBLASTI VZTAHŮ S VEŘEJNOSTÍ A KOMUNIKACE"
+    },
+    {
+      "code": "702200",
+      "name": "OSTATNÍ PORADENSTVÍ V OBLASTI PODNIKÁNÍ A ŘÍZENÍ"
+    },
+    {
+      "code": "710000",
+      "name": "ARCHITEKTONICKÉ A INŽENÝRSKÉ ČINNOSTI; TECHNICKÉ ZKOUŠKY A ANALÝZY"
+    },
+    {
+      "code": "711000",
+      "name": "ARCHITEKTONICKÉ A INŽENÝRSKÉ ČINNOSTI A SOUVISEJÍCÍ TECHNICKÉ PORADENSTVÍ"
+    },
+    {
+      "code": "711100",
+      "name": "ARCHITEKTONICKÉ ČINNOSTI"
+    },
+    {
+      "code": "711200",
+      "name": "INŽENÝRSKÉ ČINNOSTI A SOUVISEJÍCÍ TECHNICKÉ PORADENSTVÍ"
+    },
+    {
+      "code": "711210",
+      "name": "GEOLOGICKÝ PRŮZKUM"
+    },
+    {
+      "code": "711220",
+      "name": "ZEMĚMĚŘICKÉ A KARTOGRAFICKÉ ČINNOSTI"
+    },
+    {
+      "code": "711230",
+      "name": "HYDROMETEOROLOGICKÉ A METEOROLOGICKÉ ČINNOSTI"
+    },
+    {
+      "code": "711290",
+      "name": "OSTATNÍ INŽENÝRSKÉ ČINNOSTI A SOUVISEJÍCÍ TECHNICKÉ PORADENSTVÍ J. N."
+    },
+    {
+      "code": "712000",
+      "name": "TECHNICKÉ ZKOUŠKY A ANALÝZY"
+    },
+    {
+      "code": "712010",
+      "name": "ZKOUŠKY A ANALÝZY VYHRAZENÝCH TECHNICKÝCH ZAŘÍZENÍ"
+    },
+    {
+      "code": "712090",
+      "name": "OSTATNÍ TECHNICKÉ ZKOUŠKY A ANALÝZY"
+    },
+    {
+      "code": "720000",
+      "name": "VÝZKUM A VÝVOJ"
+    },
+    {
+      "code": "721000",
+      "name": "VÝZKUM A VÝVOJ V OBLASTI PŘÍRODNÍCH A TECHNICKÝCH VĚD"
+    },
+    {
+      "code": "721100",
+      "name": "VÝZKUM A VÝVOJ V OBLASTI BIOTECHNOLOGIE"
+    },
+    {
+      "code": "721900",
+      "name": "OSTATNÍ VÝZKUM A VÝVOJ V OBLASTI PŘÍRODNÍCH A TECHNICKÝCH VĚD"
+    },
+    {
+      "code": "721910",
+      "name": "VÝZKUM A VÝVOJ V OBLASTI LÉKAŘSKÝCH VĚD"
+    },
+    {
+      "code": "721920",
+      "name": "VÝZKUM A VÝVOJ V OBLASTI TECHNICKÝCH VĚD"
+    },
+    {
+      "code": "721990",
+      "name": "VÝZKUM A VÝVOJ V OBLASTI JINÝCH PŘÍRODNÍCH VĚD"
+    },
+    {
+      "code": "722000",
+      "name": "VÝZKUM A VÝVOJ V OBLASTI SPOLEČENSKÝCH A HUMANITNÍCH VĚD"
+    },
+    {
+      "code": "730000",
+      "name": "ČINNOSTI V OBLASTI REKLAMY, PRŮZKUMU TRHU A VZTAHŮ S VEŘEJNOSTÍ"
+    },
+    {
+      "code": "731000",
+      "name": "REKLAMNÍ ČINNOSTI"
+    },
+    {
+      "code": "731100",
+      "name": "ČINNOSTI REKLAMNÍCH AGENTUR"
+    },
+    {
+      "code": "731200",
+      "name": "ZASTUPOVÁNÍ MÉDIÍ PŘI PRODEJI REKLAMNÍHO ČASU A PROSTORU"
+    },
+    {
+      "code": "732000",
+      "name": "PRŮZKUM TRHU A VEŘEJNÉHO MÍNĚNÍ"
+    },
+    {
+      "code": "733000",
+      "name": "ČINNOSTI V OBLASTI VZTAHŮ S VEŘEJNOSTÍ A KOMUNIKACE"
+    },
+    {
+      "code": "740000",
+      "name": "OSTATNÍ ODBORNÉ, VĚDECKÉ A TECHNICKÉ ČINNOSTI"
+    },
+    {
+      "code": "741000",
+      "name": "SPECIALIZOVANÉ NÁVRHÁŘSKÉ ČINNOSTI"
+    },
+    {
+      "code": "741100",
+      "name": "ČINNOSTI V OBLASTI PRŮMYSLOVÉHO A MÓDNÍHO DESIGNU"
+    },
+    {
+      "code": "741110",
+      "name": "ČINNOSTI V OBLASTI PRŮMYSLOVÉHO DESIGNU"
+    },
+    {
+      "code": "741120",
+      "name": "ČINNOSTI V OBLASTI MÓDNÍHO DESIGNU"
+    },
+    {
+      "code": "741200",
+      "name": "ČINNOSTI V OBLASTI GRAFICKÉHO DESIGNU A VIZUÁLNÍ KOMUNIKACE"
+    },
+    {
+      "code": "741300",
+      "name": "NAVRHOVÁNÍ INTERIÉRŮ"
+    },
+    {
+      "code": "741400",
+      "name": "OSTATNÍ SPECIALIZOVANÉ NÁVRHÁŘSKÉ ČINNOSTI"
+    },
+    {
+      "code": "742000",
+      "name": "FOTOGRAFICKÉ ČINNOSTI"
+    },
+    {
+      "code": "743000",
+      "name": "PŘEKLADATELSKÉ A TLUMOČNICKÉ ČINNOSTI"
+    },
+    {
+      "code": "749000",
+      "name": "OSTATNÍ ODBORNÉ, VĚDECKÉ A TECHNICKÉ ČINNOSTI J. N."
+    },
+    {
+      "code": "749010",
+      "name": "PORADENSTVÍ V OBLASTI BEZPEČNOSTI A OCHRANY ZDRAVÍ PŘI PRÁCI"
+    },
+    {
+      "code": "749020",
+      "name": "PORADENSTVÍ V OBLASTI POŽÁRNÍ OCHRANY"
+    },
+    {
+      "code": "749090",
+      "name": "JINÉ PROFESNÍ, VĚDECKÉ A TECHNICKÉ ČINNOSTI J. N."
+    },
+    {
+      "code": "749100",
+      "name": "ČINNOSTI PATENTOVÝCH ZÁSTUPCŮ A PRODEJ PATENTŮ"
+    },
+    {
+      "code": "749900",
+      "name": "VŠECHNY OSTATNÍ ODBORNÉ, VĚDECKÉ A TECHNICKÉ ČINNOSTI J. N."
+    },
+    {
+      "code": "750000",
+      "name": "VETERINÁRNÍ ČINNOSTI"
+    },
+    {
+      "code": "770000",
+      "name": "ČINNOSTI V OBLASTI PRONÁJMU A LEASINGU"
+    },
+    {
+      "code": "771000",
+      "name": "PRONÁJEM A LEASING MOTOROVÝCH VOZIDEL"
+    },
+    {
+      "code": "771100",
+      "name": "PRONÁJEM A LEASING OSOBNÍCH AUTOMOBILŮ A LEHKÝCH MOTOROVÝCH VOZIDEL"
+    },
+    {
+      "code": "771200",
+      "name": "PRONÁJEM A LEASING NÁKLADNÍCH AUTOMOBILŮ"
+    },
+    {
+      "code": "772000",
+      "name": "PRONÁJEM A LEASING VÝROBKŮ PRO OSOBNÍ POTŘEBU A PŘEVÁŽNĚ PRO DOMÁCNOST"
+    },
+    {
+      "code": "772100",
+      "name": "PRONÁJEM A LEASING REKREAČNÍCH A SPORTOVNÍCH POTŘEB"
+    },
+    {
+      "code": "772200",
+      "name": "PRONÁJEM A LEASING OSTATNÍCH VÝROBKŮ PRO OSOBNÍ POTŘEBU A PŘEVÁŽNĚ PRO DOMÁCNOST"
+    },
+    {
+      "code": "772900",
+      "name": "PRONÁJEM A LEASING OSTATNÍCH VÝROBKŮ PRO OSOBNÍ POTŘEBU A PŘEVÁŽNĚ PRO DOMÁCNOST"
+    },
+    {
+      "code": "773000",
+      "name": "PRONÁJEM A LEASING OSTATNÍCH STROJŮ, ZAŘÍZENÍ A HMOTNÝCH STATKŮ"
+    },
+    {
+      "code": "773100",
+      "name": "PRONÁJEM A LEASING ZEMĚDĚLSKÝCH STROJŮ A ZAŘÍZENÍ"
+    },
+    {
+      "code": "773200",
+      "name": "PRONÁJEM A LEASING STAVEBNÍCH STROJŮ A ZAŘÍZENÍ"
+    },
+    {
+      "code": "773300",
+      "name": "PRONÁJEM A LEASING KANCELÁŘSKÝCH STROJŮ A ZAŘÍZENÍ, VČETNĚ POČÍTAČŮ"
+    },
+    {
+      "code": "773400",
+      "name": "PRONÁJEM A LEASING VODNÍCH DOPRAVNÍCH PROSTŘEDKŮ"
+    },
+    {
+      "code": "773500",
+      "name": "PRONÁJEM A LEASING LETECKÝCH DOPRAVNÍCH PROSTŘEDKŮ"
+    },
+    {
+      "code": "773900",
+      "name": "PRONÁJEM A LEASING OSTATNÍCH STROJŮ, ZAŘÍZENÍ A HMOTNÝCH STATKŮ J. N."
+    },
+    {
+      "code": "774000",
+      "name": "LEASING DUŠEVNÍHO VLASTNICTVÍ A PODOBNÝCH PRODUKTŮ, KROMĚ DĚL CHRÁNĚNÝCH AUTORSKÝM PRÁVEM"
+    },
+    {
+      "code": "775000",
+      "name": "ZPROSTŘEDKOVÁNÍ V OBLASTI PRONÁJMU A LEASINGU HMOTNÝCH STATKŮ A NEFINANČNÍCH NEHMOTNÝCH AKTIV"
+    },
+    {
+      "code": "775100",
+      "name": "ZPROSTŘEDKOVÁNÍ V OBLASTI PRONÁJMU A LEASINGU AUTOMOBILŮ, OBYTNÝCH AUTOMOBILŮ A PŘÍVĚSŮ"
+    },
+    {
+      "code": "775200",
+      "name": "ZPROSTŘEDKOVÁNÍ V OBLASTI PRONÁJMU A LEASINGU JINÝCH HMOTNÝCH STATKŮ A NEFINANČNÍCH NEHMOTNÝCH AKTIV"
+    },
+    {
+      "code": "780000",
+      "name": "ČINNOSTI SOUVISEJÍCÍ SE ZAMĚSTNÁNÍM"
+    },
+    {
+      "code": "781000",
+      "name": "ČINNOSTI AGENTUR ZPROSTŘEDKUJÍCÍCH ZAMĚSTNÁNÍ"
+    },
+    {
+      "code": "782000",
+      "name": "ČINNOSTI AGENTUR ZPROSTŘEDKUJÍCÍCH PRÁCI NA PŘECHODNOU DOBU A OSTATNÍ POSKYTOVÁNÍ LIDSKÝCH ZDROJŮ"
+    },
+    {
+      "code": "783000",
+      "name": "OSTATNÍ POSKYTOVÁNÍ LIDSKÝCH ZDROJŮ"
+    },
+    {
+      "code": "790000",
+      "name": "ČINNOSTI CESTOVNÍCH AGENTUR, KANCELÁŘÍ A OSTATNÍ REZERVAČNÍ A SOUVISEJÍCÍ ČINNOSTI"
+    },
+    {
+      "code": "791000",
+      "name": "ČINNOSTI CESTOVNÍCH AGENTUR A CESTOVNÍCH KANCELÁŘÍ"
+    },
+    {
+      "code": "791100",
+      "name": "ČINNOSTI CESTOVNÍCH AGENTUR"
+    },
+    {
+      "code": "791200",
+      "name": "ČINNOSTI CESTOVNÍCH KANCELÁŘÍ"
+    },
+    {
+      "code": "799000",
+      "name": "OSTATNÍ REZERVAČNÍ A SOUVISEJÍCÍ ČINNOSTI"
+    },
+    {
+      "code": "799010",
+      "name": "PRŮVODCOVSKÉ ČINNOSTI"
+    },
+    {
+      "code": "799090",
+      "name": "OSTATNÍ REZERVAČNÍ A SOUVISEJÍCÍ ČINNOSTI J. N."
+    },
+    {
+      "code": "800000",
+      "name": "PÁTRACÍ A BEZPEČNOSTNÍ ČINNOSTI"
+    },
+    {
+      "code": "800100",
+      "name": "PÁTRACÍ ČINNOSTI A ČINNOSTI SOUKROMÝCH BEZPEČNOSTNÍCH AGENTUR"
+    },
+    {
+      "code": "800900",
+      "name": "BEZPEČNOSTNÍ ČINNOSTI J. N."
+    },
+    {
+      "code": "801000",
+      "name": "ČINNOSTI SOUKROMÝCH BEZPEČNOSTNÍCH AGENTUR"
+    },
+    {
+      "code": "802000",
+      "name": "ČINNOSTI SOUVISEJÍCÍ S PROVOZEM BEZPEČNOSTNÍCH SYSTÉMŮ"
+    },
+    {
+      "code": "803000",
+      "name": "PÁTRACÍ ČINNOSTI"
+    },
+    {
+      "code": "810000",
+      "name": "ČINNOSTI SOUVISEJÍCÍ SE STAVBAMI A ÚPRAVOU KRAJINY"
+    },
+    {
+      "code": "811000",
+      "name": "KOMBINOVANÉ PODPŮRNÉ ČINNOSTI"
+    },
+    {
+      "code": "812000",
+      "name": "ÚKLIDOVÉ ČINNOSTI"
+    },
+    {
+      "code": "812100",
+      "name": "VŠEOBECNÝ ÚKLID BUDOV"
+    },
+    {
+      "code": "812200",
+      "name": "SPECIALIZOVANÉ ČIŠTĚNÍ A ÚKLID BUDOV A PRŮMYSLOVÝCH ZAŘÍZENÍ"
+    },
+    {
+      "code": "812300",
+      "name": "OSTATNÍ ÚKLIDOVÉ ČINNOSTI"
+    },
+    {
+      "code": "812900",
+      "name": "OSTATNÍ ÚKLIDOVÉ ČINNOSTI"
+    },
+    {
+      "code": "813000",
+      "name": "ČINNOSTI SOUVISEJÍCÍ S ÚPRAVOU KRAJINY"
+    },
+    {
+      "code": "820000",
+      "name": "ADMINISTRATIVNÍ, KANCELÁŘSKÉ A JINÉ PODPŮRNÉ ČINNOSTI PRO PODNIKÁNÍ"
+    },
+    {
+      "code": "821000",
+      "name": "ADMINISTRATIVNÍ A KANCELÁŘSKÉ ČINNOSTI"
+    },
+    {
+      "code": "821100",
+      "name": "UNIVERZÁLNÍ ADMINISTRATIVNÍ ČINNOSTI"
+    },
+    {
+      "code": "821900",
+      "name": "KOPÍROVÁNÍ, PŘÍPRAVA DOKUMENTŮ A OSTATNÍ SPECIALIZOVANÉ KANCELÁŘSKÉ PODPŮRNÉ ČINNOSTI"
+    },
+    {
+      "code": "822000",
+      "name": "ČINNOSTI CALL CENTER"
+    },
+    {
+      "code": "823000",
+      "name": "POŘÁDÁNÍ KONGRESŮ A VELETRHŮ"
+    },
+    {
+      "code": "824000",
+      "name": "ZPROSTŘEDKOVÁNÍ V OBLASTI PODPŮRNÝCH ČINNOSTÍ PRO PODNIKÁNÍ J. N."
+    },
+    {
+      "code": "829000",
+      "name": "PODPŮRNÉ ČINNOSTI PRO PODNIKÁNÍ J. N."
+    },
+    {
+      "code": "829100",
+      "name": "INKASNÍ ČINNOSTI, OVĚŘOVÁNÍ SOLVENTNOSTI ZÁKAZNÍKA"
+    },
+    {
+      "code": "829200",
+      "name": "BALICÍ ČINNOSTI"
+    },
+    {
+      "code": "829900",
+      "name": "OSTATNÍ PODPŮRNÉ ČINNOSTI PRO PODNIKÁNÍ J. N."
+    },
+    {
+      "code": "840000",
+      "name": "ČINNOSTI V OBLASTI VEŘEJNÉ SPRÁVY, OBRANY A POVINNÉHO SOCIÁLNÍHO ZABEZPEČENÍ"
+    },
+    {
+      "code": "841000",
+      "name": "ČINNOSTI V OBLASTI VEŘEJNÉ SPRÁVY A HOSPODÁŘSKÉ, SOCIÁLNÍ A ENVIRONMENTÁLNÍ POLITIKY"
+    },
+    {
+      "code": "841100",
+      "name": "VŠEOBECNÉ ČINNOSTI VEŘEJNÉ SPRÁVY"
+    },
+    {
+      "code": "841200",
+      "name": "REGULACE ČINNOSTÍ SOUVISEJÍCÍCH S POSKYTOVÁNÍM ZDRAVOTNÍ PÉČE, VZDĚLÁVÁNÍM, KULTUROU A JINÝCH SLUŽEB PRO SPOLEČNOST"
+    },
+    {
+      "code": "841210",
+      "name": "REGULACE ČINNOSTÍ SOUVISEJÍCÍ S POSKYTOVÁNÍ ZDRAVOTNÍ PÉČE"
+    },
+    {
+      "code": "841220",
+      "name": "REGULACE ČINNOSTÍ SOUVISEJÍCÍCH SE VZDĚLÁVÁNÍM"
+    },
+    {
+      "code": "841230",
+      "name": "REGULACE ČINNOSTÍ SOUVISEJÍCÍCH S KULTUROU"
+    },
+    {
+      "code": "841240",
+      "name": "REGULACE ČINNOSTÍ SOUVISEJÍCÍCH SE SPORTEM"
+    },
+    {
+      "code": "841250",
+      "name": "REGULACE ČINNOSTÍ SOUVISEJÍCÍCH S POSKYTOVÁNÍM SOCIÁLNÍ PÉČE, KROMĚ POVINNÉHO SOCIÁLNÍHO ZABEZPEČENÍ"
+    },
+    {
+      "code": "841290",
+      "name": "REGULACE ČINNOSTÍ SOUVISEJÍCÍ S POSKYTOVÁNÍM OSTATNÍCH SLUŽEB PRO SPOLEČNOST J. N."
+    },
+    {
+      "code": "841300",
+      "name": "REGULACE A PODPORA PODNIKATELSKÉHO PROSTŘEDÍ"
+    },
+    {
+      "code": "842000",
+      "name": "ČINNOSTI PRO SPOLEČNOST JAKO CELEK"
+    },
+    {
+      "code": "842100",
+      "name": "ČINNOSTI V OBLASTI ZAHRANIČNÍCH VĚCÍ"
+    },
+    {
+      "code": "842110",
+      "name": "POMOC CIZÍM ZEMÍM PŘI KATASTROFÁCH NEBO V NOUZOVÝCH SITUACÍCH PŘÍMO NEBO PROSTŘEDNICTVÍM MEZINÁRODNÍCH ORGANIZACÍ"
+    },
+    {
+      "code": "842120",
+      "name": "ROZVÍJENÍ VZÁJEMNÉHO PŘÁTELSTVÍ A POROZUMĚNÍ MEZI NÁRODY"
+    },
+    {
+      "code": "842190",
+      "name": "OSTATNÍ ČINNOSTI V OBLASTI ZAHRANIČNÍCH VĚCÍ"
+    },
+    {
+      "code": "842200",
+      "name": "ČINNOSTI V OBLASTI OBRANY"
+    },
+    {
+      "code": "842300",
+      "name": "ČINNOSTI V OBLASTI SPRAVEDLNOSTI A SOUDNICTVÍ"
+    },
+    {
+      "code": "842400",
+      "name": "ČINNOSTI V OBLASTI VEŘEJNÉHO POŘÁDKU A BEZPEČNOSTI"
+    },
+    {
+      "code": "842500",
+      "name": "ČINNOSTI V OBLASTI PROTIPOŽÁRNÍ OCHRANY"
+    },
+    {
+      "code": "843000",
+      "name": "ČINNOSTI V OBLASTI POVINNÉHO SOCIÁLNÍ ZABEZPEČENÍ"
+    },
+    {
+      "code": "850000",
+      "name": "VZDĚLÁVÁNÍ"
+    },
+    {
+      "code": "851000",
+      "name": "PREPRIMÁRNÍ VZDĚLÁVÁNÍ"
+    },
+    {
+      "code": "852000",
+      "name": "PRIMÁRNÍ VZDĚLÁVÁNÍ"
+    },
+    {
+      "code": "853000",
+      "name": "SEKUNDÁRNÍ A POSTSEKUNDÁRNÍ NETERCIÁRNÍ VZDĚLÁVÁNÍ"
+    },
+    {
+      "code": "853100",
+      "name": "SEKUNDÁRNÍ VŠEOBECNÉ VZDĚLÁVÁNÍ"
+    },
+    {
+      "code": "853110",
+      "name": "SEKUNDÁRNÍ VŠEOBECNÉ VZDĚLÁVÁNÍ NA DRUHÉM STUPNI ZÁKLADNÍCH ŠKOL"
+    },
+    {
+      "code": "853120",
+      "name": "SEKUNDÁRNÍ VŠEOBECNÉ VZDĚLÁVÁNÍ NA STŘEDNÍCH ŠKOLÁCH"
+    },
+    {
+      "code": "853200",
+      "name": "SEKUNDÁRNÍ ODBORNÉ VZDĚLÁVÁNÍ"
+    },
+    {
+      "code": "853210",
+      "name": "SEKUNDÁRNÍ ODBORNÉ VZDĚLÁVÁNÍ V UMĚLECKÝCH OBORECH"
+    },
+    {
+      "code": "853220",
+      "name": "SEKUNDÁRNÍ ODBORNÉ VZDĚLÁVÁNÍ BEZ MATURITNÍ ZKOUŠKY V JINÝCH NEŽ UMĚLECKÝCH OBORECH"
+    },
+    {
+      "code": "853230",
+      "name": "SEKUNDÁRNÍ ODBORNÉ VZDĚLÁVÁNÍ S MATURITNÍ ZKOUŠKOU V JINÝCH NEŽ UMĚLECKÝCH OBORECH"
+    },
+    {
+      "code": "853300",
+      "name": "POSTSEKUNDÁRNÍ NETERCIÁRNÍ VZDĚLÁVÁNÍ"
+    },
+    {
+      "code": "854000",
+      "name": "TERCIÁRNÍ VZDĚLÁVÁNÍ"
+    },
+    {
+      "code": "854010",
+      "name": "TERCIÁRNÍ VZDĚLÁVÁNÍ V UMĚLECKÝCH OBORECH"
+    },
+    {
+      "code": "854020",
+      "name": "TERCIÁRNÍ VZDĚLÁVÁNÍ V JINÝCH NEŽ UMĚLECKÝCH OBORECH"
+    },
+    {
+      "code": "854100",
+      "name": "POSTSEKUNDÁRNÍ NIKOLI TERCIÁRNÍ VZDĚLÁVÁNÍ"
+    },
+    {
+      "code": "854200",
+      "name": "TERCIÁRNÍ VZDĚLÁVÁNÍ"
+    },
+    {
+      "code": "855000",
+      "name": "OSTATNÍ VZDĚLÁVÁNÍ"
+    },
+    {
+      "code": "855100",
+      "name": "SPORTOVNÍ A REKREAČNÍ VZDĚLÁVÁNÍ"
+    },
+    {
+      "code": "855200",
+      "name": "UMĚLECKÉ VZDĚLÁVÁNÍ"
+    },
+    {
+      "code": "855300",
+      "name": "ČINNOSTI AUTOŠKOL"
+    },
+    {
+      "code": "855310",
+      "name": "ČINNOSTI AUTOŠKOL"
+    },
+    {
+      "code": "855320",
+      "name": "ČINNOSTI LETECKÝCH ŠKOL"
+    },
+    {
+      "code": "855390",
+      "name": "ČINNOSTI OSTATNÍCH ŠKOL ŘÍZENÍ"
+    },
+    {
+      "code": "855900",
+      "name": "OSTATNÍ VZDĚLÁVÁNÍ J. N."
+    },
+    {
+      "code": "855910",
+      "name": "VZDĚLÁVÁNÍ V JAZYKOVÝCH ŠKOLÁCH"
+    },
+    {
+      "code": "855920",
+      "name": "ENVIRONMENTÁLNÍ VZDĚLÁVÁNÍ"
+    },
+    {
+      "code": "855930",
+      "name": "INOVAČNÍ VZDĚLÁVÁNÍ"
+    },
+    {
+      "code": "855990",
+      "name": "JINÉ VZDĚLÁVÁNÍ J. N."
+    },
+    {
+      "code": "856000",
+      "name": "PODPŮRNÉ ČINNOSTI V OBLASTI VZDĚLÁVÁNÍ"
+    },
+    {
+      "code": "856100",
+      "name": "ZPROSTŘEDKOVÁNÍ V OBLASTI VZDĚLÁVÁNÍ"
+    },
+    {
+      "code": "856900",
+      "name": "PODPŮRNÉ ČINNOSTI V OBLASTI VZDĚLÁVÁNÍ J. N."
+    },
+    {
+      "code": "860000",
+      "name": "ZDRAVOTNÍ PÉČE"
+    },
+    {
+      "code": "861000",
+      "name": "LŮŽKOVÁ ZDRAVOTNÍ PÉČE"
+    },
+    {
+      "code": "862000",
+      "name": "AMBULANTNÍ A ZUBNÍ ZDRAVOTNÍ PÉČE"
+    },
+    {
+      "code": "862100",
+      "name": "VŠEOBECNÁ AMBULANTNÍ ZDRAVOTNÍ PÉČE"
+    },
+    {
+      "code": "862200",
+      "name": "SPECIALIZOVANÁ AMBULANTNÍ ZDRAVOTNÍ PÉČE"
+    },
+    {
+      "code": "862300",
+      "name": "ZUBNÍ PÉČE"
+    },
+    {
+      "code": "869000",
+      "name": "OSTATNÍ ČINNOSTI SOUVISEJÍCÍ SE ZDRAVOTNÍ PÉČÍ"
+    },
+    {
+      "code": "869010",
+      "name": "ČINNOSTI SOUVISEJÍCÍ S OCHRANOU VEŘEJNÉHO ZDRAVÍ"
+    },
+    {
+      "code": "869090",
+      "name": "OSTATNÍ ČINNOSTI SOUVISEJÍCÍ SE ZDRAVOTNÍ PÉČÍ J. N."
+    },
+    {
+      "code": "869100",
+      "name": "ČINNOSTI SOUVISEJÍCÍ S DIAGNOSTICKÝM ZOBRAZOVÁNÍM A ZDRAVOTNICKÉ LABORATORNÍ ČINNOSTI"
+    },
+    {
+      "code": "869200",
+      "name": "PŘEPRAVA PACIENTŮ VOZIDLY ZDRAVOTNICKÉ DOPRAVNÍ SLUŽBY"
+    },
+    {
+      "code": "869300",
+      "name": "ČINNOSTI PSYCHOLOGŮ A PSYCHOTERAPEUTŮ, KROMĚ LÉKAŘŮ"
+    },
+    {
+      "code": "869400",
+      "name": "OŠETŘOVATELSKÉ ČINNOSTI A ČINNOSTI PORODNÍCH ASISTENTEK"
+    },
+    {
+      "code": "869500",
+      "name": "ČINNOSTI FYZIOTERAPEUTŮ"
+    },
+    {
+      "code": "869600",
+      "name": "ČINNOSTI V OBLASTI TRADIČNÍ, DOPLŇKOVÉ A ALTERNATIVNÍ MEDICÍNY"
+    },
+    {
+      "code": "869700",
+      "name": "ZPROSTŘEDKOVÁNÍ V OBLASTI ZDRAVOTNÍ PÉČE"
+    },
+    {
+      "code": "869900",
+      "name": "OSTATNÍ ČINNOSTI SOUVISEJÍCÍ SE ZDRAVOTNÍ PÉČÍ J. N."
+    },
+    {
+      "code": "870000",
+      "name": "POBYTOVÉ SLUŽBY SOCIÁLNÍ PÉČE"
+    },
+    {
+      "code": "871000",
+      "name": "POBYTOVÉ SLUŽBY SOCIÁLNÍ PÉČE VE ZDRAVOTNICKÝCH ZAŘÍZENÍCH LŮŽKOVÉ PÉČE"
+    },
+    {
+      "code": "872000",
+      "name": "POBYTOVÉ SLUŽBY SOCIÁLNÍ PÉČE PRO OSOBY S DUŠEVNÍM ONEMOCNĚNÍM, MENTÁLNÍM POSTIŽENÍM NEBO OSOBY ZÁVISLÉ NA NÁVYKOVÝCH LÁTKÁCH"
+    },
+    {
+      "code": "872010",
+      "name": "SOCIÁLNÍ PÉČE V ZAŘÍZENÍCH PRO OSOBY S CHRONICKÝM DUŠEVNÍM ONEMOCNĚNÍM"
+    },
+    {
+      "code": "872020",
+      "name": "SOCIÁLNÍ PÉČE V ZAŘÍZENÍCH PRO OSOBY ZÁVISLÉ NA NÁVYKOVÝCH LÁTKÁCH"
+    },
+    {
+      "code": "873000",
+      "name": "POBYTOVÉ SLUŽBY SOCIÁLNÍ PÉČE PRO SENIORY NEBO OSOBY S FYZICKÝM NEBO SMYSLOVÝM POSTIŽENÍM"
+    },
+    {
+      "code": "873010",
+      "name": "SOCIÁLNÍ PÉČE V DOMOVECH PRO SENIORY"
+    },
+    {
+      "code": "873020",
+      "name": "SOCIÁLNÍ PÉČE V DOMOVECH PRO OSOBY SE ZDRAVOTNÍM POSTIŽENÍM"
+    },
+    {
+      "code": "879000",
+      "name": "OSTATNÍ POBYTOVÉ SLUŽBY SOCIÁLNÍ PÉČE"
+    },
+    {
+      "code": "879100",
+      "name": "ZPROSTŘEDKOVÁNÍ V OBLASTI POBYTOVÝCH SLUŽEB SOCIÁLNÍ PÉČE"
+    },
+    {
+      "code": "879900",
+      "name": "OSTATNÍ POBYTOVÉ SLUŽBY SOCIÁLNÍ PÉČE J. N."
+    },
+    {
+      "code": "880000",
+      "name": "AMBULANTNÍ NEBO TERÉNNÍ SOCIÁLNÍ SLUŽBY"
+    },
+    {
+      "code": "881000",
+      "name": "AMBULANTNÍ NEBO TERÉNNÍ SOCIÁLNÍ SLUŽBY PRO SENIORY NEBO OSOBY SE ZDRAVOTNÍM POSTIŽENÍM"
+    },
+    {
+      "code": "881010",
+      "name": "AMBULANTNÍ NEBO TERÉNNÍ SOCIÁLNÍ SLUŽBY PRO SENIORY"
+    },
+    {
+      "code": "881020",
+      "name": "AMBULANTNÍ NEBO TERÉNNÍ SOCIÁLNÍ SLUŽBY PRO OSOBY SE ZDRAVOTNÍM POSTIŽENÍM"
+    },
+    {
+      "code": "889000",
+      "name": "OSTATNÍ AMBULANTNÍ NEBO TERÉNNÍ SOCIÁLNÍ SLUŽBY"
+    },
+    {
+      "code": "889100",
+      "name": "SLUŽBY PRO DĚTI"
+    },
+    {
+      "code": "889900",
+      "name": "OSTATNÍ AMBULANTNÍ NEBO TERÉNNÍ SOCIÁLNÍ SLUŽBY J. N."
+    },
+    {
+      "code": "889910",
+      "name": "SOCIÁLNÍ SLUŽBY PRO UPRCHLÍKY, OBĚTI KATASTROF"
+    },
+    {
+      "code": "889920",
+      "name": "SOCIÁLNÍ PREVENCE"
+    },
+    {
+      "code": "889930",
+      "name": "SOCIÁLNÍ REHABILITACE"
+    },
+    {
+      "code": "889990",
+      "name": "JINÉ AMBULANTNÍ NEBO TERÉNNÍ SOCIÁLNÍ SLUŽBY J. N."
+    },
+    {
+      "code": "900000",
+      "name": "UMĚLECKÁ TVORBA A ČINNOSTI V OBLASTI SCÉNICKÝCH UMĚNÍ"
+    },
+    {
+      "code": "900100",
+      "name": "SCÉNICKÁ UMĚNÍ"
+    },
+    {
+      "code": "900200",
+      "name": "PODPŮRNÉ ČINNOSTI PRO SCÉNICKÁ UMĚNÍ"
+    },
+    {
+      "code": "900300",
+      "name": "UMĚLECKÁ TVORBA"
+    },
+    {
+      "code": "900400",
+      "name": "PROVOZOVÁNÍ KULTURNÍCH ZAŘÍZENÍ"
+    },
+    {
+      "code": "901000",
+      "name": "UMĚLECKÁ TVORBA"
+    },
+    {
+      "code": "901100",
+      "name": "LITERÁRNÍ A HUDEBNÍ TVORBA"
+    },
+    {
+      "code": "901110",
+      "name": "LITERÁRNÍ TVORBA"
+    },
+    {
+      "code": "901120",
+      "name": "HUDEBNÍ TVORBA"
+    },
+    {
+      "code": "901200",
+      "name": "VÝTVARNÁ TVORBA"
+    },
+    {
+      "code": "901300",
+      "name": "OSTATNÍ UMĚLECKÁ TVORBA"
+    },
+    {
+      "code": "902000",
+      "name": "ČINNOSTI V OBLASTI SCÉNICKÝCH UMĚNÍ"
+    },
+    {
+      "code": "903000",
+      "name": "PODPŮRNÉ ČINNOSTI PRO UMĚLECKOU TVORBU A SCÉNICKÁ UMĚNÍ"
+    },
+    {
+      "code": "903100",
+      "name": "PROVOZOVÁNÍ KULTURNÍCH ZAŘÍZENÍ A AREÁLŮ"
+    },
+    {
+      "code": "903900",
+      "name": "OSTATNÍ PODPŮRNÉ ČINNOSTI PRO UMĚLECKOU TVORBU A SCÉNICKÁ UMĚNÍ"
+    },
+    {
+      "code": "910000",
+      "name": "ČINNOSTI KNIHOVEN, ARCHIVŮ, MUZEÍ A JINÝCH KULTURNÍCH ZAŘÍZENÍ"
+    },
+    {
+      "code": "910100",
+      "name": "ČINNOSTI KNIHOVEN A ARCHIVŮ"
+    },
+    {
+      "code": "910200",
+      "name": "ČINNOSTI MUZEÍ"
+    },
+    {
+      "code": "910300",
+      "name": "PROVOZOVÁNÍ KULTURNÍCH PAMÁTEK, HISTORICKÝCH STAVEB A OBDOBNÝCH TURISTICKÝCH ZAJÍMAVOSTÍ"
+    },
+    {
+      "code": "910400",
+      "name": "ČINNOSTI BOTANICKÝCH A ZOOLOGICKÝCH ZAHRAD, PŘÍRODNÍCH REZERVACÍ A NÁRODNÍCH PARKŮ"
+    },
+    {
+      "code": "910410",
+      "name": "ČINNOSTI BOTANICKÝCH A ZOOLOGICKÝCH ZAHRAD"
+    },
+    {
+      "code": "910420",
+      "name": "ČINNOSTI PŘÍRODNÍCH REZERVACÍ A NÁRODNÍCH PARKŮ"
+    },
+    {
+      "code": "911000",
+      "name": "ČINNOSTI KNIHOVEN A ARCHIVŮ"
+    },
+    {
+      "code": "911100",
+      "name": "ČINNOSTI KNIHOVEN"
+    },
+    {
+      "code": "911200",
+      "name": "ČINNOSTI ARCHIVŮ"
+    },
+    {
+      "code": "912000",
+      "name": "ČINNOSTI MUZEÍ, GALERIÍ, PROVOZOVÁNÍ HISTORICKÝCH A KULTURNÍCH PAMÁTEK"
+    },
+    {
+      "code": "912100",
+      "name": "ČINNOSTI MUZEÍ A GALERIÍ"
+    },
+    {
+      "code": "912200",
+      "name": "PROVOZOVÁNÍ HISTORICKÝCH A KULTURNÍCH PAMÁTEK"
+    },
+    {
+      "code": "913000",
+      "name": "KONZERVOVÁNÍ, RESTAUROVÁNÍ A JINÉ PODPŮRNÉ ČINNOSTI PRO KULTURNÍ DĚDICTVÍ"
+    },
+    {
+      "code": "914000",
+      "name": "ČINNOSTI BOTANICKÝCH A ZOOLOGICKÝCH ZAHRAD, PŘÍRODNÍCH REZERVACÍ A NÁRODNÍCH PARKŮ"
+    },
+    {
+      "code": "914100",
+      "name": "ČINNOSTI BOTANICKÝCH A ZOOLOGICKÝCH ZAHRAD"
+    },
+    {
+      "code": "914200",
+      "name": "ČINNOSTI PŘÍRODNÍCH REZERVACÍ A NÁRODNÍCH PARKŮ"
+    },
+    {
+      "code": "920000",
+      "name": "ČINNOSTI HEREN, KASIN A SÁZKOVÝCH KANCELÁŘÍ"
+    },
+    {
+      "code": "930000",
+      "name": "ČINNOSTI V OBLASTI SPORTU, ZÁBAVY A REKREACE"
+    },
+    {
+      "code": "931000",
+      "name": "ČINNOSTI V OBLASTI SPORTU"
+    },
+    {
+      "code": "931100",
+      "name": "PROVOZOVÁNÍ SPORTOVNÍCH ZAŘÍZENÍ"
+    },
+    {
+      "code": "931200",
+      "name": "ČINNOSTI SPORTOVNÍCH KLUBŮ"
+    },
+    {
+      "code": "931300",
+      "name": "ČINNOSTI FITCENTER"
+    },
+    {
+      "code": "931900",
+      "name": "ČINNOSTI V OBLASTI SPORTU J. N."
+    },
+    {
+      "code": "932000",
+      "name": "ČINNOSTI V OBLASTI ZÁBAVY A REKREACE"
+    },
+    {
+      "code": "932100",
+      "name": "ČINNOSTI ZÁBAVNÍCH PARKŮ"
+    },
+    {
+      "code": "932900",
+      "name": "ČINNOSTI V OBLASTI ZÁBAVY A REKREACE J. N."
+    },
+    {
+      "code": "940000",
+      "name": "ČINNOSTI ORGANIZACÍ SDRUŽUJÍCÍCH OSOBY ZA ÚČELEM PROSAZOVÁNÍ SPOLEČNÝCH A VEŘEJNÝCH ZÁJMŮ"
+    },
+    {
+      "code": "941000",
+      "name": "ČINNOSTI PODNIKATELSKÝCH, ZAMĚSTNAVATELSKÝCH A PROFESNÍCH ORGANIZACÍ"
+    },
+    {
+      "code": "941100",
+      "name": "ČINNOSTI PODNIKATELSKÝCH A ZAMĚSTNAVATELSKÝCH ORGANIZACÍ"
+    },
+    {
+      "code": "941200",
+      "name": "ČINNOSTI PROFESNÍCH ORGANIZACÍ"
+    },
+    {
+      "code": "942000",
+      "name": "ČINNOSTI ODBOROVÝCH SVAZŮ"
+    },
+    {
+      "code": "949000",
+      "name": "ČINNOSTI OSTATNÍCH ORGANIZACÍ SDRUŽUJÍCÍCH OSOBY ZA ÚČELEM PROSAZOVÁNÍ SPOLEČNÝCH A VEŘEJNÝCH ZÁJMŮ"
+    },
+    {
+      "code": "949100",
+      "name": "ČINNOSTI NÁBOŽENSKÝCH ORGANIZACÍ"
+    },
+    {
+      "code": "949200",
+      "name": "ČINNOSTI POLITICKÝCH ORGANIZACÍ"
+    },
+    {
+      "code": "949900",
+      "name": "ČINNOSTI OSTATNÍCH ORGANIZACÍ SDRUŽUJÍCÍCH OSOBY ZA ÚČELEM PROSAZOVÁNÍ SPOLEČNÝCH A VEŘEJNÝCH ZÁJMŮ J. N."
+    },
+    {
+      "code": "949910",
+      "name": "ČINNOSTI ORGANIZACÍ DĚTÍ A MLÁDEŽE"
+    },
+    {
+      "code": "949920",
+      "name": "ČINNOSTI ORGANIZACÍ NA PODPORU KULTURNÍ ČINNOSTI"
+    },
+    {
+      "code": "949930",
+      "name": "ČINNOSTI ORGANIZACÍ NA PODPORU REKREAČNÍ A ZÁJMOVÉ ČINNOSTI"
+    },
+    {
+      "code": "949940",
+      "name": "ČINNOSTI SPOTŘEBITELSKÝCH ORGANIZACÍ"
+    },
+    {
+      "code": "949950",
+      "name": "ČINNOSTI ENVIRONMENTÁLNÍCH A EKOLOGICKÝCH HNUTÍ"
+    },
+    {
+      "code": "949960",
+      "name": "ČINNOSTI ORGANIZACÍ NA OCHRANU A ZLEPŠENÍ POSTAVENÍ ETNICKÝCH, MENŠINOVÝCH A JINÝCH SPECIÁLNÍCH SKUPIN"
+    },
+    {
+      "code": "949970",
+      "name": "ČINNOSTI OBČANSKÝCH INICIATIV, PROTESTNÍCH HNUTÍ"
+    },
+    {
+      "code": "949990",
+      "name": "ČINNOSTI JINÝCH ORGANIZACÍ SDRUŽUJÍCÍCH OSOBY ZA ÚČELEM PROSAZOVÁNÍ SPOLEČNÝCH A VEŘEJNÝCH ZÁJMŮ J. N."
+    },
+    {
+      "code": "950000",
+      "name": "OPRAVY A ÚDRŽBA POČÍTAČŮ, VÝROBKŮ PRO OSOBNÍ POTŘEBU A PŘEVÁŽNĚ PRO DOMÁCNOST A MOTOROVÝCH VOZIDEL A MOTOCYKLŮ"
+    },
+    {
+      "code": "951000",
+      "name": "OPRAVY A ÚDRŽBA POČÍTAČŮ A KOMUNIKAČNÍCH ZAŘÍZENÍ"
+    },
+    {
+      "code": "951100",
+      "name": "OPRAVY POČÍTAČŮ A PERIFERNÍCH ZAŘÍZENÍ"
+    },
+    {
+      "code": "951200",
+      "name": "OPRAVY KOMUNIKAČNÍCH ZAŘÍZENÍ"
+    },
+    {
+      "code": "952000",
+      "name": "OPRAVY A ÚDRŽBA VÝROBKŮ PRO OSOBNÍ POTŘEBU A PŘEVÁŽNĚ PRO DOMÁCNOST"
+    },
+    {
+      "code": "952100",
+      "name": "OPRAVY A ÚDRŽBA SPOTŘEBNÍ ELEKTRONIKY"
+    },
+    {
+      "code": "952200",
+      "name": "OPRAVY A ÚDRŽBA PŘÍSTROJŮ A ZAŘÍZENÍ PŘEVÁŽNĚ PRO DOMÁCNOST, DŮM A ZAHRADU"
+    },
+    {
+      "code": "952300",
+      "name": "OPRAVY A ÚDRŽBA OBUVI A KOŽENÝCH VÝROBKŮ"
+    },
+    {
+      "code": "952400",
+      "name": "OPRAVY A ÚDRŽBA NÁBYTKU A BYTOVÉHO ZAŘÍZENÍ"
+    },
+    {
+      "code": "952500",
+      "name": "OPRAVY A ÚDRŽBA HODIN, HODINEK A KLENOTŮ"
+    },
+    {
+      "code": "952900",
+      "name": "OPRAVY A ÚDRŽBA VÝROBKŮ PRO OSOBNÍ POTŘEBU A PŘEVÁŽNĚ PRO DOMÁCNOST J. N."
+    },
+    {
+      "code": "953000",
+      "name": "OPRAVY A ÚDRŽBA MOTOROVÝCH VOZIDEL A MOTOCYKLŮ"
+    },
+    {
+      "code": "953100",
+      "name": "OPRAVY A ÚDRŽBA MOTOROVÝCH VOZIDEL"
+    },
+    {
+      "code": "953200",
+      "name": "OPRAVY A ÚDRŽBA MOTOCYKLŮ"
+    },
+    {
+      "code": "954000",
+      "name": "ZPROSTŘEDKOVÁNÍ V OBLASTI OPRAV A ÚDRŽBY POČÍTAČŮ, VÝROBKŮ PRO OSOBNÍ POTŘEBU A PŘEVÁŽNĚ PRO DOMÁCNOST A MOTOROVÝCH VOZIDEL A MOTOCYKLŮ"
+    },
+    {
+      "code": "960000",
+      "name": "POSKYTOVÁNÍ OSOBNÍCH SLUŽEB"
+    },
+    {
+      "code": "960100",
+      "name": "PRANÍ A CHEMICKÉ ČIŠTĚNÍ TEXTILNÍCH A KOŽEŠINOVÝCH VÝROBKŮ"
+    },
+    {
+      "code": "960200",
+      "name": "KADEŘNICKÉ, KOSMETICKÉ A PODOBNÉ ČINNOSTI"
+    },
+    {
+      "code": "960300",
+      "name": "POHŘEBNÍ A SOUVISEJÍCÍ ČINNOSTI"
+    },
+    {
+      "code": "960400",
+      "name": "ČINNOSTI PRO OSOBNÍ A FYZICKOU POHODU"
+    },
+    {
+      "code": "960900",
+      "name": "POSKYTOVÁNÍ OSTATNÍCH OSOBNÍCH SLUŽEB J. N."
+    },
+    {
+      "code": "961000",
+      "name": "PRANÍ A ČIŠTĚNÍ TEXTILNÍCH A KOŽEŠINOVÝCH VÝROBKŮ"
+    },
+    {
+      "code": "961010",
+      "name": "PRANÍ A ČIŠTĚNÍ TEXTILNÍCH A KOŽEŠINOVÝCH VÝROBKŮ PRO OBLAST ZDRAVOTNICTVÍ"
+    },
+    {
+      "code": "961020",
+      "name": "PRANÍ A ČIŠTĚNÍ TEXTILNÍCH A KOŽEŠINOVÝCH VÝROBKŮ PRO OBLAST UBYTOVÁNÍ A STRAVOVÁNÍ"
+    },
+    {
+      "code": "961030",
+      "name": "PRANÍ A ČIŠTĚNÍ TEXTILNÍCH A KOŽEŠINOVÝCH VÝROBKŮ PRO JINÉ OBLASTI PODNIKÁNÍ"
+    },
+    {
+      "code": "961040",
+      "name": "PRANÍ A ČIŠTĚNÍ TEXTILNÍCH A KOŽEŠINOVÝCH VÝROBKŮ PRO VEŘEJNOST"
+    },
+    {
+      "code": "962000",
+      "name": "KADEŘNICKÉ A KOSMETICKÉ ČINNOSTI, ČINNOSTI DENNÍCH LÁZNÍ A PODOBNÉ ČINNOSTI"
+    },
+    {
+      "code": "962100",
+      "name": "KADEŘNICKÉ A HOLIČSKÉ ČINNOSTI"
+    },
+    {
+      "code": "962200",
+      "name": "KOSMETICKÉ A PODOBNÉ ČINNOSTI"
+    },
+    {
+      "code": "962300",
+      "name": "ČINNOSTI DENNÍCH LÁZNÍ, SAUN A PARNÍCH LÁZNÍ"
+    },
+    {
+      "code": "963000",
+      "name": "POHŘEBNÍ A SOUVISEJÍCÍ ČINNOSTI"
+    },
+    {
+      "code": "964000",
+      "name": "ZPROSTŘEDKOVÁNÍ V OBLASTI OSOBNÍCH SLUŽEB"
+    },
+    {
+      "code": "969000",
+      "name": "POSKYTOVÁNÍ OSTATNÍCH OSOBNÍCH SLUŽEB"
+    },
+    {
+      "code": "969100",
+      "name": "POSKYTOVÁNÍ OSOBNÍCH SLUŽEB V DOMÁCNOSTECH"
+    },
+    {
+      "code": "969900",
+      "name": "POSKYTOVÁNÍ OSTATNÍCH OSOBNÍCH SLUŽEB J. N."
+    },
+    {
+      "code": "970000",
+      "name": "ČINNOSTI DOMÁCNOSTÍ JAKO ZAMĚSTNAVATELŮ DOMÁCÍHO PERSONÁLU"
+    },
+    {
+      "code": "980000",
+      "name": "ČINNOSTI DOMÁCNOSTÍ PRODUKUJÍCÍCH BLÍŽE NEURČENÉ VÝROBKY A SLUŽBY PRO VLASTNÍ POTŘEBU"
+    },
+    {
+      "code": "981000",
+      "name": "ČINNOSTI DOMÁCNOSTÍ PRODUKUJÍCÍCH BLÍŽE NEURČENÉ VÝROBKY PRO VLASTNÍ POTŘEBU"
+    },
+    {
+      "code": "982000",
+      "name": "ČINNOSTI DOMÁCNOSTÍ POSKYTUJÍCÍCH BLÍŽE NEURČENÉ SLUŽBY PRO VLASTNÍ POTŘEBU"
+    },
+    {
+      "code": "990000",
+      "name": "ČINNOSTI EXTERITORIÁLNÍCH ORGANIZACÍ A INSTITUCÍ"
+    }
+  ]
+}

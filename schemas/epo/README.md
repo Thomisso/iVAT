@@ -23,12 +23,44 @@ The download URLs are mutable, so runtime code always uses these vendored copies
 - [DPHKH1 structure and field documentation](https://adisspr.mfcr.cz/dpr/adis/idpr_pub/epo2_info/popis_struktury_detail.faces?zkratka=DPHKH1).
 - [Official tax-office code explanation](https://podpora.mojedane.gov.cz/cs/seznam-okruhu/rozhrani-pro-treti-strany/informace-k-ciselniku-ufo-platnem-od-1-1-4382): technical `c_ufo` codes 451–464 and 13; the specialized office uses `c_pracufo=4000`. The display names are in the locale messages.
 
-The current export supports ordinary monthly domestic filings, matching #21.
-The stored Company's VAT ID, name and address fill VetaP; natural-person names
-and authorized signatory details come from the per-export form. Address numbers
-at the end of the Company's street are split into `c_pop` and optional `c_orient`.
-Tax-office and person settings will be persisted by #27; this ticket supplies
-those otherwise missing required details per download.
+The stored VAT Report's Company identity fills VetaP. Filing defaults supply
+the tax office, optional compatible territorial office and independent signatory;
+the export form permits one-export overrides. The registered or confirmed EPO
+address already contains separate `c_pop` and optional `c_orient` values.
+
+## Filing catalogues (QA v4 #140)
+
+Official [EPO catalogue interface](https://adisspr.mfcr.cz/dpr/adis/idpr_pub/epo2_info/rozhrani_ciselniku.faces), retrieved 2026-10-30:
+
+| Snapshot | Retrieval | Rows | SHA-256 |
+| --- | --- | --- | --- |
+| `catalogues/pracufo-2026-10-30.xml`, version 51.5.00210 | [pracufo, valid 2026-10-30](https://adisspr.mfcr.cz/dpr/epo_ciselnik?C=pracufo&M=10000&PL=2026-10-30) | 124 | `9736b3168fca40ff8d7f31c628093407250db16b28f54db26a90426550c129af` |
+| `catalogues/okec-2026-10-30.xml`, version 51.5.00019 | [complete okec](https://adisspr.mfcr.cz/dpr/epo_ciselnik?C=okec) | 1952 dated rows, 1178 distinct codes | `a8a9723805b50a6b0ed3beace3231eca4fedba688e568ebd3e5849813a24138b` |
+
+Request the complete activity catalogue with **only** `C=okec`. Extra parameters
+can silently limit the response to 300 rows; `PL` is rejected for this catalogue.
+The snapshot contains both historical and current CZ-NACE codes, including the
+2026 transition. The derived `src/application/epo-catalogues.json` keeps every
+published code and the latest published label for each code. Its office entries
+come directly from `c_pracufo`, parent `c_ufo` and `nazu_pracufo`.
+
+The separate official [technical-office guidance](https://podpora.mojedane.gov.cz/cs/seznam-okruhu/rozhrani-pro-treti-strany/informace-k-ciselniku-ufo-platnem-od-1-1-4382)
+adds the specialized office pair 13/4000, which is absent from the regional
+`pracufo` snapshot. It also confirms regional territorial office is optional.
+The serializer preserves that optionality, rejects an incompatible supplied
+office, and uses the mandated 4000 when the selected tax office is 13.
+
+DPHDP3 maps economic activity to `VetaD.c_okec`; both formats map territorial
+office to `VetaP.c_pracufo`. Economic activity is required by the iVAT product for
+VAT Return export, even though the XSD allows omission. It is optional and not
+serialized for Control Statement. Validation checks catalogue membership;
+this change introduces no inference about whether report date, preparation date
+or filing date determines historical code eligibility.
+
+Private database reference tables enforce saved catalogue values and office
+parentage. Existing settings acquire null fields, never invented defaults.
+Serializer version 2 records the new mapping; historical version 1 XML remains
+unchanged and downloadable. No catalogue requests occur during normal exports.
 
 DPHDP3 line totals are rounded once to whole CZK, half away from zero, and summary
 values are summed from the rounded lines. Control Statement values retain their

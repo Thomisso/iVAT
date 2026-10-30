@@ -140,13 +140,21 @@ export default async function PlatformAdministrationPage() {
           <h2>{t("organizations")}</h2>
           <DataTable
             caption={t("organizations")}
-            rows={organizations.value.map((organization) => ({
-              ...organization,
-              companyNames: organization.companies.map((company) => `${company.name} · IČO ${company.ico}`).join(", "),
-            }))}
+            rows={organizations.value}
             columns={[
-              { key: "name", header: t("organization") },
-              { key: "companyNames", header: t("companies") },
+              {
+                key: "name", header: t("organization"),
+                render: (organization) => <Link href={`/organizations/${organization.id}/members`}>{organization.name}</Link>,
+              },
+              {
+                key: "companies", header: t("companies"),
+                render: (organization) => <ul>{organization.companies.map((company) => <li key={company.id}>
+                  <Link href={company.deletedAt || organization.blocked
+                    ? `/platform/companies/${company.id}/history` : `/companies/${company.id}`}>
+                    {t("companyIdentity", { name: company.name, ico: company.ico })}{company.deletedAt ? ` · ${t("retainedHistory")}` : ""}
+                  </Link>
+                </li>)}</ul>,
+              },
               {
                 key: "blocked",
                 header: t("status"),

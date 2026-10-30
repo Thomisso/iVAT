@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { companyPageContext, safeCompanyReturnTo, withCompanyReturnTo } from "@/application/return-context";
+import { CompanyReturnLink } from "@/components/company-return-link";
+
 import { notFound } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
 import { mergeDocumentsAction, moveDocumentPageAction, reprocessDocumentAction, retrySplitAction } from "@/app/actions";
@@ -18,9 +21,12 @@ import { formatDateTime } from "@/lib/format-date";
 import { requireUserClient } from "@/lib/supabase/server";
 
 export default async function SourceFilePage({
-  params,
+  params, searchParams,
 }: PageProps<"/companies/[companyId]/source-files/[sourceFileId]">) {
   const { companyId, sourceFileId } = await params;
+  const search = await searchParams;
+  const returnTo = safeCompanyReturnTo(companyId, search.returnTo);
+  const context = companyPageContext(companyId, `/companies/${companyId}/source-files/${sourceFileId}`, search);
   const client = await requireUserClient();
   const [company, file, role] = await Promise.all([
     getCompany(client, companyId),
@@ -53,7 +59,7 @@ export default async function SourceFilePage({
       <PageLayout className="dashboard" measure="wide">
         <header>
           <p>
-            <Link href={`/companies/${companyId}`}>{t("sourceFiles.backToCompany")}</Link>
+            <CompanyReturnLink companyId={companyId} returnTo={returnTo} fallback={`/companies/${companyId}`} />
           </p>
           <h1>{file.fileName}</h1>
           <p className="iv-muted">
@@ -95,13 +101,14 @@ export default async function SourceFilePage({
             <DataTable
               caption={t("documents.title")}
               rows={documents}
+              rowId={(document) => `document-${document.id}`}
               columns={[
                 {
                   key: "pages",
                   header: workbook ? t("documents.rows") : t("documents.pages"),
                   mono: true,
                   render: (document) => (
-                    <Link href={`/companies/${companyId}/documents/${document.id}`}>
+                    <Link href={withCompanyReturnTo(companyId, `/companies/${companyId}/documents/${document.id}`, `${context}#document-${document.id}`)}>
                       {document.rowSet
                         ? document.rowSet.firstRow === document.rowSet.lastRow
                           ? t("documents.row", { sheet: document.rowSet.sheetName, row: document.rowSet.firstRow })

@@ -60,7 +60,7 @@ async function main() {
     }, 30_000);
     heartbeatTimer.unref();
   }
-  console.log(`[worker] started with AI providers ${providers.map((provider) => provider.name).join(", ")}; waiting for jobs`);
+  console.log(`[worker] started with AI providers ${providers.map((provider) => provider.name).join(", ")}; VAT registry ${process.env.VAT_REGISTRY_PROVIDER ?? "adis"}; exchange rates ${process.env.EXCHANGE_RATE_PROVIDER ?? "cnb"}; waiting for jobs`);
 }
 
 async function shutdown() {

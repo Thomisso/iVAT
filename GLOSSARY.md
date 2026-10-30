@@ -25,10 +25,14 @@ A User's access to an Organization or a Company, carrying a Role.
 _Avoid_: Assignment, access grant
 
 **Role**:
-The access level a Membership grants: SuperAdmin (platform-wide), Administrator (Organization or Company), or User (Company).
+An access level: SuperAdmin grants platform-wide administration across all Organizations and Companies without a Membership. Administrator and User grant scoped access through Memberships.
 _Avoid_: Permission level, profile
 
 ## Documents
+
+**Upload Queue**:
+A User's pending selection of files to upload into one Company. It is not yet an Upload Batch.
+_Avoid_: Upload Batch (before upload), processing queue
 
 **Upload Batch**:
 The set of Source Files a User uploaded together into a Company in one upload.
@@ -132,8 +136,16 @@ _Avoid_: VAT declaration
 The Czech VAT control statement (kontrolní hlášení, form DPHKH1).
 _Avoid_: KH (in code), VAT ledger
 
+**Draft XML**:
+An XML representation of a VAT Return or Control Statement prepared for review before Finalization.
+_Avoid_: Final XML, submission
+
+**Final XML**:
+An XML representation of a finalized VAT Return or Control Statement. Its export does not mean that it has been submitted to the tax authority.
+_Avoid_: Filed return, submission confirmation
+
 **Finalization**:
-An Administrator's act of confirming a VAT Report, which locks its Reporting Period.
+An Administrator's or SuperAdmin's act of confirming a VAT Report, which locks its Reporting Period.
 _Avoid_: Submission, filing (iVAT does not submit to the tax authority)
 
 **Period Lock**:

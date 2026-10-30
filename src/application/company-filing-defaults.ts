@@ -1,6 +1,7 @@
 import { isUuid, type AppClient, type Result } from "./client";
 import { epoIdentityFindings } from "./companies";
 import { TAX_OFFICES, type ExportDetails } from "./epo-export-details";
+import { isEconomicActivity, isTerritorialOffice } from "./epo-catalogues";
 
 export type EpoAddress = NonNullable<ExportDetails["address"]>;
 export type ResolvedEpoAddress = {
@@ -10,6 +11,8 @@ export type ResolvedEpoAddress = {
 
 export type CompanyFilingDefaults = {
   taxOffice: string | null;
+  economicActivity: string | null;
+  territorialOffice: string | null;
   signatoryFirstName: string | null;
   signatoryLastName: string | null;
   signatoryCapacity: string | null;
@@ -18,9 +21,11 @@ export type CompanyFilingDefaults = {
   epoAddressOverride: EpoAddress | null;
 };
 
-export type SaveCompanyFilingDefaultsInput = Omit<CompanyFilingDefaults, "taxOffice" | "signatoryFirstName" | "signatoryLastName" | "signatoryCapacity" | "email" | "phone"> & {
+export type SaveCompanyFilingDefaultsInput = Omit<CompanyFilingDefaults, "taxOffice" | "economicActivity" | "territorialOffice" | "signatoryFirstName" | "signatoryLastName" | "signatoryCapacity" | "email" | "phone"> & {
   companyId: string;
   taxOffice: string;
+  economicActivity?: string;
+  territorialOffice?: string;
   signatoryFirstName: string;
   signatoryLastName: string;
   signatoryCapacity: string;
@@ -67,6 +72,8 @@ function validAddress(address: EpoAddress): boolean {
 function normalize(input: SaveCompanyFilingDefaultsInput) {
   return {
     taxOffice: optional(input.taxOffice),
+    economicActivity: optional(input.economicActivity ?? ""),
+    territorialOffice: optional(input.territorialOffice ?? ""),
     signatoryFirstName: optional(input.signatoryFirstName),
     signatoryLastName: optional(input.signatoryLastName),
     signatoryCapacity: optional(input.signatoryCapacity),
@@ -86,6 +93,8 @@ function invalidDefaults(input: ReturnType<typeof normalize>): boolean {
   const signatory = [input.signatoryFirstName, input.signatoryLastName, input.signatoryCapacity];
   const hasSignatory = signatory.some(Boolean);
   return (input.taxOffice !== null && !TAX_OFFICES.some((code) => code === input.taxOffice))
+    || (input.economicActivity !== null && !isEconomicActivity(input.economicActivity))
+    || (input.territorialOffice !== null && !isTerritorialOffice(input.taxOffice ?? "", input.territorialOffice))
     || (hasSignatory && (
       !input.signatoryFirstName || input.signatoryFirstName.length > 20
       || !input.signatoryLastName || input.signatoryLastName.length > 36
@@ -112,6 +121,8 @@ export async function saveCompanyFilingDefaults(
   const { error } = await client.rpc("set_company_filing_defaults", {
     target_company_id: input.companyId,
     new_tax_office: value.taxOffice ?? "",
+    new_economic_activity: value.economicActivity ?? "",
+    new_territorial_office: value.territorialOffice ?? "",
     new_signatory_first_name: value.signatoryFirstName ?? "",
     new_signatory_last_name: value.signatoryLastName ?? "",
     new_signatory_capacity: value.signatoryCapacity ?? "",
@@ -131,7 +142,7 @@ export async function saveCompanyFilingDefaults(
   if (error?.code === "P0001" && error.hint === "epo_override_confirmation_required") {
     return { ok: false, error: "epo_override_confirmation_required" };
   }
-  if (error?.code === "23514") return { ok: false, error: "invalid_filing_defaults" };
+  if (error?.code === "23514" || error?.code === "23503") return { ok: false, error: "invalid_filing_defaults" };
   if (error) throw error;
   return { ok: true, value: null };
 }
@@ -143,13 +154,15 @@ export async function getCompanyFilingDefaults(
   if (!isUuid(companyId)) return null;
   const { data, error } = await client
     .from("company_filing_defaults")
-    .select("tax_office, signatory_first_name, signatory_last_name, signatory_capacity, email, phone, epo_street_name, epo_house_number, epo_orientation_number, epo_city, epo_postal_code, epo_address_confirmed_at")
+    .select("tax_office, economic_activity, territorial_office, signatory_first_name, signatory_last_name, signatory_capacity, email, phone, epo_street_name, epo_house_number, epo_orientation_number, epo_city, epo_postal_code, epo_address_confirmed_at")
     .eq("company_id", companyId)
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
   return {
     taxOffice: data.tax_office,
+    economicActivity: data.economic_activity,
+    territorialOffice: data.territorial_office,
     signatoryFirstName: data.signatory_first_name,
     signatoryLastName: data.signatory_last_name,
     signatoryCapacity: data.signatory_capacity,
