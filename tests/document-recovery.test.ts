@@ -1,15 +1,16 @@
 import { expect, inject, it } from "vitest";
 import { Client as DatabaseClient } from "pg";
+import { PDFDocument } from "pdf-lib";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
-import { approveDocument, correctDocument, getDocument, listDocuments, listExtractionVersions, startManualDocumentReview, rejectDocument, restoreDocument, reprocessDocument } from "@/application/documents";
+import { approveDocument, correctDocument, getDocument, listDocuments, listExtractionVersions, startManualDocumentReview, rejectDocument, restoreDocument, reprocessDocument, returnDocumentToReview, updateDocumentReporting, splitDocument, mergeDocuments, moveDocumentPage } from "@/application/documents";
 import { uploadSourceFile, readSourceFile } from "@/application/source-files";
 import { getCompanyAiProcessingAllowance } from "@/application/ai-processing-allowance";
-import { administratorWithCompany, companyMember, assignAiConfigurationFixture } from "./support/fixtures";
+import { administratorWithCompany, companyMember, assignAiConfigurationFixture, companyDetails } from "./support/fixtures";
 import { fixtureFile } from "./support/files";
 import { systemClient, testWorker } from "./support/worker";
 import { extractJob } from "@/application/processing";
 import { AiProviderError } from "@/application/ai-provider";
-import { setCurrentReportingYear } from "@/application/companies";
+import { createCompany, setCurrentReportingYear } from "@/application/companies";
 import { getReportingPeriodReadiness } from "@/application/reporting-period-readiness";
 import { listAuditEvents } from "@/application/audit";
 import { generateVatReport, finalizeVatReport } from "@/application/vat-reports";
@@ -305,3 +306,140 @@ async function waitForBlockedProcessingCommand(database: DatabaseClient, command
   }
   throw new Error(`Processing command did not reach the fixture lock: ${command}`);
 }
+
+it("concurrent correction and approval serialize into a stale-version refusal rather than a deadlock", async () => {
+  const context = await unextractedDocument();
+  const input = { companyId: context.companyId, documentId: context.documentId };
+  await startManualDocumentReview(context.client, input);
+  await correctDocument(context.client, { ...input, basedOnVersion: 0, payload: SAMPLE_EXTRACTION });
+  const outcomes = await concurrentDocumentCommands(context.companyId,
+    "correct_document", () => correctDocument(context.client, { ...input, basedOnVersion: 1, payload: { ...SAMPLE_EXTRACTION, documentNumber: "CORRECTED" } }),
+    "approve_document", () => approveDocument(context.client, { ...input, version: 1 }),
+  );
+  expect(outcomes).toEqual([
+    { status: "fulfilled", value: { ok: true, value: { version: 2 } } },
+    { status: "fulfilled", value: { ok: false, error: "stale_version" } },
+  ]);
+  expect((await getDocument(context.client, input.companyId, input.documentId))?.status).toBe("needs_review");
+  expect((await listExtractionVersions(context.client, input.companyId, input.documentId)).map((version) => version.payload.documentNumber)).toEqual(["FV-2026-0001", "CORRECTED"]);
+  expect(await approveDocument(context.client, { ...input, version: 2 })).toEqual({ ok: true, value: null });
+});
+
+/** Queue both real commands at Company in a known order, without mocking either command. */
+async function concurrentDocumentCommands(
+  companyId: string,
+  firstName: string, firstCommand: () => Promise<unknown>,
+  secondName: string, secondCommand: () => Promise<unknown>,
+) {
+  const barrier = new DatabaseClient({ connectionString: inject("databaseUrl") });
+  const observer = new DatabaseClient({ connectionString: inject("databaseUrl") });
+  await barrier.connect();
+  await observer.connect();
+  const pending: Promise<unknown>[] = [];
+  try {
+    await barrier.query("begin");
+    await barrier.query("select 1 from public.company where id = $1 for update", [companyId]);
+    pending.push(firstCommand());
+    await waitForBlockedProcessingCommand(observer, firstName);
+    pending.push(secondCommand());
+    await waitForBlockedProcessingCommand(observer, secondName);
+    await barrier.query("commit");
+    return await Promise.allSettled(pending);
+  } finally {
+    await barrier.query("rollback");
+    await Promise.allSettled(pending);
+    await barrier.end();
+    await observer.end();
+  }
+}
+
+
+it.each([
+  ["return", "return_document_to_review"], ["claim", "update_document_reporting"],
+  ["split", "split_document"], ["merge", "merge_documents"], ["move", "move_document_page"],
+] as const)("concurrent correction and %s preserve ordinary Document decisions without a lock cycle", async (operation, rpc) => {
+  const context = await pageCorrectionDocuments();
+  const [left, right] = context.documents;
+  const input = { companyId: context.companyId, documentId: left.id };
+  if (operation === "return") await approveDocument(context.client, { ...input, version: 1 });
+  const noJobs = { async send() {} };
+  const decisions = {
+    return: () => returnDocumentToReview(context.client, input),
+    claim: () => updateDocumentReporting(context.client, { ...input, claimedReportingPeriod: "2026-11" }),
+    split: () => splitDocument(context.client, noJobs, { ...input, splitAfterPage: 1 }),
+    merge: () => mergeDocuments(context.client, noJobs, { companyId: context.companyId, leftDocumentId: left.id, rightDocumentId: right.id }),
+    move: () => moveDocumentPage(context.client, noJobs, { companyId: context.companyId, sourceDocumentId: left.id, targetDocumentId: right.id, page: 2 }),
+  };
+  const outcomes = await concurrentDocumentCommands(context.companyId,
+    "correct_document", () => correctDocument(context.client, { ...input, basedOnVersion: 1, payload: SAMPLE_EXTRACTION }),
+    rpc, decisions[operation],
+  );
+  expect(outcomes).toEqual([
+    { status: "fulfilled", value: operation === "return" ? { ok: false, error: "not_in_review" } : { ok: true, value: { version: 2 } } },
+    { status: "fulfilled", value: { ok: true, value: null } },
+  ]);
+  expect((await listExtractionVersions(context.client, input.companyId, input.documentId)).map((version) => version.version)).toEqual(operation === "return" ? [1] : [1, 2]);
+  const documents = await listDocuments(context.client, context.companyId, context.sourceFileId);
+  expect(documents.map((document) => [document.firstPage, document.lastPage])).toEqual(
+    operation === "merge" ? [[1, 4]] : operation === "split" ? [[1, 1], [2, 2], [3, 4]] : operation === "move" ? [[1, 1], [2, 4]] : [[1, 2], [3, 4]],
+  );
+  if (operation === "claim") expect((await getDocument(context.client, input.companyId, input.documentId))?.claimedReportingPeriod).toBe("2026-11");
+});
+
+async function pageCorrectionDocuments(administrator?: Awaited<ReturnType<typeof administratorWithCompany>>) {
+  administrator ??= await administratorWithCompany();
+  const pdf = await PDFDocument.create();
+  for (let page = 0; page < 4; page++) pdf.addPage();
+  const uploaded = await uploadSourceFile(administrator.client, { async send() {} }, {
+    companyId: administrator.companyId, fileName: "pages.pdf", bytes: await pdf.save(),
+  });
+  if (!uploaded.ok) throw new Error(uploaded.error);
+  const split = await systemClient().rpc("record_split", { target_source_file_id: uploaded.value.id, source_ranges: [{ firstPage: 1, lastPage: 2 }, { firstPage: 3, lastPage: 4 }] });
+  if (split.error) throw split.error;
+  const documents = await listDocuments(administrator.client, administrator.companyId, uploaded.value.id);
+  for (const document of documents) {
+    const input = { companyId: administrator.companyId, documentId: document.id };
+    await startManualDocumentReview(administrator.client, input);
+    await correctDocument(administrator.client, { ...input, basedOnVersion: 0, payload: SAMPLE_EXTRACTION });
+  }
+  return { ...administrator, sourceFileId: uploaded.value.id, documents };
+}
+
+
+it("cross-Company page inputs are refused before either Company is locked, preserving both histories", async () => {
+  const left = await pageCorrectionDocuments();
+  const created = await createCompany(left.client, { ...companyDetails(), organizationId: left.organizationId });
+  if (!created.ok) throw new Error(created.error);
+  const right = await pageCorrectionDocuments({ ...left, companyId: created.value.id });
+  const before = await Promise.all([left, right].map((context) => listExtractionVersions(context.client, context.companyId, context.documents[0].id)));
+  const barrier = new DatabaseClient({ connectionString: inject("databaseUrl") });
+  const observer = new DatabaseClient({ connectionString: inject("databaseUrl") });
+  await barrier.connect(); await observer.connect();
+  const pending: PromiseLike<unknown>[] = [];
+  try {
+    await barrier.query("begin");
+    await barrier.query("select 1 from public.company where id = any($1::uuid[]) order by id for update", [[left.companyId, right.companyId]]);
+    for (const rpc of ["merge_documents", "move_document_page"] as const) {
+      let completed = false;
+      const parameters = rpc === "merge_documents"
+        ? { left_document_id: left.documents[0].id, right_document_id: right.documents[0].id }
+        : { source_document_id: left.documents[0].id, target_document_id: right.documents[0].id, page: 2 };
+      const call = left.client.rpc(rpc, parameters).then((result) => { completed = true; return result; });
+      pending.push(call);
+      const deadline = Date.now() + 5_000;
+      while (!completed && Date.now() < deadline) {
+        const lock = await observer.query<{ blocked: boolean }>("select exists (select 1 from pg_stat_activity where pid <> pg_backend_pid() and wait_event_type = 'Lock' and strpos(query, $1) > 0) as blocked", [rpc]);
+        expect(lock.rows[0].blocked).toBe(false);
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      expect(completed).toBe(true);
+      expect((await call).error).toMatchObject({ code: "P0001", hint: "invalid_split_boundary" });
+    }
+  } finally {
+    await barrier.query("rollback");
+    await Promise.allSettled(pending);
+    await barrier.end(); await observer.end();
+  }
+  expect(await Promise.all([left, right].map((context) => listExtractionVersions(context.client, context.companyId, context.documents[0].id)))).toEqual(before);
+  for (const context of [left, right]) expect((await getDocument(context.client, context.companyId, context.documents[0].id))?.status).toBe("needs_review");
+});
