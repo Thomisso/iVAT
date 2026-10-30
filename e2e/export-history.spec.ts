@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { readFile } from "node:fs/promises";
 
 test("Export History shows a compact table and expandable filing details on desktop and mobile", async ({ page, context, baseURL }) => {
   if (!baseURL) throw new Error("Playwright baseURL is required");
@@ -25,12 +26,15 @@ test("Export History shows a compact table and expandable filing details on desk
   await page.getByRole("link", { name: "Open VAT Return", exact: true }).click();
   await page.getByLabel("Preparation date").fill("10.02.2026");
   await page.getByRole("combobox", { name: "Tax office", exact: true }).selectOption("451");
+  await page.getByLabel("Territorial office").selectOption("2003");
+  await page.getByLabel("Economic activity (CZ-NACE)").fill("621000");
   await page.getByLabel("First name").fill("Jana");
   await page.getByLabel("Last name").fill("Nováková");
   await page.getByLabel("Capacity (e.g. director)").fill("jednatelka");
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download XML" }).click();
   await download;
+  const vatReturnUrl = page.url();
   await page.getByRole("navigation", { name: "Reporting Period destinations" }).getByRole("link", { name: "Export history" }).click();
   const table = page.getByRole("table", { name: "Stored XML artifacts" });
   await expect(table.getByRole("columnheader")).toHaveText([
@@ -56,4 +60,41 @@ test("Export History shows a compact table and expandable filing details on desk
     expect(overlaps).toBe(false);
     await disclosure.click();
   }
+
+  await page.goto(`${companyUrl}/settings/vat`);
+  await page.getByRole("combobox", { name: "Tax office", exact: true }).selectOption("451");
+  await page.getByLabel("Territorial office").selectOption("2003");
+  await page.getByLabel("Economic activity (CZ-NACE)").fill("621000");
+  const signatory = page.getByRole("group", { name: "Default authorized signatory" });
+  await signatory.getByLabel("First name").fill("Jana");
+  await signatory.getByLabel("Last name").fill("Nováková");
+  await signatory.getByLabel("Capacity (e.g. director)").fill("jednatelka");
+  await page.getByRole("button", { name: "Save filing defaults" }).click();
+  await expect(page.getByRole("status").getByText("Filing defaults saved.")).toBeVisible();
+  await page.goto(vatReturnUrl);
+  await expect(page.getByRole("combobox", { name: "Tax office", exact: true })).toHaveCount(0);
+  const savedDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download XML" }).click();
+  const savedPath = await (await savedDownload).path();
+  if (!savedPath) throw new Error("Saved-default export did not download");
+  expect(await readFile(savedPath, "utf8")).toContain('c_okec="621000"');
+
+  await page.getByRole("button", { name: "Edit for this export" }).click();
+  await expect(page.getByLabel("Economic activity (CZ-NACE)")).toHaveValue("621000");
+  await page.getByLabel("Economic activity (CZ-NACE)").fill("622000");
+  await page.getByRole("combobox", { name: "Tax office", exact: true }).selectOption("452");
+  await expect(page.getByLabel("Territorial office")).toHaveValue("");
+  await expect(page.getByLabel("Territorial office").getByRole("option", { name: "Územní pracoviště pro Prahu 3" })).toHaveCount(0);
+  await page.getByLabel("Territorial office").selectOption("2103");
+  const overrideDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download XML" }).click();
+  const overridePath = await (await overrideDownload).path();
+  if (!overridePath) throw new Error("One-export override did not download");
+  const overrideXml = await readFile(overridePath, "utf8");
+  expect(overrideXml).toContain('c_okec="622000"');
+  expect(overrideXml).toContain('c_pracufo="2103"');
+  await page.goto(`${companyUrl}/settings/vat`);
+  await expect(page.getByLabel("Economic activity (CZ-NACE)")).toHaveValue("621000");
+  await expect(page.getByRole("combobox", { name: "Tax office", exact: true })).toHaveValue("451");
+  await expect(page.getByLabel("Territorial office")).toHaveValue("2003");
 });

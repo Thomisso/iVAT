@@ -20,6 +20,8 @@ async function preparedCompany() {
   expect(await saveCompanyFilingDefaults(company.client, {
     companyId: company.companyId,
     taxOffice: "451",
+    territorialOffice: "2003",
+    economicActivity: "621000",
     signatoryFirstName: "Jana",
     signatoryLastName: "Nováková",
     signatoryCapacity: "jednatelka",
@@ -63,12 +65,14 @@ it.each([
     byteSize: exported.value.bytes.length,
     sha256: createHash("sha256").update(exported.value.bytes).digest("hex"),
     schemaVersion,
-    serializerVersion: "1",
+    serializerVersion: "2",
     authorUserId: expect.any(String),
     authorEmail: expect.stringContaining("@example.test"),
     createdAt: expect.any(String),
     resolvedDetails: expect.objectContaining({
       taxOffice: "451",
+      territorialOffice: "2003",
+      economicActivity: "621000",
       preparedOn: "2026-10-27",
       email: "podatelna@example.test",
       phone: "+420123456789",
@@ -91,7 +95,7 @@ it.each([
         kind: "draft",
         sha256: history[0].sha256,
         schema_version: schemaVersion,
-        serializer_version: "1",
+        serializer_version: "2",
       },
     }),
   );
