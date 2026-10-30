@@ -9,6 +9,7 @@ import {
   type ExtractionPayloadError,
 } from "./extraction-payload";
 import { extractJob, type JobQueue } from "./processing";
+import { NO_REPORTING_PERIOD } from "./reporting-periods";
 import {
   CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA,
   validateDocument,
@@ -127,7 +128,7 @@ export type DocumentFilters = {
   sourceFileIds?: string[];
   /** Specific Documents, for example those a readiness summary names. */
   documentIds?: string[];
-  /** A month, "2026-10". */
+  /** A Reporting Period ("2026-10", "2026-Q4"), or NO_REPORTING_PERIOD. */
   reportingPeriod?: string;
   /** Part of the counterparty's name, VAT ID or IČO, in any case. */
   counterparty?: string;
@@ -159,7 +160,8 @@ export async function listCompanyDocuments(
     if (filters.documentIds) query = query.in("id", filters.documentIds);
     if (filters.status) query = query.eq("status", filters.status);
     if (filters.direction) query = query.eq("direction", filters.direction);
-    if (filters.reportingPeriod) query = query.eq("reporting_period", filters.reportingPeriod);
+    if (filters.reportingPeriod === NO_REPORTING_PERIOD) query = query.is("reporting_period", null);
+    else if (filters.reportingPeriod) query = query.eq("reporting_period", filters.reportingPeriod);
     if (counterparty) query = query.ilike("counterparty_search", `%${likeLiteral(counterparty)}%`);
     if (filters.hasFindings) query = query.gt("finding_count", 0);
 
