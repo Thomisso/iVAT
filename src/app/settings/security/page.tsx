@@ -6,6 +6,7 @@ import { Button } from "@/components/button";
 import { FocusedShell } from "@/components/focused-shell";
 import { requireUserClient } from "@/lib/supabase/server";
 import { OrganizationMfaForm } from "./organization-mfa-form";
+import { PasswordChangeForm } from "./password-change-form";
 
 export default async function SecuritySettingsPage() {
   const client = await requireUserClient();
@@ -18,6 +19,7 @@ export default async function SecuritySettingsPage() {
     <FocusedShell>
       <main className="focused-shell-card focused-shell-card-wide" id="main-content" tabIndex={-1}>
         <h1>{t("securityTitle")}</h1>
+        <PasswordChangeForm />
         <section className="form focused-shell-section">
           <h2>{t("authenticatorTitle")}</h2>
           <p>{status.enrolled ? t("authenticatorEnabled") : t("authenticatorDisabled")}</p>

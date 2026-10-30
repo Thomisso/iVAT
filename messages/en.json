@@ -472,6 +472,13 @@
     "organization_name_required": "Enter the name of your organization.",
     "email_taken": "An account with this email already exists.",
     "weak_password": "The password is too weak. Use at least 8 characters.",
+    "current_password_required": "Enter your current password.",
+    "incorrect_current_password": "Your current password is incorrect.",
+    "password_confirmation_mismatch": "The new passwords do not match.",
+    "same_password": "Choose a password different from your current password.",
+    "password_verification_failed": "Your current password could not be verified. Try again.",
+    "password_change_failed": "The password could not be changed. Try again.",
+    "mfa_verification_required": "Verify with your authenticator before changing your password.",
     "sign_up_failed": "Sign-up failed. Please try again.",
     "google_sign_in_failed": "Google sign-in failed. Please try again.",
     "invalid_credentials": "Wrong email or password.",
@@ -732,6 +739,15 @@
     "saveLimits": "Save upload limits",
     "retainedHistory": "Retained history",
     "companyIdentity": "{name} · IČO {ico}"
+  },
+  "passwordChange": {
+    "title": "Change password",
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "confirmation": "Confirm new password",
+    "submit": "Change password",
+    "sessionHint": "You stay signed in here. Other sessions cannot renew access after the change; already issued access tokens remain valid until they expire.",
+    "success": "Password changed. You are still signed in here."
   },
   "mfa": {
     "securityTitle": "Security",

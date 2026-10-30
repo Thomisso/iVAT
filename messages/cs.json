@@ -472,6 +472,13 @@
     "organization_name_required": "Zadejte název organizace.",
     "email_taken": "Účet s tímto e-mailem už existuje.",
     "weak_password": "Heslo je příliš slabé. Použijte alespoň 8 znaků.",
+    "current_password_required": "Zadejte současné heslo.",
+    "incorrect_current_password": "Současné heslo není správné.",
+    "password_confirmation_mismatch": "Nová hesla se neshodují.",
+    "same_password": "Zvolte jiné heslo než současné.",
+    "password_verification_failed": "Současné heslo se nepodařilo ověřit. Zkuste to znovu.",
+    "password_change_failed": "Heslo se nepodařilo změnit. Zkuste to znovu.",
+    "mfa_verification_required": "Před změnou hesla se ověřte autentizační aplikací.",
     "sign_up_failed": "Registrace se nezdařila. Zkuste to prosím znovu.",
     "google_sign_in_failed": "Přihlášení přes Google se nezdařilo. Zkuste to prosím znovu.",
     "invalid_credentials": "Nesprávný e-mail nebo heslo.",
@@ -732,6 +739,15 @@
     "saveLimits": "Uložit limity nahrávání",
     "retainedHistory": "Dochovaná historie",
     "companyIdentity": "{name} · IČO {ico}"
+  },
+  "passwordChange": {
+    "title": "Změna hesla",
+    "currentPassword": "Současné heslo",
+    "newPassword": "Nové heslo",
+    "confirmation": "Potvrzení nového hesla",
+    "submit": "Změnit heslo",
+    "sessionHint": "Zde zůstanete přihlášeni. Ostatní relace po změně nemohou obnovit přístup; již vydané přístupové tokeny zůstávají platné do vypršení.",
+    "success": "Heslo bylo změněno. Zde zůstáváte přihlášeni."
   },
   "mfa": {
     "securityTitle": "Zabezpečení",
