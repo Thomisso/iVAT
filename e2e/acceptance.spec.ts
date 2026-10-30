@@ -75,6 +75,10 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   await page.getByRole("button", { name: "Upload" }).click();
   await uploadFinished;
   await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+\/upload-batches\/[0-9a-f-]+$/);
+  const batchPath = new URL(page.url()).pathname;
+  const batchId = batchPath.split("/").at(-1)!;
+  const companyPath = `/companies/${companyId}`;
+  const reviewListOrigin = `${companyPath}/documents?view=review&batchId=${batchId}&returnTo=${encodeURIComponent(batchPath)}`;
   const reviewBatch = page.getByRole("link", { name: "Review 2 Documents" });
   await expect(reviewBatch).toBeVisible({ timeout: 45_000 });
   await page.reload();
@@ -88,16 +92,19 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   const blockers = page.getByRole("link", { name: "2 blocker Documents" });
   await expect(blockers).toBeVisible();
   await blockers.click();
-  await expect(page).toHaveURL(new RegExp(`/companies/${companyId}/documents\\?view=all&reportingPeriod=2026-10&readiness=blockers$`));
+  await expect(page).toHaveURL((url) => url.pathname === `${companyPath}/documents` && url.searchParams.size === 4 && url.searchParams.get("view") === "all" && url.searchParams.get("reportingPeriod") === "2026-10" && url.searchParams.get("readiness") === "blockers" && url.searchParams.get("returnTo") === `${companyPath}/vat-reports?period=2026-10#vat-step-review`);
   await expect(page.getByRole("status").filter({ hasText: "2 Documents blocking 2026-10" })).toBeVisible();
   await expect(page.getByRole("table", { name: "Documents" }).getByRole("link")).toHaveCount(2);
 
   await page.goto(reviewBatchUrl);
-  await expect(page).toHaveURL(/\/documents\?view=review&batchId=[0-9a-f-]+$/);
+  await expect(page).toHaveURL((url) => url.pathname === `${companyPath}/documents` && url.searchParams.size === 3 && url.searchParams.get("view") === "review" && url.searchParams.get("batchId") === batchId && url.searchParams.get("returnTo") === batchPath);
   const documents = page.getByRole("table", { name: "Documents" });
   await expect(documents.getByRole("link")).toHaveCount(2);
+  const detailPaths = await documents.getByRole("link").evaluateAll((links) => links.map((link) => new URL(link.getAttribute("href")!, location.href).pathname));
+  const firstDocumentId = detailPaths[0].split("/").at(-1)!;
+  const detailOrigin = `${reviewListOrigin}#document-${firstDocumentId}`;
   await documents.getByRole("link").first().click();
-  await expect(page).toHaveURL(/\/documents\/[0-9a-f-]+\?view=review&batchId=[0-9a-f-]+$/);
+  await expect(page).toHaveURL((url) => url.pathname === detailPaths[0] && url.searchParams.size === 3 && url.searchParams.get("view") === "review" && url.searchParams.get("batchId") === batchId && url.searchParams.get("returnTo") === detailOrigin);
   const documentUrl = page.url();
 
   const documentNumber = `FV-E2E-${digits}`;
@@ -112,7 +119,7 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   const approve = page.getByRole("button", { name: "Approve version 3" });
   await expect(approve).toBeEnabled();
   await approve.click();
-  await expect(page).toHaveURL(/\/documents\/[0-9a-f-]+\?view=review&batchId=[0-9a-f-]+$/);
+  await expect(page).toHaveURL((url) => url.pathname === detailPaths[1] && url.searchParams.size === 3 && url.searchParams.get("view") === "review" && url.searchParams.get("batchId") === batchId && url.searchParams.get("returnTo") === detailOrigin);
   await expect(page.getByRole("button", { name: "Approve version 1" })).toBeVisible();
   const secondDocumentUrl = page.url();
   const rejectFinished = page.waitForResponse((response) =>

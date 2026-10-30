@@ -4,13 +4,13 @@ import { administratorWithCompany, assignAiConfigurationFixture, setUploadBatchC
 import { listCompanyDocuments } from "@/application/documents";
 import { uploadSourceFile } from "@/application/source-files";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
-import { fixtureFile } from "./support/files";
+import { fixtureFile, selectFixtureFiles } from "./support/files";
 import { testWorker } from "./support/worker";
 
 describe("Upload Batch creation-date filters", () => {
   it("accepts a future final calendar day and safely ignores impossible calendar ranges", async () => {
     const { client, companyId } = await administratorWithCompany();
-    const batch = await beginUploadBatch(client, { companyId, fileCount: 1 });
+    const batch = await beginUploadBatch(client, { companyId, fileCount: 1, selectedFiles: selectFixtureFiles("receipt.png").selectedFiles });
     if (!batch.ok) throw new Error(batch.error);
     expect((await listUploadBatches(client, companyId, { createdTo: "9999-12-31" })).map((entry) => entry.id)).toEqual([batch.value.id]);
     expect(await listUploadBatches(client, companyId, { createdFrom: "0000-01-01" })).toEqual([]);
@@ -22,7 +22,7 @@ describe("Upload Batch creation-date filters", () => {
     const { client, companyId } = await administratorWithCompany();
     const ids: string[] = [];
     for (const createdAt of [before, first, last, after]) {
-      const batch = await beginUploadBatch(client, { companyId, fileCount: 1 });
+      const batch = await beginUploadBatch(client, { companyId, fileCount: 1, selectedFiles: selectFixtureFiles("receipt.png").selectedFiles });
       if (!batch.ok) throw new Error(batch.error);
       ids.push(batch.value.id);
       await setUploadBatchCreationDatesFixture([{ batchId: batch.value.id, createdAt }]);
@@ -45,9 +45,10 @@ describe("Upload Batch creation-date filters", () => {
         supplier: SAMPLE_EXTRACTION.customer, customer: SAMPLE_EXTRACTION.supplier };
     } }));
     await assignAiConfigurationFixture(client, worker.jobs, { companyId, provider: worker.ai });
-    const batch = await beginUploadBatch(client, { companyId, fileCount: 1 });
+    const selection = selectFixtureFiles("two-invoices.pdf");
+    const batch = await beginUploadBatch(client, { companyId, fileCount: 1, selectedFiles: selection.selectedFiles });
     if (!batch.ok) throw new Error(batch.error);
-    const uploaded = await uploadSourceFile(client, worker.jobs, { companyId, batchId: batch.value.id, fileName: "mixed.pdf", bytes: fixtureFile("two-invoices.pdf") });
+    const uploaded = await uploadSourceFile(client, worker.jobs, { companyId, batchId: batch.value.id, sourceFileId: selection.files[0].sourceFileId, fileName: "mixed.pdf", bytes: fixtureFile("two-invoices.pdf") });
     if (!uploaded.ok) throw new Error(uploaded.error);
     await finishUploadBatch(client, batch.value.id);
     expect(await worker.runJobs()).toEqual([]);
