@@ -39,9 +39,11 @@
     "next": "16.4.3",
     "next-intl": "^4.14.9",
     "pdf-lib": "^1.17.1",
+    "pg": "^8.23.1",
     "pg-boss": "^12.38.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "tsx": "^4.23.15",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
@@ -56,9 +58,7 @@
     "eslint-config-next": "16.4.3",
     "happy-dom": "^21.0.4",
     "pdfjs-dist": "^6.4.299",
-    "pg": "^8.23.1",
     "supabase": "^2.122.0",
-    "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^5.0.5"
   },
