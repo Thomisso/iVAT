@@ -69,6 +69,17 @@ describe("Documents queue context", () => {
     });
   });
 
+  it("keeps a Reporting Period or No period filter in the URL and drops anything else", () => {
+    expect(documentQueueQuery(parseDocumentQueue({ view: "all", reportingPeriod: "none" })))
+      .toBe("view=all&reportingPeriod=none");
+    expect(documentQueueFilters(parseDocumentQueue({ view: "all", reportingPeriod: "none" })))
+      .toMatchObject({ reportingPeriod: "none" });
+    expect(parseDocumentQueue({ view: "all", reportingPeriod: "none", readiness: "blockers" }).readiness)
+      .toBeUndefined();
+    expect(parseDocumentQueue({ view: "all", reportingPeriod: "2026-13" }).reportingPeriod).toBeUndefined();
+    expect(parseDocumentQueue({ view: "all", reportingPeriod: "October" }).reportingPeriod).toBeUndefined();
+  });
+
   it("drops unknown parameters when normalizing action redirects", () => {
     expect(normalizeDocumentQueueQuery("view=failed&next=https%3A%2F%2Fevil.test&hasFindings=1"))
       .toBe("view=failed&hasFindings=1");
