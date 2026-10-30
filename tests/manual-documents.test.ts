@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { SAMPLE_EXTRACTION } from "@/ai/fake";
-import { approveDocument, correctDocument, createManualDocument, getDocument, listCompanyDocuments, listExtractionVersions, readDocumentPages, readDocumentRows, reprocessDocument, updateDocumentReporting } from "@/application/documents";
+import { approveDocument, correctDocument, createManualDocument, getDocument, listCompanyDocuments, listExtractionVersions, mergeDocuments, moveDocumentPage, readDocumentPages, readDocumentRows, reprocessDocument, splitDocument, updateDocumentReporting } from "@/application/documents";
 import type { ExtractionPayload } from "@/application/extraction-payload";
 import { listSourceFiles } from "@/application/source-files";
 import { getCompanyAiProcessingAllowance } from "@/application/ai-processing-allowance";
@@ -220,4 +220,37 @@ it("refuses inconsistent VAT arithmetic at the database approval boundary even w
   expect(direct.error).toBeNull();
   const approval = await administrator.client.rpc("approve_document", { target_document_id: direct.data!, reviewed_version: 1 });
   expect(approval.error).toMatchObject({ code: "P0001", hint: "document_validation_failed" });
+});
+
+it.each(["merge", "split", "move"] as const)("refuses %s through commands and RPCs without losing either manual Document or its history", async (operation) => {
+  const administrator = await administratorWithCompany();
+  const ids: string[] = [];
+  for (const documentNumber of ["MANUAL-LEFT", "MANUAL-RIGHT"]) {
+    const result = await createManualDocument(administrator.client, {
+      companyId: administrator.companyId, payload: { ...SAMPLE_EXTRACTION, documentNumber },
+    });
+    if (!result.ok) throw new Error(result.error);
+    ids.push(result.value.id);
+  }
+  const beforeDocuments = await Promise.all(ids.map((id) => getDocument(administrator.client, administrator.companyId, id)));
+  const beforeVersions = await Promise.all(ids.map((id) => listExtractionVersions(administrator.client, administrator.companyId, id)));
+  const beforeList = await listCompanyDocuments(administrator.client, administrator.companyId);
+  const worker = testWorker();
+  const input = { companyId: administrator.companyId };
+  const result = operation === "merge"
+    ? await mergeDocuments(administrator.client, worker.jobs, { ...input, leftDocumentId: ids[0], rightDocumentId: ids[1] })
+    : operation === "split"
+      ? await splitDocument(administrator.client, worker.jobs, { ...input, documentId: ids[0], splitAfterPage: 1 })
+      : await moveDocumentPage(administrator.client, worker.jobs, { ...input, sourceDocumentId: ids[0], targetDocumentId: ids[1], page: 1 });
+  expect(result).toEqual({ ok: false, error: "not_correctable" });
+  const direct = operation === "merge"
+    ? await administrator.client.rpc("merge_documents", { left_document_id: ids[0], right_document_id: ids[1] })
+    : operation === "split"
+      ? await administrator.client.rpc("split_document", { target_document_id: ids[0], split_after_page: 1 })
+      : await administrator.client.rpc("move_document_page", { source_document_id: ids[0], target_document_id: ids[1], page: 1 });
+  expect(direct.error).toMatchObject({ code: "P0001", hint: "not_correctable" });
+  expect(await Promise.all(ids.map((id) => getDocument(administrator.client, administrator.companyId, id)))).toEqual(beforeDocuments);
+  expect(await Promise.all(ids.map((id) => listExtractionVersions(administrator.client, administrator.companyId, id)))).toEqual(beforeVersions);
+  expect(await listCompanyDocuments(administrator.client, administrator.companyId)).toEqual(beforeList);
+  expect(worker.queued).toEqual([]);
 });
