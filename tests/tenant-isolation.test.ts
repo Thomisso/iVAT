@@ -18,6 +18,10 @@ import {
 } from "./support/fixtures";
 
 describe("tenant isolation", () => {
+  it("refuses Company discovery to an anonymous caller", async () => {
+    await expect(listMyCompanies(anonymousClient())).rejects.toMatchObject({ code: "42501" });
+  });
+
   it("hides another Organization and its Companies from the application layer", async () => {
     const a = await administratorWithCompany("Organization A");
     const b = await signedUpUser("Organization B");
