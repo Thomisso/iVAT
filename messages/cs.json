@@ -490,23 +490,45 @@
     "credential_required": "Při změně poskytovatele zadejte nové přihlašovací údaje.",
     "invalid_allowance": "Limit zpracování musí být nezáporné celé číslo nebo neomezený.",
     "direction_required": "Před schválením nastavte směr dokladu.",
-    "batch_processing": "Dávka se ještě zpracovává. Počkejte, až zpracování skončí."
+    "batch_processing": "Dávka se ještě zpracovává. Počkejte, až zpracování skončí.",
+    "invalid_price": "Zadejte obě ceny jako nezáporná čísla, nebo obě nechte prázdné.",
+    "unknown_model": "Konfigurace AI tento model nepoužívá."
   },
   "aiUsage": {
     "platformNav": "Využití AI na platformě",
     "platformTitle": "Využití AI na platformě",
-    "platformIntro": "Počty požadavků a tokenů napříč organizacemi podle poskytovatele a modelu.",
+    "platformIntro": "Požadavky, tokeny a cena napříč organizacemi. Ceny jsou v USD podle stavu v okamžiku volání.",
     "filters": "Filtry využití AI",
     "from": "Od",
     "to": "Do",
     "organization": "Organizace",
     "filter": "Filtrovat",
-    "provider": "Poskytovatel",
     "model": "Model",
     "requests": "Požadavky",
     "inputTokens": "Vstupní tokeny",
     "outputTokens": "Výstupní tokeny",
-    "empty": "V tomto období není zaznamenáno využití AI"
+    "empty": "V tomto období není zaznamenáno využití AI",
+    "company": "Firma",
+    "configuration": "Konfigurace AI",
+    "operation": "Operace",
+    "groupBy": "Seskupit podle",
+    "all": "Vše",
+    "clear": "Zrušit filtry",
+    "cost": "Cena (USD)",
+    "unknownCost": "Neznámá",
+    "unknownCostEvents": "Události s neznámou cenou",
+    "total": "Celkem",
+    "noConfiguration": "Bez konfigurace AI",
+    "invalidPeriod": "Konec období nesmí být před jeho začátkem.",
+    "operations": { "split": "Rozdělení", "extract": "Vytěžení" },
+    "groupings": {
+      "organization": "Organizace",
+      "company": "Firma",
+      "ai_configuration": "Konfigurace AI",
+      "model": "Model",
+      "operation": "Operace",
+      "month": "Měsíc"
+    }
   },
   "auditLog": {
     "organizationNav": "Auditní log organizace {organization}",
@@ -540,7 +562,7 @@
     "title": "Nastavení AI platformy",
     "intro": "Vytvářejte AI konfigurace vlastněné platformou, přiřazujte je firmám a spravujte celoživotní limity zpracování.",
     "configurations": "AI konfigurace",
-    "configurationsIntro": "Vytvářejte konfigurace vlastněné platformou a přiřazujte je firmám. Uložené přihlašovací údaje ani modely se na tuto obrazovku nikdy nevracejí.",
+    "configurationsIntro": "Vytvářejte konfigurace vlastněné platformou a přiřazujte je firmám. Uložené přihlašovací údaje se na tuto obrazovku nikdy nevracejí.",
     "configurationLabel": "Název konfigurace",
     "provider": "Poskytovatel",
     "configurationCredential": "Přihlašovací údaje poskytovatele",
@@ -561,7 +583,13 @@
     "unlimited": "neomezeno",
     "allowanceUsage": "Využito {used} z {allowance}; na navýšení limitu čeká {waiting} dokladů.",
     "splitModel": "Model pro rozdělení",
-    "extractModel": "Model pro vytěžení"
+    "extractModel": "Model pro vytěžení",
+    "modelPrices": "Ceny modelů",
+    "modelPricesFor": "Ceny modelů konfigurace {label}",
+    "modelPricesIntro": "Cena v USD za milion tokenů. Nové využití AI se ocení těmito cenami; zaznamenané využití si cenu ponechá. U modelu bez ceny nechte obě pole prázdná.",
+    "inputPrice": "{model}: cena vstupu (USD / 1M tokenů)",
+    "outputPrice": "{model}: cena výstupu (USD / 1M tokenů)",
+    "saveModelPrices": "Uložit ceny"
   },
   "platformAdministration": {
     "nav": "Správa platformy",

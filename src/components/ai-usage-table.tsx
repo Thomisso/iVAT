@@ -3,12 +3,14 @@ import { EmptyState } from "./empty-state";
 
 export type AiUsageTableRow = {
   id: string;
-  owner: string;
-  provider: string;
-  model: string;
-  requests: number;
-  inputTokens: number;
-  outputTokens: number;
+  group: string;
+  /** Formatted for display, like every value below. */
+  requests: string;
+  inputTokens: string;
+  outputTokens: string;
+  /** The known cost, or the unknown-cost wording. */
+  cost: string;
+  unknownCostEvents: string;
 };
 
 export function AiUsageTable({
@@ -18,23 +20,23 @@ export function AiUsageTable({
   rows: AiUsageTableRow[];
   labels: {
     caption: string;
-    owner: string;
-    provider: string;
-    model: string;
+    group: string;
     requests: string;
     inputTokens: string;
     outputTokens: string;
+    cost: string;
+    unknownCostEvents: string;
     empty: string;
   };
 }) {
   if (rows.length === 0) return <EmptyState icon="clock" title={labels.empty} />;
   const columns: DataTableColumn<AiUsageTableRow>[] = [
-    { key: "owner", header: labels.owner },
-    { key: "provider", header: labels.provider },
-    { key: "model", header: labels.model, mono: true },
+    { key: "group", header: labels.group },
     { key: "requests", header: labels.requests, align: "right" },
     { key: "inputTokens", header: labels.inputTokens, align: "right" },
     { key: "outputTokens", header: labels.outputTokens, align: "right" },
+    { key: "cost", header: labels.cost, align: "right" },
+    { key: "unknownCostEvents", header: labels.unknownCostEvents, align: "right" },
   ];
   return <DataTable caption={labels.caption} rows={rows} columns={columns} />;
 }
