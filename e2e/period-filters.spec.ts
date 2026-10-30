@@ -86,3 +86,31 @@ test("Documents and Upload Batches filter by Reporting Period and by No period",
   await page.reload();
   await expect(history).toHaveCount(1);
 });
+
+
+test("an incoming Document chooses and clears its Deferred Claim from generated periods", async ({ baseURL, context, page }) => {
+  const companyId = await createAiCompany(context, page, baseURL);
+  const year = currentReportingYear();
+  await page.goto(`/companies/${companyId}/upload`);
+  await page.locator('input[type="file"]:not([capture])').setInputFiles("tests/fixtures/two-invoices.pdf");
+  await page.getByRole("button", { name: "Upload" }).click();
+  const reviewBatch = page.getByRole("link", { name: "Review 2 Documents" });
+  await expect(reviewBatch).toBeVisible({ timeout: 45_000 });
+  await reviewBatch.click();
+  const href = await page.getByRole("table", { name: "Documents" }).getByRole("link").first().getAttribute("href");
+  const documentId = href!.split("/documents/")[1].split("?")[0];
+  await setBrowserDocumentTaxPointFixture(documentId, { direction: "incoming", taxPointDate: `${year}-10-10` });
+  await page.goto(`/companies/${companyId}/documents/${documentId}`);
+  const claim = page.getByRole("combobox", { name: "Move input VAT claim to" });
+  await expect(claim.locator("option")).toHaveText(["Tax Point Date period (no deferral)", `${year}-11`, `${year}-12`]);
+  await claim.selectOption(`${year}-12`);
+  await page.getByRole("button", { name: "Save Reporting Period" }).click();
+  await expect(claim).toHaveValue(`${year}-12`);
+  await page.reload();
+  await expect(claim).toHaveValue(`${year}-12`);
+  await claim.selectOption("");
+  await page.getByRole("button", { name: "Save Reporting Period" }).click();
+  await expect(claim).toHaveValue("");
+  await page.reload();
+  await expect(claim).toHaveValue("");
+});

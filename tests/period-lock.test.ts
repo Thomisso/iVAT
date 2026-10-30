@@ -4,6 +4,7 @@ import {
   approveDocument,
   correctDocument,
   documentPeriodLocks,
+  listDeferredClaimPeriods,
   listCompanyDocuments,
   listDocuments,
   listExtractionVersions,
@@ -503,6 +504,7 @@ it("refuses moving a Document out of a locked Reporting Period", async () => {
 
 it("refuses moving a Document into a locked Reporting Period", async () => {
   const company = await lockedCompanyWithDocuments({ period: "2026-11" });
+  expect(await listDeferredClaimPeriods(company.client, company.companyId, company.documents[0].id)).toEqual(["2026-12"]);
   expect(
     await updateDocumentReporting(company.client, {
       companyId: company.companyId,

@@ -838,8 +838,9 @@
     "noImage": "The original of this document cannot be shown.",
     "reportingAssignment": {
       "title": "Input VAT Reporting Period",
+      "defaultPeriod": "Tax Point Date period (no deferral)",
       "claimedReportingPeriod": "Move input VAT claim to",
-      "claimedReportingPeriodHint": "Optional. Enter a later month (2026-12) or quarter (2027-Q1) that matches the Company's filing frequency.",
+      "claimedReportingPeriodHint": "Choose an unlocked later period, at most three years after the Tax Point Date.",
       "claimedReportingPeriodPlaceholder": "2026-12 or 2027-Q1",
       "save": "Save Reporting Period",
       "saving": "Saving…"

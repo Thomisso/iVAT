@@ -54,7 +54,8 @@ export function reportingPeriodForDocument(
     claimedStart &&
     reportingPeriodForDate(claimedStart, reportingYears) ===
       document.claimedReportingPeriod &&
-    claimedStart > reportingPeriodStart(assigned)!
+    claimedStart > reportingPeriodStart(assigned)! &&
+    claimedStart <= `${Number(document.taxPointDate.slice(0, 4)) + 3}${document.taxPointDate.slice(4)}`
   ) {
     return document.claimedReportingPeriod;
   }
