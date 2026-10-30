@@ -55,6 +55,7 @@ import {
   assignCompanyAiConfiguration,
   createAiConfiguration,
   setDefaultAiConfiguration,
+  setAiModelPrices,
   updateAiConfiguration,
 } from "@/application/ai-configurations";
 import { setCompanyAiProcessingAllowance } from "@/application/ai-processing-allowance";
@@ -769,6 +770,40 @@ export async function updateAiConfigurationAction(
     "splitModel",
     "extractModel",
   ]);
+  refresh();
+  return { error: null, values: {} };
+}
+
+/** An empty price is no price; a decimal comma is accepted. */
+function priceField(value: FormDataEntryValue): number | null {
+  const text = String(value).trim().replace(",", ".");
+  return text === "" ? null : Number(text);
+}
+
+export async function setAiModelPricesAction(
+  _state: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const models = formData.getAll("model").map(String);
+  const inputPrices = formData.getAll("inputPricePerMillion");
+  const outputPrices = formData.getAll("outputPricePerMillion");
+  const result = await setAiModelPrices(await requireUserClient(), {
+    configurationId: field(formData, "configurationId"),
+    prices: models.map((model, index) => ({
+      model,
+      inputPricePerMillion: priceField(inputPrices[index] ?? ""),
+      outputPricePerMillion: priceField(outputPrices[index] ?? ""),
+    })),
+  });
+  if (!result.ok) {
+    return {
+      error: result.error,
+      values: Object.fromEntries(models.flatMap((model, index) => [
+        [`inputPricePerMillion:${model}`, String(inputPrices[index] ?? "")],
+        [`outputPricePerMillion:${model}`, String(outputPrices[index] ?? "")],
+      ])),
+    };
+  }
   refresh();
   return { error: null, values: {} };
 }
