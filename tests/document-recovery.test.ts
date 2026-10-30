@@ -8,6 +8,7 @@ import { fixtureFile } from "./support/files";
 import { systemClient, testWorker } from "./support/worker";
 import { extractJob } from "@/application/processing";
 import { AiProviderError } from "@/application/ai-provider";
+import { setCurrentReportingYear } from "@/application/companies";
 import { getReportingPeriodReadiness } from "@/application/reporting-period-readiness";
 import { listAuditEvents } from "@/application/audit";
 import { generateVatReport, finalizeVatReport } from "@/application/vat-reports";
@@ -149,6 +150,10 @@ it("keeps reasoned exclusion resolved in readiness and preserves both decisions 
   const context = await unextractedDocument();
   const input = { companyId: context.companyId, documentId: context.documentId };
   await rejectDocument(context.client, { ...input, reason: "Not a business expense" });
+  // The real upload date is informational; generate its year rather than assuming the runner's clock is 2026.
+  expect(await setCurrentReportingYear(context.client, {
+    companyId: context.companyId, filingFrequency: "monthly", year: Number(context.documentImportPeriod.slice(0, 4)),
+  })).toEqual({ ok: true, value: null });
   const readiness = await getReportingPeriodReadiness(context.client, { companyId: context.companyId, period: context.documentImportPeriod });
   expect(readiness.ok).toBe(true);
   if (!readiness.ok) throw new Error(readiness.error);
