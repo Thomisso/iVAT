@@ -17,6 +17,7 @@ type UploadItem = {
   status: "queued" | "uploading" | "retrying" | "uploaded" | "refused";
   error: string | null;
   retryable: boolean;
+  sha256: string;
 };
 type UploadDraft = { batchId: string | null; items: UploadItem[] };
 type BatchResult = { ok: true; value: { id: string } } | { ok: false; error: string };
@@ -27,6 +28,11 @@ type TransportResult =
 
 const DRAFT_DATABASE = "ivat-upload-drafts";
 const DRAFT_STORE = "drafts";
+
+async function contentHash(file: File): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
 
 function openDraftDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -65,19 +71,20 @@ async function writeDraft(key: string, draft: UploadDraft | null): Promise<void>
   });
 }
 
-async function beginBrowserUploadBatch(companyId: string, fileCount: number): Promise<BatchResult> {
+async function beginBrowserUploadBatch(companyId: string, batchId: string, items: UploadItem[], signal: AbortSignal): Promise<BatchResult> {
   const response = await fetch(`/companies/${encodeURIComponent(companyId)}/upload-batches`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ fileCount }),
+    body: JSON.stringify({ batchId, fileCount: items.length, selectedFiles: items.map(({ id, sha256 }) => ({ id, sha256 })) }),
+    signal,
   });
   return response.json() as Promise<BatchResult>;
 }
 
-async function finishBrowserUploadBatch(companyId: string, batchId: string) {
+async function finishBrowserUploadBatch(companyId: string, batchId: string, signal: AbortSignal) {
   const response = await fetch(
     `/companies/${encodeURIComponent(companyId)}/upload-batches/${encodeURIComponent(batchId)}/finish`,
-    { method: "POST" },
+    { method: "POST", signal },
   );
   if (!response.ok) throw new Error("upload batch could not be finished");
 }
@@ -87,6 +94,7 @@ function sendFile(
   batchId: string,
   item: UploadItem,
   update: (change: Partial<UploadItem>) => void,
+  signal: AbortSignal,
 ): Promise<TransportResult> {
   return new Promise((resolve) => {
     const request = new XMLHttpRequest();
@@ -102,6 +110,10 @@ function sendFile(
       else resolve({ kind: "refused", error: response?.error ?? "upload_failed" });
     });
     request.addEventListener("error", () => resolve({ kind: "retryable_failure" }));
+    const abort = () => request.abort();
+    signal.addEventListener("abort", abort, { once: true });
+    request.addEventListener("abort", () => resolve({ kind: "retryable_failure" }));
+    request.addEventListener("loadend", () => signal.removeEventListener("abort", abort));
     const data = new FormData();
     data.set("sourceFileId", item.id);
     data.set("batchId", batchId);
@@ -115,10 +127,13 @@ async function uploadFile(
   batchId: string,
   item: UploadItem,
   update: (change: Partial<UploadItem>) => void,
+  signal: AbortSignal,
 ) {
   for (let attempt = 0; attempt < 2; attempt += 1) {
+    if (signal.aborted) return;
     update({ status: attempt === 0 ? "uploading" : "retrying", error: null });
-    const result = await sendFile(companyId, batchId, item, update);
+    const result = await sendFile(companyId, batchId, item, update, signal);
+    if (signal.aborted) return;
     if (result.kind === "uploaded") {
       update({ status: "uploaded", progress: 100, error: null, retryable: false });
       return;
@@ -136,11 +151,13 @@ function PhotoPreview({
   disabled,
   onRemove,
   onRetake,
+  number,
 }: {
   item: UploadItem;
   disabled: boolean;
   onRemove: () => void;
   onRetake: () => void;
+  number: number;
 }) {
   const t = useTranslations("sourceFiles");
   const [url, setUrl] = useState<string | null>(null);
@@ -160,7 +177,7 @@ function PhotoPreview({
     };
   }, [item.file]);
   return (
-    <section className="capture-preview" role="region" aria-label={t("photoPreview")}>
+    <section className="capture-preview" role="region" aria-label={t("photoPreviewLabel", { name: item.file.name, number })}>
       {/* A local blob URL is already the exact client-side preview and cannot use next/image. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       {url && <img src={url} alt={t("photoPreviewAlt", { name: item.file.name })} />}
@@ -180,11 +197,17 @@ export function SourceFileUploadForm({ companyId, limits }: { companyId: string;
   const itemsRef = useRef<UploadItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [selecting, setSelecting] = useState(false);
+  const [duplicateNotice, setDuplicateNotice] = useState(false);
   const [batchId, setBatchId] = useState<string | null>(null);
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
   const camera = useRef<HTMLInputElement>(null);
   const form = useRef<HTMLFormElement>(null);
+  const selectionWork = useRef<Promise<void>>(Promise.resolve());
+  const queuedSelections = useRef(0);
+  const retakeId = useRef<string | null>(null);
+  const activeUpload = useRef<AbortController | null>(null);
   const draftKey = `company:${companyId}`;
 
   const replaceItems = (next: UploadItem[]) => {
@@ -198,28 +221,42 @@ export function SourceFileUploadForm({ companyId, limits }: { companyId: string;
     itemsRef.current = next;
     setItems(next);
   };
+  function removeItem(id: string) {
+    const next = itemsRef.current.filter((item) => item.id !== id);
+    replaceItems(next);
+    setError(next.length > limits.maxBatchFiles ? "too_many_files" : null);
+    setDuplicateNotice(false);
+    form.current?.reset();
+  }
 
   useEffect(() => {
     let active = true;
-    void readDraft(draftKey).then((draft) => {
+    void readDraft(draftKey).then(async (draft) => {
       if (!active) return;
       if (draft?.items.length) {
-        itemsRef.current = draft.items;
-        setItems(draft.items);
+        const restored = await Promise.all(draft.items.map(async (item) => ({ ...item,
+          sha256: item.sha256 ?? await contentHash(item.file),
+          status: item.status === "uploading" || item.status === "retrying" ? "refused" as const : item.status,
+          retryable: item.retryable || item.status === "uploading" || item.status === "retrying",
+        })));
+        if (!active) return;
+        itemsRef.current = restored;
+        setItems(restored);
         setBatchId(draft.batchId);
         setDraftRestored(true);
       }
       setDraftLoaded(true);
     }).catch(() => setDraftLoaded(true));
-    return () => { active = false; };
+    return () => { active = false; activeUpload.current?.abort(); };
   }, [draftKey]);
 
   useEffect(() => {
     if (draftLoaded) void writeDraft(draftKey, items.length ? { batchId, items } : null);
   }, [batchId, draftKey, draftLoaded, items]);
 
-  async function completeBatch(id: string) {
-    await finishBrowserUploadBatch(companyId, id);
+  async function completeBatch(id: string, signal: AbortSignal) {
+    await finishBrowserUploadBatch(companyId, id, signal);
+    if (signal.aborted) return;
     await writeDraft(draftKey, null);
     setBatchId(null);
     form.current?.reset();
@@ -227,17 +264,17 @@ export function SourceFileUploadForm({ companyId, limits }: { companyId: string;
     router.push(`/companies/${encodeURIComponent(companyId)}/upload-batches/${encodeURIComponent(id)}`);
   }
 
-  async function runUploads(id: string, indices: number[]) {
+  async function runUploads(id: string, indices: number[], signal: AbortSignal) {
     let next = 0;
     const worker = async () => {
-      while (next < indices.length) {
+      while (next < indices.length && !signal.aborted) {
         const index = indices[next++];
         const item = itemsRef.current[index];
         if (item.file.size > limits.maxFileBytes) {
           update(index, { status: "refused", error: "file_too_large", retryable: false });
           continue;
         }
-        await uploadFile(companyId, id, item, (change) => update(index, change));
+        await uploadFile(companyId, id, item, (change) => update(index, change), signal);
       }
     };
     await Promise.all(Array.from({ length: Math.min(3, indices.length) }, () => worker()));
@@ -249,17 +286,21 @@ export function SourceFileUploadForm({ companyId, limits }: { companyId: string;
     if (itemsRef.current.length > limits.maxBatchFiles) return setError("too_many_files");
     setPending(true);
     setError(null);
+    const controller = new AbortController();
+    activeUpload.current = controller;
     try {
-      let activeBatchId = batchId;
-      if (!activeBatchId) {
-        const started = await beginBrowserUploadBatch(companyId, itemsRef.current.length);
-        if (!started.ok) return setError(started.error);
-        activeBatchId = started.value.id;
-        setBatchId(activeBatchId);
-      }
+      const activeBatchId = batchId ?? crypto.randomUUID();
+      setBatchId(activeBatchId);
+      // Persist the frozen selection and identities before the first request can arrive.
+      await writeDraft(draftKey, { batchId: activeBatchId, items: itemsRef.current });
+      const started = await beginBrowserUploadBatch(companyId, activeBatchId, itemsRef.current, controller.signal);
+      if (!started.ok) return setError(started.error);
       const indices = itemsRef.current.flatMap((item, index) => item.status === "uploaded" ? [] : [index]);
-      await runUploads(activeBatchId, indices);
-      if (!itemsRef.current.some((item) => item.retryable)) await completeBatch(activeBatchId);
+      await runUploads(activeBatchId, indices, controller.signal);
+      if (!controller.signal.aborted) {
+        await writeDraft(draftKey, { batchId: activeBatchId, items: itemsRef.current });
+        if (itemsRef.current.every((item) => item.status === "uploaded")) await completeBatch(activeBatchId, controller.signal);
+      }
     } catch {
       setError("upload_failed");
     } finally {
@@ -271,9 +312,14 @@ export function SourceFileUploadForm({ companyId, limits }: { companyId: string;
     if (!batchId) return;
     setPending(true);
     setError(null);
+    const controller = new AbortController();
+    activeUpload.current = controller;
     try {
-      await uploadFile(companyId, batchId, itemsRef.current[index], (change) => update(index, change));
-      if (!itemsRef.current.some((item) => item.retryable)) await completeBatch(batchId);
+      await uploadFile(companyId, batchId, itemsRef.current[index], (change) => update(index, change), controller.signal);
+      if (!controller.signal.aborted) {
+        await writeDraft(draftKey, { batchId, items: itemsRef.current });
+        if (itemsRef.current.every((item) => item.status === "uploaded")) await completeBatch(batchId, controller.signal);
+      }
     } catch {
       setError("upload_failed");
     } finally {
@@ -281,22 +327,37 @@ export function SourceFileUploadForm({ companyId, limits }: { companyId: string;
     }
   }
 
-  const selectedItems = (files: File[], kind: UploadItem["kind"]): UploadItem[] => files.map((file) => ({
-    id: crypto.randomUUID(),
-    file,
-    kind,
-    progress: 0,
-    status: "queued",
-    error: null,
-    retryable: false,
-  }));
-  const captured = items.find((item) => item.kind === "capture");
+  function appendFiles(files: File[], kind: UploadItem["kind"], replacingId: string | null = null) {
+    queuedSelections.current += 1;
+    setSelecting(true);
+    selectionWork.current = selectionWork.current.then(async () => {
+      let next = [...itemsRef.current];
+      let duplicate = false;
+      for (const file of files) {
+        const sha256 = await contentHash(file);
+        if (next.some((item) => item.id !== replacingId && item.sha256 === sha256)) {
+          duplicate = true;
+          continue;
+        }
+        if (replacingId) next = next.filter((item) => item.id !== replacingId);
+        next.push({ id: crypto.randomUUID(), file, kind, sha256, progress: 0, status: "queued", error: null, retryable: false });
+      }
+      replaceItems(next);
+      setDuplicateNotice(duplicate);
+      setDraftRestored(false);
+      setError(next.length > limits.maxBatchFiles ? "too_many_files" : null);
+      await writeDraft(draftKey, { batchId: null, items: next });
+    }).catch(() => setError("upload_failed")).finally(() => {
+      queuedSelections.current -= 1;
+      setSelecting(queuedSelections.current > 0);
+    });
+  }
 
   return (
     <form ref={form} onSubmit={submit} className="form upload-form">
       {/* Shown only on a coarse pointer or a small viewport (globals.css). */}
       <div className="capture-action">
-        <label className="iv-btn iv-btn-primary iv-btn-md" htmlFor="document-camera">{t("takeDocumentPhoto")}</label>
+        <label className="iv-btn iv-btn-primary iv-btn-md" htmlFor="document-camera" onClick={() => { retakeId.current = null; }}>{t("takeDocumentPhoto")}</label>
         <input
           ref={camera}
           id="document-camera"
@@ -304,28 +365,29 @@ export function SourceFileUploadForm({ companyId, limits }: { companyId: string;
           type="file"
           accept="image/jpeg,image/png,image/heic,image/heif,.heic,.heif"
           capture="environment"
-          disabled={pending || !!batchId}
+          disabled={pending || !!batchId || !draftLoaded}
           onChange={(event) => {
             const file = event.currentTarget.files?.[0];
             if (!file) return;
-            replaceItems([...itemsRef.current.filter((item) => item.kind !== "capture"), ...selectedItems([file], "capture")]);
-            setDraftRestored(false);
-            setError(null);
+            appendFiles([file], "capture", retakeId.current);
+            retakeId.current = null;
             event.currentTarget.value = "";
           }}
         />
         <p>{t("captureHint")}</p>
       </div>
-      {captured && <PhotoPreview
+      {items.filter((item) => item.kind === "capture").map((captured, index) => <PhotoPreview
+        key={captured.id}
         item={captured}
-        disabled={pending || !!batchId}
-        onRetake={() => camera.current?.click()}
-        onRemove={() => replaceItems(itemsRef.current.filter((item) => item.id !== captured.id))}
-      />}
+        number={index + 1}
+        disabled={pending || selecting || !!batchId}
+        onRetake={() => { retakeId.current = captured.id; camera.current?.click(); }}
+        onRemove={() => removeItem(captured.id)}
+      />)}
       <div className="upload-picker-separator"><span>{t("orChooseFiles")}</span></div>
       <DropZone
         multiple
-        disabled={pending || !!batchId}
+        disabled={pending || !!batchId || !draftLoaded}
         accept=".pdf,.png,.jpg,.jpeg,.heic,.heif,.xlsx,.xls,image/heic,image/heif"
         hint={t("batchHint", {
           count: limits.maxBatchFiles,
@@ -334,26 +396,28 @@ export function SourceFileUploadForm({ companyId, limits }: { companyId: string;
         })}
         onFiles={(event) => {
           const selected = Array.from(event.currentTarget.files ?? []);
-          replaceItems([...itemsRef.current.filter((item) => item.kind !== "picker"), ...selectedItems(selected, "picker")]);
-          setDraftRestored(false);
-          setError(selected.length > limits.maxBatchFiles ? "too_many_files" : null);
+          appendFiles(selected, "picker");
+          event.currentTarget.value = "";
         }}
       />
       {draftRestored && <p role="status" className="iv-muted">{t("draftRestored")}</p>}
+      {duplicateNotice && <p role="status" className="iv-muted">{t("identicalFileOmitted")}</p>}
       <FormError error={error} />
       {items.length > 0 && <ul className="upload-items" aria-live="polite">
         {items.map((item, index) => <li key={item.id}>
           <span className="iv-mono">{item.file.name}</span>
           <progress max={100} value={item.progress} aria-label={t("uploadProgress", { name: item.file.name })} />
           <span>{t(`uploadStatus.${item.status}`)}</span>
+          {!batchId && <Button size="sm" variant="ghost" icon="remove" aria-label={t("removeFile", { name: item.file.name })}
+            disabled={pending || selecting} onClick={() => removeItem(item.id)} />}
           {item.error && <FormError error={item.error} />}
           {item.retryable && <Button size="sm" onClick={() => void retry(index)} disabled={pending}>
             {t("retryUpload", { name: item.file.name })}
           </Button>}
         </li>)}
       </ul>}
-      <Button variant="primary" icon="upload" type="submit" disabled={pending || !draftLoaded}>
-        {pending ? t("uploading") : t("upload")}
+      <Button variant="primary" icon="upload" type="submit" disabled={pending || selecting || !draftLoaded}>
+        {pending ? t("uploading") : batchId ? t("retryFailedFiles") : t("upload")}
       </Button>
     </form>
   );

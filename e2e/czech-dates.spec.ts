@@ -42,7 +42,7 @@ test("dates are shown and entered as dd.mm.rrrr regardless of the browser locale
 
   await page.goto(`/companies/${companyId}/upload`);
   await page.locator('input[type="file"]:not([capture])').setInputFiles("tests/fixtures/two-invoices.pdf");
-  await page.getByRole("button", { name: "Upload", exact: true }).click();
+  await page.getByRole("button", { name: "Upload batch", exact: true }).click();
   await expect(page).toHaveURL(/\/upload-batches\/[0-9a-f-]+$/);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
     /^Batch from \d{2}\.\d{2}\.\d{4} \d{2}:\d{2}$/,

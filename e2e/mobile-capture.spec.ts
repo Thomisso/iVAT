@@ -57,8 +57,11 @@ test("mobile capture persists its preview and recovers one photo without losing 
     buffer: Buffer.from(rotatedHeicFixture()),
   });
 
-  const preview = page.getByRole("region", { name: "Photo preview" });
+  const previews = page.getByRole("region", { name: "Photo preview" });
+  const preview = previews.filter({ hasText: "mobile-receipt.heic" });
   await expect(preview).toContainText("mobile-receipt.heic");
+  await camera.setInputFiles("tests/fixtures/receipt.png");
+  await expect(previews).toHaveCount(2);
   const previewImage = preview.getByRole("img", { name: "Preview of mobile-receipt.heic" });
   await expect.poll(() => previewImage.evaluate((image: HTMLImageElement) => ({
     width: image.naturalWidth,
@@ -81,6 +84,7 @@ test("mobile capture persists its preview and recovers one photo without losing 
     buffer: Buffer.from(rotatedHeicFixture()),
   });
   await expect(preview).toContainText("mobile-receipt.heic");
+  await expect(previews).toHaveCount(2);
   await page.locator('input[type="file"]:not([capture])').setInputFiles("tests/fixtures/receipt.jpg");
 
   await page.goto(`/companies/${companyId}`);
@@ -120,19 +124,27 @@ test("mobile capture persists its preview and recovers one photo without losing 
     }
     await route.continue();
   });
-  await page.getByRole("button", { name: "Upload" }).click();
+  await page.getByRole("button", { name: "Upload batch" }).click();
   await expect(page.getByRole("button", { name: "Retry receipt.jpg" })).toBeVisible();
   await expect(page.locator(".upload-items li").filter({ hasText: "mobile-receipt.heic" })).toContainText("Uploaded");
   expect(heicAttempts).toBe(2);
   expect(jpegAttempts).toBe(2);
 
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Retry receipt.jpg" })).toBeVisible();
+  await expect(camera).toBeDisabled();
+  await expect(page.locator('input[type="file"]:not([capture])')).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Remove mobile-receipt.heic", exact: true })).toHaveCount(0);
+
   await page.getByRole("button", { name: "Retry receipt.jpg" }).click();
   await expect(page).toHaveURL(/\/upload-batches\/[0-9a-f-]+$/);
   expect(jpegAttempts).toBe(3);
+  expect(heicAttempts).toBe(2);
   const storedSourceFile = page.getByRole("link", { name: "mobile-receipt.heic" });
   await expect(storedSourceFile).toBeVisible();
   await expect(page.getByRole("link", { name: "receipt.jpg" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Review 2 Documents" })).toBeVisible({ timeout: 45_000 });
+  await expect(page.getByRole("link", { name: "receipt.png" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Review 3 Documents" })).toBeVisible({ timeout: 45_000 });
   await storedSourceFile.click();
   const storedPreview = page.getByRole("img", { name: "mobile-receipt.heic" });
   await expect(storedPreview).toHaveAttribute("src", /\/preview$/);

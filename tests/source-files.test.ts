@@ -16,10 +16,22 @@ import { fixtureFile, heicFixture, rotatedHeicFixture, workbookFile } from "./su
 import { testWorker } from "./support/worker";
 
 describe("Source File upload", () => {
+  it("converges concurrent attempts of the same Source File without replacing its original bytes", async () => {
+    const { client, companyId } = await administratorWithCompany();
+    const worker = testWorker();
+    const sourceFileId = randomUUID();
+    const input = { companyId, sourceFileId, fileName: "concurrent.png", bytes: fixtureFile("receipt.png") };
+    expect(await Promise.all([
+      uploadSourceFile(client, worker.jobs, input),
+      uploadSourceFile(client, worker.jobs, input),
+    ])).toEqual([{ ok: true, value: { id: sourceFileId } }, { ok: true, value: { id: sourceFileId } }]);
+    expect(await listSourceFiles(client, companyId)).toHaveLength(1);
+    expect((await readSourceFile(client, companyId, sourceFileId))?.bytes).toEqual(fixtureFile("receipt.png"));
+  });
   it("returns the same Source File when the client retries after losing the response", async () => {
     const { client, companyId } = await administratorWithCompany();
     const worker = testWorker();
-    const sourceFileId = "00000000-0000-4000-8000-000000000082";
+    const sourceFileId = randomUUID();
     const input = {
       companyId,
       sourceFileId,

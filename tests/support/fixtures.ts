@@ -332,7 +332,8 @@ export async function uploadBatchWithWaitingDocuments(count: number) {
       companyId: admin.companyId,
       batchId: batch.value.id,
       fileName: `large-${fileIndex}.pdf`,
-      bytes,
+      // These are distinct Source Files, even when their page counts match.
+      bytes: new Uint8Array([...bytes, ...new TextEncoder().encode(`\n% source ${fileIndex}`)]),
     });
     if (!uploaded.ok) throw new Error(uploaded.error);
     const documentsInFile = Math.min(50, count - created);

@@ -42,7 +42,7 @@ test("opening a finished batch marks its notification read, and the batch can be
 
   await page.goto(`/companies/${companyId}/upload`);
   await page.locator('input[type="file"]:not([capture])').setInputFiles("tests/fixtures/two-invoices.pdf");
-  await page.getByRole("button", { name: "Upload", exact: true }).click();
+  await page.getByRole("button", { name: "Upload batch", exact: true }).click();
   await expect(page).toHaveURL(/\/upload-batches\/[0-9a-f-]+$/);
   const batchId = new URL(page.url()).pathname.split("/").at(-1)!;
 

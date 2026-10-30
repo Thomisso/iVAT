@@ -261,6 +261,7 @@
     "takeDocumentPhoto": "Take document photo",
     "captureHint": "Uses the rear camera when your device provides one. Each photo becomes one Source File.",
     "photoPreview": "Photo preview",
+    "photoPreviewLabel": "Photo preview {number}: {name}",
     "photoPreviewAlt": "Preview of {name}",
     "onePhotoOneSourceFile": "This photo will be stored as one Source File.",
     "retakePhoto": "Retake photo",
@@ -269,7 +270,10 @@
     "draftRestored": "Draft restored. No file is marked uploaded until the server stores it.",
     "uploadProgress": "Upload progress for {name}",
     "retryUpload": "Retry {name}",
-    "upload": "Upload",
+    "removeFile": "Remove {name}",
+    "identicalFileOmitted": "Identical file contents are already in the queue; another copy was not added.",
+    "retryFailedFiles": "Retry unsuccessful files",
+    "upload": "Upload batch",
     "uploading": "Uploading…",
     "batchComplete": "Processing finished for {count, plural, one {# Source File} other {# Source Files}} in your batch.",
     "uploadStatus": {
@@ -421,6 +425,7 @@
     "invalid": "Enter a valid date as dd.mm.yyyy."
   },
   "errors": {
+    "identical_file": "Identical file contents already belong to this batch.",
     "organization_name_required": "Enter the name of your organization.",
     "email_taken": "An account with this email already exists.",
     "weak_password": "The password is too weak. Use at least 8 characters.",
