@@ -19,6 +19,7 @@ const environment = {
 };
 const managed = [];
 const serviceLogDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "ivat-e2e-"));
+environment.IVAT_E2E_SERVICE_LOG_DIRECTORY = serviceLogDirectory;
 
 async function phase(label, operation) {
   const startedAt = performance.now();
@@ -162,6 +163,12 @@ async function main() {
     { cwd: process.cwd(), env: environment, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
   ));
   environment.MAILPIT_URL = localStack.MAILPIT_URL;
+  const smtpPort = fs.readFileSync(".env.local", "utf8").match(/^SMTP_PORT=(\d+)$/m)?.[1];
+  if (!smtpPort) throw new Error("Local invitation SMTP capture is not configured");
+  Object.assign(environment, {
+    SMTP_HOST: "127.0.0.1", SMTP_PORT: smtpPort, SMTP_LOCAL_CAPTURE: "true",
+    SMTP_USER: "", SMTP_PASS: "", SMTP_ADMIN_EMAIL: "noreply@ivat.cz",
+  });
   if (!useDevelopmentServer) {
     await phase("Build production application", () => command("npm", ["run", "build"]));
   }

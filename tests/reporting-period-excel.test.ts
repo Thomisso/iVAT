@@ -15,6 +15,7 @@ import { provisionedUser } from "./support/clients";
 import { fixtureFile } from "./support/files";
 import { testWorker } from "./support/worker";
 import { addLegacyRateBreakdownVersionFixture } from "./support/rate-breakdown-history";
+import { setLegacyDocumentApprovedFixture } from "./support/legacy-document-approval";
 
 const COLUMNS = [
   "Document ID",
@@ -64,6 +65,12 @@ async function companyWithOverviewDocuments() {
     documentIds.push(document.id);
   }
   for (const index of [0, 2]) {
+    // Preserve coverage of historical approvals with invalid identity findings;
+    // new approvals must resolve those errors first.
+    if (index === 2) {
+      await setLegacyDocumentApprovedFixture(inject("databaseUrl"), documentIds[index]);
+      continue;
+    }
     expect(await approveDocument(administrator.client, {
       companyId: administrator.companyId,
       documentId: documentIds[index],

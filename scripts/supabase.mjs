@@ -87,7 +87,7 @@ function prepareWorktreeWorkdir(slot) {
         return `${line}\n  ${JSON.stringify(process.env.SUPABASE_E2E_REDIRECT_URL)},`;
       }
       return line.replace(
-        /^((?:port|shadow_port|inspector_port) = )(\d+)/,
+        /^((?:port|shadow_port|inspector_port|smtp_port|pop3_port) = )(\d+)/,
         (_, key, port) => `${key}${Number(port) + 100 * slot}`,
       );
     })
@@ -128,11 +128,18 @@ function writeEnvLocal() {
       stdio: ["ignore", "pipe", "ignore"],
     }),
   );
+  const configurationFile = path.join(isLinkedWorktree ? generatedWorkdir : root, "supabase", "config.toml");
+  const smtpSection = fs.readFileSync(configurationFile, "utf8").match(/\[local_smtp\]([^]*?)(?=\n\[|$)/)?.[1];
+  const smtpPort = smtpSection?.match(/^smtp_port = (\d+)/m)?.[1];
   const managed = {
     NEXT_PUBLIC_SUPABASE_URL: stack.API_URL,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: stack.PUBLISHABLE_KEY,
     DATABASE_URL: stack.DB_URL,
     SUPABASE_SECRET_KEY: stack.SECRET_KEY,
+    ...(smtpPort && stack.MAILPIT_URL ? {
+      SMTP_HOST: "127.0.0.1", SMTP_PORT: smtpPort,
+      SMTP_LOCAL_CAPTURE: "true", SMTP_ADMIN_EMAIL: "noreply@ivat.cz",
+    } : {}),
   };
   // Settings the developer may change; written only when missing.
   const appOrigin = isLinkedWorktree ? "http://127.0.0.1:3100" : "http://127.0.0.1:3000";

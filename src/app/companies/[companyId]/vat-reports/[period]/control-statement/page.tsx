@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getCompany } from "@/application/companies";
-import { isZeroRateBreakdownLine } from "@/application/extraction-payload";
+import { controlStatementPreviewData } from "@/application/control-statement-preview";
 import { getCompanyFilingDefaults, resolveEpoAddress } from "@/application/company-filing-defaults";
 import { getReportingPeriodReadiness } from "@/application/reporting-period-readiness";
 import { getPeriodLock, getVatReport } from "@/application/vat-reports";
@@ -43,6 +43,7 @@ export default async function ControlStatementPage({
   ]);
   if (!company || !report || !readinessResult.ok) notFound();
   const readiness = readinessResult.value;
+  const preview = controlStatementPreviewData(report.result);
   const epoAddress = resolveEpoAddress(report.result.company, filingDefaults);
   return (
     <PageLayout className="company-workspace vat-reports vat-output-page" measure="wide">
@@ -75,67 +76,52 @@ export default async function ControlStatementPage({
       </section>
       <section className="vat-statutory-output">
         <h2>{t("controlStatement")}</h2>
-        <p>{t("controlStatementHint", { count: report.result.controlStatement.length })}</p>
-        {report.result.controlStatement.length === 0 ? (
+        <p>{t("controlStatementHint", { count: preview.sections.length })}</p>
+        {preview.sections.length === 0 ? (
           <p>{t("noEntries")}</p>
         ) : (
-          report.result.controlStatement.map((entry, index) => (
-            <div className="report-section" id={`control-entry-${index}`} key={`${entry.section}-${index}`}>
-              <h3>{t("section", { section: entry.section })}</h3>
-              {entry.documentNumber && (
-                <p>
-                  {entry.documentNumber} · {entry.counterpartyVatId} ·{" "}
-                  {formatDate(entry.taxPointDate!)}
-                  {entry.reverseChargeCode && (
-                    <>
-                      {" "}· {t("reverseChargeCode")} {entry.reverseChargeCode}
-                    </>
-                  )}
-                </p>
-              )}
+          preview.sections.map((section) => (
+            <section className="report-section" key={section.section}>
+              <h3>{t("section", { section: section.section })}</h3>
               <DataTable
-                caption={t("section", { section: entry.section })}
-                rows={entry.rateBreakdown.filter((rate) => !isZeroRateBreakdownLine(rate)).map((rate) => ({
-                  ...rate,
-                  id: String(rate.rate),
-                }))}
+                caption={t("section", { section: section.section })}
+                rows={section.entries.flatMap(entry => (entry.rateBreakdown.length ? entry.rateBreakdown : [null]).map((rate, rateIndex) => ({
+                  id: `${entry.entryIndex}-${rateIndex}`, entry, rate, rateIndex,
+                })))}
+                rowId={row => `control-entry-${row.entry.entryIndex}${row.rateIndex ? `-rate-${row.rateIndex}` : ""}`}
                 columns={[
                   {
-                    key: "rate",
-                    header: t("rateLabel"),
-                    render: (rate) => t("rate", { rate: rate.rate }),
+                    key: "document",
+                    header: t("controlStatementPdf.document"),
+                    render: row => row.rateIndex === 0 && <div className="control-statement-entry">
+                      <span>{row.entry.documentNumber ?? t("aggregateEntry")}</span>
+                      {row.entry.counterpartyVatId && <small>{row.entry.counterpartyVatId}</small>}
+                      {row.entry.counterpartyCountry && <small>{row.entry.counterpartyCountry}</small>}
+                      {row.entry.taxPointDate && <small>{formatDate(row.entry.taxPointDate)}</small>}
+                      {row.entry.reverseChargeCode && <small>{t("reverseChargeCode")} {row.entry.reverseChargeCode}</small>}
+                    </div>,
+                  },
+                  { key: "rate", header: t("rateLabel"), render: row => row.rate && t("rate", { rate: row.rate.rate }) },
+                  {
+                    key: "netAmount", header: t("netAmount"), align: "right",
+                    render: row => row.rate && <ReportAmount amount={row.rate.netAmount} companyId={companyId}
+                      returnTo={`${context}#control-entry-${row.entry.entryIndex}`} documentIds={row.rate.documentIds} documents={report.documents} />,
                   },
                   {
-                    key: "netAmount",
-                    header: t("netAmount"),
-                    align: "right",
-                    render: (rate) => (
-                      <ReportAmount
-                        amount={rate.netAmount}
-                        companyId={companyId}
-                        returnTo={`${context}#control-entry-${index}`}
-                        documentIds={rate.documentIds}
-                        documents={report.documents}
-                      />
-                    ),
-                  },
-                  {
-                    key: "vatAmount",
-                    header: t("vatAmount"),
-                    align: "right",
-                    render: (rate) => (
-                      <ReportAmount
-                        amount={rate.vatAmount}
-                        companyId={companyId}
-                        returnTo={`${context}#control-entry-${index}`}
-                        documentIds={rate.documentIds}
-                        documents={report.documents}
-                      />
-                    ),
+                    key: "vatAmount", header: t("vatAmount"), align: "right",
+                    render: row => row.rate && <ReportAmount amount={row.rate.vatAmount} companyId={companyId}
+                      returnTo={`${context}#control-entry-${row.entry.entryIndex}`} documentIds={row.rate.documentIds} documents={report.documents} />,
                   },
                 ]}
               />
-            </div>
+              <h4>{t("controlStatementPdf.sectionTotals")}</h4>
+              <dl className="report-totals" aria-label={`${t("section", { section: section.section })} · ${t("controlStatementPdf.sectionTotals")}`}>
+                <div><dt>{t("netAmount")}</dt><dd><ReportAmount amount={section.totals.netAmount} companyId={companyId}
+                  returnTo={`${context}#control-entry-${section.entries[0].entryIndex}`} documentIds={section.documentIds} documents={report.documents} /></dd></div>
+                <div><dt>{t("vatAmount")}</dt><dd><ReportAmount amount={section.totals.vatAmount} companyId={companyId}
+                  returnTo={`${context}#control-entry-${section.entries[0].entryIndex}`} documentIds={section.documentIds} documents={report.documents} /></dd></div>
+              </dl>
+            </section>
           ))
         )}
       </section>

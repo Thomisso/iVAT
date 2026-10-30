@@ -266,6 +266,7 @@ async function relevantDocuments(
     .filter((document) =>
       !assignedIds.has(document.id) &&
       document.reportingPeriod === null &&
+      document.importDate !== null &&
       reportingPeriodForDate(document.importDate, reportingYears) === period,
     )
     .map((document) => document.id);

@@ -261,7 +261,9 @@
     },
     "invitationStatus": {
       "pending": "Čeká na přijetí",
-      "expired": "Platnost skončila"
+      "expired": "Platnost skončila",
+      "cancelled": "Zrušena",
+      "replaced": "Nahrazena"
     },
     "acceptTitle": "Přijmout pozvánku",
     "acceptIntro": "Přijetím pozvánky získáte jako uživatel přístup k organizaci nebo firmě.",
@@ -270,7 +272,26 @@
     "logInToAcceptTitle": "Přihlaste se pro přijetí",
     "existingUserIntro": "Použijte své stávající přihlašovací údaje. Vaše heslo se nezmění.",
     "newPassword": "Nové heslo",
-    "accept": "Přijmout pozvánku"
+    "accept": "Přijmout pozvánku",
+    "generateLink": "Vygenerovat link",
+    "invitationLink": "Odkaz pozvánky",
+    "copyLink": "Zkopírovat link",
+    "linkCopied": "Odkaz zkopírován",
+    "copyManually": "Označte a zkopírujte odkaz výše.",
+    "replaceLink": "Vygenerovat nový link",
+    "cancelInvitation": "Zrušit pozvánku",
+    "legacyLinkIntro": "Tento starší odkaz nelze znovu zkopírovat. Pro kopírování vygenerujte nový.",
+    "loadingInvitation": "Načítání pozvánky…",
+    "wrongAccountIntro": "Jste přihlášeni jiným účtem. Odhlaste se a přijměte pozvánku pod určeným e-mailem.",
+    "signOutToAccept": "Odhlásit a pokračovat",
+    "signedInIntro": "Přijměte pozvánku pod přihlášeným účtem.",
+    "emailMessage": {
+      "subject": "Vaše pozvánka do iVAT",
+      "heading": "Pozvánka do iVAT",
+      "introduction": "Otevřete pozvánku a výslovně přijměte přístup. Nový uživatel si zvolí heslo, existující použije stávající přihlášení.",
+      "linkLabel": "Otevřít pozvánku",
+      "expiry": "Pozvánka je jednorázová a platí sedm dní od vytvoření."
+    }
   },
   "dashboard": {
     "companies": "Firmy"
@@ -569,11 +590,21 @@
     "invalid_credential": "Zadejte platné přihlašovací údaje poskytovatele.",
     "credential_required": "Při změně poskytovatele zadejte nové přihlašovací údaje.",
     "invalid_allowance": "Limit zpracování musí být nezáporné celé číslo nebo neomezený.",
+    "tax_point_date_required": "Pro ruční uložení zadejte platné DUZP.",
+    "document_incomplete": "Doplňte číslo dokladu, DUZP, měnu, rozpis sazeb a celkové částky před schválením.",
+    "counterparty_vat_id_required": "Před schválením doplňte platné DIČ protistrany pro tento režim DPH.",
+    "currency_conversion_required": "Před schválením doplňte přepočet do CZK.",
+    "document_validation_failed": "Před schválením opravte blokující nálezy dokladu.",
     "vat_regime_required": "Před schválením nastavte režim DPH dokladu.",
     "direction_required": "Před schválením nastavte směr dokladu.",
     "batch_processing": "Dávka se ještě zpracovává. Počkejte, až zpracování skončí.",
     "invalid_price": "Zadejte obě ceny jako nezáporná čísla, nebo obě nechte prázdné.",
-    "unknown_model": "Konfigurace AI tento model nepoužívá."
+    "unknown_model": "Konfigurace AI tento model nepoužívá.",
+    "invitation_cancelled": "Tato pozvánka byla zrušena. Požádejte administrátora o novou.",
+    "invitation_replaced": "Tato pozvánka byla nahrazena. Použijte nový odkaz od administrátora.",
+    "invitation_busy": "Probíhá přijímání pozvánky. Za chvíli to zkuste znovu.",
+    "invitation_identity_changed": "Tento účet již existuje. Obnovte pozvánku a použijte stávající přihlašovací údaje.",
+    "invitation_unavailable": "Pozvánku se nepodařilo načíst. Obnovte stránku a zkuste to znovu."
   },
   "aiUsage": {
     "platformNav": "Využití AI na platformě",
@@ -793,6 +824,8 @@
     "rejected": "Zamítnuto"
   },
   "documents": {
+    "createManual": "Zadat doklad ručně",
+    "manualDocument": "Ručně zadaný doklad",
     "title": "Doklady",
     "pages": "Strany",
     "rows": "Řádky",
@@ -851,6 +884,10 @@
     "moveFirstToPrevious": "Přesunout stranu {page} do předchozího"
   },
   "review": {
+    "createManual": "Zadat doklad ručně",
+    "manualDocument": "Ručně zadaný doklad",
+    "noSourceFile": "K dokladu není přiložen zdrojový soubor.",
+    "manualDraftHint": "Pro uložení zadejte platné DUZP. Ostatní údaje můžete doplnit později; před schválením musí být úplné.",
     "title": "Kontrola dokladu",
     "backToCompany": "← Zpět na firmu",
     "backToDocuments": "← Zpět na Doklady",
@@ -917,6 +954,7 @@
       "missing_bank_account": "Není vyplněn platební účet. Zkontrolujte platební údaje; doklad lze i tak schválit.",
       "bank_account_not_verified": "Dodavatel nebyl nalezen v registru plátců DPH, proto nebylo možné platební účet ověřit. Zkontrolujte jej ručně.",
       "vat_registry_check_not_performed": "Registr plátců DPH nebyl dostupný, proto nebyla provedena kontrola dodavatele a platebního účtu.",
+      "rate_breakdown_incomplete": "Doplňte sazbu, základ a DPH tohoto řádku.",
       "vat_regime_required": "Režim DPH není určen. Před schválením jej vyberte.",
       "direction_unknown": "Směr se nepodařilo určit podle identity firmy. Před schválením jej nastavte.",
       "currency_conversion_not_performed": "Kurz ČNB nebyl dostupný, proto nebylo možné vypočítat částky v CZK.",
@@ -1150,6 +1188,7 @@
     "vatReturn": "Přiznání k DPH",
     "controlStatement": "Kontrolní hlášení",
     "controlStatementHint": "{count, plural, =0 {V tomto snímku není vyplněný žádný oddíl.} one {V tomto snímku je vyplněný # oddíl.} few {V tomto snímku jsou vyplněné # oddíly.} other {V tomto snímku je vyplněno # oddílů.}}",
+    "aggregateEntry": "Souhrnné doklady",
     "documentFallback": "Otevřít doklad",
     "reverseChargeCode": "Kód plnění",
     "rateLabel": "Sazba",
@@ -1206,6 +1245,8 @@
       "rate": "Sazba",
       "taxBaseCzk": "Základ daně (Kč)",
       "vatCzk": "DPH (Kč)",
+      "sectionTotals": "Součty oddílu",
+      "noEntries": "Žádné zahrnuté doklady.",
       "statementTotals": "Součty kontrolního hlášení",
       "subject": "PDF náhled kontrolního hlášení vytvořený aplikací iVAT"
     },
