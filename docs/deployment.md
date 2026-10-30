@@ -343,3 +343,74 @@ Worker updates its health file only after reaching its processing queue.
 Monitor both public availability and Worker health. Keep disk usage below the
 profile limit, including Docker images and local backup retention. Do not run
 automatic pruning until the rollback image and independent backup are retained.
+
+### Controlled deployment command
+
+A prepared release can be applied using its own `deploy/scripts/deploy-release.sh`.
+Run it on the Stack host with Bash, `flock`, `timeout`, Docker and Compose:
+
+```text
+bash <extracted-bundle>/deploy/scripts/deploy-release.sh /srv/stack <extracted-bundle> <existing-compose-project>
+```
+
+The existing project name must be checked from the running containers during
+activation; choosing a new name would create a separate installation. Keep
+`/srv/stack` as the project directory. Never run this command in a fresh data
+directory or copy a test environment file to production.
+
+Registry access uses `GHCR_USER` and `GHCR_TOKEN`; provider synchronization uses
+`ROSTI_API_KEY`. Set them privately, or set `IVAT_DEPLOY_CREDENTIALS_STDIN=1`
+and stream two newline-terminated values to standard input: registry token
+first, Roští API key second. Do not put either secret in command arguments,
+logs or shell history. Registry credentials are kept only in a private
+per-command temporary Docker configuration and removed on exit.
+
+The command acquires the same `/tmp/ivat-backup.lock` used by the daily cron
+job. Before stopping services, it validates the bundle, the newest completed
+daily archive and its image inventory (maximum age 26 hours), gzip integrity,
+and the installation's public build settings. It creates no additional
+backup and needs no local computer or external storage. A refusal at this
+stage leaves the running installation and verified release unchanged.
+
+A private attempt directory under `deploy/attempts` retains the previous
+Compose configuration, provider Compose, revision records and image identities.
+Old images receive retention tags before configuration changes. The command
+updates provider-managed Compose with `call_up=false`, verifies readback,
+stops the old web/Worker/proxy, starts core services and explicitly recreates
+and runs migrations. It then starts the new application, verifies health,
+checks the public HTTPS login page and compares actual selected container
+image IDs. Short downtime is expected.
+
+`deploy/verified-release.json` is the authoritative, atomically published
+verified release record. Legacy revision/image text files are also updated.
+Each attempt has a public-safe `phase` and `result`; detailed service logs
+stay private on the host. A failed workflow is not evidence that nothing
+changed: inspect the recorded phase and previous configuration together
+before deciding how to recover. No application rollback or database restore
+is automatic.
+
+Before the first configuration mutation, the command writes
+`deploy/.deployment-unresolved`. It is removed only after successful
+verification. An unresolved attempt blocks subsequent deployments and makes
+the daily/manual backup script refuse before stopping or restarting services.
+This prevents the backup's restart step from accidentally starting a failed
+candidate. After joint recovery, verify service health and that no migration
+is still running before explicitly removing this marker. Do not remove the
+marker merely to bypass an error.
+
+If a migration times out or the host receives a termination signal, cleanup
+stops its daemon-side container before releasing the lock. If Docker cannot
+confirm that the migration stopped, the attempt reports `needs-intervention`
+and the process retains the lock while retrying that check. Inspect the host
+and migration state before terminating such a process. Cancelling a remote
+runner does not establish the outcome of a host-side deployment.
+
+For a disposable runtime check only, a marker outside `/srv/stack` and an
+explicit local Compose override permit locally built image tags, loopback
+ports and a named Storage volume. These overrides are rejected for the
+production directory. Run the real command tests with:
+
+```bash
+node --test deploy/tests/release-host.test.mjs
+IVAT_RELEASE_RUNTIME_TEST=1 node --test deploy/tests/release-runtime.test.mjs
+```
