@@ -40,7 +40,14 @@ services:
       args:
         NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_PUBLIC_URL}
         NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${ANON_KEY}
-    environment: *app-environment
+    environment:
+      <<: *app-environment
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_ADMIN_EMAIL: ${SMTP_ADMIN_EMAIL:-noreply@ivat.cz}
+
     init: true
     stop_grace_period: 60s
     depends_on:

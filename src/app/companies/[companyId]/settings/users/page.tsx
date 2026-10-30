@@ -1,3 +1,4 @@
+import { configuredInvitationUrls } from "@/lib/invitations";
 import { notFound, redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getCompany, getMyCompanyRole } from "@/application/companies";
@@ -8,6 +9,7 @@ import { requireUserClient } from "@/lib/supabase/server";
 export default async function CompanyUsersSettingsPage({ params }: { params: Promise<{ companyId: string }> }) {
   const { companyId } = await params;
   const client = await requireUserClient();
+  const urls = configuredInvitationUrls();
   const [company, role] = await Promise.all([getCompany(client, companyId), getMyCompanyRole(client, companyId)]);
   if (!company) notFound();
   if (role !== "administrator") redirect(`/companies/${company.id}/settings`);
@@ -20,6 +22,6 @@ export default async function CompanyUsersSettingsPage({ params }: { params: Pro
 
   return <section className="company-settings-section company-settings-users">
     <header><h2>{t("companyTitle", { company: company.name })}</h2></header>
-    <MemberManagement organizationId={company.organizationId} companyId={company.id} companyAccess={companyAccess.value} pendingInvitations={pendingInvitations} />
+    <MemberManagement acceptUrl={urls.ok ? urls.value.acceptUrl : null} organizationId={company.organizationId} companyId={company.id} companyAccess={companyAccess.value} pendingInvitations={pendingInvitations} />
   </section>;
 }
