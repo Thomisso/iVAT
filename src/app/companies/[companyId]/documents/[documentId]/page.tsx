@@ -34,6 +34,8 @@ import { formatDate, formatDateTime, formatMonthName } from "@/lib/format-date";
 import { CorrectionForm } from "./correction-form";
 import { findingMessage } from "./finding-message";
 import { ReportingAssignmentForm } from "./reporting-assignment-form";
+import { companyPageContext, safeCompanyReturnTo, withCompanyReturnTo } from "@/application/return-context";
+import { CompanyReturnLink } from "@/components/company-return-link";
 
 // The review workspace: the Document's original pages next to its extracted
 // data. `?version=N` shows an earlier Extraction Version read-only.
@@ -60,11 +62,13 @@ export default async function DocumentReviewPage({
   const position = await getDocumentQueuePosition(client, companyId, document.id, search);
   const { queue, documents: queuedDocuments, index: queueIndex } = position;
   const queueQuery = documentQueueQuery(queue);
+  const returnTo = safeCompanyReturnTo(companyId, search.returnTo);
+  const currentContext = companyPageContext(companyId, `/companies/${companyId}/documents/${documentId}`, search);
   const listHref = `/companies/${companyId}/documents?${queueQuery}#document-${document.id}`;
   const reviewHref = (id: string, version?: number) => {
     const query = new URLSearchParams(queueQuery);
     if (version !== undefined) query.set("version", String(version));
-    return `/companies/${companyId}/documents/${id}?${query}`;
+    return withCompanyReturnTo(companyId, `/companies/${companyId}/documents/${id}?${query}`, returnTo);
   };
   const locks = await documentPeriodLocks(client, companyId, [document.id]);
   const lockedPeriod = locks[document.id];
@@ -96,7 +100,7 @@ export default async function DocumentReviewPage({
       <PageLayout className="review" measure="wide">
         <header className="review-header">
           <nav className="review-queue-nav" aria-label={t("review.queueNavigation")}>
-            <Link href={queueIndex >= 0 ? listHref : `/companies/${companyId}/documents`}>{t("review.backToDocuments")}</Link>
+            <CompanyReturnLink companyId={companyId} returnTo={returnTo} fallback={queueIndex >= 0 ? listHref : `/companies/${companyId}/documents`} />
             {queueIndex >= 0 && <span>{t("review.queuePosition", { current: queueIndex + 1, total: queuedDocuments.length })}</span>}
             {queueIndex >= 0 && <span className="review-queue-steps">
               {position.previousDocumentId ? <Link href={reviewHref(position.previousDocumentId)}>{t("review.previous")}</Link> : <span aria-disabled="true">{t("review.previous")}</span>}
@@ -110,7 +114,7 @@ export default async function DocumentReviewPage({
             )}
           </h1>
           <p className="iv-muted">
-            <Link href={`/companies/${companyId}/source-files/${file.id}`}>
+            <Link href={withCompanyReturnTo(companyId, `/companies/${companyId}/source-files/${file.id}`, currentContext)}>
               {t("review.sourceFile", { fileName: file.fileName, pages: sourceLocation })}
             </Link>
           </p>
@@ -163,7 +167,7 @@ export default async function DocumentReviewPage({
           {duplicateWarnings.map((warning) => (
             <Notice key={`${warning.kind}-${warning.matchedDocumentId}`} tone="warning">
               {t(`duplicateWarning.${warning.kind}`)}{" "}
-              <Link href={`/companies/${companyId}/documents/${warning.matchedDocumentId}`}>
+              <Link href={withCompanyReturnTo(companyId, `/companies/${companyId}/documents/${warning.matchedDocumentId}`, currentContext)}>
                 {t("duplicateWarning.openMatch")}
               </Link>
             </Notice>
@@ -245,6 +249,7 @@ export default async function DocumentReviewPage({
                   version: String(current.version),
                   nextDocumentId: position.continuationDocumentId ?? "",
                   queueQuery,
+                  returnTo: returnTo ?? "",
                 }}
               >
                 {t("review.approve", { version: current.version })}
@@ -252,7 +257,7 @@ export default async function DocumentReviewPage({
               <CommandButton
                 variant="danger"
                 action={rejectDocumentAction}
-                fields={{ companyId, documentId: document.id, nextDocumentId: position.continuationDocumentId ?? "", queueQuery }}
+                fields={{ companyId, documentId: document.id, nextDocumentId: position.continuationDocumentId ?? "", queueQuery, returnTo: returnTo ?? "" }}
               >
                 {t("review.reject")}
               </CommandButton>

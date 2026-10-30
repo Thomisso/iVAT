@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { companyPageContext, withCompanyReturnTo } from "@/application/return-context";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getCompany, getMyCompanyRole } from "@/application/companies";
@@ -72,12 +73,16 @@ export default async function VatReportsPage({
   const { readiness, steps, documentsToReview, documentsToReviewCount, locked, draftExport } = wizardResult.value;
   const epoAddress = report ? resolveEpoAddress(report.result.company, filingDefaults) : null;
   const readinessCounts = readinessDocumentCounts(readiness);
-  const readinessHref = (filter: ReadinessDocumentFilter) => `/companies/${companyId}/documents?${documentQueueQuery(parseDocumentQueue({
+  const context = companyPageContext(companyId, `/companies/${companyId}/vat-reports`, { ...query, period });
+  const readinessHref = (filter: ReadinessDocumentFilter) => withCompanyReturnTo(companyId, `/companies/${companyId}/documents?${documentQueueQuery(parseDocumentQueue({
     view: "all",
     readiness: filter,
     reportingPeriod: period,
-  }))}`;
-  const periodHref = (segment: string) => `/companies/${companyId}/vat-reports/${period}/${segment}`;
+  }))}`, `${context}#vat-step-review`);
+  const periodHref = (segment: string) => {
+    const href = `/companies/${companyId}/vat-reports/${period}/${segment}`;
+    return segment === "xlsx" ? href : withCompanyReturnTo(companyId, href, `${context}#vat-step-${segment === "exports" ? "export" : "outputs"}`);
+  };
   const stepNumber = (key: VatProcessingStep["key"]) => VAT_PROCESSING_STEPS.indexOf(key) + 1;
   const stepTitle = (key: VatProcessingStep["key"]) => t(`vatReports.wizard.steps.${key}.title`);
   const groupRows = (
@@ -115,7 +120,7 @@ export default async function VatReportsPage({
                     .filter((finding) => finding.documentId === document.id)
                     .map((finding) => finding.code))];
                   return <li key={document.id}>
-                    <Link href={`/companies/${companyId}/documents/${document.id}`}>
+                    <Link href={withCompanyReturnTo(companyId, `/companies/${companyId}/documents/${document.id}`, `${context}#vat-step-review`)}>
                       {document.documentNumber ?? t("vatReports.documentFallback")}
                     </Link>
                     {document.counterparty?.name && <span>{document.counterparty.name}</span>}
@@ -246,6 +251,7 @@ export default async function VatReportsPage({
       </header>
       <PeriodSelector companyId={companyId} period={period} periods={periods} />
       <PeriodNavigation
+        returnTo={`${context}#vat-step-outputs`}
         active="processing"
         companyId={companyId}
         period={period}

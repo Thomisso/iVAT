@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { withCompanyReturnTo } from "@/application/return-context";
 import { getTranslations } from "next-intl/server";
 import type { ReportingPeriodSummary } from "@/application/reporting-period-readiness";
 
@@ -28,11 +29,13 @@ export async function PeriodNavigation({
   period,
   active,
   reportAvailable,
+  returnTo,
 }: {
   companyId: string;
   period: string;
   active: PeriodDestination;
   reportAvailable: boolean;
+  returnTo?: string | null;
 }) {
   const t = await getTranslations("vatReports");
   const destinations: PeriodDestination[] = [
@@ -46,6 +49,8 @@ export async function PeriodNavigation({
       {destinations.map((destination) => {
         const disabled = destination !== "processing" && !reportAvailable;
         const label = t(`destinations.${destination}`);
+        const origin = active === "processing" && destination === "exportHistory"
+          ? returnTo?.replace(/#vat-step-outputs$/, "#vat-step-export") : returnTo;
         return disabled ? (
           <span aria-disabled="true" key={destination}>
             {label}
@@ -53,7 +58,7 @@ export async function PeriodNavigation({
         ) : (
           <Link
             aria-current={active === destination ? "page" : undefined}
-            href={destinationHref(companyId, period, destination)}
+            href={destination === "processing" ? destinationHref(companyId, period, destination) : withCompanyReturnTo(companyId, destinationHref(companyId, period, destination), origin)}
             key={destination}
           >
             {label}

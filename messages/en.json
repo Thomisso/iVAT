@@ -316,6 +316,19 @@
     "dropTitle": "Drop a Source File here",
     "chooseFile": "Choose a file"
   },
+  "returnContext": {
+      "company": "← Back to Company",
+      "documents": "← Back to Documents",
+      "document": "← Back to Document",
+      "processing": "← Back to Processing",
+      "vatReturn": "← Back to VAT Return",
+      "controlStatement": "← Back to Control Statement",
+      "exportHistory": "← Back to Export history",
+      "periods": "← Back to Reporting Periods",
+      "upload": "← Back to Upload",
+      "batch": "← Back to batch",
+      "sourceFile": "← Back to Source File"
+  },
   "periodFilter": {
     "label": "Reporting Period",
     "all": "All periods",
