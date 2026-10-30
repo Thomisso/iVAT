@@ -149,6 +149,8 @@
     "firstReportingMonthOf": "First month of Reporting Year {year}",
     "reportingYearFrequency": "Filing frequency of Reporting Year {year}",
     "reportingYearActions": "Actions",
+    "changeReportingYearFrequency": "Change frequency",
+    "changeReportingYearFirstMonth": "Change first month",
     "changeReportingYear": "Change",
     "deleteReportingYear": "Delete {year}",
     "confirmReportingYearDeletion": "Its Documents lose their Reporting Period",
