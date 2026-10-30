@@ -80,8 +80,8 @@ import { jobQueue } from "@/lib/jobs";
 import { createRequestClient, requireUserClient } from "@/lib/supabase/server";
 import { isLocale, localeCookie } from "@/i18n/locales";
 import { companyContextCookie, serializeCompanyContext } from "@/lib/company-context";
-import { normalizeDocumentQueueQuery } from "@/application/document-queue";
-import { isUuid } from "@/application/client";
+import { documentDecisionHref } from "@/application/document-queue";
+import { safeCompanyReturnTo } from "@/application/return-context";
 
 /**
  * Form state: an error code that the form translates through the `errors`
@@ -442,7 +442,7 @@ export async function deleteUploadBatchAction(_state: FormState, formData: FormD
     batchId: field(formData, "batchId"),
   });
   if (!result.ok) return refused(result.error, formData, ["confirmed"]);
-  redirect(`/companies/${companyId}/upload`);
+  redirect(safeCompanyReturnTo(companyId, field(formData, "returnTo")) ?? `/companies/${companyId}/upload`);
 }
 
 export async function markUploadNotificationReadAction(
@@ -631,10 +631,7 @@ export async function returnDocumentToReviewAction(_state: FormState, formData: 
 }
 
 function redirectAfterDocumentDecision(formData: FormData, companyId: string, documentId: string): never {
-  const query = normalizeDocumentQueueQuery(field(formData, "queueQuery"));
-  const nextDocumentId = field(formData, "nextDocumentId");
-  if (isUuid(nextDocumentId)) redirect(`/companies/${companyId}/documents/${nextDocumentId}?${query}`);
-  redirect(`/companies/${companyId}/documents?${query}#document-${documentId}`);
+  redirect(documentDecisionHref(companyId, { documentId, nextDocumentId: field(formData, "nextDocumentId"), queueQuery: field(formData, "queueQuery"), returnTo: field(formData, "returnTo") }));
 }
 
 export async function updateDocumentReportingAction(
@@ -672,6 +669,7 @@ export async function generateVatReportAction(_state: FormState, formData: FormD
     period,
   });
   if (!result.ok) return refused(result.error, formData, ["period"]);
+  refresh();
   redirect(`/companies/${companyId}/vat-reports?period=${encodeURIComponent(period)}`);
 }
 

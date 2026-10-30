@@ -446,10 +446,16 @@ test("an administrator walks the VAT processing wizard from review to Finalizati
   await expect(documentLinks).toHaveCount(2);
   for (let remaining = 2; remaining > 0; remaining--) {
     await documentLinks.first().click();
-    await expect(page).toHaveURL(/\/documents\/[0-9a-f-]+$/);
+    await expect(page).toHaveURL(/\/documents\/[0-9a-f-]+\?/);
+    expect(new URL(page.url()).searchParams.get("returnTo")).toBe(`${new URL(wizardUrl).pathname}?period=2026-10#vat-step-review`);
+    if (remaining === 2) {
+      await page.getByRole("link", { name: "← Back to Processing", exact: true }).click();
+      await expect(page).toHaveURL(`${wizardUrl}#vat-step-review`);
+      await documentLinks.first().click();
+    }
     await page.getByRole("button", { name: "Approve version 1" }).click();
     await expect(page.getByRole("button", { name: "Approve version 1" })).toHaveCount(0);
-    await page.goto(wizardUrl);
+    await expect(page).toHaveURL(`${wizardUrl}#vat-step-review`);
     await expect(documentLinks).toHaveCount(remaining - 1);
   }
 
@@ -461,9 +467,25 @@ test("an administrator walks the VAT processing wizard from review to Finalizati
   const outputs = wizardStep(page, "Review VAT Return and Control Statement");
   await outputs.getByRole("link", { name: "Open VAT Return" }).click();
   await expect(page.getByRole("heading", { name: "VAT Return · 2026-10" })).toBeVisible();
-  await page.goto(wizardUrl);
+  const outputUrl = page.url();
+  await page.getByRole("table", { name: "VAT Return", exact: true }).locator("details").first().locator("summary").click();
+  const contribution = page.getByRole("list", { name: "Contributing Documents" }).first().getByRole("link").first();
+  await contribution.click();
+  await expect(page).toHaveURL(/\/documents\/[0-9a-f-]+\?/);
+  const outputOrigin = new URL(page.url()).searchParams.get("returnTo");
+  expect(outputOrigin).toContain("/vat-reports/2026-10/vat-return?");
+  expect(outputOrigin).toMatch(/#vat-line-\d+$/);
+  await page.getByRole("link", { name: "← Back to VAT Return", exact: true }).click();
+  await expect(page).toHaveURL(/\/vat-return\?.*#vat-line-\d+$/);
+  expect(new URL(page.url()).searchParams.get("returnTo")).toBe(`${new URL(wizardUrl).pathname}?period=2026-10#vat-step-outputs`);
+  await page.getByRole("link", { name: "← Back to Processing", exact: true }).click();
+  await expect(page).toHaveURL(`${wizardUrl}#vat-step-outputs`);
   await wizardStep(page, "Export DRAFT XML").getByRole("link", { name: "Open Export history" }).click();
-  await expect(page).toHaveURL(/\/vat-reports\/2026-10\/exports$/);
+  await expect(page).toHaveURL(/\/vat-reports\/2026-10\/exports\?/);
+  await page.getByRole("link", { name: "← Back to Processing", exact: true }).click();
+  await expect(page).toHaveURL(`${wizardUrl}#vat-step-export`);
+  await page.goto(new URL(outputUrl).pathname);
+  await expect(page.getByRole("link", { name: "← Back to Reporting Periods", exact: true })).toHaveAttribute("href", `${new URL(companyUrl).pathname}/vat`);
 
   await page.goto(wizardUrl);
   await expect(finalize.getByText("Not started", { exact: true })).toBeVisible();

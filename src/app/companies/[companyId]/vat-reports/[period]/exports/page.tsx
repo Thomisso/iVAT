@@ -1,3 +1,5 @@
+import { safeCompanyReturnTo, withCompanyReturnTo } from "@/application/return-context";
+import { CompanyReturnLink } from "@/components/company-return-link";
 import Link from "next/link";
 import { Fragment } from "react";
 import type { Metadata } from "next";
@@ -22,9 +24,11 @@ export async function generateMetadata({
 }
 
 export default async function ExportHistoryPage({
-  params,
+  params, searchParams,
 }: PageProps<"/companies/[companyId]/vat-reports/[period]/exports">) {
   const { companyId, period } = await params;
+  const search = await searchParams;
+  const returnTo = safeCompanyReturnTo(companyId, search.returnTo);
   const client = await requireUserClient();
   const [company, report, artifacts, lock, t, epo] = await Promise.all([
     getCompany(client, companyId),
@@ -39,9 +43,7 @@ export default async function ExportHistoryPage({
     <PageLayout className="company-workspace vat-reports vat-output-page" measure="wide">
       <header className="company-page-header vat-report-header">
         <p>
-          <Link href={`/companies/${companyId}/vat`}>
-            {t("backToPeriods")}
-          </Link>
+          <CompanyReturnLink companyId={companyId} returnTo={returnTo} fallback={`/companies/${companyId}/vat`} />
         </p>
         <span className="vat-output-context">
           {company.name} · {period}
@@ -50,6 +52,7 @@ export default async function ExportHistoryPage({
         <p>{t("exportHistoryDescription")}</p>
       </header>
       <PeriodNavigation
+        returnTo={returnTo}
         active="exportHistory"
         companyId={companyId}
         period={period}
@@ -119,10 +122,10 @@ export default async function ExportHistoryPage({
           </div>
         )}
         <div>
-          <Link href={`/companies/${companyId}/vat-reports/${period}/vat-return`}>
+          <Link href={withCompanyReturnTo(companyId, `/companies/${companyId}/vat-reports/${period}/vat-return`, returnTo)}>
             {t("openVatReturn")}
           </Link>
-          <Link href={`/companies/${companyId}/vat-reports/${period}/control-statement`}>
+          <Link href={withCompanyReturnTo(companyId, `/companies/${companyId}/vat-reports/${period}/control-statement`, returnTo)}>
             {t("openControlStatement")}
           </Link>
         </div>
