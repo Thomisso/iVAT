@@ -1,4 +1,5 @@
-import { expect, it } from "vitest";
+import { expect, inject, it } from "vitest";
+import { Client as DatabaseClient } from "pg";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { approveDocument, correctDocument, getDocument, listDocuments, listExtractionVersions, startManualDocumentReview, rejectDocument, restoreDocument, reprocessDocument } from "@/application/documents";
 import { uploadSourceFile, readSourceFile } from "@/application/source-files";
@@ -238,3 +239,69 @@ it("an excluded Version in a locked period cannot be restored by command or dire
   expect((await getDocument(context.client, input.companyId, input.documentId))?.exclusion?.reason).toBe("Personal receipt");
 });
 
+
+
+it("a worker releasing its reservation cannot deadlock a concurrent manual takeover", async () => {
+  const context = await unextractedDocument("uploaded");
+  const worker = testWorker();
+  await assignAiConfigurationFixture(context.client, { async send() {} }, { companyId: context.companyId, provider: worker.ai });
+  const system = systemClient();
+  const reservationId = crypto.randomUUID();
+  const document = await system.from("document").select("extraction_request_id").eq("id", context.documentId).single();
+  if (document.error) throw document.error;
+  expect((await system.rpc("reserve_ai_processing", {
+    target_document_id: context.documentId,
+    target_extraction_request_id: document.data.extraction_request_id,
+    target_reservation_id: reservationId,
+  })).data).toBe("reserved");
+
+  // Queue takeover first at Company, then the actual finally-cleanup RPC.
+  // The predecessor release held reservation/Document before joining this queue,
+  // so unlocking Company deterministically created a deadlock with takeover.
+  const barrier = new DatabaseClient({ connectionString: inject("databaseUrl") });
+  const observer = new DatabaseClient({ connectionString: inject("databaseUrl") });
+  await barrier.connect();
+  await observer.connect();
+  let takeover: ReturnType<typeof startManualDocumentReview> | undefined;
+  let released: PromiseLike<unknown> | undefined;
+  try {
+    await barrier.query("begin");
+    await barrier.query("select 1 from public.company where id = $1 for update", [context.companyId]);
+    const input = { companyId: context.companyId, documentId: context.documentId };
+    takeover = startManualDocumentReview(context.client, input);
+    await waitForBlockedProcessingCommand(observer, "start_manual_document_review");
+    const cleanup = system.rpc("release_ai_processing_reservation", { target_reservation_id: reservationId }).then((result) => result);
+    released = cleanup;
+    await waitForBlockedProcessingCommand(observer, "release_ai_processing_reservation");
+    await barrier.query("commit");
+    const [human, workerCleanup] = await Promise.allSettled([takeover, cleanup]);
+    expect(human).toEqual({ status: "fulfilled", value: { ok: true, value: null } });
+    expect(workerCleanup).toMatchObject({ status: "fulfilled", value: { error: null } });
+    expect((await getDocument(context.client, input.companyId, input.documentId))?.status).toBe("needs_review");
+    expect(await correctDocument(context.client, { ...input, basedOnVersion: 0, payload: SAMPLE_EXTRACTION })).toEqual({ ok: true, value: { version: 1 } });
+    expect(await approveDocument(context.client, { ...input, version: 1 })).toEqual({ ok: true, value: null });
+    // Duplicate old cleanup must preserve the human terminal state too.
+    expect((await system.rpc("release_ai_processing_reservation", { target_reservation_id: reservationId })).error).toBeNull();
+    expect((await getDocument(context.client, input.companyId, input.documentId))?.status).toBe("approved");
+    expect(await getCompanyAiProcessingAllowance(context.client, context.companyId)).toMatchObject({ ok: true, value: { used: 0 } });
+  } finally {
+    await barrier.query("rollback");
+    await Promise.allSettled([takeover, released].filter((pending) => pending !== undefined));
+    await barrier.end();
+    await observer.end();
+  }
+});
+
+/** Lock inspection coordinates the fixture; all business assertions use application queries. */
+async function waitForBlockedProcessingCommand(database: DatabaseClient, command: string) {
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    const blocked = await database.query<{ blocked: boolean }>(
+      "select exists (select 1 from pg_stat_activity where pid <> pg_backend_pid() and wait_event_type = 'Lock' and strpos(query, $1) > 0) as blocked",
+      [command],
+    );
+    if (blocked.rows[0].blocked) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error(`Processing command did not reach the fixture lock: ${command}`);
+}
