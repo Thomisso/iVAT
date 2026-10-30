@@ -38,6 +38,23 @@ disabled. Before enabling email, fill in the SMTP settings in `.env.rosti`
 and configure SPF, DKIM and DMARC with the sending provider. Google OAuth
 needs its own provider setup before it is enabled.
 
+
+Invitation delivery uses the web application's SMTP transport with the same
+`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` and `SMTP_ADMIN_EMAIL` as Auth.
+Port 465 uses implicit TLS; other production ports require STARTTLS. Keep the
+mailbox password in the private runtime environment. Auth sends password recovery
+mail; Invitation mail contains a separate seven-day application link and creates
+no Auth account until explicit acceptance. The web server's Auth administration
+key is exposed only through the database-authorized adapter described in
+[ADR-0016](adr/0016-invitations-authorize-narrow-auth-administration.md).
+
+After upgrading, old hash-only Invitations still work but cannot be reconstructed
+for copying. An Administrator can explicitly generate a replacement, invalidating
+the old link and starting a fresh seven-day window without sending mail. New
+Invitations expose the same valid copied link after reload. Neither local Mailpit
+capture nor successful SMTP configuration establishes production delivery; record
+actual recipient delivery and completed onboarding separately.
+
 Build and validate before deploying. `NEXT_PUBLIC_*` values are build-time
 configuration; changing the public API URL or anonymous key requires a new
 application build. No private key is passed as a Docker build argument.

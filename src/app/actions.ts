@@ -36,9 +36,8 @@ import {
   generateReportingYears,
   setFirstReportingMonth,
 } from "@/application/reporting-years";
-import { changeMembershipRole, completeInvitationOnboarding, inviteMember, removeMembership } from "@/application/memberships";
-import { supabaseInvitationMailer } from "@/application/supabase-invitation-mailer";
-import { invitationUrls } from "@/application/invitation-urls";
+import { cancelInvitation, changeMembershipRole, completeInvitationOnboarding, generateInvitationLink, getInvitationOnboarding, inviteMember, removeMembership, replaceInvitationLink } from "@/application/memberships";
+import { configuredInvitationUrls, invitationAuthentication, invitationMailer } from "@/lib/invitations";
 import {
   approveDocument,
   correctDocument,
@@ -713,32 +712,63 @@ export async function unlockReportingPeriodAction(_state: FormState, formData: F
 
 export async function inviteMemberAction(_state: FormState, formData: FormData): Promise<FormState> {
   const client = await requireUserClient();
-  const urls = invitationUrls({
-    appOrigin: process.env.APP_ORIGIN,
-    authRedirectAllowlist: process.env.AUTH_REDIRECT_ALLOWLIST,
-  });
+  const urls = configuredInvitationUrls();
   if (!urls.ok) return refused(urls.error, formData, ["email", "role"]);
-  const result = await inviteMember(client, supabaseInvitationMailer(client, urls.value.callbackUrl), {
-    organizationId: field(formData, "organizationId"),
-    companyId: field(formData, "companyId") || null,
-    email: field(formData, "email"),
-    role: field(formData, "role") as "administrator" | "user",
+  const input = {
+    organizationId: field(formData, "organizationId"), companyId: field(formData, "companyId") || null,
+    email: field(formData, "email"), role: field(formData, "role") as "administrator" | "user",
     acceptUrl: urls.value.acceptUrl,
-  });
-  if (!result.ok) return refused(result.error, formData, ["email", "role"]);
+  };
+  if (field(formData, "delivery") === "link") {
+    const result = await generateInvitationLink(client, input);
+    if (!result.ok) return refused(result.error, formData, ["email", "role"]);
+  } else {
+    let mailer;
+    try { mailer = await invitationMailer(); } catch { return refused("invitation_failed", formData, ["email", "role"]); }
+    const result = await inviteMember(client, mailer, input);
+    if (!result.ok) return refused(result.error, formData, ["email", "role"]);
+  }
   refresh();
   return { error: null, values: {} };
 }
 
+export async function cancelInvitationAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const result = await cancelInvitation(await requireUserClient(), field(formData, "invitationId"));
+  return settled(result);
+}
+
+export async function replaceInvitationAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const urls = configuredInvitationUrls();
+  if (!urls.ok) return { error: urls.error, values: {} };
+  const result = await replaceInvitationLink(await requireUserClient(), {
+    invitationId: field(formData, "invitationId"), acceptUrl: urls.value.acceptUrl,
+  });
+  if (!result.ok) return { error: result.error, values: {} };
+  refresh();
+  return { error: null, values: {} };
+}
+
+export async function loadInvitationAction(formData: FormData) {
+  const client = await createRequestClient();
+  const onboarding = await getInvitationOnboarding(client, field(formData, "token"));
+  const user = await currentUser(client);
+  return {
+    onboarding,
+    authenticated: Boolean(user && onboarding.status === "valid" && user.email.toLowerCase() === onboarding.email),
+    wrongAccount: Boolean(user && onboarding.status === "valid" && user.email.toLowerCase() !== onboarding.email),
+  };
+}
+
+export async function signOutInvitationAction() {
+  await (await createRequestClient()).auth.signOut({ scope: "local" });
+}
+
 export async function acceptInvitationAction(_state: FormState, formData: FormData): Promise<FormState> {
   const result = await completeInvitationOnboarding(await createRequestClient(), {
-    token: field(formData, "token"),
-    password: field(formData, "password"),
-  });
+    token: field(formData, "token"), password: field(formData, "password"),
+  }, invitationAuthentication());
   if (!result.ok) return refused(result.error, formData, []);
-  if (result.value.companyId && await storeCompanyContext(result.value.companyId)) {
-    redirect(`/companies/${result.value.companyId}`);
-  }
+  if (result.value.companyId && await storeCompanyContext(result.value.companyId)) redirect(`/companies/${result.value.companyId}`);
   redirect("/");
 }
 
