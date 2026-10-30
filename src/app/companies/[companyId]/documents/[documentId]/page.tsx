@@ -57,8 +57,8 @@ export default async function DocumentReviewPage({
     getMyCompanyRole(client, companyId),
   ]);
   if (!company || !document) notFound();
-  const file = await getSourceFile(client, companyId, document.sourceFileId);
-  if (!file) notFound();
+  const file = document.sourceFileId ? await getSourceFile(client, companyId, document.sourceFileId) : null;
+  if (document.sourceFileId && !file) notFound();
   const position = await getDocumentQueuePosition(client, companyId, document.id, search);
   const { queue, documents: queuedDocuments, index: queueIndex } = position;
   const queueQuery = documentQueueQuery(queue);
@@ -91,6 +91,7 @@ export default async function DocumentReviewPage({
           first: document.rowSet.firstRow,
           last: document.rowSet.lastRow,
         })
+    : document.firstPage === null || document.lastPage === null ? null
     : document.firstPage === document.lastPage
       ? t("review.page", { page: document.firstPage })
       : t("review.pageRange", { first: document.firstPage, last: document.lastPage });
@@ -113,22 +114,25 @@ export default async function DocumentReviewPage({
               <span className="iv-mono"> {current.payload.documentNumber}</span>
             )}
           </h1>
-          <p className="iv-muted">
+          {file && sourceLocation ? <p className="iv-muted">
             <Link href={withCompanyReturnTo(companyId, `/companies/${companyId}/source-files/${file.id}`, currentContext)}>
               {t("review.sourceFile", { fileName: file.fileName, pages: sourceLocation })}
             </Link>
-          </p>
+          </p> : <p className="iv-muted">{t("review.manualDocument")}</p>}
           <p>
             {t("review.status")}:{" "}
             <StatusBadge status={statusBadgeState(document.status, "document")}>
               {t(`documentStatus.${document.status}`)}
             </StatusBadge>
           </p>
-          <p>
+          {document.importDate && <p>
             {t("review.importDate")}: {formatDate(document.importDate)}
-          </p>
-          {document.status === "approved" && (
+          </p>}
+          {document.status === "approved" && current?.payload.proposedVatRegime && (
             <Notice>{t("review.approvedNote")}</Notice>
+          )}
+          {document.status === "approved" && !current?.payload.proposedVatRegime && (
+            <Notice tone="danger">{t("review.approvedWithoutVatRegime")}</Notice>
           )}
           {document.status === "approved" && !lockedPeriod && (
             <CommandButton
@@ -142,7 +146,7 @@ export default async function DocumentReviewPage({
             <Notice>{t("review.rejectedNote")}</Notice>
           )}
           {lockedPeriod && <Notice tone="warning" title={t("review.lockedTitle", { period: lockedPeriod })}>{t("review.lockedNote")}</Notice>}
-          {document.status === "failed" && !lockedPeriod && <CommandButton
+          {document.sourceFileId && document.status === "failed" && !lockedPeriod && <CommandButton
             variant="ai"
             icon="marker"
             action={reprocessDocumentAction}
@@ -174,7 +178,7 @@ export default async function DocumentReviewPage({
           ))}
         </header>
         <section className="review-original">
-          <DocumentViewer label={file.fileName}>
+          {file ? <DocumentViewer label={file.fileName}>
             {document.rowSet ? (
               <div className="workbook-source">
                 <Notice>{t("review.noDocumentImage")}</Notice>
@@ -186,7 +190,7 @@ export default async function DocumentReviewPage({
               // eslint-disable-next-line @next/next/no-img-element -- the original is shown as stored, not optimized
               <img src={contentUrl} alt={file.fileName} />
             )}
-          </DocumentViewer>
+          </DocumentViewer> : <EmptyState icon="file" title={t("review.noSourceFile")} />}
         </section>
         <section className="review-data">
           {shown && current && shown !== current && (
