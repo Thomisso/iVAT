@@ -48,10 +48,8 @@
     "companyWork": "Práce ve firmě",
     "security": "Zabezpečení",
     "logOut": "Odhlásit se",
-    "administrationMenu": "Otevřít nabídku administrace",
     "administration": "Administrace",
     "companyAdministration": "Administrace firmy",
-    "organizationAdministration": "Administrace organizace",
     "platformAdministration": "Administrace platformy",
     "users": "Uživatelé",
     "auditLog": "Auditní záznamy",
@@ -126,11 +124,30 @@
     "filingFrequency": "Zdaňovací období",
     "monthly": "Měsíční",
     "quarterly": "Čtvrtletní",
-    "effectiveFrom": "Platí od",
-    "effectiveFromHint": "Změna frekvence platí od tohoto data; starší období si ponechají původní frekvenci.",
-    "filingSetupIntro": "Zvolte, jak často firma podává DPH. Čtvrtletní změna začíná na hranici kalendářního čtvrtletí.",
+    "currentReportingYear": "Rok {year}",
+    "currentReportingYearHint": "Frekvence platí pro všechna zdaňovací období tohoto kalendářního roku. Ostatní roky si ponechají vlastní frekvenci.",
+    "reportingYearsTitle": "Zdaňovací roky",
+    "reportingYearsIntro": "Každý kalendářní rok má vlastní frekvenci podávání. Roky lze generovat dopředu i zpětně; frekvenci roku lze změnit a rok smazat jen tehdy, když žádné jeho zdaňovací období nemá Přiznání DPH ani uzamčení.",
+    "noReportingYears": "Zatím nebyl vygenerován žádný zdaňovací rok.",
+    "reportingYear": "Rok",
+    "firstReportingMonth": "První měsíc",
+    "firstReportingMonthOf": "První měsíc zdaňovacího roku {year}",
+    "reportingYearFrequency": "Frekvence podávání zdaňovacího roku {year}",
+    "reportingYearActions": "Akce",
+    "changeReportingYear": "Změnit",
+    "deleteReportingYear": "Smazat {year}",
+    "confirmReportingYearDeletion": "Jeho doklady ztratí zdaňovací období",
+    "generateReportingYearsTitle": "Vygenerovat zdaňovací roky",
+    "generateReportingYearsIntro": "Vygenerujte jeden rok nebo rozsah, zpětně i dopředu. Existující roky zůstanou beze změny.",
+    "fromYear": "Od roku",
+    "toYear": "Do roku",
+    "toYearHint": "Pro jeden rok nechte prázdné.",
+    "generateReportingYears": "Vygenerovat",
+    "reportingYearsGenerated": "Vygenerováno: {years}.",
+    "noReportingYearsGenerated": "Žádný nový rok nebyl vygenerován.",
+    "reportingYearsSkipped": "Již existovaly a zůstaly beze změny: {years}.",
+    "filingSetupIntro": "Zvolte, jak často firma podává DPH v aktuálním roce.",
     "completeSetup": "Uložit a pokračovat",
-    "editFilingFrequency": "Upravit frekvenci podávání",
     "usersTitle": "Uživatelé a přístupy",
     "usersIntro": "Zkontrolujte všechny uživatele s přístupem k firmě a spravujte pozvánky odděleně od aktivních přístupů.",
     "manageUsers": "Spravovat uživatele",
@@ -148,7 +165,6 @@
     "companyDetailsIntro": "Registrovaná identita a adresa.",
     "vatAndReporting": "DPH a vykazování",
     "vatAndReportingIntro": "Frekvence podávání, finanční úřad, výchozí údaje exportu a stav zpracování.",
-    "filingScheduleIntro": "Zvolte, jak často firma podává DPH.",
     "aiProcessingManagedIntro": "AI zpracování přiděluje a spravuje platforma. Firma nemá žádné přihlašovací údaje ani ovládání poskytovatele.",
     "dataAndDeletion": "Data a smazání",
     "dataAndDeletionIntro": "Exportujte data firmy nebo firmu po chráněném exportu trvale odstraňte.",
@@ -276,13 +292,15 @@
     "hash": "Otisk SHA-256",
     "status": "Stav",
     "dropTitle": "Přetáhněte sem zdrojový soubor",
-    "chooseFile": "Vybrat soubor",
-    "direction": "Směr",
-    "directionAutomatic": "Určit automaticky podle identity firmy",
-    "directionValue": {
-      "incoming": "Přijatý",
-      "outgoing": "Vydaný"
-    }
+    "chooseFile": "Vybrat soubor"
+  },
+  "periodFilter": {
+    "label": "Zdaňovací období",
+    "all": "Všechna období",
+    "none": "Bez období",
+    "formLabel": "Filtry dávek",
+    "submit": "Filtrovat",
+    "clear": "Zrušit filtry"
   },
   "uploadWorkspace": {
     "newBatch": "Přidat zdrojové soubory",
@@ -297,6 +315,7 @@
     "batchFiles": "Uloženo {count} z {planned} vybraných zdrojových souborů",
     "batchSummary": "{waiting} se zpracovává · {review} ke kontrole · {failures} selhalo",
     "noBatches": "Zatím tu není žádná dávka. Začněte přidáním zdrojových souborů.",
+    "noMatchingBatches": "Žádná dávka neobsahuje doklady vybraného období.",
     "outcome": {
       "processing": "Zpracovává se",
       "success": "Dokončeno",
@@ -383,7 +402,23 @@
       }
     },
     "openBatch": "Otevřít dávku",
-    "markRead": "Označit jako přečtené"
+    "markRead": "Označit jako přečtené",
+    "deleteTitle": "Smazat dávku",
+    "deleteHint": "Smaže všechny zdrojové soubory této dávky včetně uložených originálů a všechny jejich doklady, i schválené. Akci nelze vrátit.",
+    "deleteSourceFiles": "Zdrojové soubory",
+    "deleteDocuments": "Doklady",
+    "deleteApprovedDocuments": "Schválené doklady",
+    "deleteConfirmation": "Rozumím, že dávka a všechna její data budou trvale smazána.",
+    "deleteAction": "Smazat dávku",
+    "deleteRefused": {
+      "batch_processing": "Dávku lze smazat až po dokončení zpracování.",
+      "period_locked": "Doklad z této dávky leží v uzavřeném období. Dávku lze smazat až poté, co Administrator období odemkne."
+    }
+  },
+  "dateInput": {
+    "hint": "Formát dd.mm.rrrr",
+    "placeholder": "dd.mm.rrrr",
+    "invalid": "Zadejte platné datum ve tvaru dd.mm.rrrr."
   },
   "errors": {
     "organization_name_required": "Zadejte název organizace.",
@@ -414,7 +449,12 @@
     "invalid_postal_code": "PSČ musí mít 5 číslic.",
     "invalid_person_type": "Vyberte, zda je firma právnická, nebo fyzická osoba.",
     "invalid_filing_frequency": "Vyberte měsíční, nebo čtvrtletní zdaňovací období.",
-    "invalid_effective_from": "Zadejte platné datum účinnosti.",
+    "invalid_reporting_year": "Zadejte rok mezi 2000 a 2099.",
+    "reporting_year_in_use": "Některé zdaňovací období tohoto roku už má Přiznání DPH nebo uzamčení, proto rok nelze změnit ani smazat.",
+    "reporting_year_not_found": "Tento zdaňovací rok nebyl vygenerován.",
+    "not_first_reporting_year": "Pozdějším měsícem může začínat jen nejstarší zdaňovací rok a dokud je používán, nelze před ním generovat další rok.",
+    "too_many_reporting_years": "Najednou lze vygenerovat nejvýše 20 let.",
+    "invalid_first_month": "Vyberte měsíc; čtvrtletní rok začíná v lednu, dubnu, červenci nebo říjnu.",
     "ares_company_not_found": "ARES nenašel firmu s tímto IČO.",
     "ares_unavailable": "ARES je dočasně nedostupný. Zadejte údaje firmy ručně nebo to zkuste znovu.",
     "ico_taken": "Firma s tímto IČO už ve vaší organizaci existuje.",
@@ -438,9 +478,11 @@
     "not_correctable": "Před opravou rozdělení počkejte na dokončení vytěžení.",
     "invalid_split_boundary": "Vybraná oprava rozdělení už není platná. Načtěte stránku znovu a opakujte akci.",
     "not_in_review": "Měnit, schválit nebo zamítnout lze jen doklad, který čeká na kontrolu.",
+    "not_approved": "Ke kontrole lze vrátit jen schválený doklad.",
     "stale_version": "Mezitím někdo uložil novější verzi dokladu. Načtěte stránku znovu, abyste ji viděli.",
     "invalid_choice": "Vyberte jednu z nabízených možností.",
     "invalid_amount": "Částky musí být čísla s nejvýše dvěma desetinnými místy, například 1210.00.",
+    "rate_breakdown_totals_mismatch": "Před schválením musí celkový základ a DPH odpovídat rozpisu podle sazeb.",
     "invalid_credit_note_amount": "Částky dobropisu nesmí být kladné a alespoň jedna částka musí být záporná.",
     "invalid_rate": "Sazba DPH musí být procento od 0 do 100.",
     "invalid_date": "Zadejte existující data.",
@@ -450,10 +492,9 @@
     "one_file_required": "Vyberte jeden zdrojový soubor k nahrání.",
     "invalid_reporting_period": "Vyberte platné měsíční nebo čtvrtletní zdaňovací období této firmy.",
     "company_setup_incomplete": "Nejprve dokončete povinnou identitu firmy a frekvenci podávání.",
-    "invalid_receipt_date": "Zadejte existující datum přijetí.",
     "invalid_tax_point_date": "Před přiřazením zdaňovacího období nastavte platné DUZP.",
-    "claimed_period_not_later": "Zvolené zdaňovací období musí být pozdější než období určené datem přijetí.",
-    "incoming_required": "Datum přijetí a odklad nároku na odpočet lze nastavit jen u přijatého dokladu.",
+    "claimed_period_not_later": "Odložený nárok musí směřovat do zdaňovacího období pozdějšího, než je období data uskutečnění zdanitelného plnění.",
+    "incoming_required": "Odložit nárok na odpočet lze jen u přijatého dokladu.",
     "stale_report": "Doklady se během výpočtu změnily. Vygenerujte návrh znovu.",
     "readiness_blocked": "Před finalizací vyřešte všechny blokující problémy a přiznání k DPH znovu vygenerujte.",
     "confirmation_required": "Potvrďte, že rozumíte dopadu této akce.",
@@ -479,23 +520,46 @@
     "invalid_credential": "Zadejte platné přihlašovací údaje poskytovatele.",
     "credential_required": "Při změně poskytovatele zadejte nové přihlašovací údaje.",
     "invalid_allowance": "Limit zpracování musí být nezáporné celé číslo nebo neomezený.",
-    "direction_required": "Před schválením nastavte směr dokladu."
+    "direction_required": "Před schválením nastavte směr dokladu.",
+    "batch_processing": "Dávka se ještě zpracovává. Počkejte, až zpracování skončí.",
+    "invalid_price": "Zadejte obě ceny jako nezáporná čísla, nebo obě nechte prázdné.",
+    "unknown_model": "Konfigurace AI tento model nepoužívá."
   },
   "aiUsage": {
     "platformNav": "Využití AI na platformě",
     "platformTitle": "Využití AI na platformě",
-    "platformIntro": "Počty požadavků a tokenů napříč organizacemi podle poskytovatele a modelu.",
+    "platformIntro": "Požadavky, tokeny a cena napříč organizacemi. Ceny jsou v USD podle stavu v okamžiku volání.",
     "filters": "Filtry využití AI",
     "from": "Od",
     "to": "Do",
     "organization": "Organizace",
     "filter": "Filtrovat",
-    "provider": "Poskytovatel",
     "model": "Model",
     "requests": "Požadavky",
     "inputTokens": "Vstupní tokeny",
     "outputTokens": "Výstupní tokeny",
-    "empty": "V tomto období není zaznamenáno využití AI"
+    "empty": "V tomto období není zaznamenáno využití AI",
+    "company": "Firma",
+    "configuration": "Konfigurace AI",
+    "operation": "Operace",
+    "groupBy": "Seskupit podle",
+    "all": "Vše",
+    "clear": "Zrušit filtry",
+    "cost": "Cena (USD)",
+    "unknownCost": "Neznámá",
+    "unknownCostEvents": "Události s neznámou cenou",
+    "total": "Celkem",
+    "noConfiguration": "Bez konfigurace AI",
+    "invalidPeriod": "Konec období nesmí být před jeho začátkem.",
+    "operations": { "split": "Rozdělení", "extract": "Vytěžení" },
+    "groupings": {
+      "organization": "Organizace",
+      "company": "Firma",
+      "ai_configuration": "Konfigurace AI",
+      "model": "Model",
+      "operation": "Operace",
+      "month": "Měsíc"
+    }
   },
   "auditLog": {
     "organizationNav": "Auditní log organizace {organization}",
@@ -529,7 +593,7 @@
     "title": "Nastavení AI platformy",
     "intro": "Vytvářejte AI konfigurace vlastněné platformou, přiřazujte je firmám a spravujte celoživotní limity zpracování.",
     "configurations": "AI konfigurace",
-    "configurationsIntro": "Vytvářejte konfigurace vlastněné platformou a přiřazujte je firmám. Uložené přihlašovací údaje ani modely se na tuto obrazovku nikdy nevracejí.",
+    "configurationsIntro": "Vytvářejte konfigurace vlastněné platformou a přiřazujte je firmám. Uložené přihlašovací údaje se na tuto obrazovku nikdy nevracejí.",
     "configurationLabel": "Název konfigurace",
     "provider": "Poskytovatel",
     "configurationCredential": "Přihlašovací údaje poskytovatele",
@@ -550,7 +614,13 @@
     "unlimited": "neomezeno",
     "allowanceUsage": "Využito {used} z {allowance}; na navýšení limitu čeká {waiting} dokladů.",
     "splitModel": "Model pro rozdělení",
-    "extractModel": "Model pro vytěžení"
+    "extractModel": "Model pro vytěžení",
+    "modelPrices": "Ceny modelů",
+    "modelPricesFor": "Ceny modelů konfigurace {label}",
+    "modelPricesIntro": "Cena v USD za milion tokenů. Nové využití AI se ocení těmito cenami; zaznamenané využití si cenu ponechá. U modelu bez ceny nechte obě pole prázdná.",
+    "inputPrice": "{model}: cena vstupu (USD / 1M tokenů)",
+    "outputPrice": "{model}: cena výstupu (USD / 1M tokenů)",
+    "saveModelPrices": "Uložit ceny"
   },
   "platformAdministration": {
     "nav": "Správa platformy",
@@ -699,8 +769,6 @@
     "filters": "Filtry",
     "allStatuses": "Všechny stavy",
     "allDirections": "Přijaté i vydané",
-    "reportingPeriod": "Zdaňovací období",
-    "reportingPeriodPlaceholder": "2026-10",
     "counterparty": "Protistrana",
     "counterpartyHint": "Název, DIČ nebo IČO",
     "findingsOnly": "Pouze doklady s nálezy",
@@ -741,12 +809,14 @@
     "retryExtraction": "Zkusit vytěžení znovu",
     "lockedTitle": "Zdaňovací období {period} je uzamčeno.",
     "lockedNote": "Opravy, rozhodnutí, opakované vytěžení a změny rozdělení jsou vypnuté, dokud je toto zdaňovací období finalizované a uzamčené.",
+    "generateReportingYear": "Vygenerovat zdaňovací rok {year}",
     "sourceFile": "Zdrojový soubor {fileName}, {pages}",
     "page": "strana {page}",
     "pageRange": "strany {first}–{last}",
     "row": "list {sheet}, řádek {row}",
     "rowRange": "list {sheet}, řádky {first}–{last}",
     "status": "Stav",
+    "importDate": "Datum importu",
     "approvedNote": "Schváleno. Doklad se započítá do přiznání k DPH.",
     "rejectedNote": "Zamítnuto. Doklad se do přiznání k DPH nezapočítá.",
     "notReviewableNote": "Doklad ještě není připravený ke kontrole.",
@@ -754,6 +824,7 @@
     "save": "Uložit opravy",
     "approve": "Schválit verzi {version}",
     "reject": "Zamítnout",
+    "returnToReview": "Vrátit ke kontrole",
     "history": "Historie verzí",
     "aiAuthor": "AI",
     "userAuthor": "Uživatel",
@@ -767,9 +838,9 @@
     "noImage": "Originál tohoto dokladu nelze zobrazit.",
     "reportingAssignment": {
       "title": "Zdaňovací období nároku na odpočet",
-      "receiptDate": "Datum přijetí",
+      "defaultPeriod": "Podle DUZP (bez odložení)",
       "claimedReportingPeriod": "Přesunout nárok na odpočet do období",
-      "claimedReportingPeriodHint": "Nepovinné. Zadejte pozdější měsíc (2026-12) nebo čtvrtletí (2027-Q1) podle frekvence firmy.",
+      "claimedReportingPeriodHint": "Vyberte nezamčené pozdější období, nejvýše tři roky od DUZP.",
       "claimedReportingPeriodPlaceholder": "2026-12 nebo 2027-Q1",
       "save": "Uložit zdaňovací období",
       "saving": "Ukládání…"
@@ -777,8 +848,11 @@
     "findings": {
       "rate_vat_amount_mismatch": "DPH neodpovídá základu a sazbě.",
       "total_net_amount_mismatch": "Celkový základ neodpovídá rozpisu sazeb.",
+      "reporting_year_missing": "Zdaňovací rok {year} není vygenerovaný, proto doklad nemá zdaňovací období. Vygenerujte rok {year}.",
+      "tax_point_date_before_first_reporting_month": "DUZP spadá před první měsíc zdaňovacího roku {year} ({month}), proto doklad nemá zdaňovací období.",
       "total_vat_amount_mismatch": "Celková DPH neodpovídá rozpisu sazeb.",
-      "total_gross_amount_mismatch": "Celkem s DPH neodpovídá součtu základu a DPH.",
+      "total_gross_amount_mismatch": "Celkem s DPH se od součtu základu a DPH liší o {difference, number, ::.00}.",
+      "total_gross_amount_mismatch_without_difference": "Celkem s DPH neodpovídá součtu základu a DPH.",
       "vat_rate_not_valid_on_tax_point_date": "Tato sazba DPH nebyla k DUZP platná.",
       "invalid_ico_format": "IČO musí mít osm číslic.",
       "invalid_ico_checksum": "Kontrolní součet IČO není platný.",
@@ -878,6 +952,52 @@
     "rejected": "Zamítnuto"
   },
   "vatReports": {
+    "wizard": {
+      "title": "Kroky zpracování DPH",
+      "state": {
+        "done": "Hotovo",
+        "needs_attention": "Vyžaduje pozornost",
+        "blocked": "Blokováno",
+        "not_started": "Nezahájeno"
+      },
+      "steps": {
+        "review": {
+          "title": "Doklady ke kontrole",
+          "hint": "Vyřešte všechny doklady, které blokují toto zdaňovací období."
+        },
+        "generate": {
+          "title": "Vygenerovat přiznání k DPH",
+          "hint": "Uložte snímek přiznání k DPH ze schválených dokladů."
+        },
+        "outputs": {
+          "title": "Zkontrolovat přiznání k DPH a kontrolní hlášení",
+          "hint": "Zkontrolujte oba zákonné výstupy uloženého snímku."
+        },
+        "export": {
+          "title": "Export XML",
+          "hint": "Stáhněte XML pro EPO z přiznání k DPH a z kontrolního hlášení. Každé stažení se uloží do historie exportů."
+        },
+        "finalize": {
+          "title": "Finalizace",
+          "hint": "Finalizace uzamkne zdaňovací období. Finalizovat smí jen administrátor."
+        }
+      },
+      "reasons": {
+        "documents_need_review": "Doklady v tomto zdaňovacím období ještě vyžadují kontrolu.",
+        "report_missing": "Přiznání k DPH zatím nebylo vygenerováno.",
+        "report_stale": "Doklady se po vygenerování přiznání změnily. Vygenerujte ho znovu.",
+        "warnings": "Některé doklady mají upozornění. Zkontrolujte je před exportem.",
+        "identity_incomplete": "Před finalizací doplňte identitu společnosti.",
+        "administrator_only": "Toto zdaňovací období může finalizovat jen administrátor."
+      },
+      "blockedBy": "Dostupné po dokončení kroku {number} ({title}).",
+      "noDocumentsToReview": "Žádný doklad toto zdaňovací období neblokuje.",
+      "documentsToReview": "Doklady ke kontrole",
+      "showAllDocuments": "Zobrazit {count, plural, one {# doklad} few {# doklady} other {# dokladů}} ve frontě",
+      "exportVatReturn": "Exportovat XML přiznání k DPH",
+      "exportControlStatement": "Exportovat XML kontrolního hlášení",
+      "openExportHistory": "Otevřít historii exportů"
+    },
     "title": "Přiznání a kontrolní hlášení",
     "periodsTitle": "Zdaňovací období",
     "periodsDescription": "Postupujte platnými měsíčními a čtvrtletními obdobími v pořadí podání.",
@@ -1029,6 +1149,9 @@
     "noExportArtifacts": "Žádné uložené exportní artefakty",
     "noExportArtifactsHint": "Příslušný zákonný výstup vytvořte na obrazovce přiznání k DPH nebo kontrolního hlášení. Historie uložených artefaktů zůstane zde u daného období.",
     "exportArtifacts": "Uložené XML artefakty",
+    "artifactForm": "Formulář",
+    "artifactActions": "Akce",
+    "artifactChecksum": "Kontrolní součet SHA-256",
     "artifactKind": "Stav",
     "artifactKinds": { "draft": "Pracovní", "final": "Finální" },
     "artifactFormat": "Výstup",

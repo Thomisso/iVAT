@@ -44,15 +44,15 @@ describe("tenant isolation", () => {
     const organizations = await b.client.from("organization").select("id").eq("id", a.organizationId);
     const companies = await b.client.from("company").select("id").eq("organization_id", a.organizationId);
     const memberships = await b.client.from("membership").select("id").eq("organization_id", a.organizationId);
-    const filingFrequencies = await b.client
-      .from("company_filing_frequency")
+    const reportingYears = await b.client
+      .from("reporting_year")
       .select("company_id")
       .eq("company_id", a.companyId);
 
     expect(organizations.data).toEqual([]);
     expect(companies.data).toEqual([]);
     expect(memberships.data).toEqual([]);
-    expect(filingFrequencies.data).toEqual([]);
+    expect(reportingYears.data).toEqual([]);
   });
 
   it("refuses direct modification of another Organization under the user's identity", async () => {
@@ -65,16 +65,16 @@ describe("tenant isolation", () => {
     const joinOrganization = await b.client
       .from("membership")
       .insert({ user_id: b.userId, organization_id: a.organizationId, email: b.email, role: "administrator" });
-    const forgeFilingFrequency = await b.client
-      .from("company_filing_frequency")
+    const forgeReportingYear = await b.client
+      .from("reporting_year")
       .insert({
         company_id: a.companyId,
         organization_id: a.organizationId,
+        year: 2027,
         frequency: "quarterly",
-        effective_from: "2027-01-01",
       });
 
-    for (const attempt of [renameOrganization, renameCompany, deleteCompany, joinOrganization, forgeFilingFrequency]) {
+    for (const attempt of [renameOrganization, renameCompany, deleteCompany, joinOrganization, forgeReportingYear]) {
       expect(attempt.error?.code).toBe("42501");
     }
     expect((await listMyOrganizations(a.client)).map((o) => o.name)).toEqual(["Organization A"]);
@@ -221,12 +221,10 @@ describe("tenant isolation", () => {
       const reporting = await updateDocumentReporting(b.client, {
         companyId: a.companyId,
         documentId: a.documentId,
-        receiptDate: "2026-11-05",
         claimedReportingPeriod: null,
       });
       const directReporting = await b.client.rpc("update_document_reporting", {
         target_document_id: a.documentId,
-        new_receipt_date: "2026-11-05",
         new_claimed_reporting_period: null as unknown as string,
       });
 
@@ -253,7 +251,6 @@ describe("tenant isolation", () => {
           source_file_id: a.sourceFileId,
           first_page: 1,
           last_page: 1,
-          receipt_date: "2026-10-28",
         }),
         await a.client.from("extraction_version").update({ payload: {} }).eq("id", version.id),
         await a.client.from("extraction_version").delete().eq("id", version.id),
@@ -346,3 +343,14 @@ describe("tenant isolation", () => {
     expect(companies.error?.code).toBe("42501");
   });
 });
+
+it.each(["document_overview", "vat_report_document"] as const)(
+  "closes the %s view to anonymous and system clients",
+  async (view) => {
+    const anonymous = await anonymousClient().from(view).select("id").limit(1);
+    const system = await systemClient().from(view).select("id").limit(1);
+
+    expect(anonymous.error?.code).toBe("42501");
+    expect(system.error?.code).toBe("42501");
+  },
+);

@@ -5,19 +5,18 @@ import { useTranslations } from "next-intl";
 import { updateDocumentReportingAction } from "@/app/actions";
 import { Button } from "@/components/button";
 import { FormError } from "@/components/form-error";
-import { TextField } from "@/components/text-field";
 
-/** Receipt Date and an optional later input-VAT claim for an incoming Document. */
+/** The optional Deferred Claim of an incoming Document. */
 export function ReportingAssignmentForm({
   companyId,
   documentId,
-  receiptDate,
   claimedReportingPeriod,
+  periods,
 }: {
   companyId: string;
   documentId: string;
-  receiptDate: string;
   claimedReportingPeriod: string | null;
+  periods: readonly string[];
 }) {
   const t = useTranslations("review.reportingAssignment");
   const [state, action, pending] = useActionState(
@@ -32,24 +31,15 @@ export function ReportingAssignmentForm({
       <fieldset>
         <legend>{t("title")}</legend>
         <div className="fields">
-          <TextField
-            label={t("receiptDate")}
-            name="receiptDate"
-            type="date"
-            required
-            defaultValue={state.values.receiptDate ?? receiptDate}
-          />
-          <TextField
-            label={t("claimedReportingPeriod")}
-            hint={t("claimedReportingPeriodHint")}
-            name="claimedReportingPeriod"
-            placeholder={t("claimedReportingPeriodPlaceholder")}
-            defaultValue={
-              state.values.claimedReportingPeriod ??
-              claimedReportingPeriod ??
-              ""
-            }
-          />
+          <label>
+            <span>{t("claimedReportingPeriod")}</span>
+            <select className="iv-input" name="claimedReportingPeriod" defaultValue={state.values.claimedReportingPeriod ?? claimedReportingPeriod ?? ""}>
+              <option value="">{t("defaultPeriod")}</option>
+              {claimedReportingPeriod && !periods.includes(claimedReportingPeriod) && <option value={claimedReportingPeriod} disabled>{claimedReportingPeriod}</option>}
+              {periods.map((period) => <option key={period} value={period}>{period}</option>)}
+            </select>
+            <small>{t("claimedReportingPeriodHint")}</small>
+          </label>
         </div>
       </fieldset>
       <FormError error={state.error} />

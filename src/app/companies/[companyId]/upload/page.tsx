@@ -1,12 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getFormatter, getTranslations } from "next-intl/server";
-import { getCompany, getMyCompanyRole } from "@/application/companies";
+import { getTranslations } from "next-intl/server";
+import { getCompany, getMyCompanyRole, listCompanyReportingYears } from "@/application/companies";
+import { parseReportingPeriodFilter, reportingPeriodsOf } from "@/application/reporting-periods";
 import { getUploadLimits } from "@/application/source-files";
 import { listUploadBatches } from "@/application/upload-batches";
 import { requireUserClient } from "@/lib/supabase/server";
 import { PageLayout } from "@/components/app-shell";
+import { ReportingPeriodFilter } from "@/components/reporting-period-filter";
 import { SourceFileUploadForm } from "../source-file-upload-form";
+import { formatDateTime } from "@/lib/format-date";
 
 const HISTORY_PAGE_SIZE = 20;
 
@@ -18,19 +21,26 @@ export default async function UploadPage({
   const query = await searchParams;
   const requestedPage = Number(typeof query.historyPage === "string" ? query.historyPage : "1");
   const historyPage = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+  const reportingPeriod = parseReportingPeriodFilter(query.reportingPeriod);
+  const historyHref = (page: number) => `/companies/${companyId}/upload?${new URLSearchParams({
+    ...(reportingPeriod ? { reportingPeriod } : {}),
+    historyPage: String(page),
+  })}`;
   const client = await requireUserClient();
-  const [company, role, limits, batches, t, ai, workspace, format] = await Promise.all([
+  const [company, role, limits, batches, reportingYears, t, ai, workspace, filter] = await Promise.all([
     getCompany(client, companyId),
     getMyCompanyRole(client, companyId),
     getUploadLimits(client),
     listUploadBatches(client, companyId, {
       limit: HISTORY_PAGE_SIZE + 1,
       offset: (historyPage - 1) * HISTORY_PAGE_SIZE,
+      reportingPeriod,
     }),
+    listCompanyReportingYears(client, companyId),
     getTranslations("shell"),
     getTranslations("aiProcessing"),
     getTranslations("uploadWorkspace"),
-    getFormatter(),
+    getTranslations("periodFilter"),
   ]);
   if (!company) notFound();
   const hasNextPage = batches.length > HISTORY_PAGE_SIZE;
@@ -48,12 +58,17 @@ export default async function UploadPage({
     </section>
     <section className="upload-history" aria-labelledby="upload-history-title">
       <div className="upload-section-heading"><div><h2 id="upload-history-title">{workspace("history")}</h2><p>{workspace("historyHint")}</p></div><span>{workspace("historyPage", { page: historyPage })}</span></div>
+      <form action={`/companies/${companyId}/upload`} aria-label={filter("formLabel")} className="document-queue-filters">
+        <ReportingPeriodFilter periods={reportingPeriodsOf(reportingYears)} selected={reportingPeriod} />
+        <button className="iv-btn iv-btn-primary" type="submit">{filter("submit")}</button>
+        <Link href={`/companies/${companyId}/upload`}>{filter("clear")}</Link>
+      </form>
       {visibleBatches.length ? <ol className="upload-batch-list">
         {visibleBatches.map((batch) => <li key={batch.id}>
           <Link href={`/companies/${companyId}/upload-batches/${batch.id}`}>
             <span className={`upload-outcome upload-outcome-${batch.outcome}`}>{workspace(`outcome.${batch.outcome}`)}</span>
             <strong>{workspace("batchFiles", { count: batch.actualFileCount, planned: batch.plannedFileCount })}</strong>
-            <span>{format.dateTime(new Date(batch.createdAt), { dateStyle: "medium", timeStyle: "short" })}</span>
+            <span>{formatDateTime(batch.createdAt)}</span>
             <span>{workspace("batchSummary", {
               waiting: batch.counts.waiting + batch.counts.splitting + batch.counts.extracting,
               review: batch.counts.review,
@@ -61,12 +76,12 @@ export default async function UploadPage({
             })}</span>
           </Link>
         </li>)}
-      </ol> : <div className="company-workspace-empty"><span aria-hidden="true" /><p>{workspace("noBatches")}</p></div>}
+      </ol> : <div className="company-workspace-empty"><span aria-hidden="true" /><p>{workspace(reportingPeriod ? "noMatchingBatches" : "noBatches")}</p></div>}
       {(historyPage > 1 || hasNextPage) && <nav className="upload-history-pagination" aria-label={workspace("historyPagination")}>
         {historyPage > 1
-          ? <Link href={`/companies/${companyId}/upload?historyPage=${historyPage - 1}`}>{workspace("newerBatches")}</Link>
+          ? <Link href={historyHref(historyPage - 1)}>{workspace("newerBatches")}</Link>
           : <span />}
-        {hasNextPage && <Link href={`/companies/${companyId}/upload?historyPage=${historyPage + 1}`}>{workspace("olderBatches")}</Link>}
+        {hasNextPage && <Link href={historyHref(historyPage + 1)}>{workspace("olderBatches")}</Link>}
       </nav>}
     </section>
   </PageLayout>;

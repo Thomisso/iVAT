@@ -1,28 +1,37 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getFormatter, getTranslations } from "next-intl/server";
-import { getCompany, getCompanySetupChecklist, getMyCompanyRole } from "@/application/companies";
+import { getTranslations } from "next-intl/server";
+import { getCompany, getMyCompanyRole } from "@/application/companies";
 import { documentQueueQuery, parseDocumentQueue } from "@/application/document-queue";
 import {
-  getReportingPeriodReadiness,
   listReportingPeriods,
   readinessDocumentCounts,
   type ReadinessDocumentFilter,
 } from "@/application/reporting-period-readiness";
 import {
-  getPeriodLock,
-  getVatReport,
-  listVatReportTransitions,
-} from "@/application/vat-reports";
+  getVatProcessingWizard,
+  VAT_PROCESSING_STEPS,
+  type VatProcessingStep,
+  type VatProcessingStepState,
+} from "@/application/vat-processing";
+import { getVatReport, listVatReportTransitions } from "@/application/vat-reports";
 import { isReportingPeriod } from "@/application/vat-rules";
 import { requireUserClient } from "@/lib/supabase/server";
 import { EmptyState } from "@/components/empty-state";
 import { DataTable } from "@/components/data-table";
-import { formatDocumentDate } from "@/lib/format-date";
+import { StatusBadge, type DocumentStatus } from "@/components/status-badge";
+import { formatDateTime } from "@/lib/format-date";
 import { PageLayout } from "@/components/app-shell";
 import { GenerateForm } from "./generate-form";
 import { PeriodLockForm } from "./period-lock-form";
 import { PeriodNavigation, PeriodSelector } from "./period-navigation";
+
+const stateBadge: Record<VatProcessingStepState, DocumentStatus> = {
+  done: "approved",
+  needs_attention: "needs-review",
+  blocked: "locked",
+  not_started: "uploaded",
+};
 
 export default async function VatReportsPage({
   params,
@@ -40,32 +49,30 @@ export default async function VatReportsPage({
     listReportingPeriods(client, companyId),
   ]);
   if (!company) notFound();
-  const period = periods.some((candidate) => candidate.period === requestedPeriod)
+  const selectedPeriod = periods.some((candidate) => candidate.period === requestedPeriod)
     ? requestedPeriod!
     : periods.find((candidate) => candidate.oldestUnfinished)?.period ??
       periods.at(-1)?.period;
-  if (!period) notFound();
-  const [report, periodLock, role, readinessResult, setup, transitions, t, format] = await Promise.all([
+  if (!selectedPeriod) notFound();
+  const period: string = selectedPeriod;
+  const [report, role, wizardResult, transitions, t] = await Promise.all([
     getVatReport(client, companyId, period),
-    getPeriodLock(client, companyId, period),
     getMyCompanyRole(client, companyId),
-    getReportingPeriodReadiness(client, { companyId, period }),
-    getCompanySetupChecklist(client, companyId),
+    getVatProcessingWizard(client, { companyId, period }),
     listVatReportTransitions(client, companyId, period),
     getTranslations(),
-    getFormatter(),
   ]);
-  if (!readinessResult.ok) notFound();
-  const readiness = readinessResult.value;
+  if (!wizardResult.ok) notFound();
+  const { readiness, steps, documentsToReview, documentsToReviewCount, locked } = wizardResult.value;
   const readinessCounts = readinessDocumentCounts(readiness);
   const readinessHref = (filter: ReadinessDocumentFilter) => `/companies/${companyId}/documents?${documentQueueQuery(parseDocumentQueue({
     view: "all",
     readiness: filter,
     reportingPeriod: period,
   }))}`;
-  const identityComplete = setup.some((item) =>
-    item.step === "identity" && item.state === "completed"
-  );
+  const periodHref = (segment: string) => `/companies/${companyId}/vat-reports/${period}/${segment}`;
+  const stepNumber = (key: VatProcessingStep["key"]) => VAT_PROCESSING_STEPS.indexOf(key) + 1;
+  const stepTitle = (key: VatProcessingStep["key"]) => t(`vatReports.wizard.steps.${key}.title`);
   const groupRows = (
     [
       ["processing", readiness.groups.processing],
@@ -75,6 +82,133 @@ export default async function VatReportsPage({
       ["rejected", readiness.groups.rejected],
     ] as const
   ).filter(([, ids]) => ids.length > 0);
+
+  function stepBody(step: VatProcessingStep) {
+    switch (step.key) {
+      case "review":
+        return <>
+          {groupRows.length > 0 && <dl className="vat-document-groups">
+            {groupRows.map(([group, ids]) => (
+              <div key={group}>
+                <dt>{t(`vatReports.groups.${group}`)}</dt>
+                <dd>{group === "rejected" ? <Link
+                  aria-label={t("vatReports.openRejectedDocuments", { count: ids.length })}
+                  href={readinessHref("rejected")}
+                >{ids.length}</Link> : ids.length}</dd>
+              </div>
+            ))}
+          </dl>}
+          {documentsToReviewCount === 0
+            ? <p>{t("vatReports.wizard.noDocumentsToReview")}</p>
+            : <>
+              <h3>{t("vatReports.wizard.documentsToReview")}</h3>
+              <ul className="vat-wizard-documents">
+                {documentsToReview.map((document) => {
+                  const reasons = [...new Set(readiness.blockers
+                    .filter((finding) => finding.documentId === document.id)
+                    .map((finding) => finding.code))];
+                  return <li key={document.id}>
+                    <Link href={`/companies/${companyId}/documents/${document.id}`}>
+                      {document.documentNumber ?? t("vatReports.documentFallback")}
+                    </Link>
+                    {document.counterparty?.name && <span>{document.counterparty.name}</span>}
+                    <small>{reasons.map((code) => t(`vatReports.blockerReasons.${code}`)).join(" · ")}</small>
+                  </li>;
+                })}
+              </ul>
+              <Link href={readinessHref("blockers")}>
+                {t("vatReports.blockerCount", { count: readinessCounts.blockers })}
+              </Link>
+            </>}
+          {readinessCounts.warnings > 0 && (
+            <p className="vat-readiness-warning">
+              <Link href={readinessHref("warnings")}>{t("vatReports.warningCount", {
+                count: readinessCounts.warnings,
+              })}</Link>
+            </p>
+          )}
+        </>;
+      case "generate":
+        return <>
+          {readiness.snapshot ? <>
+            <dl className="vat-wizard-facts">
+              <div>
+                <dt>{t("vatReports.savedSnapshot")}</dt>
+                <dd>{t("vatReports.snapshotGenerated", {
+                  date: formatDateTime(readiness.snapshot.generatedAt),
+                })}</dd>
+              </div>
+              <div>
+                <dt>{t("vatReports.freshness")}</dt>
+                <dd data-freshness={readiness.snapshot.freshness}>
+                  {t(`vatReports.freshnessState.${readiness.snapshot.freshness}`)}
+                </dd>
+              </div>
+              <div>
+                <dt>{t("vatReports.snapshotDocuments")}</dt>
+                <dd>{report?.documents.length ?? 0}</dd>
+              </div>
+            </dl>
+            <p>{t(`vatReports.snapshotFreshness.${readiness.snapshot.freshness}`)}</p>
+          </> : <p><strong>{t("vatReports.noSnapshot")}</strong> {t("vatReports.noSnapshotHint")}</p>}
+          <div className="vat-wizard-actions">
+            <GenerateForm
+              key={period}
+              companyId={companyId}
+              period={period}
+              exists={!!report}
+              disabled={locked || step.state === "blocked"}
+            />
+            <a
+              className="iv-btn iv-btn-secondary iv-btn-md"
+              href={periodHref("xlsx")}
+              download
+            >
+              {t("vatReports.excelOverview")}
+            </a>
+          </div>
+        </>;
+      case "outputs":
+        return step.state === "blocked" ? null : <div className="vat-wizard-actions">
+          <Link className="iv-btn iv-btn-secondary iv-btn-md" href={periodHref("vat-return")}>
+            {t("vatReports.openVatReturn")}
+          </Link>
+          <Link className="iv-btn iv-btn-secondary iv-btn-md" href={periodHref("control-statement")}>
+            {t("vatReports.openControlStatement")}
+          </Link>
+        </div>;
+      case "export":
+        return step.state === "blocked" ? null : <div className="vat-wizard-actions">
+          <Link className="iv-btn iv-btn-secondary iv-btn-md" href={`${periodHref("vat-return")}#export`}>
+            {t("vatReports.wizard.exportVatReturn")}
+          </Link>
+          <Link className="iv-btn iv-btn-secondary iv-btn-md" href={`${periodHref("control-statement")}#export`}>
+            {t("vatReports.wizard.exportControlStatement")}
+          </Link>
+          <Link href={periodHref("exports")}>{t("vatReports.wizard.openExportHistory")}</Link>
+        </div>;
+      case "finalize":
+        return <>
+          {locked && <p><strong>{t("statusBadge.locked")}</strong></p>}
+          {role === "administrator" && (locked || step.state !== "blocked") && (
+            <PeriodLockForm
+              key={`${period}:${locked ? "locked" : "unlocked"}`}
+              companyId={companyId}
+              period={period}
+              locked={locked}
+              summary={{
+                blockerCount: report?.finalization.blockerCount ?? readinessCounts.blockers,
+                warningCount: report?.finalization.warningCount ?? readinessCounts.warnings,
+                rejectedDocumentCount: report?.finalization.rejectedDocumentCount ?? readinessCounts.rejected,
+                snapshotCurrent: readiness.snapshot?.freshness === "current",
+                identityComplete: step.reason !== "identity_incomplete",
+              }}
+            />
+          )}
+        </>;
+    }
+  }
+
   return (
     <PageLayout className="company-workspace vat-reports" measure="wide">
       <header className="company-page-header vat-report-header">
@@ -87,7 +221,6 @@ export default async function VatReportsPage({
           {company.name} · {period}
         </span>
         <h1>{t("vatReports.processingTitle", { period })}</h1>
-        <p>{t("vatReports.processingDescription")}</p>
       </header>
       <PeriodSelector companyId={companyId} period={period} periods={periods} />
       <PeriodNavigation
@@ -96,159 +229,36 @@ export default async function VatReportsPage({
         period={period}
         reportAvailable={!!report}
       />
-      <div className="vat-processing-grid">
-        <section
-          className={`vat-readiness ${readiness.ready ? "is-ready" : "has-blockers"}`}
-        >
-          <header>
-            <div>
-              <span className="vat-section-label">
-                {t("vatReports.liveData")}
-              </span>
-              <h2>
-                {t(
-                  readiness.ready
-                    ? "vatReports.readinessReady"
-                    : "vatReports.readinessBlocked",
-                )}
-              </h2>
-              <p>
-                {t(
-                  readiness.ready
-                    ? "vatReports.readinessReadyHint"
-                    : "vatReports.readinessBlockedHint",
-                )}
-              </p>
-            </div>
-            {readiness.ready ? <strong className="vat-readiness-count">{t("vatReports.ready")}</strong> : <Link
-              className="vat-readiness-count"
-              href={readinessHref("blockers")}
-            >{t("vatReports.blockerCount", { count: readinessCounts.blockers })}</Link>}
-          </header>
-          <dl className="vat-document-groups">
-            {groupRows.map(([group, ids]) => (
-              <div key={group}>
-                <dt>{t(`vatReports.groups.${group}`)}</dt>
-                <dd>{group === "rejected" ? <Link
-                  aria-label={t("vatReports.openRejectedDocuments", { count: ids.length })}
-                  href={readinessHref("rejected")}
-                >{ids.length}</Link> : ids.length}</dd>
+      <ol aria-label={t("vatReports.wizard.title")} className="vat-wizard">
+        {steps.map((step) => (
+          <li
+            aria-labelledby={`vat-step-${step.key}`}
+            className="vat-wizard-step"
+            data-state={step.state}
+            key={step.key}
+          >
+            <header>
+              <span aria-hidden="true" className="vat-wizard-number">{stepNumber(step.key)}</span>
+              <div>
+                <h2 id={`vat-step-${step.key}`}>{stepTitle(step.key)}</h2>
+                <p>{t(`vatReports.wizard.steps.${step.key}.hint`)}</p>
               </div>
-            ))}
-          </dl>
-          {readinessCounts.warnings > 0 && (
-            <p className="vat-readiness-warning">
-              <Link href={readinessHref("warnings")}>{t("vatReports.warningCount", {
-                count: readinessCounts.warnings,
-              })}</Link>
-            </p>
-          )}
-          <div className="vat-processing-actions">
-            <GenerateForm
-              key={period}
-              companyId={companyId}
-              period={period}
-              exists={!!report}
-              locked={!!periodLock}
-            />
-            <div>
-              <strong>{t("vatReports.liveWorkbook")}</strong>
-              <p>{t("vatReports.excelOverviewHint")}</p>
-              <a
-                className="iv-btn iv-btn-secondary iv-btn-md"
-                href={`/companies/${companyId}/vat-reports/${period}/xlsx`}
-                download
-              >
-                {t("vatReports.excelOverview")}
-              </a>
-            </div>
-          </div>
-        </section>
-        <aside className="vat-snapshot-card">
-          <span className="vat-section-label">
-            {t("vatReports.savedSnapshot")}
-          </span>
-          {readiness.snapshot ? (
-            <>
-              <h2>
-                {t("vatReports.snapshotGenerated", {
-                  date: formatDocumentDate(
-                    readiness.snapshot.generatedAt,
-                    true,
-                  ),
-                })}
-              </h2>
-              <p>
-                {t(
-                  `vatReports.snapshotFreshness.${readiness.snapshot.freshness}`,
-                )}
-              </p>
-              <dl>
-                <div>
-                  <dt>{t("vatReports.freshness")}</dt>
-                  <dd data-freshness={readiness.snapshot.freshness}>
-                    {t(
-                      `vatReports.freshnessState.${readiness.snapshot.freshness}`,
-                    )}
-                  </dd>
-                </div>
-                <div>
-                  <dt>{t("vatReports.snapshotDocuments")}</dt>
-                  <dd>{report?.documents.length ?? 0}</dd>
-                </div>
-              </dl>
-              {periodLock && (
-                <p>
-                  <strong>{t("statusBadge.locked")}</strong>
-                </p>
-              )}
-              {role === "administrator" && (
-                <PeriodLockForm
-                  key={`${period}:${periodLock ? "locked" : "unlocked"}`}
-                  companyId={companyId}
-                  period={period}
-                  locked={!!periodLock}
-                  summary={{
-                    blockerCount: report?.finalization.blockerCount ?? readinessCounts.blockers,
-                    warningCount: report?.finalization.warningCount ?? readinessCounts.warnings,
-                    rejectedDocumentCount: report?.finalization.rejectedDocumentCount ?? readinessCounts.rejected,
-                    snapshotCurrent: readiness.snapshot?.freshness === "current",
-                    identityComplete,
-                  }}
-                />
-              )}
-            </>
-          ) : (
-            <>
-              <h2>{t("vatReports.noSnapshot")}</h2>
-              <p>{t("vatReports.noSnapshotHint")}</p>
-            </>
-          )}
-        </aside>
-      </div>
-      {!report && (
-        <EmptyState icon="report" title={t("vatReports.none")} />
-      )}
-      {report && (
-        <section className="vat-snapshot-destinations">
-          <h2>{t("vatReports.snapshotOutputs")}</h2>
-          <p>{t("vatReports.snapshotOutputsHint")}</p>
-          <div>
-            <Link
-              className="iv-btn iv-btn-secondary iv-btn-md"
-              href={`/companies/${companyId}/vat-reports/${period}/vat-return`}
-            >
-              {t("vatReports.openVatReturn")}
-            </Link>
-            <Link
-              className="iv-btn iv-btn-secondary iv-btn-md"
-              href={`/companies/${companyId}/vat-reports/${period}/control-statement`}
-            >
-              {t("vatReports.openControlStatement")}
-            </Link>
-          </div>
-        </section>
-      )}
+              <StatusBadge status={stateBadge[step.state]}>
+                {t(`vatReports.wizard.state.${step.state}`)}
+              </StatusBadge>
+            </header>
+            {(step.reason || step.blockedBy) && <p className="vat-wizard-reason" role="note">
+              {step.blockedBy && t("vatReports.wizard.blockedBy", {
+                number: stepNumber(step.blockedBy),
+                title: stepTitle(step.blockedBy),
+              })}
+              {step.blockedBy && step.reason && " "}
+              {step.reason && t(`vatReports.wizard.reasons.${step.reason}`)}
+            </p>}
+            <div className="vat-wizard-body">{stepBody(step)}</div>
+          </li>
+        ))}
+      </ol>
       <section className="vat-transition-history">
         <h2>{t("vatReports.transitionHistory")}</h2>
         <p>{t("vatReports.transitionHistoryHint")}</p>
@@ -262,10 +272,7 @@ export default async function VatReportsPage({
                 header: t("vatReports.transitionTime"),
                 render: (transition) => (
                   <time dateTime={transition.occurredAt}>
-                    {format.dateTime(new Date(transition.occurredAt), {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                    })}
+                    {formatDateTime(transition.occurredAt)}
                   </time>
                 ),
               },

@@ -226,7 +226,7 @@ it.each(["dphdp3", "dphkh1"] as const)(
   "exports quarterly Reporting Period metadata for %s",
   async (format) => {
     const report = computeVatReport(company, "2026-Q4", [], [
-      { frequency: "quarterly", effectiveFrom: "2026-01-01" },
+      { year: 2026, frequency: "quarterly", firstMonth: 1 },
     ]);
 
     const result = await createEpoXml(report, format, details);

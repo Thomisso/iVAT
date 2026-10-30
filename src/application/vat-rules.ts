@@ -1,6 +1,6 @@
 import type {
   CompanyDetails,
-  FilingFrequencyHistoryEntry,
+  ReportingYear,
 } from "./companies";
 import type { DocumentStatus } from "./documents";
 import {
@@ -18,14 +18,12 @@ export type ReportDocument = {
   extractionVersionId: string | null;
   status: DocumentStatus;
   payload: ExtractionPayload | null;
-  receiptDate?: string;
   claimedReportingPeriod?: string | null;
 };
 
 export type ReportingPeriodDocument = {
   direction: "incoming" | "outgoing" | null;
   taxPointDate: string | null;
-  receiptDate: string;
   claimedReportingPeriod: string | null;
 };
 
@@ -36,33 +34,28 @@ function validDate(value: string | null): value is string {
 }
 
 
-/** Assigns a Document to the Company's Reporting Period in force on its relevant date. */
+/**
+ * Assigns a Document to the Company's Reporting Period of its Tax Point Date
+ * (ADR-0012), or to an incoming Document's later Deferred Claim. Mirrors
+ * `private.document_reporting_period` in the database.
+ */
 export function reportingPeriodForDocument(
   document: ReportingPeriodDocument,
-  filingFrequencies: readonly FilingFrequencyHistoryEntry[],
+  reportingYears: readonly ReportingYear[],
 ): string | null {
   if (!validDate(document.taxPointDate)) return null;
-  if (document.direction === "outgoing") {
-    return reportingPeriodForDate(document.taxPointDate, filingFrequencies);
-  }
-  if (document.direction !== "incoming" || !validDate(document.receiptDate)) {
-    return null;
-  }
-  const assigned = reportingPeriodForDate(
-    document.receiptDate > document.taxPointDate
-      ? document.receiptDate
-      : document.taxPointDate,
-    filingFrequencies,
-  );
+  const assigned = reportingPeriodForDate(document.taxPointDate, reportingYears);
+  if (document.direction !== "incoming") return assigned;
   const claimedStart = document.claimedReportingPeriod
     ? reportingPeriodStart(document.claimedReportingPeriod)
     : null;
   if (
     assigned &&
     claimedStart &&
-    reportingPeriodForDate(claimedStart, filingFrequencies) ===
+    reportingPeriodForDate(claimedStart, reportingYears) ===
       document.claimedReportingPeriod &&
-    claimedStart > reportingPeriodStart(assigned)!
+    claimedStart > reportingPeriodStart(assigned)! &&
+    claimedStart <= `${Number(document.taxPointDate.slice(0, 4)) + 3}${document.taxPointDate.slice(4)}`
   ) {
     return document.claimedReportingPeriod;
   }
@@ -229,9 +222,11 @@ export function computeVatReport(
   company: CompanyDetails,
   period: string,
   documents: ReportDocument[],
-  filingFrequencies: readonly FilingFrequencyHistoryEntry[] = [
-    { frequency: "monthly", effectiveFrom: "2000-01-01" },
-  ],
+  reportingYears: readonly ReportingYear[] = [{
+    year: Number(period.slice(0, 4)),
+    frequency: period.includes("-Q") ? "quarterly" : "monthly",
+    firstMonth: 1,
+  }],
 ): ComputedVatReport {
   const vatReturn: VatReturnLine[] = VAT_RETURN_LINES.map(
     (line) => ({ line, netAmount: "0.00", vatAmount: "0.00", documentIds: [] }),
@@ -245,15 +240,14 @@ export function computeVatReport(
           {
             direction: payload.direction,
             taxPointDate: payload.taxPointDate,
-            receiptDate: document.receiptDate ?? payload.taxPointDate ?? "",
             claimedReportingPeriod: document.claimedReportingPeriod ?? null,
           },
-          filingFrequencies,
+          reportingYears,
         ) ??
         (/^20\d{2}-(0[1-9]|1[0-2])-\d{2}$/.test(payload.taxPointDate ?? "")
           ? reportingPeriodForDate(
               `${payload.taxPointDate!.slice(0, 7)}-01`,
-              filingFrequencies,
+              reportingYears,
             )
           : null)
       : null;

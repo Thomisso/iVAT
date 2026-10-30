@@ -43,7 +43,6 @@ async function createCompany(page: Page, name: string, ico: string, enableAi = f
   await page.getByRole("button", { name: "Create company" }).click();
   await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+\/setup\/filing-frequency$/);
   const companyId = new URL(page.url()).pathname.split("/")[2];
-  await page.getByLabel("Effective from").fill("2026-01-01");
   await page.getByRole("button", { name: "Save and continue" }).click();
   await expect(page).toHaveURL(new RegExp(`/companies/${companyId}/setup/ai-processing$`));
   if (enableAi) {
@@ -176,7 +175,7 @@ test("mobile shell menus return focus and role-dependent administration stays pr
   await adminPage.reload();
   await adminPage.keyboard.press("Tab");
   await expect(adminPage.getByRole("link", { name: "Skip to content" })).toBeFocused();
-  for (const label of ["Choose Company", "Open administration menu", "Open account menu"]) {
+  for (const label of ["Choose Company", "Open account menu"]) {
     const trigger = adminPage.getByRole("button", { name: label });
     await trigger.focus();
     await adminPage.keyboard.press("Enter");
@@ -190,8 +189,11 @@ test("mobile shell menus return focus and role-dependent administration stays pr
     await expect(adminPage.getByRole("menu", { name: label })).toBeHidden();
     await expect(trigger).toBeFocused();
   }
-  await adminPage.getByRole("button", { name: "Open administration menu" }).click();
-  await expect(adminPage.locator(`a[href="/companies/${companyId}/settings/users"]`)).toBeVisible();
+  await expect(adminPage.getByRole("button", { name: "Open administration menu" })).toHaveCount(0);
+  await adminPage.goto(`/companies/${companyId}/settings`);
+  await expect(
+    adminPage.getByRole("navigation", { name: "Administration" }).locator(`a[href="/companies/${companyId}/settings/users"]`),
+  ).toBeVisible();
 
   for (const width of [360, 720, 1024, 1440]) {
     await adminPage.setViewportSize({ width, height: 900 });
@@ -264,7 +266,6 @@ test("mobile shell menus return focus and role-dependent administration stays pr
   }
   await userPage.goto(`/companies/${companyId}/setup/filing-frequency`);
   await expect(userPage).toHaveURL(new RegExp(`/companies/${companyId}/settings$`));
-  await userPage.getByRole("button", { name: "Open administration menu" }).click();
   await expect(userPage.locator(`a[href="/companies/${companyId}/settings/users"]`)).toHaveCount(0);
 
   const { error: platformError } = await service.from("platform_user").insert({ role: "super_admin", user_id: adminUserId });
@@ -279,8 +280,9 @@ test("mobile shell menus return focus and role-dependent administration stays pr
   await adminPage.getByRole("button", { name: "Verify and enable" }).click();
   await adminPage.getByRole("link", { name: "I saved the codes" }).click();
   await expect(adminPage).toHaveURL(new RegExp(`/companies/${companyId}$`));
-  await adminPage.getByRole("button", { name: "Open administration menu" }).click();
-  await expect(adminPage.getByRole("menuitem", { name: "Platform overview" })).toBeVisible();
+  await expect(
+    adminPage.getByRole("navigation", { name: "Administration" }).getByRole("link", { name: "Platform overview" }),
+  ).toBeVisible();
 
   await adminContext.close();
   await userContext.close();
@@ -346,9 +348,9 @@ test("nested Company routes keep one aligned shell at desktop and mobile widths"
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
   }
   await page.goto(`/companies/${companyId}/settings`);
-  const settingsSelector = page.getByRole("combobox", { name: "Company settings sections" });
-  await expect(settingsSelector).toBeVisible();
-  await settingsSelector.selectOption(`/companies/${companyId}/settings/company`);
+  const settingsNavigation = page.getByRole("navigation", { name: "Company settings sections" });
+  await expect(settingsNavigation).toBeVisible();
+  await settingsNavigation.getByRole("link", { name: "Company details" }).click();
   await expect(page).toHaveURL(new RegExp(`/companies/${companyId}/settings/company$`));
-  await expect(settingsSelector).toHaveValue(`/companies/${companyId}/settings/company`);
+  await expect(settingsNavigation.getByRole("link", { name: "Company details" })).toHaveAttribute("aria-current", "true");
 });

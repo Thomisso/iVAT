@@ -11,7 +11,7 @@ import { requireUserClient } from "@/lib/supabase/server";
 import { DataTable } from "@/components/data-table";
 import { StatusBadge } from "@/components/status-badge";
 import { PageLayout } from "@/components/app-shell";
-import { formatDocumentDate } from "@/lib/format-date";
+import { formatDateTime } from "@/lib/format-date";
 import { ExportForm } from "../../export-form";
 import { PeriodNavigation } from "../../period-navigation";
 import { ReportAmount, ReportIssues } from "../../report-output";
@@ -68,7 +68,7 @@ export default async function VatReturnPage({
       />
       <section className="vat-snapshot-summary">
         <span className="vat-section-label">{t("savedSnapshot")}</span>
-        <h2>{t("snapshotFrom", { date: formatDocumentDate(report.generatedAt, true) })}</h2>
+        <h2>{t("snapshotFrom", { date: formatDateTime(report.generatedAt) })}</h2>
         <p>{t(`snapshotFreshness.${readiness.snapshot?.freshness ?? "stale"}`)}</p>
       </section>
       <section className="vat-statutory-output">

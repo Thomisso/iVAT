@@ -27,7 +27,6 @@ import {
   type VatPayerRegistry,
 } from "./vat-registry";
 import { detectDocumentDirection } from "./direction-detection";
-import type { Direction } from "./extraction-payload";
 import { applyCnbConversion, type ExchangeRateProvider } from "./exchange-rates";
 import { createHash } from "node:crypto";
 import { buildCompanyDataArchive, type CompanyExportSnapshot } from "./company-data-export";
@@ -325,11 +324,13 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
       const metered = await system.rpc("record_ai_usage", {
         target_organization_id: file.organization_id,
         target_company_id: file.company_id,
+        target_configuration_id: availability.configurationId!,
         target_provider: ai.name,
         target_model: model,
         target_operation: "split",
         target_input_tokens: usage?.inputTokens ?? 0,
         target_output_tokens: usage?.outputTokens ?? 0,
+        target_provider_cost_usd: usage?.costUsd,
         target_job_name: "split-source-file",
         target_job_id: file.id,
       });
@@ -374,7 +375,7 @@ async function extractDocument(
 ) {
   const { data: document, error } = await system
     .from("document")
-    .select("id, organization_id, company_id, source_file_id, first_page, last_page, source_sheet, first_row, last_row, status, superseded_at, extraction_request_id, source_file (format, normalized_format, preselected_direction)")
+    .select("id, organization_id, company_id, source_file_id, first_page, last_page, source_sheet, first_row, last_row, status, superseded_at, extraction_request_id, source_file (format, normalized_format)")
     .eq("id", documentId)
     .single();
   if (error) throw error;
@@ -451,7 +452,6 @@ async function extractDocument(
         direction: detectDocumentDirection(
           extractedPayload,
           { ico: company.ico, vatId: company.vat_id },
-          document.source_file!.preselected_direction as Direction | null,
         ),
       };
       const conversion = await applyCnbConversion(directedPayload, exchangeRates);
@@ -459,11 +459,13 @@ async function extractDocument(
       const metered = await system.rpc("record_ai_usage", {
         target_organization_id: document.organization_id,
         target_company_id: document.company_id,
+        target_configuration_id: availability.configurationId!,
         target_provider: ai.name,
         target_model: model,
         target_operation: "extract",
         target_input_tokens: usage?.inputTokens ?? 0,
         target_output_tokens: usage?.outputTokens ?? 0,
+        target_provider_cost_usd: usage?.costUsd,
         target_job_name: "extract-document",
         target_job_id: document.id,
       });

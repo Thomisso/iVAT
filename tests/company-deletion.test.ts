@@ -63,7 +63,6 @@ it("exports a Company's originals and Document data before retaining it as soft-
     companyId: company.companyId,
     fileName: "receipt.png",
     bytes: original,
-    preselectedDirection: "incoming",
   });
   if (!uploaded.ok) throw new Error(uploaded.error);
   expect(await worker.runJobs()).toEqual([]);
@@ -120,6 +119,7 @@ it("exports a Company's originals and Document data before retaining it as soft-
       expect.objectContaining({ step: "identity", state: "completed" }),
       expect.objectContaining({ step: "filing_frequency", state: "completed" }),
     ]),
+    reportingYears: [{ year: 2026, frequency: "monthly", firstMonth: 1 }],
     filingDefaults: expect.objectContaining({
       taxOffice: "451",
       signatoryFirstName: "Jana",
@@ -387,7 +387,6 @@ it("retains an Approved Document and its Period Lock after the Company is soft-d
     companyId: company.companyId,
     fileName: "receipt.png",
     bytes: fixtureFile("receipt.png"),
-    preselectedDirection: "incoming",
   });
   if (!uploaded.ok) throw new Error(uploaded.error);
   expect(await worker.runJobs()).toEqual([]);

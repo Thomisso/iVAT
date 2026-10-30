@@ -6,6 +6,8 @@ export type ValidationFinding = {
   field: string;
   severity: ValidationFindingSeverity;
   code: string;
+  /** Values the finding's message shows, such as an amount `difference` ("10.00"). */
+  params?: Record<string, string>;
 };
 
 export type VatRatePeriod = {
@@ -31,6 +33,11 @@ export const CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA: DocumentValidationReferen
   ],
   roundingToleranceCents: 2,
 };
+
+/** Non-negative cents as a two-decimal string, the way amounts are stored ("0.05"). */
+function centsAmount(cents: number): string {
+  return `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, "0")}`;
+}
 
 function amountCents(value: string | null): number | null {
   if (value === null || !/^-?\d+\.\d{2}$/.test(value)) return null;
@@ -178,7 +185,7 @@ export function validateDocument(
     ...requiredFieldFindings(payload),
   ];
   if (payload.direction === null) {
-    findings.push(warning("direction", "direction_unknown"));
+    findings.push(error("direction", "direction_unknown"));
   }
   if (
     payload.proposedVatRegime === "other" ||
@@ -261,8 +268,30 @@ export function validateDocument(
     totalGrossCents !== null &&
     outsideTolerance(totalNetCents + totalVatCents, totalGrossCents)
   ) {
-    findings.push(error("totals.grossAmount", "total_gross_amount_mismatch"));
+    // VAT Reports use the Rate Breakdown, so a gross total off by rounding on
+    // the Document is shown, not blocking.
+    findings.push({
+      ...warning("totals.grossAmount", "total_gross_amount_mismatch"),
+      params: {
+        difference: centsAmount(Math.abs(totalGrossCents - (totalNetCents + totalVatCents))),
+      },
+    });
   }
 
   return findings;
+}
+
+/** Apply today's gross-total warning rule when reading immutable historical findings. */
+export function currentValidationFindings(
+  payload: ExtractionPayload,
+  findings: readonly ValidationFinding[],
+): ValidationFinding[] {
+  const historicalGrossError = findings.some((finding) =>
+    finding.code === "total_gross_amount_mismatch" && finding.severity === "error");
+  if (!historicalGrossError) return [...findings];
+  const grossWarning = validateDocument(payload, CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA)
+    .find((finding) => finding.code === "total_gross_amount_mismatch");
+  return findings.map((finding) => finding.code === "total_gross_amount_mismatch"
+    ? grossWarning ?? { ...finding, severity: "warning" }
+    : finding);
 }

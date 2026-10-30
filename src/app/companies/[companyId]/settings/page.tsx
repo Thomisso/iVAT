@@ -2,16 +2,19 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getCompany, getCompanySetupChecklist, getMyCompanyRole } from "@/application/companies";
+import { AdministrationNavigation } from "@/components/administration-navigation";
 import { Icon } from "@/components/icon";
+import { loadAdministrationAccess } from "@/lib/administration-access";
 import { requireUserClient } from "@/lib/supabase/server";
 
 export default async function CompanySettingsPage({ params }: PageProps<"/companies/[companyId]/settings">) {
   const { companyId } = await params;
   const client = await requireUserClient();
-  const [company, checklist, role, shell, t] = await Promise.all([
+  const [company, checklist, role, { organizations, superAdmin }, shell, t] = await Promise.all([
     getCompany(client, companyId),
     getCompanySetupChecklist(client, companyId),
     getMyCompanyRole(client, companyId),
+    loadAdministrationAccess(),
     getTranslations("shell"),
     getTranslations("company"),
   ]);
@@ -50,5 +53,12 @@ export default async function CompanySettingsPage({ params }: PageProps<"/compan
         {role === "administrator" && <Link href={checklistHref(item.step)}>{shell("setupOpen")}</Link>}
       </li>)}</ol>
     </section>
+    <AdministrationNavigation
+      className="company-settings-administration"
+      companyId={company.id}
+      companyRole={role}
+      organizations={organizations}
+      superAdmin={superAdmin}
+    />
   </>;
 }

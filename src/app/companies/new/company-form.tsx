@@ -97,10 +97,12 @@ export function CompanyForm({
   organizationId,
   companyId,
   initialValues,
+  layout = "single",
 }: {
   organizationId: string;
   companyId?: string;
   initialValues: Record<string, string>;
+  layout?: "single" | "settings";
 }) {
   const t = useTranslations("company");
   const [state, action, pending] = useActionState(createCompanyAction, {
@@ -110,7 +112,7 @@ export function CompanyForm({
   return (
     <form
       action={action}
-      className="form"
+      className={layout === "settings" ? "form settings-form" : "form"}
       key={JSON.stringify(state.values)}
     >
       <input type="hidden" name="organizationId" value={organizationId} />
