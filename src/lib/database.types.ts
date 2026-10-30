@@ -769,6 +769,9 @@ isOneToOne: false
 "finish_upload_batch":
 { Args: { "target_batch_id": string }; Returns: undefined
                            },
+"forget_removed_source_file_objects":
+{ Args: { "target_company_id": string }; Returns: undefined
+                           },
 "invitation_onboarding":
 { Args: { "invitation_token": string }; Returns: {
               "invitee_email": string,"invitee_existed": boolean,"onboarding_status": string,"target_company_id": string
@@ -816,7 +819,7 @@ isOneToOne: false
 { Args: { "target_company_id": string }; Returns: undefined
                            },
 "mark_upload_batch_notification_read":
-{ Args: { "target_batch_id": string }; Returns: undefined
+{ Args: { "target_batch_id": string }; Returns: boolean
                            },
 "mark_upload_notification_read":
 { Args: { "target_notification_id": string }; Returns: undefined
@@ -933,6 +936,9 @@ isOneToOne: false
                            },
 "update_document_reporting":
 { Args: { "new_claimed_reporting_period": string,"new_receipt_date": string,"target_document_id": string }; Returns: undefined
+                           },
+"upload_batch_deletion_refusal":
+{ Args: { "target_batch_id": string }; Returns: string
                            },
 "vat_report_artifact_history":
 { Args: { "target_company_id": string,"target_period": string }; Returns: Json

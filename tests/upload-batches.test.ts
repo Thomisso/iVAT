@@ -440,14 +440,15 @@ describe("upload batches", () => {
     await finishUploadBatch(admin.client, batch.value.id);
 
     // Opened while still processing: nothing to read yet, completion stays announced.
-    expect(await markUploadBatchNotificationRead(admin.client, batch.value.id)).toEqual({ ok: true, value: null });
+    expect(await markUploadBatchNotificationRead(admin.client, batch.value.id)).toEqual({ ok: true, value: { changed: false } });
     expect(await worker.runJobs()).toEqual([expect.any(Error)]);
     expect(await countUnreadUploadNotifications(admin.client, admin.companyId)).toBe(1);
 
-    expect(await markUploadBatchNotificationRead(member.client, batch.value.id)).toEqual({ ok: true, value: null });
+    expect(await markUploadBatchNotificationRead(member.client, batch.value.id)).toEqual({ ok: true, value: { changed: false } });
     expect(await countUnreadUploadNotifications(admin.client, admin.companyId)).toBe(1);
 
-    expect(await markUploadBatchNotificationRead(admin.client, batch.value.id)).toEqual({ ok: true, value: null });
+    expect(await markUploadBatchNotificationRead(admin.client, batch.value.id)).toEqual({ ok: true, value: { changed: true } });
+    expect(await markUploadBatchNotificationRead(admin.client, batch.value.id)).toEqual({ ok: true, value: { changed: false } });
     expect(await listUploadNotifications(admin.client, admin.companyId)).toEqual([
       expect.objectContaining({ batchId: batch.value.id, readAt: expect.any(String) }),
     ]);

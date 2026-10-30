@@ -369,7 +369,7 @@ export async function reprocessDocumentAction(_state: FormState, formData: FormD
 /** Runs when a User opens a batch's detail; refreshes the inbox badge in the shell. */
 export async function markUploadBatchNotificationReadAction(batchId: string): Promise<void> {
   const result = await markUploadBatchNotificationRead(await requireUserClient(), batchId);
-  if (result.ok) refresh();
+  if (result.ok && result.value.changed) refresh();
 }
 
 export async function deleteUploadBatchAction(_state: FormState, formData: FormData): Promise<FormState> {
