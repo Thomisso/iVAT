@@ -30,8 +30,19 @@ assumptions:
     verification: On 2026-10-30 the 100-concurrent-start test failed on the old code with a missing credentials file and then passed with parent FD inheritance. It also checks the child actually received both lines, durable early failure, duplicate-ID refusal and absence of the temporary credential path. These are local launcher observations, not provider credential validation.
     source: deploy/tests/release-connect.test.mjs; deploy/scripts/launch-release.sh
     updated_at: "2026-10-30"
+  - id: release-command-transport
+    status: supported
+    claim: Against these local HTTP stand-ins, the real release path authorizes the exact main revision, validates its prepared archive, refuses an untrusted SSH host and blocked checks/backups, and upgrades a disposable Compose installation while preserving data and recording selected images.
+    reason: The runtime test runs real Git ancestry/tag resolution, HTTP workflow evidence, pinned OpenSSH, the detached launcher and the actual host deployment command with four locally built AMD64 custom images. Only external provider HTTP is simulated.
+    verification: On 2026-10-30 the complete runtime test passed in 180.7 seconds at release-156-verified. It also SIGKILLed the observer during a running migration, observed the host lock still exclude another owner, then observed durable host success; subsequent selected-image and migration failures preserved the previous verified record and recovery guard. This supports caller/transport behavior in the disposable environment. Live credentials, GHCR token authorization, provider semantics, cron state and public TLS still require activation and the first monitored production Release.
+    source: deploy/tests/release-runtime.test.mjs; deploy/scripts/connect-release.mjs; deploy/scripts/launch-release.sh; postman/simulations/release-flow/release-flow.sim.yaml
+    updated_at: "2026-10-30"
 fingerprints:
   - id: release-156-development
     date: "2026-10-30"
     commit: 0dc023b with dirty ticket 156 implementation
+    cli: Postman CLI 1.73.0
+  - id: release-156-verified
+    date: "2026-10-30"
+    commit: 89d8cf8 (runtime source content); verification-context documentation added afterwards
     cli: Postman CLI 1.73.0
