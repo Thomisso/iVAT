@@ -21,9 +21,11 @@ function authenticatorCode(secret: string) {
 }
 
 async function expectFocusedJourney(page: Page, heading: string) {
-  await expect(page.getByRole("banner").getByRole("link", { name: "iVAT" })).toBeVisible();
+  await expect(page.locator(".focused-shell-panel").getByRole("link", { name: "iVAT" })).toBeVisible();
+  await expect.poll(() => page.locator(".brand-logo").evaluate(image => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
   await expect(page.getByRole("main").getByRole("heading", { name: heading, level: 1 })).toBeVisible();
   await expect(page.getByRole("navigation", { name: /Company|Organization|Platform/ })).toHaveCount(0);
+  await page.screenshot({ path: `test-results/auth-${heading.replaceAll(/[^a-z0-9]+/gi, "-").toLowerCase()}-${page.viewportSize()?.width}.png`, fullPage: true });
 }
 
 test("login presents the shared brand as a focused authentication journey", async ({ baseURL, context, page }) => {
@@ -33,7 +35,7 @@ test("login presents the shared brand as a focused authentication journey", asyn
   await page.emulateMedia({ colorScheme: "dark" });
   await page.goto("/login");
 
-  await expect(page.getByRole("banner").getByRole("link", { name: "iVAT" })).toBeVisible();
+  await expect(page.locator(".focused-shell-panel").getByRole("link", { name: "iVAT" })).toBeVisible();
   await expect(page.getByRole("main").getByRole("heading", { name: "Log in", level: 1 })).toBeVisible();
   await expect(page.getByRole("navigation", { name: /Company|Organization|Platform/ })).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).colorScheme)).toBe("light");
@@ -49,9 +51,10 @@ test("an invalid invitation keeps the focused brand and explains the refusal acc
 
   await page.goto("/invitations/accept?token=invalid");
 
-  await expect(page.getByRole("banner").getByRole("link", { name: "iVAT" })).toBeVisible();
+  await expect(page.locator(".focused-shell-panel").getByRole("link", { name: "iVAT" })).toBeVisible();
   await expect(page.getByRole("main").getByRole("heading", { name: "Accept invitation", level: 1 })).toBeVisible();
   await expect(page.getByRole("alert").filter({ hasText: "This invitation link is invalid" })).toBeVisible();
+  await page.screenshot({ path: "test-results/auth-invalid-invitation.png", fullPage: true });
   await expect(page.getByRole("navigation", { name: /Company|Organization|Platform/ })).toHaveCount(0);
 });
 
@@ -92,12 +95,15 @@ test("account security, MFA enrollment and verification stay focused at desktop 
   await expectFocusedJourney(page, "Security");
   await page.setViewportSize({ width: 360, height: 800 });
   await expect(page.getByRole("link", { name: "Enable authenticator" })).toBeVisible();
+  await page.screenshot({ path: "test-results/auth-security-mobile.png", fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(360);
 
   await page.getByRole("link", { name: "Enable authenticator" }).click();
   await expect(page).toHaveURL(/\/mfa\/enroll$/);
   await expectFocusedJourney(page, "Set up two-factor authentication");
   await page.getByRole("button", { name: "Start setup" }).click();
+  await expect(page.locator("code")).toBeVisible();
+  await page.screenshot({ path: "test-results/auth-mfa-qr-mobile.png", fullPage: true });
   const secret = await page.locator("code").textContent();
   if (!secret) throw new Error("MFA enrollment did not expose a setup key");
   await page.getByLabel("Authenticator code").fill(authenticatorCode(secret));
@@ -118,6 +124,9 @@ test("account security, MFA enrollment and verification stay focused at desktop 
   await page.getByRole("button", { name: "Log in" }).click();
   await expect(page).toHaveURL(/\/mfa\/verify$/);
   await expectFocusedJourney(page, "Two-factor verification");
+  const pendingMfaLogo = await page.request.get(`/brand/logo.svg?pending-mfa=${crypto.randomUUID()}`, { maxRedirects: 0 });
+  expect(pendingMfaLogo.status()).toBe(200);
+  expect(pendingMfaLogo.headers()["content-type"]).toContain("image/svg+xml");
   await page.getByLabel("Authenticator code").fill("000000");
   await page.getByRole("button", { name: "Verify", exact: true }).click();
   await expect(page.getByRole("alert").filter({ hasText: "verification code is invalid" })).toBeVisible();
