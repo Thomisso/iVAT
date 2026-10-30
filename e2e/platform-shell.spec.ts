@@ -138,6 +138,14 @@ test("only a SuperAdmin navigates the shared Platform shell without losing exist
     .getByRole("link", { name: "Platform overview" })
     .click();
   await expect(page).toHaveURL(/\/platform\/administration$/);
+  await expect(
+    administration
+      .getByRole("group", { name: "Platform administration" })
+      .getByRole("link", { name: "Platform AI usage" }),
+  ).toBeVisible();
+  await expect(
+    administration.getByRole("group", { name: "Company administration" }),
+  ).toHaveCount(0);
 
   const navigation = page.getByRole("navigation", {
     name: "Platform navigation",

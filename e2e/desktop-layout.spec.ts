@@ -24,7 +24,6 @@ async function createCompany(page: Page, name: string, ico: string) {
   await page.getByRole("button", { name: "Create company" }).click();
   await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+\/setup\/filing-frequency$/);
   const companyId = new URL(page.url()).pathname.split("/")[2];
-  await page.getByLabel("Effective from").fill("2026-01-01");
   await page.getByRole("button", { name: "Save and continue" }).click();
   await expect(page).toHaveURL(new RegExp(`/companies/${companyId}/setup/ai-processing$`));
   return companyId;
@@ -76,7 +75,8 @@ test("administration uses a persistent side navigation and settings use the desk
 
   await page.goto(`/companies/${companyId}/settings/company`);
   const settingsNavigation = page.getByRole("navigation", { name: "Company settings sections" });
-  await expect(settingsNavigation.getByRole("link", { name: "Company details" })).toHaveAttribute("aria-current", "page");
+  await expect(settingsNavigation.getByRole("link", { name: "Company details" })).toHaveAttribute("aria-current", "true");
+  await expect(page.locator('[aria-current="page"]')).toHaveCount(1);
   await expect(page.getByRole("combobox", { name: "Company settings sections" })).toHaveCount(0);
   const section = page.getByRole("heading", { name: "Company details", level: 2 }).locator("xpath=ancestor::section");
   const [navigationBox, sectionBox, mainBox] = await Promise.all([
@@ -91,6 +91,11 @@ test("administration uses a persistent side navigation and settings use the desk
   const [ico, name] = await Promise.all([box(page.getByLabel("IČO")), box(page.getByLabel("Company name"))]);
   expect(name.x).toBeGreaterThan(ico.x + ico.width);
   expect(Math.abs(name.y - ico.y)).toBeLessThan(2);
+  await expectNoHorizontalOverflow(page);
+
+  await page.setViewportSize({ width: 900, height: 900 });
+  const [tabletNavigation, tabletSection] = await Promise.all([box(settingsNavigation), box(section)]);
+  expect(tabletNavigation.y + tabletNavigation.height).toBeLessThanOrEqual(tabletSection.y);
   await expectNoHorizontalOverflow(page);
 
   await page.setViewportSize(mobile);
@@ -109,6 +114,11 @@ test("administration uses a persistent side navigation and settings use the desk
   await expectNoHorizontalOverflow(page);
 
   await page.setViewportSize(desktop);
+  const organizationAdministration = page.getByRole("navigation", { name: "Administration" });
+  await expect(organizationAdministration.getByRole("group", { name: organizationName })).toBeVisible();
+  await expect(organizationAdministration.getByRole("group", { name: "Company administration" })).toHaveCount(0);
+  await expect(page.locator('[aria-current="page"]')).toHaveCount(1);
+
   await page.goto(`/companies/${companyId}/settings`);
   await expect(page.getByRole("navigation", { name: "Administration" })).toHaveCount(1);
 });
