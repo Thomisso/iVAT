@@ -7,15 +7,15 @@ type AdministrationGroup = { key: string; label: string; links: AdministrationLi
 
 export function AdministrationNavigation({ className, companyId, companyRole, currentPath, organizations, superAdmin }: {
   className?: string;
-  companyId: string;
-  companyRole: "administrator" | "user" | null;
+  companyId?: string;
+  companyRole?: "administrator" | "user" | null;
   currentPath?: string;
   organizations: OrganizationSummary[];
   superAdmin: boolean;
 }) {
   const t = useTranslations("shell");
   const groups: AdministrationGroup[] = [
-    ...(companyRole === "administrator" ? [{
+    ...(companyId && companyRole === "administrator" ? [{
       key: "company",
       label: t("companyAdministration"),
       links: [{ href: `/companies/${companyId}/settings/users`, label: t("users") }],
@@ -46,7 +46,7 @@ export function AdministrationNavigation({ className, companyId, companyRole, cu
       <p aria-hidden="true">{group.label}</p>
       <ul>
         {group.links.map((link) => <li key={link.href}>
-          <Link aria-current={link.href === currentPath ? "page" : undefined} href={link.href}>{link.label}</Link>
+          <Link aria-current={link.href === currentPath ? "true" : undefined} href={link.href}>{link.label}</Link>
         </li>)}
       </ul>
     </div>)}

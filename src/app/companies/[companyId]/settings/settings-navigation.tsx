@@ -26,7 +26,7 @@ export function SettingsNavigation({ companyId, administrator }: {
 
   return <nav aria-label={t("settingsNavigation")} className="company-settings-nav">
     {destinations.map((destination) => <Link
-      aria-current={destination.href === current ? "page" : undefined}
+      aria-current={destination.href === current ? "true" : undefined}
       href={destination.href}
       key={destination.href}
     >{destination.label}</Link>)}

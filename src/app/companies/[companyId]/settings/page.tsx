@@ -2,21 +2,19 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getCompany, getCompanySetupChecklist, getMyCompanyRole } from "@/application/companies";
-import { listMyOrganizations } from "@/application/organizations";
-import { isSuperAdmin } from "@/application/platform-ai";
 import { AdministrationNavigation } from "@/components/administration-navigation";
 import { Icon } from "@/components/icon";
+import { loadAdministrationAccess } from "@/lib/administration-access";
 import { requireUserClient } from "@/lib/supabase/server";
 
 export default async function CompanySettingsPage({ params }: PageProps<"/companies/[companyId]/settings">) {
   const { companyId } = await params;
   const client = await requireUserClient();
-  const [company, checklist, role, organizations, superAdmin, shell, t] = await Promise.all([
+  const [company, checklist, role, { organizations, superAdmin }, shell, t] = await Promise.all([
     getCompany(client, companyId),
     getCompanySetupChecklist(client, companyId),
     getMyCompanyRole(client, companyId),
-    listMyOrganizations(client),
-    isSuperAdmin(client),
+    loadAdministrationAccess(),
     getTranslations("shell"),
     getTranslations("company"),
   ]);
