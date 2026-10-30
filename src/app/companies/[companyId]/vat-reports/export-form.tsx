@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { PersonType } from "@/application/companies";
 import { useTranslations } from "next-intl";
 import type {
@@ -15,6 +15,7 @@ import { TextField } from "@/components/text-field";
 import { Button } from "@/components/button";
 import { FormError } from "@/components/form-error";
 import { DateInput } from "@/components/date-input";
+import { FilingDefaultsForm } from "../settings/filing-defaults-form";
 
 export function ExportForm({
   companyId,
@@ -25,6 +26,9 @@ export function ExportForm({
   defaults,
   epoAddress,
   finalized,
+  presentation = "detail",
+  disabled = false,
+  canEditFilingDefaults = false,
 }: {
   companyId: string;
   format: EpoFormat;
@@ -34,10 +38,18 @@ export function ExportForm({
   defaults: CompanyFilingDefaults | null;
   epoAddress: ResolvedEpoAddress | null;
   finalized: boolean;
+  presentation?: "detail" | "wizard";
+  disabled?: boolean;
+  canEditFilingDefaults?: boolean;
 }) {
   const t = useTranslations("epoExport");
+  const wizardCopy = useTranslations("vatReports.wizard");
+  const wizard = presentation === "wizard";
+  const [opened, setOpened] = useState(!wizard);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const request = useRef<AbortController | null>(null);
+  useEffect(() => () => request.current?.abort(), []);
   const filingDetailsComplete = Boolean(defaults?.taxOffice)
     && (!defaults?.territorialOffice || isTerritorialOffice(defaults.taxOffice ?? "", defaults.territorialOffice))
     && (format !== "dphdp3" || isEconomicActivity(defaults?.economicActivity ?? ""))
@@ -45,19 +57,28 @@ export function ExportForm({
     defaults?.signatoryFirstName && defaults.signatoryLastName && defaults.signatoryCapacity,
   ));
   const [editing, setEditing] = useState(!filingDetailsComplete);
+  const showFields = opened && (!wizard || Boolean(epoAddress));
   const serializedAddress = epoAddress
     ? `${epoAddress.address.streetName} ${epoAddress.address.houseNumber}${epoAddress.address.orientationNumber ? `/${epoAddress.address.orientationNumber}` : ""}, ${epoAddress.address.postalCode} ${epoAddress.address.city}`
     : null;
 
   async function download(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (disabled || pending) return;
+    if (wizard && !opened && (!filingDetailsComplete || !epoAddress)) {
+      setOpened(true);
+      setEditing(true);
+      return;
+    }
     const form = new FormData(event.currentTarget);
+    const controller = new AbortController();
+    request.current = controller;
     setPending(true);
     setError(null);
     try {
       const response = await fetch(
         `/companies/${companyId}/vat-reports/${period}/xml`,
-        { method: "POST", body: form },
+        { method: "POST", body: form, signal: controller.signal },
       );
       if (response.redirected) {
         window.location.assign(response.url);
@@ -65,6 +86,10 @@ export function ExportForm({
       }
       if (!response.ok) {
         const failure = await response.json();
+        if (wizard && failure.error === "invalid_export_details") {
+          setOpened(true);
+          setEditing(true);
+        }
         setError(
           [
             "report_not_found",
@@ -75,6 +100,7 @@ export function ExportForm({
             "report_finalized",
             "report_not_finalized",
             "xml_invalid",
+            "forbidden",
           ].includes(failure.error)
             ? failure.error
             : "export_failed",
@@ -87,7 +113,9 @@ export function ExportForm({
         setError("export_failed");
         return;
       }
-      const url = URL.createObjectURL(await response.blob());
+      const blob = await response.blob();
+      if (controller.signal.aborted) return;
+      const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
       const disposition = response.headers.get("Content-Disposition") ?? "";
@@ -99,23 +127,34 @@ export function ExportForm({
       link.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch {
-      setError("export_failed");
+      if (!controller.signal.aborted) setError("export_failed");
     } finally {
+      request.current = null;
       setPending(false);
     }
   }
 
   return (
-    <article className="vat-export-card" id="export">
+    <article className="vat-export-card" id={wizard ? undefined : "export"}>
       <span className="vat-section-label">{format.toUpperCase()}</span>
       <h3>{t(`formats.${format}`)}</h3>
-      <p className="iv-muted">{t("description")}</p>
+      {opened && <><p className="iv-muted">{t("description")}</p>
       <div className={`iv-notice ${finalized ? "iv-notice-info" : "iv-notice-warning"}`} role="note">
         <strong>{t(finalized ? "finalNoticeTitle" : "draftWarningTitle")}</strong>
         <p>{t(finalized ? "finalNotice" : "draftWarning")}</p>
-      </div>
+      </div></>}
+      {wizard && opened && !epoAddress && <>
+        <div className="iv-notice iv-notice-warning" role="alert">
+          <p>{t("epoAddressRequired")}</p>
+          {!canEditFilingDefaults && <p>{t("administratorAddressRequired")}</p>}
+        </div>
+        {canEditFilingDefaults && <FilingDefaultsForm companyId={companyId} personType={personType} defaults={defaults} epoOverrideRequired />}
+      </>}
       <form className="form" onSubmit={download}>
         <input type="hidden" name="format" value={format} />
+        <input type="hidden" name="kind" value={finalized ? "final" : "draft"} />
+        {!showFields && <input type="hidden" name="preparedOn" value={preparedOn} />}
+        {showFields && <>
         <div className="form-row">
           <DateInput
             label={t("preparedOn")}
@@ -137,7 +176,7 @@ export function ExportForm({
           <div><dt>{t("serializedAddress")}</dt><dd>{serializedAddress ?? t("epoAddressMissing")}</dd></div>
           {epoAddress && <div><dt>{t("addressSource")}</dt><dd>{t(`addressSources.${epoAddress.source}`)}</dd></div>}
         </dl>
-        {!epoAddress && <div className="iv-notice iv-notice-warning" role="alert">
+        {!epoAddress && !wizard && <div className="iv-notice iv-notice-warning" role="alert">
           <p>{t("epoAddressRequired")}</p>
           <Link href={`/companies/${companyId}/settings#filing-defaults`}>{t("completeEpoAddress")}</Link>
         </div>}
@@ -155,12 +194,14 @@ export function ExportForm({
             <TextField label={t("email")} name="email" type="email" maxLength={255} defaultValue={defaults?.email ?? ""} />
             <TextField label={t("phone")} name="phone" type="tel" maxLength={14} defaultValue={defaults?.phone ?? ""} />
           </div>
-          {filingDetailsComplete && <Button type="button" variant="secondary" onClick={() => setEditing(false)}>{t("useSaved")}</Button>}
+          {filingDetailsComplete && <Button type="button" variant="secondary" onClick={() => { setEditing(false); if (wizard) setOpened(false); }}>{t("useSaved")}</Button>}
         </> : <Button type="button" variant="secondary" onClick={() => setEditing(true)}>{t("editForExport")}</Button>}
+        </>}
         <FormError error={error} />
-        <Button type="submit" disabled={pending || !epoAddress} icon="report">
-          {t(pending ? "preparing" : "download")}
+        <Button type="submit" disabled={pending || disabled || (opened && !epoAddress)} icon="report">
+          {pending ? t("preparing") : wizard && !opened ? wizardCopy(format === "dphdp3" ? "exportVatReturn" : "exportControlStatement") : t("download")}
         </Button>
+        {wizard && !opened && <Button type="button" disabled={pending || disabled} onClick={() => { setOpened(true); setEditing(true); }}>{t("editForExport")}</Button>}
       </form>
     </article>
   );

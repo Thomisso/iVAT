@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getCompany, getMyCompanyRole } from "@/application/companies";
+import { getCompanyFilingDefaults, resolveEpoAddress } from "@/application/company-filing-defaults";
 import { documentQueueQuery, parseDocumentQueue } from "@/application/document-queue";
 import {
   listReportingPeriods,
@@ -25,6 +26,7 @@ import { PageLayout } from "@/components/app-shell";
 import { GenerateForm } from "./generate-form";
 import { PeriodLockForm } from "./period-lock-form";
 import { PeriodNavigation, PeriodSelector } from "./period-navigation";
+import { ExportForm } from "./export-form";
 
 const stateBadge: Record<VatProcessingStepState, DocumentStatus> = {
   done: "approved",
@@ -55,15 +57,17 @@ export default async function VatReportsPage({
       periods.at(-1)?.period;
   if (!selectedPeriod) notFound();
   const period: string = selectedPeriod;
-  const [report, role, wizardResult, transitions, t] = await Promise.all([
+  const [report, role, wizardResult, transitions, filingDefaults, t] = await Promise.all([
     getVatReport(client, companyId, period),
     getMyCompanyRole(client, companyId),
     getVatProcessingWizard(client, { companyId, period }),
     listVatReportTransitions(client, companyId, period),
+    getCompanyFilingDefaults(client, companyId),
     getTranslations(),
   ]);
   if (!wizardResult.ok) notFound();
   const { readiness, steps, documentsToReview, documentsToReviewCount, locked } = wizardResult.value;
+  const epoAddress = report ? resolveEpoAddress(report.result.company, filingDefaults) : null;
   const readinessCounts = readinessDocumentCounts(readiness);
   const readinessHref = (filter: ReadinessDocumentFilter) => `/companies/${companyId}/documents?${documentQueueQuery(parseDocumentQueue({
     view: "all",
@@ -178,15 +182,25 @@ export default async function VatReportsPage({
           </Link>
         </div>;
       case "export":
-        return step.state === "blocked" ? null : <div className="vat-wizard-actions">
-          <Link className="iv-btn iv-btn-secondary iv-btn-md" href={`${periodHref("vat-return")}#export`}>
-            {t("vatReports.wizard.exportVatReturn")}
-          </Link>
-          <Link className="iv-btn iv-btn-secondary iv-btn-md" href={`${periodHref("control-statement")}#export`}>
-            {t("vatReports.wizard.exportControlStatement")}
-          </Link>
+        return step.state === "blocked" || !report ? null : <>
+          <div className="vat-output-action-grid">
+            {(["dphdp3", "dphkh1"] as const).map((format) => <ExportForm
+              key={`${period}:${format}`}
+              companyId={companyId}
+              format={format}
+              period={period}
+              preparedOn={new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Prague" }).format(new Date())}
+              personType={report.result.company.personType}
+              defaults={filingDefaults}
+              epoAddress={epoAddress?.ok ? epoAddress.value : null}
+              finalized={false}
+              presentation="wizard"
+              disabled={locked}
+              canEditFilingDefaults={role === "administrator"}
+            />)}
+          </div>
           <Link href={periodHref("exports")}>{t("vatReports.wizard.openExportHistory")}</Link>
-        </div>;
+        </>;
       case "finalize":
         return <>
           {locked && <p><strong>{t("statusBadge.locked")}</strong></p>}

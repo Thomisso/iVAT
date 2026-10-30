@@ -324,7 +324,9 @@
     "batchFiles": "{count} of {planned} selected Source Files stored",
     "batchSummary": "{waiting} processing · {review} ready for review · {failures} failed",
     "noBatches": "No batches yet. Add Source Files to start one.",
-    "noMatchingBatches": "No batch contains Documents of the selected period.",
+    "noMatchingBatches": "No batch was created in the selected date range.",
+    "uploadedFrom": "Uploaded from",
+    "uploadedTo": "Uploaded to",
     "outcome": {
       "processing": "Processing",
       "success": "Finished",
@@ -989,8 +991,8 @@
           "hint": "Check both statutory outputs of the saved snapshot."
         },
         "export": {
-          "title": "Export XML",
-          "hint": "Download the EPO XML from the VAT Return and the Control Statement. Every download is stored in Export history."
+          "title": "Export DRAFT XML",
+          "hint": "Create working XML for review. Draft exports are optional; they do not block Finalization."
         },
         "finalize": {
           "title": "Finalize",
@@ -1227,6 +1229,7 @@
     },
     "epoAddressMissing": "Confirmed EPO address required",
     "epoAddressRequired": "The registered address exceeds an EPO schema limit. Complete and confirm a separate EPO address before downloading XML.",
+    "administratorAddressRequired": "An Administrator must complete and confirm the Company EPO address before export.",
     "completeEpoAddress": "Complete EPO address in Company settings",
     "editForExport": "Edit for this export",
     "useSaved": "Use saved defaults",
