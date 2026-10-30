@@ -4,6 +4,7 @@ import { describe, expect, inject, it } from "vitest";
 import { listAuditEvents } from "@/application/audit";
 import {
   approveDocument,
+  listDeferredClaimPeriods,
   correctDocument,
   getDocument,
   listCompanyDocuments,
@@ -835,4 +836,21 @@ describe("the review workspace", () => {
     );
     expect(await listExtractionVersions(a.client, a.companyId, a.documentId)).toHaveLength(1);
   });
+});
+
+
+it("offers only later generated periods for a Deferred Claim", async () => {
+  const document = await documentInReview();
+  expect(await listDeferredClaimPeriods(document.client, document.companyId, document.documentId))
+    .toEqual(["2026-11", "2026-12"]);
+});
+
+
+it("refuses a Deferred Claim more than three years after the Tax Point Date", async () => {
+  const document = await documentInReview();
+  const { setCurrentReportingYear } = await import("@/application/companies");
+  await setCurrentReportingYear(document.client, { companyId: document.companyId, year: 2030, filingFrequency: "monthly" });
+  expect(await updateDocumentReporting(document.client, { companyId: document.companyId, documentId: document.documentId, claimedReportingPeriod: "2030-01" }))
+    .toEqual({ ok: false, error: "invalid_reporting_period" });
+  expect(await listDeferredClaimPeriods(document.client, document.companyId, document.documentId)).not.toContain("2030-01");
 });
