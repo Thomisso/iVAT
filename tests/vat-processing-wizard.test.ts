@@ -76,6 +76,18 @@ it("walks an empty Reporting Period from generation through export to Finalizati
     blockedBy: null,
   });
 
+  // Regeneration replaces the snapshot while keeping its report id. Its old
+  // export must not complete the new snapshot's export step.
+  expect((await generateVatReport(company.client, input)).ok).toBe(true);
+  expect(stepStates(await getVatProcessingWizard(company.client, input))[3]).toEqual({
+    key: "export", state: "not_started", reason: null, blockedBy: null,
+  });
+  expect((await exportVatReport(company.client, {
+    ...input,
+    format: "dphdp3",
+    details: { preparedOn: "2026-02-10" },
+  })).ok).toBe(true);
+
   expect(await finalizeVatReport(company.client, { ...input, confirmed: true }))
     .toEqual({ ok: true, value: null });
   const finalized = await getVatProcessingWizard(company.client, input);
