@@ -1,4 +1,4 @@
-name: Prepare Roští release
+name: Release Roští pilot
 
 on:
   release:
@@ -75,7 +75,7 @@ jobs:
       - name: Assemble and validate release assets
         run: |
           node deploy/scripts/prepare-release.mjs bundle "$RUNNER_TEMP/verified-release.json" "$RUNNER_TEMP/release-images.json" "$RUNNER_TEMP/rosti-release"
-          tar -czf "$RUNNER_TEMP/rosti-release.tar.gz" -C "$RUNNER_TEMP/rosti-release" .
+          tar --format=ustar -czf "$RUNNER_TEMP/rosti-release.tar.gz" -C "$RUNNER_TEMP/rosti-release" .
       - uses: actions/upload-artifact@v7
         with:
           name: rosti-release-${{ needs.verify.outputs.revision }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -90,8 +90,58 @@ jobs:
           {
             printf 'Prepared %s at `%s`.\n\n' "$RELEASE_TAG" "$REVISION"
             printf 'All four images use linux/amd64 and immutable digests.\n\n'
-            printf 'The release bundle is attached to this workflow run. Preparation does not deploy production.\n'
+            printf 'The release bundle is attached to this workflow run. Only the separately activated deploy job can change production.\n'
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Remove registry credentials
         if: always()
         run: docker logout ghcr.io
+
+  deploy:
+    needs: [verify, prepare]
+    # Unset is disabled. Set only during the separate reviewed activation.
+    if: vars.ROSTI_DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    concurrency:
+      group: rosti-production
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.verify.outputs.revision }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.verify.outputs.verified-artifact }}
+          path: ${{ runner.temp }}/verified
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.prepare.outputs.artifact-name }}
+          path: ${{ runner.temp }}/prepared
+      - name: Deploy the exact prepared release through pinned SSH
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+          ROSTI_API_KEY: ${{ secrets.ROSTI_API_KEY }}
+          ROSTI_SSH_KEY: ${{ secrets.ROSTI_SSH_KEY }}
+          ROSTI_SSH_KNOWN_HOSTS: ${{ secrets.ROSTI_SSH_KNOWN_HOSTS }}
+          ROSTI_SSH_HOST: ${{ vars.ROSTI_SSH_HOST }}
+          ROSTI_SSH_PORT: ${{ vars.ROSTI_SSH_PORT }}
+          ROSTI_SSH_USER: ${{ vars.ROSTI_SSH_USER }}
+          ROSTI_COMPOSE_PROJECT: ${{ vars.ROSTI_COMPOSE_PROJECT }}
+        run: node deploy/scripts/connect-release.mjs "$RUNNER_TEMP/prepared/rosti-release.tar.gz" "$RUNNER_TEMP/verified/verified-release.json"
+      - name: Deployment inspection pointer
+        if: always()
+        env:
+          REVISION: ${{ needs.verify.outputs.revision }}
+        run: |
+          {
+            printf '\nSelected revision: `%s`.\n\n' "$REVISION"
+            printf 'Host transport: `deploy/transports/github-%s-%s`; attempt: `deploy/attempts/github-%s-%s`.\n\n' "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"
+            printf 'Only a verified host record establishes success. Cancellation, timeout or SSH failure requires status inspection before retrying; recovery is manual. See docs/deployment.md.\n'
+          } >> "$GITHUB_STEP_SUMMARY"

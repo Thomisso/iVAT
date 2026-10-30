@@ -3,7 +3,7 @@ import { copyFile, lstat, mkdir, readFile, readdir, writeFile } from "node:fs/pr
 import path from "node:path";
 
 export const IMAGE_SERVICES = { app: ["web", "worker", "migrate", "backup"], db: ["db"], gateway: ["gateway"], proxy: ["proxy"] };
-const REQUIRED_ASSETS = ["docker-compose.rosti.yml", "deploy/restore.yml", "deploy/scripts/migrate.mjs", "deploy/scripts/backup.sh", "deploy/scripts/backup-daily.sh", "deploy/scripts/restore.sh", "deploy/scripts/release-bundle.mjs", "deploy/scripts/deploy-release.sh", "deploy/scripts/release-host.mjs"];
+const REQUIRED_ASSETS = ["docker-compose.rosti.yml", "deploy/restore.yml", "deploy/scripts/migrate.mjs", "deploy/scripts/backup.sh", "deploy/scripts/backup-daily.sh", "deploy/scripts/restore.sh", "deploy/scripts/release-bundle.mjs", "deploy/scripts/deploy-release.sh", "deploy/scripts/release-host.mjs", "deploy/scripts/launch-release.sh"];
 const sha256 = value => createHash("sha256").update(value).digest("hex");
 const assetPath = name => name === "docker-compose.rosti.yml" || name === "deploy/restore.yml" || /^deploy\/scripts\/[a-z0-9][a-z0-9._-]*\.(mjs|sh)$/.test(name);
 

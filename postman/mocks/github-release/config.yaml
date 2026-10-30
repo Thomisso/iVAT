@@ -1,0 +1,11 @@
+version: 1
+name: GitHub release workflow evidence
+slug: github-release
+protocol: http
+port: 4956
+interceptRequests: true
+origin: api.github.com
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true

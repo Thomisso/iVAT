@@ -21,8 +21,8 @@ jobs:
       - name: Install Postman CLI for release dependency simulations
         run: npm install --global postman-cli@1.73.0
 
-      - name: Release policy, bundle integrity and host preflight
-        run: node --test deploy/tests/release-prepare.test.mjs deploy/tests/release-host.test.mjs
+      - name: Release policy, bundle integrity, transport and host preflight
+        run: node --test deploy/tests/release-prepare.test.mjs deploy/tests/release-host.test.mjs deploy/tests/release-connect.test.mjs
 
       - name: package-lock.json matches package.json
         run: |
