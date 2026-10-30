@@ -81,11 +81,11 @@ test("a batch survives reload, exposes partial recovery, then hands off its comp
   await expect(page.getByRole("table", { name: "Documents" }).getByRole("link")).toHaveCount(2);
 });
 
-test("the desktop upload card offers only file selection, aligned with the page", async ({
+test("the upload card and populated Batch history remain aligned and contained at every workspace width", async ({
   baseURL,
   context,
   page,
-}) => {
+}, testInfo) => {
   await english(context, baseURL);
   await page.setViewportSize({ width: 1440, height: 900 });
   const run = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -97,13 +97,41 @@ test("the desktop upload card offers only file selection, aligned with the page"
   await expect(card.getByLabel("Direction")).toHaveCount(0);
   await expect(card.getByText("Take document photo")).toBeHidden();
 
-  const history = page.getByRole("region", { name: "Batch history" });
-  for (const width of [1440, 720, 360]) {
-    await page.setViewportSize({ width, height: 900 });
-    const [cardBox, historyBox] = await Promise.all([card.boundingBox(), history.boundingBox()]);
-    expect(cardBox?.x).toBe(historyBox?.x);
-    expect(cardBox?.width).toBe(historyBox?.width);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+  await page.locator('input[type="file"]:not([capture])').setInputFiles("tests/fixtures/two-invoices.pdf");
+  await page.getByRole("button", { name: "Upload batch", exact: true }).click();
+  await expect(page).toHaveURL(/\/upload-batches\/[0-9a-f-]+$/);
+  const batchId = new URL(page.url()).pathname.split("/").at(-1)!;
+  await expect(page.getByRole("link", { name: "Review 2 Documents" })).toBeVisible({ timeout: 45_000 });
+
+  for (const locale of ["en", "cs"]) {
+    await context.addCookies([{ name: "NEXT_LOCALE", value: locale, url: new URL(baseURL!).origin }]);
+    await page.goto(`/companies/${companyId}/upload`);
+    const upload = page.getByRole("region", { name: locale === "en" ? "Add Source Files" : "Přidat zdrojové soubory" });
+    const history = page.getByRole("region", { name: locale === "en" ? "Batch history" : "Historie dávek" });
+    const row = history.getByRole("list").getByRole("link");
+    await expect(row).toHaveCount(1);
+    await expect(row).toHaveAttribute("href", new RegExp(`/upload-batches/${batchId}\\?`));
+    await expect(row).toContainText(locale === "en" ? "2 ready for review" : "2 ke kontrole");
+    const cells = row.locator(":scope > *");
+    await expect(cells).toHaveCount(4);
+    for (const width of [1440, 1024, 720, 360]) {
+      await page.setViewportSize({ width, height: 900 });
+      const [cardBox, historyBox, rowBox] = await Promise.all([upload.boundingBox(), history.boundingBox(), row.boundingBox()]);
+      if (!cardBox || !historyBox || !rowBox) throw new Error("Upload workspace is not rendered");
+      expect(cardBox.x).toBe(historyBox.x);
+      expect(cardBox.width).toBe(historyBox.width);
+      for (const cell of await cells.all()) {
+        await expect(cell).toBeVisible();
+        const bounds = await cell.boundingBox();
+        if (!bounds) throw new Error("Batch history cell is not rendered");
+        expect(bounds.x).toBeGreaterThanOrEqual(rowBox.x);
+        expect(bounds.x + bounds.width).toBeLessThanOrEqual(rowBox.x + rowBox.width);
+      }
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+      await row.focus();
+      await expect(row).toBeFocused();
+      await testInfo.attach(`populated-history-${locale}-${width}`, { body: await history.screenshot({ path: testInfo.outputPath(`populated-history-${locale}-${width}.png`) }), contentType: "image/png" });
+    }
   }
 });
 
