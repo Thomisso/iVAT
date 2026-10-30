@@ -32,10 +32,6 @@ _Avoid_: Registration, public invitation
 An access level: SuperAdmin grants platform-wide administration across all Organizations and Companies without a Membership. Administrator and User grant scoped access through Memberships.
 _Avoid_: Permission level, profile
 
-**Invitation**:
-A single-use, expiring offer of a specified Role in an Organization or Company, bound to a specified email address.
-_Avoid_: Access link, registration token
-
 ## Documents
 
 **Upload Queue**:

@@ -87,6 +87,7 @@ describe("persistent Invitations", () => {
     expect(await listMyCompanies(invitee)).toEqual([{
       id: administrator.companyId, organizationId: administrator.organizationId, name: "Novák s.r.o.",
     }]);
+    expect(await listMyOrganizations(invitee)).toEqual([]);
   });
 
   it("does not let a newly provisioned pending identity bypass authoritative acceptance", async () => {
