@@ -120,3 +120,31 @@ test("a deployment bundle cannot omit its controlled entrypoint", async () => {
     await assert.rejects(validateReleaseBundle(f.bundle), /Missing required release asset/);
   } finally { await rm(f.directory, { recursive: true, force: true }); }
 });
+
+test("selected-image inspection refuses incomplete configuration without producing a partial verification list", () => {
+  const run = services => spawnSync(process.execPath, ["deploy/scripts/release-host.mjs", "selected-images"], { input: JSON.stringify({ services }), encoding: "utf8" });
+  const services = Object.fromEntries(["web", "worker", "migrate", "db", "gateway", "proxy"].map(name => [name, { image: "local-image:verify" }]));
+  const valid = run(services);
+  assert.equal(valid.status, 0);
+  assert.equal(valid.stdout.trim().split("\n").length, 6);
+  delete services.worker;
+  const refused = run(services);
+  assert.equal(refused.status, 1);
+  assert.equal(refused.stdout, "");
+});
+
+test("the public probe preserves application Host routing in a disposable HTTP fixture", async () => {
+  const f = await fixture();
+  const { createServer } = await import("node:http");
+  const { spawn } = await import("node:child_process");
+  const server = createServer((request, response) => { response.statusCode = request.headers.host === "app.ivat.cz" && request.headers["x-forwarded-proto"] === "https" ? 200 : 404; response.end(); });
+  await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+  try {
+    await writeFile(path.join(f.stack, ".env"), "APP_ORIGIN=https://app.ivat.cz\n");
+    const result = await new Promise(resolve => {
+      const child = spawn(process.execPath, ["deploy/scripts/release-host.mjs", "probe", f.bundle, f.stack], { env: { ...process.env, IVAT_DISPOSABLE_DEPLOYMENT: "1", IVAT_DEPLOY_PUBLIC_URL: `http://127.0.0.1:${server.address().port}/login` } });
+      let stderr = ""; child.stderr.on("data", data => { stderr += data; }); child.on("exit", status => resolve({ status, stderr }));
+    });
+    assert.equal(result.status, 0, result.stderr);
+  } finally { await new Promise(resolve => server.close(resolve)); await rm(f.directory, { recursive: true, force: true }); }
+});

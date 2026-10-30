@@ -1,3 +1,5 @@
+import { request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
 import { createReadStream } from "node:fs";
 import { readFile, readdir, stat, writeFile, rename } from "node:fs/promises";
 import path from "node:path";
@@ -71,8 +73,15 @@ async function probe(stack) {
   const endpoint = overridden || new URL("/login", production).href;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const response = await fetch(endpoint, { redirect: "manual", signal: AbortSignal.timeout(15000), headers: { Host: production.host, "X-Forwarded-Proto": "https" } });
-      if (response.status === 200) { console.log("Public application probe succeeded."); return; }
+      const url = new URL(endpoint);
+      if (!["http:", "https:"].includes(url.protocol)) throw new Error("Invalid public probe protocol.");
+      const status = await new Promise((resolve, reject) => {
+        const request = (url.protocol === "https:" ? httpsRequest : httpRequest)(url, { headers: { Host: production.host, "X-Forwarded-Proto": "https" } }, response => { response.resume(); resolve(response.statusCode); });
+        request.setTimeout(15000, () => request.destroy(new Error("Public probe timed out.")));
+        request.on("error", reject);
+        request.end();
+      });
+      if (status === 200) { console.log("Public application probe succeeded."); return; }
     } catch { /* retry bounded public availability checks without response bodies */ }
     if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 1000));
   }
@@ -95,6 +104,19 @@ async function record(bundle, stack, attempt) {
   for (const name of Object.keys(files)) await rename(path.join(stack, "deploy", `${name}.${suffix}.next`), path.join(stack, "deploy", name));
 }
 
+async function selectedImages() {
+  let text = "";
+  for await (const chunk of process.stdin) text += chunk;
+  let compose;
+  try { compose = JSON.parse(text); } catch { throw new Error("Invalid selected-image configuration."); }
+  const lines = ["web", "worker", "migrate", "db", "gateway", "proxy"].map(name => {
+    const image = compose.services?.[name]?.image;
+    if (typeof image !== "string" || !/^[a-zA-Z0-9._/@:-]+$/.test(image)) throw new Error(`Missing or invalid selected image: ${name}.`);
+    return `${name} ${image}`;
+  });
+  console.log(lines.join("\n"));
+}
+
 const [command, bundle, stack, attempt] = process.argv.slice(2);
 try {
   if (command === "preflight") {
@@ -103,5 +125,6 @@ try {
   } else if (command === "sync") await synchronize(bundle, stack, attempt);
   else if (command === "probe") await probe(stack);
   else if (command === "record") await record(bundle, stack, attempt);
+  else if (command === "selected-images") await selectedImages();
   else throw new Error("Unknown release helper command.");
 } catch (error) { console.error(error.message); process.exitCode = 1; }

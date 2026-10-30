@@ -77,7 +77,7 @@ helper() {
   network=$1; shift
   extra=()
   [[ $disposable != 1 || $network == none ]] || extra+=(--add-host host.docker.internal:host-gateway)
-  timeout 180 docker run --rm --user 0:0 --network "$network" "${extra[@]}" --entrypoint node \
+  timeout 180 docker run --rm -i --user 0:0 --network "$network" "${extra[@]}" --entrypoint node \
     -v "$bundle:/release:ro" -v "$stack:/stack" \
     --env ROSTI_API_KEY --env ROSTI_API_URL --env ROSTI_TIMEOUT_MS \
     --env IVAT_DEPLOY_PUBLIC_URL --env IVAT_DISPOSABLE_DEPLOYMENT="$disposable" \
@@ -96,8 +96,9 @@ fi
 mkdir -p "$stack/deploy/attempts"
 if [[ -n ${IVAT_DEPLOY_ATTEMPT_ID:-} ]]; then
   [[ $IVAT_DEPLOY_ATTEMPT_ID =~ ^[a-zA-Z0-9._-]{1,100}$ ]] || { echo 'Invalid deployment attempt ID.' >&2; exit 1; }
-  attempt=$stack/deploy/attempts/$IVAT_DEPLOY_ATTEMPT_ID
-  mkdir "$attempt"
+  candidate=$stack/deploy/attempts/$IVAT_DEPLOY_ATTEMPT_ID
+  mkdir "$candidate"
+  attempt=$candidate
 else
   attempt=$(mktemp -d "$stack/deploy/attempts/$revision.XXXXXX")
 fi
@@ -110,6 +111,9 @@ cp "$stack/docker-compose.rosti.yml" "$attempt/docker-compose-before.yml"
 for name in docker-compose.yml; do [[ ! -f $stack/$name ]] || cp "$stack/$name" "$attempt/$name"; done
 for name in verified-release.json release-commit.txt release-images.txt; do [[ ! -f $stack/deploy/$name ]] || cp "$stack/deploy/$name" "$attempt/$name"; done
 compose images --format json > "$attempt/images-before.json"
+compose images -q > "$temporary/prior-image-ids"
+[[ -s $temporary/prior-image-ids ]] || { echo 'No previous images were available for retention.' >&2; exit 1; }
+sort -u "$temporary/prior-image-ids" > "$temporary/prior-images-sorted"
 index=0
 while IFS= read -r id; do
   [[ -n $id ]] || continue
@@ -117,7 +121,8 @@ while IFS= read -r id; do
   tag=ivat-retained:$(basename "$attempt")-$index
   docker image tag "$id" "$tag"
   printf '%s %s\n' "$id" "$tag" >> "$attempt/retained-images.txt"
-done < <(compose images -q | sort -u)
+done < "$temporary/prior-images-sorted"
+[[ $index -gt 0 ]] || { echo 'No previous images were retained.' >&2; exit 1; }
 # Install the backup guard before any provider/configuration mutation.
 cp "$bundle/deploy/scripts/backup.sh" "$stack/deploy/scripts/backup.sh"
 printf '%s\n' "$relative" > "$stack/deploy/.deployment-unresolved"
@@ -144,10 +149,12 @@ set_phase verification
 helper bridge probe /release /stack
 # Compare actual container image identities with the selected Compose images.
 compose config --format json > "$temporary/effective-compose.json"
+helper none selected-images < "$temporary/effective-compose.json" > "$temporary/selected-images"
+[[ $(wc -l < "$temporary/selected-images") -eq 6 ]] || { echo 'Incomplete selected-image verification list.' >&2; exit 1; }
 while IFS=' ' read -r service image; do
-  id=$(compose ps -q "$service")
+  id=$(compose ps -aq "$service")
   [[ -n $id && $(docker inspect --format '{{.Image}}' "$id") == "$(docker image inspect --format '{{.Id}}' "$image")" ]] || { echo "Selected image verification failed: $service." >&2; exit 1; }
-done < <(docker run --rm -i --network none --entrypoint node "$helper_image" -e 'let s="";process.stdin.on("data",c=>s+=c);process.stdin.on("end",()=>{const c=JSON.parse(s);for(const n of ["web","worker","db","gateway","proxy"])console.log(n+" "+c.services[n].image)})' < "$temporary/effective-compose.json")
+done < "$temporary/selected-images"
 compose images --format json > "$attempt/images-after.json"
 helper none record /release /stack "$relative"
 rm "$stack/deploy/.deployment-unresolved"
