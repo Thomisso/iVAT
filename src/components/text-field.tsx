@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, type InputHTMLAttributes, type Ref } from "react";
+import { useId, type InputHTMLAttributes, type ReactNode, type Ref } from "react";
 import { Icon } from "./icon";
 
 export interface TextFieldProps extends InputHTMLAttributes<HTMLInputElement> {
@@ -8,6 +8,7 @@ export interface TextFieldProps extends InputHTMLAttributes<HTMLInputElement> {
   hint?: string;
   error?: string;
   mono?: boolean;
+  trailingControl?: ReactNode;
   ref?: Ref<HTMLInputElement>;
 }
 
@@ -16,6 +17,7 @@ export function TextField({
   hint,
   error,
   mono,
+  trailingControl,
   id,
   className = "",
   "aria-describedby": describedBy,
@@ -28,20 +30,23 @@ export function TextField({
     : hint
       ? `${fieldId}-hint`
       : undefined;
+  const input = (
+    <input
+      {...props}
+      id={fieldId}
+      className={`iv-input ${mono ? "iv-mono" : ""}`}
+      aria-invalid={error ? true : props["aria-invalid"]}
+      aria-describedby={
+        [describedBy, messageId].filter(Boolean).join(" ") || undefined
+      }
+    />
+  );
   return (
     <div className={`iv-field ${error ? "is-invalid" : ""} ${className}`}>
       <label className="iv-field-label" htmlFor={fieldId}>
         {label}
       </label>
-      <input
-        {...props}
-        id={fieldId}
-        className={`iv-input ${mono ? "iv-mono" : ""}`}
-        aria-invalid={error ? true : props["aria-invalid"]}
-        aria-describedby={
-          [describedBy, messageId].filter(Boolean).join(" ") || undefined
-        }
-      />
+      {trailingControl ? <div className="iv-input-group">{input}{trailingControl}</div> : input}
       {error ? (
         <span id={messageId} className="iv-field-error" role="alert">
           <Icon name="error" />
