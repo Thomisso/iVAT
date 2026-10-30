@@ -13,6 +13,11 @@ export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
   const tokenHash = request.nextUrl.searchParams.get("token_hash");
   const requestedType = request.nextUrl.searchParams.get("type");
+  if (requestedType === "recovery") {
+    const landing = new URL("/password/reset", appOrigin);
+    landing.hash = new URLSearchParams({ request: request.nextUrl.searchParams.get("request") ?? "", token_hash: tokenHash ?? "" }).toString();
+    return NextResponse.redirect(landing);
+  }
   const requested = request.nextUrl.searchParams.get("next") ?? "/";
   const next = requested.startsWith("/") && !requested.startsWith("//") && !requested.includes("\\") ? requested : "/";
   const invitationCallback = new URL(next, request.url).pathname === "/invitations/accept";

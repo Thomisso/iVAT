@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { supabasePublishableKey, supabaseUrl } from "@/lib/env";
 import { mfaRedirectPath } from "@/application/mfa-routing";
 
-const PUBLIC_PATHS = ["/login", "/signup", "/auth/callback", "/invitations/accept"];
+const PUBLIC_PATHS = ["/login", "/signup", "/auth/callback", "/invitations/accept", "/password/forgot", "/password/reset"];
 const PUBLIC_ASSETS = new Set(["/brand/logo.svg", "/brand/mark.svg", "/icon.svg", "/icon1.png", "/apple-icon.png"]);
 
 // Refreshes the Supabase session cookie on every request and sends anonymous
