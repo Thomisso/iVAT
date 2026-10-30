@@ -1,4 +1,5 @@
 import type { Result } from "./client";
+import { isEconomicActivity, isTerritorialOffice } from "./epo-catalogues";
 
 export const EPO_FORMATS = ["dphdp3", "dphkh1"] as const;
 export type EpoFormat = (typeof EPO_FORMATS)[number];
@@ -24,6 +25,8 @@ export const TAX_OFFICES = [
 ] as const;
 export type ExportDetails = {
   taxOffice: string;
+  territorialOffice: string;
+  economicActivity: string;
   preparedOn: string;
   email: string;
   phone: string;
@@ -47,6 +50,7 @@ export type ExportDetails = {
 /** Validates the resolved direct-filing details at the final server-side seam. */
 export function parseExportDetails(
   input: Record<string, string>,
+  format: EpoFormat = "dphdp3",
 ): Result<ExportDetails, "invalid_export_details"> {
   const value = (key: string) => input[key]?.trim() ?? "";
   const bounded = (key: string, max: number) =>
@@ -61,13 +65,16 @@ export function parseExportDetails(
   const refused = { ok: false, error: "invalid_export_details" } as const;
   if (
     !TAX_OFFICES.some((code) => code === value("taxOffice")) ||
+    (Boolean(value("territorialOffice")) && !isTerritorialOffice(value("taxOffice"), value("territorialOffice"))) ||
+    (format === "dphdp3" && !value("economicActivity")) ||
+    (Boolean(value("economicActivity")) && !isEconomicActivity(value("economicActivity"))) ||
     !validDate ||
     email.length > 255 ||
     (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) ||
     phone.length > 14
   )
     return refused;
-  const common = { taxOffice: value("taxOffice"), preparedOn: date, email, phone };
+  const common = { taxOffice: value("taxOffice"), territorialOffice: value("taxOffice") === "13" ? "4000" : value("territorialOffice"), economicActivity: value("economicActivity"), preparedOn: date, email, phone };
   if (
     value("personType") === "P" &&
     bounded("signatoryFirstName", 20) &&

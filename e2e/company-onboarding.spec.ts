@@ -57,6 +57,8 @@ test("legal Company setup uses structured ARES data, resumes, and reaches the fo
 
   await page.goto(`/companies/${companyId}/settings/vat`);
   await page.getByLabel("Tax office").selectOption("451");
+  await page.getByLabel("Territorial office").selectOption("2003");
+  await page.getByLabel("Economic activity (CZ-NACE)").fill("621000");
   const signatory = page.getByRole("group", { name: "Default authorized signatory" });
   await expect(signatory.getByLabel("First name")).toHaveValue("");
   await expect(signatory.getByLabel("Last name")).toHaveValue("");
