@@ -13,6 +13,19 @@ import { systemClient } from "./worker";
 
 let icoCounter = 0;
 
+/** Controls fixture creation instants; observations still use the User's application query. */
+export async function setUploadBatchCreationDatesFixture(entries: { batchId: string; createdAt: string }[]) {
+  const database = new DatabaseClient({ connectionString: inject("databaseUrl") });
+  await database.connect();
+  try {
+    for (const entry of entries) {
+      await database.query("update public.upload_batch set created_at = $2::timestamptz where id = $1", [entry.batchId, entry.createdAt]);
+    }
+  } finally {
+    await database.end();
+  }
+}
+
 /** Large platform inventory fixture; assertions still read under the operator's identity. */
 export async function platformCompanyInventoryFixture(count: number, createdBy: string) {
   const entries = Array.from({ length: count }, (_, index) => ({

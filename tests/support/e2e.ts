@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import { createClient } from "@supabase/supabase-js";
 import { Client as DatabaseClient } from "pg";
 import type { Database } from "@/lib/database.types";
+import { addLegacyRateBreakdownVersionFixture } from "./rate-breakdown-history";
 
 async function browserFixtureEnvironment() {
   const contents = await fs.readFile(".env.local", "utf8");
@@ -16,6 +17,30 @@ async function browserFixtureClient() {
   return createClient<Database>(environment.NEXT_PUBLIC_SUPABASE_URL, environment.SUPABASE_SECRET_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
+}
+
+export async function addBrowserLegacyRateBreakdownVersionFixture(documentId: string) {
+  const environment = await browserFixtureEnvironment();
+  return addLegacyRateBreakdownVersionFixture(environment.DATABASE_URL, documentId);
+}
+
+/** Controls durable Batch creation instants for browser filtering/pagination coverage. */
+export async function setBrowserUploadHistoryFixture(companyId: string, entries: { batchId?: string; createdAt: string }[]) {
+  const environment = await browserFixtureEnvironment();
+  const database = new DatabaseClient({ connectionString: environment.DATABASE_URL });
+  await database.connect();
+  try {
+    for (const entry of entries) {
+      if (entry.batchId) {
+        await database.query("update public.upload_batch set created_at = $3::timestamptz where id = $1 and company_id = $2", [entry.batchId, companyId, entry.createdAt]);
+      } else {
+        await database.query(`insert into public.upload_batch (organization_id, company_id, created_by, file_count, created_at)
+          select organization_id, id, created_by, 1, $2::timestamptz from public.company where id = $1`, [companyId, entry.createdAt]);
+      }
+    }
+  } finally {
+    await database.end();
+  }
 }
 
 /** Adds one durable completed batch and its User-owned notification. */

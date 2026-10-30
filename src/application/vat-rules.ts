@@ -5,6 +5,8 @@ import type {
 import type { DocumentStatus } from "./documents";
 import {
   validateExtractionPayload,
+  omitZeroRateBreakdownRows,
+  isZeroRateBreakdownLine,
   type ExtractionPayload,
 } from "./extraction-payload";
 import {
@@ -234,7 +236,7 @@ export function computeVatReport(
   const controlStatement: ControlStatementEntry[] = [];
   const excludedDocuments: ComputedVatReport["excludedDocuments"] = [];
   for (const document of documents) {
-    const payload = document.payload;
+    const payload = document.payload ? omitZeroRateBreakdownRows(document.payload) : null;
     const assignedPeriod = payload
       ? reportingPeriodForDocument(
           {
@@ -255,7 +257,7 @@ export function computeVatReport(
       !payload ||
       assignedPeriod !== period
     ) continue;
-    const reason = exclusion(document);
+    const reason = exclusion({ ...document, payload });
     if (reason) {
       excludedDocuments.push({ documentId: document.id, reason });
       continue;
@@ -358,7 +360,7 @@ export function computeVatReport(
     company,
     period,
     vatReturn,
-    controlStatement,
+    controlStatement: controlStatement.map((entry) => ({ ...entry, rateBreakdown: entry.rateBreakdown.filter((line) => !isZeroRateBreakdownLine(line)) })),
     excludedDocuments,
     totals: {
       outputVat: amount(output),
