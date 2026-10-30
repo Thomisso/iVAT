@@ -8,7 +8,9 @@ import type {
   CompanyFilingDefaults,
   ResolvedEpoAddress,
 } from "@/application/company-filing-defaults";
-import { TAX_OFFICES, type EpoFormat } from "@/application/epo-export-details";
+import type { EpoFormat } from "@/application/epo-export-details";
+import { isEconomicActivity, isTerritorialOffice, TERRITORIAL_OFFICES } from "@/application/epo-catalogues";
+import { FilingOfficeFields } from "@/components/filing-office-fields";
 import { TextField } from "@/components/text-field";
 import { Button } from "@/components/button";
 import { FormError } from "@/components/form-error";
@@ -36,7 +38,10 @@ export function ExportForm({
   const t = useTranslations("epoExport");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const filingDetailsComplete = Boolean(defaults?.taxOffice) && (personType === "natural" || Boolean(
+  const filingDetailsComplete = Boolean(defaults?.taxOffice)
+    && (!defaults?.territorialOffice || isTerritorialOffice(defaults.taxOffice ?? "", defaults.territorialOffice))
+    && (format !== "dphdp3" || isEconomicActivity(defaults?.economicActivity ?? ""))
+    && (personType === "natural" || Boolean(
     defaults?.signatoryFirstName && defaults.signatoryLastName && defaults.signatoryCapacity,
   ));
   const [editing, setEditing] = useState(!filingDetailsComplete);
@@ -122,6 +127,8 @@ export function ExportForm({
         <p>{t("personType")}: {t(personType === "legal" ? "legalPerson" : "naturalPerson")}</p>
         <dl className="epo-export-summary">
           <div><dt>{t("taxOffice")}</dt><dd>{defaults?.taxOffice ? t(`taxOffices.${defaults.taxOffice}`) : t("notSet")}</dd></div>
+          <div><dt>{t("territorialOffice")}</dt><dd>{TERRITORIAL_OFFICES.find((office) => office.code === defaults?.territorialOffice)?.name ?? t("notSet")}</dd></div>
+          {format === "dphdp3" && <div><dt>{t("economicActivity")}</dt><dd>{defaults?.economicActivity ?? t("notSet")}</dd></div>}
           {personType === "legal" && <div><dt>{t("signatory")}</dt><dd>{defaults?.signatoryFirstName
             ? `${defaults.signatoryFirstName} ${defaults.signatoryLastName} · ${defaults.signatoryCapacity}`
             : t("notSet")}</dd></div>}
@@ -135,15 +142,7 @@ export function ExportForm({
           <Link href={`/companies/${companyId}/settings#filing-defaults`}>{t("completeEpoAddress")}</Link>
         </div>}
         {editing ? <>
-          <label className="iv-field-label">
-            {t("taxOffice")}
-            <select name="taxOffice" required defaultValue={defaults?.taxOffice ?? ""}>
-              <option value="">{t("choose")}</option>
-              {TAX_OFFICES.map((code) => (
-                <option key={code} value={code}>{t(`taxOffices.${code}`)}</option>
-              ))}
-            </select>
-          </label>
+          <FilingOfficeFields taxOffice={defaults?.taxOffice} territorialOffice={defaults?.territorialOffice} economicActivity={defaults?.economicActivity} requireTaxOffice requireEconomicActivity={format === "dphdp3"} />
           {personType === "legal" && <fieldset>
             <legend>{t("signatory")}</legend>
             <div className="form-row">
