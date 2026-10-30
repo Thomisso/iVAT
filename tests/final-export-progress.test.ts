@@ -1,7 +1,7 @@
 import { strFromU8, unzipSync } from "fflate";
 import { Client as DatabaseClient } from "pg";
 import { expect, inject, it } from "vitest";
-import { signedUpUser } from "./support/clients";
+import { provisionedUser } from "./support/clients";
 import { listAuditEvents } from "@/application/audit";
 import { saveCompanyFilingDefaults } from "@/application/company-filing-defaults";
 import { finalizeVatReport, generateVatReport, getPeriodLock, getVatReport, listVatReportTransitions, unlockReportingPeriod } from "@/application/vat-reports";
@@ -133,7 +133,7 @@ it("archives cycle identities and acknowledgements, invalidating deletion receip
 it("refuses mismatched final identities and preserves actual-user audit attribution", async () => {
   const company = await prepared();
   const colleague = await companyMember(company);
-  const outsider = await signedUpUser();
+  const outsider = await provisionedUser();
   await finalizeVatReport(company.client, { ...company.input, confirmed: true });
   const result = await exportFinalVatReport(company.client, { ...company.input, format: "dphdp3", details: {} });
   if (!result.ok) throw new Error(result.error);

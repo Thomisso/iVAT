@@ -14,7 +14,7 @@ import { listReportingPeriods } from "@/application/reporting-period-readiness";
 import { generateVatReport } from "@/application/vat-reports";
 import { Client as DatabaseClient } from "pg";
 import { inject } from "vitest";
-import { signedUpUser } from "./support/clients";
+import { provisionedUser } from "./support/clients";
 import { fixtureFile } from "./support/files";
 import {
   administratorWithCompany,
@@ -61,7 +61,7 @@ async function outgoingDocuments(
 
 describe("Reporting Years from onboarding", () => {
   it("creates the current Reporting Year with the chosen frequency and lists only its periods", async () => {
-    const { client, organizationId } = await signedUpUser();
+    const { client, organizationId } = await provisionedUser();
     const created = await createCompany(client, {
       organizationId,
       ...companyDetails({ filingFrequency: "quarterly", reportingYear: 2026 }),
@@ -84,7 +84,7 @@ describe("Reporting Years from onboarding", () => {
   });
 
   it("updates the current Reporting Year when the filing frequency step is saved again", async () => {
-    const { client, organizationId } = await signedUpUser();
+    const { client, organizationId } = await provisionedUser();
     const identity = await createCompanyIdentity(client, { organizationId, ...companyDetails() });
     if (!identity.ok) throw new Error(identity.error);
     expect(await listReportingPeriods(client, identity.value.id)).toEqual([]);
@@ -191,7 +191,7 @@ describe("Reporting Year changes from onboarding", () => {
   it("lets only Administrators write Reporting Years and hides them from other Organizations", async () => {
     const company = await administratorWithCompany();
     const user = await companyMember(company, "user");
-    const outsider = await signedUpUser("Other Organization");
+    const outsider = await provisionedUser("Other Organization");
 
     expect(await setCurrentReportingYear(user.client, {
       companyId: company.companyId,

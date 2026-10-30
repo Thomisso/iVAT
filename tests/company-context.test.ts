@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { resolveCompanyContext } from "@/application/company-context";
 import { createCompany } from "@/application/companies";
-import { signedUpUser } from "./support/clients";
+import { provisionedUser } from "./support/clients";
 import { administratorWithCompany, companyDetails } from "./support/fixtures";
 
 async function administratorWithTwoCompanies() {
@@ -49,7 +49,7 @@ describe("Company context", () => {
 
   it("does not reuse a remembered Company that belongs to another User", async () => {
     const user = await administratorWithTwoCompanies();
-    const other = await signedUpUser("Other Organization");
+    const other = await provisionedUser("Other Organization");
 
     expect(await resolveCompanyContext(user.client, {
       userId: other.userId,
@@ -73,7 +73,7 @@ describe("Company context", () => {
   });
 
   it("offers an empty chooser when the User cannot access a Company", async () => {
-    const user = await signedUpUser();
+    const user = await provisionedUser();
 
     expect(await resolveCompanyContext(user.client, null)).toEqual({
       kind: "chooser",

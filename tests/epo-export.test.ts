@@ -7,7 +7,7 @@ import {
   getCompanyFilingDefaults,
   saveCompanyFilingDefaults,
 } from "@/application/company-filing-defaults";
-import { signedUpUser } from "./support/clients";
+import { provisionedUser } from "./support/clients";
 import {
   administratorWithCompany,
   companyMember,
@@ -65,7 +65,7 @@ it("keeps an ordinary filing on the holiday-adjusted deadline advisory-free", as
 });
 
 it("moves an ordinary deadline past Good Friday, the weekend and Easter Monday", async () => {
-  const user = await signedUpUser("Easter deadline");
+  const user = await provisionedUser("Easter deadline");
   const company = await createCompany(user.client, { organizationId: user.organizationId, ...companyDetails({ reportingYear: 2016 }) });
   if (!company.ok) throw new Error(company.error);
   await generateVatReport(user.client, { companyId: company.value.id, period: "2016-02" });
@@ -80,7 +80,7 @@ it("moves an ordinary deadline past Good Friday, the weekend and Easter Monday",
 });
 
 it("does not invent a quarterly ordinary Control Statement deadline for a legal person", async () => {
-  const user = await signedUpUser("Quarterly legal Company");
+  const user = await provisionedUser("Quarterly legal Company");
   const company = await createCompany(user.client, { organizationId: user.organizationId, ...companyDetails({ filingFrequency: "quarterly" }) });
   if (!company.ok) throw new Error(company.error);
   await generateVatReport(user.client, { companyId: company.value.id, period: "2026-Q3" });
@@ -120,7 +120,7 @@ it.each([
   ["natural", "quarterly", "2026-Q3", "dphkh1"],
   ["legal", "monthly", "2026-09", "dphkh1"],
 ] as const)("uses the actual ordinary output and period for %s %s %s %s", async (personType, filingFrequency, period, format) => {
-  const user = await signedUpUser("Ordinary output deadline");
+  const user = await provisionedUser("Ordinary output deadline");
   const company = await createCompany(user.client, {
     organizationId: user.organizationId,
     ...companyDetails({ personType, filingFrequency, firstName: "Jana", lastName: "Nováková" }),
@@ -251,7 +251,7 @@ it.each(["dphdp3", "dphkh1"])(
   "another Organization cannot export %s",
   async (format) => {
     const a = await administratorWithCompany();
-    const b = await signedUpUser();
+    const b = await provisionedUser();
     await generateVatReport(a.client, {
       companyId: a.companyId,
       period: "2026-10",
@@ -270,7 +270,7 @@ it.each(["dphdp3", "dphkh1"])(
 it.each(["dphdp3", "dphkh1"])(
   "resolves saved filing defaults and a confirmed EPO address for %s",
   async (format) => {
-    const administrator = await signedUpUser();
+    const administrator = await provisionedUser();
     const company = await createCompany(administrator.client, {
       organizationId: administrator.organizationId,
       ...companyDetails({ streetName: "Dlouhá registrovaná ulice překračující limit EPO" }),
@@ -399,7 +399,7 @@ it("refuses missing drafts and invalid export inputs without producing a downloa
   ).toEqual({ ok: false, error: "invalid_export_details" });
 });
 it("uses the saved Company's person type for the XML header", async () => {
-  const a = await signedUpUser();
+  const a = await provisionedUser();
   const company = await createCompany(a.client, {
     organizationId: a.organizationId,
     ...companyDetails({ personType: "natural", firstName: "Jan", lastName: "Novák" }),
@@ -427,7 +427,7 @@ it("uses the saved Company's person type for the XML header", async () => {
   expect(result.value.xml).not.toContain("zkrobchjm");
 });
 it("uses a natural person's snapshotted identity without silently adding the User email", async () => {
-  const administrator = await signedUpUser();
+  const administrator = await provisionedUser();
   const company = await createCompany(administrator.client, {
     organizationId: administrator.organizationId,
     ...companyDetails({ personType: "natural", firstName: "Jana", lastName: "Nováková" }),
@@ -473,7 +473,7 @@ it("uses a natural person's snapshotted identity without silently adding the Use
 it.each(["dphdp3", "dphkh1"])(
   "requires a confirmed EPO address before exporting %s with an over-limit registered address",
   async (format) => {
-    const a = await signedUpUser();
+    const a = await provisionedUser();
     const company = await createCompany(a.client, {
       organizationId: a.organizationId,
       ...companyDetails({ streetName: "x".repeat(39) }),

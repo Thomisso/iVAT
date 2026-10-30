@@ -6,7 +6,7 @@ import { listPlatformAiUsage, listPlatformAiUsageModels } from "@/application/ai
 import { uploadSourceFile } from "@/application/source-files";
 import { SAMPLE_EXTRACTION } from "@/ai/fake";
 import { fixtureFile } from "./support/files";
-import { signedUpUser } from "./support/clients";
+import { provisionedUser } from "./support/clients";
 import { administratorWithCompany, assignAiConfigurationFixture } from "./support/fixtures";
 import { aal2Client, promotedSuperAdministrator } from "./support/platform";
 import { systemClient, testWorker } from "./support/worker";
@@ -93,7 +93,7 @@ describe("platform AI usage metering", () => {
     }));
     await target.upload();
 
-    const promoted = await signedUpUser("Platform Usage");
+    const promoted = await provisionedUser("Platform Usage");
     const promotion = await systemClient().from("platform_user").insert({
       user_id: promoted.userId,
       role: "super_admin",

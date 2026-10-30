@@ -1,3 +1,4 @@
+import { provisionAndLogIn } from "./support/accounts";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 
 const password = "Playwright-password-97";
@@ -10,11 +11,7 @@ async function english(context: BrowserContext, baseURL: string | undefined) {
 async function createCompanyAdministrator(page: Page) {
   const run = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const ico = Date.now().toString().slice(-8);
-  await page.goto("/signup");
-  await page.getByLabel("Organization name").fill(`Export Organization ${run}`);
-  await page.getByLabel("Email").fill(`export-admin-${run}@example.test`);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Sign up" }).click();
+  await provisionAndLogIn(page, { organizationName: `Export Organization ${run}`, email: `export-admin-${run}@example.test`, password });
   await expect(page).toHaveURL(/\/companies\/new$/);
   await page.getByLabel("Company name").fill(`Export Company ${run}`);
   await page.getByLabel("IČO").fill(ico);
