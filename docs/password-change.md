@@ -7,8 +7,10 @@ Passwords are never returned in form state or logged as Server Function argument
 `changePassword` reads the identity from the original AppClient. The narrow
 `supabasePasswordVerifier` signs in with that identity's email using a fresh
 in-memory publishable-key client, with persistence and automatic refresh disabled.
-It signs out only its temporary session (`scope: local`) and disposes the client
-before returning success. A verification or cleanup refusal prevents the change.
+It signs out only its temporary session (`scope: local`), checks the native HTTP
+response and disposes the client before returning success. The SDK's `signOut`
+ignores some HTTP errors, so its return value is not confirmation of revocation.
+A verification or cleanup refusal prevents the change.
 No request cookies or original-session state are supplied to that client.
 
 The password update runs on the **original** AppClient, passing `current_password`.

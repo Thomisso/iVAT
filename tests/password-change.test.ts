@@ -118,19 +118,33 @@ it("keeps normal change separate from first-password setup and genuine recovery 
   expect((await anonymousClient().auth.signInWithPassword({ email, password: originalPassword })).error).toBeNull();
 });
 
-it("refuses the change if the temporary verifier session cannot be revoked", async () => {
+it.each([401, 403, 404, 500])("refuses the change if temporary verifier logout returns HTTP %i", async status => {
   const user = await provisionedUser();
+  if (status === 403) {
+    const enrollment = await beginTotpEnrollment(user.client);
+    if (!enrollment.ok) throw new Error(enrollment.error);
+    const completed = await completeTotpEnrollment(user.client, { factorId: enrollment.value.factorId, code: totp(enrollment.value.secret) });
+    if (!completed.ok) throw new Error(completed.error);
+    expect((await mfaStatus(user.client)).currentLevel).toBe("aal2");
+  }
+  const before = (await user.client.auth.getSession()).data.session!;
   let ephemeralAccessToken = "";
   const transport: typeof fetch = async (input, init) => {
-    if (String(input).includes("/logout")) return Response.json({ code: "unexpected_failure", msg: "Temporary Auth failure" }, { status: 500 });
+    if (String(input).includes("/logout")) return Response.json({ code: "unexpected_failure", msg: "Temporary Auth failure" }, { status });
     const response = await fetch(input, init);
     if (String(input).includes("grant_type=password") && response.ok) ephemeralAccessToken = (await response.clone().json()).access_token;
     return response;
   };
   try {
+    // Native update would refuse this unchanged password, so it cannot mask a cleanup failure
+    // by revoking the temporary session as a side effect of a successful password change.
     expect(await changePassword(user.client, supabasePasswordVerifier(inject("supabaseUrl"), inject("supabaseAnonKey"), transport), {
-      currentPassword: originalPassword, newPassword, confirmation: newPassword,
+      currentPassword: originalPassword, newPassword: originalPassword, confirmation: originalPassword,
     })).toEqual({ ok: false, error: "password_verification_failed" });
+    const after = (await user.client.auth.getSession()).data.session!;
+    expect(after.access_token).toBe(before.access_token);
+    expect(after.refresh_token).toBe(before.refresh_token);
+    if (status === 403) expect((await mfaStatus(user.client)).currentLevel).toBe("aal2");
     expect((await user.client.auth.refreshSession()).error).toBeNull();
     expect((await anonymousClient().auth.signInWithPassword({ email: user.email, password: originalPassword })).error).toBeNull();
     expect((await anonymousClient().auth.signInWithPassword({ email: user.email, password: newPassword })).error).not.toBeNull();
