@@ -35,7 +35,6 @@ async function companyWithReportDocuments() {
     companyId: admin.companyId,
     fileName: "two-invoices.pdf",
     bytes: fixtureFile("two-invoices.pdf"),
-    preselectedDirection: "incoming",
   });
   if (!file.ok) throw new Error(file.error);
   expect(await worker.runJobs()).toEqual([]);
@@ -316,7 +315,6 @@ it("a malformed AI date cannot block generation from valid Documents", async () 
     companyId: a.companyId,
     fileName: "two-invoices.pdf",
     bytes: fixtureFile("two-invoices.pdf"),
-    preselectedDirection: "incoming",
   });
   expect(await worker.runJobs()).toEqual([]);
   expect(

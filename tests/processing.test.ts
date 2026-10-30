@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { AiInput } from "@/application/ai-provider";
 import { getCompany } from "@/application/companies";
 import { listDocuments, listExtractionVersions, readDocumentRows, reprocessDocument } from "@/application/documents";
-import type { Direction, ExtractionPayload } from "@/application/extraction-payload";
+import type { ExtractionPayload } from "@/application/extraction-payload";
 import { getSourceFile, retrySplit, uploadSourceFile } from "@/application/source-files";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { signedUpUser } from "./support/clients";
@@ -31,13 +31,11 @@ async function upload(
   { client, companyId }: { client: Awaited<ReturnType<typeof administratorWithCompany>>["client"]; companyId: string },
   worker: ReturnType<typeof testWorker>,
   fixture = "two-invoices.pdf",
-  preselectedDirection: Direction | null = "incoming",
 ) {
   const result = await uploadSourceFile(client, worker.jobs, {
     companyId,
     fileName: fixture,
     bytes: fixtureFile(fixture),
-    preselectedDirection: preselectedDirection ?? undefined,
   });
   if (!result.ok) throw new Error(result.error);
   return result.value.id;
@@ -175,6 +173,8 @@ describe("automatic Direction detection", () => {
         extract: () => ({
           ...SAMPLE_EXTRACTION,
           direction: direction === "incoming" ? "outgoing" : "incoming",
+          supplier: SAMPLE_EXTRACTION.supplier,
+          customer: SAMPLE_EXTRACTION.supplier,
           [party]: {
             ...SAMPLE_EXTRACTION[party],
             ico: companyIdentity.ico,
@@ -191,7 +191,6 @@ describe("automatic Direction detection", () => {
       { client, companyId },
       worker,
       "receipt.png",
-      null,
     );
 
     await worker.runJobs();
@@ -208,33 +207,16 @@ describe("automatic Direction detection", () => {
     );
   });
 
-  it("lets an upload preselection win", async () => {
-    const worker = testWorker();
+  it("sets no Direction and records a blocking finding when neither party matches", async () => {
+    const worker = testWorker(fakeAiProvider({
+      extract: () => ({
+        ...SAMPLE_EXTRACTION,
+        direction: "incoming",
+        customer: { ...SAMPLE_EXTRACTION.customer, name: "Jiný odběratel s.r.o.", ico: "45274649", vatId: "CZ45274649" },
+      }),
+    }));
     const { client, companyId } = await companyWithAiProcessing(worker);
-    const uploaded = await uploadSourceFile(client, worker.jobs, {
-      companyId,
-      fileName: "receipt.png",
-      bytes: fixtureFile("receipt.png"),
-      preselectedDirection: "outgoing",
-    });
-    if (!uploaded.ok) throw new Error(uploaded.error);
-
-    await worker.runJobs();
-
-    const [document] = await listDocuments(client, companyId, uploaded.value.id);
-    const [version] = await listExtractionVersions(client, companyId, document.id);
-    expect(version.payload.direction).toBe("outgoing");
-  });
-
-  it("sets no Direction and records a warning when neither party matches", async () => {
-    const worker = testWorker();
-    const { client, companyId } = await companyWithAiProcessing(worker);
-    const sourceFileId = await upload(
-      { client, companyId },
-      worker,
-      "receipt.png",
-      null,
-    );
+    const sourceFileId = await upload({ client, companyId }, worker, "receipt.png");
 
     await worker.runJobs();
 
@@ -243,7 +225,7 @@ describe("automatic Direction detection", () => {
     expect(version.payload.direction).toBeNull();
     expect(version.findings).toContainEqual({
       field: "direction",
-      severity: "warning",
+      severity: "error",
       code: "direction_unknown",
     });
   });

@@ -2,8 +2,8 @@ import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { currentUser } from "@/application/auth";
 import { resolveCompanyContext } from "@/application/company-context";
-import { isSuperAdmin } from "@/application/platform-ai";
 import { PlatformShell } from "@/components/platform-shell";
+import { loadAdministrationAccess } from "@/lib/administration-access";
 import {
   companyContextCookie,
   parseCompanyContext,
@@ -18,9 +18,9 @@ export default async function PlatformLayout({
   const remembered = parseCompanyContext(
     (await cookies()).get(companyContextCookie)?.value,
   );
-  const [auth, superAdmin, companyContext, operationalProblems] = await Promise.all([
+  const [auth, { organizations, superAdmin }, companyContext, operationalProblems] = await Promise.all([
     currentUser(client),
-    isSuperAdmin(client),
+    loadAdministrationAccess(),
     resolveCompanyContext(client, remembered),
     currentPlatformOperationalProblems(),
   ]);
@@ -35,6 +35,7 @@ export default async function PlatformLayout({
       }
       email={auth.email}
       operationalProblemCount={operationalProblems.value.length}
+      organizations={organizations}
     >
       {children}
     </PlatformShell>
