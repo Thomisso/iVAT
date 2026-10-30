@@ -21,8 +21,10 @@ import {
 import { pdfPages, readSourceFile, SOURCE_FILE_MEDIA_TYPES } from "./source-files";
 import { workbookRowsToText, type WorkbookRowSet } from "./workbooks";
 import { applyCnbConversion, type ExchangeRateProvider } from "./exchange-rates";
+import { vatRegistryFindings, type VatPayerRegistry } from "./vat-registry";
 
 const unavailableExchangeRates: ExchangeRateProvider = { rateFor: async () => null };
+const unavailableVatPayerRegistry: VatPayerRegistry = { check: async () => ({ outcome: "unavailable" }) };
 
 export const DOCUMENT_STATUSES = [
   "uploaded",
@@ -396,6 +398,7 @@ export async function correctDocument(
     payload: ExtractionPayload;
   },
   exchangeRates: ExchangeRateProvider = unavailableExchangeRates,
+  vatRegistry: VatPayerRegistry = unavailableVatPayerRegistry,
 ): Promise<Result<{ version: number }, CorrectDocumentError>> {
   let payload = normalizeExtractionPayload(input.payload);
   const invalid = validateExtractionPayload(payload);
@@ -412,6 +415,7 @@ export async function correctDocument(
     payload,
     findings: [
       ...validateDocument(payload, CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA),
+      ...(await vatRegistryFindings(vatRegistry, payload)),
       ...conversion.findings,
     ],
   });

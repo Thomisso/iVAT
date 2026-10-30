@@ -175,6 +175,11 @@ function requiredFieldFindings(payload: ExtractionPayload): ValidationFinding[] 
   return findings;
 }
 
+function paymentFindings(payload: ExtractionPayload): ValidationFinding[] {
+  return !payload.payment.bankAccount?.trim() && !payload.payment.iban?.trim()
+    ? [warning("payment.bankAccount", "missing_bank_account")] : [];
+}
+
 /** Pure deterministic validation of one Extraction Version. */
 export function validateDocument(
   payload: ExtractionPayload,
@@ -183,6 +188,7 @@ export function validateDocument(
   const findings: ValidationFinding[] = [
     ...identifierFindings(payload),
     ...requiredFieldFindings(payload),
+    ...paymentFindings(payload),
   ];
   if (payload.direction === null) {
     findings.push(error("direction", "direction_unknown"));
@@ -281,17 +287,18 @@ export function validateDocument(
   return findings;
 }
 
-/** Apply today's gross-total warning rule when reading immutable historical findings. */
+/** Apply current advisory rules when reading immutable historical findings. */
 export function currentValidationFindings(
   payload: ExtractionPayload,
   findings: readonly ValidationFinding[],
 ): ValidationFinding[] {
   const historicalGrossError = findings.some((finding) =>
     finding.code === "total_gross_amount_mismatch" && finding.severity === "error");
-  if (!historicalGrossError) return [...findings];
-  const grossWarning = validateDocument(payload, CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA)
-    .find((finding) => finding.code === "total_gross_amount_mismatch");
-  return findings.map((finding) => finding.code === "total_gross_amount_mismatch"
-    ? grossWarning ?? { ...finding, severity: "warning" }
-    : finding);
+  const grossWarning = historicalGrossError
+    ? validateDocument(payload, CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA)
+      .find((finding) => finding.code === "total_gross_amount_mismatch")
+    : undefined;
+  const current = findings.map<ValidationFinding>((finding) => historicalGrossError && finding.code === "total_gross_amount_mismatch"
+    ? grossWarning ?? { ...finding, severity: "warning" } : finding);
+  return [...current, ...paymentFindings(payload).filter((finding) => !current.some((entry) => entry.code === finding.code))];
 }
