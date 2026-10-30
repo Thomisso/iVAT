@@ -28,7 +28,6 @@ async function approvedDocument() {
     companyId: admin.companyId,
     fileName: "receipt.png",
     bytes: fixtureFile("receipt.png"),
-    preselectedDirection: SAMPLE_EXTRACTION.direction ?? undefined,
   });
   if (!uploaded.ok) throw new Error(uploaded.error);
   await worker.runJobs();

@@ -169,7 +169,6 @@ describe("Documents outside generated Reporting Years", () => {
       companyId: company.companyId,
       fileName: `${taxPointDate}.png`,
       bytes: fixtureFile("receipt.png"),
-      preselectedDirection: "outgoing",
     });
     if (!uploaded.ok) throw new Error(uploaded.error);
     await worker.runJobs();
