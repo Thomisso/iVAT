@@ -303,6 +303,19 @@
     "dropTitle": "Přetáhněte sem zdrojový soubor",
     "chooseFile": "Vybrat soubor"
   },
+  "returnContext": {
+      "company": "← Zpět na firmu",
+      "documents": "← Zpět na doklady",
+      "document": "← Zpět na doklad",
+      "processing": "← Zpět na Zpracování",
+      "vatReturn": "← Zpět na přiznání k DPH",
+      "controlStatement": "← Zpět na kontrolní hlášení",
+      "exportHistory": "← Zpět na historii exportů",
+      "periods": "← Zpět na zdaňovací období",
+      "upload": "← Zpět na Nahrání",
+      "batch": "← Zpět na dávku",
+      "sourceFile": "← Zpět na zdrojový soubor"
+  },
   "periodFilter": {
     "label": "Zdaňovací období",
     "all": "Všechna období",
