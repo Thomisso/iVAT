@@ -13,6 +13,7 @@ import { isReportingPeriod, NO_REPORTING_PERIOD, pragueDate } from "./reporting-
 import {
   CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA,
   validateDocument,
+  currentValidationFindings,
   type ValidationFinding,
 } from "./document-validation";
 import { pdfPages, readSourceFile, SOURCE_FILE_MEDIA_TYPES } from "./source-files";
@@ -365,7 +366,7 @@ export async function listExtractionVersions(
       ? { kind: "user", userId: v.author_user_id }
       : { kind: "ai" },
     payload: v.payload as ExtractionPayload,
-    findings: v.findings as ValidationFinding[],
+    findings: currentValidationFindings(v.payload as ExtractionPayload, v.findings as ValidationFinding[]),
     createdAt: v.created_at,
   }));
 }
@@ -424,7 +425,7 @@ export async function correctDocument(
 export async function approveDocument(
   client: AppClient,
   input: { companyId: string; documentId: string; version: number },
-): Promise<Result<null, "not_in_review" | "stale_version" | "direction_required" | "invalid_credit_note_amount" | "period_locked" | "forbidden">> {
+): Promise<Result<null, "not_in_review" | "stale_version" | "direction_required" | "rate_breakdown_totals_mismatch" | "invalid_credit_note_amount" | "period_locked" | "forbidden">> {
   const document = await findDocumentId(client, input.companyId, input.documentId);
   if (!document) return { ok: false, error: "forbidden" };
   const { error } = await client.rpc("approve_document", {
@@ -435,6 +436,7 @@ export async function approveDocument(
     "not_in_review",
     "stale_version",
     "direction_required",
+    "rate_breakdown_totals_mismatch",
     "invalid_credit_note_amount",
     "period_locked",
   ]);

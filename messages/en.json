@@ -482,6 +482,7 @@
     "stale_version": "Someone saved a newer version of this document in the meantime. Reload the page to see it.",
     "invalid_choice": "Choose one of the offered options.",
     "invalid_amount": "Amounts must be numbers with at most two decimals, such as 1210.00.",
+    "rate_breakdown_totals_mismatch": "Net and VAT totals must match the Rate Breakdown before approval.",
     "invalid_credit_note_amount": "Credit Note amounts must not be positive, and at least one amount must be negative.",
     "invalid_rate": "A VAT rate must be a percentage between 0 and 100.",
     "invalid_date": "Enter dates that exist.",
