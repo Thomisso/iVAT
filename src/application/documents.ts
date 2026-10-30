@@ -9,6 +9,7 @@ import {
   type Party,
   type ExtractionPayload,
   type ExtractionPayloadError,
+  type VatRegime,
 } from "./extraction-payload";
 import { extractJob, type JobQueue } from "./processing";
 import { isReportingPeriod, NO_REPORTING_PERIOD, pragueDate } from "./reporting-periods";
@@ -72,8 +73,9 @@ export type ExtractionVersion = {
   createdAt: string;
 };
 
-/** Only Approved Documents count towards VAT Reports (ADR-0003). */
-export const isEligibleForVatReport = (status: DocumentStatus) => status === "approved";
+/** Approval and a determined VAT Regime are prerequisites for VAT Reports (ADR-0003). */
+export const isEligibleForVatReport = (status: DocumentStatus, vatRegime: VatRegime | null) =>
+  status === "approved" && vatRegime !== null;
 
 /** A Document as the Document list shows it: with the fields of its current Extraction Version. */
 export type DocumentOverview = {
@@ -158,7 +160,7 @@ export async function listCompanyDocuments(
     let query = client
       .from("document_overview")
       .select(
-        "id, source_file_id, first_page, last_page, status, created_at, version, document_number, direction, tax_point_date, import_date, claimed_reporting_period, reporting_period, counterparty_name, counterparty_vat_id, counterparty_ico, currency, gross_amount, finding_count",
+        "id, source_file_id, first_page, last_page, status, created_at, version, document_number, direction, tax_point_date, import_date, claimed_reporting_period, reporting_period, counterparty_name, counterparty_vat_id, counterparty_ico, currency, gross_amount, finding_count, proposed_vat_regime",
       )
       .eq("company_id", companyId);
     if (filters.sourceFileIds) query = query.in("source_file_id", filters.sourceFileIds);
@@ -197,7 +199,7 @@ export async function listCompanyDocuments(
       currency: d.currency,
       grossAmount: d.gross_amount,
       findingCount: d.finding_count ?? 0,
-      eligibleForVatReport: isEligibleForVatReport(d.status),
+      eligibleForVatReport: isEligibleForVatReport(d.status, d.proposed_vat_regime as VatRegime | null),
     })));
     if (data.length < 1000) return documents;
   }
@@ -431,7 +433,7 @@ export async function correctDocument(
 export async function approveDocument(
   client: AppClient,
   input: { companyId: string; documentId: string; version: number },
-): Promise<Result<null, "not_in_review" | "stale_version" | "direction_required" | "rate_breakdown_totals_mismatch" | "invalid_credit_note_amount" | "period_locked" | "forbidden">> {
+): Promise<Result<null, "not_in_review" | "stale_version" | "direction_required" | "vat_regime_required" | "rate_breakdown_totals_mismatch" | "invalid_credit_note_amount" | "period_locked" | "forbidden">> {
   const document = await findDocumentId(client, input.companyId, input.documentId);
   if (!document) return { ok: false, error: "forbidden" };
   const { error } = await client.rpc("approve_document", {
@@ -442,6 +444,7 @@ export async function approveDocument(
     "not_in_review",
     "stale_version",
     "direction_required",
+    "vat_regime_required",
     "rate_breakdown_totals_mismatch",
     "invalid_credit_note_amount",
     "period_locked",
