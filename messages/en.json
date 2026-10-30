@@ -1257,6 +1257,7 @@
     "blockedNotice": "This Organization is blocked. Ordinary processing remains paused until a SuperAdmin explicitly unblocks it.",
     "readOnlyNotice": "This view provides read-only access to retained Company data.",
     "organizationAdministration": "Organization administration",
+    "companyAdministration": "Company access administration",
     "organizationAudit": "Company audit history",
     "downloadArchive": "Download retained Company data",
     "companyIdentity": "Company identity",

@@ -29,6 +29,7 @@ export default async function PlatformCompanyHistoryPage({ params }: PageProps<"
         <Link href={`/organizations/${company.organizationId}/members`}>{t("organizationAdministration")}</Link>
         {" · "}<Link href={`/organizations/${company.organizationId}/audit-log?companyId=${company.id}`}>{t("organizationAudit")}</Link>
         {" · "}<a href={`${base}/archive`}>{t("downloadArchive")}</a>
+        {!deletedAt && <>{" · "}<Link href={`/platform/companies/${company.id}/members`}>{t("companyAdministration")}</Link></>}
       </p>
       <section className="panel">
         <h2>{t("companyIdentity")}</h2>

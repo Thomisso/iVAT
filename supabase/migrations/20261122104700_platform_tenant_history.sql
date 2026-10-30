@@ -18,6 +18,35 @@ as $$
     );
 $$;
 
+-- Membership administration is support work, not ordinary Company processing.
+-- Deleted Companies remain immutable even for the platform operator.
+create function private.can_administrate_company_memberships(target_company_id uuid, target_organization_id uuid)
+returns boolean
+language sql stable security definer set search_path = ''
+as $$
+  select exists (
+    select 1 from public.company c
+    where c.id = target_company_id and c.organization_id = target_organization_id
+      and c.deleted_at is null
+  ) and (
+    private.is_company_administrator(target_company_id, target_organization_id)
+    or private.can_administrate_platform()
+  );
+$$;
+revoke execute on function private.can_administrate_company_memberships(uuid, uuid) from public;
+
+alter policy "MFA-verified users read memberships in their scope" on public.membership
+using (
+  private.is_organization_administrator(organization_id)
+  or (
+    private.organization_mfa_satisfied(organization_id)
+    and (
+      user_id = auth.uid()
+      or (company_id is not null and private.is_company_administrator(company_id, organization_id))
+    )
+  )
+);
+
 create or replace function private.is_organization_member(target_organization_id uuid)
 returns boolean
 language sql stable security definer set search_path = ''
@@ -222,5 +251,174 @@ begin
     ) order by organization.name, organization.id)
     from public.organization organization
   ), '[]'::jsonb);
+end;
+$$;
+
+-- Reuse membership support authority without broadening operational predicates.
+create or replace function public.create_invitation(
+  target_organization_id uuid,
+  target_company_id uuid,
+  target_email text,
+  target_role public.membership_role
+)
+returns text
+language plpgsql security definer set search_path = ''
+as $$
+declare
+  normalized_email text := lower(trim(target_email));
+  token text := gen_random_uuid()::text || gen_random_uuid()::text;
+  invitation_id uuid;
+begin
+  if target_company_id is null then
+    if target_role <> 'administrator' or not private.is_organization_administrator(target_organization_id) then
+      raise insufficient_privilege;
+    end if;
+  elsif not exists (
+    select 1 from public.company c
+    where c.id = target_company_id and c.organization_id = target_organization_id
+  ) or not private.can_administrate_company_memberships(target_company_id, target_organization_id) then
+    raise insufficient_privilege;
+  end if;
+
+  insert into public.invitation (
+    organization_id, company_id, email, role, token_hash, invitee_existed
+  )
+  values (
+    target_organization_id,
+    target_company_id,
+    normalized_email,
+    target_role,
+    encode(extensions.digest(token, 'sha256'), 'hex'),
+    exists (
+      select 1
+      from public.membership
+      where lower(membership.email) = normalized_email
+    )
+  )
+  returning id into invitation_id;
+
+  perform private.record_audit_event(
+    'invitation.created', target_organization_id, target_company_id,
+    'invitation', invitation_id,
+    jsonb_build_object('role', target_role, 'scope', case when target_company_id is null then 'organization' else 'company' end)
+  );
+
+  return token;
+end;
+$$;
+
+create or replace function public.change_membership_role(
+  target_membership_id uuid,
+  target_role public.membership_role
+)
+returns void
+language plpgsql security definer set search_path = ''
+as $$
+declare
+  target public.membership;
+  old_role public.membership_role;
+begin
+  select * into target from public.membership where id = target_membership_id for update;
+  if target.id is null then raise insufficient_privilege; end if;
+  if target.company_id is null then
+    if target_role <> 'administrator' or not private.is_organization_administrator(target.organization_id) then
+      raise insufficient_privilege;
+    end if;
+  elsif not private.can_administrate_company_memberships(target.company_id, target.organization_id) then
+    raise insufficient_privilege;
+  end if;
+
+  old_role := target.role;
+  update public.membership set role = target_role where id = target.id;
+  perform private.record_audit_event(
+    'membership.role_changed', target.organization_id, target.company_id,
+    'membership', target.id,
+    jsonb_build_object('user_id', target.user_id, 'old_role', old_role, 'new_role', target_role)
+  );
+end;
+$$;
+
+create or replace function public.remove_membership(target_membership_id uuid)
+returns void
+language plpgsql security definer set search_path = ''
+as $$
+declare
+  target public.membership;
+begin
+  select * into target from public.membership where id = target_membership_id for update;
+  if target.id is null then raise insufficient_privilege; end if;
+  if target.company_id is null then
+    if not private.is_organization_administrator(target.organization_id) then raise insufficient_privilege; end if;
+  elsif not private.can_administrate_company_memberships(target.company_id, target.organization_id) then
+    raise insufficient_privilege;
+  end if;
+
+  delete from public.membership where id = target.id;
+  perform private.record_audit_event(
+    'membership.removed', target.organization_id, target.company_id,
+    'membership', target.id,
+    jsonb_build_object('user_id', target.user_id, 'role', target.role)
+  );
+end;
+$$;
+
+
+create or replace function public.list_company_access(target_company_id uuid)
+returns jsonb
+language plpgsql stable security definer set search_path = ''
+as $$
+declare
+  target_organization_id uuid;
+  effective_access jsonb;
+begin
+  select c.organization_id into target_organization_id
+  from public.company c
+  where c.id = target_company_id and c.deleted_at is null;
+
+  if target_organization_id is null
+    or not private.can_administrate_company_memberships(target_company_id, target_organization_id) then
+    raise insufficient_privilege;
+  end if;
+
+  with access_rows as (
+    select m.id, m.user_id, m.email, m.role, 'company'::text as access_source
+    from public.membership m
+    where m.organization_id = target_organization_id
+      and m.company_id = target_company_id
+    union all
+    select m.id, m.user_id, m.email, m.role, 'organization'::text as access_source
+    from public.membership m
+    where m.organization_id = target_organization_id
+      and m.company_id is null
+      and m.role = 'administrator'
+  ), effective_users as (
+  select
+    (array_agg(a.id order by a.access_source))[1] as membership_id,
+    a.user_id as user_id,
+    max(a.email) as email,
+    case
+      when bool_or(a.role = 'administrator') then 'administrator'::public.membership_role
+      else 'user'::public.membership_role
+    end as role,
+    case
+      when bool_or(a.access_source = 'company') and bool_or(a.access_source = 'organization')
+        then 'company_and_organization'
+      when bool_or(a.access_source = 'organization') then 'organization'
+      else 'company'
+    end as source,
+    case
+      when bool_or(a.access_source = 'organization') then null
+      else (array_agg(a.id) filter (where a.access_source = 'company'))[1]
+    end as manageable_membership_id
+  from access_rows a
+  group by a.user_id
+  )
+  select coalesce(
+    jsonb_agg(to_jsonb(effective_users) order by effective_users.email),
+    '[]'::jsonb
+  ) into effective_access
+  from effective_users;
+
+  return effective_access;
 end;
 $$;

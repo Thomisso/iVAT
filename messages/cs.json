@@ -1257,6 +1257,7 @@
     "blockedNotice": "Organizace je zablokovaná. Běžné zpracování zůstává pozastavené, dokud ji SuperAdmin výslovně neodblokuje.",
     "readOnlyNotice": "Tento pohled nabízí dochovaná data firmy pouze pro čtení.",
     "organizationAdministration": "Správa organizace",
+    "companyAdministration": "Správa přístupů do firmy",
     "organizationAudit": "Auditní historie firmy",
     "downloadArchive": "Stáhnout dochovaná data firmy",
     "companyIdentity": "Identita firmy",
