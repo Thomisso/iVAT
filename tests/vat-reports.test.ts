@@ -114,7 +114,6 @@ it("includes a late-imported incoming Document in its Tax Point Date's period, o
     companyId: admin.companyId,
     fileName: "receipt.png",
     bytes: fixtureFile("receipt.png"),
-    preselectedDirection: "incoming",
   });
   if (!file.ok) throw new Error(file.error);
   expect(await worker.runJobs()).toEqual([]);
