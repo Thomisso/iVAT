@@ -80,9 +80,11 @@ async function companyWithReadinessStates() {
         return {
           ...SAMPLE_EXTRACTION,
           direction: null,
+          customer: { ...SAMPLE_EXTRACTION.customer, ico: null, vatId: null },
           taxPointDate: null,
           currency: null,
           rateBreakdown: [],
+          proposedVatRegime: "other",
         };
       }
       throw new Error("terminal extraction failure");
@@ -93,12 +95,11 @@ async function companyWithReadinessStates() {
     provider: worker.ai,
   });
   const sourceFileIds: string[] = [];
-  for (const [index, fileName] of ["first.pdf", "second.pdf"].entries()) {
+  for (const fileName of ["first.pdf", "second.pdf"]) {
     const uploaded = await uploadSourceFile(company.client, worker.jobs, {
       companyId: company.companyId,
       fileName,
       bytes: fixtureFile("two-invoices.pdf"),
-      preselectedDirection: index === 0 ? "incoming" : undefined,
     });
     if (!uploaded.ok) throw new Error(uploaded.error);
     sourceFileIds.push(uploaded.value.id);
@@ -126,7 +127,6 @@ async function companyWithReadinessStates() {
     companyId: company.companyId,
     fileName: "waiting.pdf",
     bytes: fixtureFile("two-invoices.pdf"),
-    preselectedDirection: "incoming",
   });
   if (!waiting.ok) throw new Error(waiting.error);
   await worker.runNextJob();
@@ -223,7 +223,6 @@ it("reports a saved source snapshot as current, then stale after a relevant unas
     companyId: company.companyId,
     fileName: "snapshot.pdf",
     bytes: fixtureFile("two-invoices.pdf"),
-    preselectedDirection: "incoming",
   });
   if (!uploaded.ok) throw new Error(uploaded.error);
   expect(await worker.runJobs()).toEqual([]);
@@ -252,7 +251,6 @@ it("reports a saved source snapshot as current, then stale after a relevant unas
     companyId: company.companyId,
     fileName: "later.pdf",
     bytes: fixtureFile("two-invoices.pdf"),
-    preselectedDirection: "incoming",
   });
   if (!laterUpload.ok) throw new Error(laterUpload.error);
   await worker.runNextJob();
@@ -271,6 +269,7 @@ it("keeps a new snapshot current when unassigned rejected Documents are resolved
     extract: () => ({
       ...SAMPLE_EXTRACTION,
       direction: null,
+      customer: { ...SAMPLE_EXTRACTION.customer, ico: null, vatId: null },
       taxPointDate: null,
     }),
   }));

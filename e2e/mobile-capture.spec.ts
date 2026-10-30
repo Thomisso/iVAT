@@ -46,6 +46,8 @@ test("mobile capture persists its preview and recovers one photo without losing 
   const companyId = await createCompany(page, run);
   await page.goto(`/companies/${companyId}/upload`);
 
+  await expect(page.getByLabel("Direction")).toHaveCount(0);
+  await expect(page.getByText("Take document photo")).toBeVisible();
   const camera = page.getByLabel("Take document photo");
   await expect(camera).toHaveAttribute("capture", "environment");
   await expect(camera).toHaveAttribute("accept", /image\/heic/);

@@ -1,5 +1,4 @@
 import { uploadSourceFile } from "@/application/source-files";
-import type { Direction } from "@/application/extraction-payload";
 import { jobQueue } from "@/lib/jobs";
 import { requireUserClient } from "@/lib/supabase/server";
 
@@ -16,10 +15,6 @@ export async function POST(
     sourceFileId: String(formData.get("sourceFileId") ?? ""),
     batchId: String(formData.get("batchId") ?? ""),
     fileName: file instanceof File ? file.name : "",
-    preselectedDirection:
-      String(formData.get("direction") ?? "") === ""
-        ? undefined
-        : (String(formData.get("direction")) as Direction),
     bytes:
       file instanceof File
         ? new Uint8Array(await file.arrayBuffer())

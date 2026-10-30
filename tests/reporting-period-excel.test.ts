@@ -56,7 +56,6 @@ async function companyWithOverviewDocuments() {
       companyId: administrator.companyId,
       fileName: `invoice-${index + 1}.png`,
       bytes: fixtureFile("receipt.png"),
-      preselectedDirection: "incoming",
     });
     if (!uploaded.ok) throw new Error(uploaded.error);
     expect(await worker.runJobs()).toEqual([]);
@@ -139,6 +138,8 @@ it("classifies a quarterly Company's Documents on VAT Return lines and Control S
   const created = await createCompany(owner.client, {
     organizationId: owner.organizationId,
     ...companyDetails({
+      ico: SAMPLE_EXTRACTION.customer.ico!,
+      vatId: SAMPLE_EXTRACTION.customer.vatId!,
       filingFrequency: "quarterly",
       reportingYear: 2027,
     }),
@@ -155,7 +156,6 @@ it("classifies a quarterly Company's Documents on VAT Return lines and Control S
     companyId: created.value.id,
     fileName: "quarterly.png",
     bytes: fixtureFile("receipt.png"),
-    preselectedDirection: "incoming",
   });
   if (!uploaded.ok) throw new Error(uploaded.error);
   expect(await worker.runJobs()).toEqual([]);
@@ -197,7 +197,6 @@ it("classifies a Document with the frequency of its own Reporting Year", async (
     companyId: company.companyId,
     fileName: "late-quarterly.png",
     bytes: fixtureFile("receipt.png"),
-    preselectedDirection: "incoming",
   });
   if (!uploaded.ok) throw new Error(uploaded.error);
   expect(await worker.runJobs()).toEqual([]);
