@@ -1,5 +1,6 @@
 import { isUuid, type AppClient, type Result } from "./client";
 import type { DocumentStatus } from "./documents";
+import { NO_REPORTING_PERIOD } from "./reporting-periods";
 import { SOURCE_FILE_BUCKET, type SourceFileStatus } from "./source-files";
 
 export type UploadBatchError = "file_required" | "too_many_files" | "forbidden";
@@ -274,20 +275,26 @@ async function hydrateBatches(
   });
 }
 
-/** Persistent upload history for a Company, newest first. */
+/**
+ * Persistent upload history for a Company, newest first. A Reporting Period
+ * (or NO_REPORTING_PERIOD) keeps only batches holding a Document of it.
+ */
 export async function listUploadBatches(
   client: AppClient,
   companyId: string,
-  options: { limit?: number; offset?: number } = {},
+  options: { limit?: number; offset?: number; reportingPeriod?: string } = {},
 ): Promise<UploadBatchSummary[]> {
   if (!isUuid(companyId)) return [];
   const limit = Math.max(options.limit ?? 20, 0);
   const offset = Math.max(options.offset ?? 0, 0);
   if (limit === 0) return [];
-  const { data, error } = await client
-    .from("upload_batch")
-    .select("id, company_id, created_by, file_count, upload_finished_at, processing_finished_at, created_at")
-    .eq("company_id", companyId)
+  const columns = "id, company_id, created_by, file_count, upload_finished_at, processing_finished_at, created_at";
+  const batches = options.reportingPeriod
+    ? client.rpc("upload_batches_in_reporting_period", options.reportingPeriod === NO_REPORTING_PERIOD
+      ? { target_company_id: companyId }
+      : { target_company_id: companyId, target_period: options.reportingPeriod }).select(columns)
+    : client.from("upload_batch").select(columns).eq("company_id", companyId);
+  const { data, error } = await batches
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
     .range(offset, offset + limit - 1);

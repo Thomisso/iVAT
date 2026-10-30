@@ -940,6 +940,23 @@ isOneToOne: false
 "upload_batch_deletion_refusal":
 { Args: { "target_batch_id": string }; Returns: string
                            },
+"upload_batches_in_reporting_period":
+{ Args: { "target_company_id": string,"target_period"?: string }; Returns: {
+              "company_id": string,
+"created_at": string,
+"created_by": string,
+"file_count": number,
+"id": string,
+"organization_id": string,
+"processing_finished_at": string | null,
+"upload_finished_at": string | null
+            }[]
+                          SetofOptions: {
+        from: "*"
+        to: "upload_batch"
+        isOneToOne: false
+        isSetofReturn: true
+      } },
 "vat_report_artifact_history":
 { Args: { "target_company_id": string,"target_period": string }; Returns: Json
                            },
