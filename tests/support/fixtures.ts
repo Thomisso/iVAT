@@ -263,36 +263,33 @@ export async function companyWithManyReportDocuments(count: number) {
     });
     if (split.error) throw split.error;
   }
-  for (let offset = 0; offset < count; offset += 100) {
-    const { data, error } = await system
-      .from("document")
-      .select("id, extraction_request_id")
-      .eq("company_id", admin.companyId)
-      .order("id")
-      .range(offset, offset + 99);
-    if (error) throw error;
-    await Promise.all(
-      data.map(async (d) => {
-        const reservationId = crypto.randomUUID();
-        const reservation = await system.rpc("reserve_ai_processing", {
-          target_document_id: d.id,
-          target_extraction_request_id: d.extraction_request_id,
-          target_reservation_id: reservationId,
-        });
-        if (reservation.error) throw reservation.error;
-        if (reservation.data !== "reserved") throw new Error(`Extraction fixture was not reserved: ${reservation.data}`);
-        const result = await system.rpc("record_ai_extraction", {
-          target_document_id: d.id,
-          target_extraction_request_id: d.extraction_request_id,
-          target_reservation_id: reservationId,
-          provider: "fake",
-          model: "fake-extract",
-          payload: SAMPLE_EXTRACTION,
-          findings: [],
-        });
-        if (result.error) throw result.error;
-      }),
-    );
+  // Keep the worker's actual reservation/recording invariants, but avoid two
+  // HTTP round trips for each of 1001 rows in a completeness fixture. One
+  // transaction also avoids racing on the same Company's allowance row.
+  const database = new DatabaseClient({ connectionString: inject("databaseUrl") });
+  await database.connect();
+  try {
+    await database.query("begin");
+    await database.query("set local role service_role");
+    await database.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ role: "service_role" })]);
+    const recorded = await database.query(`
+      with requests as materialized (
+        select id, extraction_request_id, gen_random_uuid() as reservation_id
+        from public.document where company_id = $1
+      ), reserved as materialized (
+        select *, public.reserve_ai_processing(id, extraction_request_id, reservation_id) as state
+        from requests
+      )
+      select public.record_ai_extraction(id, extraction_request_id, reservation_id, 'fake', 'fake-extract', $2::jsonb, '[]'::jsonb)
+      from reserved where state = 'reserved'
+    `, [admin.companyId, JSON.stringify(SAMPLE_EXTRACTION)]);
+    if (recorded.rowCount !== count) throw new Error("Report fixture did not record every Extraction");
+    await database.query("commit");
+  } catch (error) {
+    await database.query("rollback");
+    throw error;
+  } finally {
+    await database.end();
   }
   return admin;
 }

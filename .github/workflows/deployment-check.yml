@@ -2,14 +2,38 @@ name: Deployment verification
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, labeled, unlabeled]
   push:
     branches: [main]
 
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  self-hosted:
+  profile:
+    name: Deployment profile
+    runs-on: ubuntu-latest
+    outputs:
+      profile: ${{ steps.profile.outputs.profile }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: node --test scripts/tests/ci-policy.test.mjs
+      - id: profile
+        run: node scripts/ci-policy.mjs
+
+  runtime:
+    needs: profile
+    if: needs.profile.outputs.profile == 'full'
+
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -48,3 +72,18 @@ jobs:
       - name: Stop the disposable runtime
         if: always()
         run: docker compose --env-file .env.rosti -f docker-compose.rosti.yml -f deploy/tests/compose.yml down
+
+  self-hosted:
+    if: always()
+    needs: [profile, runtime]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: node scripts/ci-policy.mjs gate
+        env:
+          PROFILE: ${{ needs.profile.outputs.profile }}
+          QUICK_RESULT: ${{ needs.profile.result }}
+          FULL_RESULT: ${{ needs.runtime.result }}

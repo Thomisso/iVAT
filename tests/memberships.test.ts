@@ -1,3 +1,4 @@
+import { withPostgrestRowLimit } from "./support/postgrest";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { createClient } from "@supabase/supabase-js";
@@ -300,11 +301,11 @@ describe("Membership invitations", () => {
     const service = createClient<Database>(inject("supabaseUrl"), inject("supabaseSecretKey"), {
       auth: { autoRefreshToken: false, persistSession: false },
     });
-    const directUserCount = 1_000;
+    const directUserCount = 21;
     const users: { email: string; id: string }[] = [];
 
     for (let offset = 0; offset < directUserCount; offset += 50) {
-      const created = await Promise.all(Array.from({ length: 50 }, async (_, index) => {
+      const created = await Promise.all(Array.from({ length: Math.min(50, directUserCount - offset) }, async (_, index) => {
         const email = `access-page-${offset + index}-${crypto.randomUUID()}@example.test`;
         const { data, error } = await service.auth.admin.createUser({
           email,
@@ -329,13 +330,30 @@ describe("Membership invitations", () => {
       if (error) throw error;
     }
 
-    const access = await listCompanyAccess(administrator.client, administrator.companyId);
-
-    expect(access).toEqual({ ok: true, value: expect.any(Array) });
-    if (!access.ok) throw new Error(access.error);
-    expect(access.value).toHaveLength(directUserCount + 1);
-    expect(new Set(access.value.map((entry) => entry.userId)).size).toBe(directUserCount + 1);
-  }, 120_000);
+    try {
+      await withPostgrestRowLimit(20,
+        () => administrator.client.from("membership").select("id").eq("company_id", administrator.companyId),
+        async () => {
+          const access = await listCompanyAccess(administrator.client, administrator.companyId);
+          expect(access).toEqual({ ok: true, value: expect.any(Array) });
+          if (!access.ok) throw new Error(access.error);
+          expect(access.value).toHaveLength(22);
+          expect(new Set(access.value.map((entry) => entry.userId)).size).toBe(22);
+        },
+      );
+    } finally {
+      const organizations = await service.from("membership").select("organization_id")
+        .in("user_id", users.map(user => user.id)).is("company_id", null);
+      if (organizations.error) throw organizations.error;
+      for (const user of users) {
+        const removed = await service.auth.admin.deleteUser(user.id);
+        if (removed.error) throw removed.error;
+      }
+      const deleted = await service.from("organization").delete()
+        .in("id", organizations.data.map(entry => entry.organization_id));
+      if (deleted.error) throw deleted.error;
+    }
+  });
 
   it("lets an Administrator invite a User who accepts a single-use Company link", async () => {
     const administrator = await administratorWithCompany();
