@@ -407,9 +407,10 @@ export function SourceFileUploadForm({ companyId, limits }: { companyId: string;
         {items.map((item, index) => <li key={item.id}>
           <span className="iv-mono">{item.file.name}</span>
           <progress max={100} value={item.progress} aria-label={t("uploadProgress", { name: item.file.name })} />
-          <span>{t(`uploadStatus.${item.status}`)}</span>
-          {!batchId && <Button size="sm" variant="ghost" icon="remove" aria-label={t("removeFile", { name: item.file.name })}
-            disabled={pending || selecting} onClick={() => removeItem(item.id)} />}
+          <span>{t(`uploadStatus.${item.status}`)}
+            {!batchId && <Button size="sm" variant="ghost" icon="remove" aria-label={t("removeFile", { name: item.file.name })}
+              disabled={pending || selecting} onClick={() => removeItem(item.id)} />}
+          </span>
           {item.error && <FormError error={item.error} />}
           {item.retryable && <Button size="sm" onClick={() => void retry(index)} disabled={pending}>
             {t("retryUpload", { name: item.file.name })}
