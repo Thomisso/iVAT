@@ -103,6 +103,42 @@ test("the desktop upload card offers only file selection, aligned with the page"
   expect(cardBox?.width).toBe(historyBox?.width);
 });
 
+test("a permanently refused file remains visible after reload and can finish as a failed batch before a new queue", async ({ baseURL, context, page }) => {
+  await english(context, baseURL);
+  const companyId = await createCompany(page, `refused-${Date.now()}`);
+  await page.goto(`/companies/${companyId}/upload`);
+  const picker = page.locator('input[type="file"]:not([capture])');
+  await picker.setInputFiles([
+    { name: "receipt.png", mimeType: "image/png", buffer: (await import("node:fs")).readFileSync("tests/fixtures/receipt.png") },
+    { name: "corrupt.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.7\nnot really a PDF") },
+  ]);
+  let successfulTransfers = 0;
+  await page.route("**/source-files", async (route) => {
+    if (route.request().postDataBuffer()?.includes(Buffer.from("receipt.png"))) successfulTransfers += 1;
+    await route.continue();
+  });
+  await page.getByRole("button", { name: "Upload batch", exact: true }).click();
+  const failedItem = page.locator(".upload-items li").filter({ hasText: "corrupt.pdf" });
+  await expect(failedItem).toContainText("Not uploaded");
+  await expect(failedItem.getByRole("alert")).toBeVisible();
+  await page.reload();
+  await expect(failedItem).toContainText("Not uploaded");
+  await expect(picker).toBeDisabled();
+  const finishFailed = page.getByRole("button", { name: "Finish batch with failed files", exact: true });
+  await expect(finishFailed).toBeVisible({ timeout: 1_000 });
+  await finishFailed.click();
+  await expect(page).toHaveURL(/\/upload-batches\/[0-9a-f-]+$/);
+  await expect(page.getByText("Finished with failures", { exact: true })).toBeVisible({ timeout: 45_000 });
+  await expect(page.getByRole("link", { name: "receipt.png", exact: true })).toBeVisible();
+  await expect(page.getByText("1 selected file was not stored during transport.", { exact: false })).toBeVisible();
+  await page.goto(`/companies/${companyId}/upload`);
+  await expect(picker).toBeEnabled();
+  await expect(page.locator(".upload-items li")).toHaveCount(0);
+  await picker.setInputFiles("tests/fixtures/receipt.jpg");
+  await expect(page.locator(".upload-items li")).toHaveCount(1);
+  expect(successfulTransfers).toBe(1);
+});
+
 test("successive picks and drops accumulate, explain identical content and restore removable waiting files", async ({ baseURL, context, page }) => {
   await english(context, baseURL);
   const companyId = await createCompany(page, `queue-${Date.now()}`);

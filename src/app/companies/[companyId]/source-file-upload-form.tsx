@@ -295,7 +295,7 @@ export function SourceFileUploadForm({ companyId, limits }: { companyId: string;
       await writeDraft(draftKey, { batchId: activeBatchId, items: itemsRef.current });
       const started = await beginBrowserUploadBatch(companyId, activeBatchId, itemsRef.current, controller.signal);
       if (!started.ok) return setError(started.error);
-      const indices = itemsRef.current.flatMap((item, index) => item.status === "uploaded" ? [] : [index]);
+      const indices = itemsRef.current.flatMap((item, index) => item.status === "queued" || item.retryable ? [index] : []);
       await runUploads(activeBatchId, indices, controller.signal);
       if (!controller.signal.aborted) {
         await writeDraft(draftKey, { batchId: activeBatchId, items: itemsRef.current });
@@ -320,6 +320,23 @@ export function SourceFileUploadForm({ companyId, limits }: { companyId: string;
         await writeDraft(draftKey, { batchId, items: itemsRef.current });
         if (itemsRef.current.every((item) => item.status === "uploaded")) await completeBatch(batchId, controller.signal);
       }
+    } catch {
+      setError("upload_failed");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function finishWithFailures() {
+    if (!batchId) return;
+    setPending(true);
+    setError(null);
+    const controller = new AbortController();
+    activeUpload.current = controller;
+    try {
+      // Keep the original planned count/manifest and every successful Source File.
+      // The existing finish command records the missing transfers as failures.
+      await completeBatch(batchId, controller.signal);
     } catch {
       setError("upload_failed");
     } finally {
@@ -352,6 +369,9 @@ export function SourceFileUploadForm({ companyId, limits }: { companyId: string;
       setSelecting(queuedSelections.current > 0);
     });
   }
+
+  const hasPermanentRefusal = !!batchId && items.some((item) => item.status === "refused" && !item.retryable);
+  const hasRetryableFiles = items.some((item) => item.status === "queued" || item.retryable);
 
   return (
     <form ref={form} onSubmit={submit} className="form upload-form">
@@ -417,9 +437,13 @@ export function SourceFileUploadForm({ companyId, limits }: { companyId: string;
           </Button>}
         </li>)}
       </ul>}
-      <Button variant="primary" icon="upload" type="submit" disabled={pending || selecting || !draftLoaded}>
+      <Button variant="primary" icon="upload" type="submit" disabled={pending || selecting || !draftLoaded || (!!batchId && !hasRetryableFiles)}>
         {pending ? t("uploading") : batchId ? t("retryFailedFiles") : t("upload")}
       </Button>
+      {hasPermanentRefusal && <div>
+        <p>{t("finishWithFailuresHint")}</p>
+        <Button onClick={() => void finishWithFailures()} disabled={pending}>{t("finishWithFailures")}</Button>
+      </div>}
     </form>
   );
 }
