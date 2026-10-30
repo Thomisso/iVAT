@@ -95,6 +95,9 @@ create CNAME records `app` and `api`, both pointing to `lb.rosti.cz`, retaining
 the existing NSSET and DNSSEC. Disable redirecting all domains to the first
 domain: the API and application need separate Host routing. Let Roští issue
 HTTPS certificates for both names.
+The application proxy redirects forwarded HTTP requests to the configured
+HTTPS hostname, retaining the path and query string. Internal health checks
+remain available without HTTPS.
 The API hostname is part of the application build; a temporary hostname must
 be configured before building if it is used instead.
 
