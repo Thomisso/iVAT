@@ -404,3 +404,25 @@ export async function legacyUploadBatchFixture(owner: { organizationId: string; 
     await database.end();
   }
 }
+
+/** Bulk Storage metadata for authenticated listing/RLS tests; no blob-content assertion uses these rows. */
+export async function storageObjectMetadataFixture(names: string[]) {
+  const database = new DatabaseClient({ connectionString: inject("databaseUrl") });
+  await database.connect();
+  try {
+    await database.query(
+      `insert into storage.objects (bucket_id, name, metadata)
+       select 'source-files', name, '{"size":1,"mimetype":"application/pdf"}'::jsonb
+       from unnest($1::text[]) name`,
+      [names],
+    );
+    return async () => {
+      for (let from = 0; from < names.length; from += 1000) {
+        const removed = await systemClient().storage.from("source-files").remove(names.slice(from, from + 1000));
+        if (removed.error) throw removed.error;
+      }
+    };
+  } finally {
+    await database.end();
+  }
+}
