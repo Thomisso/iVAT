@@ -16,7 +16,25 @@ assumptions:
     verification: On 2026-10-30, QA v3 verification observed two Postman request events (readiness and onboarding lookup). Both Company onboarding scenarios passed, and the final complete production E2E suite passed 31/31. This revalidates the local caller path, not the live ARES contract.
     source: e2e/company-onboarding.spec.ts; postman/mocks/ares/default.js; integration f4d56c1 (QA v3 #115)
     updated_at: "2026-10-30"
+  - id: company-person-identity-contract
+    status: supported
+    claim: The ARES summary exposes a Company legal-form code, and the RŽP primary entrepreneur record can expose first and last names separately; neither identifies the Company's intended export signatory.
+    reason: Official OpenAPI schemas distinguish EkonomickySubjektZaklad.pravniForma, ZaznamRzp.osobaPodnikatel and the separate angazovaneOsoby list. The adapter accepts only a uniquely primary matching entrepreneur and leaves missing values editable.
+    verification: On 2026-10-30 read the official OpenAPI and queried the official res PravniForma catalogue. The explicit opt-in live ARES contract test passed for legal-person IČO 27082440. No live natural-person completeness claim is made. Orbit discovery returned unrelated providers, so the authoritative ARES contract supplied the integration evidence.
+    source: https://ares.gov.cz/ekonomicke-subjekty-v-be/rest/v3/api-docs; POST https://ares.gov.cz/ekonomicke-subjekty-v-be/rest/ciselniky-nazevniky/vyhledat with kodCiselniku PravniForma and zdrojCiselniku res; docs/ares-company-identity.md; tests/contract/ares.test.ts
+    updated_at: "2026-10-30"
+  - id: identity-prefill-local-browser
+    status: supported
+    claim: Against the local stand-in, onboarding and Company settings prefill the person type and structured natural-person name, permit edits and manual fallback, and leave signatory entry independent.
+    reason: Focused Playwright journeys exercised legal, natural, incomplete and unavailable responses using the real Next application. Agent-browser independently displayed the Czech natural-person fields and React CompanyIdentityFields state. Postman request events confirmed the summary and RŽP HTTP paths ran.
+    verification: On 2026-10-30 ticket 134 at base 3b168cf with implementation changes passed all three company-onboarding Playwright journeys and 39 focused ARES/Company/filing-defaults tests. Next MCP reported no compilation or runtime errors. The simulation proves caller behavior under modelled responses, not live registry completeness or availability.
+    source: e2e/company-onboarding.spec.ts; tests/ares.test.ts; postman/mocks/ares/default.js; src/ares/registry.ts
+    updated_at: "2026-10-30"
 fingerprints:
+  - id: ivat-134-dirty-2026-10-30
+    date: "2026-10-30"
+    commit: 3b168cf (dirty ticket/134-ares worktree)
+    cli: Postman CLI 1.73.0
   - id: ivat-77-dirty-2026-10-28
     date: "2026-10-28"
     commit: 0eabffa (dirty ticket worktree)
