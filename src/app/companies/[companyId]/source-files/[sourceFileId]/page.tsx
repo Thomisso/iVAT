@@ -14,7 +14,7 @@ import { EmptyState } from "@/components/empty-state";
 import { StatusBadge } from "@/components/status-badge";
 import { statusBadgeState } from "@/components/status-badge-state";
 import { SplitDocumentForm } from "@/components/split-document-form";
-import { formatDocumentDate } from "@/lib/format-date";
+import { formatDateTime } from "@/lib/format-date";
 import { requireUserClient } from "@/lib/supabase/server";
 
 export default async function SourceFilePage({
@@ -63,7 +63,7 @@ export default async function SourceFilePage({
               unit: "kilobyte",
               maximumFractionDigits: 1,
             })}{" "}
-            · {formatDocumentDate(file.uploadedAt, true)}
+            · {formatDateTime(file.uploadedAt)}
           </p>
           <p className="iv-muted">
             {t("sourceFiles.hash")} <code className="hash">{file.sha256}</code>

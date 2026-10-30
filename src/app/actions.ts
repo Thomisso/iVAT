@@ -331,9 +331,6 @@ export async function uploadSourceFileAction(_state: FormState, formData: FormDa
     companyId,
     fileName: file instanceof File ? file.name : "",
     bytes: file instanceof File ? new Uint8Array(await file.arrayBuffer()) : new Uint8Array(),
-    preselectedDirection:
-      (optionalField(formData, "direction") as ExtractionPayload["direction"]) ??
-      undefined,
   });
   if (!result.ok) return refused(result.error, formData, []);
   redirect(`/companies/${companyId}/source-files/${result.value.id}`);

@@ -274,13 +274,7 @@
     "hash": "SHA-256 hash",
     "status": "Status",
     "dropTitle": "Drop a Source File here",
-    "chooseFile": "Choose a file",
-    "direction": "Direction",
-    "directionAutomatic": "Detect automatically from the Company identity",
-    "directionValue": {
-      "incoming": "Incoming",
-      "outgoing": "Outgoing"
-    }
+    "chooseFile": "Choose a file"
   },
   "uploadWorkspace": {
     "newBatch": "Add Source Files",
@@ -382,6 +376,11 @@
     },
     "openBatch": "Open batch",
     "markRead": "Mark as read"
+  },
+  "dateInput": {
+    "hint": "Format dd.mm.yyyy",
+    "placeholder": "dd.mm.yyyy",
+    "invalid": "Enter a valid date as dd.mm.yyyy."
   },
   "errors": {
     "organization_name_required": "Enter the name of your organization.",

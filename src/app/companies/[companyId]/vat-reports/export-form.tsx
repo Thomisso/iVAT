@@ -12,6 +12,7 @@ import { TAX_OFFICES, type EpoFormat } from "@/application/epo-export-details";
 import { TextField } from "@/components/text-field";
 import { Button } from "@/components/button";
 import { FormError } from "@/components/form-error";
+import { DateInput } from "@/components/date-input";
 
 export function ExportForm({
   companyId,
@@ -111,8 +112,7 @@ export function ExportForm({
       <form className="form" onSubmit={download}>
         <input type="hidden" name="format" value={format} />
         <div className="form-row">
-          <TextField
-            type="date"
+          <DateInput
             label={t("preparedOn")}
             name="preparedOn"
             required
