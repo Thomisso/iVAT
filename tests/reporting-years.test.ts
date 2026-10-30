@@ -51,7 +51,6 @@ async function outgoingDocuments(
       companyId: company.companyId,
       fileName: `${date}.png`,
       bytes: fixtureFile("receipt.png"),
-      preselectedDirection: "outgoing",
     });
     if (!uploaded.ok) throw new Error(uploaded.error);
   }
