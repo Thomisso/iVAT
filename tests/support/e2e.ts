@@ -18,6 +18,25 @@ async function browserFixtureClient() {
   });
 }
 
+/** Controls durable Batch creation instants for browser filtering/pagination coverage. */
+export async function setBrowserUploadHistoryFixture(companyId: string, entries: { batchId?: string; createdAt: string }[]) {
+  const environment = await browserFixtureEnvironment();
+  const database = new DatabaseClient({ connectionString: environment.DATABASE_URL });
+  await database.connect();
+  try {
+    for (const entry of entries) {
+      if (entry.batchId) {
+        await database.query("update public.upload_batch set created_at = $3::timestamptz where id = $1 and company_id = $2", [entry.batchId, companyId, entry.createdAt]);
+      } else {
+        await database.query(`insert into public.upload_batch (organization_id, company_id, created_by, file_count, created_at)
+          select organization_id, id, created_by, 1, $2::timestamptz from public.company where id = $1`, [companyId, entry.createdAt]);
+      }
+    }
+  } finally {
+    await database.end();
+  }
+}
+
 /** Adds one durable completed batch and its User-owned notification. */
 export async function addBrowserUploadNotificationFixture(companyId: string, email: string) {
   const environment = await browserFixtureEnvironment();
