@@ -330,7 +330,7 @@ test("SuperAdmin supports a blocked Organization and reads a deleted Company's r
   await assignBrowserAiConfigurationFixture(companyId);
   await page.goto(`/companies/${companyId}/upload`);
   await page.locator('input[type="file"]:not([capture])').setInputFiles("tests/fixtures/receipt.png");
-  await page.getByRole("button", { name: "Upload", exact: true }).click();
+  await page.getByRole("button", { name: "Upload batch", exact: true }).click();
   await expect(page.getByRole("link", { name: "Review 1 Document", exact: true })).toBeVisible({ timeout: 45_000 });
 
   await context.clearCookies();
