@@ -125,6 +125,8 @@ export type DocumentFilters = {
   direction?: Direction;
   /** Source Files that define a durable upload-batch or queue context. */
   sourceFileIds?: string[];
+  /** Specific Documents, for example those a readiness summary names. */
+  documentIds?: string[];
   /** A month, "2026-10". */
   reportingPeriod?: string;
   /** Part of the counterparty's name, VAT ID or IČO, in any case. */
@@ -143,6 +145,7 @@ export async function listCompanyDocuments(
 ): Promise<DocumentOverview[]> {
   if (!isUuid(companyId)) return [];
   if (filters.sourceFileIds?.length === 0) return [];
+  if (filters.documentIds?.length === 0) return [];
   const counterparty = filters.counterparty?.trim();
   const documents: DocumentOverview[] = [];
   for (let from = 0; ; from += 1000) {
@@ -153,6 +156,7 @@ export async function listCompanyDocuments(
       )
       .eq("company_id", companyId);
     if (filters.sourceFileIds) query = query.in("source_file_id", filters.sourceFileIds);
+    if (filters.documentIds) query = query.in("id", filters.documentIds);
     if (filters.status) query = query.eq("status", filters.status);
     if (filters.direction) query = query.eq("direction", filters.direction);
     if (filters.reportingPeriod) query = query.eq("reporting_period", filters.reportingPeriod);

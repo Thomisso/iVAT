@@ -891,6 +891,52 @@
     "rejected": "Rejected"
   },
   "vatReports": {
+    "wizard": {
+      "title": "VAT processing steps",
+      "state": {
+        "done": "Done",
+        "needs_attention": "Needs attention",
+        "blocked": "Blocked",
+        "not_started": "Not started"
+      },
+      "steps": {
+        "review": {
+          "title": "Documents to review",
+          "hint": "Resolve every Document that blocks this Reporting Period."
+        },
+        "generate": {
+          "title": "Generate VAT Report",
+          "hint": "Save a VAT Report snapshot from the approved Documents."
+        },
+        "outputs": {
+          "title": "Review VAT Return and Control Statement",
+          "hint": "Check both statutory outputs of the saved snapshot."
+        },
+        "export": {
+          "title": "Export XML",
+          "hint": "Download the EPO XML from the VAT Return and the Control Statement. Every download is stored in Export history."
+        },
+        "finalize": {
+          "title": "Finalize",
+          "hint": "Finalization locks the Reporting Period. Only an Administrator can finalize."
+        }
+      },
+      "reasons": {
+        "documents_need_review": "Documents in this Reporting Period still need review.",
+        "report_missing": "No VAT Report has been generated yet.",
+        "report_stale": "Documents changed after the VAT Report was generated. Generate it again.",
+        "warnings": "Some Documents have warnings. Check them before exporting.",
+        "identity_incomplete": "Complete the Company identity before Finalization.",
+        "administrator_only": "Only an Administrator can finalize this Reporting Period."
+      },
+      "blockedBy": "Available once step {number} ({title}) is done.",
+      "noDocumentsToReview": "No Document blocks this Reporting Period.",
+      "documentsToReview": "Documents needing review",
+      "showAllDocuments": "Show all {count, plural, one {# Document} other {# Documents}} in the queue",
+      "exportVatReturn": "Export VAT Return XML",
+      "exportControlStatement": "Export Control Statement XML",
+      "openExportHistory": "Open Export history"
+    },
     "title": "VAT Reports",
     "periodsTitle": "Reporting periods",
     "periodsDescription": "Work through valid monthly and quarterly periods in filing order.",
