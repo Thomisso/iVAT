@@ -1,0 +1,48 @@
+purpose:
+  stands_in_for: GitHub exact-main-push workflow evidence and Roští Compose storage/readback HTTP dependencies of the real release flow.
+  unblocks: Verify Release authorization, real SSH transport and disposable Compose upgrades without live services or production credentials.
+assumptions:
+  - id: github-workflow-evidence-contract
+    status: supported
+    claim: GitHub lists workflow runs for a workflow filename with head_sha, branch and event filters and returns workflow_runs carrying identity, status and conclusion.
+    reason: The official REST contract documents these parameters and response fields. This mock is contract-derived; discovery of an owner-published Postman mock was unavailable because the CLI is signed out.
+    verification: Read official GitHub workflow-runs documentation on 2026-10-30. The local mock models only consumed endpoints; unmodelled calls return 501. No authenticated GitHub production API call was used for these tests.
+    source: https://docs.github.com/en/rest/actions/workflow-runs?apiVersion=2026-03-10#list-workflow-runs-for-a-workflow; postman/mocks/github-release/default.js
+    updated_at: "2026-10-30"
+  - id: github-caller-fails-closed
+    status: supported
+    claim: Against this stand-in, the real preparation caller waits for both exact main-push checks and refuses newer failed runs, wrong-SHA or PR-only evidence, missing/pending runs, HTTP 403, HTML errors, malformed JSON and response timeouts.
+    reason: Focused tests invoke the actual HTTP evidence caller and assert success or bounded non-secret failure. Simulation request events confirm both required workflow paths were exercised.
+    verification: On 2026-10-30 all 15 focused release preparation, host and connection tests passed on the release-156-development fingerprint. These results establish the caller's behavior against the modelled cases, not GitHub availability or repository permissions.
+    source: deploy/tests/release-connect.test.mjs; deploy/scripts/prepare-release.mjs; postman/mocks/github-release/default.js
+    updated_at: "2026-10-30"
+  - id: rosti-contract-reuse
+    status: supported
+    claim: The combined simulation reuses the same contract-derived Roští Compose mock as the host command tests, without adding a production provider request.
+    reason: The simulation member points to the existing mock and the existing context retains provider response/readback uncertainties and historical evidence.
+    verification: The 2026-10-30 focused release-host tests passed against this same mock, including successful readback, locked/HTML/mismatch responses and a timeout after stored state changed. Real provider status/readback timing remains an activation check.
+    source: postman/simulations/rosti-deployment/rosti-deployment.context.yaml; postman/mocks/rosti-deployment/default.js; deploy/tests/release-host.test.mjs
+    updated_at: "2026-10-30"
+  - id: detached-credential-descriptor
+    status: supported
+    claim: The launcher transfers both disposable credential lines through an already-open private descriptor after unlinking the temporary file, without relying on background-open timing.
+    reason: A concurrent-start regression reproduced ENOENT with the previous asynchronous file redirection. Opening in the parent before unlinking removed the race in the repeated test.
+    verification: On 2026-10-30 the 100-concurrent-start test failed on the old code with a missing credentials file and then passed with parent FD inheritance. It also checks the child actually received both lines, durable early failure, duplicate-ID refusal and absence of the temporary credential path. These are local launcher observations, not provider credential validation.
+    source: deploy/tests/release-connect.test.mjs; deploy/scripts/launch-release.sh
+    updated_at: "2026-10-30"
+  - id: release-command-transport
+    status: supported
+    claim: Against these local HTTP stand-ins, the real release path authorizes the exact main revision, validates its prepared archive, refuses an untrusted SSH host and blocked checks/backups, and upgrades a disposable Compose installation while preserving data and recording selected images.
+    reason: The runtime test runs real Git ancestry/tag resolution, HTTP workflow evidence, pinned OpenSSH, the detached launcher and the actual host deployment command with four locally built AMD64 custom images. Only external provider HTTP is simulated.
+    verification: On 2026-10-30 the complete runtime test passed in 180.7 seconds at release-156-verified. It also SIGKILLed the observer during a running migration, observed the host lock still exclude another owner, then observed durable host success; subsequent selected-image and migration failures preserved the previous verified record and recovery guard. This supports caller/transport behavior in the disposable environment. Live credentials, GHCR token authorization, provider semantics, cron state and public TLS still require activation and the first monitored production Release.
+    source: deploy/tests/release-runtime.test.mjs; deploy/scripts/connect-release.mjs; deploy/scripts/launch-release.sh; postman/simulations/release-flow/release-flow.sim.yaml
+    updated_at: "2026-10-30"
+fingerprints:
+  - id: release-156-development
+    date: "2026-10-30"
+    commit: 0dc023b with dirty ticket 156 implementation
+    cli: Postman CLI 1.73.0
+  - id: release-156-verified
+    date: "2026-10-30"
+    commit: 89d8cf8 (runtime source content); verification-context documentation added afterwards
+    cli: Postman CLI 1.73.0
