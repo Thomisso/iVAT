@@ -9,7 +9,7 @@ import { saveCompanyFilingDefaults } from "@/application/company-filing-defaults
 import { generateVatReport } from "@/application/vat-reports";
 import { listAuditEvents } from "@/application/audit";
 import { administratorWithCompany, companyMember } from "./support/fixtures";
-import { signedUpUser } from "./support/clients";
+import { provisionedUser } from "./support/clients";
 
 const details = {
   preparedOn: "2026-10-27",
@@ -137,7 +137,7 @@ it("keeps multiple draft versions and refuses artifact access across Organizatio
     "podatelna@example.test",
   ]);
 
-  const outsider = await signedUpUser();
+  const outsider = await provisionedUser();
   expect(await listVatReportArtifacts(outsider.client, {
     companyId: company.companyId,
     period: "2026-10",

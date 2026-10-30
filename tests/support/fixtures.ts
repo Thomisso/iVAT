@@ -9,7 +9,7 @@ import { Client as DatabaseClient } from "pg";
 import { inject } from "vitest";
 import { SAMPLE_EXTRACTION } from "@/ai/fake";
 import { selectUploadFiles } from "./files";
-import { signedUpUser } from "./clients";
+import { provisionedUser } from "./clients";
 import { systemClient } from "./worker";
 
 let icoCounter = 0;
@@ -177,7 +177,7 @@ export function companyDetails(
 export async function administratorWithCompany(
   organizationName = "Test Organization",
 ) {
-  const user = await signedUpUser(organizationName);
+  const user = await provisionedUser(organizationName);
   const result = await createCompany(user.client, {
     organizationId: user.organizationId,
     ...companyDetails({
@@ -197,7 +197,7 @@ export async function companyMember(
   { organizationId, companyId }: { organizationId: string; companyId: string },
   role: "administrator" | "user" = "user",
 ) {
-  const user = await signedUpUser("Member's own Organization");
+  const user = await provisionedUser("Member's own Organization");
   const { error } = await systemClient()
     .from("membership")
     .insert({

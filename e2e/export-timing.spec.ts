@@ -1,14 +1,11 @@
+import { provisionAndLogIn } from "./support/accounts";
 import { expect, test } from "@playwright/test";
 
 test("timing warnings stay independent and permit direct wizard and detail XML downloads", async ({ page, context, baseURL }, testInfo) => {
   if (!baseURL) throw new Error("Playwright baseURL is required");
   await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseURL }]);
   const run = crypto.randomUUID();
-  await page.goto("/signup");
-  await page.getByLabel("Organization name").fill(`Timing ${run}`);
-  await page.getByLabel("Email").fill(`timing-${run}@example.test`);
-  await page.getByLabel("Password").fill("Playwright-password-141");
-  await page.getByRole("button", { name: "Sign up", exact: true }).click();
+  await provisionAndLogIn(page, { organizationName: `Timing ${run}`, email: `timing-${run}@example.test`, password: "Playwright-password-141" });
   await page.getByLabel("Company name").fill("Timing Company");
   await page.getByLabel("IČO").fill("12345678");
   await page.getByLabel("VAT ID").fill("CZ12345678");

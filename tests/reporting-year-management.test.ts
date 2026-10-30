@@ -14,7 +14,7 @@ import {
 import { getReportingPeriodReadiness, listReportingPeriods } from "@/application/reporting-period-readiness";
 import { currentReportingYear } from "@/application/reporting-periods";
 import { finalizeVatReport, generateVatReport } from "@/application/vat-reports";
-import { signedUpUser } from "./support/clients";
+import { provisionedUser } from "./support/clients";
 import { fixtureFile } from "./support/files";
 import {
   administratorWithCompany,
@@ -169,7 +169,7 @@ describe("Reporting Year management access", () => {
   it("refuses Users and other Organizations, including direct deletes", async () => {
     const company = await administratorWithCompany();
     const user = await companyMember(company, "user");
-    const outsider = await signedUpUser("Other Organization");
+    const outsider = await provisionedUser("Other Organization");
 
     for (const { client } of [user, outsider]) {
       expect(await generateReportingYears(client, {

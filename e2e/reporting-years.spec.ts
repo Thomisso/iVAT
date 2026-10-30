@@ -1,3 +1,4 @@
+import { provisionAndLogIn } from "./support/accounts";
 import { expect, test } from "@playwright/test";
 
 const password = "Playwright-password-116";
@@ -10,11 +11,7 @@ test("an Administrator generates Reporting Years from settings, keeping existing
   const currentYear = Number(new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Prague", year: "numeric" }).format(new Date()));
   const nextYear = currentYear + 1;
 
-  await page.goto("/signup");
-  await page.getByLabel("Organization name").fill(`Reporting Years ${run}`);
-  await page.getByLabel("Email").fill(`reporting-years-${run}@example.test`);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Sign up" }).click();
+  await provisionAndLogIn(page, { organizationName: `Reporting Years ${run}`, email: `reporting-years-${run}@example.test`, password });
   await expect(page).toHaveURL(/\/companies\/new$/);
   await page.getByLabel("Company name").fill("Roky s.r.o.");
   await page.getByLabel("IČO").fill(ico);

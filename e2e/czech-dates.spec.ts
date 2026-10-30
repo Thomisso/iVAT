@@ -1,3 +1,4 @@
+import { provisionAndLogIn } from "./support/accounts";
 import { expect, test, type Page } from "@playwright/test";
 import { assignBrowserAiConfigurationFixture } from "../tests/support/e2e";
 
@@ -8,11 +9,7 @@ const isoDate = /\d{4}-\d{2}-\d{2}/;
 test.use({ locale: "en-US", timezoneId: "America/New_York" });
 
 async function createCompany(page: Page, run: string): Promise<string> {
-  await page.goto("/signup");
-  await page.getByLabel("Organization name").fill(`Dates Organization ${run}`);
-  await page.getByLabel("Email").fill(`dates-${run}@example.test`);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Sign up" }).click();
+  await provisionAndLogIn(page, { organizationName: `Dates Organization ${run}`, email: `dates-${run}@example.test`, password });
   await page.getByLabel("Company name").fill(`Dates Company ${run}`);
   const digits = Date.now().toString().slice(-8);
   await page.getByLabel("IČO").fill(digits);

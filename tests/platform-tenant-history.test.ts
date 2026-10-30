@@ -13,7 +13,7 @@ import { testWorker } from "./support/worker";
 import { exportCompanyData, softDeleteCompany } from "@/application/company-deletion";
 import { downloadPlatformCompanyHistory, getPlatformCompanyHistory, readPlatformCompanyArtifact, readPlatformCompanySourceFile } from "@/application/platform-company-history";
 import { strFromU8, unzipSync } from "fflate";
-import { signedUpUser } from "./support/clients";
+import { provisionedUser } from "./support/clients";
 import { systemClient } from "./support/worker";
 import { saveCompanyFilingDefaults } from "@/application/company-filing-defaults";
 import { exportVatReport } from "@/application/epo-export";
@@ -99,7 +99,7 @@ describe("SuperAdmin support for unavailable tenants", () => {
     expect(JSON.parse(strFromU8(entries["documents.json"]))).toEqual([
       expect.objectContaining({ extractionVersions: [expect.objectContaining({ version: 1 })] }),
     ]);
-    const unverified = await signedUpUser("Unverified support operator");
+    const unverified = await provisionedUser("Unverified support operator");
     const promoted = await systemClient().from("platform_user").insert({ user_id: unverified.userId, role: "super_admin" });
     if (promoted.error) throw promoted.error;
     for (const actor of [target, unverified]) {
@@ -116,7 +116,7 @@ describe("SuperAdmin support for unavailable tenants", () => {
   it("administers a blocked Organization without resuming ordinary processing until explicit unblock", async () => {
     const target = await administratorWithCompany("Blocked support target");
     const member = await companyMember(target);
-    const unverified = await signedUpUser("Unverified blocked support");
+    const unverified = await provisionedUser("Unverified blocked support");
     const promoted = await systemClient().from("platform_user").insert({ user_id: unverified.userId, role: "super_admin" });
     if (promoted.error) throw promoted.error;
     const operator = await promotedSuperAdministrator("Support operator");
