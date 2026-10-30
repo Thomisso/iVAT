@@ -1000,6 +1000,7 @@
   },
   "vatReports": {
     "wizard": {
+      "finalPartial": "Částečně dokončeno — {count}/2",
       "draftPartial": "Částečně dokončeno — {count}/2",
       "draftPartialSkipped": "Částečně dokončeno — {count}/2, druhý export vynechán",
       "skipDrafts": "Vynechat draftové exporty",
@@ -1243,6 +1244,13 @@
     "description": "Doplňte údaje pro řádné podání. DIČ, název a adresu převezmeme z uloženého návrhu.",
     "format": "Formulář",
     "preparedOn": "Datum vyhotovení",
+    "timingWarnings": "Upozornění na termíny exportu",
+    "timing": {
+      "prepared_on_future": "Datum vyhotovení je po dnešním dni v Praze.",
+      "reporting_period_unfinished": "Vykazované období ještě neskončilo.",
+      "potentially_late_filing": "Možné opožděné řádné podání: lhůta je {deadline}. Dnešní den nebo datum vyhotovení je po ní. Ověřte skutečné podání; XML můžete dál stáhnout.",
+      "control_statement_monthly_required": "Právnické osoby podávají řádné kontrolní hlášení měsíčně i při čtvrtletním přiznání k DPH. Pro tento čtvrtletní výstup neurčujeme řádnou lhůtu; ověřte měsíční období podání. XML můžete dál stáhnout."
+    },
     "taxOffice": "Finanční úřad",
     "territorialOffice": "Územní pracoviště",
     "economicActivity": "Ekonomická činnost (CZ-NACE)",

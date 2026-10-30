@@ -21,7 +21,7 @@ export type CompanyExportSnapshot = {
   vatReports: (VatReport & { generatedBy: string })[];
   vatReportTransitions: VatReportTransition[];
   vatReportArtifacts: (VatReportArtifact & { xmlBase64: string })[];
-  vatReportDownloadAcknowledgements?: { artifactId: string; acknowledgedAt: string; acknowledgedBy: string }[];
+  vatReportDownloadAcknowledgements?: { artifactId: string; periodLockId?: string | null; acknowledgedAt: string; acknowledgedBy: string }[];
   vatReportDraftSkips?: { id: string; vatReportId: string; reportGeneratedAt: string; skippedFormats: string[]; skippedAt: string; skippedBy: string }[];
 };
 
