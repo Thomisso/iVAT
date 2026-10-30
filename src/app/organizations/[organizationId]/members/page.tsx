@@ -1,3 +1,4 @@
+import { configuredInvitationUrls } from "@/lib/invitations";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { listMemberships, listPendingInvitations } from "@/application/memberships";
@@ -9,6 +10,7 @@ import { requireUserClient } from "@/lib/supabase/server";
 export default async function OrganizationMembersPage({ params }: PageProps<"/organizations/[organizationId]/members">) {
   const { organizationId } = await params;
   const client = await requireUserClient();
+  const urls = configuredInvitationUrls();
   const organization = (await listMyOrganizations(client)).find((item) => item.id === organizationId && item.role === "administrator");
   if (!organization) notFound();
   const [memberships, pendingInvitations, t] = await Promise.all([
@@ -19,7 +21,7 @@ export default async function OrganizationMembersPage({ params }: PageProps<"/or
   return <PageLayout className="organization-members" measure="wide">
     <PageHeader title={t("organizationTitle", { organization: organization.name })} />
     <PageContent measure="wide">
-        <MemberManagement
+        <MemberManagement acceptUrl={urls.ok ? urls.value.acceptUrl : null}
           organizationId={organizationId}
           companyId={null}
           memberships={memberships}

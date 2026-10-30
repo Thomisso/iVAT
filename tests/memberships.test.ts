@@ -1,3 +1,4 @@
+import { invitationAuthenticationFixture } from "./support/invitations";
 import { withPostgrestRowLimit } from "./support/postgrest";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
@@ -76,7 +77,7 @@ async function inviteAndAccept(
   });
   if (!result.ok) throw new Error(result.error);
   const user = await invitedUser(email);
-  const token = new URL(mail.sent[0].acceptUrl).searchParams.get("token")!;
+  const token = new URLSearchParams(new URL(mail.sent[0].acceptUrl).hash.slice(1)).get("token")!;
   const accepted = await acceptInvitation(user.client, token);
   if (!accepted.ok) throw new Error(accepted.error);
   return { ...user, email };
@@ -94,7 +95,7 @@ describe("Membership invitations", () => {
       role: "user",
       acceptUrl: "http://127.0.0.1:3100/invitations/accept",
     })).toEqual({ ok: true, value: null });
-    const token = new URL(mail.sent[0].acceptUrl).searchParams.get("token")!;
+    const token = new URLSearchParams(new URL(mail.sent[0].acceptUrl).hash.slice(1)).get("token")!;
 
     expect(await getInvitationOnboarding(anonymousClient(), token)).toEqual({
       status: "valid",
@@ -103,23 +104,11 @@ describe("Membership invitations", () => {
       companyId: administrator.companyId,
     });
 
-    const service = createClient<Database>(inject("supabaseUrl"), inject("supabaseSecretKey"), {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
-    const created = await service.auth.admin.createUser({ email, email_confirm: true });
-    if (created.error) throw created.error;
-    const link = await service.auth.admin.generateLink({ type: "magiclink", email });
-    if (link.error) throw link.error;
     const invitee = anonymousClient();
-    const verified = await invitee.auth.verifyOtp({
-      token_hash: link.data.properties.hashed_token,
-      type: "magiclink",
-    });
-    if (verified.error) throw verified.error;
 
-    expect(await completeInvitationOnboarding(invitee, { token, password: "1234567" }))
+    expect(await completeInvitationOnboarding(invitee, { token, password: "1234567" }, invitationAuthenticationFixture()))
       .toEqual({ ok: false, error: "weak_password" });
-    expect(await completeInvitationOnboarding(invitee, { token, password: "12345678" }))
+    expect(await completeInvitationOnboarding(invitee, { token, password: "12345678" }, invitationAuthenticationFixture()))
       .toEqual({ ok: true, value: { companyId: administrator.companyId } });
     expect(await listMyCompanies(invitee)).toEqual([{
       id: administrator.companyId,
@@ -145,7 +134,7 @@ describe("Membership invitations", () => {
       role: "user",
       acceptUrl: "http://127.0.0.1:3100/invitations/accept",
     })).toEqual({ ok: true, value: null });
-    const token = new URL(mail.sent[0].acceptUrl).searchParams.get("token")!;
+    const token = new URLSearchParams(new URL(mail.sent[0].acceptUrl).hash.slice(1)).get("token")!;
     const invitee = anonymousClient();
 
     expect(await getInvitationOnboarding(invitee, token)).toEqual({
@@ -154,16 +143,16 @@ describe("Membership invitations", () => {
       existingUser: true,
       companyId: administrator.companyId,
     });
-    expect(await completeInvitationOnboarding(invitee, { token, password: "wrong-password" }))
+    expect(await completeInvitationOnboarding(invitee, { token, password: "wrong-password" }, invitationAuthenticationFixture()))
       .toEqual({ ok: false, error: "invalid_credentials" });
-    expect(await completeInvitationOnboarding(invitee, { token, password: "correct-horse-battery" }))
+    expect(await completeInvitationOnboarding(invitee, { token, password: "correct-horse-battery" }, invitationAuthenticationFixture()))
       .toEqual({ ok: true, value: { companyId: administrator.companyId } });
 
     await invitee.auth.signOut();
     expect((await invitee.auth.signInWithPassword({ email, password: "correct-horse-battery" })).error).toBeNull();
   });
 
-  it("lets a passwordless invitee set a password when an expired invitation is sent again", async () => {
+  it("lets a new invitee choose a password when an expired invitation is sent again", async () => {
     const administrator = await administratorWithCompany();
     const email = uniqueEmail();
     const firstMail = capturingMailer();
@@ -174,13 +163,8 @@ describe("Membership invitations", () => {
       role: "user",
       acceptUrl: "http://127.0.0.1:3100/invitations/accept",
     })).toEqual({ ok: true, value: null });
-    const firstToken = new URL(firstMail.sent[0].acceptUrl).searchParams.get("token")!;
+    const firstToken = new URLSearchParams(new URL(firstMail.sent[0].acceptUrl).hash.slice(1)).get("token")!;
 
-    const service = createClient<Database>(inject("supabaseUrl"), inject("supabaseSecretKey"), {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
-    const firstLink = await service.auth.admin.generateLink({ type: "magiclink", email });
-    if (firstLink.error) throw firstLink.error;
     await expireInvitation(firstToken);
     expect(await getInvitationOnboarding(anonymousClient(), firstToken)).toEqual({ status: "expired" });
 
@@ -192,7 +176,7 @@ describe("Membership invitations", () => {
       role: "user",
       acceptUrl: "http://127.0.0.1:3100/invitations/accept",
     })).toEqual({ ok: true, value: null });
-    const token = new URL(secondMail.sent[0].acceptUrl).searchParams.get("token")!;
+    const token = new URLSearchParams(new URL(secondMail.sent[0].acceptUrl).hash.slice(1)).get("token")!;
     expect(await getInvitationOnboarding(anonymousClient(), token)).toEqual({
       status: "valid",
       email,
@@ -200,15 +184,8 @@ describe("Membership invitations", () => {
       companyId: administrator.companyId,
     });
 
-    const secondLink = await service.auth.admin.generateLink({ type: "magiclink", email });
-    if (secondLink.error) throw secondLink.error;
     const invitee = anonymousClient();
-    const verified = await invitee.auth.verifyOtp({
-      token_hash: secondLink.data.properties.hashed_token,
-      type: "magiclink",
-    });
-    if (verified.error) throw verified.error;
-    expect(await completeInvitationOnboarding(invitee, { token, password: "87654321" }))
+    expect(await completeInvitationOnboarding(invitee, { token, password: "87654321" }, invitationAuthenticationFixture()))
       .toEqual({ ok: true, value: { companyId: administrator.companyId } });
     await invitee.auth.signOut();
     expect((await invitee.auth.signInWithPassword({ email, password: "87654321" })).error).toBeNull();
@@ -228,7 +205,7 @@ describe("Membership invitations", () => {
       role: "user",
       acceptUrl: "http://127.0.0.1:3100/invitations/accept",
     })).toEqual({ ok: true, value: null });
-    const usedToken = new URL(usedMail.sent[0].acceptUrl).searchParams.get("token")!;
+    const usedToken = new URLSearchParams(new URL(usedMail.sent[0].acceptUrl).hash.slice(1)).get("token")!;
     const usedUser = await invitedUser(usedEmail);
     expect(await acceptInvitation(usedUser.client, usedToken)).toEqual({ ok: true, value: null });
     expect(await getInvitationOnboarding(anonymousClient(), usedToken)).toEqual({ status: "used" });
@@ -242,7 +219,7 @@ describe("Membership invitations", () => {
       role: "user",
       acceptUrl: "http://127.0.0.1:3100/invitations/accept",
     })).toEqual({ ok: true, value: null });
-    const expiredToken = new URL(expiredMail.sent[0].acceptUrl).searchParams.get("token")!;
+    const expiredToken = new URLSearchParams(new URL(expiredMail.sent[0].acceptUrl).hash.slice(1)).get("token")!;
     await expireInvitation(expiredToken);
     expect(await getInvitationOnboarding(anonymousClient(), expiredToken)).toEqual({ status: "expired" });
   });
@@ -368,9 +345,9 @@ describe("Membership invitations", () => {
     expect(mail.sent).toHaveLength(1);
     expect(mail.sent[0]).toEqual({
       email,
-      acceptUrl: expect.stringMatching(/^http:\/\/127\.0\.0\.1:3100\/invitations\/accept\?token=.+$/),
+      acceptUrl: expect.stringMatching(/^http:\/\/127\.0\.0\.1:3100\/invitations\/accept#token=.+$/),
     });
-    const token = new URL(mail.sent[0].acceptUrl).searchParams.get("token")!;
+    const token = new URLSearchParams(new URL(mail.sent[0].acceptUrl).hash.slice(1)).get("token")!;
     const user = await invitedUser(email);
     expect(await listMyOrganizations(user.client)).toEqual([]);
 
@@ -426,7 +403,7 @@ describe("Membership invitations", () => {
       role: "user",
       acceptUrl: "http://127.0.0.1:3100/invitations/accept",
     });
-    const token = new URL(mail.sent[0].acceptUrl).searchParams.get("token")!;
+    const token = new URLSearchParams(new URL(mail.sent[0].acceptUrl).hash.slice(1)).get("token")!;
     const other = await invitedUser(uniqueEmail());
 
     expect(await acceptInvitation(other.client, token)).toEqual({ ok: false, error: "forbidden" });
@@ -548,7 +525,7 @@ describe("Membership invitations", () => {
       acceptUrl: "http://127.0.0.1:3100/invitations/accept",
     })).toEqual({ ok: true, value: null });
     const invited = await invitedUser(email);
-    const token = new URL(mail.sent[0].acceptUrl).searchParams.get("token")!;
+    const token = new URLSearchParams(new URL(mail.sent[0].acceptUrl).hash.slice(1)).get("token")!;
     expect(await acceptInvitation(invited.client, token)).toEqual({ ok: true, value: null });
 
     expect(await listMyOrganizations(invited.client)).toEqual([

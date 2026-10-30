@@ -261,7 +261,9 @@
     },
     "invitationStatus": {
       "pending": "Pending",
-      "expired": "Expired"
+      "expired": "Expired",
+      "cancelled": "Cancelled",
+      "replaced": "Replaced"
     },
     "acceptTitle": "Accept invitation",
     "acceptIntro": "Accept the invitation to gain access to the Organization or Company as a user.",
@@ -270,7 +272,26 @@
     "logInToAcceptTitle": "Log in to accept",
     "existingUserIntro": "Use your existing credentials. Your password will not be changed.",
     "newPassword": "New password",
-    "accept": "Accept invitation"
+    "accept": "Accept invitation",
+    "generateLink": "Generate link",
+    "invitationLink": "Invitation link",
+    "copyLink": "Copy link",
+    "linkCopied": "Link copied",
+    "copyManually": "Select and copy the link above.",
+    "replaceLink": "Generate replacement link",
+    "cancelInvitation": "Cancel invitation",
+    "legacyLinkIntro": "This older link cannot be copied again. Generate a replacement to copy it.",
+    "loadingInvitation": "Loading invitation…",
+    "wrongAccountIntro": "You are signed in with another account. Sign out to accept this invitation with its intended email.",
+    "signOutToAccept": "Sign out and continue",
+    "signedInIntro": "Accept this invitation using your signed-in account.",
+    "emailMessage": {
+      "subject": "Your iVAT invitation",
+      "heading": "You have been invited to iVAT",
+      "introduction": "Open the invitation and explicitly accept access. A new user chooses a password; an existing user keeps their credentials.",
+      "linkLabel": "Open invitation",
+      "expiry": "This invitation is single-use and expires seven days after it was created."
+    }
   },
   "dashboard": {
     "companies": "Companies"
@@ -584,7 +605,12 @@
     "direction_required": "Set the document Direction before approving it.",
     "batch_processing": "The batch is still processing. Wait until it finishes.",
     "invalid_price": "Enter both prices as non-negative numbers, or leave both empty.",
-    "unknown_model": "The AI Configuration does not use this model."
+    "unknown_model": "The AI Configuration does not use this model.",
+    "invitation_cancelled": "This invitation was cancelled. Ask an Administrator for a new invitation.",
+    "invitation_replaced": "This invitation was replaced. Use the new link from the Administrator.",
+    "invitation_busy": "This invitation is being accepted. Wait a moment and try again.",
+    "invitation_identity_changed": "This account already exists. Reload this invitation and use the existing credentials.",
+    "invitation_unavailable": "The invitation could not be loaded. Reload the page and try again."
   },
   "aiUsage": {
     "platformNav": "Platform AI usage",
