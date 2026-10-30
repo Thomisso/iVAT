@@ -261,6 +261,7 @@
     "takeDocumentPhoto": "Vyfotit doklad",
     "captureHint": "Pokud je k dispozici, použije zadní fotoaparát. Každá fotografie bude jeden zdrojový soubor.",
     "photoPreview": "Náhled fotografie",
+    "photoPreviewLabel": "Náhled fotografie {number}: {name}",
     "photoPreviewAlt": "Náhled souboru {name}",
     "onePhotoOneSourceFile": "Tato fotografie bude uložená jako jeden zdrojový soubor.",
     "retakePhoto": "Vyfotit znovu",
@@ -269,7 +270,10 @@
     "draftRestored": "Koncept byl obnoven. Soubor není označený jako nahraný, dokud ho server neuloží.",
     "uploadProgress": "Průběh nahrávání souboru {name}",
     "retryUpload": "Zkusit znovu: {name}",
-    "upload": "Nahrát",
+    "removeFile": "Odebrat {name}",
+    "identicalFileOmitted": "Totožný obsah už je ve frontě; další kopie nebyla přidána.",
+    "retryFailedFiles": "Zkusit nenahrané soubory znovu",
+    "upload": "Nahrát dávku",
     "uploading": "Nahrávání…",
     "batchComplete": "Zpracování dávky skončilo pro {count, plural, one {# zdrojový soubor} few {# zdrojové soubory} other {# zdrojových souborů}}.",
     "uploadStatus": {
@@ -421,6 +425,7 @@
     "invalid": "Zadejte platné datum ve tvaru dd.mm.rrrr."
   },
   "errors": {
+    "identical_file": "Totožný obsah souboru už je v této dávce.",
     "organization_name_required": "Zadejte název organizace.",
     "email_taken": "Účet s tímto e-mailem už existuje.",
     "weak_password": "Heslo je příliš slabé. Použijte alespoň 8 znaků.",
