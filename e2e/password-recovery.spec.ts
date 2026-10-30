@@ -3,6 +3,8 @@ import { provisionBrowserAccountFixture } from "../tests/support/e2e";
 import { capturedRecoveryEmail } from "../tests/support/recovery-mail";
 import { provisionAndLogIn } from "./support/accounts";
 import { totp } from "../tests/support/totp";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 
 async function currentSession(context: BrowserContext) {
   const encoded = (await context.cookies()).filter(cookie => /^sb-.*-auth-token(?:\.\d+)?$/.test(cookie.name))
@@ -91,6 +93,10 @@ for (const locale of ["en", "cs"] as const) {
       await expect(scannerPage.getByRole("link", { name: locale === "en" ? "Request a new recovery email" : "Vyžádat nový e-mail pro obnovu" })).toBeVisible();
       await page.setViewportSize({ width: 360, height: 800 });
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+      const logDirectory = process.env.IVAT_E2E_SERVICE_LOG_DIRECTORY;
+      if (!logDirectory) throw new Error("Acceptance service logs are required for recovery-secret privacy coverage");
+      const serverLog = await readFile(path.join(logDirectory, "next.log"), "utf8");
+      for (const secret of [password, newPassword, message.requestToken, message.tokenHash]) expect(serverLog).not.toContain(secret);
       await scanner.close();
     });
   }

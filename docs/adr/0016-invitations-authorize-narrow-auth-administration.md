@@ -51,8 +51,9 @@ account existence. Explicit native recovery verification plus that capability
 authorizes a one-use reset intent bound to the returned Auth session. A service-only
 database operation checks the fresh native session and request owner before
 binding them; ordinary clients cannot issue or authorize these intents. This is
-necessary because pinned Auth classifies OTP, MagicLink and Recovery as recovery
-methods, and implicit recovery JWTs use `otp`, so AMR alone cannot establish the
+necessary because [pinned Auth classifies OTP, MagicLink and Recovery as recovery
+methods](https://github.com/supabase/auth/blob/v2.197.0/internal/models/factor.go),
+and implicit recovery JWTs use `otp`, so AMR alone cannot establish the
 specific email-recovery request. Native Auth still verifies the email token,
 enforces its one-hour expiry and single use, requires actual AAL2 for an enrolled
 authenticator, updates the password and revokes other refresh sessions. The
