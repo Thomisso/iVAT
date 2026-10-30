@@ -1,8 +1,9 @@
 import { isUuid, type AppClient, type Result } from "./client";
 import type { DocumentStatus } from "./documents";
-import type { SourceFileStatus } from "./source-files";
+import { SOURCE_FILE_BUCKET, type SourceFileStatus } from "./source-files";
 
 export type UploadBatchError = "file_required" | "too_many_files" | "forbidden";
+export type DeleteUploadBatchError = "forbidden" | "batch_processing" | "period_locked";
 export type UploadBatchOutcome = "processing" | "success" | "partial" | "failure";
 
 export type UploadBatchDocument = {
@@ -24,6 +25,7 @@ export type UploadBatchSourceFile = {
 export type UploadBatchWorkspace = {
   id: string;
   companyId: string;
+  createdBy: string;
   plannedFileCount: number;
   actualFileCount: number;
   uploadFinishedAt: string | null;
@@ -47,6 +49,16 @@ export type UploadBatchWorkspace = {
 
 export type UploadBatchSummary = Omit<UploadBatchWorkspace, "sourceFiles">;
 
+/** What deleting an Upload Batch removes, for its confirmation, and why it would be refused. */
+export type UploadBatchDeletionPreview = {
+  batchId: string;
+  createdBy: string;
+  sourceFileCount: number;
+  documentCount: number;
+  approvedDocumentCount: number;
+  refusal: Exclude<DeleteUploadBatchError, "forbidden"> | null;
+};
+
 export type UploadNotification = {
   id: string;
   batchId: string;
@@ -62,6 +74,7 @@ export type UploadNotification = {
 type BatchRow = {
   id: string;
   company_id: string;
+  created_by: string;
   file_count: number;
   upload_finished_at: string | null;
   processing_finished_at: string | null;
@@ -214,6 +227,7 @@ function workspaceOf(
   return {
     id: batch.id,
     companyId: batch.company_id,
+    createdBy: batch.created_by,
     plannedFileCount: batch.file_count,
     actualFileCount: sourceFiles.length,
     uploadFinishedAt: batch.upload_finished_at,
@@ -272,7 +286,7 @@ export async function listUploadBatches(
   if (limit === 0) return [];
   const { data, error } = await client
     .from("upload_batch")
-    .select("id, company_id, file_count, upload_finished_at, processing_finished_at, created_at")
+    .select("id, company_id, created_by, file_count, upload_finished_at, processing_finished_at, created_at")
     .eq("company_id", companyId)
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
@@ -283,6 +297,7 @@ export async function listUploadBatches(
     return {
       id: workspace.id,
       companyId: workspace.companyId,
+      createdBy: workspace.createdBy,
       plannedFileCount: workspace.plannedFileCount,
       actualFileCount: workspace.actualFileCount,
       uploadFinishedAt: workspace.uploadFinishedAt,
@@ -303,13 +318,74 @@ export async function getUploadBatch(
   if (!isUuid(companyId) || !isUuid(batchId)) return null;
   const { data, error } = await client
     .from("upload_batch")
-    .select("id, company_id, file_count, upload_finished_at, processing_finished_at, created_at")
+    .select("id, company_id, created_by, file_count, upload_finished_at, processing_finished_at, created_at")
     .eq("company_id", companyId)
     .eq("id", batchId)
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
   return (await hydrateBatches(client, [data as BatchRow]))[0];
+}
+
+/** The counts and refusal shown before deleting an already loaded Upload Batch. */
+export async function getUploadBatchDeletionPreview(
+  client: AppClient,
+  batch: UploadBatchWorkspace,
+): Promise<UploadBatchDeletionPreview> {
+  const { data: refusal, error } = await client.rpc("upload_batch_deletion_refusal", {
+    target_batch_id: batch.id,
+  });
+  if (error) throw error;
+  const documents = batch.sourceFiles.flatMap((source) => source.documents);
+  return {
+    batchId: batch.id,
+    createdBy: batch.createdBy,
+    sourceFileCount: batch.sourceFiles.length,
+    documentCount: documents.length,
+    approvedDocumentCount: documents.filter((document) => document.status === "approved").length,
+    refusal: refusal === "batch_processing" || refusal === "period_locked" ? refusal : null,
+  };
+}
+
+/**
+ * Deletes a finished Upload Batch all or nothing: its Source Files, their
+ * stored objects and every Document, including Approved Documents. The
+ * database refuses it for anyone but an Administrator or the batch's creator,
+ * while the batch is processing, and when a Document lies in a locked
+ * Reporting Period.
+ *
+ * Stored objects are removed after the deletion commits. A failed removal is
+ * logged, not reported: the database keeps the objects pending and the
+ * Company's next batch deletion removes them.
+ */
+export async function deleteUploadBatch(
+  client: AppClient,
+  input: { companyId: string; batchId: string },
+): Promise<Result<null, DeleteUploadBatchError>> {
+  if (!isUuid(input.companyId) || !isUuid(input.batchId)) return { ok: false, error: "forbidden" };
+  const { data: objectNames, error } = await client.rpc("delete_upload_batch", {
+    target_batch_id: input.batchId,
+  });
+  if (error) {
+    if (error.code === "42501") return { ok: false, error: "forbidden" };
+    if (error.hint === "batch_processing" || error.hint === "period_locked") {
+      return { ok: false, error: error.hint };
+    }
+    throw error;
+  }
+  if (objectNames.length) await removeDeletedSourceFileObjects(client, input.companyId, objectNames);
+  return { ok: true, value: null };
+}
+
+async function removeDeletedSourceFileObjects(client: AppClient, companyId: string, objectNames: string[]) {
+  try {
+    const removed = await client.storage.from(SOURCE_FILE_BUCKET).remove(objectNames);
+    if (removed.error) throw removed.error;
+    const forgotten = await client.rpc("forget_removed_source_file_objects", { target_company_id: companyId });
+    if (forgotten.error) throw forgotten.error;
+  } catch (error) {
+    console.error("Stored objects of a deleted Upload Batch stay pending for the next deletion", error);
+  }
 }
 
 /** Parses stored notification copy conservatively; legacy or corrupt payloads never claim success. */
@@ -369,6 +445,27 @@ export async function countUnreadUploadNotifications(
     .is("read_at", null);
   if (error) throw error;
   return count ?? 0;
+}
+
+/**
+ * Called when the signed-in User opens a batch's detail: marks their
+ * notification for it read once processing has finished. A batch still
+ * processing keeps its notification unread. Reports whether a notification
+ * changed, so callers refresh only then.
+ */
+export async function markUploadBatchNotificationRead(
+  client: AppClient,
+  batchId: string,
+): Promise<Result<{ changed: boolean }, "forbidden">> {
+  if (!isUuid(batchId)) return { ok: false, error: "forbidden" };
+  const { data: changed, error } = await client.rpc("mark_upload_batch_notification_read", {
+    target_batch_id: batchId,
+  });
+  if (error) {
+    if (error.code === "42501") return { ok: false, error: "forbidden" };
+    throw error;
+  }
+  return { ok: true, value: { changed } };
 }
 
 /** Marks only the signed-in User's own notification as read. */
