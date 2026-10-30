@@ -166,6 +166,17 @@ it("returns a refusal for malformed generation input before PostgreSQL timestamp
   expect(await skipVatReportDrafts(company.client, { ...company.input, reportGeneratedAt: "2026-02-31T00:00:00Z" })).toEqual({ ok: false, error: "stale_report" });
 });
 
+it.each(["acknowledge", "skip"] as const)("returns the %s refusal for ISO year zero instead of a database error", async command => {
+  const company = await prepared();
+  const artifact = await exported(company);
+  const input = { ...artifact, reportGeneratedAt: "0000-01-01T00:00:00Z" };
+  const result = command === "acknowledge"
+    ? await acknowledgeVatReportDownload(company.client, input)
+    : await skipVatReportDrafts(company.client, input);
+  expect(result).toEqual({ ok: false, error: command === "acknowledge" ? "invalid_download_artifact" : "stale_report" });
+  expect(await progress(company)).toEqual({ downloadedFormats: [], skippedFormats: [] });
+});
+
 it("retains old-generation acknowledgements and skip history in the complete Company archive", async () => {
   const company = await prepared();
   const artifact = await exported(company);
