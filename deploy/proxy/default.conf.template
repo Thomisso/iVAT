@@ -1,0 +1,58 @@
+# Rošti terminates HTTPS. Accept only the configured Host names here.
+log_format ivat '$remote_addr "$request_method $uri" $status $body_bytes_sent';
+access_log /dev/stdout ivat;
+
+map $http_x_forwarded_proto $forwarded_proto {
+    default https;
+    http http;
+    https https;
+}
+
+server {
+    listen 80 default_server;
+    server_name _;
+    location = /healthz { access_log off; return 200 "ok\n"; }
+    location / { return 404; }
+}
+
+server {
+    listen 80;
+    server_name ${APP_HOST};
+    client_max_body_size 51m;
+    client_body_timeout 120s;
+
+    location / {
+        proxy_pass http://web:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Forwarded-Host $http_host;
+        proxy_set_header X-Forwarded-Proto $forwarded_proto;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header Connection "";
+        proxy_buffering off;
+        proxy_read_timeout 120s;
+    }
+}
+
+server {
+    listen 80;
+    server_name ${API_HOST};
+    client_max_body_size 51m;
+
+    location ~ ^/(auth|rest|storage)/v1(?:/|$) {
+        proxy_pass http://gateway:8000;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Forwarded-Host $http_host;
+        proxy_set_header X-Forwarded-Proto $forwarded_proto;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_read_timeout 120s;
+    }
+    location / { return 404; }
+}
+
+# Email templates are available only on the internal Docker network.
+server {
+    listen 8081;
+    location = /magic_link.html { root /var/www/templates; }
+    location / { return 404; }
+}

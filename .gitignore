@@ -48,3 +48,9 @@ next-env.d.ts
 
 # demo server logs (scripts/demo.mjs)
 /.demo/
+
+# Pilot deployment data, keys and local provider binding
+/.rostistate*
+/deploy/runtime/
+/deploy/backups/
+.rostistate

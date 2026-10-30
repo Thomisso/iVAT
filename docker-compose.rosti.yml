@@ -1,0 +1,263 @@
+# One Rošti Stack; only the proxy publishes a port. Use .env.rosti, never .env.local.
+x-app-environment: &app-environment
+  NODE_ENV: production
+  NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_PUBLIC_URL:?Run node deploy/scripts/init.mjs}
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${ANON_KEY:?Missing ANON_KEY}
+  SUPABASE_INTERNAL_URL: http://gateway:8000
+  SUPABASE_SECRET_KEY: ${SERVICE_ROLE_KEY:?Missing SERVICE_ROLE_KEY}
+  DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:?Missing POSTGRES_PASSWORD}@db:5432/postgres
+  APP_ORIGIN: ${APP_ORIGIN:?Missing APP_ORIGIN}
+  AUTH_REDIRECT_ALLOWLIST: ${APP_ORIGIN}/auth/callback
+  AI_PROVIDER: ${AI_PROVIDER:-platform}
+
+x-service: &service
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "3"
+
+services:
+  backup:
+    image: app:latest
+    profiles: [operator]
+    user: root
+    restart: "no"
+    entrypoint: [tar]
+    volumes_from:
+      - db:ro
+      - storage:ro
+    volumes:
+      - ${DEPLOY_ENV_FILE:-.env.rosti}:/backup-config/.env:ro
+      - ./docker-compose.rosti.yml:/backup-config/docker-compose.rosti.yml:ro
+
+  web:
+    <<: *service
+    image: app:latest
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_PUBLIC_URL}
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${ANON_KEY}
+    environment: *app-environment
+    init: true
+    stop_grace_period: 60s
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      gateway:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/login').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+
+  worker:
+    <<: *service
+    image: app:latest
+    command: [node_modules/.bin/tsx, worker/index.ts]
+    environment:
+      <<: *app-environment
+      WORKER_HEALTH_FILE: /tmp/ivat-worker-health
+    init: true
+    stop_grace_period: 90s
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      gateway:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, node, -e, "const fs=require('node:fs');if(Date.now()-fs.statSync('/tmp/ivat-worker-health').mtimeMs>90000)process.exit(1)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+
+  migrate:
+    image: app:latest
+    restart: "no"
+    command: [node, deploy/scripts/migrate.mjs]
+    environment:
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@db:5432/postgres
+    depends_on:
+      auth:
+        condition: service_healthy
+      storage:
+        condition: service_healthy
+
+  db:
+    <<: *service
+    image: app-deploy-db:latest
+    build: ./deploy/db
+    environment:
+      POSTGRES_HOST: /var/run/postgresql
+      PGPORT: "5432"
+      POSTGRES_PORT: "5432"
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: postgres
+      POSTGRES_DB: postgres
+      JWT_EXP: "3600"
+    volumes:
+      - ./deploy/runtime/db:/var/lib/postgresql/data
+      - ./deploy/runtime/db-keys:/etc/postgresql-custom
+    command: [postgres, -c, config_file=/etc/postgresql/postgresql.conf, -c, shared_buffers=128MB, -c, max_connections=60]
+    shm_size: 256mb
+    healthcheck:
+      test: [CMD, pg_isready, -U, postgres, -h, localhost]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  auth:
+    <<: *service
+    image: supabase/gotrue:v2.197.0
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: "9999"
+      API_EXTERNAL_URL: ${SUPABASE_PUBLIC_URL}
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${POSTGRES_PASSWORD}@db:5432/postgres
+      GOTRUE_SITE_URL: ${APP_ORIGIN}
+      GOTRUE_URI_ALLOW_LIST: ${APP_ORIGIN}/auth/callback,${APP_ORIGIN}/auth/callback?*
+      GOTRUE_DISABLE_SIGNUP: "true"
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_EXP: "3600"
+      GOTRUE_JWT_SECRET: ${JWT_SECRET:?Missing JWT_SECRET}
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+      GOTRUE_EXTERNAL_PHONE_ENABLED: "false"
+      GOTRUE_MAILER_AUTOCONFIRM: "true"
+      GOTRUE_MFA_TOTP_ENROLL_ENABLED: "true"
+      GOTRUE_MFA_TOTP_VERIFY_ENABLED: "true"
+      GOTRUE_MFA_MAX_ENROLLED_FACTORS: "10"
+      GOTRUE_SMTP_HOST: ${SMTP_HOST:-}
+      GOTRUE_SMTP_PORT: ${SMTP_PORT:-587}
+      GOTRUE_SMTP_USER: ${SMTP_USER:-}
+      GOTRUE_SMTP_PASS: ${SMTP_PASS:-}
+      GOTRUE_SMTP_ADMIN_EMAIL: ${SMTP_ADMIN_EMAIL:-noreply@ivat.cz}
+      GOTRUE_SMTP_SENDER_NAME: iVAT
+      GOTRUE_MAILER_TEMPLATES_MAGIC_LINK: http://proxy:8081/magic_link.html
+      GOTRUE_MAILER_SUBJECTS_MAGIC_LINK: Your iVAT invitation
+      GOTRUE_MAILER_OTP_EXP: "604800"
+      GOTRUE_MAILER_URLPATHS_INVITE: /auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_CONFIRMATION: /auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_RECOVERY: /auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: /auth/v1/verify
+    healthcheck:
+      test: [CMD, wget, --no-verbose, --tries=1, --spider, http://localhost:9999/health]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  rest:
+    <<: *service
+    image: postgrest/postgrest:v14.18
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGRST_DB_URI: postgres://authenticator:${POSTGRES_PASSWORD}@db:5432/postgres
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      PGRST_DB_MAX_ROWS: "1000"
+      PGRST_DB_POOL: "5"
+      PGRST_DB_EXTRA_SEARCH_PATH: public,extensions
+      PGRST_DB_USE_LEGACY_GUCS: "false"
+      PGRST_ADMIN_SERVER_PORT: "3001"
+      PGRST_ADMIN_SERVER_HOST: localhost
+    healthcheck:
+      test: [CMD, postgrest, --ready]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  storage:
+    <<: *service
+    image: supabase/storage-api:v1.81.0
+    depends_on:
+      db:
+        condition: service_healthy
+      rest:
+        condition: service_healthy
+    environment:
+      ANON_KEY: ${ANON_KEY}
+      SERVICE_KEY: ${SERVICE_ROLE_KEY}
+      POSTGREST_URL: http://rest:3000
+      AUTH_JWT_SECRET: ${JWT_SECRET}
+      DATABASE_URL: postgres://supabase_storage_admin:${POSTGRES_PASSWORD}@db:5432/postgres
+      STORAGE_PUBLIC_URL: ${SUPABASE_PUBLIC_URL}
+      FILE_SIZE_LIMIT: "52428800"
+      STORAGE_BACKEND: file
+      FILE_STORAGE_BACKEND_PATH: /var/lib/storage
+      TENANT_ID: ivat
+      REGION: local
+      GLOBAL_S3_BUCKET: ivat
+      ENABLE_IMAGE_TRANSFORMATION: "false"
+      DB_POOL_MAX: "5"
+    volumes:
+      - ./deploy/runtime/storage:/var/lib/storage
+    healthcheck:
+      test: [CMD, wget, --no-verbose, --tries=1, --spider, http://127.0.0.1:5000/status]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  gateway:
+    <<: *service
+    image: app-deploy-gateway:latest
+    build: ./deploy/gateway
+    depends_on:
+      auth:
+        condition: service_healthy
+      rest:
+        condition: service_healthy
+      storage:
+        condition: service_healthy
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /usr/local/kong/kong.yml
+      KONG_ROUTER_FLAVOR: expressions
+      KONG_DNS_ORDER: LAST,A,CNAME
+      KONG_DNS_NOT_FOUND_TTL: "1"
+      KONG_DNS_VALID_TTL: "5"
+      KONG_PLUGINS: request-transformer,cors,key-auth,acl,post-function
+      KONG_NGINX_WORKER_PROCESSES: "1"
+      KONG_NGINX_HTTP_CLIENT_MAX_BODY_SIZE: 51m
+      KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: 160k
+      KONG_NGINX_PROXY_PROXY_BUFFERS: 8 160k
+      KONG_ADMIN_LISTEN: "off"
+      KONG_PROXY_ACCESS_LOG: "off"
+      SUPABASE_ANON_KEY: ${ANON_KEY}
+      SUPABASE_SERVICE_KEY: ${SERVICE_ROLE_KEY}
+    healthcheck:
+      test: [CMD, kong, health]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  proxy:
+    <<: *service
+    image: app-deploy-proxy:latest
+    build: ./deploy/proxy
+    ports:
+      - ${HTTP_BIND:-80}:80
+    environment:
+      APP_HOST: ${APP_HOST:?Missing APP_HOST}
+      API_HOST: ${API_HOST:?Missing API_HOST}
+      NGINX_ENVSUBST_FILTER: ^(APP_HOST|API_HOST)$$
+    depends_on:
+      web:
+        condition: service_healthy
+      gateway:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1/healthz]
+      interval: 30s
+      timeout: 5s
