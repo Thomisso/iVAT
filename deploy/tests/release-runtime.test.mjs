@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
-import { access, cp, mkdir, mkdtemp, readFile, realpath, rm, utimes, writeFile } from "node:fs/promises";
+import { access, chmod, cp, mkdir, mkdtemp, readFile, realpath, rm, utimes, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -39,6 +39,7 @@ test("the real release command guards and upgrades a disposable production stack
     const env = parseEnv(await readFile(path.join(stack, ".env"), "utf8"));
     console.log("Build disposable operator and AMD64 application images.");
     docker("build", "-f", "deploy/tests/operator.Dockerfile", "-t", "ivat-release155-operator:verify", ".");
+    for (const name of ["db", "gateway", "proxy"]) docker("build", "--platform", "linux/amd64", "-t", `ivat-release155-${name}:verify`, `deploy/${name}`);
     docker("build", "--platform", "linux/amd64", "--build-arg", `NEXT_PUBLIC_SUPABASE_URL=${env.SUPABASE_PUBLIC_URL}`, "--build-arg", `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${env.ANON_KEY}`, "-t", "ivat-release155-app:verify", ".");
     await writeFile(path.join(directory, "probe.sql"), "create table public.ivat_release_probe (value text); insert into public.ivat_release_probe values ('upgrade-completed');\n");
     await writeFile(path.join(directory, "upgrade.Dockerfile"), "FROM ivat-release155-app:verify\nUSER root\nCOPY probe.sql /app/supabase/migrations/99999999990000_release_probe.sql\nUSER node\n");
@@ -48,7 +49,7 @@ test("the real release command guards and upgrades a disposable production stack
     docker("build", "--platform", "linux/amd64", "-f", path.join(directory, "failure.Dockerfile"), "-t", "ivat-release155-failure:verify", directory);
     const compose = JSON.parse(docker("compose", "-f", "docker-compose.rosti.yml", "config", "--no-interpolate", "--no-path-resolution", "--format", "json"));
     delete compose.name;
-    const local = { app: "ivat-release155-app:verify", db: "ivat-release154-db:verify", gateway: "ivat-release154-gateway:verify", proxy: "ivat-release154-proxy:verify" };
+    const local = { app: "ivat-release155-app:verify", db: "ivat-release155-db:verify", gateway: "ivat-release155-gateway:verify", proxy: "ivat-release155-proxy:verify" };
     for (const [kind, services] of Object.entries({ app: ["web", "worker", "migrate", "backup"], db: ["db"], gateway: ["gateway"], proxy: ["proxy"] })) for (const service of services) { compose.services[service].image = local[kind]; delete compose.services[service].build; }
     Object.assign(compose.services.backup.volumes.find(volume => volume.target === "/backup-config/.env"), { type: "bind", source: "./.env", bind: { create_host_path: false } });
     delete compose.services.backup.volumes.find(volume => volume.target === "/backup-config/.env").volume;
@@ -56,7 +57,7 @@ test("the real release command guards and upgrades a disposable production stack
     await writeFile(path.join(stack, "docker-compose.yml"), JSON.stringify(compose));
     await cp("deploy/scripts", path.join(stack, "deploy/scripts"), { recursive: true });
     await cp("deploy/restore.yml", path.join(stack, "deploy/restore.yml"));
-    const override = app => `services:\n  web:\n    image: ${app}\n  worker:\n    image: ${app}\n  migrate:\n    image: ${app}\n  backup:\n    image: ${app}\n  db:\n    image: ${local.db}\n  gateway:\n    image: ${local.gateway}\n  proxy:\n    image: ${local.proxy}\n    ports: !override\n      - \"127.0.0.1:${httpPort}:80\"\n  storage:\n    volumes: !override\n      - test-storage:/var/lib/storage\nvolumes:\n  test-storage:\n`;
+    const override = app => `services:\n  web:\n    image: ${app}\n    healthcheck:\n      interval: 2s\n      start_period: 0s\n  worker:\n    image: ${app}\n    healthcheck:\n      interval: 2s\n      start_period: 0s\n  migrate:\n    image: ${app}\n  backup:\n    image: ${app}\n  db:\n    image: ${local.db}\n  gateway:\n    image: ${local.gateway}\n  proxy:\n    image: ${local.proxy}\n    healthcheck:\n      interval: 2s\n    ports: !override\n      - \"127.0.0.1:${httpPort}:80\"\n  storage:\n    volumes: !override\n      - test-storage:/var/lib/storage\nvolumes:\n  test-storage:\n`;
     await writeFile(path.join(stack, "test-override.yml"), override(local.app));
     console.log("Boot baseline production services.");
     docker(...common, "up", "-d", "--no-build", "--wait", "--wait-timeout", "240");
@@ -90,14 +91,40 @@ test("the real release command guards and upgrades a disposable production stack
       assert.equal(await readFile(path.join(stack, "deploy/release-commit.txt"), "utf8"), "0".repeat(40) + "\n");
       await writeFile(archive, archiveBytes); await writeFile(archive + ".images.json", inventoryBytes); await utimes(archive, new Date(), new Date());
     }
+    const bin = path.join(directory, "failure-bin");
+    await mkdir(bin);
+    await writeFile(path.join(bin, "docker"), `#!/bin/sh
+case " $* " in
+  *" images -q "*) [ "$IVAT_TEST_DOCKER_FAILURE" != retention ] || exit 42;;
+  *" selected-images "*) [ "$IVAT_TEST_DOCKER_FAILURE" != selected-images ] || exit 42;;
+esac
+exec /usr/local/bin/docker "$@"
+`);
+    await chmod(path.join(bin, "docker"), 0o755);
+    const failureEnv = { PATH: `${bin}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin` };
+    const retentionRefused = await deploy(bundle, { ...failureEnv, IVAT_TEST_DOCKER_FAILURE: "retention" });
+    assert.notEqual(retentionRefused.status, 0);
+    assert.equal(docker(...common, "ps", "-q", "web"), webBefore);
+    await assert.rejects(access(path.join(stack, "deploy/.deployment-unresolved")));
     const lock = spawn("docker", ["run", "--rm", "--entrypoint", "bash", "-v", `${directory}:${directory}`, "ivat-release155-operator:verify", "-c", `flock '${stack}/backup.lock' sh -c 'touch ${stack}/lock-ready; sleep 4'`]);
     while (true) { try { await access(path.join(stack, "lock-ready")); break; } catch { await new Promise(resolve => setTimeout(resolve, 50)); } }
     assert.match((await deploy()).stderr, /lock/);
     await new Promise(resolve => lock.on("exit", resolve));
+    console.log("Inject selected-image producer failure after a real upgrade.");
+    const inspectionFailed = await deploy(bundle, { ...failureEnv, IVAT_TEST_DOCKER_FAILURE: "selected-images" });
+    assert.notEqual(inspectionFailed.status, 0);
+    await assert.rejects(access(path.join(stack, "deploy/verified-release.json")));
+    assert.equal(await readFile(path.join(stack, "deploy/release-commit.txt"), "utf8"), "0".repeat(40) + "\n");
+    assert.equal(docker("inspect", "--format", "{{.State.Running}}", docker(...common, "ps", "-aq", "migrate")), "false");
+    // Explicit test-only acknowledgment after confirming migration is stopped.
+    await rm(path.join(stack, "deploy/.deployment-unresolved"));
     console.log("Run successful upgrade through the actual command.");
     const success = await deploy(); assert.equal(success.status, 0, success.stderr + success.stdout);
     const verified = JSON.parse(await readFile(path.join(stack, "deploy/verified-release.json"), "utf8"));
     assert.equal(verified.revision, "1".repeat(40));
+    const repeated = await deploy(bundle, { IVAT_DEPLOY_ATTEMPT_ID: path.basename(verified.attempt) });
+    assert.notEqual(repeated.status, 0);
+    assert.equal((await readFile(path.join(stack, verified.attempt, "result"), "utf8")).trim(), "success");
     assert.equal(docker(...common, "exec", "-T", "db", "psql", "-U", "postgres", "-Atc", "select value from public.ivat_retained_probe"), "retained-data");
     assert.equal(docker(...common, "exec", "-T", "db", "psql", "-U", "postgres", "-Atc", "select value from public.ivat_release_probe"), "upgrade-completed");
     assert.equal(docker("inspect", "--format", "{{.Image}}", docker(...common, "ps", "-q", "web")), docker("image", "inspect", "--format", "{{.Id}}", "ivat-release155-upgrade:verify"));
