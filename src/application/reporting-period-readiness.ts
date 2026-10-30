@@ -1,3 +1,4 @@
+import { currentValidationFindings } from "./document-validation";
 import type { AppClient, Result } from "./client";
 import { isUuid } from "./client";
 import {
@@ -231,11 +232,14 @@ async function findingsByVersion(
   for (let offset = 0; offset < ids.length; offset += 100) {
     const { data, error } = await client
       .from("extraction_version")
-      .select("id, findings")
+      .select("id, payload, findings")
       .in("id", ids.slice(offset, offset + 100));
     if (error) throw error;
     for (const version of data) {
-      result.set(version.id, version.findings as ValidationFinding[]);
+      result.set(version.id, currentValidationFindings(
+        version.payload as unknown as NonNullable<ReportDocument["payload"]>,
+        version.findings as ValidationFinding[],
+      ));
     }
   }
   return result;
