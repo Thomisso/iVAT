@@ -880,6 +880,9 @@ isOneToOne: false
 "move_document_page":
 { Args: { "page": number,"source_document_id": string,"target_document_id": string }; Returns: (string)[]
                            },
+"platform_company_history":
+{ Args: { "target_company_id": string }; Returns: Json
+                           },
 "platform_upload_limits":
 { Args: Record<PropertyKey, never>; Returns: {
               "max_source_file_bytes": number,"max_source_file_pages": number,"max_upload_batch_files": number
