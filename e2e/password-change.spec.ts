@@ -14,10 +14,11 @@ for (const locale of ["en", "cs"] as const) {
   for (const mfa of [false, true]) {
     test(`${locale} password change preserves ${mfa ? "AAL2" : "normal"} browser session`, async ({ baseURL, context, page }) => {
       if (!baseURL) throw new Error("Browser base URL missing");
+      const email = `password-${crypto.randomUUID()}@example.test`;
       const password = "Browser-original-password-165";
       const newPassword = "Browser-changed-password-165";
       await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: new URL(baseURL).origin }]);
-      await provisionAndLogIn(page, { email: `password-${crypto.randomUUID()}@example.test`, password, organizationName: "Password change" });
+      await provisionAndLogIn(page, { email, password, organizationName: "Password change" });
       if (mfa) {
         await page.goto("/mfa/enroll");
         await page.getByRole("button", { name: "Start setup" }).click();
@@ -26,6 +27,22 @@ for (const locale of ["en", "cs"] as const) {
         await page.getByLabel("Authenticator code").fill(totp(secret));
         await page.getByRole("button", { name: "Verify and enable" }).click();
         await expect(page.getByRole("heading", { name: "Save your recovery codes" })).toBeVisible();
+        await page.goto("/companies/new");
+        await page.getByRole("button", { name: "Log out", exact: true }).click();
+        await expect(page).toHaveURL(/\/login$/);
+        await page.getByLabel("Email", { exact: true }).fill(email);
+        await page.getByLabel("Password", { exact: true }).fill(password);
+        await page.getByRole("button", { name: "Log in", exact: true }).click();
+        await expect(page).toHaveURL(/\/mfa\/verify$/);
+        const pending = await session(context);
+        expect(pending.aal).toBe("aal1");
+        // An optional enrolled factor must also gate personal security after fresh login.
+        await page.goto("/settings/security");
+        await expect(page).toHaveURL(/\/mfa\/verify$/);
+        await page.getByLabel("Authenticator code").fill(totp(secret));
+        await page.getByRole("button", { name: "Verify", exact: true }).click();
+        await expect(page).toHaveURL(/\/$/);
+        expect(await session(context)).toEqual(expect.objectContaining({ sessionId: pending.sessionId, aal: "aal2" }));
       }
       await context.addCookies([{ name: "NEXT_LOCALE", value: locale, url: new URL(baseURL).origin }]);
       await page.goto("/settings/security");
