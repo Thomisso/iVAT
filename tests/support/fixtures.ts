@@ -13,6 +13,27 @@ import { systemClient } from "./worker";
 
 let icoCounter = 0;
 
+/** Large platform inventory fixture; assertions still read under the operator's identity. */
+export async function platformCompanyInventoryFixture(count: number, createdBy: string) {
+  const entries = Array.from({ length: count }, (_, index) => ({
+    organizationId: crypto.randomUUID(), companyId: crypto.randomUUID(),
+    name: `Inventory Company ${index.toString().padStart(4, "0")}`,
+  }));
+  const system = systemClient();
+  const organizations = await system.from("organization").insert(entries.map((entry) => ({
+    id: entry.organizationId, name: entry.name,
+  })));
+  if (organizations.error) throw organizations.error;
+  const companies = await system.from("company").insert(entries.map((entry) => ({
+    id: entry.companyId, organization_id: entry.organizationId, name: entry.name,
+    ico: "27082440", vat_id: "CZ27082440", street: "Vinohradská 12",
+    street_name: "Vinohradská", house_number: "12", city: "Praha", postal_code: "120 00",
+    person_type: "legal" as const, created_by: createdBy,
+  })));
+  if (companies.error) throw companies.error;
+  return entries;
+}
+
 /**
  * Test-only platform provisioning boundary. Production Companies receive an AI
  * Configuration only through SuperAdmin commands; integration tests provision
@@ -332,7 +353,8 @@ export async function uploadBatchWithWaitingDocuments(count: number) {
       companyId: admin.companyId,
       batchId: batch.value.id,
       fileName: `large-${fileIndex}.pdf`,
-      bytes,
+      // These are distinct Source Files, even when their page counts match.
+      bytes: new Uint8Array([...bytes, ...new TextEncoder().encode(`\n% source ${fileIndex}`)]),
     });
     if (!uploaded.ok) throw new Error(uploaded.error);
     const documentsInFile = Math.min(50, count - created);

@@ -54,7 +54,7 @@ export default async function UploadPage({
     </section>}
     <section className="panel upload-workspace-new" aria-labelledby="new-upload-title">
       <div><h2 id="new-upload-title">{workspace("newBatch")}</h2><p>{workspace("newBatchHint")}</p></div>
-      <SourceFileUploadForm companyId={companyId} limits={limits} />
+      <SourceFileUploadForm key={companyId} companyId={companyId} limits={limits} />
     </section>
     <section className="upload-history" aria-labelledby="upload-history-title">
       <div className="upload-section-heading"><div><h2 id="upload-history-title">{workspace("history")}</h2><p>{workspace("historyHint")}</p></div><span>{workspace("historyPage", { page: historyPage })}</span></div>
