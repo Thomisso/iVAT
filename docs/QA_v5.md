@@ -1,5 +1,7 @@
 # QA v5: ruční doklady, obnova přístupu a nová identita iVAT
 
+**GitHub issue:** [#159](https://github.com/Thomisso/iVAT/issues/159) — ready-for-agent.
+
 **Stav:** schválená specifikace podle uzavřeného grill-with-docs a závěrečného potvrzení uživatele. Testovací rozhraní byla součástí potvrzeného zadání: stávající Playwright scénáře a aplikační integrační testy proti izolované lokální Supabase. Publikace specifikace není implementací ani změnou produkce.
 
 ## Problem Statement
