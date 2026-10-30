@@ -74,7 +74,8 @@ export async function getVatProcessingWizard(
     }),
   ]);
   const exported = readiness.snapshot !== null && artifacts.some((artifact) =>
-    artifact.vatReportId === readiness.snapshot?.reportId
+    artifact.vatReportId === readiness.snapshot?.reportId &&
+    artifact.reportGeneratedAt === readiness.snapshot.generatedAt
   );
   const exportStep = step("export", exported ? "done" : "not_started");
 
