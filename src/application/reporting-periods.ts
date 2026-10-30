@@ -1,4 +1,5 @@
 import type { ReportingYear } from "./companies";
+import type { ValidationFinding } from "./document-validation";
 
 /** The list filter for Documents without a Reporting Period, such as those outside every generated Reporting Year. */
 export const NO_REPORTING_PERIOD = "none";
@@ -32,6 +33,30 @@ export function reportingPeriodForDate(
   if (!year || month < year.firstMonth) return null;
   if (year.frequency === "monthly") return date.slice(0, 7);
   return `${date.slice(0, 4)}-Q${Math.ceil(month / 3)}`;
+}
+
+/**
+ * Why a Tax Point Date has no Reporting Period, as a blocking finding: its year
+ * was never generated, or it precedes the month its year starts. Null when the
+ * date has a period or is not a valid date.
+ */
+export function reportingPeriodGapFinding(
+  taxPointDate: string | null | undefined,
+  years: readonly ReportingYear[],
+): ValidationFinding | null {
+  if (!taxPointDate || !/^20\d{2}-(0[1-9]|1[0-2])-\d{2}$/.test(taxPointDate)) return null;
+  if (reportingPeriodForDate(taxPointDate, years)) return null;
+  const year = taxPointDate.slice(0, 4);
+  const reportingYear = years.find((entry) => entry.year === Number(year));
+  if (!reportingYear) {
+    return { field: "taxPointDate", severity: "error", code: "reporting_year_missing", params: { year } };
+  }
+  return {
+    field: "taxPointDate",
+    severity: "error",
+    code: "tax_point_date_before_first_reporting_month",
+    params: { year, month: String(reportingYear.firstMonth) },
+  };
 }
 
 /** Every Reporting Period of the generated years, oldest first. */
