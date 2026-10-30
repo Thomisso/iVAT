@@ -20,7 +20,9 @@ describe("membership-independent SuperAdmin authority", () => {
     const entries = await platformCompanyInventoryFixture(1001, operator.userId);
     const companyIds = new Set(entries.map((entry) => entry.companyId));
     const organizationIds = new Set(entries.map((entry) => entry.organizationId));
-    expect((await listMyCompanies(operator.client)).filter((company) => companyIds.has(company.id))).toHaveLength(1001);
+    expect((await listMyCompanies(operator.client)).filter((company) => companyIds.has(company.id))).toEqual(
+      entries.map((entry) => ({ id: entry.companyId, organizationId: entry.organizationId, name: entry.name })),
+    );
     expect((await listMyOrganizations(operator.client)).filter((organization) => organizationIds.has(organization.id)))
       .toHaveLength(1001);
   });

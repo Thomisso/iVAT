@@ -882,6 +882,9 @@ isOneToOne: false
 "list_company_access":
 { Args: { "target_company_id": string }; Returns: Json
                            },
+"list_company_summaries":
+{ Args: Record<PropertyKey, never>; Returns: Json
+                           },
 "list_failed_processing_jobs":
 { Args: Record<PropertyKey, never>; Returns: {
               "error": string,"failed_at": string,"id": string,"name": string,"target_id": string

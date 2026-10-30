@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { listMyOrganizations } from "@/application/organizations";
-import { getCompany } from "@/application/companies";
+import { getCompany, listMyCompanies } from "@/application/companies";
 import { listAuditEvents } from "@/application/audit";
 import { setOrganizationMfaRequired } from "@/application/mfa";
 import { setPlatformOrganizationBlocked } from "@/application/platform-administration";
@@ -81,6 +81,8 @@ describe("SuperAdmin support for unavailable tenants", () => {
     }) });
     expect(await getCompany(operator.client, target.companyId)).toBeNull();
     expect(await getCompany(target.client, target.companyId)).toBeNull();
+    expect(await listMyCompanies(operator.client)).not.toContainEqual(expect.objectContaining({ id: target.companyId }));
+    expect(await listMyCompanies(target.client)).toEqual([]);
     expect(await getPlatformCompanyHistory(target.client, target.companyId)).toEqual({ ok: false, error: "forbidden" });
     expect(await uploadSourceFile(operator.client, worker.jobs, {
       companyId: target.companyId, fileName: "cannot-restore.png", bytes: fixtureFile("receipt.png"),
@@ -167,6 +169,8 @@ describe("SuperAdmin support for unavailable tenants", () => {
       ]);
     expect(await listMyOrganizations(target.client)).toEqual([]);
     expect(await getCompany(target.client, target.companyId)).toBeNull();
+    expect(await listMyCompanies(operator.client)).not.toContainEqual(expect.objectContaining({ id: target.companyId }));
+    expect(await listMyCompanies(member.client)).toEqual([]);
     expect(await setOrganizationMfaRequired(operator.client, { organizationId: target.organizationId, required: true }))
       .toEqual({ ok: true, value: null });
     expect(await uploadSourceFile(operator.client, worker.jobs, {
