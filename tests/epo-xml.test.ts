@@ -7,6 +7,8 @@ import { SAMPLE_EXTRACTION } from "@/ai/fake";
 
 export const details: ExportDetails = {
   taxOffice: "451",
+  territorialOffice: "2003",
+  economicActivity: "621000",
   preparedOn: "2026-10-27",
   personType: "P",
   email: "qa@example.test",
@@ -208,6 +210,8 @@ it.each(["dphdp3", "dphkh1"] as const)(
     expect(
       await createEpoXml(report, format, {
         taxOffice: "451",
+        territorialOffice: "2003",
+        economicActivity: "621000",
         preparedOn: "2026-10-27",
         personType: "F",
         email: "",

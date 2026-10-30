@@ -140,6 +140,8 @@ test("an administrator can turn an uploaded Source File into a traceable, export
     has: page.getByRole("heading", { name: "VAT Return (DPHDP3)" }),
   });
   await exportSection.getByLabel("Tax office").selectOption("451");
+  await exportSection.getByLabel("Territorial office").selectOption("2003");
+  await exportSection.getByLabel("Economic activity (CZ-NACE)").fill("621000");
   await exportSection.getByLabel("First name").fill("Jana");
   await exportSection.getByLabel("Last name").fill("Nováková");
   await exportSection.getByLabel("Capacity").fill("jednatelka");
@@ -202,6 +204,8 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   });
   await expect(finalExport.getByText("Final XML artifact", { exact: true })).toBeVisible();
   await finalExport.getByLabel("Tax office").selectOption("451");
+  await finalExport.getByLabel("Territorial office").selectOption("2003");
+  await finalExport.getByLabel("Economic activity (CZ-NACE)").fill("621000");
   await finalExport.getByLabel("First name").fill("Jana");
   await finalExport.getByLabel("Last name").fill("Nováková");
   await finalExport.getByLabel("Capacity").fill("jednatelka");
