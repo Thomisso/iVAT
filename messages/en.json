@@ -99,6 +99,8 @@
     "logInLink": "Log in"
   },
   "company": {
+    "organization": "Organization",
+    "chooseOrganization": "Choose the Organization for this Company",
     "createTitle": "Add a company",
     "createIntro": "Enter the details of the VAT payer whose VAT you will report.",
     "name": "Company name",
