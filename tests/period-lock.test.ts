@@ -322,7 +322,7 @@ it("keeps rejected Documents separate from warnings in the confirmation summary"
     documentId: documents[0].id,
     version: 1,
   })).toEqual({ ok: true, value: null });
-  expect(await rejectDocument(company.client, {
+  expect(await rejectDocument(company.client, { reason: "Not a business Document",
     companyId: company.companyId,
     documentId: documents[1].id,
   })).toEqual({ ok: true, value: null });
@@ -434,7 +434,7 @@ it("keeps review commands inapplicable to the Approved Documents required by Fin
     }),
   ).toEqual({ ok: false, error: "not_in_review" });
   expect(
-    await rejectDocument(company.client, {
+    await rejectDocument(company.client, { reason: "Not a business Document",
       companyId: company.companyId,
       documentId: company.documents[0].id,
     }),

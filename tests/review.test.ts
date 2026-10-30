@@ -697,7 +697,7 @@ describe("approving and rejecting a Document", () => {
   it("lets an Administrator reject a Document", async () => {
     const document = await documentInReview();
 
-    expect(await rejectDocument(document.client, document)).toEqual({ ok: true, value: null });
+    expect(await rejectDocument(document.client, { ...document, reason: "Not a business Document" })).toEqual({ ok: true, value: null });
     expect((await listDocuments(document.client, document.companyId, document.sourceFileId))[0].status).toBe("rejected");
   });
 
@@ -705,7 +705,7 @@ describe("approving and rejecting a Document", () => {
     const document = await documentInReview();
     const member = await companyMember(document);
 
-    expect(await rejectDocument(member.client, document)).toEqual({ ok: true, value: null });
+    expect(await rejectDocument(member.client, { ...document, reason: "Not a business Document" })).toEqual({ ok: true, value: null });
 
     expect((await listDocuments(member.client, document.companyId, document.sourceFileId))[0].status).toBe("rejected");
     expect((await listAuditEvents(document.client, document.organizationId)).at(-1)).toEqual(
@@ -723,7 +723,7 @@ describe("approving and rejecting a Document", () => {
     const approved = await documentInReview();
     await approveDocument(approved.client, { ...approved, version: 1 });
     const rejected = await documentInReview();
-    await rejectDocument(rejected.client, rejected);
+    await rejectDocument(rejected.client, { ...rejected, reason: "Not a business Document" });
 
     for (const document of [approved, rejected]) {
       expect(await correctDocument(document.client, { ...document, basedOnVersion: 1, payload: CORRECTED })).toEqual({
@@ -734,7 +734,7 @@ describe("approving and rejecting a Document", () => {
         ok: false,
         error: "not_in_review",
       });
-      expect(await rejectDocument(document.client, document)).toEqual({ ok: false, error: "not_in_review" });
+      expect(await rejectDocument(document.client, { ...document, reason: "Not a business Document" })).toEqual({ ok: false, error: "not_in_review" });
       expect(await reprocessDocument(document.client, document.worker.jobs, document)).toEqual({
         ok: false,
         error: "not_reprocessable",
@@ -1018,7 +1018,7 @@ describe("the review workspace", () => {
     expect(await getDocument(b.client, a.companyId, a.documentId)).toBeNull();
     expect(await readDocumentPages(b.client, a.companyId, a.documentId)).toBeNull();
     expect(await approveDocument(b.client, { ...a, version: 1 })).toEqual({ ok: false, error: "forbidden" });
-    expect(await rejectDocument(b.client, a)).toEqual({ ok: false, error: "forbidden" });
+    expect(await rejectDocument(b.client, { ...a, reason: "Not a business Document" })).toEqual({ ok: false, error: "forbidden" });
     expect(await correctDocument(b.client, { ...a, basedOnVersion: 1, payload: CORRECTED })).toEqual({
       ok: false,
       error: "forbidden",
