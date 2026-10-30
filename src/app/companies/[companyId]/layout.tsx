@@ -1,21 +1,19 @@
 import { notFound } from "next/navigation";
 import { getCompany, getMyCompanyRole, listMyCompanies } from "@/application/companies";
-import { listMyOrganizations } from "@/application/organizations";
-import { isSuperAdmin } from "@/application/platform-ai";
 import { currentUser } from "@/application/auth";
 import { countUnreadUploadNotifications, listUploadNotifications } from "@/application/upload-batches";
 import { CompanyShell } from "@/components/company-shell";
+import { loadAdministrationAccess } from "@/lib/administration-access";
 import { requireUserClient } from "@/lib/supabase/server";
 
 export default async function CompanyLayout({ children, params }: LayoutProps<"/companies/[companyId]">) {
   const { companyId } = await params;
   const client = await requireUserClient();
-  const [company, companies, companyRole, organizations, superAdmin, auth, uploadNotifications, uploadUnreadCount] = await Promise.all([
+  const [company, companies, companyRole, { organizations, superAdmin }, auth, uploadNotifications, uploadUnreadCount] = await Promise.all([
     getCompany(client, companyId),
     listMyCompanies(client),
     getMyCompanyRole(client, companyId),
-    listMyOrganizations(client),
-    isSuperAdmin(client),
+    loadAdministrationAccess(),
     currentUser(client),
     listUploadNotifications(client, companyId),
     countUnreadUploadNotifications(client, companyId),

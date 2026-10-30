@@ -116,11 +116,9 @@ function GenerateForm({ companyId, suggestedYear }: { companyId: string; suggest
   });
   const generated = state.values.generated;
   const skipped = state.values.skipped;
-  return <form action={action} className="form" key={JSON.stringify(state.values)}>
-    <h3>{t("generateReportingYearsTitle")}</h3>
-    <p className="iv-field-hint">{t("generateReportingYearsIntro")}</p>
+  return <form action={action} className="form settings-form" key={JSON.stringify(state.values)}>
+    <p><strong>{t("generateReportingYearsTitle")}</strong><br />{t("generateReportingYearsIntro")}</p>
     <input name="companyId" type="hidden" value={companyId} />
-    <div className="form-row">
       <TextField
         label={t("fromYear")}
         name="fromYear"
@@ -146,7 +144,6 @@ function GenerateForm({ companyId, suggestedYear }: { companyId: string; suggest
           <option value="quarterly">{t("quarterly")}</option>
         </select>
       </label>
-    </div>
     <FormError error={state.error} />
     {generated !== undefined && <Notice tone="success">
       {generated ? t("reportingYearsGenerated", { years: generated }) : t("noReportingYearsGenerated")}

@@ -185,7 +185,7 @@ export function validateDocument(
     ...requiredFieldFindings(payload),
   ];
   if (payload.direction === null) {
-    findings.push(warning("direction", "direction_unknown"));
+    findings.push(error("direction", "direction_unknown"));
   }
   if (
     payload.proposedVatRegime === "other" ||

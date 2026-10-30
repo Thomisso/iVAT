@@ -751,6 +751,9 @@ isOneToOne: false
 "delete_company_reporting_year":
 { Args: { "target_company_id": string,"target_year": number }; Returns: undefined
                            },
+"delete_upload_batch":
+{ Args: { "target_batch_id": string }; Returns: (string)[]
+                           },
 "dismiss_company_upload_notifications":
 { Args: { "target_company_id": string }; Returns: undefined
                            },
@@ -771,6 +774,9 @@ isOneToOne: false
                            },
 "finish_upload_batch":
 { Args: { "target_batch_id": string }; Returns: undefined
+                           },
+"forget_removed_source_file_objects":
+{ Args: { "target_company_id": string }; Returns: undefined
                            },
 "generate_company_reporting_years":
 { Args: { "from_year": number,"new_frequency": Database["public"]['Enums']["filing_frequency"],"target_company_id": string,"to_year": number }; Returns: Json
@@ -820,6 +826,9 @@ isOneToOne: false
                            },
 "mark_company_upload_notifications_read":
 { Args: { "target_company_id": string }; Returns: undefined
+                           },
+"mark_upload_batch_notification_read":
+{ Args: { "target_batch_id": string }; Returns: boolean
                            },
 "mark_upload_notification_read":
 { Args: { "target_notification_id": string }; Returns: undefined
@@ -939,6 +948,9 @@ isOneToOne: false
                            },
 "update_document_reporting":
 { Args: { "new_claimed_reporting_period": string,"new_receipt_date": string,"target_document_id": string }; Returns: undefined
+                           },
+"upload_batch_deletion_refusal":
+{ Args: { "target_batch_id": string }; Returns: string
                            },
 "vat_report_artifact_history":
 { Args: { "target_company_id": string,"target_period": string }; Returns: Json
