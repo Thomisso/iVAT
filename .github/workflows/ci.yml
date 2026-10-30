@@ -25,6 +25,7 @@ jobs:
           postman --version
 
       - name: Release policy, bundle integrity, transport and host preflight
+        timeout-minutes: 5
         run: node --test deploy/tests/release-prepare.test.mjs deploy/tests/release-host.test.mjs deploy/tests/release-connect.test.mjs
 
       - name: package-lock.json matches package.json

@@ -8,6 +8,7 @@ import { createServer } from "node:net";
 import { createReleaseBundle } from "../scripts/release-bundle.mjs";
 import { deployPreparedRelease, inspectReleaseArchive } from "../scripts/connect-release.mjs";
 import { waitForRequiredChecks } from "../scripts/prepare-release.mjs";
+import { spawnSimulation } from "./simulation-process.mjs";
 
 test("the downloaded archive must be the exact verified Release before transport is possible", async t => {
   const directory = await mkdtemp(path.join(tmpdir(), "ivat-connect-"));
@@ -36,11 +37,13 @@ test("the detached launcher records early failure and refuses duplicate attempt 
   await mkdir(path.join(bundle, "deploy/scripts"), { recursive: true });
   await copyFile("deploy/scripts/launch-release.sh", path.join(bundle, "deploy/scripts/launch-release.sh"));
   await writeFile(path.join(bundle, "deploy/scripts/deploy-release.sh"), '#!/bin/bash\nread -r registry; read -r provider; [[ "$registry" == REGISTRY_PRIVATE && "$provider" == PROVIDER_PRIVATE ]] || exit 99\ntouch "$1/deploy/transports/$IVAT_DEPLOY_ATTEMPT_ID/credentials-received"\nsleep 0.1\nexit 17\n');
-  const launch = () => new Promise(resolve => {
-    const child = spawn("docker", ["run", "--rm", "-i", "-v", `${directory}:${directory}`, "ivat-release155-operator:verify", "-c", 'bash "$1/deploy/scripts/launch-release.sh" start "$2" "$1" stack test-123 release-test || exit; while [ "$(cat "$2/deploy/transports/test-123/result")" = running ]; do sleep 0.1; done', "bash", bundle, directory]);
+  const fixtureUser = ["--user", `${process.getuid()}:${process.getgid()}`];
+  const launch = () => new Promise((resolve, reject) => {
+    const child = spawn("docker", ["run", "--rm", "-i", ...fixtureUser, "-v", `${directory}:${directory}`, "ivat-release155-operator:verify", "-c", 'bash "$1/deploy/scripts/launch-release.sh" start "$2" "$1" stack test-123 release-test || exit; while [ "$(cat "$2/deploy/transports/test-123/result")" = running ]; do sleep 0.1; done', "bash", bundle, directory]);
     let output = "";
     child.stdout.on("data", bytes => { output += bytes; }); child.stderr.on("data", bytes => { output += bytes; });
     child.on("exit", status => resolve({ status, output }));
+    child.on("error", reject);
     child.stdin.end("REGISTRY_PRIVATE\nPROVIDER_PRIVATE\n");
   });
   const result = await launch();
@@ -59,15 +62,15 @@ test("the detached launcher records early failure and refuses duplicate attempt 
   assert.equal((await readFile(path.join(transport, "result"), "utf8")).trim(), "failed");
   await assert.rejects(readFile(path.join(transport, "credentials")), { code: "ENOENT" });
   await writeFile(path.join(directory, "test-input"), "REGISTRY_PRIVATE\nPROVIDER_PRIVATE\n", { mode: 0o600 });
-  const stress = execFileSync("docker", ["run", "--rm", "-v", `${directory}:${directory}`, "ivat-release155-operator:verify", "-c", 'for i in $(seq 1 100); do bash "$1/deploy/scripts/launch-release.sh" start "$2" "$1" stack "race-$i" release-test < "$2/test-input" >/dev/null & done; wait; sleep 2; for i in $(seq 1 100); do test -f "$2/deploy/transports/race-$i/credentials-received" || exit 42; done', "bash", bundle, directory], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  const stress = execFileSync("docker", ["run", "--rm", ...fixtureUser, "-v", `${directory}:${directory}`, "ivat-release155-operator:verify", "-c", 'for i in $(seq 1 100); do bash "$1/deploy/scripts/launch-release.sh" start "$2" "$1" stack "race-$i" release-test < "$2/test-input" >/dev/null & done; wait; sleep 2; for i in $(seq 1 100); do test -f "$2/deploy/transports/race-$i/credentials-received" || exit 42; done', "bash", bundle, directory], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
   assert.equal(stress, "");
 });
 
 test("GitHub HTTP evidence stand-in cannot authorize wrong, failed or incomplete main checks", async t => {
   const server = createServer(); await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
   const port = server.address().port; await new Promise(resolve => server.close(resolve));
-  const simulation = spawn("postman", ["simulation", "run", "postman/simulations/release-flow/release-flow.sim.yaml", "--port", String(port), "--no-history", "--output", "ndjson"], { stdio: ["ignore", "pipe", "pipe"] });
-  t.after(() => simulation.kill("SIGINT"));
+  const { child: simulation, stop } = spawnSimulation("postman/simulations/release-flow/release-flow.sim.yaml", port);
+  t.after(stop);
   let log = ""; simulation.stdout.on("data", bytes => { log += bytes; }); simulation.stderr.on("data", bytes => { log += bytes; });
   const deadline = Date.now() + 15000;
   while (!log.includes('"type":"listening"') && !log.includes('"event":"listening"')) {
