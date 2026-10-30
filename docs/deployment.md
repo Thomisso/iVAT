@@ -151,6 +151,53 @@ cannot override the provider's outer limits.
 
 ## Release checks and automation
 
+### Prepare a versioned GitHub Release
+
+Merging a pull request into `main` does not update production. When the complete
+tested state of `main` is ready to ship, open **Releases → Draft a new release**
+in GitHub, choose `main` (or its exact tested commit), create a new version tag
+such as `v0.2.0`, and generate the release notes to inspect the included pull
+requests. Publish a normal Release; drafts and prereleases do not prepare a
+production deployment. Do not move or reuse a published version tag.
+
+The **Prepare Roští release** workflow first resolves the tag to its exact
+commit, including annotated tags, and checks that it belongs to `main`. It
+waits up to 35 minutes for successful **CI** and **Deployment verification**
+runs produced by a push of that exact commit to `main`. A successful test of a
+different commit or a pull-request merge is insufficient. Failed checks stop
+preparation; unfinished or missing checks time out with an explanation.
+
+The preparation job builds the application, database, gateway and proxy
+explicitly for `linux/amd64` and publishes them to the repository's private
+GitHub Container Registry. Image tags contain the full commit, workflow run
+and attempt; older tags are not overwritten. The release bundle references
+their immutable SHA-256 digests. Web, Worker, migrations and the backup helper
+share the same application image.
+
+During the separate activation review, configure repository variables
+`ROSTI_PUBLIC_SUPABASE_URL` and `ROSTI_PUBLIC_SUPABASE_KEY` with the existing
+production public API URL and publishable/anon key. These are public build
+settings. Never enter a service-role key, database password or JWT signing
+secret there. The workflow refuses private service keys before building.
+
+Open the successful workflow run and download its `rosti-release-…` artifact
+to inspect the bundle. It contains a manifest with the revision, version,
+four image digests, public build settings and asset checksums, plus the
+digest-pinned Compose configuration and deployment scripts. It contains no
+production environment file. The Compose file is JSON, which is valid Compose
+syntax; runtime environment placeholders remain unresolved until deployment.
+Use `node deploy/scripts/prepare-release.mjs validate <extracted-directory>`
+to validate a downloaded bundle. Do not add or edit files in that directory.
+
+Preparation alone does not contact or change the live Stack. Publishing
+images and artifacts does not mean a version has been deployed. Production
+activation and the subsequent deployment result are separate steps.
+
+If preparation fails, read the failed step, correct the reported CI or public
+configuration problem, and re-run the failed jobs. Each new build attempt
+retains its own image tags and artifact, so an existing release's content is
+not silently replaced.
+
 The deployment verification workflow boots the self-hosted services and
 reuses Application integration tests, in addition to the existing CI checks.
 For its local counterpart, use a separate verification checkout with disposable
