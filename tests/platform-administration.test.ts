@@ -1,3 +1,4 @@
+import { withPostgrestRowLimit } from "./support/postgrest";
 import { createHmac } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { inject, describe, expect, it } from "vitest";
@@ -99,18 +100,27 @@ describe("SuperAdmin organization console", () => {
   it("lists Organizations beyond the PostgREST row limit", async () => {
     const superAdmin = await superAdministrator();
     const inserted = await systemClient().from("organization").insert(
-      Array.from({ length: 1001 }, (_, index) => ({
+      Array.from({ length: 21 }, (_, index) => ({
         name: `Platform inventory ${index.toString().padStart(4, "0")}`,
       })),
     ).select("id");
     if (inserted.error) throw inserted.error;
 
-    const result = await listPlatformOrganizationCompanies(superAdmin.client);
-
-    expect(result).toEqual({ ok: true, value: expect.any(Array) });
-    if (!result.ok) throw new Error(result.error);
     const insertedIds = new Set(inserted.data.map((organization) => organization.id));
-    expect(result.value.filter((organization) => insertedIds.has(organization.id))).toHaveLength(1001);
+    try {
+      await withPostgrestRowLimit(20,
+        () => systemClient().from("organization").select("id").in("id", [...insertedIds]),
+        async () => {
+          const result = await listPlatformOrganizationCompanies(superAdmin.client);
+          expect(result).toEqual({ ok: true, value: expect.any(Array) });
+          if (!result.ok) throw new Error(result.error);
+          expect(result.value.filter((organization) => insertedIds.has(organization.id))).toHaveLength(21);
+        },
+      );
+    } finally {
+      const deleted = await systemClient().from("organization").delete().in("id", [...insertedIds]);
+      if (deleted.error) throw deleted.error;
+    }
   });
 
   it("blocks login and processing until a SuperAdmin unblocks the Organization, with an audit trail", async () => {

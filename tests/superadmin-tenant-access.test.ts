@@ -1,3 +1,4 @@
+import { withPostgrestRowLimit } from "./support/postgrest";
 import { describe, expect, it } from "vitest";
 import { createCompany, getCompany, getMyCompanyRole, listMyCompanies, updateCompanyIdentity } from "@/application/companies";
 import { listMyOrganizations } from "@/application/organizations";
@@ -17,14 +18,26 @@ import { fixtureFile } from "./support/files";
 describe("membership-independent SuperAdmin authority", () => {
   it("discovers every accessible Company and Organization beyond the database response row limit", async () => {
     const operator = await promotedSuperAdministrator("Inventory operator");
-    const entries = await platformCompanyInventoryFixture(1001, operator.userId);
+    const entries = await platformCompanyInventoryFixture(21, operator.userId);
     const companyIds = new Set(entries.map((entry) => entry.companyId));
     const organizationIds = new Set(entries.map((entry) => entry.organizationId));
-    expect((await listMyCompanies(operator.client)).filter((company) => companyIds.has(company.id))).toEqual(
-      entries.map((entry) => ({ id: entry.companyId, organizationId: entry.organizationId, name: entry.name })),
-    );
-    expect((await listMyOrganizations(operator.client)).filter((organization) => organizationIds.has(organization.id)))
-      .toHaveLength(1001);
+    try {
+      await withPostgrestRowLimit(20,
+        () => operator.client.from("company").select("id").in("id", [...companyIds]),
+        async () => {
+          expect((await listMyCompanies(operator.client)).filter((company) => companyIds.has(company.id))).toEqual(
+            entries.map((entry) => ({ id: entry.companyId, organizationId: entry.organizationId, name: entry.name })),
+          );
+          expect((await listMyOrganizations(operator.client)).filter((organization) => organizationIds.has(organization.id)))
+            .toHaveLength(21);
+        },
+      );
+    } finally {
+      const companies = await systemClient().from("company").delete().in("id", [...companyIds]);
+      if (companies.error) throw companies.error;
+      const deleted = await systemClient().from("organization").delete().in("id", [...organizationIds]);
+      if (deleted.error) throw deleted.error;
+    }
   });
   it("creates a Company and manages Organization invitations without joining the tenant", async () => {
     const target = await administratorWithCompany("Administrative target");

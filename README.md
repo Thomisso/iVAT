@@ -171,4 +171,6 @@ illustrative fixtures are documented in
 
 ## CI
 
-`.github/workflows/ci.yml` runs on every pull request and on `main`. It checks that `package-lock.json` matches `package.json` and, on a pull request, that no migration already on `main` was changed, renamed or deleted. It then starts local Supabase, checks that `src/lib/database.types.ts` matches the migrations, and runs typecheck, lint, tests and build. A separate job installs Chromium and runs the end-to-end acceptance scenario. After changing a migration, run `npm run db:types` and commit the result. Coding conventions that need judgement rather than a check are in [`CODING_STANDARDS.md`](CODING_STANDARDS.md).
+`.github/workflows/ci.yml` and deployment verification use docs, draft and full profiles. Documentation-only PRs avoid runtime stacks; drafts check types/lint without databases or browsers; ready PRs and every main push receive complete verification. Add the `ci:full` label to request full verification while an integration PR stays draft. Stable required gates always report, and obsolete runs cancel only within the same PR/workflow. Release evidence still requires successful full checks of the exact main commit. See [CI profiles, fixture decisions and timing evidence](docs/ci.md).
+
+After changing a migration, run `npm run db:types` and commit the result. Coding conventions that need judgement rather than a check are in [`CODING_STANDARDS.md`](CODING_STANDARDS.md).

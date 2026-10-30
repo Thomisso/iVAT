@@ -2,11 +2,63 @@ name: CI
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, labeled, unlabeled]
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
+# Only PR revisions supersede each other. Main evidence and release preparation
+# must remain available for their exact commit, even after a newer main push.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  check:
+  profile:
+    name: CI profile
+    runs-on: ubuntu-latest
+    outputs:
+      profile: ${{ steps.profile.outputs.profile }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: node --test scripts/tests/ci-policy.test.mjs
+      - id: profile
+        run: node scripts/ci-policy.mjs
+
+      - run: npm ci
+        if: steps.profile.outputs.profile == 'draft'
+      - name: package-lock.json matches package.json
+        if: steps.profile.outputs.profile == 'draft'
+        run: |
+          npm install --package-lock-only --ignore-scripts
+          git diff --exit-code package-lock.json
+      - name: Migrations already on main are unchanged
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          changed=$(git diff --name-only --diff-filter=MDR "$BASE_SHA...HEAD" -- supabase/migrations)
+          if [ -n "$changed" ]; then
+            echo "A migration on main is history; add a new migration instead. Changed:"
+            echo "$changed"
+            exit 1
+          fi
+      - run: npm run typecheck
+        if: steps.profile.outputs.profile == 'draft'
+      - run: npm run lint
+        if: steps.profile.outputs.profile == 'draft'
+
+  full:
+    needs: profile
+    if: needs.profile.outputs.profile == 'full'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -18,6 +70,11 @@ jobs:
           cache: npm
       - run: npm ci
 
+      - name: package-lock.json matches package.json
+        run: |
+          npm install --package-lock-only --ignore-scripts
+          git diff --exit-code package-lock.json
+
       - name: Install Postman CLI for release dependency simulations
         timeout-minutes: 5
         run: |
@@ -27,21 +84,6 @@ jobs:
       - name: Release policy, bundle integrity, transport and host preflight
         timeout-minutes: 5
         run: node --test deploy/tests/release-prepare.test.mjs deploy/tests/release-host.test.mjs deploy/tests/release-connect.test.mjs
-
-      - name: package-lock.json matches package.json
-        run: |
-          npm install --package-lock-only --ignore-scripts
-          git diff --exit-code package-lock.json
-
-      - name: Migrations already on main are unchanged
-        if: github.event_name == 'pull_request'
-        run: |
-          changed=$(git diff --name-only --diff-filter=MDR "origin/${{ github.base_ref }}...HEAD" -- supabase/migrations)
-          if [ -n "$changed" ]; then
-            echo "A migration on main is history; add a new migration instead. Changed:"
-            echo "$changed"
-            exit 1
-          fi
 
       - name: Start local Supabase
         run: npm run db:start -- -x studio,mailpit,logflare,vector,edge-runtime,imgproxy,supavisor
@@ -53,10 +95,15 @@ jobs:
 
       - run: npm run typecheck
       - run: npm run lint
-      - run: npm test
+      - run: npm run test:serial
       - run: npm run build
+      - name: Stop the disposable database
+        if: always()
+        run: npm run db:stop -- --no-backup
 
-  e2e:
+  acceptance:
+    needs: profile
+    if: needs.profile.outputs.profile == 'full'
     runs-on: ubuntu-latest
     # Installing Chromium and starting the complete Supabase/Next.js/Postman
     # acceptance stack consume several minutes before the serial suite begins.
@@ -81,3 +128,36 @@ jobs:
           name: playwright-traces
           path: test-results
           if-no-files-found: ignore
+      - name: Stop the acceptance database
+        if: always()
+        run: npm run db:stop -- --no-backup
+
+  check:
+    if: always()
+    needs: [profile, full]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: node scripts/ci-policy.mjs gate
+        env:
+          PROFILE: ${{ needs.profile.outputs.profile }}
+          QUICK_RESULT: ${{ needs.profile.result }}
+          FULL_RESULT: ${{ needs.full.result }}
+
+  e2e:
+    if: always()
+    needs: [profile, acceptance]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: node scripts/ci-policy.mjs gate
+        env:
+          PROFILE: ${{ needs.profile.outputs.profile }}
+          QUICK_RESULT: ${{ needs.profile.result }}
+          FULL_RESULT: ${{ needs.acceptance.result }}
