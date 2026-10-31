@@ -1,8 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useId, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { changeMembershipRoleAction, inviteMemberAction, removeMembershipAction } from "@/app/actions";
+import { cancelInvitationAction, changeMembershipRoleAction, inviteMemberAction, removeMembershipAction, replaceInvitationAction } from "@/app/actions";
 import type { CompanyAccess, Membership, PendingInvitation } from "@/application/memberships";
 import { Button } from "./button";
 import { FormError } from "./form-error";
@@ -48,18 +48,72 @@ function AccessRow({ access, organizationScope }: { access: ActiveAccess; organi
   );
 }
 
+function InvitationRow({ invitation, acceptUrl }: { invitation: PendingInvitation; acceptUrl: string | null }) {
+  const t = useTranslations("members");
+  const [cancelState, cancelAction, cancelling] = useActionState(cancelInvitationAction, { error: null, values: {} });
+  const [replaceState, replaceAction, replacing] = useActionState(replaceInvitationAction, { error: null, values: {} });
+  const [copied, setCopied] = useState(false);
+  const [manualCopy, setManualCopy] = useState(false);
+  const [confirmingCancellation, setConfirmingCancellation] = useState(false);
+  const cancelTrigger = useRef<HTMLButtonElement>(null);
+  const confirmationId = useId();
+  const linkInput = useRef<HTMLInputElement>(null);
+  const link = acceptUrl && invitation.token ? `${acceptUrl}#${new URLSearchParams({ token: invitation.token })}` : null;
+  const available = invitation.status === "pending" || invitation.status === "expired";
+  return <li className="panel member-invitation-row">
+    <strong>{invitation.email}</strong>
+    <span>{t(invitation.role === "administrator" ? "administrator" : "user")}</span>
+    <span>{t(`invitationStatus.${invitation.status}`)}</span>
+    <span>{t("expires", { date: formatDateTime(invitation.expiresAt) })}</span>
+    {link && <label className="iv-field-label invitation-link-field">
+      {t("invitationLink")}<input ref={linkInput} value={link} readOnly type="url" />
+    </label>}
+    {link && <Button type="button" onClick={async () => {
+      try { await navigator.clipboard.writeText(link); setCopied(true); setManualCopy(false); }
+      catch { linkInput.current?.focus(); linkInput.current?.select(); setManualCopy(true); }
+    }}>{t("copyLink")}</Button>}
+    <span role="status">{link && (copied ? t("linkCopied") : manualCopy ? t("copyManually") : "")}</span>
+    {available && <>
+      {!link && invitation.status === "pending" && <p>{t("legacyLinkIntro")}</p>}
+      <form action={replaceAction}>
+        <input type="hidden" name="invitationId" value={invitation.id} />
+        <Button type="submit" disabled={replacing || cancelling}>{t("replaceLink")}</Button>
+      </form>
+      <Button type="button" variant="danger" disabled={replacing || cancelling}
+        aria-expanded={confirmingCancellation} aria-controls={confirmingCancellation ? confirmationId : undefined}
+        onClick={event => { cancelTrigger.current = event.currentTarget; setConfirmingCancellation(true); }}>
+        {t("cancelInvitation")}
+      </Button>
+      {confirmingCancellation && <fieldset id={confirmationId} className="form">
+        <legend>{t("cancelInvitationTitle")}</legend>
+        <p>{t("cancelInvitationHint")}</p>
+        <form action={cancelAction} className="form-row">
+          <input type="hidden" name="invitationId" value={invitation.id} />
+          <Button type="submit" variant="danger" disabled={replacing || cancelling}>{t("confirmCancellation")}</Button>
+          <Button type="button" disabled={replacing || cancelling} onClick={() => {
+            setConfirmingCancellation(false); cancelTrigger.current?.focus();
+          }}>{t("keepInvitation")}</Button>
+        </form>
+      </fieldset>}
+      <FormError error={replaceState.error ?? cancelState.error} />
+    </>}
+  </li>;
+}
+
 export function MemberManagement({
   organizationId,
   companyId,
   memberships,
   companyAccess,
   pendingInvitations,
+  acceptUrl,
 }: {
   organizationId: string;
   companyId: string | null;
   memberships?: Membership[];
   companyAccess?: CompanyAccess[];
   pendingInvitations: PendingInvitation[];
+  acceptUrl: string | null;
 }) {
   const t = useTranslations("members");
   const [state, action, pending] = useActionState(inviteMemberAction, { error: null, values: {} });
@@ -85,11 +139,15 @@ export function MemberManagement({
             </select>
           </label>
           <FormError error={state.error} />
-          <Button type="submit" variant="primary" disabled={pending}>{t("invite")}</Button>
+          <div className="form-row">
+            <Button type="submit" name="delivery" value="email" variant="primary" disabled={pending}>{t("invite")}</Button>
+            <Button type="submit" name="delivery" value="link" disabled={pending}>{t("generateLink")}</Button>
+          </div>
         </form>
       </section>
       <section>
         <h2>{t("activeTitle")}</h2>
+        <p>{t("activeCount", { count: activeAccess.length })}</p>
         <p>{t("activeIntro")}</p>
         {activeAccess.length === 0 ? <p>{t("none")}</p> : (
           <ul className="member-list">{activeAccess.map((access) => <AccessRow
@@ -102,14 +160,7 @@ export function MemberManagement({
       <section>
         <h2>{t("pendingTitle")}</h2>
         {pendingInvitations.length === 0 ? <p>{t("pendingNone")}</p> : <ul className="member-list">
-          {pendingInvitations.map((invitation) => <li className="panel member-invitation-row" key={invitation.id}>
-            <strong>{invitation.email}</strong>
-            <span>{t(invitation.role === "administrator" ? "administrator" : "user")}</span>
-            <span>{t(`invitationStatus.${invitation.status}`)}</span>
-            <span>{t("expires", {
-              date: formatDateTime(invitation.expiresAt),
-            })}</span>
-          </li>)}
+          {pendingInvitations.map((invitation) => <InvitationRow invitation={invitation} acceptUrl={acceptUrl} key={invitation.id} />)}
         </ul>}
       </section>
     </div>

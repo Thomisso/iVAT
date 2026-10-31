@@ -1,4 +1,5 @@
-import { currentValidationFindings } from "./document-validation";
+import { loadStoredDocumentFindings, prepareDocumentReporting, type DocumentReporting } from "./document-reporting";
+import type { SourceFileStatus } from "./source-files";
 import type { AppClient, Result } from "./client";
 import { isUuid } from "./client";
 import {
@@ -42,10 +43,19 @@ export type ReadinessFinding = {
   findingCode?: string;
 };
 
+export type SourceFileReadiness = {
+  sourceFileId: string;
+  fileName: string;
+  status: SourceFileStatus;
+  splitRequestId: string;
+  exclusionReason: string | null;
+};
+
 export type ReportingPeriodReadiness = {
   companyId: string;
   period: string;
   ready: boolean;
+  sourceFiles: SourceFileReadiness[];
   blockers: ReadinessFinding[];
   warnings: ReadinessFinding[];
   groups: {
@@ -56,6 +66,7 @@ export type ReportingPeriodReadiness = {
     approved: string[];
   };
   source: ReportingPeriodReadinessSource[];
+  documentReporting: Record<string, DocumentReporting>;
   snapshot: {
     reportId: string;
     generatedAt: string;
@@ -96,12 +107,13 @@ export function readinessDocumentCounts(readiness: ReportingPeriodReadiness) {
   };
 }
 
-type LiveDocument = ReportDocument & { findings: ValidationFinding[] };
+type LiveDocument = ReportDocument & { findings: ValidationFinding[]; reporting: DocumentReporting };
 type SavedSourceSnapshot = {
   id: string;
   generatedAt: string;
   documents: ReportDocument[];
   readinessSource: ReportingPeriodReadinessSource[] | null;
+  sourceFilesReadinessSource: SourceFileReadiness[] | null;
 };
 
 function canonical(value: unknown): string {
@@ -124,7 +136,9 @@ function snapshotIsCurrent(
   assigned: ReportDocument[],
   relevant: ReportDocument[],
   source: ReportingPeriodReadinessSource[],
+  sourceFiles: SourceFileReadiness[],
 ) {
+  if (canonical(report.sourceFilesReadinessSource ?? []) !== canonical(sourceFiles)) return false;
   if (report.readinessSource) {
     return canonical(report.readinessSource) === canonical(source);
   }
@@ -158,11 +172,12 @@ async function getSavedSourceSnapshot(
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
-  const result = data.result as { readinessSource?: unknown };
+  const result = data.result as { readinessSource?: unknown; sourceFilesReadinessSource?: unknown };
   return {
     id: data.id,
     generatedAt: data.generated_at,
     documents: data.documents as unknown as ReportDocument[],
+    sourceFilesReadinessSource: Array.isArray(result.sourceFilesReadinessSource) ? result.sourceFilesReadinessSource as SourceFileReadiness[] : null,
     readinessSource: Array.isArray(result.readinessSource)
       ? result.readinessSource as ReportingPeriodReadinessSource[]
       : null,
@@ -221,30 +236,6 @@ export async function listReportingPeriods(
   });
 }
 
-async function findingsByVersion(
-  client: AppClient,
-  documents: ReportDocument[],
-): Promise<Map<string, ValidationFinding[]>> {
-  const ids = [...new Set(documents.flatMap((document) =>
-    document.extractionVersionId ? [document.extractionVersionId] : [],
-  ))];
-  const result = new Map<string, ValidationFinding[]>();
-  for (let offset = 0; offset < ids.length; offset += 100) {
-    const { data, error } = await client
-      .from("extraction_version")
-      .select("id, payload, findings")
-      .in("id", ids.slice(offset, offset + 100));
-    if (error) throw error;
-    for (const version of data) {
-      result.set(version.id, currentValidationFindings(
-        version.payload as unknown as NonNullable<ReportDocument["payload"]>,
-        version.findings as ValidationFinding[],
-      ));
-    }
-  }
-  return result;
-}
-
 async function relevantDocuments(
   client: AppClient,
   companyId: string,
@@ -266,6 +257,7 @@ async function relevantDocuments(
     .filter((document) =>
       !assignedIds.has(document.id) &&
       document.reportingPeriod === null &&
+      document.importDate !== null &&
       reportingPeriodForDate(document.importDate, reportingYears) === period,
     )
     .map((document) => document.id);
@@ -312,11 +304,14 @@ export async function getReportingPeriodReadiness(
   ) {
     return { ok: false, error: "invalid_reporting_period" };
   }
-  const [{ assigned, relevant }, report] = await Promise.all([
+  const [{ assigned, relevant }, report, sourceFilesResponse] = await Promise.all([
     relevantDocuments(client, input.companyId, input.period, reportingYears),
     getSavedSourceSnapshot(client, input.companyId, input.period),
+    client.rpc("source_file_readiness", { target_company_id: input.companyId, target_period: input.period }),
   ]);
-  const byVersion = await findingsByVersion(client, relevant);
+  if (sourceFilesResponse.error) throw sourceFilesResponse.error;
+  const sourceFiles = sourceFilesResponse.data as unknown as SourceFileReadiness[];
+  const byVersion = await loadStoredDocumentFindings(client, relevant);
   const source = readinessSource(relevant);
   const assignedIds = new Set(assigned.map((document) => document.id));
   const documents: LiveDocument[] = relevant.map((document) => {
@@ -324,12 +319,14 @@ export async function getReportingPeriodReadiness(
     const gap = assignedIds.has(document.id)
       ? null
       : reportingPeriodGapFinding(document.payload?.taxPointDate, reportingYears);
+    const reporting = prepareDocumentReporting(document, reportingYears, input.period, [
+      ...(document.extractionVersionId ? byVersion.get(document.extractionVersionId) ?? [] : []),
+      ...(gap ? [gap] : []),
+    ]);
     return {
       ...document,
-      findings: [
-        ...(document.extractionVersionId ? byVersion.get(document.extractionVersionId) ?? [] : []),
-        ...(gap ? [gap] : []),
-      ],
+      reporting,
+      findings: [...reporting.blockingFindings, ...reporting.advisoryFindings],
     };
   });
   const groups: ReportingPeriodReadiness["groups"] = {
@@ -393,16 +390,18 @@ export async function getReportingPeriodReadiness(
     value: {
       companyId: input.companyId,
       period: input.period,
-      ready: blockers.length === 0,
+      ready: blockers.length === 0 && sourceFiles.every((source) => source.status === "rejected"),
+      sourceFiles,
       blockers,
       warnings,
       groups,
       source,
+      documentReporting: Object.fromEntries(documents.map(document => [document.id, document.reporting])),
       snapshot: report
         ? {
             reportId: report.id,
             generatedAt: report.generatedAt,
-            freshness: snapshotIsCurrent(report, assigned, relevant, source) ? "current" : "stale",
+            freshness: snapshotIsCurrent(report, assigned, relevant, source, sourceFiles) ? "current" : "stale",
           }
         : null,
     },

@@ -58,5 +58,6 @@ server {
 server {
     listen 8081;
     location = /magic_link.html { root /var/www/templates; }
+    location = /recovery.html { root /var/www/templates; }
     location / { return 404; }
 }

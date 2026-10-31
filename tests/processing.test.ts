@@ -5,7 +5,7 @@ import { listDocuments, listExtractionVersions, readDocumentRows, reprocessDocum
 import type { ExtractionPayload } from "@/application/extraction-payload";
 import { getSourceFile, retrySplit, uploadSourceFile } from "@/application/source-files";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
-import { signedUpUser } from "./support/clients";
+import { provisionedUser } from "./support/clients";
 import { fixtureFile, heicFixture, workbookFile } from "./support/files";
 import {
   administratorWithCompany,
@@ -318,7 +318,7 @@ describe("platform-owned AI processing", () => {
 
   it("cannot be changed by an Organization, even through direct queries", async () => {
     const a = await administratorWithCompany("Organization A");
-    const b = await signedUpUser("Organization B");
+    const b = await provisionedUser("Organization B");
 
     const direct = await b.client
       .from("company")

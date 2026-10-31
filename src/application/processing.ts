@@ -22,7 +22,7 @@ import {
   type SourceFileFormat,
   type SourceFileStatus,
 } from "./source-files";
-import { workbookRowsToText, workbookToText } from "./workbooks";
+import { assertWorkbookRanges, workbookRowsToText, workbookToText } from "./workbooks";
 import {
   vatRegistryFindings,
   type VatPayerRegistry,
@@ -261,15 +261,16 @@ async function failOnFinalAttempt(attempt: Attempt, markFailed: () => Promise<vo
 
 async function recordPlatformIntervention(
   system: SystemClient,
-  targetKind: "source_file" | "document",
-  targetId: string,
+  target: { kind: "source_file"; id: string; splitRequestId: string } | { kind: "document"; id: string; extractionRequestId: string },
   error: AiProviderError,
   availability: ProviderAvailability | undefined,
   state: "waiting_for_platform" | "terminal" = "waiting_for_platform",
 ) {
   const recorded = await system.rpc("record_ai_processing_issue", {
-    target_kind: targetKind,
-    target_id: targetId,
+    target_split_request_id: target.kind === "source_file" ? target.splitRequestId : undefined,
+    target_kind: target.kind,
+    target_id: target.id,
+    target_extraction_request_id: target.kind === "document" ? target.extractionRequestId : undefined,
     target_classification: error.classification,
     target_state: state,
     target_configuration_id: availability?.configurationId ?? error.configurationId ?? undefined,
@@ -281,23 +282,21 @@ async function recordPlatformIntervention(
 async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId: string, attempt: Attempt) {
   const { data: file, error } = await system
     .from("source_file")
-    .select("id, organization_id, company_id, format, normalized_format, page_count, status")
+    .select("id, organization_id, company_id, format, normalized_format, page_count, status, split_request_id")
     .eq("id", sourceFileId)
     .single();
   if (error) throw error;
-  if (file.status === "failed") return;
+  if (!["uploaded", "processing", "waiting_for_platform", "split"].includes(file.status)) return;
 
   if (file.status !== "split") {
     // Moves the status only from the given ones, so a job that read a stale status cannot undo another's result.
     const moveStatus = async (to: SourceFileStatus, from: SourceFileStatus[]) => {
-      const { data, error } = await system
-        .from("source_file")
-        .update({ status: to })
-        .eq("id", file.id)
-        .in("status", from)
-        .select("id");
+      const { data, error } = await system.rpc("move_source_processing_status", {
+        target_source_file_id: file.id, target_split_request_id: file.split_request_id,
+        target_status: to, expected_statuses: from,
+      });
       if (error) throw error;
-      return data.length > 0;
+      return data;
     };
     let availability: ProviderAvailability | undefined;
     try {
@@ -321,7 +320,7 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
         organizationId: file.organization_id,
         configuration: availability.configuration!,
       });
-      assertWorkbookRanges(input, documents);
+      if (input.workbookRowSets) assertWorkbookRanges(input.workbookRowSets, documents);
       const metered = await system.rpc("record_ai_usage", {
         target_organization_id: file.organization_id,
         target_company_id: file.company_id,
@@ -336,18 +335,18 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
         target_job_id: file.id,
       });
       if (metered.error) throw metered.error;
-      const { error } = await system.rpc("record_split", { target_source_file_id: file.id, source_ranges: documents });
+      const { error } = await system.rpc("record_split", { target_source_file_id: file.id, target_split_request_id: file.split_request_id, source_ranges: documents });
       if (error) throw error;
       });
     } catch (error) {
       if (error instanceof AiProviderError && error.platformIntervention) {
-        await recordPlatformIntervention(system, "source_file", file.id, error, availability);
+        await recordPlatformIntervention(system, { kind: "source_file", id: file.id, splitRequestId: file.split_request_id }, error, availability);
         return;
       }
       if (error instanceof AiProviderError && (attempt.final || !error.transient)) {
-        await recordPlatformIntervention(system, "source_file", file.id, error, availability, "terminal");
+        await recordPlatformIntervention(system, { kind: "source_file", id: file.id, splitRequestId: file.split_request_id }, error, availability, "terminal");
       } else if (attempt.final) {
-        await recordPlatformIntervention(system, "source_file", file.id, new AiProviderError(
+        await recordPlatformIntervention(system, { kind: "source_file", id: file.id, splitRequestId: file.split_request_id }, new AiProviderError(
           "processing_failed",
           "Source File processing failed",
           { transient: false, classification: "processing_failed" },
@@ -382,21 +381,24 @@ async function extractDocument(
   if (error) throw error;
   if (
     document.superseded_at !== null
+    || document.source_file_id === null || document.first_page === null || document.last_page === null || document.source_file === null
     || !(["uploaded", "processing", "waiting_for_allowance", "waiting_for_platform"] as DocumentStatus[])
       .includes(document.status)
   ) return;
+  const sourceFileId = document.source_file_id;
+  const firstPage = document.first_page;
+  const lastPage = document.last_page;
 
-  // Moves the status of this Extraction request only from the given ones (see splitSourceFile).
+  // Company-first CAS shares recovery's lock order and request identity.
   const moveStatus = async (to: DocumentStatus, from: DocumentStatus[]) => {
-    const { data, error } = await system
-      .from("document")
-      .update({ status: to })
-      .eq("id", document.id)
-      .eq("extraction_request_id", document.extraction_request_id)
-      .in("status", from)
-      .select("id");
+    const { data, error } = await system.rpc("move_document_processing_status", {
+      target_document_id: document.id,
+      target_extraction_request_id: document.extraction_request_id,
+      target_status: to,
+      expected_statuses: from,
+    });
     if (error) throw error;
-    return data.length > 0;
+    return data;
   };
 
   let availability: ProviderAvailability | undefined;
@@ -430,12 +432,12 @@ async function extractDocument(
       if (!ai) return;
       const processingFile = await downloadForProcessing(system, {
         companyId: document.company_id,
-        id: document.source_file_id,
+        id: sourceFileId,
         format: document.source_file!.format,
         normalizedFormat: document.source_file!.normalized_format,
       });
       const range = document.first_row === null
-        ? { firstPage: document.first_page, lastPage: document.last_page }
+        ? { firstPage, lastPage }
         : { sheetName: document.source_sheet!, firstRow: document.first_row, lastRow: document.last_row! };
       const input = await documentInput(processingFile.format, processingFile.bytes, range);
       const { model, payload: extractedPayload, usage } = await ai.extract(input, {
@@ -501,13 +503,13 @@ async function extractDocument(
     });
   } catch (error) {
     if (error instanceof AiProviderError && error.platformIntervention) {
-      await recordPlatformIntervention(system, "document", document.id, error, availability);
+      await recordPlatformIntervention(system, { kind: "document", id: document.id, extractionRequestId: document.extraction_request_id }, error, availability);
       return;
     }
     if (error instanceof AiProviderError && (attempt.final || !error.transient)) {
-      await recordPlatformIntervention(system, "document", document.id, error, availability, "terminal");
+      await recordPlatformIntervention(system, { kind: "document", id: document.id, extractionRequestId: document.extraction_request_id }, error, availability, "terminal");
     } else if (attempt.final) {
-      await recordPlatformIntervention(system, "document", document.id, new AiProviderError(
+      await recordPlatformIntervention(system, { kind: "document", id: document.id, extractionRequestId: document.extraction_request_id }, new AiProviderError(
         "processing_failed",
         "Document processing failed",
         { transient: false, classification: "processing_failed" },
@@ -530,25 +532,6 @@ function sourceFileInput(format: SourceFileFormat, bytes: Uint8Array, pageCount:
   if (format !== "xlsx" && format !== "xls") return binaryAiInput(format, bytes, pageCount);
   const workbook = workbookToText(bytes);
   return textAiInput(format, workbook.text, workbook.rowSets);
-}
-
-function assertWorkbookRanges(input: AiInput, ranges: (PageRange | RowRange)[]) {
-  if (!input.workbookRowSets) return;
-  const previousLastRow = new Map<string, number>();
-  for (const range of ranges) {
-    if (!("firstRow" in range)) throw new Error("A workbook Split must return row sets");
-    const sheet = input.workbookRowSets.find(({ sheetName }) => sheetName === range.sheetName);
-    if (
-      !sheet ||
-      range.firstRow < sheet.firstRow ||
-      range.lastRow < range.firstRow ||
-      range.lastRow > sheet.lastRow ||
-      range.firstRow <= (previousLastRow.get(range.sheetName) ?? 0)
-    ) {
-      throw new Error("Workbook row sets must be ascending, disjoint, and within their worksheets");
-    }
-    previousLastRow.set(range.sheetName, range.lastRow);
-  }
 }
 
 /** The Document's own pages: a PDF of just its range, or the whole image. */

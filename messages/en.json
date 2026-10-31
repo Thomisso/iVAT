@@ -3,6 +3,11 @@
     "name": "iVAT",
     "tagline": "VAT returns from your documents"
   },
+  "release": {
+    "version": "Version {version}",
+    "revision": "Revision {revision}",
+    "development": "Development version"
+  },
   "language": {
     "label": "Language",
     "cs": "Čeština",
@@ -86,6 +91,48 @@
     "documentsDescription": "Review and manage the Company's Documents.",
     "vatTitle": "VAT",
     "vatDescription": "Work with Reporting Periods and statutory outputs."
+  },
+  "mfaRecovery": {
+    "loginIntro": "Lost your authenticator? Use email recovery with a prepared backup code to set up a replacement.",
+    "startEmailRecovery": "Start email recovery",
+    "lostAuthenticator": "Lost your authenticator?",
+    "codeIntro": "Use one unused backup MFA code saved during setup. Recovery restricts all your sessions until a replacement authenticator and password reset are complete.",
+    "confirmReplacement": "I want to replace my lost authenticator and restrict my other sessions during recovery.",
+    "useBackupCode": "Use backup code",
+    "resume": "Continue recovery on this device",
+    "replacementTitle": "Set up your replacement authenticator",
+    "replacementIntro": "Your lost authenticator will be replaced. Scan the new setup with your authenticator, then verify a code.",
+    "continueSetup": "If you already saved this replacement setup, enter its code. Otherwise restart setup to show a new QR code.",
+    "startSetup": "Set up replacement authenticator",
+    "restartSetup": "Restart replacement setup",
+    "verifyReplacement": "Verify replacement authenticator",
+    "finishTitle": "Finish account recovery",
+    "finishIntro": "Choose a new password. Recovery ends only after your replacement factor, password and session cleanup are confirmed.",
+    "passwordUpdated": "Your password has already changed. Retry finishing recovery to complete session cleanup safely.",
+    "finish": "Finish recovery",
+    "pendingUnauthorized": "Account recovery is in progress. Verify a fresh recovery email, then continue on the original device or use another unused backup code.",
+    "restricted": "Recovery is restricted. Protected account data remains unavailable until recovery finishes.",
+    "preserveCodes": "Your other unused backup codes remain valid. Keep the original saved codes."
+  },
+  "passwordRecovery": {
+    "forgotPassword": "Forgot password?",
+    "requestTitle": "Recover your password",
+    "requestIntro": "Enter your email to request a single-use recovery link valid for one hour.",
+    "request": "Send recovery email",
+    "requestSent": "If an account uses this email, you will receive password recovery instructions. Check your inbox and spam folder.",
+    "backToLogin": "Back to login",
+    "resetTitle": "Reset your password",
+    "verifyIntro": "Verify this recovery email to continue. Opening this page does not use the link.",
+    "verifyEmail": "Verify recovery email",
+    "authenticatorIntro": "Enter a code from your existing authenticator. Email recovery does not remove MFA.",
+    "verifyAuthenticator": "Verify authenticator",
+    "newPassword": "New password",
+    "confirmation": "Confirm new password",
+    "savePassword": "Save new password",
+    "complete": "Your password has been changed. Your current session is active and your other sessions have ended.",
+    "continue": "Continue to iVAT",
+    "requestAgain": "Request a new recovery email",
+    "loading": "Checking recovery link…"
   },
   "auth": {
     "email": "Email",
@@ -242,6 +289,7 @@
     "user": "Regular user",
     "invite": "Invite user",
     "activeTitle": "Active users",
+    "activeCount": "{count, plural, one {# active user} other {# active users}}",
     "activeIntro": "Removing access only affects this scope. It does not delete the user's sign-in account.",
     "none": "No users have active access in this scope.",
     "changeRole": "Change Role",
@@ -256,7 +304,9 @@
     },
     "invitationStatus": {
       "pending": "Pending",
-      "expired": "Expired"
+      "expired": "Expired",
+      "cancelled": "Cancelled",
+      "replaced": "Replaced"
     },
     "acceptTitle": "Accept invitation",
     "acceptIntro": "Accept the invitation to gain access to the Organization or Company as a user.",
@@ -265,12 +315,57 @@
     "logInToAcceptTitle": "Log in to accept",
     "existingUserIntro": "Use your existing credentials. Your password will not be changed.",
     "newPassword": "New password",
-    "accept": "Accept invitation"
+    "accept": "Accept invitation",
+    "generateLink": "Generate link",
+    "invitationLink": "Invitation link",
+    "copyLink": "Copy link",
+    "linkCopied": "Link copied",
+    "copyManually": "Select and copy the link above.",
+    "replaceLink": "Generate replacement link",
+    "cancelInvitation": "Cancel invitation",
+    "cancelInvitationTitle": "Cancel this invitation?",
+    "cancelInvitationHint": "Its shared link will stop working. This cannot be undone.",
+    "confirmCancellation": "Confirm cancellation",
+    "keepInvitation": "Keep invitation",
+    "legacyLinkIntro": "This older link cannot be copied again. Generate a replacement to copy it.",
+    "loadingInvitation": "Loading invitation…",
+    "wrongAccountIntro": "You are signed in with another account. Sign out to accept this invitation with its intended email.",
+    "signOutToAccept": "Sign out and continue",
+    "signedInIntro": "Accept this invitation using your signed-in account.",
+    "emailMessage": {
+      "subject": "Your iVAT invitation",
+      "heading": "You have been invited to iVAT",
+      "introduction": "Open the invitation and explicitly accept access. A new user chooses a password; an existing user keeps their credentials.",
+      "linkLabel": "Open invitation",
+      "expiry": "This invitation is single-use and expires seven days after it was created."
+    }
   },
   "dashboard": {
     "companies": "Companies"
   },
   "sourceFiles": {
+    "manualStart": "Define Documents manually",
+    "manualImage": "Create one Document manually",
+    "manualWorkbookTitle": "Document worksheet ranges",
+    "manualWorkbookHint": "Choose actual worksheets and ascending, non-overlapping row ranges on each sheet. Saving boundaries starts manual review without AI.",
+    "sheetName": "Worksheet",
+    "chooseSheet": "Choose a worksheet",
+    "sheetBounds": "{sheet}, rows {first}–{last}",
+    "firstRow": "First row",
+    "lastRow": "Last row",
+    "manualTitle": "Document page ranges",
+    "manualHint": "Choose ascending, non-overlapping ranges within the {count} source pages. Saving boundaries starts manual review without AI.",
+    "firstPage": "First page",
+    "lastPage": "Last page",
+    "addRange": "Add Document range",
+    "removeRange": "Remove range",
+    "defineDocuments": "Save Document boundaries",
+    "exclude": "Exclude Source File",
+    "reverseExclusion": "Reverse Source exclusion",
+    "excludedNote": "Excluded Source File. Its original is preserved.",
+    "manualDefined": "Initial boundaries defined manually on {date}.",
+    "lockedSource": "This Source File is protected by the locked {period} snapshot.",
+    "readinessTitle": "Source Files before Split",
     "title": "Source files",
     "file": "File",
     "fileHint": "PDF, PNG, JPEG, HEIC, HEIF, XLSX or XLS. The original is kept unchanged.",
@@ -340,6 +435,9 @@
     "clear": "Clear filters"
   },
   "uploadWorkspace": {
+    "manualSources": "{count, plural, one {# Source File needs manual definition.} other {# Source Files need manual definition.}}",
+    "sourceExcludedNoDocuments": "This Source File was consciously excluded; no Document was created.",
+    "sourceManualDefinitionNeeded": "Open this Source File to define its Documents manually.",
     "newBatch": "Add Source Files",
     "newBatchHint": "Transport runs first. Split and Extraction continue in the background and stay visible in this workspace.",
     "history": "Batch history",
@@ -396,6 +494,8 @@
     "sourceFilesHint": "A Source File is the stored original. Each nested row is a separate Document created by Split.",
     "documentPages": "Document · pages {first}–{last}",
     "sourceStatus": {
+      "needs_review": "Manual definition needed",
+      "rejected": "Excluded · resolved",
       "uploaded": "Waiting",
       "waiting_for_platform": "Waiting for platform intervention",
       "processing": "Splitting",
@@ -461,17 +561,43 @@
     "invalid": "Enter a valid date as dd.mm.yyyy."
   },
   "errors": {
+    "email_recovery_required": "Verify a fresh password recovery email before using a backup code or continuing recovery.",
+    "mfa_recovery_failed": "MFA recovery could not finish. Your account remains restricted; try again or resume after verifying a new recovery email.",
+    "mfa_recovery_required": "Complete your authorized MFA recovery before using this action.",
+    "mfa_recovery_busy": "Another recovery step is in progress. Wait a moment and try again.",
+    "mfa_replacement_confirmation_required": "Confirm that you want to replace the lost authenticator.",
+    "source_not_rejected": "Only an excluded Source File can be restored.",
+    "source_already_resolved": "This Source is resolved. Use its existing Documents or reverse its exclusion.",
+    "manual_source_format_unsupported": "Use workbook ranges to define Documents in this Source.",
+    "invalid_workbook_ranges": "Enter ascending, non-overlapping row ranges within the actual worksheet.",
+    "invalid_source_ranges": "Enter ascending, non-overlapping page ranges within the actual Source.",
+    "exclusion_reason_required": "Enter an exclusion reason of 1–500 characters.",
+    "not_recoverable": "This Document cannot be taken over manually.",
+    "not_rejected": "Only an excluded Document can be restored.",
+    "recovery_link_invalid": "This recovery link is invalid, expired or already used. Request a new recovery email.",
+    "recovery_link_expired": "This recovery link expired after one hour. Request a new recovery email.",
+    "recovery_link_used": "This recovery link has already been used. Continue in the browser where you verified it, or request a new email.",
+    "password_recovery_failed": "Password recovery could not be completed. Please try again or request a new email.",
     "invalid_download_artifact": "This XML does not belong to the current report version. Download the current output again.",
     "download_acknowledgement_failed": "The XML download started, but its progress could not be saved. Download it again to confirm completion.",
     "identical_file": "Identical file contents already belong to this batch.",
     "organization_name_required": "Enter the name of your organization.",
     "email_taken": "An account with this email already exists.",
     "weak_password": "The password is too weak. Use at least 8 characters.",
+    "registration_closed": "Public registration is closed. Sign in or use an invitation from your administrator.",
+    "current_password_required": "Enter your current password.",
+    "incorrect_current_password": "Your current password is incorrect.",
+    "password_confirmation_mismatch": "The new passwords do not match.",
+    "same_password": "Choose a password different from your current password.",
+    "password_verification_failed": "Your current password could not be verified. Try again.",
+    "password_change_failed": "The password could not be changed. Try again.",
+    "mfa_verification_required": "Verify with your authenticator before changing your password.",
     "sign_up_failed": "Sign-up failed. Please try again.",
     "google_sign_in_failed": "Google sign-in failed. Please try again.",
     "invalid_credentials": "Wrong email or password.",
     "organization_blocked": "This Organization is blocked. Contact platform support.",
     "invalid_upload_limits": "Upload limits must be positive whole numbers; a Source File may be at most 50 MiB.",
+    "mfa_setup_expired": "This authenticator setup has expired. Start setup again; your current authenticator still works.",
     "mfa_enrollment_failed": "Authenticator enrollment failed. Please try again.",
     "invalid_mfa_code": "The verification code is invalid or has already been used.",
     "recovery_codes_failed": "Recovery codes could not be created. Please try again.",
@@ -517,7 +643,7 @@
     "content_does_not_match_format": "The file content does not match its extension. Check that the file is really a PDF, PNG, JPEG, HEIC or HEIF.",
     "unreadable_file": "The file cannot be read. It may be damaged.",
     "not_retryable": "This failed processing job can no longer be retried.",
-    "not_reprocessable": "The document is still being processed.",
+    "not_reprocessable": "This Document cannot be reprocessed in its current state.",
     "not_correctable": "Wait until extraction finishes before correcting the split.",
     "invalid_split_boundary": "The selected split correction is no longer valid. Reload the page and try again.",
     "not_in_review": "Only a document that needs review can be changed, approved or rejected.",
@@ -563,10 +689,27 @@
     "invalid_credential": "Enter a valid provider credential.",
     "credential_required": "Enter a new credential when changing the provider.",
     "invalid_allowance": "The processing allowance must be a non-negative whole number or unlimited.",
+    "tax_point_date_required": "Enter a valid Tax Point Date for every manual save.",
+    "document_incomplete": "Complete the Document number, Tax Point Date, currency, Rate Breakdown and totals before approval.",
+    "counterparty_vat_id_required": "Enter the counterparty VAT ID required for this VAT Regime before approval.",
+    "currency_conversion_required": "Complete the CZK conversion before approval.",
+    "document_validation_failed": "Resolve the Document validation errors before approval.",
+    "vat_regime_required": "Set the document VAT Regime before approving it.",
     "direction_required": "Set the document Direction before approving it.",
     "batch_processing": "The batch is still processing. Wait until it finishes.",
     "invalid_price": "Enter both prices as non-negative numbers, or leave both empty.",
-    "unknown_model": "The AI Configuration does not use this model."
+    "unknown_model": "The AI Configuration does not use this model.",
+    "invitation_cancelled": "This invitation was cancelled. Ask an Administrator for a new invitation.",
+    "invitation_replaced": "This invitation was replaced. Use the new link from the Administrator.",
+    "invitation_busy": "This invitation is being accepted. Wait a moment and try again.",
+    "invitation_identity_changed": "This account already exists. Reload this invitation and use the existing credentials.",
+    "invitation_unavailable": "The invitation could not be loaded. Reload the page and try again.",
+    "not_attachable": "An original can only be attached to a manual Document.",
+    "source_already_attached": "This Document already has an original.",
+    "invalid_source_range": "Select an actual page range within the original.",
+    "ai_configuration_unavailable": "AI is not enabled or has no usable configuration. Your current values and approval are unchanged.",
+    "processing_dispatch_failed": "AI could not be queued. Your values and history are preserved; check the current review status before trying again.",
+    "allowance_exhausted": "No successful AI allowance remains after queued and running work. Your values and approval are unchanged."
   },
   "aiUsage": {
     "platformNav": "Platform AI usage",
@@ -727,12 +870,22 @@
     "retainedHistory": "Retained history",
     "companyIdentity": "{name} · IČO {ico}"
   },
+  "passwordChange": {
+    "title": "Change password",
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "confirmation": "Confirm new password",
+    "submit": "Change password",
+    "sessionHint": "You stay signed in here. Other sessions cannot renew access after the change; already issued access tokens remain valid until they expire.",
+    "success": "Password changed. You are still signed in here."
+  },
   "mfa": {
     "securityTitle": "Security",
     "authenticatorTitle": "Authenticator app",
     "authenticatorEnabled": "Two-factor authentication is enabled.",
     "authenticatorDisabled": "Two-factor authentication is not enabled.",
     "enableAuthenticator": "Enable authenticator",
+    "addAuthenticator": "Add authenticator",
     "disableAuthenticator": "Disable authenticator",
     "enrollTitle": "Set up two-factor authentication",
     "enrollIntro": "Use an authenticator app to protect your account with a second factor.",
@@ -769,6 +922,8 @@
     "administratorOnly": "The SuperAdmin manages this setting."
   },
   "sourceFileStatus": {
+    "rejected": "Excluded · resolved",
+    "needs_review": "Manual definition needed",
     "uploaded": "Waiting",
     "waiting_for_platform": "Waiting for platform intervention",
     "processing": "Splitting",
@@ -786,6 +941,8 @@
     "rejected": "Rejected"
   },
   "documents": {
+    "createManual": "Enter a Document manually",
+    "manualDocument": "Manual Document",
     "title": "Documents",
     "pages": "Pages",
     "rows": "Rows",
@@ -844,6 +1001,13 @@
     "moveFirstToPrevious": "Move page {page} to previous"
   },
   "review": {
+    "takeOverManually": "Complete manually",
+    "reverseExclusion": "Reverse exclusion",
+    "exclusionReason": "Exclusion reason",
+    "createManual": "Enter a Document manually",
+    "manualDocument": "Manual Document",
+    "noSourceFile": "No Source File is attached to this Document.",
+    "manualDraftHint": "Enter a valid Tax Point Date to save. You can complete other fields later; approval requires complete data.",
     "title": "Document review",
     "backToCompany": "← Back to company",
     "backToDocuments": "← Back to Documents",
@@ -862,6 +1026,7 @@
     "rowRange": "sheet {sheet}, rows {first}–{last}",
     "status": "Status",
     "importDate": "Import Date",
+    "approvedWithoutVatRegime": "The Document is approved but has no VAT Regime, so it is excluded from VAT reports. Return it to review and select a regime.",
     "approvedNote": "Approved. The document counts towards VAT reports.",
     "rejectedNote": "Rejected. The document is excluded from VAT reports.",
     "notReviewableNote": "The document is not ready for review yet.",
@@ -909,6 +1074,8 @@
       "missing_bank_account": "No payment account is entered. Check the payment details; you can still approve the Document.",
       "bank_account_not_verified": "The supplier was not found in the VAT payer registry, so its payment account could not be verified. Check it manually.",
       "vat_registry_check_not_performed": "The VAT payer registry was unavailable, so the supplier and payment account check was not performed.",
+      "rate_breakdown_incomplete": "Complete the VAT rate, net amount and VAT amount in this row.",
+      "vat_regime_required": "VAT Regime is undetermined. Select it before approval.",
       "direction_unknown": "Direction could not be detected from the Company identity. Set it before approval.",
       "currency_conversion_not_performed": "The ČNB exchange rate was unavailable, so CZK amounts could not be calculated.",
       "manual_classification_required": "This VAT treatment is outside the supported regimes and requires manual classification.",
@@ -975,7 +1142,16 @@
       "eu_acquisition_of_goods": "EU acquisition of goods",
       "eu_received_service": "Service received from the EU",
       "other": "Other (manual classification required)"
-    }
+    },
+    "attachSourceTitle": "Attach an original",
+    "attachSourceHint": "Add the real original to this same Document. Its values, history and approval stay unchanged. Attaching alone does not run AI.",
+    "attachPagesHint": "Leave both page fields empty to attach all pages. For a PDF, you can select an actual page range. Images use page 1.",
+    "attachRowsHint": "Enter the exact worksheet name and the actual first and last rows belonging to this Document.",
+    "attachSource": "Attach original",
+    "aiReplacementTitle": "Replace values using AI",
+    "aiReplacementWarning": "AI will replace the current values and withdraw any approval. All earlier Versions stay in history. A successful result needs a new human review and uses one successful AI allowance. Failure keeps the last values and history; approval is not restored automatically.",
+    "aiReplacementConfirm": "I understand that AI will replace the current values and withdraw approval.",
+    "aiReplacementStart": "Run AI replacement"
   },
   "duplicateWarning": {
     "document_identity": "Possible duplicate: the counterparty VAT ID, document number and direction match an earlier Document.",
@@ -999,6 +1175,7 @@
     "rejected": "Rejected"
   },
   "vatReports": {
+    "unresolvedItemCount": "{count, plural, one {# unresolved item} other {# unresolved items}}",
     "wizard": {
       "finalPartial": "Partially completed — {count}/2",
       "draftPartial": "Partially completed — {count}/2",
@@ -1037,6 +1214,7 @@
         }
       },
       "reasons": {
+        "source_files_need_review": "Source Files need manual definition or exclusion.",
         "documents_need_review": "Documents in this Reporting Period still need review.",
         "report_missing": "No VAT Report has been generated yet.",
         "report_stale": "Documents changed after the VAT Report was generated. Generate it again.",
@@ -1141,6 +1319,7 @@
     "vatReturn": "VAT Return",
     "controlStatement": "Control Statement",
     "controlStatementHint": "{count, plural, =0 {No populated sections in this snapshot.} one {# populated section in this snapshot.} other {# populated sections in this snapshot.}}",
+    "aggregateEntry": "Aggregated Documents",
     "documentFallback": "Open Document",
     "reverseChargeCode": "Supply code",
     "rateLabel": "Rate",
@@ -1197,6 +1376,8 @@
       "rate": "Rate",
       "taxBaseCzk": "Tax base (CZK)",
       "vatCzk": "VAT (CZK)",
+      "sectionTotals": "Section totals",
+      "noEntries": "No included Documents.",
       "statementTotals": "Statement totals",
       "subject": "Control Statement PDF preview generated by iVAT"
     },
@@ -1335,5 +1516,100 @@
     "actor": "Actor",
     "identityLine": "{name} · IČO {ico} · {vatId}",
     "notAvailable": "Not available"
+  },
+  "documentReporting": {
+    "liveTitle": "Live VAT calculation",
+    "period": "Reporting Period: {period}",
+    "unassigned": "unassigned",
+    "included": "Included in live calculation",
+    "excluded": "Excluded from live calculation",
+    "derived": "Derived mapping",
+    "proposed": "Proposed mapping — not counted",
+    "unknown": "not derivable",
+    "returnLines": "VAT Return lines: {lines}",
+    "section": "Control Statement section: {section}",
+    "blocking": "Blocking findings: {count}",
+    "advisories": "Advisory findings: {count}",
+    "liveNote": "Current version and current rules. Saved reports retain their own snapshot.",
+    "reasons": {
+      "not_approved": "Human approval is required.",
+      "manual_classification_required": "The data has no supported reporting classification.",
+      "currency_conversion_required": "A valid CZK conversion is required.",
+      "incomplete_data": "Required reporting data is incomplete.",
+      "no_reporting_period": "No Reporting Period can be assigned.",
+      "different_reporting_period": "The Document belongs to another Reporting Period.",
+      "rejected": "The Document was deliberately excluded."
+    },
+    "details": {
+      "counterparty_vat_id_required": "A valid counterparty VAT ID is required for reporting."
+    },
+    "unknownReasons": {
+      "missing_payload": "Document data is not available.",
+      "missing_regime": "Choose a VAT Regime.",
+      "missing_direction": "Choose the Direction.",
+      "unsupported_regime": "This VAT Regime and Direction have no supported mapping.",
+      "missing_rate": "A VAT rate is required.",
+      "unsupported_rate": "The VAT rate has no supported mapping.",
+      "missing_gross_amount": "The Document's gross amount in CZK is required to determine the section.",
+      "missing_currency": "The currency is required to determine the CZK threshold.",
+      "currency_conversion_required": "A valid CZK conversion is required to determine the threshold."
+    },
+    "liveSummary": "Live calculation: {included} included, {excluded} excluded."
+  },
+  "reportingWorkbook": {
+    "columns": {
+      "documentId": "Document ID",
+      "documentNumber": "Document number",
+      "direction": "Direction",
+      "taxPointDate": "Tax Point Date",
+      "counterparty": "Counterparty",
+      "vatRegime": "VAT Regime",
+      "vatReturnLine": "VAT Return line",
+      "controlStatementSection": "Control Statement section",
+      "vatRate": "VAT rate (%)",
+      "netAmount": "Net amount",
+      "vatAmount": "VAT amount",
+      "grossAmount": "Gross amount",
+      "currency": "Currency",
+      "status": "Status",
+      "findings": "Findings",
+      "liveInclusion": "Live inclusion",
+      "exclusionReason": "Exclusion reason",
+      "exclusionDetail": "Exclusion detail",
+      "mappingStatus": "Mapping status",
+      "vatReturnUnavailable": "VAT Return mapping unavailable",
+      "controlStatementUnavailable": "Control Statement mapping unavailable",
+      "blockingFindings": "Blocking findings",
+      "advisoryFindings": "Advisory findings"
+    },
+    "sheets": {
+      "included": "Included",
+      "attention": "Attention"
+    },
+    "fileNamePrefix": "VAT-overview",
+    "inclusion": {
+      "included": "included",
+      "excluded": "excluded"
+    },
+    "mapping": {
+      "included": "included",
+      "proposed": "proposed",
+      "unavailable": "unavailable"
+    }
+  },
+  "authEmails": {
+    "magicLink": {
+      "subject": "Your iVAT sign-in link",
+      "title": "Your iVAT sign-in link",
+      "intro": "Follow this single-use link to sign in to iVAT. The link expires after one hour.",
+      "action": "Sign in to iVAT"
+    },
+    "recovery": {
+      "subject": "Reset your iVAT password",
+      "title": "Reset your iVAT password",
+      "intro": "Open this single-use link, then explicitly verify your email to choose a new password. The link expires after one hour. MFA protection remains required: use your authenticator or restore it with a prepared backup code.",
+      "action": "Open password recovery",
+      "ignore": "If you did not request this, you can ignore this email."
+    }
   }
 }

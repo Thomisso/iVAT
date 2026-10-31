@@ -6,16 +6,18 @@ import {
   listExtractionVersions,
   mergeDocuments,
   moveDocumentPage,
+  reprocessDocument,
   splitDocument,
 } from "@/application/documents";
 import { uploadSourceFile } from "@/application/source-files";
 import { fakeAiProvider } from "@/ai/fake";
-import { signedUpUser } from "./support/clients";
+import { provisionedUser } from "./support/clients";
 import {
   administratorWithCompany,
   assignAiConfigurationFixture as enableAiProcessing,
 } from "./support/fixtures";
 import { testWorker } from "./support/worker";
+import { workbookFile } from "./support/files";
 
 async function fourPagePdf() {
   const pdf = await PDFDocument.create();
@@ -84,6 +86,39 @@ async function processedFourPageFile(split?: () => { firstPage: number; lastPage
 }
 
 describe("Split correction", () => {
+  it("refuses page correction of Excel row sets while preserving their ordinary Extraction workflow", async () => {
+    const context = await administratorWithCompany();
+    const worker = testWorker(fakeAiProvider({ split: () => [
+      { sheetName: "Invoices", firstRow: 2, lastRow: 2 },
+      { sheetName: "Invoices", firstRow: 3, lastRow: 3 },
+    ] }));
+    const enabled = await enableAiProcessing(context.client, worker.jobs, { companyId: context.companyId, provider: worker.ai });
+    if (!enabled.ok) throw new Error(enabled.error);
+    const uploaded = await uploadSourceFile(context.client, worker.jobs, {
+      companyId: context.companyId, fileName: "invoices.xlsx",
+      bytes: workbookFile("xlsx", [["Number"], ["EXCEL-1"], ["EXCEL-2"]]),
+    });
+    if (!uploaded.ok) throw new Error(uploaded.error);
+    expect(await worker.runJobs()).toEqual([]);
+    const before = await listDocuments(context.client, context.companyId, uploaded.value.id);
+    const histories = await Promise.all(before.map((document) => listExtractionVersions(context.client, context.companyId, document.id)));
+    expect(await mergeDocuments(context.client, worker.jobs, {
+      companyId: context.companyId, leftDocumentId: before[0].id, rightDocumentId: before[1].id,
+    })).toEqual({ ok: false, error: "not_correctable" });
+    const direct = await context.client.rpc("merge_documents", { left_document_id: before[0].id, right_document_id: before[1].id });
+    expect(direct.error).toMatchObject({ code: "P0001", hint: "not_correctable" });
+    expect(await listDocuments(context.client, context.companyId, uploaded.value.id)).toEqual(before);
+    expect(await Promise.all(before.map((document) => listExtractionVersions(context.client, context.companyId, document.id)))).toEqual(histories);
+    expect(worker.queued).toEqual([]);
+    expect(await reprocessDocument(context.client, worker.jobs, { companyId: context.companyId, documentId: before[0].id }))
+      .toEqual({ ok: true, value: null });
+    expect(await worker.runJobs()).toEqual([]);
+    expect((await listDocuments(context.client, context.companyId, uploaded.value.id))[0]).toMatchObject({
+      status: "needs_review", hasDocumentImage: false, rowSet: { sheetName: "Invoices", firstRow: 2, lastRow: 2 },
+    });
+    expect(await listExtractionVersions(context.client, context.companyId, before[0].id)).toHaveLength(2);
+  });
+
   it("merges adjacent Documents, re-extracts the result only, and keeps every earlier Extraction Version", async () => {
     const context = await processedFourPageFile();
     const before = await listDocuments(context.client, context.companyId, context.sourceFileId);
@@ -220,7 +255,7 @@ describe("Split correction", () => {
   it("refuses a non-adjacent correction and a User from another Organization", async () => {
     const context = await processedFourPageFile();
     const documents = await listDocuments(context.client, context.companyId, context.sourceFileId);
-    const outsider = await signedUpUser("Other Organization");
+    const outsider = await provisionedUser("Other Organization");
 
     expect(
       await mergeDocuments(context.client, context.worker.jobs, {

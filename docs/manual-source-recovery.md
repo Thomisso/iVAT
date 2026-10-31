@@ -1,0 +1,37 @@
+# Manual recovery before Documents exist
+
+A Source File with no Documents can enter manual review, be defined as real Document boundaries, or be excluded with a short reason. PDF boundaries are positive, ascending, disjoint inclusive page ranges within the immutable upload's validated page count. An image defines one Document spanning its one page. Definition preserves the original bytes and creates `needs_review` Documents without Extraction Versions or AI jobs. Their first structured save uses the ordinary User Version command and requires a valid Tax Point Date.
+
+Once Documents exist, corrections, exclusion and reprocessing act on those concrete Documents. Repeating an already accepted manual definition returns the active Document identities without resetting their data, status or history. The accepted boundary definition and actual User/time remain with the Source and in its Audit Trail. The review viewer uses an existing normalized image preview when needed; original reads and archives preserve the uploaded bytes.
+
+## Requests and authorization
+
+User commands take an `AppClient`; the database enforces Company access and transitions. Worker-only Split recording, status changes and technical issue recording require the current `split_request_id`. Takeover, manual definition, exclusion, reversal and explicit retry invalidate earlier requests. Platform remediation receipts also carry that identity, including compensation after a lost queue acknowledgement. A stale success or failure cannot create Documents, change a human state or park a newer retry.
+
+Source transitions and Source-to-Document writers lock Company before Source and then any existing Documents. Multiple-Company remediation takes Company locks in sorted order. This matches the Document transition and revision-trigger ordering established by ticket176; no generic deadlock retry is used.
+
+Reversal enters `needs_review`, so old queued jobs cannot automatically restart AI. An explicit retry is a separate action. Manual processing and exclusion do not consume AI Processing Allowance. Only ordinary successful AI Extraction Versions consume it.
+
+## Readiness and locks
+
+Sources without Documents have separate readiness identities, names, statuses and reasons. They never increase Document counts or create a fictitious Document. Import Date determines where unfinished Source work is visible; it creates no Tax Point Date or accounting assignment. Deliberate Source exclusion is resolved work. The readiness RPC aggregates the whole set independently of PostgREST's row limit.
+
+New report snapshots save `result.sourceFilesReadinessSource`. Saving and finalization compare it under the Company lock, alongside the existing Document and Company snapshots. Unresolved Sources block finalization. Resolving a Source after generation makes that earlier draft stale.
+
+A Source mutation is refused when that exact Source belongs to a locked report's Source readiness snapshot. This protects exclusion reversal, retry, manual definition and original deletion. A Company having another locked period does not make unrelated or newly arrived unassigned Sources immutable. Existing Document Period Locks remain authoritative after definition, including the narrow first User Version preservation rule and refusal of approval or later edits in a locked period.
+
+Legacy snapshots without Source entries are treated as an empty saved Source set. An old unlocked draft that omitted current Source work must be regenerated before finalization. Existing locked snapshots and XML are preserved. Missing historical Source membership creates no invented accounting date or blanket Source lock.
+
+## Further Source associations
+
+Workbook recovery uses the same Source commands, Company/Source ownership locking, request invalidation, snapshot membership guards, batch reopening and reasoned exclusion. Actual unchanged XLS/XLSX bytes supply populated worksheet names, row bounds and row-numbered evidence. The shared `assertWorkbookRanges` validates both AI and manual ranges against those bounds, including ascending, disjoint ranges on each sheet. The database transition additionally enforces exact range shape, integer bounds, per-sheet overlap, ownership and state. It does not parse binary workbooks in PostgreSQL. Legacy workbook uploads need no metadata backfill: manual recovery reads their stored originals.
+
+Row-based Documents retain the existing workbook schema, `rowSet` evidence and `hasDocumentImage = false`. No PDF/image or accounting values are manufactured. Source preview shows actual row text and links to the unchanged original; Document review shows its selected rows with the worksheet header as context. Refused form submissions retain worksheet choices and row bounds. Accepting a definition starts no AI; an explicit later AI retry remains separate.
+
+A manual Document can receive a real original without changing its identity, values, User Versions or approval. Attachment reuses upload content validation, immutable Storage and HEIC normalization; PDF pages and workbook rows are validated against the actual bytes. It records one resolved Source on the existing Document and never requests Split or Extraction. An optional stable Source identity makes retry idempotent. A different original cannot silently replace attached evidence. Both the Document's Period Lock and the Source snapshot lock are checked before storing and again during the atomic association. The native transition also requires the real original Storage object; a metadata-only RPC cannot fabricate evidence. As with ordinary upload, an interrupted association can leave an unreferenced immutable object for a safe retry.
+
+AI replacement is a separate confirmed action. Replacing current human values or withdrawing approval requires usable enabled AI configuration and available successful allowance before changing state. Company-first locking counts existing reservations and queued unreserved work, so concurrent requests cannot both withdraw approval against one available allowance. The worker still owns the normal reservation and successful-Version consumption. Every previous User Version remains unchanged; success adds an AI Version in NeedsReview, while failure keeps the last values without restoring approval. A queue failure invalidates only its own request receipt and returns to manual review; a lost acknowledgement after completion or newer human work never rolls that result back.
+
+## Verification
+
+The application/worker tests exercise real local Auth and RLS, preserved originals and immutable User history, stale Split success and failure, duplicate jobs, fresh retries and remediation compensation. Deterministic database barriers coordinate actual application commands for generation/finalization races; assertions observe public results and saved state. Legacy draft metadata is prepared only in fixtures. The completeness case uses 1,001 actual stored originals and creates no Documents. Browser coverage completes PDF and image recovery without AI configuration, including overlap refusal, valid Tax Point Date, approval, Source exclusion/reversal and a rendered HEIC preview.

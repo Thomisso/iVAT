@@ -13,11 +13,11 @@ import { testWorker } from "./support/worker";
 import { exportCompanyData, softDeleteCompany } from "@/application/company-deletion";
 import { downloadPlatformCompanyHistory, getPlatformCompanyHistory, readPlatformCompanyArtifact, readPlatformCompanySourceFile } from "@/application/platform-company-history";
 import { strFromU8, unzipSync } from "fflate";
-import { signedUpUser } from "./support/clients";
+import { provisionedUser } from "./support/clients";
 import { systemClient } from "./support/worker";
 import { saveCompanyFilingDefaults } from "@/application/company-filing-defaults";
 import { exportVatReport } from "@/application/epo-export";
-import { changeMembershipRole, inviteMember, listCompanyAccess, listMemberships, listPendingInvitations, removeMembership } from "@/application/memberships";
+import { cancelInvitation, changeMembershipRole, getInvitationOnboarding, inviteMember, listCompanyAccess, listMemberships, listPendingInvitations, removeMembership, replaceInvitationLink } from "@/application/memberships";
 
 describe("SuperAdmin support for unavailable tenants", () => {
   it("preserves archived XML downloads after deletion and refuses an artifact belonging to another Company", async () => {
@@ -99,7 +99,7 @@ describe("SuperAdmin support for unavailable tenants", () => {
     expect(JSON.parse(strFromU8(entries["documents.json"]))).toEqual([
       expect.objectContaining({ extractionVersions: [expect.objectContaining({ version: 1 })] }),
     ]);
-    const unverified = await signedUpUser("Unverified support operator");
+    const unverified = await provisionedUser("Unverified support operator");
     const promoted = await systemClient().from("platform_user").insert({ user_id: unverified.userId, role: "super_admin" });
     if (promoted.error) throw promoted.error;
     for (const actor of [target, unverified]) {
@@ -116,7 +116,7 @@ describe("SuperAdmin support for unavailable tenants", () => {
   it("administers a blocked Organization without resuming ordinary processing until explicit unblock", async () => {
     const target = await administratorWithCompany("Blocked support target");
     const member = await companyMember(target);
-    const unverified = await signedUpUser("Unverified blocked support");
+    const unverified = await provisionedUser("Unverified blocked support");
     const promoted = await systemClient().from("platform_user").insert({ user_id: unverified.userId, role: "super_admin" });
     if (promoted.error) throw promoted.error;
     const operator = await promotedSuperAdministrator("Support operator");
@@ -157,8 +157,27 @@ describe("SuperAdmin support for unavailable tenants", () => {
       organizationId: target.organizationId, companyId: target.companyId, role: "user",
       email: "cancelled-blocked-support@example.test", acceptUrl: "http://localhost/invitations/accept",
     })).toEqual({ ok: false, error: "invitation_failed" });
-    expect(await listPendingInvitations(operator.client, { organizationId: target.organizationId, companyId: target.companyId }))
-      .toEqual([expect.objectContaining({ email: "blocked-support-invite@example.test" })]);
+    const scope = { organizationId: target.organizationId, companyId: target.companyId };
+    const invitations = await listPendingInvitations(operator.client, scope);
+    expect(invitations).toEqual([
+      expect.objectContaining({ email: "blocked-support-invite@example.test", status: "pending" }),
+      expect.objectContaining({ email: "cancelled-blocked-support@example.test", status: "cancelled", token: null }),
+    ]);
+    const pending = invitations[0];
+    for (const actor of [target, member, unverified]) {
+      expect(await inviteMember(actor.client, { async sendInvitation() {} }, {
+        ...scope, role: "user", email: "refused-blocked-support@example.test", acceptUrl: "http://localhost/invitations/accept",
+      })).toEqual({ ok: false, error: "forbidden" });
+      expect(await listPendingInvitations(actor.client, scope)).toEqual([]);
+      expect(await replaceInvitationLink(actor.client, { invitationId: pending.id, acceptUrl: "http://localhost/invitations/accept" }))
+        .toEqual({ ok: false, error: "forbidden" });
+      expect(await cancelInvitation(actor.client, pending.id)).toEqual({ ok: false, error: "forbidden" });
+    }
+    const replacement = await replaceInvitationLink(operator.client, { invitationId: pending.id, acceptUrl: "http://localhost/invitations/accept" });
+    expect(replacement.ok).toBe(true);
+    if (!replacement.ok || !pending.token) throw new Error("Support replacement invitation was not created");
+    expect(await getInvitationOnboarding(operator.client, pending.token)).toEqual({ status: "replaced" });
+    expect(await getInvitationOnboarding(operator.client, replacement.value.token)).toMatchObject({ status: "valid" });
     expect(await removeMembership(operator.client, membershipId)).toEqual({ ok: true, value: null });
     expect(await listMemberships(operator.client, { organizationId: target.organizationId, companyId: target.companyId })).toEqual([]);
     expect((await listAuditEvents(operator.client, target.organizationId))

@@ -16,6 +16,11 @@ import {
 } from "@/application/vat-reports";
 import { administratorWithCompany, companyMember } from "./support/fixtures";
 import { testWorker } from "./support/worker";
+import { SAMPLE_EXTRACTION } from "@/ai/fake";
+import { approveDocument, correctDocument, getDocument, listCompanyDocuments, listExtractionVersions, rejectDocument } from "@/application/documents";
+import { defineSourceDocuments, readSourceFile, uploadSourceFile } from "@/application/source-files";
+import { fixtureFile, multiSheetWorkbookFile } from "./support/files";
+import { getVatReport } from "@/application/vat-reports";
 
 const filingDefaults = {
   taxOffice: "451",
@@ -30,7 +35,7 @@ const filingDefaults = {
 };
 const exportDetails = { preparedOn: "2026-10-29" };
 
-async function preparedCompany() {
+async function preparedCompany(period = "2026-10") {
   const company = await administratorWithCompany();
   expect(await saveCompanyFilingDefaults(company.client, {
     companyId: company.companyId,
@@ -38,7 +43,7 @@ async function preparedCompany() {
   })).toEqual({ ok: true, value: null });
   expect(await generateVatReport(company.client, {
     companyId: company.companyId,
-    period: "2026-10",
+    period,
   })).toEqual({ ok: true, value: { id: expect.any(String) } });
   return company;
 }
@@ -237,4 +242,50 @@ it("puts VAT Reports, lock history, artifact metadata and exact XML bytes in the
     .toEqual(draft.value.bytes);
   expect(archive[`vat-report-artifacts/${final.value.artifactId}/${final.value.fileName}`])
     .toEqual(final.value.bytes);
+});
+
+it.each(["pdf", "xlsx"] as const)("preserves a new %s Source's first manual DUZP draft outside a frozen report while refusing later locked changes", async format => {
+  const company = await preparedCompany("2026-09");
+  const user = await companyMember(company);
+  const period = { companyId: company.companyId, period: "2026-09" };
+  expect(await finalizeVatReport(company.client, { ...period, confirmed: true })).toEqual({ ok: true, value: null });
+  const final = await exportFinalVatReport(company.client, { ...period, format: "dphdp3", details: exportDetails });
+  if (!final.ok) throw new Error(final.error);
+  const snapshot = await getVatReport(user.client, period.companyId, period.period);
+  expect(snapshot?.documents).toEqual([]);
+  const original = format === "pdf" ? fixtureFile("two-invoices.pdf") : multiSheetWorkbookFile("xlsx");
+  const uploaded = await uploadSourceFile(user.client, { async send() {} }, { companyId: period.companyId, fileName: `late.${format}`, bytes: original });
+  if (!uploaded.ok) throw new Error(uploaded.error);
+  const ranges = format === "pdf" ? [{ firstPage: 1, lastPage: 2 }] : [{ sheetName: "Issued", firstRow: 2, lastRow: 3 }];
+  const defined = await defineSourceDocuments(user.client, { companyId: period.companyId, sourceFileId: uploaded.value.id, ranges });
+  if (!defined.ok) throw new Error(defined.error);
+  expect(defined.value.documentIds).toHaveLength(1);
+  const input = { companyId: period.companyId, documentId: defined.value.documentIds[0] };
+  expect(await listExtractionVersions(user.client, input.companyId, input.documentId)).toEqual([]);
+  const payload = { ...SAMPLE_EXTRACTION, taxPointDate: "2026-09-15" };
+  expect(await correctDocument(user.client, { ...input, basedOnVersion: 0, payload })).toEqual({ ok: true, value: { version: 1 } });
+  const versions = await listExtractionVersions(user.client, input.companyId, input.documentId);
+  expect(versions.map(version => [version.version, version.author.kind, version.payload.taxPointDate])).toEqual([[1, "user", "2026-09-15"]]);
+  expect(versions[0].author).toEqual({ kind: "user", userId: user.userId });
+  expect((await getDocument(user.client, input.companyId, input.documentId))?.status).toBe("needs_review");
+  expect((await listCompanyDocuments(user.client, input.companyId)).find(document => document.id === input.documentId))
+    .toMatchObject({ status: "needs_review", reportingPeriod: "2026-09", claimedReportingPeriod: null });
+  expect(await correctDocument(user.client, { ...input, basedOnVersion: 1, payload })).toEqual({ ok: false, error: "period_locked" });
+  expect(await approveDocument(user.client, { ...input, version: 1 })).toEqual({ ok: false, error: "period_locked" });
+  expect(await rejectDocument(user.client, { ...input, reason: "Not business evidence" })).toEqual({ ok: false, error: "period_locked" });
+  expect(await getVatReport(user.client, period.companyId, period.period)).toEqual(snapshot);
+  expect((await readVatReportArtifact(user.client, { companyId: period.companyId, artifactId: final.value.artifactId }))?.bytes).toEqual(final.value.bytes);
+  const exported = await exportCompanyData(company.client, { async send() {} }, { companyId: period.companyId });
+  if (!exported.ok) throw new Error(exported.error);
+  const archive = unzipSync(exported.value.bytes);
+  expect(archive[`vat-report-artifacts/${final.value.artifactId}/${final.value.fileName}`]).toEqual(final.value.bytes);
+  expect(archive[`source-files/${uploaded.value.id}/late.${format}`]).toEqual(original);
+  const archivedReport = JSON.parse(strFromU8(archive["vat-reports.json"]))
+    .find((report: { period: string }) => report.period === "2026-09");
+  expect(archivedReport).toMatchObject({ period: "2026-09", documents: [], result: snapshot!.result });
+  expect(await listExtractionVersions(user.client, input.companyId, input.documentId)).toEqual(versions);
+  expect(await unlockReportingPeriod(user.client, { ...period, confirmed: true, reason: "Review late evidence" })).toEqual({ ok: false, error: "forbidden" });
+  expect(await unlockReportingPeriod(company.client, { ...period, confirmed: true, reason: "Review late evidence" })).toEqual({ ok: true, value: null });
+  expect(await approveDocument(user.client, { ...input, version: 1 })).toEqual({ ok: true, value: null });
+  expect((await readSourceFile(user.client, input.companyId, uploaded.value.id))?.bytes).toEqual(original);
 });

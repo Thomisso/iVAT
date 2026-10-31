@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "brand:assets": "tsx scripts/generate-brand-assets.ts",
     "db:start": "node scripts/supabase.mjs start",
     "db:stop": "node scripts/supabase.mjs stop",
     "db:migrate": "node scripts/supabase.mjs migration up",
@@ -27,7 +28,8 @@
     "test:contract:cnb": "CNB_CONTRACT_TEST=1 vitest run tests/contract/cnb-rates.test.ts",
     "test:contract:anthropic": "ANTHROPIC_CONTRACT_TEST=1 vitest run tests/contract/anthropic.test.ts",
     "test:contract:openai": "OPENAI_CONTRACT_TEST=1 vitest run tests/contract/openai.test.ts",
-    "evaluate:extraction": "tsx scripts/evaluate-extraction.ts"
+    "evaluate:extraction": "tsx scripts/evaluate-extraction.ts",
+    "auth:templates": "node scripts/generate-auth-templates.mjs"
   },
   "dependencies": {
     "@pdf-lib/fontkit": "^1.1.1",
@@ -38,6 +40,7 @@
     "libxml2-wasm": "^0.7.2",
     "next": "16.4.3",
     "next-intl": "^4.14.9",
+    "nodemailer": "^10.3.1",
     "pdf-lib": "^1.17.1",
     "pg": "^8.23.1",
     "pg-boss": "^12.38.0",
@@ -51,6 +54,7 @@
     "@playwright/test": "^1.64.1",
     "@types/heic-convert": "^2.1.1",
     "@types/node": "^22.20.5",
+    "@types/nodemailer": "^8.0.2",
     "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
@@ -58,6 +62,7 @@
     "eslint-config-next": "16.4.3",
     "happy-dom": "^21.0.4",
     "pdfjs-dist": "^6.4.299",
+    "sharp": "0.35.5",
     "supabase": "^2.122.0",
     "typescript": "^5",
     "vitest": "^5.0.5"

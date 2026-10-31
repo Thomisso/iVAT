@@ -1,4 +1,5 @@
 import type { ExtractionPayload } from "./extraction-payload";
+import { missingRequiredReportingVatId } from "./vat-rules";
 
 export type ValidationFindingSeverity = "error" | "warning";
 
@@ -153,9 +154,8 @@ function requiredFieldFindings(payload: ExtractionPayload): ValidationFinding[] 
         ? "customer"
         : null;
   if (
-    requiresCounterpartyVatId &&
     counterpartyName &&
-    !payload[counterpartyName].vatId
+    ((requiresCounterpartyVatId && !payload[counterpartyName].vatId) || missingRequiredReportingVatId(payload))
   ) {
     findings.push(
       error(
@@ -193,6 +193,9 @@ export function validateDocument(
   if (payload.direction === null) {
     findings.push(error("direction", "direction_unknown"));
   }
+  if (!payload.proposedVatRegime) {
+    findings.push(error("proposedVatRegime", "vat_regime_required"));
+  }
   if (
     payload.proposedVatRegime === "other" ||
     ((payload.proposedVatRegime === "eu_acquisition_of_goods" ||
@@ -210,7 +213,7 @@ export function validateDocument(
     : undefined;
   if (validRates) {
     payload.rateBreakdown.forEach((line, index) => {
-      if (!validRates.includes(line.rate)) {
+      if (line.rate !== null && !validRates.includes(line.rate)) {
         findings.push(
           error(
             `rateBreakdown.${index}.rate`,
@@ -227,8 +230,9 @@ export function validateDocument(
   payload.rateBreakdown.forEach((line, index) => {
     const netCents = amountCents(line.netAmount);
     const vatCents = amountCents(line.vatAmount);
-    if (netCents === null || vatCents === null) {
+    if (netCents === null || vatCents === null || line.rate === null) {
       everyRateAmountValid = false;
+      findings.push(error(`rateBreakdown.${index}.${line.rate === null ? "rate" : netCents === null ? "netAmount" : "vatAmount"}`, "rate_breakdown_incomplete"));
       return;
     }
     rateNetCents += netCents;
@@ -292,6 +296,7 @@ export function currentValidationFindings(
   payload: ExtractionPayload,
   findings: readonly ValidationFinding[],
 ): ValidationFinding[] {
+  const requiredFields = requiredFieldFindings(payload);
   const historicalGrossError = findings.some((finding) =>
     finding.code === "total_gross_amount_mismatch" && finding.severity === "error");
   const grossWarning = historicalGrossError
@@ -299,6 +304,11 @@ export function currentValidationFindings(
       .find((finding) => finding.code === "total_gross_amount_mismatch")
     : undefined;
   const current = findings.map<ValidationFinding>((finding) => historicalGrossError && finding.code === "total_gross_amount_mismatch"
-    ? grossWarning ?? { ...finding, severity: "warning" } : finding);
-  return [...current, ...paymentFindings(payload).filter((finding) => !current.some((entry) => entry.code === finding.code))];
+    ? grossWarning ?? { ...finding, severity: "warning" } : finding)
+    .map(finding => requiredFields.find(required => required.code === finding.code && required.field === finding.field) ?? finding);
+  const requiredRegime = !payload.proposedVatRegime
+    ? [error("proposedVatRegime", "vat_regime_required")]
+    : [];
+  return [...current, ...[...paymentFindings(payload), ...requiredFields, ...requiredRegime]
+    .filter((finding) => !current.some((entry) => entry.code === finding.code))];
 }

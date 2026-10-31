@@ -1,3 +1,4 @@
+import { withPostgrestRowLimit } from "./support/postgrest";
 import { createHmac } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { inject, describe, expect, it } from "vitest";
@@ -28,7 +29,7 @@ import {
   administratorWithCompany,
   assignAiConfigurationFixture as enableAiProcessing,
 } from "./support/fixtures";
-import { anonymousClient, signedUpUser } from "./support/clients";
+import { anonymousClient, provisionedUser } from "./support/clients";
 import { fixtureFile, selectUploadFiles } from "./support/files";
 import { systemClient, testWorker } from "./support/worker";
 
@@ -52,7 +53,7 @@ function aal2Client(userId: string) {
 }
 
 async function superAdministrator() {
-  const user = await signedUpUser("Platform Administration");
+  const user = await provisionedUser("Platform Administration");
   const { error } = await systemClient().from("platform_user").insert({
     user_id: user.userId,
     role: "super_admin",
@@ -63,7 +64,7 @@ async function superAdministrator() {
 
 describe("SuperAdmin organization console", () => {
   it("isolates the live operational dashboard to SuperAdmin", async () => {
-    const ordinary = await signedUpUser("Ordinary operational viewer");
+    const ordinary = await provisionedUser("Ordinary operational viewer");
     const superAdmin = await superAdministrator();
 
     expect(await listPlatformOperationalProblems(ordinary.client)).toEqual({
@@ -78,7 +79,7 @@ describe("SuperAdmin organization console", () => {
 
   it("lists every Organization and Company only for a SuperAdmin", async () => {
     const target = await administratorWithCompany("Accounting Office");
-    const ordinary = await signedUpUser("Ordinary Organization");
+    const ordinary = await provisionedUser("Ordinary Organization");
     const superAdmin = await superAdministrator();
 
     expect(await listPlatformOrganizationCompanies(ordinary.client)).toEqual({
@@ -99,18 +100,27 @@ describe("SuperAdmin organization console", () => {
   it("lists Organizations beyond the PostgREST row limit", async () => {
     const superAdmin = await superAdministrator();
     const inserted = await systemClient().from("organization").insert(
-      Array.from({ length: 1001 }, (_, index) => ({
+      Array.from({ length: 21 }, (_, index) => ({
         name: `Platform inventory ${index.toString().padStart(4, "0")}`,
       })),
     ).select("id");
     if (inserted.error) throw inserted.error;
 
-    const result = await listPlatformOrganizationCompanies(superAdmin.client);
-
-    expect(result).toEqual({ ok: true, value: expect.any(Array) });
-    if (!result.ok) throw new Error(result.error);
     const insertedIds = new Set(inserted.data.map((organization) => organization.id));
-    expect(result.value.filter((organization) => insertedIds.has(organization.id))).toHaveLength(1001);
+    try {
+      await withPostgrestRowLimit(20,
+        () => systemClient().from("organization").select("id").in("id", [...insertedIds]),
+        async () => {
+          const result = await listPlatformOrganizationCompanies(superAdmin.client);
+          expect(result).toEqual({ ok: true, value: expect.any(Array) });
+          if (!result.ok) throw new Error(result.error);
+          expect(result.value.filter((organization) => insertedIds.has(organization.id))).toHaveLength(21);
+        },
+      );
+    } finally {
+      const deleted = await systemClient().from("organization").delete().in("id", [...insertedIds]);
+      if (deleted.error) throw deleted.error;
+    }
   });
 
   it("blocks login and processing until a SuperAdmin unblocks the Organization, with an audit trail", async () => {
@@ -126,7 +136,7 @@ describe("SuperAdmin organization console", () => {
       bytes: fixtureFile("receipt.png"),
     });
     if (!uploaded.ok) throw new Error(uploaded.error);
-    const ordinary = await signedUpUser("Ordinary Organization");
+    const ordinary = await provisionedUser("Ordinary Organization");
     const superAdmin = await superAdministrator();
 
     expect(await setPlatformOrganizationBlocked(ordinary.client, {
@@ -207,7 +217,7 @@ describe("SuperAdmin organization console", () => {
 
   it("lets only a SuperAdmin edit upload limits and applies them to uploads", async () => {
     const target = await administratorWithCompany("Limited Organization");
-    const ordinary = await signedUpUser("Ordinary Organization");
+    const ordinary = await provisionedUser("Ordinary Organization");
     const superAdmin = await superAdministrator();
     const defaultMaxFileBytes = 20 * 1024 * 1024;
     const editedMaxFileBytes = 22 * 1024 * 1024;
@@ -308,7 +318,7 @@ describe("SuperAdmin organization console", () => {
     ]);
     expect((await listDocuments(target.client, target.companyId, documentFile.value.id))[0].status)
       .toBe("failed");
-    const ordinary = await signedUpUser("Ordinary Organization");
+    const ordinary = await provisionedUser("Ordinary Organization");
     process.loadEnvFile(".env.local");
     const boss = createBoss({ supervise: false });
     await boss.start();

@@ -2,20 +2,47 @@ name: Deployment verification
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, labeled, unlabeled]
   push:
     branches: [main]
 
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  self-hosted:
+  profile:
+    name: Deployment profile
+    runs-on: ubuntu-latest
+    outputs:
+      profile: ${{ steps.profile.outputs.profile }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: node --test scripts/tests/ci-policy.test.mjs
+      - id: profile
+        run: node scripts/ci-policy.mjs
+
+  runtime:
+    needs: profile
+    if: needs.profile.outputs.profile == 'full'
+
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
       COMPOSE_PROJECT_NAME: ivat-deploy-ci
       HTTP_BIND: 127.0.0.1:3180
       AI_PROVIDER: fake
+      # A disposable test identity verifies the actual production build path.
+      IVAT_RELEASE_TAG: v0.0.0
+      IVAT_RELEASE_REVISION: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -39,6 +66,12 @@ jobs:
         run: |
           curl --fail --silent --show-error -H 'Host: app.ivat.cz' --output "$RUNNER_TEMP/ivat-login.html" http://127.0.0.1:3180/login
           grep -Fq 'Přihlášení' "$RUNNER_TEMP/ivat-login.html"
+          grep -Fq 'Verze v0.0.0' "$RUNNER_TEMP/ivat-login.html"
+          grep -Fq "Revize $GITHUB_SHA" "$RUNNER_TEMP/ivat-login.html"
+          node --input-type=module -e 'import{assertPublicApplicationAssets}from"./deploy/tests/public-application.mjs";await assertPublicApplicationAssets("http://127.0.0.1:3180",process.cwd())'
+      - name: Runtime source retains the same immutable generator identity
+        run: |
+          docker compose --env-file .env.rosti -f docker-compose.rosti.yml exec -T -e EXPECTED_REVISION="$GITHUB_SHA" web node_modules/.bin/tsx -e 'import{xmlGeneratorVersion}from"./src/lib/release-identity";if(xmlGeneratorVersion!=="v0.0.0+"+process.env.EXPECTED_REVISION)throw new Error("Generator identity differs from the tested build")'
       - name: EPO schema and XML runtime assets in the production image
         run: |
           docker compose --env-file .env.rosti -f docker-compose.rosti.yml exec -T web node_modules/.bin/tsx -e 'import fs from "node:fs";import{validateEpoXml}from"./src/application/epo-xml";validateEpoXml(fs.readFileSync(0,"utf8"),"dphdp3").then(valid=>{if(!valid)process.exit(1)})' < tests/fixtures/epo/domestic-dphdp3.xml
@@ -48,3 +81,18 @@ jobs:
       - name: Stop the disposable runtime
         if: always()
         run: docker compose --env-file .env.rosti -f docker-compose.rosti.yml -f deploy/tests/compose.yml down
+
+  self-hosted:
+    if: always()
+    needs: [profile, runtime]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: node scripts/ci-policy.mjs gate
+        env:
+          PROFILE: ${{ needs.profile.outputs.profile }}
+          QUICK_RESULT: ${{ needs.profile.result }}
+          FULL_RESULT: ${{ needs.runtime.result }}

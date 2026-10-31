@@ -6,6 +6,13 @@ import { statusBadgeState } from "@/components/status-badge-state";
 import { mfaRedirectPath } from "@/application/mfa-routing";
 import { acceptsFile } from "@/components/drop-zone";
 
+test("permits password recovery while MFA is pending without releasing ordinary pages", () => {
+  const pending = { required: true, enrolled: true, satisfied: false };
+  expect(mfaRedirectPath("/password/reset", pending)).toBeNull();
+  expect(mfaRedirectPath("/password/forgot", pending)).toBeNull();
+  expect(mfaRedirectPath("/companies", pending)).toBe("/mfa/verify");
+});
+
 test("Money shows Czech amounts and a true minus for Credit Notes", () => {
   const positive = renderToStaticMarkup(
     createElement(Money, { amount: 24200 }),
@@ -81,7 +88,7 @@ test("MFA routing forces enrollment or verification before application access", 
       enrolled: true,
       satisfied: true,
     }),
-  ).toBe("/");
+  ).toBeNull();
   expect(
     mfaRedirectPath("/companies/new", {
       required: false,

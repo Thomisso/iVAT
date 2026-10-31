@@ -1,4 +1,4 @@
-import { createHmac } from "node:crypto";
+import { totp } from "./support/totp";
 import { describe, expect, it } from "vitest";
 import {
   beginTotpEnrollment,
@@ -14,43 +14,20 @@ import { logIn, logOut } from "@/application/auth";
 import { listAuditEvents } from "@/application/audit";
 import { listMyCompanies } from "@/application/companies";
 import { listMyOrganizations } from "@/application/organizations";
-import { signedUpUser } from "./support/clients";
+import { provisionedUser } from "./support/clients";
 import { administratorWithCompany, companyMember } from "./support/fixtures";
 import { systemClient } from "./support/worker";
 
-const BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-
-function totp(secret: string, at = Date.now()): string {
-  let bits = "";
-  for (const character of secret.replace(/=+$/u, "").toUpperCase()) {
-    bits += BASE32.indexOf(character).toString(2).padStart(5, "0");
-  }
-  const key = Buffer.from(
-    bits.match(/.{8}/gu)?.map((byte) => Number.parseInt(byte, 2)) ?? [],
-  );
-  const counter = Buffer.alloc(8);
-  counter.writeBigUInt64BE(BigInt(Math.floor(at / 30_000)));
-  const digest = createHmac("sha1", key).update(counter).digest();
-  const offset = digest.at(-1)! & 0x0f;
-  const value =
-    (((digest[offset]! & 0x7f) << 24) |
-      ((digest[offset + 1]! & 0xff) << 16) |
-      ((digest[offset + 2]! & 0xff) << 8) |
-      (digest[offset + 3]! & 0xff)) %
-    1_000_000;
-  return String(value).padStart(6, "0");
-}
-
 describe("MFA", () => {
   it("can restart an unfinished TOTP enrollment", async () => {
-    const user = await signedUpUser();
+    const user = await provisionedUser();
 
     expect((await beginTotpEnrollment(user.client)).ok).toBe(true);
     expect((await beginTotpEnrollment(user.client)).ok).toBe(true);
   });
 
   it("enrols and verifies a TOTP authenticator, returns ten recovery codes, and audits the change", async () => {
-    const user = await signedUpUser();
+    const user = await provisionedUser();
 
     const enrollment = await beginTotpEnrollment(user.client);
     expect(enrollment.ok).toBe(true);
@@ -80,8 +57,8 @@ describe("MFA", () => {
     );
   });
 
-  it("accepts each recovery code only once", async () => {
-    const user = await signedUpUser();
+  it("refuses the old application-only backup shortcut without consuming prepared codes", async () => {
+    const user = await provisionedUser();
     const enrollment = await beginTotpEnrollment(user.client);
     if (!enrollment.ok) throw new Error(enrollment.error);
     const completed = await completeTotpEnrollment(user.client, {
@@ -96,24 +73,13 @@ describe("MFA", () => {
       email: user.email,
       password: "correct-horse-battery",
     });
-    expect(await verifyRecoveryCode(user.client, recoveryCode!)).toEqual({
-      ok: true,
-      value: null,
-    });
-
-    await logOut(user.client);
-    await logIn(user.client, {
-      email: user.email,
-      password: "correct-horse-battery",
-    });
-    expect(await verifyRecoveryCode(user.client, recoveryCode!)).toEqual({
-      ok: false,
-      error: "invalid_mfa_code",
-    });
+    expect(await verifyRecoveryCode(user.client, recoveryCode!)).toEqual({ ok: false, error: "email_recovery_required" });
+    expect((await mfaStatus(user.client)).recoveryCodesRemaining).toBe(10);
+    expect(await listMyOrganizations(user.client)).toEqual([]);
   });
 
   it("verifies TOTP after login and lets the user disenrol with an audit event", async () => {
-    const user = await signedUpUser();
+    const user = await provisionedUser();
     const enrollment = await beginTotpEnrollment(user.client);
     if (!enrollment.ok) throw new Error(enrollment.error);
     const completed = await completeTotpEnrollment(user.client, {

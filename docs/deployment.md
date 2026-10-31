@@ -38,6 +38,55 @@ disabled. Before enabling email, fill in the SMTP settings in `.env.rosti`
 and configure SPF, DKIM and DMARC with the sending provider. Google OAuth
 needs its own provider setup before it is enabled.
 
+
+Invitation delivery uses the web application's SMTP transport with the same
+`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` and `SMTP_ADMIN_EMAIL` as Auth.
+Port 465 uses implicit TLS; other production ports require STARTTLS. Keep the
+mailbox password in the private runtime environment. Auth sends password recovery
+mail; Invitation mail contains a separate seven-day application link and creates
+no Auth account until explicit acceptance. The web server's Auth administration
+key is exposed only through the database-authorized adapter described in
+[ADR-0016](adr/0016-invitations-authorize-narrow-auth-administration.md).
+
+Native email OTPs, including password recovery, expire after 3600 seconds in
+both CLI and production Auth configuration. Invitation capabilities retain their
+separate seven-day lifetime. The proxy serves `recovery.html` only on its private
+template listener; Auth uses the canonical `/password/reset` redirect with a
+fragment carrying both the private request capability and native token hash.
+Opening the link is read-only. Explicit verification establishes the real Auth
+session; enrolled Users must verify their authenticator or complete the restricted
+prepared-code replacement below before changing their password. Reset success
+keeps that session and revokes other refresh
+sessions; already-issued access JWTs retain their normal short lifetime.
+Allow only the configured application origin for recovery redirects. Production
+delivery proof must include the captured recipient email and completed reset,
+alongside the separate Invitation onboarding proof.
+
+GoTrue's configured template and subject are shared across requests. Native
+recovery and MagicLink emails therefore include both Czech and English copy,
+with both language links carrying the same native single-use token. Source text
+lives in `authEmails.recovery` and `authEmails.magicLink` in the next-intl
+catalogs `messages/cs.json` and `messages/en.json`. After editing that text, run
+`npm run auth:templates`; `node scripts/generate-auth-templates.mjs --check`
+verifies the committed CLI/proxy HTML and both subject configurations. The normal
+messages test runs this consistency check in CI. Generation writes files in
+place; the existing local-stack wrapper preserves its live template mounts.
+Localization adds no environment variable and does not replace Auth's mailer,
+token expiry, session verification or MFA authority.
+
+Lost-authenticator recovery uses prepared backup codes and the restricted native
+factor-replacement flow described in [MFA recovery](mfa-recovery.md). It does not
+enable experimental native recovery-code APIs or invalidate existing prepared
+codes. The User restriction has no automatic expiry: interrupted recovery must
+resume with legitimate proof, never by clearing a pending flag operationally.
+
+After upgrading, old hash-only Invitations still work but cannot be reconstructed
+for copying. An Administrator can explicitly generate a replacement, invalidating
+the old link and starting a fresh seven-day window without sending mail. New
+Invitations expose the same valid copied link after reload. Neither local Mailpit
+capture nor successful SMTP configuration establishes production delivery; record
+actual recipient delivery and completed onboarding separately.
+
 Build and validate before deploying. `NEXT_PUBLIC_*` values are build-time
 configuration; changing the public API URL or anonymous key requires a new
 application build. No private key is passed as a Docker build argument.
@@ -173,6 +222,41 @@ GitHub Container Registry. Image tags contain the full commit, workflow run
 and attempt; older tags are not overwritten. The release bundle references
 their immutable SHA-256 digests. Web, Worker, migrations and the backup helper
 share the same application image.
+
+The verified Release tag and full revision are also passed as explicit app-image
+build arguments (`IVAT_RELEASE_TAG`, `IVAT_RELEASE_REVISION`). The build writes
+`src/lib/build-identity.json` before Next.js compiles, then copies that generated
+source into the runtime image. Login, all account menus and newly generated XML
+therefore describe the same installed build. Runtime environment changes, a newer
+GitHub Release and the package version cannot relabel it. OCI labels record the
+same tag and revision; image references remain immutable digests.
+
+The checked-in metadata is `null`: local development and unversioned builds show
+“Vývojová verze” / “Development version”. Both release inputs must be present and
+valid when building a versioned image. A local production-image check can use
+explicit build arguments without publishing an image. Deployment verification
+uses the disposable tag `v0.0.0` and its checked-out revision to exercise this
+build path; that test identity is never a production release.
+
+New EPO XML identifies its software generator as `<tag>+<full-revision>` (or
+`development`). This is separate from the EPO schema/serializer versions, saved
+VAT Report generation and Period Lock identity. Downloading an archived XML reads
+its stored bytes and hash; deploying a later release never regenerates it.
+
+Focused identity checks:
+
+```bash
+node --test scripts/tests/release-identity.test.mjs deploy/tests/release-prepare.test.mjs
+npx vitest run tests/epo-xml.test.ts tests/epo-export.test.ts tests/epo-artifacts.test.ts tests/final-epo-artifacts.test.ts
+PLAYWRIGHT_BASE_URL=http://127.0.0.1:3102 npx playwright test e2e/release-identity.spec.ts
+```
+
+For an explicitly versioned test build, also set `TEST_RELEASE_TAG` and
+`TEST_RELEASE_REVISION` for the browser test's expected identity. Those variables
+only configure test expectations; the application never reads them. The export
+regression loads two independently prepared source installations against one
+isolated database and checks original draft/final bytes and hashes after the
+software change, for both XML formats.
 
 During the separate activation review, configure repository variables
 `ROSTI_PUBLIC_SUPABASE_URL` and `ROSTI_PUBLIC_SUPABASE_KEY` with the existing
@@ -506,10 +590,60 @@ HTTP calls use local Postman stand-ins derived from their published contracts.
 The full host/SSH fixture was verified on Docker Desktop for macOS with Linux
 containers. Its root operator creates private host records, so a native Linux
 nonroot parent needs appropriately privileged test execution for record reads
-and cleanup. This optional full runtime fixture is separate from the 15 focused
+and cleanup. This optional full runtime fixture is separate from the focused
 CI tests, which were verified on Linux as a nonroot user.
 This proves caller behavior in the tested scenarios, not the real provider.
-Existing CI and Deployment verification remain required for the exact `main`
-revision. The integration PR records the exact local checks and final combined
-test results; no production credentials, live SSH, registry pulls, activation
+The #162 fixture now prepares a complete committed source tree, including its
+probe migration and annotated tag, before building the versioned target image.
+It compares the installed source generator and compiled login identity with the
+validated bundle. Its synthetic baseline omits only the probe migration; failure
+injection still uses disposable-only overrides. The fast source-preparation
+check passed during #162. After stopping the ticket stacks, final corrected
+integration verification for #179 ran
+`IVAT_RELEASE_RUNTIME_TEST=1 node --test deploy/tests/release-runtime.test.mjs`
+at `8a8472bcd5733754bbcb6386d0e475cc9f9bf2f0` on Docker Desktop for macOS:
+all three cases passed, with zero skips, in 187.75 seconds. This includes actual
+pinned test SSH, interrupted-observer recovery, selected-image producer failure,
+compiled tag/full revision and installed XML generator, failed-migration recovery
+guards, and anonymous proxy delivery of both brand SVGs and four published icons
+with exact bytes, MIME types and signatures.
+
+The baseline contains the complete current application and omits only the
+synthetic probe migration. The real view and RPC migrations therefore run during
+fresh baseline preparation; the later actual deployment upgrade applies the probe.
+Separate isolated old-definition-to-migration proofs verify the view and RPC
+replacements; the host fixture does not claim their first application during
+its later probe upgrade.
+The earlier host attempt failed baseline bootstrap because a private runner's
+umask made copied SQL files unreadable. Correcting only that private subprocess
+umask restored intended source modes, while logs and secret files retained
+private modes. The failed attempt remains recorded, and repository code and
+health limits were unchanged.
+
+Fresh full application checks passed at the same `8a8472b` revision:
+882 passed, six optional checks skipped, typecheck/lint passed and generated
+database types matched. The eight-file production browser command passed all
+22 relevant cases, including six Upload Workspace cases, with an actual
+3.3-second production build (104.8 seconds browser phase; 141.36 seconds total).
+Both independent retry-correction review axes reported no hard or optional
+findings. The complete 85-case browser pass at `1e8735e` and Next/MCP/React
+40-observation proof at `e36ed62` remain earlier history for unchanged UI/Auth
+code, not fresh complete browser/Next runs at this revision. Managed services
+and the owned database stopped after these checks; no owned listener remained.
+See [the final local verification record](qa-v5-verification.md) for exact
+commands, revisions, counts, retained failures and remaining checks. Replacement
+cloud CI at `1e8735ee4ad9770a3b706445a2ae498b2239f458` passed the previous
+four timeout cases, all 85 browser cases and Deployment verification, but failed
+one concurrent Upload Batch retry case (881 passed, one failed, six optional
+skips; 653.27 seconds). Its browser job passed in 918.2 seconds (build 50.6
+seconds), and [Deployment verification 41169488471](https://github.com/Thomisso/iVAT/actions/runs/41169488471)
+passed. The narrow conflict-arbiter correction subsequently passed the fresh
+integration/full host checks above. At this local evidence capture, the next
+replacement cloud run had not started and remained required. See the
+[PR checks](https://github.com/Thomisso/iVAT/pull/182/checks) for current status.
+Exact-main CI and Deployment verification remain
+required; integration evidence does not replace those release gates. The runtime
+fixture used disposable credentials and pinned test host keys. A separate
+read-only production SSH inventory informed SMTP preparation; it did not prove
+production mail delivery. No production writes, mail sends, Release activation,
 or monitored production Release were performed while preparing this PR.

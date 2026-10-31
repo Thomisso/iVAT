@@ -4,11 +4,14 @@ import { notFound } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
 import {
   approveDocumentAction,
-  rejectDocumentAction,
+  startManualDocumentReviewAction,
+  restoreDocumentAction,
   reprocessDocumentAction,
   returnDocumentToReviewAction,
 } from "@/app/actions";
-import { getCompany, getMyCompanyRole } from "@/application/companies";
+import { getCompany, getMyCompanyRole, listCompanyReportingYears } from "@/application/companies";
+import { prepareDocumentReporting } from "@/application/document-reporting";
+import { DocumentReportingSummary } from "@/components/document-reporting-summary";
 import { missingReportingPeriodFinding } from "@/application/reporting-years";
 import { currentUserId } from "@/application/auth";
 import { documentQueueQuery, getDocumentQueuePosition } from "@/application/document-queue";
@@ -31,10 +34,13 @@ import { StatusBadge } from "@/components/status-badge";
 import { statusBadgeState } from "@/components/status-badge-state";
 import { PageLayout } from "@/components/app-shell";
 import { formatDate, formatDateTime, formatMonthName } from "@/lib/format-date";
+import { emptyDocumentPayload } from "@/application/extraction-payload";
+import { ExclusionForm } from "./exclusion-form";
 import { CorrectionForm } from "./correction-form";
 import { findingMessage } from "./finding-message";
 import { ReportingAssignmentForm } from "./reporting-assignment-form";
 import { companyPageContext, safeCompanyReturnTo, withCompanyReturnTo } from "@/application/return-context";
+import { AttachDocumentSourceForm, DocumentAiReplacementForm } from "./source-attachment-form";
 import { CompanyReturnLink } from "@/components/company-return-link";
 
 // The review workspace: the Document's original pages next to its extracted
@@ -47,7 +53,7 @@ export default async function DocumentReviewPage({
   const search = await searchParams;
   const requestedVersion = typeof search.version === "string" ? search.version : undefined;
   const client = await requireUserClient();
-  const [company, document, versions, userId, duplicateWarnings, missingPeriod, role] = await Promise.all([
+  const [company, document, versions, userId, duplicateWarnings, missingPeriod, role, reportingYears] = await Promise.all([
     getCompany(client, companyId),
     getDocument(client, companyId, documentId),
     listExtractionVersions(client, companyId, documentId),
@@ -55,10 +61,11 @@ export default async function DocumentReviewPage({
     listDuplicateWarnings(client, companyId, documentId),
     missingReportingPeriodFinding(client, companyId, documentId),
     getMyCompanyRole(client, companyId),
+    listCompanyReportingYears(client, companyId),
   ]);
   if (!company || !document) notFound();
-  const file = await getSourceFile(client, companyId, document.sourceFileId);
-  if (!file) notFound();
+  const file = document.sourceFileId ? await getSourceFile(client, companyId, document.sourceFileId) : null;
+  if (document.sourceFileId && !file) notFound();
   const position = await getDocumentQueuePosition(client, companyId, document.id, search);
   const { queue, documents: queuedDocuments, index: queueIndex } = position;
   const queueQuery = documentQueueQuery(queue);
@@ -79,10 +86,18 @@ export default async function DocumentReviewPage({
     : null;
 
   const current = versions.at(-1);
+  const reporting = prepareDocumentReporting({
+    id: document.id, status: document.status, extractionVersionId: current?.id ?? null,
+    payload: current?.payload ?? null, claimedReportingPeriod: document.claimedReportingPeriod,
+  }, reportingYears, undefined, current?.findings ?? []);
   const shown =
     versions.find((v) => String(v.version) === requestedVersion) ?? current;
   const reviewing = document.status === "needs_review" && current !== undefined && !lockedPeriod;
-  const contentUrl = `/companies/${companyId}/documents/${document.id}/content`;
+  const recoverable = !["approved", "rejected", "needs_review"].includes(document.status) && !lockedPeriod;
+  const excludable = !["approved", "rejected"].includes(document.status) && !lockedPeriod;
+  const contentUrl = file?.normalizedDerivative
+    ? `/companies/${companyId}/source-files/${file.id}/preview`
+    : `/companies/${companyId}/documents/${document.id}/content`;
   const sourceLocation = document.rowSet
     ? document.rowSet.firstRow === document.rowSet.lastRow
       ? t("review.row", { sheet: document.rowSet.sheetName, row: document.rowSet.firstRow })
@@ -91,6 +106,7 @@ export default async function DocumentReviewPage({
           first: document.rowSet.firstRow,
           last: document.rowSet.lastRow,
         })
+    : document.firstPage === null || document.lastPage === null ? null
     : document.firstPage === document.lastPage
       ? t("review.page", { page: document.firstPage })
       : t("review.pageRange", { first: document.firstPage, last: document.lastPage });
@@ -113,23 +129,21 @@ export default async function DocumentReviewPage({
               <span className="iv-mono"> {current.payload.documentNumber}</span>
             )}
           </h1>
-          <p className="iv-muted">
+          {file && sourceLocation ? <p className="iv-muted">
             <Link href={withCompanyReturnTo(companyId, `/companies/${companyId}/source-files/${file.id}`, currentContext)}>
               {t("review.sourceFile", { fileName: file.fileName, pages: sourceLocation })}
             </Link>
-          </p>
+          </p> : <p className="iv-muted">{t("review.manualDocument")}</p>}
           <p>
             {t("review.status")}:{" "}
             <StatusBadge status={statusBadgeState(document.status, "document")}>
               {t(`documentStatus.${document.status}`)}
             </StatusBadge>
           </p>
-          <p>
+          {document.importDate && <p>
             {t("review.importDate")}: {formatDate(document.importDate)}
-          </p>
-          {document.status === "approved" && (
-            <Notice>{t("review.approvedNote")}</Notice>
-          )}
+          </p>}
+          <DocumentReportingSummary reporting={reporting} />
           {document.status === "approved" && !lockedPeriod && (
             <CommandButton
               action={returnDocumentToReviewAction}
@@ -139,16 +153,18 @@ export default async function DocumentReviewPage({
             </CommandButton>
           )}
           {document.status === "rejected" && (
-            <Notice>{t("review.rejectedNote")}</Notice>
+            <Notice>{t("review.rejectedNote")}{document.exclusion && <p>{document.exclusion.reason} · {t(document.exclusion.userId === userId ? "review.userAuthorYou" : "review.userAuthor")} · {formatDateTime(document.exclusion.at)}</p>}</Notice>
           )}
           {lockedPeriod && <Notice tone="warning" title={t("review.lockedTitle", { period: lockedPeriod })}>{t("review.lockedNote")}</Notice>}
-          {document.status === "failed" && !lockedPeriod && <CommandButton
+          {document.sourceFileId && document.status === "failed" && current?.author.kind !== "user" && !lockedPeriod && <CommandButton
             variant="ai"
             icon="marker"
             action={reprocessDocumentAction}
             fields={{ companyId, documentId: document.id }}
           >{t("review.retryExtraction")}</CommandButton>}
-          {!current && <Notice>{t("review.notReviewableNote")}</Notice>}
+          {document.sourceFileId && !lockedPeriod && ["failed", "needs_review", "approved"].includes(document.status) && (current?.author.kind === "user" || document.status === "approved") && <DocumentAiReplacementForm companyId={companyId} documentId={document.id} />}
+          {recoverable && <CommandButton action={startManualDocumentReviewAction} fields={{ companyId, documentId: document.id }}>{t("review.takeOverManually")}</CommandButton>}
+          {document.status === "rejected" && !lockedPeriod && <CommandButton action={restoreDocumentAction} fields={{ companyId, documentId: document.id }}>{t("review.reverseExclusion")}</CommandButton>}
           {missingPeriod && (
             <Notice tone="danger">
               {t(`review.findings.${missingPeriod.code}`, {
@@ -174,11 +190,11 @@ export default async function DocumentReviewPage({
           ))}
         </header>
         <section className="review-original">
-          <DocumentViewer label={file.fileName}>
+          {file ? <DocumentViewer label={file.fileName}>
             {document.rowSet ? (
               <div className="workbook-source">
                 <Notice>{t("review.noDocumentImage")}</Notice>
-                <pre>{sourceRows?.text}</pre>
+                <pre tabIndex={0}>{sourceRows?.text}</pre>
               </div>
             ) : file.format === "pdf" ? (
               <iframe src={contentUrl} title={file.fileName} />
@@ -186,7 +202,10 @@ export default async function DocumentReviewPage({
               // eslint-disable-next-line @next/next/no-img-element -- the original is shown as stored, not optimized
               <img src={contentUrl} alt={file.fileName} />
             )}
-          </DocumentViewer>
+          </DocumentViewer> : <>
+            <EmptyState icon="file" title={t("review.noSourceFile")} />
+            {!lockedPeriod && current?.author.kind === "user" && <AttachDocumentSourceForm companyId={companyId} documentId={document.id} />}
+          </>}
         </section>
         <section className="review-data">
           {shown && current && shown !== current && (
@@ -226,6 +245,8 @@ export default async function DocumentReviewPage({
                 shown.author.kind === "ai" && document.status !== "approved"
               }
             />
+          ) : document.status === "needs_review" && !lockedPeriod ? (
+            <CorrectionForm companyId={companyId} documentId={document.id} version={0} payload={emptyDocumentPayload()} findings={[]} editable aiProposed={false} />
           ) : (
             <EmptyState icon="file" title={t("review.noExtraction")} />
           )}
@@ -254,15 +275,10 @@ export default async function DocumentReviewPage({
               >
                 {t("review.approve", { version: current.version })}
               </CommandButton>
-              <CommandButton
-                variant="danger"
-                action={rejectDocumentAction}
-                fields={{ companyId, documentId: document.id, nextDocumentId: position.continuationDocumentId ?? "", queueQuery, returnTo: returnTo ?? "" }}
-              >
-                {t("review.reject")}
-              </CommandButton>
+
             </div>
           )}
+          {excludable && <ExclusionForm fields={{ companyId, documentId: document.id, nextDocumentId: position.continuationDocumentId ?? "", queueQuery, returnTo: returnTo ?? "" }} />}
           {versions.length > 0 && (
             <>
               <h2>{t("review.history")}</h2>

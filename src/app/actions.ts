@@ -1,7 +1,9 @@
 "use server";
 
+import { defineSourceDocuments, startManualSourceReview, excludeSourceFile, restoreSourceFile } from "@/application/source-files";
+
 import { refresh } from "next/cache";
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import {
   finalizeVatReport,
@@ -36,15 +38,18 @@ import {
   generateReportingYears,
   setFirstReportingMonth,
 } from "@/application/reporting-years";
-import { changeMembershipRole, completeInvitationOnboarding, inviteMember, removeMembership } from "@/application/memberships";
-import { supabaseInvitationMailer } from "@/application/supabase-invitation-mailer";
-import { invitationUrls } from "@/application/invitation-urls";
+import { cancelInvitation, changeMembershipRole, completeInvitationOnboarding, generateInvitationLink, getInvitationOnboarding, inviteMember, removeMembership, replaceInvitationLink } from "@/application/memberships";
+import { configuredInvitationUrls, invitationAuthentication, invitationMailer } from "@/lib/invitations";
 import {
   approveDocument,
+  attachDocumentSource,
   correctDocument,
+  createManualDocument,
   mergeDocuments,
   moveDocumentPage,
   rejectDocument,
+  startManualDocumentReview,
+  restoreDocument,
   returnDocumentToReview,
   reprocessDocument,
   splitDocument,
@@ -81,6 +86,7 @@ import { createRequestClient, requireUserClient } from "@/lib/supabase/server";
 import { isLocale, localeCookie } from "@/i18n/locales";
 import { companyContextCookie, serializeCompanyContext } from "@/lib/company-context";
 import { documentDecisionHref } from "@/application/document-queue";
+import { supabasePublishableKey, supabaseUrl } from "@/lib/env";
 import { safeCompanyReturnTo } from "@/application/return-context";
 
 /**
@@ -159,10 +165,11 @@ export async function logInAction(_state: FormState, formData: FormData): Promis
 }
 
 export async function googleSignInAction(): Promise<void> {
-  const origin = (await headers()).get("origin");
-  if (!origin) redirect("/login?error=google_sign_in_failed");
   const result = await startGoogleSignIn(await createRequestClient(), {
-    redirectTo: new URL("/auth/callback", origin).toString(),
+    appOrigin: process.env.APP_ORIGIN,
+    authRedirectAllowlist: process.env.AUTH_REDIRECT_ALLOWLIST,
+    supabaseUrl,
+    publishableKey: supabasePublishableKey,
   });
   if (!result.ok) redirect("/login?error=google_sign_in_failed");
   redirect(result.value.url);
@@ -219,11 +226,14 @@ export async function verifyRecoveryCodeAction(_state: FormState, formData: Form
   redirect("/");
 }
 
-export async function disenrollMfaAction(): Promise<void> {
+export async function disenrollMfaAction(): Promise<FormState> {
   const client = await requireUserClient();
   const status = await mfaStatus(client);
-  if (status.factorId) await disenrollMfa(client, status.factorId);
-  redirect("/settings/security");
+  if (status.factorId) {
+    const result = await disenrollMfa(client, status.factorId);
+    if (!result.ok) return { error: result.error, values: {} };
+  }
+  redirect(mfaRedirectPath("/settings/security", await mfaPolicy(client)) ?? "/settings/security");
 }
 
 export async function setOrganizationMfaRequiredAction(_state: FormState, formData: FormData): Promise<FormState> {
@@ -420,12 +430,30 @@ export async function retrySplitAction(_state: FormState, formData: FormData): P
 }
 
 export async function reprocessDocumentAction(_state: FormState, formData: FormData): Promise<FormState> {
-  return settled(
-    await reprocessDocument(await requireUserClient(), jobQueue, {
-      companyId: field(formData, "companyId"),
-      documentId: field(formData, "documentId"),
-    }),
-  );
+  const result = await reprocessDocument(await requireUserClient(), jobQueue, {
+    companyId: field(formData, "companyId"), documentId: field(formData, "documentId"), confirmed: field(formData, "confirmed") === "on",
+  });
+  if (!result.ok) {
+    // Queue compensation has changed the durable review state even though
+    // dispatch failed. Show that state together with the retained consent.
+    if (result.error === "processing_dispatch_failed") refresh();
+    return refused(result.error, formData, ["confirmed"]);
+  }
+  return settled(result);
+}
+
+export async function attachDocumentSourceAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const file = formData.get("file");
+  const sheetName = field(formData, "sheetName");
+  const firstPage = field(formData, "firstPage"); const lastPage = field(formData, "lastPage");
+  const result = await attachDocumentSource(await requireUserClient(), {
+    companyId: field(formData, "companyId"), documentId: field(formData, "documentId"), sourceFileId: field(formData, "sourceFileId") || undefined,
+    fileName: file instanceof File ? file.name : "", bytes: file instanceof File ? new Uint8Array(await file.arrayBuffer()) : new Uint8Array(),
+    range: field(formData, "rangeKind") === "workbook" ? { sheetName, firstRow: Number(field(formData, "firstRow")), lastRow: Number(field(formData, "lastRow")) }
+      : firstPage || lastPage ? { firstPage: Number(firstPage), lastPage: Number(lastPage) } : undefined,
+  });
+  if (!result.ok) return refused(result.error, formData, ["firstPage", "lastPage", "sheetName", "firstRow", "lastRow"]);
+  return settled(result);
 }
 
 /** Runs when a User opens a batch's detail; refreshes the inbox badge in the shell. */
@@ -559,9 +587,10 @@ function payloadFromForm(formData: FormData): ExtractionPayload {
     customer: partyFromForm(formData, "customer"),
     currency: optionalField(formData, "currency"),
     rateBreakdown: lines.map((i) => ({
-      rate: Number(optionalField(formData, `rateBreakdown.${i}.rate`)?.replace(",", ".") ?? NaN),
-      netAmount: field(formData, `rateBreakdown.${i}.netAmount`),
-      vatAmount: field(formData, `rateBreakdown.${i}.vatAmount`),
+      rate: optionalField(formData, `rateBreakdown.${i}.rate`) === null ? null
+        : Number(field(formData, `rateBreakdown.${i}.rate`).replace(",", ".")),
+      netAmount: optionalField(formData, `rateBreakdown.${i}.netAmount`),
+      vatAmount: optionalField(formData, `rateBreakdown.${i}.vatAmount`),
     })),
     totals: {
       netAmount: optionalField(formData, "totals.netAmount"),
@@ -601,6 +630,18 @@ export async function correctDocumentAction(_state: FormState, formData: FormDat
   return { error: null, values: {} };
 }
 
+export async function createManualDocumentAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const companyId = field(formData, "companyId");
+  const result = await createManualDocument(await requireUserClient(), {
+    companyId, payload: payloadFromForm(formData),
+  }, configuredExchangeRates(), configuredVatPayerRegistry());
+  if (!result.ok) return {
+    error: result.error,
+    values: Object.fromEntries([...formData.entries()].filter(([name, value]) => !name.startsWith("$") && typeof value === "string")) as Record<string, string>,
+  };
+  redirect(`/companies/${companyId}/documents/${result.value.id}`);
+}
+
 export async function approveDocumentAction(_state: FormState, formData: FormData): Promise<FormState> {
   const companyId = field(formData, "companyId");
   const documentId = field(formData, "documentId");
@@ -616,9 +657,21 @@ export async function approveDocumentAction(_state: FormState, formData: FormDat
 export async function rejectDocumentAction(_state: FormState, formData: FormData): Promise<FormState> {
   const companyId = field(formData, "companyId");
   const documentId = field(formData, "documentId");
-  const result = await rejectDocument(await requireUserClient(), { companyId, documentId });
-  if (!result.ok) return settled(result);
+  const result = await rejectDocument(await requireUserClient(), { companyId, documentId, reason: field(formData, "reason") });
+  if (!result.ok) return refused(result.error, formData, ["reason"]);
   redirectAfterDocumentDecision(formData, companyId, documentId);
+}
+
+export async function startManualDocumentReviewAction(_state: FormState, formData: FormData): Promise<FormState> {
+  return settled(await startManualDocumentReview(await requireUserClient(), {
+    companyId: field(formData, "companyId"), documentId: field(formData, "documentId"),
+  }));
+}
+
+export async function restoreDocumentAction(_state: FormState, formData: FormData): Promise<FormState> {
+  return settled(await restoreDocument(await requireUserClient(), {
+    companyId: field(formData, "companyId"), documentId: field(formData, "documentId"),
+  }));
 }
 
 export async function returnDocumentToReviewAction(_state: FormState, formData: FormData): Promise<FormState> {
@@ -713,32 +766,63 @@ export async function unlockReportingPeriodAction(_state: FormState, formData: F
 
 export async function inviteMemberAction(_state: FormState, formData: FormData): Promise<FormState> {
   const client = await requireUserClient();
-  const urls = invitationUrls({
-    appOrigin: process.env.APP_ORIGIN,
-    authRedirectAllowlist: process.env.AUTH_REDIRECT_ALLOWLIST,
-  });
+  const urls = configuredInvitationUrls();
   if (!urls.ok) return refused(urls.error, formData, ["email", "role"]);
-  const result = await inviteMember(client, supabaseInvitationMailer(client, urls.value.callbackUrl), {
-    organizationId: field(formData, "organizationId"),
-    companyId: field(formData, "companyId") || null,
-    email: field(formData, "email"),
-    role: field(formData, "role") as "administrator" | "user",
+  const input = {
+    organizationId: field(formData, "organizationId"), companyId: field(formData, "companyId") || null,
+    email: field(formData, "email"), role: field(formData, "role") as "administrator" | "user",
     acceptUrl: urls.value.acceptUrl,
-  });
-  if (!result.ok) return refused(result.error, formData, ["email", "role"]);
+  };
+  if (field(formData, "delivery") === "link") {
+    const result = await generateInvitationLink(client, input);
+    if (!result.ok) return refused(result.error, formData, ["email", "role"]);
+  } else {
+    let mailer;
+    try { mailer = await invitationMailer(); } catch { return refused("invitation_failed", formData, ["email", "role"]); }
+    const result = await inviteMember(client, mailer, input);
+    if (!result.ok) return refused(result.error, formData, ["email", "role"]);
+  }
   refresh();
   return { error: null, values: {} };
 }
 
+export async function cancelInvitationAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const result = await cancelInvitation(await requireUserClient(), field(formData, "invitationId"));
+  return settled(result);
+}
+
+export async function replaceInvitationAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const urls = configuredInvitationUrls();
+  if (!urls.ok) return { error: urls.error, values: {} };
+  const result = await replaceInvitationLink(await requireUserClient(), {
+    invitationId: field(formData, "invitationId"), acceptUrl: urls.value.acceptUrl,
+  });
+  if (!result.ok) return { error: result.error, values: {} };
+  refresh();
+  return { error: null, values: {} };
+}
+
+export async function loadInvitationAction(formData: FormData) {
+  const client = await createRequestClient();
+  const onboarding = await getInvitationOnboarding(client, field(formData, "token"));
+  const user = await currentUser(client);
+  return {
+    onboarding,
+    authenticated: Boolean(user && onboarding.status === "valid" && user.email.toLowerCase() === onboarding.email),
+    wrongAccount: Boolean(user && onboarding.status === "valid" && user.email.toLowerCase() !== onboarding.email),
+  };
+}
+
+export async function signOutInvitationAction() {
+  await (await createRequestClient()).auth.signOut({ scope: "local" });
+}
+
 export async function acceptInvitationAction(_state: FormState, formData: FormData): Promise<FormState> {
   const result = await completeInvitationOnboarding(await createRequestClient(), {
-    token: field(formData, "token"),
-    password: field(formData, "password"),
-  });
+    token: field(formData, "token"), password: field(formData, "password"),
+  }, invitationAuthentication());
   if (!result.ok) return refused(result.error, formData, []);
-  if (result.value.companyId && await storeCompanyContext(result.value.companyId)) {
-    redirect(`/companies/${result.value.companyId}`);
-  }
+  if (result.value.companyId && await storeCompanyContext(result.value.companyId)) redirect(`/companies/${result.value.companyId}`);
   redirect("/");
 }
 
@@ -899,4 +983,37 @@ export async function retryFailedProcessingJobAction(
     await requireUserClient(),
     field(formData, "jobId"),
   ));
+}
+
+
+export async function startManualSourceReviewAction(_state: FormState, data: FormData): Promise<FormState> {
+  return settled(await startManualSourceReview(await requireUserClient(), { companyId: field(data, "companyId"), sourceFileId: field(data, "sourceFileId") }));
+}
+
+export async function defineSourceDocumentsAction(_state: FormState, data: FormData): Promise<FormState> {
+  const companyId = field(data, "companyId"); const sourceFileId = field(data, "sourceFileId");
+  const lastPages = data.getAll("lastPage");
+  const firstRows = data.getAll("firstRow"); const lastRows = data.getAll("lastRow");
+  const workbook = data.has("sheetName");
+  const entered = workbook
+    ? data.getAll("sheetName").map((sheet, index) => ({ sheetName: String(sheet), firstRow: String(firstRows[index] ?? ""), lastRow: String(lastRows[index] ?? "") }))
+    : data.getAll("firstPage").map((first, index) => ({ firstPage: String(first), lastPage: String(lastPages[index] ?? "") }));
+  const result = await defineSourceDocuments(await requireUserClient(), {
+    companyId, sourceFileId, ranges: entered.map((range) => "sheetName" in range
+      ? { sheetName: range.sheetName, firstRow: Number(range.firstRow), lastRow: Number(range.lastRow) }
+      : { firstPage: Number(range.firstPage), lastPage: Number(range.lastPage) }),
+  });
+  if (!result.ok) return { error: result.error, values: { ranges: JSON.stringify(entered) } };
+  if (field(data, "openDocument") === "1" && result.value.documentIds[0]) redirect(`/companies/${companyId}/documents/${result.value.documentIds[0]}`);
+  refresh(); return { error: null, values: {} };
+}
+
+export async function excludeSourceFileAction(_state: FormState, data: FormData): Promise<FormState> {
+  const result = await excludeSourceFile(await requireUserClient(), { companyId: field(data, "companyId"), sourceFileId: field(data, "sourceFileId"), reason: field(data, "reason") });
+  if (!result.ok) return refused(result.error, data, ["reason"]);
+  return settled(result);
+}
+
+export async function restoreSourceFileAction(_state: FormState, data: FormData): Promise<FormState> {
+  return settled(await restoreSourceFile(await requireUserClient(), { companyId: field(data, "companyId"), sourceFileId: field(data, "sourceFileId") }));
 }

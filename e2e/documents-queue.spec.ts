@@ -1,3 +1,4 @@
+import { provisionAndLogIn } from "./support/accounts";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { assignBrowserAiConfigurationFixture, addBrowserLegacyRateBreakdownVersionFixture, setBrowserDocumentTaxPointFixture } from "../tests/support/e2e";
 
@@ -8,11 +9,7 @@ async function createAiCompany(context: BrowserContext, page: Page, baseURL: str
   await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: new URL(baseURL).origin }]);
   const run = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const digits = Date.now().toString().slice(-8);
-  await page.goto("/signup");
-  await page.getByLabel("Organization name").fill(`Queue Organization ${run}`);
-  await page.getByLabel("Email").fill(`queue-${run}@example.test`);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Sign up" }).click();
+  await provisionAndLogIn(page, { organizationName: `Queue Organization ${run}`, email: `queue-${run}@example.test`, password });
   await page.getByLabel("Company name").fill(`Queue Company ${run}`);
   await page.getByLabel("IČO").fill(digits);
   await page.getByLabel("VAT ID").fill(`CZ${digits}`);
@@ -30,6 +27,41 @@ async function createAiCompany(context: BrowserContext, page: Page, baseURL: str
   await expect(page).toHaveURL(new RegExp(`/companies/${companyId}$`));
   return companyId;
 }
+
+test("an undetermined VAT Regime stays empty after saving and blocks approval until corrected", async ({ baseURL, context, page }) => {
+  const companyId = await createAiCompany(context, page, baseURL);
+  await page.goto(`/companies/${companyId}/upload`);
+  await page.locator('input[type="file"]:not([capture])').setInputFiles("tests/fixtures/receipt.png");
+  await page.getByRole("button", { name: "Upload batch", exact: true }).click();
+  await page.getByRole("link", { name: "Review 1 Document", exact: true }).click({ timeout: 45_000 });
+  await page.getByRole("table", { name: "Documents", exact: true }).getByRole("link").first().click();
+  await expect(page.getByRole("button", { name: "Approve version 1", exact: true })).toBeVisible();
+  const reviewUrl = page.url();
+  const regime = page.getByRole("combobox", { name: "VAT regime", exact: true });
+  await expect(regime.locator("option")).toHaveCount(6);
+  await regime.selectOption("");
+  await page.getByLabel("Direction", { exact: true }).selectOption("incoming");
+  await page.getByLabel("Bank account", { exact: true }).fill("");
+  await page.getByRole("button", { name: "Save corrections", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Approve version 2", exact: true })).toBeVisible();
+  await page.reload();
+  await expect(regime).toHaveValue("");
+  await expect(regime).toHaveAccessibleDescription("VAT Regime is undetermined. Select it before approval.");
+  await page.getByRole("button", { name: "Approve version 2", exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "Set the document VAT Regime before approving it." })).toBeVisible();
+  await page.goto(`/companies/${companyId}/vat-reports?period=2026-10`);
+  await expect(page.getByRole("link", { name: "1 blocker Document", exact: true })).toBeVisible();
+  await page.goto(reviewUrl);
+  await regime.selectOption("domestic");
+  await page.getByRole("button", { name: "Save corrections", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Approve version 3", exact: true })).toBeVisible();
+  await expect(regime).not.toHaveAttribute("aria-invalid", "true");
+  await expect(page.getByText("No payment account is entered. Check the payment details; you can still approve the Document.", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Approve version 3", exact: true }).click();
+  await expect(page).toHaveURL(/\/documents(?:\?.*)?$/);
+  await page.goto(`/companies/${companyId}/vat-reports?period=2026-10`);
+  await expect(page.getByRole("link", { name: /blocker Document/ })).toHaveCount(0);
+});
 
 test("saved views preserve queue context while review decisions advance through the queue", async ({
   baseURL,
@@ -71,6 +103,7 @@ test("saved views preserve queue context while review decisions advance through 
   await expect(approve).toBeVisible();
   await approve.click();
   await expect(page.getByText("Document 1 of 1", { exact: true })).toBeVisible();
+  await page.getByLabel("Exclusion reason", { exact: true }).fill("Not a business Document");
   await page.getByRole("button", { name: "Reject" }).click();
   await expect(page).toHaveURL((url) => url.pathname === `/companies/${companyId}/documents` && url.searchParams.get("view") === "review" && url.searchParams.get("batchId") === batchId && /^#document-[0-9a-f-]+$/.test(url.hash));
   await expect(page.getByText("No documents match the filters.")).toBeVisible();

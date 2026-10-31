@@ -2,7 +2,7 @@ import { createHmac } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { inject } from "vitest";
 import { asUserClient } from "@/application/client";
-import { signedUpUser } from "./clients";
+import { provisionedUser } from "./clients";
 import { systemClient } from "./worker";
 
 /** Authenticated client whose JWT satisfies platform-administration MFA policy. */
@@ -27,7 +27,7 @@ export function aal2Client(userId: string, sessionPrefix = "platform-test") {
 
 /** A signed-up Organization Administrator promoted through the test fixture boundary. */
 export async function promotedSuperAdministrator(organizationName: string, sessionPrefix = "platform-test") {
-  const user = await signedUpUser(organizationName);
+  const user = await provisionedUser(organizationName);
   const promoted = await systemClient().from("platform_user").insert({
     user_id: user.userId,
     role: "super_admin",

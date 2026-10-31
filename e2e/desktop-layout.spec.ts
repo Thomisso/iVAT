@@ -1,3 +1,4 @@
+import { provisionAndLogIn } from "./support/accounts";
 import AxeBuilder from "@axe-core/playwright";
 import { addBrowserUploadNotificationFixture } from "../tests/support/e2e";
 import { expectCheckboxTextBeside } from "../tests/support/browser-layout";
@@ -7,12 +8,8 @@ const password = "Playwright-password-125";
 const desktop = { width: 1440, height: 900 };
 const mobile = { width: 360, height: 800 };
 
-async function signUp(page: Page, organization: string, email: string) {
-  await page.goto("/signup");
-  await page.getByLabel("Organization name").fill(organization);
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Sign up" }).click();
+async function provisionAdministrator(page: Page, organization: string, email: string) {
+  await provisionAndLogIn(page, { organizationName: organization, email, password });
   await expect(page).toHaveURL(/\/companies\/new$/);
 }
 
@@ -53,7 +50,7 @@ test("Settings keep scoped Organization discovery and use the desktop width", as
   await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: new URL(baseURL).origin }]);
   const run = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const organizationName = `Layout Organization ${run}`;
-  await signUp(page, organizationName, `desktop-layout-${run}@example.test`);
+  await provisionAdministrator(page, organizationName, `desktop-layout-${run}@example.test`);
   const companyId = await createCompany(page, `Layout Company ${run}`, `${Date.now()}`.slice(-8));
 
   await page.setViewportSize(desktop);
@@ -116,7 +113,7 @@ test("Reporting Year changes and deletion remain distinct and usable at every wo
   if (!baseURL) throw new Error("Playwright baseURL is required");
   await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseURL }]);
   const run = crypto.randomUUID();
-  await signUp(page, `Accounting and advisory Organization with a long descriptive name ${run}`, `layout-years-${run}@example.test`);
+  await provisionAdministrator(page, `Accounting and advisory Organization with a long descriptive name ${run}`, `layout-years-${run}@example.test`);
   const companyId = await createCompany(page, "Accounting Company with a long descriptive registered business name s.r.o.", Date.now().toString().slice(-8));
   await page.goto(`/companies/${companyId}/settings/vat`);
   const year = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Prague", year: "numeric" }).format(new Date());
@@ -181,7 +178,7 @@ test("multiline confirmations stay beside their controls and Finalization uses t
   if (!baseURL) throw new Error("Playwright baseURL is required");
   await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseURL }]);
   const run = crypto.randomUUID();
-  await signUp(page, `Confirmation Organization ${run}`, `layout-confirm-${run}@example.test`);
+  await provisionAdministrator(page, `Confirmation Organization ${run}`, `layout-confirm-${run}@example.test`);
   const companyId = await createCompany(page, "Company with a long registered street and multiline confirmations", Date.now().toString().slice(-8), "Nábřeží s dlouhým oficiálním názvem ulice");
   await page.goto(`/companies/${companyId}/settings/vat`);
   const override = page.getByRole("checkbox", { name: "Use a separate EPO address", exact: true });
@@ -251,7 +248,7 @@ test("Organization membership and batch deletion cards use the workspace without
   await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseURL }]);
   const run = crypto.randomUUID();
   const organizationName = `Accounting and advisory services for international businesses ${run}`;
-  await signUp(page, organizationName, `layout-members-${run}@example.test`);
+  await provisionAdministrator(page, organizationName, `layout-members-${run}@example.test`);
   const companyId = await createCompany(page, "Long Company name used by the Organization accounting administrators", Date.now().toString().slice(-8));
   await page.goto(`/companies/${companyId}/settings`);
   const membersHref = await page.locator('a[href^="/organizations/"][href$="/members"]').first().getAttribute("href");

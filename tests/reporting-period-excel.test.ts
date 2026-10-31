@@ -1,3 +1,4 @@
+import { reportingWorkbookCopy } from "./support/reporting-workbook-copy";
 import * as XLSX from "xlsx";
 import { expect, inject, it } from "vitest";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
@@ -11,10 +12,11 @@ import {
   companyDetails,
   companyMember,
 } from "./support/fixtures";
-import { signedUpUser } from "./support/clients";
+import { provisionedUser } from "./support/clients";
 import { fixtureFile } from "./support/files";
 import { testWorker } from "./support/worker";
 import { addLegacyRateBreakdownVersionFixture } from "./support/rate-breakdown-history";
+import { setLegacyDocumentApprovedFixture } from "./support/legacy-document-approval";
 
 const COLUMNS = [
   "Document ID",
@@ -32,6 +34,9 @@ const COLUMNS = [
   "Currency",
   "Status",
   "Findings",
+  "Live inclusion", "Exclusion reason", "Exclusion detail", "Mapping status",
+  "VAT Return mapping unavailable", "Control Statement mapping unavailable",
+  "Blocking findings", "Advisory findings",
 ];
 
 async function companyWithOverviewDocuments() {
@@ -64,6 +69,12 @@ async function companyWithOverviewDocuments() {
     documentIds.push(document.id);
   }
   for (const index of [0, 2]) {
+    // Preserve coverage of historical approvals with invalid identity findings;
+    // new approvals must resolve those errors first.
+    if (index === 2) {
+      await setLegacyDocumentApprovedFixture(inject("databaseUrl"), documentIds[index]);
+      continue;
+    }
     expect(await approveDocument(administrator.client, {
       companyId: administrator.companyId,
       documentId: documentIds[index],
@@ -78,7 +89,7 @@ it("omits historical zero rows from the workbook while retaining meaningful zero
   const documentId = company.documentIds[0];
   expect(await returnDocumentToReview(company.client, { companyId: company.companyId, documentId })).toEqual({ ok: true, value: null });
   await addLegacyRateBreakdownVersionFixture(inject("databaseUrl"), documentId);
-  const exported = await exportReportingPeriodWorkbook(company.client, { companyId: company.companyId, period: "2026-10" });
+  const exported = await exportReportingPeriodWorkbook(company.client, { companyId: company.companyId, period: "2026-10" }, reportingWorkbookCopy());
   if (!exported.ok) throw new Error(exported.error);
   const workbook = XLSX.read(exported.value.bytes, { type: "array" });
   const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets.Attention, { defval: "" })
@@ -93,7 +104,7 @@ it("exports the Reporting Period overview with approved and attention sheets", a
   const result = await exportReportingPeriodWorkbook(user.client, {
     companyId: company.companyId,
     period: "2026-10",
-  });
+  }, reportingWorkbookCopy());
 
   expect(result.ok).toBe(true);
   if (!result.ok) throw new Error(result.error);
@@ -108,7 +119,7 @@ it("exports the Reporting Period overview with approved and attention sheets", a
     expect(headers).toEqual(COLUMNS);
   }
   const included = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets.Included, { defval: "" });
-  expect(included).toEqual([{
+  expect(included).toEqual(expect.arrayContaining([{
     "Document ID": company.documentIds[0],
     "Document number": "APPROVED-1",
     Direction: "incoming",
@@ -124,7 +135,14 @@ it("exports the Reporting Period overview with approved and attention sheets", a
     Currency: "CZK",
     Status: "approved",
     Findings: "",
-  }]);
+    "Live inclusion": "included", "Exclusion reason": "", "Exclusion detail": "", "Mapping status": "included",
+    "VAT Return mapping unavailable": "", "Control Statement mapping unavailable": "", "Blocking findings": "", "Advisory findings": "",
+  }]));
+  expect(included).toHaveLength(2);
+  expect(included).toContainEqual(expect.objectContaining({
+    "Document ID": company.documentIds[2], "Live inclusion": "included",
+    "Blocking findings": "error: invalid_vat_id_checksum (supplier.vatId)",
+  }));
   const attention = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets.Attention, { defval: "" });
   expect(attention).toEqual(expect.arrayContaining([
     expect.objectContaining({
@@ -132,8 +150,9 @@ it("exports the Reporting Period overview with approved and attention sheets", a
       "Document number": "WAITING-1",
       Status: "needs_review",
       Findings: "",
-      "VAT Return line": "",
-      "Control Statement section": "",
+      "VAT Return line": "40",
+      "Control Statement section": "B.3",
+      "Mapping status": "proposed", "Exclusion reason": "Human approval is required.",
     }),
     expect.objectContaining({
       "Document ID": company.documentIds[2],
@@ -142,13 +161,14 @@ it("exports the Reporting Period overview with approved and attention sheets", a
       Findings: "error: invalid_vat_id_checksum (supplier.vatId)",
       "VAT Return line": "40",
       "Control Statement section": "B.3",
+      "Live inclusion": "included",
     }),
   ]));
   expect(attention).toHaveLength(2);
 });
 
 it("classifies a quarterly Company's Documents on VAT Return lines and Control Statement sections", async () => {
-  const owner = await signedUpUser("Quarterly Organization");
+  const owner = await provisionedUser("Quarterly Organization");
   const created = await createCompany(owner.client, {
     organizationId: owner.organizationId,
     ...companyDetails({
@@ -183,7 +203,7 @@ it("classifies a quarterly Company's Documents on VAT Return lines and Control S
   const result = await exportReportingPeriodWorkbook(owner.client, {
     companyId: created.value.id,
     period: "2027-Q1",
-  });
+  }, reportingWorkbookCopy());
   if (!result.ok) throw new Error(result.error);
   const workbook = XLSX.read(result.value.bytes, { type: "array" });
   const [row] = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets.Included);
@@ -224,7 +244,7 @@ it("classifies a Document with the frequency of its own Reporting Year", async (
   const result = await exportReportingPeriodWorkbook(company.client, {
     companyId: company.companyId,
     period: "2099-Q4",
-  });
+  }, reportingWorkbookCopy());
   if (!result.ok) throw new Error(result.error);
   const workbook = XLSX.read(result.value.bytes, { type: "array" });
   const [row] = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets.Included);
@@ -237,18 +257,18 @@ it("classifies a Document with the frequency of its own Reporting Year", async (
 
 it("refuses an invalid Reporting Period and another Organization", async () => {
   const company = await administratorWithCompany();
-  const outsider = await signedUpUser();
+  const outsider = await provisionedUser();
 
   expect(await exportReportingPeriodWorkbook(company.client, {
     companyId: company.companyId,
     period: "2026-13",
-  })).toEqual({ ok: false, error: "invalid_reporting_period" });
+  }, reportingWorkbookCopy())).toEqual({ ok: false, error: "invalid_reporting_period" });
   expect(await exportReportingPeriodWorkbook(company.client, {
     companyId: company.companyId,
     period: "2026-Q4",
-  })).toEqual({ ok: false, error: "invalid_reporting_period" });
+  }, reportingWorkbookCopy())).toEqual({ ok: false, error: "invalid_reporting_period" });
   expect(await exportReportingPeriodWorkbook(outsider.client, {
     companyId: company.companyId,
     period: "2026-10",
-  })).toEqual({ ok: false, error: "forbidden" });
+  }, reportingWorkbookCopy())).toEqual({ ok: false, error: "forbidden" });
 });

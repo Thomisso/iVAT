@@ -5,7 +5,7 @@ import { exportCompanyData, softDeleteCompany } from "@/application/company-dele
 import { listMyOrganizations } from "@/application/organizations";
 import { uploadSourceFile } from "@/application/source-files";
 import { listMemberships, removeMembership } from "@/application/memberships";
-import { anonymousClient, signedUpUser, uniqueEmail } from "./support/clients";
+import { provisionedAccount, provisionedUser, uniqueEmail } from "./support/clients";
 import { fixtureFile } from "./support/files";
 import { testWorker } from "./support/worker";
 import { administratorWithCompany, companyMember } from "./support/fixtures";
@@ -161,7 +161,7 @@ describe("audit log", () => {
   });
 
   it("records the sign-up without the User's personal data", async () => {
-    const { client, userId, organizationId } = await signedUpUser("Novák s.r.o.");
+    const { client, userId, organizationId } = await provisionedUser("Novák s.r.o.");
 
     expect(await listAuditEvents(client, organizationId)).toEqual([
       expect.objectContaining({
@@ -177,10 +177,9 @@ describe("audit log", () => {
   });
 
   it("keeps the email out of the sign-up event when no Organization name was given", async () => {
-    // Sign-up paths without an Organization name (such as a social login) name the
-    // Organization after the email; the audit payload must not repeat it.
-    const client = anonymousClient();
-    await client.auth.signUp({ email: uniqueEmail(), password: "correct-horse-battery" });
+    // Account creation without an explicit Organization name falls back to the
+    // email; the audit payload must not repeat it.
+    const { client } = await provisionedAccount({ email: uniqueEmail(), password: "correct-horse-battery" });
     const [organization] = await listMyOrganizations(client);
 
     const [signUpEvent] = await listAuditEvents(client, organization.id);
@@ -271,7 +270,7 @@ describe("audit log", () => {
 
   it("is not readable by another Organization", async () => {
     const a = await administratorWithCompany("Organization A");
-    const b = await signedUpUser("Organization B");
+    const b = await provisionedUser("Organization B");
 
     expect(await listAuditEvents(b.client, a.organizationId)).toEqual([]);
   });

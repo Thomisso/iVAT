@@ -1,15 +1,21 @@
 import { createHash } from "node:crypto";
-import { expect, it } from "vitest";
+import { execFileSync } from "node:child_process";
+import { cpSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { expect, inject, it } from "vitest";
 import {
   exportVatReport,
   listVatReportArtifacts,
   readVatReportArtifact,
+  type EpoDownload,
+  type VatReportArtifact,
 } from "@/application/epo-export";
 import { saveCompanyFilingDefaults } from "@/application/company-filing-defaults";
-import { generateVatReport } from "@/application/vat-reports";
+import { finalizeVatReport, generateVatReport } from "@/application/vat-reports";
 import { listAuditEvents } from "@/application/audit";
 import { administratorWithCompany, companyMember } from "./support/fixtures";
-import { signedUpUser } from "./support/clients";
+import { provisionedUser } from "./support/clients";
 
 const details = {
   preparedOn: "2026-10-27",
@@ -137,7 +143,7 @@ it("keeps multiple draft versions and refuses artifact access across Organizatio
     "podatelna@example.test",
   ]);
 
-  const outsider = await signedUpUser();
+  const outsider = await provisionedUser();
   expect(await listVatReportArtifacts(outsider.client, {
     companyId: company.companyId,
     period: "2026-10",
@@ -146,4 +152,44 @@ it("keeps multiple draft versions and refuses artifact access across Organizatio
     companyId: company.companyId,
     artifactId: first.value.artifactId,
   })).toBeNull();
+});
+
+it.each(["dphdp3", "dphkh1"] as const)("a software release changes new %s generator identity while preserving archived XML", async format => {
+  const company = await preparedCompany();
+  const session = await company.client.auth.getSession();
+  if (!session.data.session) throw new Error("User session missing");
+  const installation = mkdtempSync(path.join(os.tmpdir(), "ivat-installed-release-"));
+  try {
+    for (const name of ["src", "schemas", "tsconfig.json"]) cpSync(name, path.join(installation, name), { recursive: true });
+    cpSync("tests/support/release-export-runner.ts", path.join(installation, "run.ts"));
+    symlinkSync(path.resolve("node_modules"), path.join(installation, "node_modules"), "dir");
+    function exportFromInstalledRelease(tag: string, revision: string, kind: "draft" | "final", archiveIds: string[] = []) {
+      execFileSync(process.execPath, [path.resolve("scripts/write-release-identity.mjs"), tag, revision], { cwd: installation });
+      return JSON.parse(execFileSync(process.execPath, [path.resolve("node_modules/tsx/dist/cli.mjs"), "run.ts"], {
+        cwd: installation,
+        input: JSON.stringify({ url: inject("supabaseUrl"), key: inject("supabaseAnonKey"), accessToken: session.data.session!.access_token, kind, input: { companyId: company.companyId, period: "2026-10", format, details }, archiveIds }),
+        env: { ...process.env, IVAT_RELEASE_TAG: "v9.9.9", npm_package_version: "0.1.0" },
+        encoding: "utf8",
+        stdio: ["pipe", "pipe", "pipe"],
+      })) as { download: Omit<EpoDownload, "bytes"> & { bytes: string }; archives: { artifact: VatReportArtifact; bytes: string }[] };
+    }
+    const draft = exportFromInstalledRelease("v0.2.0", "a".repeat(40), "draft").download;
+    expect(draft.xml).toContain('verzeSW="v0.2.0+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"');
+    expect(await finalizeVatReport(company.client, { companyId: company.companyId, period: "2026-10", confirmed: true }))
+      .toEqual({ ok: true, value: null });
+    const final = exportFromInstalledRelease("v0.2.0", "a".repeat(40), "final").download;
+    const before = await listVatReportArtifacts(company.client, { companyId: company.companyId, period: "2026-10" });
+    const upgraded = exportFromInstalledRelease("v0.3.0", "b".repeat(40), "final", [draft.artifactId, final.artifactId]);
+    expect(upgraded.download.xml).toContain('verzeSW="v0.3.0+bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"');
+    expect(upgraded.download.reportGeneratedAt).toBe(final.reportGeneratedAt);
+    expect(upgraded.download.periodLockId).toBe(final.periodLockId);
+    expect(upgraded.archives.map(archive => archive.bytes)).toEqual([draft.bytes, final.bytes]);
+    expect(upgraded.archives.map(archive => archive.artifact.sha256))
+      .toEqual([draft, final].map(download => before.find(artifact => artifact.id === download.artifactId)!.sha256));
+    for (const archive of upgraded.archives) {
+      expect(Buffer.from(archive.bytes, "base64").toString("utf8")).toContain('verzeSW="v0.2.0+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"');
+    }
+  } finally {
+    rmSync(installation, { recursive: true, force: true });
+  }
 });

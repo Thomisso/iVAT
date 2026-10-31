@@ -4,14 +4,15 @@ import { PDFDocument } from "pdf-lib";
 import { isUuid, type AppClient, type Result } from "./client";
 import { getCompany } from "./companies";
 import { splitJob, type JobQueue } from "./processing";
-import { workbookToText } from "./workbooks";
+import { assertWorkbookRanges, workbookToText } from "./workbooks";
+import type { SourceRange } from "./ai-provider";
 
 export type SourceFileFormat = "pdf" | "png" | "jpeg" | "heic" | "heif" | "xlsx" | "xls";
 export type ImageSourceFileFormat = "pdf" | "png" | "jpeg" | "heic" | "heif";
 export type SpreadsheetSourceFileFormat = "xlsx" | "xls";
 
 /** Where the Split of a Source File stands; its Documents carry their own status. */
-export type SourceFileStatus = "uploaded" | "waiting_for_platform" | "processing" | "split" | "failed";
+export type SourceFileStatus = "uploaded" | "waiting_for_platform" | "processing" | "split" | "failed" | "rejected" | "needs_review";
 
 export type SourceFile = {
   id: string;
@@ -28,6 +29,8 @@ export type SourceFile = {
   pageCount: number;
   status: SourceFileStatus;
   uploadedAt: string;
+  exclusion?: { reason: string; at: string; userId: string | null };
+  manualDefinition?: { at: string; userId: string | null };
 };
 
 export type UploadSourceFileInput = {
@@ -177,6 +180,52 @@ async function storeImmutableObject(
   return storedHash === createHash("sha256").update(bytes).digest("hex") ? null : error;
 }
 
+export type PreparedSourceFile = {
+  fileName: string;
+  format: SourceFileFormat;
+  byteSize: number;
+  pageCount: number;
+  sha256: string;
+};
+
+/** Shared content validation for upload and later attachment of real originals. */
+export async function prepareSourceFile(client: AppClient, input: { fileName: string; bytes: Uint8Array }): Promise<Result<PreparedSourceFile, UploadSourceFileError>> {
+  const fileName = input.fileName.trim();
+  if (!fileName || input.bytes.length === 0) return { ok: false, error: "file_required" };
+  const limits = await getUploadLimits(client);
+  if (input.bytes.length > limits.maxFileBytes) return { ok: false, error: "file_too_large" };
+  const format = formatOf(fileName);
+  if (!format) return { ok: false, error: "unsupported_format" };
+  if (!contentMatches(format, input.bytes)) return { ok: false, error: "content_does_not_match_format" };
+  const pageCount = await countPages(format, input.bytes);
+  if (!pageCount) return { ok: false, error: "unreadable_file" };
+  if (pageCount > limits.maxFilePages) return { ok: false, error: "too_many_pages" };
+  return { ok: true, value: { fileName, format, pageCount, byteSize: input.bytes.length, sha256: createHash("sha256").update(input.bytes).digest("hex") } };
+}
+
+/** Stores only immutable evidence. Recording/association and dispatch are separate. */
+export async function storeSourceFileObjects(client: AppClient, input: { companyId: string; sourceFileId: string; format: SourceFileFormat; bytes: Uint8Array }): Promise<Result<{
+  normalizedFormat: "jpeg" | null; normalizedByteSize: number | null; normalizedSha256: string | null;
+}, UploadSourceFileError>> {
+  const derivative = await normalizedDerivative(input.format, input.bytes);
+  if ((input.format === "heic" || input.format === "heif") && !derivative) return { ok: false, error: "unreadable_file" };
+  const storedError = await storeImmutableObject(client, sourceFileObjectPath(input.companyId, input.sourceFileId), input.bytes, SOURCE_FILE_MEDIA_TYPES[input.format]);
+  if (storedError) {
+    if ("statusCode" in storedError && storedError.statusCode === "403") return { ok: false, error: "forbidden" };
+    if ("statusCode" in storedError && storedError.statusCode === "409") return { ok: false, error: "invalid_choice" };
+    throw storedError;
+  }
+  if (derivative) {
+    const error = await storeImmutableObject(client, sourceFileDerivativeObjectPath(input.companyId, input.sourceFileId), derivative, SOURCE_FILE_MEDIA_TYPES.jpeg);
+    if (error) throw error;
+  }
+  return { ok: true, value: {
+    normalizedFormat: derivative ? "jpeg" : null,
+    normalizedByteSize: derivative?.length ?? null,
+    normalizedSha256: derivative ? createHash("sha256").update(derivative).digest("hex") : null,
+  } };
+}
+
 /**
  * Stores an uploaded file unchanged as a Source File of the Company. The file
  * is stored before its row is recorded (the database refuses a row without a
@@ -195,15 +244,9 @@ export async function uploadSourceFile(
     return { ok: false, error: "invalid_choice" };
   }
   if (input.batchId !== undefined && !isUuid(input.batchId)) return { ok: false, error: "forbidden" };
-  const limits = await getUploadLimits(client);
-  if (input.bytes.length > limits.maxFileBytes) return { ok: false, error: "file_too_large" };
-  const format = formatOf(fileName);
-  if (!format) return { ok: false, error: "unsupported_format" };
-  if (!contentMatches(format, input.bytes)) return { ok: false, error: "content_does_not_match_format" };
-  const pageCount = await countPages(format, input.bytes);
-  if (!pageCount) return { ok: false, error: "unreadable_file" };
-  if (pageCount > limits.maxFilePages) return { ok: false, error: "too_many_pages" };
-  const sha256 = createHash("sha256").update(input.bytes).digest("hex");
+  const prepared = await prepareSourceFile(client, input);
+  if (!prepared.ok) return prepared;
+  const { format, pageCount, sha256 } = prepared.value;
 
   // Only for the Organization of the row; RLS hides Companies the user cannot access.
   const company = await getCompany(client, input.companyId);
@@ -228,20 +271,8 @@ export async function uploadSourceFile(
     return { ok: true, value: { id: existing.id } };
   }
 
-  const derivative = await normalizedDerivative(format, input.bytes);
-  if ((format === "heic" || format === "heif") && !derivative) {
-    return { ok: false, error: "unreadable_file" };
-  }
-  const storedError = await storeImmutableObject(client, sourceFileObjectPath(company.id, id), input.bytes, SOURCE_FILE_MEDIA_TYPES[format]);
-  if (storedError) {
-    if ("statusCode" in storedError && storedError.statusCode === "403") return { ok: false, error: "forbidden" };
-    if ("statusCode" in storedError && storedError.statusCode === "409") return { ok: false, error: "invalid_choice" };
-    throw storedError;
-  }
-  if (derivative) {
-    const derivativeError = await storeImmutableObject(client, sourceFileDerivativeObjectPath(company.id, id), derivative, SOURCE_FILE_MEDIA_TYPES.jpeg);
-    if (derivativeError) throw derivativeError;
-  }
+  const stored = await storeSourceFileObjects(client, { companyId: company.id, sourceFileId: id, format, bytes: input.bytes });
+  if (!stored.ok) return stored;
 
   const { error } = await client.from("source_file").insert({
     id,
@@ -252,11 +283,9 @@ export async function uploadSourceFile(
     format,
     byte_size: input.bytes.length,
     sha256,
-    normalized_format: derivative ? "jpeg" : null,
-    normalized_byte_size: derivative?.length ?? null,
-    normalized_sha256: derivative
-      ? createHash("sha256").update(derivative).digest("hex")
-      : null,
+    normalized_format: stored.value.normalizedFormat,
+    normalized_byte_size: stored.value.normalizedByteSize,
+    normalized_sha256: stored.value.normalizedSha256,
     page_count: pageCount,
   });
   if (error) {
@@ -279,7 +308,7 @@ export async function uploadSourceFile(
   return { ok: true, value: { id } };
 }
 
-const COLUMNS = "id, company_id, file_name, format, byte_size, sha256, normalized_format, normalized_byte_size, normalized_sha256, page_count, status, uploaded_at";
+const COLUMNS = "id, company_id, file_name, format, byte_size, sha256, normalized_format, normalized_byte_size, normalized_sha256, page_count, status, uploaded_at, exclusion_reason, excluded_at, excluded_by, manually_defined_at, manually_defined_by";
 
 type SourceFileRow = {
   id: string;
@@ -294,6 +323,11 @@ type SourceFileRow = {
   page_count: number;
   status: SourceFileStatus;
   uploaded_at: string;
+  exclusion_reason: string | null;
+  excluded_at: string | null;
+  excluded_by: string | null;
+  manually_defined_at: string | null;
+  manually_defined_by: string | null;
 };
 
 function toSourceFile(row: SourceFileRow): SourceFile {
@@ -315,6 +349,8 @@ function toSourceFile(row: SourceFileRow): SourceFile {
     pageCount: row.page_count,
     status: row.status,
     uploadedAt: row.uploaded_at,
+    ...(row.exclusion_reason && row.excluded_at ? { exclusion: { reason: row.exclusion_reason, at: row.excluded_at, userId: row.excluded_by } } : {}),
+    ...(row.manually_defined_at ? { manualDefinition: { at: row.manually_defined_at, userId: row.manually_defined_by } } : {}),
   };
 }
 
@@ -392,15 +428,92 @@ export async function retrySplit(
   client: AppClient,
   jobs: JobQueue,
   input: { companyId: string; sourceFileId: string },
-): Promise<Result<null, "not_retryable" | "forbidden">> {
+): Promise<Result<null, "not_retryable" | "forbidden" | "period_locked" | "source_already_resolved">> {
   const file = await getSourceFile(client, input.companyId, input.sourceFileId);
   if (!file) return { ok: false, error: "forbidden" };
   const { error } = await client.rpc("retry_split", { target_source_file_id: file.id });
   if (error) {
     if (error.code === "42501") return { ok: false, error: "forbidden" };
-    if (error.hint === "not_retryable") return { ok: false, error: "not_retryable" };
+    for (const refusal of ["not_retryable", "period_locked", "source_already_resolved"] as const) {
+      if (error.code === "P0001" && error.hint === refusal) return { ok: false, error: refusal };
+    }
     throw error;
   }
   await jobs.send(splitJob(file.id));
   return { ok: true, value: null };
+}
+
+
+/** Defines actual page or worksheet boundaries for manual review without starting AI. */
+export async function defineSourceDocuments(
+  client: AppClient,
+  input: { companyId: string; sourceFileId: string; ranges: SourceRange[] },
+): Promise<Result<{ documentIds: string[] }, "forbidden" | "source_already_resolved" | "manual_source_format_unsupported" | "invalid_source_ranges" | "invalid_workbook_ranges" | "period_locked">> {
+  const file = await getSourceFile(client, input.companyId, input.sourceFileId);
+  if (!file) return { ok: false, error: "forbidden" };
+  if (file.format === "xlsx" || file.format === "xls") {
+    const workbook = await readSourceWorkbook(client, input.companyId, file.id);
+    if (!workbook) return { ok: false, error: "forbidden" };
+    try { assertWorkbookRanges(workbook.rowSets, input.ranges); }
+    catch { return { ok: false, error: "invalid_workbook_ranges" }; }
+  }
+  const { data, error } = await client.rpc("define_source_documents", { target_source_file_id: file.id, document_ranges: input.ranges });
+  if (error) {
+    if (error.code === "42501") return { ok: false, error: "forbidden" };
+    if (error.code === "P0001" && error.hint === "invalid_source_ranges" && (file.format === "xlsx" || file.format === "xls")) return { ok: false, error: "invalid_workbook_ranges" };
+    for (const refusal of ["source_already_resolved", "manual_source_format_unsupported", "invalid_source_ranges", "period_locked"] as const) {
+      if (error.code === "P0001" && error.hint === refusal) return { ok: false, error: refusal };
+    }
+    throw error;
+  }
+  return { ok: true, value: { documentIds: data } };
+}
+
+/** Actual worksheet names, bounds and row-numbered text from the unchanged original. */
+export async function readSourceWorkbook(client: AppClient, companyId: string, sourceFileId: string) {
+  const stored = await readSourceFile(client, companyId, sourceFileId);
+  if (!stored || (stored.file.format !== "xlsx" && stored.file.format !== "xls")) return null;
+  return workbookToText(stored.bytes);
+}
+
+
+export type SourceRecoveryError = "forbidden" | "source_already_resolved" | "exclusion_reason_required" | "source_not_rejected" | "period_locked";
+
+/** Cancels pending Split work so the User can define actual boundaries. */
+export async function startManualSourceReview(client: AppClient, input: { companyId: string; sourceFileId: string }): Promise<Result<null, SourceRecoveryError>> {
+  return sourceRecoveryCommand(client, input, "start_manual_source_review");
+}
+
+/** Resolves a Source before any Document exists, preserving its bytes and reason. */
+export async function excludeSourceFile(client: AppClient, input: { companyId: string; sourceFileId: string; reason: string }): Promise<Result<null, SourceRecoveryError>> {
+  return sourceRecoveryCommand(client, input, "exclude_source_file", input.reason);
+}
+
+/** Reversal returns to manual review; starting AI remains an explicit choice. */
+export async function restoreSourceFile(client: AppClient, input: { companyId: string; sourceFileId: string }): Promise<Result<null, SourceRecoveryError>> {
+  return sourceRecoveryCommand(client, input, "restore_source_file");
+}
+
+async function sourceRecoveryCommand(client: AppClient, input: { companyId: string; sourceFileId: string }, command: "start_manual_source_review" | "exclude_source_file" | "restore_source_file", reason?: string): Promise<Result<null, SourceRecoveryError>> {
+  const file = await getSourceFile(client, input.companyId, input.sourceFileId);
+  if (!file) return { ok: false, error: "forbidden" };
+  const { error } = await client.rpc(command, { target_source_file_id: file.id, ...(command === "exclude_source_file" ? { exclusion_reason: reason } : {}) });
+  if (error) {
+    if (error.code === "42501") return { ok: false, error: "forbidden" };
+    for (const refusal of ["source_already_resolved", "exclusion_reason_required", "source_not_rejected", "period_locked"] as const) {
+      if (error.code === "P0001" && error.hint === refusal) return { ok: false, error: refusal };
+    }
+    throw error;
+  }
+  return { ok: true, value: null };
+}
+
+
+/** A Source lock comes only from an existing locked readiness snapshot. */
+export async function sourceFilePeriodLock(client: AppClient, companyId: string, sourceFileId: string): Promise<string | null> {
+  const file = await getSourceFile(client, companyId, sourceFileId);
+  if (!file) return null;
+  const { data, error } = await client.rpc("source_file_period_lock", { target_source_file_id: file.id });
+  if (error) throw error;
+  return data;
 }

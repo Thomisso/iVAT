@@ -20,10 +20,10 @@ import {
 } from "@/application/documents";
 import type { ExtractionPayload } from "@/application/extraction-payload";
 import { getReportingPeriodReadiness } from "@/application/reporting-period-readiness";
-import { generateVatReport, getVatReport } from "@/application/vat-reports";
+import { finalizeVatReport, generateVatReport, getVatReport } from "@/application/vat-reports";
 import { uploadSourceFile } from "@/application/source-files";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
-import { signedUpUser } from "./support/clients";
+import { provisionedUser } from "./support/clients";
 import { fixtureFile } from "./support/files";
 import {
   administratorWithCompany,
@@ -34,6 +34,8 @@ import { testWorker } from "./support/worker";
 import { fakeExchangeRates } from "@/cnb/fake";
 import { addLegacyRateBreakdownVersionFixture } from "./support/rate-breakdown-history";
 import { fakeVatPayerRegistry } from "@/vat-registry/fake";
+import { addLegacyUndeterminedVatRegimeFixture, setLegacyVatRegimeReadinessFixture } from "./support/vat-regime-history";
+import { setLegacyDocumentApprovedFixture } from "./support/legacy-document-approval";
 
 /** An Administrator whose Company holds one Document in NeedsReview, Extracted as `extraction`. */
 async function documentInReview(extraction: ExtractionPayload = SAMPLE_EXTRACTION) {
@@ -83,7 +85,8 @@ describe("correcting a Document", () => {
     expect(legacy.payload.rateBreakdown).toHaveLength(3);
     expect(legacy.payload.confidence).toEqual({ "rateBreakdown.1.netAmount": 0.62, "rateBreakdown.2.vatAmount": 0.45 });
     expect(legacy.findings).toContainEqual({ field: "rateBreakdown.2.vatAmount", severity: "error", code: "rate_vat_amount_mismatch" });
-    expect(await approveDocument(document.client, { ...document, version: 2 })).toEqual({ ok: true, value: null });
+    expect(await approveDocument(document.client, { ...document, version: 2 })).toEqual({ ok: false, error: "document_validation_failed" });
+    await setLegacyDocumentApprovedFixture(inject("databaseUrl"), document.documentId);
     expect((await generateVatReport(document.client, { companyId: document.companyId, period: "2026-10" })).ok).toBe(true);
     const report = await getVatReport(document.client, document.companyId, "2026-10");
     expect(report?.result.excludedDocuments).toEqual([]);
@@ -296,14 +299,18 @@ describe("correcting a Document", () => {
     );
   });
 
-  it("refuses a Rate Breakdown line without its amounts", async () => {
+  it("preserves an unfinished Rate Breakdown line but refuses approval until its amounts are complete", async () => {
     const { client, companyId, documentId } = await documentInReview();
     const payload = { ...SAMPLE_EXTRACTION, rateBreakdown: [{ rate: 21, netAmount: "1000.00", vatAmount: "" }] };
 
     expect(await correctDocument(client, { companyId, documentId, basedOnVersion: 1, payload })).toEqual({
-      ok: false,
-      error: "invalid_amount",
+      ok: true,
+      value: { version: 2 },
     });
+    expect((await listExtractionVersions(client, companyId, documentId))[1].payload).toMatchObject({
+      schemaVersion: 2, rateBreakdown: [{ rate: 21, netAmount: "1000.00", vatAmount: null }],
+    });
+    expect(await approveDocument(client, { companyId, documentId, version: 2 })).toEqual({ ok: false, error: "document_incomplete" });
   });
 
   it("accepts negative amounts of a Credit Note and fields left empty", async () => {
@@ -340,7 +347,7 @@ describe("correcting a Document", () => {
     expect((await listExtractionVersions(client, companyId, documentId))[2].payload.originalDocumentNumber).toBeNull();
   });
 
-  it("refuses a Credit Note whose entered amounts are not negative", async () => {
+  it("preserves a Credit Note draft whose entered amounts are not negative but refuses its approval", async () => {
     const { client, companyId, documentId } = await documentInReview();
     const creditNote: ExtractionPayload = {
       ...SAMPLE_EXTRACTION,
@@ -353,10 +360,11 @@ describe("correcting a Document", () => {
       documentId,
       basedOnVersion: 1,
       payload: creditNote,
-    })).toEqual({ ok: false, error: "invalid_credit_note_amount" });
+    })).toEqual({ ok: true, value: { version: 2 } });
+    expect(await approveDocument(client, { companyId, documentId, version: 2 })).toEqual({ ok: false, error: "invalid_credit_note_amount" });
   });
 
-  it("refuses an all-zero Credit Note correction", async () => {
+  it("preserves an all-zero Credit Note draft but refuses its approval", async () => {
     const { client, companyId, documentId } = await documentInReview();
     const creditNote: ExtractionPayload = {
       ...SAMPLE_EXTRACTION,
@@ -371,7 +379,8 @@ describe("correcting a Document", () => {
       documentId,
       basedOnVersion: 1,
       payload: creditNote,
-    })).toEqual({ ok: false, error: "invalid_credit_note_amount" });
+    })).toEqual({ ok: true, value: { version: 2 } });
+    expect(await approveDocument(client, { companyId, documentId, version: 2 })).toEqual({ ok: false, error: "invalid_credit_note_amount" });
   });
 });
 
@@ -472,6 +481,95 @@ describe("assigning an incoming Document to a Reporting Period", () => {
 });
 
 describe("approving and rejecting a Document", () => {
+  it("refuses a predecessor draft whose cached blocker count predates the VAT Regime requirement", async () => {
+    const document = await documentInReview();
+    const period = { companyId: document.companyId, period: "2026-10" };
+    expect(await approveDocument(document.client, { ...document, version: 1 })).toEqual({ ok: true, value: null });
+    await addLegacyUndeterminedVatRegimeFixture(inject("databaseUrl"), document.documentId);
+    expect((await generateVatReport(document.client, period)).ok).toBe(true);
+    await setLegacyVatRegimeReadinessFixture(inject("databaseUrl"), document.companyId, period.period);
+    expect((await getVatReport(document.client, document.companyId, period.period))?.finalization.blockerCount).toBe(0);
+    const readiness = await getReportingPeriodReadiness(document.client, period);
+    expect(readiness.ok && readiness.value.snapshot?.freshness).toBe("current");
+    expect(await finalizeVatReport(document.client, { ...period, confirmed: true }))
+      .toEqual({ ok: false, error: "readiness_blocked" });
+    expect((await getDocument(document.client, document.companyId, document.documentId))?.status).toBe("approved");
+  });
+
+  it("blocks historical approvals without a VAT Regime without rewriting their immutable findings", async () => {
+    const document = await documentInReview();
+    const period = { companyId: document.companyId, period: "2026-10" };
+    expect(await approveDocument(document.client, { ...document, version: 1 })).toEqual({ ok: true, value: null });
+    await addLegacyUndeterminedVatRegimeFixture(inject("databaseUrl"), document.documentId);
+    const versions = await listExtractionVersions(document.client, document.companyId, document.documentId);
+    expect(versions.at(-1)?.findings).toContainEqual({
+      field: "proposedVatRegime", severity: "error", code: "vat_regime_required",
+    });
+    const readiness = await getReportingPeriodReadiness(document.client, period);
+    expect(readiness.ok && readiness.value.ready).toBe(false);
+    expect(readiness.ok && readiness.value.blockers).toContainEqual({
+      code: "error_finding", documentId: document.documentId, findingCode: "vat_regime_required",
+    });
+    const [overview] = await listCompanyDocuments(document.client, document.companyId);
+    expect(overview.eligibleForVatReport).toBe(false);
+    expect(overview.findingCount).toBe(1);
+    expect((await generateVatReport(document.client, period)).ok).toBe(true);
+    const report = await getVatReport(document.client, document.companyId, period.period);
+    expect(report?.finalization.blockerCount).toBe(1);
+    expect(report?.result.excludedDocuments).toEqual([
+      { documentId: document.documentId, reason: "manual_classification_required" },
+    ]);
+    expect(await finalizeVatReport(document.client, { ...period, confirmed: true }))
+      .toEqual({ ok: false, error: "readiness_blocked" });
+    expect(await listExtractionVersions(document.client, document.companyId, document.documentId))
+      .toHaveLength(2);
+  });
+
+  it("preserves an undetermined VAT Regime in review and refuses approval until it is supplied", async () => {
+    const document = await documentInReview();
+    const input = { companyId: document.companyId, documentId: document.documentId };
+    expect(await correctDocument(document.client, {
+      ...input,
+      basedOnVersion: 1,
+      payload: { ...SAMPLE_EXTRACTION, proposedVatRegime: null },
+    })).toEqual({ ok: true, value: { version: 2 } });
+    const [, current] = await listExtractionVersions(document.client, input.companyId, input.documentId);
+    expect(current.payload.proposedVatRegime).toBeNull();
+    expect(current.findings).toContainEqual({
+      field: "proposedVatRegime", severity: "error", code: "vat_regime_required",
+    });
+    expect(await approveDocument(document.client, { ...input, version: 2 }))
+      .toEqual({ ok: false, error: "vat_regime_required" });
+    expect((await getDocument(document.client, input.companyId, input.documentId))?.status).toBe("needs_review");
+
+    const readiness = await getReportingPeriodReadiness(document.client, { companyId: input.companyId, period: "2026-10" });
+    expect(readiness.ok && readiness.value.blockers).toContainEqual({
+      code: "error_finding", documentId: input.documentId, findingCode: "vat_regime_required",
+    });
+    expect(await correctDocument(document.client, { ...input, basedOnVersion: 2, payload: SAMPLE_EXTRACTION }))
+      .toEqual({ ok: true, value: { version: 3 } });
+    expect(await approveDocument(document.client, { ...input, version: 3 })).toEqual({ ok: true, value: null });
+    const resolved = await getReportingPeriodReadiness(document.client, { companyId: input.companyId, period: "2026-10" });
+    expect(resolved.ok && resolved.value.ready).toBe(true);
+  });
+
+  it("enforces the required VAT Regime in the database even when supplied findings omit it", async () => {
+    const document = await documentInReview();
+    const saved = await document.client.rpc("correct_document", {
+      target_document_id: document.documentId,
+      based_on_version: 1,
+      payload: { ...SAMPLE_EXTRACTION, proposedVatRegime: null },
+      findings: [],
+    });
+    expect(saved.error).toBeNull();
+    const approval = await document.client.rpc("approve_document", {
+      target_document_id: document.documentId,
+      reviewed_version: 2,
+    });
+    expect(approval.error).toMatchObject({ code: "P0001", hint: "vat_regime_required" });
+    expect((await getDocument(document.client, document.companyId, document.documentId))?.status).toBe("needs_review");
+  });
+
   it("refuses approval of an AI-proposed Credit Note with non-negative amounts", async () => {
     const document = await documentInReview({
       ...SAMPLE_EXTRACTION,
@@ -599,7 +697,7 @@ describe("approving and rejecting a Document", () => {
   it("lets an Administrator reject a Document", async () => {
     const document = await documentInReview();
 
-    expect(await rejectDocument(document.client, document)).toEqual({ ok: true, value: null });
+    expect(await rejectDocument(document.client, { ...document, reason: "Not a business Document" })).toEqual({ ok: true, value: null });
     expect((await listDocuments(document.client, document.companyId, document.sourceFileId))[0].status).toBe("rejected");
   });
 
@@ -607,7 +705,7 @@ describe("approving and rejecting a Document", () => {
     const document = await documentInReview();
     const member = await companyMember(document);
 
-    expect(await rejectDocument(member.client, document)).toEqual({ ok: true, value: null });
+    expect(await rejectDocument(member.client, { ...document, reason: "Not a business Document" })).toEqual({ ok: true, value: null });
 
     expect((await listDocuments(member.client, document.companyId, document.sourceFileId))[0].status).toBe("rejected");
     expect((await listAuditEvents(document.client, document.organizationId)).at(-1)).toEqual(
@@ -621,11 +719,11 @@ describe("approving and rejecting a Document", () => {
     );
   });
 
-  it("closes the review: a decided Document can no longer be corrected, decided again or reprocessed", async () => {
+  it("closes the review: a decided Document cannot be changed, and approved AI replacement needs explicit confirmation", async () => {
     const approved = await documentInReview();
     await approveDocument(approved.client, { ...approved, version: 1 });
     const rejected = await documentInReview();
-    await rejectDocument(rejected.client, rejected);
+    await rejectDocument(rejected.client, { ...rejected, reason: "Not a business Document" });
 
     for (const document of [approved, rejected]) {
       expect(await correctDocument(document.client, { ...document, basedOnVersion: 1, payload: CORRECTED })).toEqual({
@@ -636,10 +734,10 @@ describe("approving and rejecting a Document", () => {
         ok: false,
         error: "not_in_review",
       });
-      expect(await rejectDocument(document.client, document)).toEqual({ ok: false, error: "not_in_review" });
+      expect(await rejectDocument(document.client, { ...document, reason: "Not a business Document" })).toEqual({ ok: false, error: "not_in_review" });
       expect(await reprocessDocument(document.client, document.worker.jobs, document)).toEqual({
         ok: false,
-        error: "not_reprocessable",
+        error: document === approved ? "confirmation_required" : "not_reprocessable",
       });
     }
   });
@@ -872,7 +970,7 @@ describe("the Document list", () => {
 
   it("shows nothing of another Organization, even to direct queries", async () => {
     const a = await companyWithDocuments(PURCHASE);
-    const b = await signedUpUser("Organization B");
+    const b = await provisionedUser("Organization B");
 
     const direct = await b.client.from("document_overview").select("id").eq("company_id", a.companyId);
 
@@ -915,12 +1013,12 @@ describe("the review workspace", () => {
 
   it("gives another Organization neither the Document nor its pages", async () => {
     const a = await documentInReview();
-    const b = await signedUpUser("Organization B");
+    const b = await provisionedUser("Organization B");
 
     expect(await getDocument(b.client, a.companyId, a.documentId)).toBeNull();
     expect(await readDocumentPages(b.client, a.companyId, a.documentId)).toBeNull();
     expect(await approveDocument(b.client, { ...a, version: 1 })).toEqual({ ok: false, error: "forbidden" });
-    expect(await rejectDocument(b.client, a)).toEqual({ ok: false, error: "forbidden" });
+    expect(await rejectDocument(b.client, { ...a, reason: "Not a business Document" })).toEqual({ ok: false, error: "forbidden" });
     expect(await correctDocument(b.client, { ...a, basedOnVersion: 1, payload: CORRECTED })).toEqual({
       ok: false,
       error: "forbidden",
