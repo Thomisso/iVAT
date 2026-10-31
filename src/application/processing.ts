@@ -22,7 +22,7 @@ import {
   type SourceFileFormat,
   type SourceFileStatus,
 } from "./source-files";
-import { workbookRowsToText, workbookToText } from "./workbooks";
+import { assertWorkbookRanges, workbookRowsToText, workbookToText } from "./workbooks";
 import {
   vatRegistryFindings,
   type VatPayerRegistry,
@@ -320,7 +320,7 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
         organizationId: file.organization_id,
         configuration: availability.configuration!,
       });
-      assertWorkbookRanges(input, documents);
+      if (input.workbookRowSets) assertWorkbookRanges(input.workbookRowSets, documents);
       const metered = await system.rpc("record_ai_usage", {
         target_organization_id: file.organization_id,
         target_company_id: file.company_id,
@@ -532,25 +532,6 @@ function sourceFileInput(format: SourceFileFormat, bytes: Uint8Array, pageCount:
   if (format !== "xlsx" && format !== "xls") return binaryAiInput(format, bytes, pageCount);
   const workbook = workbookToText(bytes);
   return textAiInput(format, workbook.text, workbook.rowSets);
-}
-
-function assertWorkbookRanges(input: AiInput, ranges: (PageRange | RowRange)[]) {
-  if (!input.workbookRowSets) return;
-  const previousLastRow = new Map<string, number>();
-  for (const range of ranges) {
-    if (!("firstRow" in range)) throw new Error("A workbook Split must return row sets");
-    const sheet = input.workbookRowSets.find(({ sheetName }) => sheetName === range.sheetName);
-    if (
-      !sheet ||
-      range.firstRow < sheet.firstRow ||
-      range.lastRow < range.firstRow ||
-      range.lastRow > sheet.lastRow ||
-      range.firstRow <= (previousLastRow.get(range.sheetName) ?? 0)
-    ) {
-      throw new Error("Workbook row sets must be ascending, disjoint, and within their worksheets");
-    }
-    previousLastRow.set(range.sheetName, range.lastRow);
-  }
 }
 
 /** The Document's own pages: a PDF of just its range, or the whole image. */

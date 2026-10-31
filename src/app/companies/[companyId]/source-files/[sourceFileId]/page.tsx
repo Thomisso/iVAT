@@ -2,7 +2,7 @@ import Link from "next/link";
 import { companyPageContext, safeCompanyReturnTo, withCompanyReturnTo } from "@/application/return-context";
 import { CompanyReturnLink } from "@/components/company-return-link";
 
-import { ManualSourceForm, SourceExclusionForm } from "./manual-source-form";
+import { ManualSourceForm, ManualWorkbookForm, SourceExclusionForm } from "./manual-source-form";
 import { Notice } from "@/components/notice";
 import { defineSourceDocumentsAction, startManualSourceReviewAction, restoreSourceFileAction } from "@/app/actions";
 import { notFound } from "next/navigation";
@@ -10,7 +10,7 @@ import { getFormatter, getTranslations } from "next-intl/server";
 import { mergeDocumentsAction, moveDocumentPageAction, reprocessDocumentAction, retrySplitAction } from "@/app/actions";
 import { getCompany, getMyCompanyRole } from "@/application/companies";
 import { documentPeriodLocks, isBeingExtracted, listDocuments, listExtractionVersions } from "@/application/documents";
-import { getSourceFile, sourceFilePeriodLock } from "@/application/source-files";
+import { getSourceFile, readSourceWorkbook, sourceFilePeriodLock } from "@/application/source-files";
 import { PageLayout } from "@/components/app-shell";
 import { CommandButton } from "@/components/command-button";
 import { RefreshWhile } from "@/components/refresh-while";
@@ -51,6 +51,7 @@ export default async function SourceFilePage({
     ? `/companies/${companyId}/source-files/${file.id}/preview`
     : `/companies/${companyId}/source-files/${file.id}/content`;
   const workbook = file.format === "xlsx" || file.format === "xls";
+  const workbookSource = workbook ? await readSourceWorkbook(client, companyId, file.id) : null;
   const waitingForAi = !company.aiProcessingEnabled && ["uploaded", "processing", "waiting_for_platform"].includes(file.status);
   const unresolvedSource = documents.length === 0 && !["split", "rejected"].includes(file.status);
   // Nothing moves until the platform enables an assigned AI Configuration.
@@ -108,9 +109,12 @@ export default async function SourceFilePage({
           {file.status === "rejected" && !lockedSourcePeriod && <CommandButton action={restoreSourceFileAction} fields={{ companyId, sourceFileId: file.id }}>{t("sourceFiles.reverseExclusion")}</CommandButton>}
           {file.manualDefinition && <Notice>{t("sourceFiles.manualDefined", { date: formatDateTime(file.manualDefinition.at) })}</Notice>}
           {unresolvedSource && !lockedSourcePeriod && <>
-            {!workbook && (file.format !== "pdf" ? <CommandButton action={defineSourceDocumentsAction} fields={{ companyId, sourceFileId: file.id, firstPage: "1", lastPage: "1", openDocument: "1" }}>{t("sourceFiles.manualImage")}</CommandButton>
+            {workbook ? (file.status === "needs_review" && workbookSource
+              ? <ManualWorkbookForm companyId={companyId} sourceFileId={file.id} sheets={workbookSource.rowSets} />
+              : <CommandButton action={startManualSourceReviewAction} fields={{ companyId, sourceFileId: file.id }}>{t("sourceFiles.manualStart")}</CommandButton>)
+              : file.format !== "pdf" ? <CommandButton action={defineSourceDocumentsAction} fields={{ companyId, sourceFileId: file.id, firstPage: "1", lastPage: "1", openDocument: "1" }}>{t("sourceFiles.manualImage")}</CommandButton>
               : file.status === "needs_review" ? <ManualSourceForm companyId={companyId} sourceFileId={file.id} pageCount={file.pageCount} />
-              : <CommandButton action={startManualSourceReviewAction} fields={{ companyId, sourceFileId: file.id }}>{t("sourceFiles.manualStart")}</CommandButton>)}
+              : <CommandButton action={startManualSourceReviewAction} fields={{ companyId, sourceFileId: file.id }}>{t("sourceFiles.manualStart")}</CommandButton>}
             <SourceExclusionForm companyId={companyId} sourceFileId={file.id} />
           </>}
           {documents.length > 0 ? (
@@ -271,6 +275,7 @@ export default async function SourceFilePage({
             <div className="workbook-source">
               <p>{t("sourceFiles.workbookPreview")}</p>
               <a href={contentUrl}>{t("sourceFiles.downloadOriginal")}</a>
+              <pre tabIndex={0}>{workbookSource?.text}</pre>
             </div>
           ) : file.format === "pdf" ? (
             <iframe src={contentUrl} title={file.fileName} />

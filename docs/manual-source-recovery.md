@@ -24,7 +24,9 @@ Legacy snapshots without Source entries are treated as an empty saved Source set
 
 ## Further Source associations
 
-Workbook row definition is the separate ticket178. It can reuse Company/Source ownership locking, request invalidation, snapshot membership guards, batch reopening and reasoned exclusion. This ticket accepts only PDF/image page definitions; workbook ranges require validation against actual sheet contents.
+Workbook recovery uses the same Source commands, Company/Source ownership locking, request invalidation, snapshot membership guards, batch reopening and reasoned exclusion. Actual unchanged XLS/XLSX bytes supply populated worksheet names, row bounds and row-numbered evidence. The shared `assertWorkbookRanges` validates both AI and manual ranges against those bounds, including ascending, disjoint ranges on each sheet. The database transition additionally enforces exact range shape, integer bounds, per-sheet overlap, ownership and state. It does not parse binary workbooks in PostgreSQL. Legacy workbook uploads need no metadata backfill: manual recovery reads their stored originals.
+
+Row-based Documents retain the existing workbook schema, `rowSet` evidence and `hasDocumentImage = false`. No PDF/image or accounting values are manufactured. Source preview shows actual row text and links to the unchanged original; Document review shows its selected rows with the worksheet header as context. Refused form submissions retain worksheet choices and row bounds. Accepting a definition starts no AI; an explicit later AI retry remains separate.
 
 A later attachment command (ticket175) must check the Source snapshot lock as well as the Document's ordinary Period Lock before associating a Source. Attaching an existing Source must not bypass the Source guard merely because its row would stay unchanged. Retain Company-first locking and explicit AI authorization.
 

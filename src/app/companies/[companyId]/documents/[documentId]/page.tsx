@@ -192,7 +192,7 @@ export default async function DocumentReviewPage({
             {document.rowSet ? (
               <div className="workbook-source">
                 <Notice>{t("review.noDocumentImage")}</Notice>
-                <pre>{sourceRows?.text}</pre>
+                <pre tabIndex={0}>{sourceRows?.text}</pre>
               </div>
             ) : file.format === "pdf" ? (
               <iframe src={contentUrl} title={file.fileName} />
