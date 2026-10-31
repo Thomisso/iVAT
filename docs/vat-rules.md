@@ -42,6 +42,32 @@ month. `other` and outgoing EU acquisitions/services require manual
 classification. Documents with no assignable month remain in the Company's
 Document list.
 
+## Live inclusion and proposed mapping
+
+Approval records the human decision; it does not guarantee inclusion. The shared
+`prepareDocumentReporting` projection evaluates the current version with the same
+exclusion, period assignment and classification used by `computeVatReport`.
+Detail, Document lists, period readiness and the checking workbook distinguish
+approval, actual live inclusion, exclusion reason, blocking findings and advisory
+findings. Historical findings remain immutable; current required identity checks
+are projected separately. In particular, the existing engine requires a Czech
+supplier VAT ID for every domestic incoming Document, independently of the
+Control Statement amount threshold.
+
+Available classification remains visible as a proposed mapping when a Document
+is not counted. Return lines can be known even while amounts are unfinished;
+a domestic Control Statement section needs the whole Document amount in CZK.
+Missing or unsupported inputs receive an explanation, never a fabricated amount,
+VAT ID, rate or manual line override. The same classification functions prepare
+both proposals and actual report entries.
+
+The workbook's Included sheet contains all currently included Documents. Attention
+also contains included Documents with findings, with an explicit live-inclusion
+column, so a bank advisory does not imply exclusion. Proposed mappings and their
+unknown reasons accompany excluded work. The workbook reads live data; saved
+report snapshots, freshness, statutory XML and archived artifact bytes retain
+their independent identity.
+
 ## Persistence
 
 `generateVatReport` reads current versions as the caller, computes the draft and

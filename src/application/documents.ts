@@ -8,7 +8,6 @@ import {
   type Direction,
   type Party,
   type ExtractionPayload,
-  type VatRegime,
   type ManualDocumentPayloadError,
 } from "./extraction-payload";
 import { extractJob, type JobQueue } from "./processing";
@@ -23,6 +22,7 @@ import { pdfPages, readSourceFile, SOURCE_FILE_MEDIA_TYPES } from "./source-file
 import { workbookRowsToText, type WorkbookRowSet } from "./workbooks";
 import { applyCnbConversion, type ExchangeRateProvider } from "./exchange-rates";
 import { vatRegistryFindings, type VatPayerRegistry } from "./vat-registry";
+import { prepareDocumentReporting, type DocumentReporting } from "./document-reporting";
 
 const unavailableExchangeRates: ExchangeRateProvider = { rateFor: async () => null };
 const unavailableVatPayerRegistry: VatPayerRegistry = { check: async () => ({ outcome: "unavailable" }) };
@@ -110,10 +110,6 @@ export type ExtractionVersion = {
   createdAt: string;
 };
 
-/** Approval and a determined VAT Regime are prerequisites for VAT Reports (ADR-0003). */
-export const isEligibleForVatReport = (status: DocumentStatus, vatRegime: VatRegime | null) =>
-  status === "approved" && vatRegime !== null;
-
 /** A Document as the Document list shows it: with the fields of its current Extraction Version. */
 export type DocumentOverview = {
   id: string;
@@ -135,7 +131,9 @@ export type DocumentOverview = {
   currency: string | null;
   grossAmount: string | null;
   findingCount: number;
+  /** Actual live inclusion, rather than approval alone. */
   eligibleForVatReport: boolean;
+  reporting: DocumentReporting;
 };
 
 export type DuplicateWarning = {
@@ -192,12 +190,13 @@ export async function listCompanyDocuments(
   if (filters.sourceFileIds?.length === 0) return [];
   if (filters.documentIds?.length === 0) return [];
   const counterparty = filters.counterparty?.trim();
+  const reportingYears = await listCompanyReportingYears(client, companyId);
   const documents: DocumentOverview[] = [];
   for (let from = 0; ; from += 1000) {
     let query = client
       .from("document_overview")
       .select(
-        "id, source_file_id, first_page, last_page, status, created_at, version, document_number, direction, tax_point_date, import_date, claimed_reporting_period, reporting_period, counterparty_name, counterparty_vat_id, counterparty_ico, currency, gross_amount, finding_count, proposed_vat_regime",
+        "id, source_file_id, first_page, last_page, status, created_at, version, document_number, direction, tax_point_date, import_date, claimed_reporting_period, reporting_period, counterparty_name, counterparty_vat_id, counterparty_ico, currency, gross_amount, finding_count, proposed_vat_regime, extraction_version_id, reporting_payload, reporting_findings",
       )
       .eq("company_id", companyId);
     if (filters.sourceFileIds) query = query.in("source_file_id", filters.sourceFileIds);
@@ -207,7 +206,6 @@ export async function listCompanyDocuments(
     if (filters.reportingPeriod === NO_REPORTING_PERIOD) query = query.is("reporting_period", null);
     else if (filters.reportingPeriod) query = query.eq("reporting_period", filters.reportingPeriod);
     if (counterparty) query = query.ilike("counterparty_search", `%${likeLiteral(counterparty)}%`);
-    if (filters.hasFindings) query = query.gt("finding_count", 0);
 
     const { data, error } = await query
       .order("created_at", { ascending: false })
@@ -215,28 +213,37 @@ export async function listCompanyDocuments(
       .order("id")
       .range(from, from + 999);
     if (error) throw error;
-    documents.push(...data.map((d) => ({
-      id: d.id,
-      sourceFileId: d.source_file_id,
-      firstPage: d.first_page,
-      lastPage: d.last_page,
-      status: d.status,
-      createdAt: d.created_at,
-      version: d.version,
-      documentNumber: d.document_number,
-      direction: d.direction as Direction | null,
-      taxPointDate: d.tax_point_date,
-      importDate: d.import_date,
-      claimedReportingPeriod: d.claimed_reporting_period,
-      reportingPeriod: d.reporting_period,
-      counterparty: d.direction === null
-        ? null
-        : { name: d.counterparty_name, vatId: d.counterparty_vat_id, ico: d.counterparty_ico },
-      currency: d.currency,
-      grossAmount: d.gross_amount,
-      findingCount: d.finding_count ?? 0,
-      eligibleForVatReport: isEligibleForVatReport(d.status, d.proposed_vat_regime as VatRegime | null),
-    })));
+    documents.push(...data.map((d) => {
+      const reporting = prepareDocumentReporting({
+        id: d.id, status: d.status, extractionVersionId: d.extraction_version_id,
+        payload: d.reporting_payload as unknown as ExtractionPayload | null,
+        claimedReportingPeriod: d.claimed_reporting_period,
+      }, reportingYears, filters.reportingPeriod === NO_REPORTING_PERIOD ? undefined : filters.reportingPeriod,
+      (d.reporting_findings ?? []) as ValidationFinding[]);
+      return {
+        id: d.id,
+        sourceFileId: d.source_file_id,
+        firstPage: d.first_page,
+        lastPage: d.last_page,
+        status: d.status,
+        createdAt: d.created_at,
+        version: d.version,
+        documentNumber: d.document_number,
+        direction: d.direction as Direction | null,
+        taxPointDate: d.tax_point_date,
+        importDate: d.import_date,
+        claimedReportingPeriod: d.claimed_reporting_period,
+        reportingPeriod: d.reporting_period,
+        counterparty: d.direction === null
+          ? null
+          : { name: d.counterparty_name, vatId: d.counterparty_vat_id, ico: d.counterparty_ico },
+        currency: d.currency,
+        grossAmount: d.gross_amount,
+        findingCount: reporting.blockingFindings.length + reporting.advisoryFindings.length,
+        eligibleForVatReport: reporting.included,
+        reporting,
+      };
+    }).filter(document => !filters.hasFindings || document.findingCount > 0));
     if (data.length < 1000) return documents;
   }
 }
