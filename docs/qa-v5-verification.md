@@ -261,14 +261,18 @@ confined to diagnostic plan capture and rolled back; normal API limits remained
 unchanged. The migration preserves the view's `security_invoker`, grants, RLS
 predicates and warning semantics, allowing request filters into its branches.
 
-The permanent regression uses only two owned and 32 foreign current Documents,
-real native sessions and actual application results/isolation. On a clean
-fixture, the old view failed the measured database-work bound with 38 access
-checks. The corrected view passed the generous bound of fewer than 16. This
-scoped performance observation executes the same native view with the verified
-Auth identity and unchanged claims; its counter settings and transaction are
-rolled back and its connection closed. It avoids a hardware-sensitive timing
-assertion or routine 18,000-Document setup.
+A private diagnostic used two owned and 32 foreign current Documents, real
+native sessions and actual application results/isolation. On a clean fixture,
+the old view failed its measured database-work bound with 38 access checks;
+the corrected view passed fewer than 16. The scoped measurement used verified
+Auth identity and unchanged claims, with rolled-back counter settings and a
+closed connection. Standards review required keeping this internal execution
+observation outside the repository's application-observation test boundary.
+Its source, reproduction configuration and red/green evidence were preserved
+privately. The permanent regressions remain the original three real native
+application cases covering identity matches, nonblocking repeated hashes and
+cross-Company isolation. No internal-counter hook or 32-Document performance
+fixture remains in the normal suite, and no standards exception was introduced.
 
 The cloud 60-second deadline was not reproduced on the developer host. The
 exact fresh original pagination case completed in 17.55 seconds, including
@@ -285,11 +289,16 @@ No CPU/storage explanation for the cloud deadline is asserted. Running the
 out a material slowdown from other Users' recovery history; MFA guards were
 left unchanged.
 
-Focused correction checks passed all 33 cases: four Duplicate Warning tests,
-18 Period Lock tests and 11 actual native MFA replacement tests (22.32 seconds).
-Generated database types matched; typecheck, lint and combined diff checks
-passed. No full application, host or browser suite was rerun during this focused
-fix delivery. Fresh full integration validation, including actual host upgrade
+Before Standards review, focused checks passed 33 cases in 22.32 seconds,
+including the subsequently removed internal-work observation and all 11 actual
+native MFA replacement cases. That MFA proof carries across the test-only
+removal; application, view and guard behavior did not change. Post-review checks
+passed the original three Duplicate Warning cases and all 18 Period Lock cases
+in 9.82 seconds, with typecheck, lint and combined diff checks passing again.
+The complete application suite retains its original 888 cases, including six
+optional checks. Generated database types matched during the view correction.
+No full application, host or browser suite was rerun during this focused fix
+delivery. Fresh full integration validation, including actual host upgrade
 through the new migration, follows independent review; subsequent cloud CI is
 still required. Production operations remain separate.
 
