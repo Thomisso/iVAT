@@ -1,16 +1,27 @@
 # QA v5 final local verification (#179)
 
+Fresh canonical integration verification passed at
+`8a8472bcd5733754bbcb6386d0e475cc9f9bf2f0`: all 882 application cases,
+the complete three-case host/SSH fixture and 22 relevant production browser
+cases. Both independent code review axes reported no hard or optional findings
+on the retry correction. At this local evidence capture, the next replacement
+cloud run had not started and remained required. See the
+[PR checks](https://github.com/Thomisso/iVAT/pull/182/checks) for current status.
+The latest complete 85-case browser result belongs to the preceding cloud
+revision below; the fresh local command selected eight files and 22 cases.
+
 Replacement ready-profile cloud CI at
 `1e8735ee4ad9770a3b706445a2ae498b2239f458` passed all four earlier timeout
 cases but exposed one concurrent Upload Batch retry failure: 881 application
 cases passed, one failed and six optional checks skipped (888 total;
 85 passing files, one failing file and six skipped files; 653.27 seconds).
 Its complete browser job passed all 85 cases (918.2 seconds; build 50.6 seconds),
-and Deployment verification passed. The elapsed application times are separate
-runs, not a controlled benchmark. The narrowly corrected retry path has focused
-local proof below; fresh integration and replacement cloud verification remain
-pending at this capture. See the [PR checks](https://github.com/Thomisso/iVAT/pull/182/checks)
-for current status and the required final-revision result.
+and [Deployment verification 41169488471](https://github.com/Thomisso/iVAT/actions/runs/41169488471)
+passed. The elapsed application times are separate runs, not a controlled
+benchmark. The retry correction subsequently passed fresh integration checks
+below; replacement cloud verification remained pending at the local capture.
+See the [PR checks](https://github.com/Thomisso/iVAT/pull/182/checks) for current
+status and the required final-revision result.
 
 Earlier fresh local integration verification at
 `df6148c185e06f358f79b4ad4d3af2c006971366` passed 882 application tests,
@@ -26,6 +37,64 @@ at `3dc4bd8bb05abdb02321e0db0d01f6cf530a5752` failed the application suite:
 [Deployment verification 41162979086](https://github.com/Thomisso/iVAT/actions/runs/41162979086),
 including actual image/proxy assets and release identity. That failed
 application result is retained rather than replaced by local evidence.
+
+## Latest corrected local integration results
+
+All checks below ran sequentially at
+`8a8472bcd5733754bbcb6386d0e475cc9f9bf2f0`, after both independent delta
+reviews passed. The previous failed cloud runs remain history below.
+
+| Check | Result | Elapsed |
+| --- | --- | --- |
+| `npm ci` | Passed | 6.36 s |
+| Fresh e2e-profile stack, canonical reset, generated types and diff | Passed; types matched | 26.65 s / 24.63 s / 0.46 s |
+| `npm run test:serial` | 882 passed, 6 optional skips; 86 passing files, 6 skipped files (888 cases / 92 files) | 307.79 s Vitest / 308.34 s command |
+| `npm run typecheck` | Passed | 1.90 s |
+| `npm run lint` | Passed | 4.55 s |
+| Mandatory full opt-in host/SSH runtime fixture | 3 passed, zero skipped | 187.75 s command |
+| Eight relevant production browser files, including their production build | 22 passed, zero skipped | 104.8 s browser phase / 141.36 s command; build 3.3 s |
+
+The six application skips remain five opt-in live-provider contracts and one
+optional OpenAI simulation. No live-provider contract result is implied.
+
+The full host command was:
+
+```bash
+IVAT_RELEASE_RUNTIME_TEST=1 node --test deploy/tests/release-runtime.test.mjs
+```
+
+It ran from 05:10:40 to 05:13:48 UTC (187726.4765 ms reported by Node),
+with actual pinned disposable SSH, interrupted-observer durable completion,
+selected-image producer failure, successful deployment, compiled tag/full-revision
+identity, the installed XML generator, six anonymous public assets with exact
+bytes/MIME/signatures and failed-migration recovery guards. The complete current
+application's real view and RPC migrations run during fresh baseline preparation;
+only the synthetic probe migration is omitted there and applied by the later
+actual deployment upgrade. The separate isolated old-view and old-RPC to
+`db:migrate` proofs establish replacement of those existing definitions; this
+host result does not claim they were first applied during its later probe upgrade.
+
+The relevant browser command was:
+
+```bash
+PLAYWRIGHT_BASE_URL=http://127.0.0.1:3104 npm run test:e2e -- e2e/acceptance.spec.ts e2e/manual-documents.spec.ts e2e/document-recovery.spec.ts e2e/source-recovery.spec.ts e2e/documents-queue.spec.ts e2e/vat-processing-wizard.spec.ts e2e/truthful-inclusion.spec.ts e2e/upload-workspace.spec.ts
+```
+
+It ran from 05:13:56 to 05:16:18 UTC with a fresh e2e-profile stack, local
+Mailpit, Postman ARES, fake providers, actual production Next server and worker.
+All 22 cases passed; Upload Workspace contributed six cases to the earlier
+seven-file selection. The 3.3-second production build is counted once.
+Managed services and the database stopped by 05:16:20 UTC; Docker had no running
+containers and the owned application listener was absent.
+
+UI and Auth code were unchanged by the retry correction. The complete 85-case
+cloud browser pass at `1e8735e` remains the latest full-browser result, and the
+40-observation Next/MCP/React proof at `e36ed62` remains runtime history for those
+unchanged surfaces. Neither is represented as a fresh full-browser or Next run
+at `8a8472b`. The next replacement cloud workflow must run the complete suite
+for its exact revision. Parent #159, production SMTP #169, approved Release
+#180 and exact-main release gates remain incomplete; no production mail or
+Release activation is proved by these local checks.
 
 ## Upload Batch retry correction after replacement cloud CI
 
@@ -58,7 +127,8 @@ actor using the original Company, a foreign actor reusing the Batch id within
 their own Company, another creator in the same Company, and a changed manifest;
 the original creator could still restore the unchanged Batch. Generated database
 types matched; typecheck, lint and diff checks passed. No full application,
-host or browser suite was repeated on this fix branch.
+host or browser suite was repeated on this fix branch; the subsequent canonical
+integration run is recorded above.
 
 ## Earlier corrected local integration results
 
