@@ -543,14 +543,14 @@ isOneToOne: false
                   ]
                 },"source_file": {
                   Row: {
-                    "byte_size": number,"company_id": string,"file_name": string,"format": Database["public"]['Enums']["source_file_format"],"id": string,"normalized_byte_size": number | null,"normalized_format": Database["public"]['Enums']["source_file_format"] | null,"normalized_sha256": string | null,"organization_id": string,"page_count": number,"preselected_direction": string | null,"sha256": string,"status": Database["public"]['Enums']["source_file_status"],"upload_batch_id": string | null,"uploaded_at": string,"uploaded_by": string | null
+                    "byte_size": number,"company_id": string,"excluded_at": string | null,"excluded_by": string | null,"exclusion_reason": string | null,"file_name": string,"format": Database["public"]['Enums']["source_file_format"],"id": string,"manual_definition": Json | null,"manually_defined_at": string | null,"manually_defined_by": string | null,"normalized_byte_size": number | null,"normalized_format": Database["public"]['Enums']["source_file_format"] | null,"normalized_sha256": string | null,"organization_id": string,"page_count": number,"preselected_direction": string | null,"sha256": string,"split_request_id": string,"status": Database["public"]['Enums']["source_file_status"],"upload_batch_id": string | null,"uploaded_at": string,"uploaded_by": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "byte_size": number,"company_id": string,"file_name": string,"format": Database["public"]['Enums']["source_file_format"],"id": string,"normalized_byte_size"?: number | null,"normalized_format"?: Database["public"]['Enums']["source_file_format"] | null,"normalized_sha256"?: string | null,"organization_id": string,"page_count": number,"preselected_direction"?: string | null,"sha256": string,"status"?: Database["public"]['Enums']["source_file_status"],"upload_batch_id"?: string | null,"uploaded_at"?: string,"uploaded_by"?: string | null
+                    "byte_size": number,"company_id": string,"excluded_at"?: string | null,"excluded_by"?: string | null,"exclusion_reason"?: string | null,"file_name": string,"format": Database["public"]['Enums']["source_file_format"],"id": string,"manual_definition"?: Json | null,"manually_defined_at"?: string | null,"manually_defined_by"?: string | null,"normalized_byte_size"?: number | null,"normalized_format"?: Database["public"]['Enums']["source_file_format"] | null,"normalized_sha256"?: string | null,"organization_id": string,"page_count": number,"preselected_direction"?: string | null,"sha256": string,"split_request_id"?: string,"status"?: Database["public"]['Enums']["source_file_status"],"upload_batch_id"?: string | null,"uploaded_at"?: string,"uploaded_by"?: string | null
                   }
                   Update: {
-                    "byte_size"?: number,"company_id"?: string,"file_name"?: string,"format"?: Database["public"]['Enums']["source_file_format"],"id"?: string,"normalized_byte_size"?: number | null,"normalized_format"?: Database["public"]['Enums']["source_file_format"] | null,"normalized_sha256"?: string | null,"organization_id"?: string,"page_count"?: number,"preselected_direction"?: string | null,"sha256"?: string,"status"?: Database["public"]['Enums']["source_file_status"],"upload_batch_id"?: string | null,"uploaded_at"?: string,"uploaded_by"?: string | null
+                    "byte_size"?: number,"company_id"?: string,"excluded_at"?: string | null,"excluded_by"?: string | null,"exclusion_reason"?: string | null,"file_name"?: string,"format"?: Database["public"]['Enums']["source_file_format"],"id"?: string,"manual_definition"?: Json | null,"manually_defined_at"?: string | null,"manually_defined_by"?: string | null,"normalized_byte_size"?: number | null,"normalized_format"?: Database["public"]['Enums']["source_file_format"] | null,"normalized_sha256"?: string | null,"organization_id"?: string,"page_count"?: number,"preselected_direction"?: string | null,"sha256"?: string,"split_request_id"?: string,"status"?: Database["public"]['Enums']["source_file_status"],"upload_batch_id"?: string | null,"uploaded_at"?: string,"uploaded_by"?: string | null
                   }
                   Relationships: [
                     {
@@ -910,6 +910,9 @@ isOneToOne: false
 "current_user_can_use_application":
 { Args: Record<PropertyKey, never>; Returns: boolean
                            },
+"define_source_documents":
+{ Args: { "document_ranges": Json,"target_source_file_id": string }; Returns: (string)[]
+                           },
 "delete_company_reporting_year":
 { Args: { "target_company_id": string,"target_year": number }; Returns: undefined
                            },
@@ -921,6 +924,9 @@ isOneToOne: false
                            },
 "dismiss_upload_notification":
 { Args: { "target_notification_id": string }; Returns: undefined
+                           },
+"exclude_source_file":
+{ Args: { "exclusion_reason": string,"target_source_file_id": string }; Returns: undefined
                            },
 "fail_company_data_export":
 { Args: { "target_export_id": string }; Returns: undefined
@@ -1037,6 +1043,9 @@ isOneToOne: false
 "move_document_processing_status":
 { Args: { "expected_statuses": (Database["public"]['Enums']["document_status"])[],"target_document_id": string,"target_extraction_request_id": string,"target_status": Database["public"]['Enums']["document_status"] }; Returns: boolean
                            },
+"move_source_processing_status":
+{ Args: { "expected_statuses": (Database["public"]['Enums']["source_file_status"])[],"target_source_file_id": string,"target_split_request_id": string,"target_status": Database["public"]['Enums']["source_file_status"] }; Returns: boolean
+                           },
 "password_recovery_link_status":
 { Args: { "request_token": string }; Returns: string
                            },
@@ -1058,13 +1067,13 @@ isOneToOne: false
 { Args: { "findings": Json,"model": string,"payload": Json,"provider": string,"target_document_id": string,"target_extraction_request_id": string,"target_reservation_id": string }; Returns: undefined
                            },
 "record_ai_processing_issue":
-{ Args: { "target_classification": Database["public"]['Enums']["ai_processing_issue_classification"],"target_configuration_id"?: string,"target_extraction_request_id"?: string,"target_id": string,"target_kind": Database["public"]['Enums']["ai_processing_target_kind"],"target_provider"?: string,"target_state": Database["public"]['Enums']["ai_processing_issue_state"] }; Returns: undefined
+{ Args: { "target_classification": Database["public"]['Enums']["ai_processing_issue_classification"],"target_configuration_id"?: string,"target_extraction_request_id"?: string,"target_id": string,"target_kind": Database["public"]['Enums']["ai_processing_target_kind"],"target_provider"?: string,"target_split_request_id"?: string,"target_state": Database["public"]['Enums']["ai_processing_issue_state"] }; Returns: undefined
                            },
 "record_ai_usage":
 { Args: { "target_company_id": string,"target_configuration_id": string,"target_input_tokens": number,"target_job_id": string,"target_job_name": string,"target_model": string,"target_operation": string,"target_organization_id": string,"target_output_tokens": number,"target_provider": string,"target_provider_cost_usd"?: number }; Returns: undefined
                            },
 "record_split":
-{ Args: { "source_ranges": Json,"target_source_file_id": string }; Returns: undefined
+{ Args: { "source_ranges": Json,"target_source_file_id": string,"target_split_request_id": string }; Returns: undefined
                            },
 "reject_document":
 { Args: { "rejection_reason"?: string,"target_document_id": string }; Returns: undefined
@@ -1107,9 +1116,12 @@ isOneToOne: false
 "restore_platform_ai_processing_wait":
 { Args: { "target_work": Json }; Returns: undefined
                            },
+"restore_source_file":
+{ Args: { "target_source_file_id": string }; Returns: undefined
+                           },
 "resume_platform_ai_processing":
 { Args: { "target_company_id"?: string,"target_configuration_id"?: string }; Returns: {
-              "classification": Database["public"]['Enums']["ai_processing_issue_classification"],"configuration_id": string,"extraction_request_id": string,"first_detected_at": string,"provider": string,"target_id": string,"target_kind": Database["public"]['Enums']["ai_processing_target_kind"]
+              "classification": Database["public"]['Enums']["ai_processing_issue_classification"],"configuration_id": string,"extraction_request_id": string,"first_detected_at": string,"provider": string,"split_request_id": string,"target_id": string,"target_kind": Database["public"]['Enums']["ai_processing_target_kind"]
             }[]
                            },
 "retry_failed_processing_job":
@@ -1159,11 +1171,20 @@ isOneToOne: false
 "soft_delete_company":
 { Args: { "target_company_id": string,"target_export_id": string }; Returns: Json
                            },
+"source_file_period_lock":
+{ Args: { "target_source_file_id": string }; Returns: string
+                           },
+"source_file_readiness":
+{ Args: { "target_company_id": string,"target_period": string }; Returns: Json
+                           },
 "split_document":
 { Args: { "split_after_page": number,"target_document_id": string }; Returns: (string)[]
                            },
 "start_manual_document_review":
 { Args: { "target_document_id": string }; Returns: undefined
+                           },
+"start_manual_source_review":
+{ Args: { "target_source_file_id": string }; Returns: undefined
                            },
 "unlock_reporting_period":
 { Args: { "target_company_id": string,"target_period": string,"unlock_confirmed": boolean,"unlock_reason": string }; Returns: undefined
@@ -1220,7 +1241,7 @@ isOneToOne: false
                            }
           }
           Enums: {
-            "ai_processing_issue_classification": "configuration_missing"|"configuration_unusable"|"invalid_credentials"|"provider_credits_exhausted"|"provider_unavailable"|"provider_response_invalid"|"processing_failed","ai_processing_issue_state": "waiting_for_platform"|"terminal","ai_processing_target_kind": "source_file"|"document","company_setup_state": "completed"|"skipped","company_setup_step": "identity"|"filing_frequency"|"filing_defaults"|"ai_processing","document_status": "uploaded"|"waiting_for_allowance"|"waiting_for_platform"|"processing"|"needs_review"|"failed"|"approved"|"rejected","filing_frequency": "monthly"|"quarterly","membership_role": "administrator"|"user","person_type": "legal"|"natural","platform_role": "super_admin","source_file_format": "pdf"|"png"|"jpeg"|"xlsx"|"xls"|"heic"|"heif","source_file_status": "uploaded"|"waiting_for_platform"|"processing"|"split"|"failed"
+            "ai_processing_issue_classification": "configuration_missing"|"configuration_unusable"|"invalid_credentials"|"provider_credits_exhausted"|"provider_unavailable"|"provider_response_invalid"|"processing_failed","ai_processing_issue_state": "waiting_for_platform"|"terminal","ai_processing_target_kind": "source_file"|"document","company_setup_state": "completed"|"skipped","company_setup_step": "identity"|"filing_frequency"|"filing_defaults"|"ai_processing","document_status": "uploaded"|"waiting_for_allowance"|"waiting_for_platform"|"processing"|"needs_review"|"failed"|"approved"|"rejected","filing_frequency": "monthly"|"quarterly","membership_role": "administrator"|"user","person_type": "legal"|"natural","platform_role": "super_admin","source_file_format": "pdf"|"png"|"jpeg"|"xlsx"|"xls"|"heic"|"heif","source_file_status": "uploaded"|"waiting_for_platform"|"processing"|"split"|"failed"|"rejected"|"needs_review"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -1340,7 +1361,7 @@ export const Constants = {
           }
         },"public": {
           Enums: {
-            "ai_processing_issue_classification": ["configuration_missing", "configuration_unusable", "invalid_credentials", "provider_credits_exhausted", "provider_unavailable", "provider_response_invalid", "processing_failed"],"ai_processing_issue_state": ["waiting_for_platform", "terminal"],"ai_processing_target_kind": ["source_file", "document"],"company_setup_state": ["completed", "skipped"],"company_setup_step": ["identity", "filing_frequency", "filing_defaults", "ai_processing"],"document_status": ["uploaded", "waiting_for_allowance", "waiting_for_platform", "processing", "needs_review", "failed", "approved", "rejected"],"filing_frequency": ["monthly", "quarterly"],"membership_role": ["administrator", "user"],"person_type": ["legal", "natural"],"platform_role": ["super_admin"],"source_file_format": ["pdf", "png", "jpeg", "xlsx", "xls", "heic", "heif"],"source_file_status": ["uploaded", "waiting_for_platform", "processing", "split", "failed"]
+            "ai_processing_issue_classification": ["configuration_missing", "configuration_unusable", "invalid_credentials", "provider_credits_exhausted", "provider_unavailable", "provider_response_invalid", "processing_failed"],"ai_processing_issue_state": ["waiting_for_platform", "terminal"],"ai_processing_target_kind": ["source_file", "document"],"company_setup_state": ["completed", "skipped"],"company_setup_step": ["identity", "filing_frequency", "filing_defaults", "ai_processing"],"document_status": ["uploaded", "waiting_for_allowance", "waiting_for_platform", "processing", "needs_review", "failed", "approved", "rejected"],"filing_frequency": ["monthly", "quarterly"],"membership_role": ["administrator", "user"],"person_type": ["legal", "natural"],"platform_role": ["super_admin"],"source_file_format": ["pdf", "png", "jpeg", "xlsx", "xls", "heic", "heif"],"source_file_status": ["uploaded", "waiting_for_platform", "processing", "split", "failed", "rejected", "needs_review"]
           }
         }
 } as const

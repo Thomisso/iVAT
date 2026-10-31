@@ -1,8 +1,11 @@
+import { sourceSplitRequestFixture } from "./source-request";
 import fs from "node:fs/promises";
 import { asUserClient } from "@/application/client";
-import { uploadSourceFile } from "@/application/source-files";
+import { setCurrentReportingYear } from "@/application/companies";
+import { pragueDate } from "@/application/reporting-periods";
+import { uploadSourceFile, getSourceFile } from "@/application/source-files";
 import { listDocuments } from "@/application/documents";
-import { fixtureFile, selectFixtureFiles } from "./files";
+import { fixtureFile, heicFixture, selectFixtureFiles } from "./files";
 import { createClient } from "@supabase/supabase-js";
 import { Client as DatabaseClient } from "pg";
 import type { Database } from "@/lib/database.types";
@@ -477,7 +480,7 @@ export async function addBrowserUnextractedDocumentFixture(input: { companyId: s
   });
   if (!uploaded.ok) throw new Error(uploaded.error);
   const system = await browserFixtureClient();
-  const split = await system.rpc("record_split", { target_source_file_id: uploaded.value.id, source_ranges: [{ firstPage: 1, lastPage: 1 }] });
+  const split = await system.rpc("record_split", { target_source_file_id: uploaded.value.id, target_split_request_id: await sourceSplitRequestFixture(system, uploaded.value.id), source_ranges: [{ firstPage: 1, lastPage: 1 }] });
   if (split.error) throw split.error;
   const [document] = await listDocuments(client, input.companyId, uploaded.value.id);
   const setup = await system.from("document").update({ status: input.status }).eq("id", document.id);
@@ -492,4 +495,20 @@ export async function expireBrowserMfaMaintenanceFixture(sessionId: string) {
   await database.connect();
   try { await database.query("update private.mfa_maintenance set expires_at = now() - interval '1 second' where session_id = $1", [sessionId]); }
   finally { await database.end(); }
+}
+
+/** An actual stored Source before Split, provisioned through the User's application command. */
+export async function addBrowserUnsplitSourceFixture(input: { companyId: string; email: string; password: string; fileName: "receipt.png" | "two-invoices.pdf" | "receipt.heic" }) {
+  const environment = await browserFixtureEnvironment();
+  const client = asUserClient(createClient<Database>(environment.NEXT_PUBLIC_SUPABASE_URL, environment.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, { auth: { autoRefreshToken: false, persistSession: false } }));
+  const signedIn = await client.auth.signInWithPassword({ email: input.email, password: input.password });
+  if (signedIn.error) throw signedIn.error;
+  const uploaded = await uploadSourceFile(client, { async send() {} }, { companyId: input.companyId, fileName: input.fileName, bytes: input.fileName === "receipt.heic" ? heicFixture() : fixtureFile(input.fileName) });
+  if (!uploaded.ok) throw new Error(uploaded.error);
+  const source = await getSourceFile(client, input.companyId, uploaded.value.id);
+  if (!source) throw new Error("Source fixture is missing");
+  const period = pragueDate(source.uploadedAt).slice(0, 7);
+  const year = await setCurrentReportingYear(client, { companyId: input.companyId, filingFrequency: "monthly", year: Number(period.slice(0, 4)) });
+  if (!year.ok) throw new Error(year.error);
+  return { sourceFileId: source.id, period };
 }

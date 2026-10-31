@@ -1,3 +1,4 @@
+import { sourceSplitRequestFixture } from "./source-request";
 import {
   createCompany,
   type CompanySettingsInput,
@@ -255,7 +256,7 @@ export async function companyWithManyReportDocuments(count: number) {
     );
     if (!file.ok) throw new Error(file.error);
     const split = await system.rpc("record_split", {
-      target_source_file_id: file.value.id,
+      target_source_file_id: file.value.id, target_split_request_id: await sourceSplitRequestFixture(system, file.value.id),
       source_ranges: Array.from({ length: pageCount }, (_, i) => ({
         firstPage: i + 1,
         lastPage: i + 1,
@@ -333,7 +334,7 @@ export async function companyWithWaitingDocuments(count: number) {
     });
     if (!uploaded.ok) throw new Error(uploaded.error);
     const split = await systemClient().rpc("record_split", {
-      target_source_file_id: uploaded.value.id,
+      target_source_file_id: uploaded.value.id, target_split_request_id: await sourceSplitRequestFixture(systemClient(), uploaded.value.id),
       source_ranges: Array.from({ length: documentsInFile }, (_, page) => ({
         firstPage: page + 1,
         lastPage: page + 1,
@@ -373,7 +374,7 @@ export async function uploadBatchWithWaitingDocuments(count: number) {
     if (!uploaded.ok) throw new Error(uploaded.error);
     const documentsInFile = Math.min(50, count - created);
     const split = await systemClient().rpc("record_split", {
-      target_source_file_id: uploaded.value.id,
+      target_source_file_id: uploaded.value.id, target_split_request_id: await sourceSplitRequestFixture(systemClient(), uploaded.value.id),
       source_ranges: Array.from({ length: documentsInFile }, (_, page) => ({
         firstPage: page + 1,
         lastPage: page + 1,

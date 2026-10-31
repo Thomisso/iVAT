@@ -1,3 +1,4 @@
+import type { SourceFileStatus } from "./source-files";
 import { currentValidationFindings } from "./document-validation";
 import type { AppClient, Result } from "./client";
 import { isUuid } from "./client";
@@ -42,10 +43,19 @@ export type ReadinessFinding = {
   findingCode?: string;
 };
 
+export type SourceFileReadiness = {
+  sourceFileId: string;
+  fileName: string;
+  status: SourceFileStatus;
+  splitRequestId: string;
+  exclusionReason: string | null;
+};
+
 export type ReportingPeriodReadiness = {
   companyId: string;
   period: string;
   ready: boolean;
+  sourceFiles: SourceFileReadiness[];
   blockers: ReadinessFinding[];
   warnings: ReadinessFinding[];
   groups: {
@@ -102,6 +112,7 @@ type SavedSourceSnapshot = {
   generatedAt: string;
   documents: ReportDocument[];
   readinessSource: ReportingPeriodReadinessSource[] | null;
+  sourceFilesReadinessSource: SourceFileReadiness[] | null;
 };
 
 function canonical(value: unknown): string {
@@ -124,7 +135,9 @@ function snapshotIsCurrent(
   assigned: ReportDocument[],
   relevant: ReportDocument[],
   source: ReportingPeriodReadinessSource[],
+  sourceFiles: SourceFileReadiness[],
 ) {
+  if (canonical(report.sourceFilesReadinessSource ?? []) !== canonical(sourceFiles)) return false;
   if (report.readinessSource) {
     return canonical(report.readinessSource) === canonical(source);
   }
@@ -158,11 +171,12 @@ async function getSavedSourceSnapshot(
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
-  const result = data.result as { readinessSource?: unknown };
+  const result = data.result as { readinessSource?: unknown; sourceFilesReadinessSource?: unknown };
   return {
     id: data.id,
     generatedAt: data.generated_at,
     documents: data.documents as unknown as ReportDocument[],
+    sourceFilesReadinessSource: Array.isArray(result.sourceFilesReadinessSource) ? result.sourceFilesReadinessSource as SourceFileReadiness[] : null,
     readinessSource: Array.isArray(result.readinessSource)
       ? result.readinessSource as ReportingPeriodReadinessSource[]
       : null,
@@ -313,10 +327,13 @@ export async function getReportingPeriodReadiness(
   ) {
     return { ok: false, error: "invalid_reporting_period" };
   }
-  const [{ assigned, relevant }, report] = await Promise.all([
+  const [{ assigned, relevant }, report, sourceFilesResponse] = await Promise.all([
     relevantDocuments(client, input.companyId, input.period, reportingYears),
     getSavedSourceSnapshot(client, input.companyId, input.period),
+    client.rpc("source_file_readiness", { target_company_id: input.companyId, target_period: input.period }),
   ]);
+  if (sourceFilesResponse.error) throw sourceFilesResponse.error;
+  const sourceFiles = sourceFilesResponse.data as unknown as SourceFileReadiness[];
   const byVersion = await findingsByVersion(client, relevant);
   const source = readinessSource(relevant);
   const assignedIds = new Set(assigned.map((document) => document.id));
@@ -394,7 +411,8 @@ export async function getReportingPeriodReadiness(
     value: {
       companyId: input.companyId,
       period: input.period,
-      ready: blockers.length === 0,
+      ready: blockers.length === 0 && sourceFiles.every((source) => source.status === "rejected"),
+      sourceFiles,
       blockers,
       warnings,
       groups,
@@ -403,7 +421,7 @@ export async function getReportingPeriodReadiness(
         ? {
             reportId: report.id,
             generatedAt: report.generatedAt,
-            freshness: snapshotIsCurrent(report, assigned, relevant, source) ? "current" : "stale",
+            freshness: snapshotIsCurrent(report, assigned, relevant, source, sourceFiles) ? "current" : "stale",
           }
         : null,
     },
