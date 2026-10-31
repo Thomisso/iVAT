@@ -45,6 +45,8 @@ import {
   mergeDocuments,
   moveDocumentPage,
   rejectDocument,
+  startManualDocumentReview,
+  restoreDocument,
   returnDocumentToReview,
   reprocessDocument,
   splitDocument,
@@ -631,9 +633,21 @@ export async function approveDocumentAction(_state: FormState, formData: FormDat
 export async function rejectDocumentAction(_state: FormState, formData: FormData): Promise<FormState> {
   const companyId = field(formData, "companyId");
   const documentId = field(formData, "documentId");
-  const result = await rejectDocument(await requireUserClient(), { companyId, documentId });
-  if (!result.ok) return settled(result);
+  const result = await rejectDocument(await requireUserClient(), { companyId, documentId, reason: field(formData, "reason") });
+  if (!result.ok) return refused(result.error, formData, ["reason"]);
   redirectAfterDocumentDecision(formData, companyId, documentId);
+}
+
+export async function startManualDocumentReviewAction(_state: FormState, formData: FormData): Promise<FormState> {
+  return settled(await startManualDocumentReview(await requireUserClient(), {
+    companyId: field(formData, "companyId"), documentId: field(formData, "documentId"),
+  }));
+}
+
+export async function restoreDocumentAction(_state: FormState, formData: FormData): Promise<FormState> {
+  return settled(await restoreDocument(await requireUserClient(), {
+    companyId: field(formData, "companyId"), documentId: field(formData, "documentId"),
+  }));
 }
 
 export async function returnDocumentToReviewAction(_state: FormState, formData: FormData): Promise<FormState> {

@@ -30,3 +30,28 @@ and the deployed release label remains the same compiled identity. No dark theme
 is introduced. `e2e/brand-auth.spec.ts` checks actual assets, accessibility, keyboard
 focus, CS/EN, dark-system light rendering and 360/720/1024/1440px layouts; visual
 reference comparison and actual-size icon inspection complement those assertions.
+
+## Shared workspaces
+
+Page 6 extends the identity into Company, Organization and Platform work. Legacy
+shell colour aliases now resolve to the same ink/accent/canvas tokens, with a pale
+sidebar, white work areas and flat neutral borders. The existing Geist roles stay;
+page headings use a restrained 24-28px scale and shared responsive 24-40px gutters.
+Wide desktops use a 272px sidebar, shrinking to the existing 224px minimum before
+the existing mobile top/context and bottom navigation take over.
+
+Navigation destinations, Company/Organization selectors, account tools, filters,
+workflow steps and semantic badges keep their existing behavior. In particular,
+AI-authored fields retain their yellow proposal treatment, while review warnings,
+approval, locks and errors keep distinct meanings and explicit human actions.
+Upload history uses the common inbox empty state and quieter secondary filters;
+the Company chooser uses the same brand asset without adding a destination.
+On small screens the file picker sits beneath its description so the hint stays
+readable beside the upload icon; camera capture and upload remain separate actions.
+
+`e2e/workspace-style.spec.ts` exercises real saved reports and an AI-authored
+Document returned to review. It checks the Company, Organization, review, reporting
+and native-MFA-authorized Platform surfaces in CS/EN at 360/720/1024/1440px under a
+dark system preference, requires durable approval after the human action, and
+checks integrated recovery entry screens still inherit the authentication frame.
+Existing shell/navigation and keyboard journeys complement the visual inspection.
