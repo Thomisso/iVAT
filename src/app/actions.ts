@@ -232,7 +232,7 @@ export async function disenrollMfaAction(): Promise<FormState> {
     const result = await disenrollMfa(client, status.factorId);
     if (!result.ok) return { error: result.error, values: {} };
   }
-  redirect("/settings/security");
+  redirect(mfaRedirectPath("/settings/security", await mfaPolicy(client)) ?? "/settings/security");
 }
 
 export async function setOrganizationMfaRequiredAction(_state: FormState, formData: FormData): Promise<FormState> {

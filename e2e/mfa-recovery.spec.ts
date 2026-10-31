@@ -142,7 +142,9 @@ for (const language of ["en", "cs"] as const) {
     await expect(login).not.toHaveURL(/\/mfa\/verify$/);
     await login.goto(account.companyUrl);
     await expect(login.getByRole("button", { name: /Backup Recovery Company/ })).toBeVisible();
-    await login.goto("/mfa/enroll");
+    await login.goto("/settings/security");
+    await login.getByRole("link", { name: language === "en" ? "Add authenticator" : "Přidat autentizátor" }).click();
+    await expect(login).toHaveURL(/\/mfa\/enroll$/);
     const startSetup = language === "en" ? "Start setup" : "Zahájit nastavení";
     const verifySetup = language === "en" ? "Verify and enable" : "Ověřit a zapnout";
     await login.getByRole("button", { name: startSetup }).click();
@@ -169,6 +171,8 @@ for (const language of ["en", "cs"] as const) {
     await expect(login).not.toHaveURL(/\/mfa\/verify$/);
     await login.goto(account.companyUrl);
     await expect(login.getByRole("button", { name: /Backup Recovery Company/ })).toBeVisible();
+    await login.goto("/settings/security");
+    await expect(login.getByText(language === "en" ? "Two-factor authentication is enabled." : "Dvoufázové ověření je zapnuté.", { exact: true })).toBeVisible();
     const logs = process.env.IVAT_E2E_SERVICE_LOG_DIRECTORY;
     if (!logs) throw new Error("Service logs required for MFA-secret privacy proof");
     const next = await readFile(path.join(logs, "next.log"), "utf8");

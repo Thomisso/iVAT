@@ -867,6 +867,7 @@
     "authenticatorEnabled": "Dvoufázové ověření je zapnuté.",
     "authenticatorDisabled": "Dvoufázové ověření není zapnuté.",
     "enableAuthenticator": "Zapnout autentizátor",
+    "addAuthenticator": "Přidat autentizátor",
     "disableAuthenticator": "Vypnout autentizátor",
     "enrollTitle": "Nastavení dvoufázového ověření",
     "enrollIntro": "Chraňte účet druhým faktorem pomocí autentizační aplikace.",

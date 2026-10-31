@@ -867,6 +867,7 @@
     "authenticatorEnabled": "Two-factor authentication is enabled.",
     "authenticatorDisabled": "Two-factor authentication is not enabled.",
     "enableAuthenticator": "Enable authenticator",
+    "addAuthenticator": "Add authenticator",
     "disableAuthenticator": "Disable authenticator",
     "enrollTitle": "Set up two-factor authentication",
     "enrollIntro": "Use an authenticator app to protect your account with a second factor.",
