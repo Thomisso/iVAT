@@ -1,16 +1,17 @@
 # QA v5 final local verification (#179)
 
-The results below are retained pre-fix evidence at their exact revisions. The
-subsequent combined-review corrections change workbook/native-mail copy,
-Invitation confirmation and production asset packaging. Fresh final integration
-checks are required after those corrections; the earlier application results
-must not be treated as passing coverage of the corrected HEAD.
+The reviewed integration passed the complete 85-case production browser suite
+and live Next/React runtime checks at
+`e36ed6266badc247e7051a4a1688be4a6d0a4c6b`. The fresh application and updated
+full host results below were executed at `cf16536ae79e8e9a2583fbdc74f94f4108b92c40`
+and carry across the subsequent one-line CSS and browser-fixture correction.
+Earlier failures and pre-fix passing runs remain separate history below.
 
 Verified on 31 October 2026 in the isolated integration worktree, after all
 ticket stacks stopped. Tests ran sequentially on Docker Desktop for macOS with
 Linux containers. Local Auth, PostgreSQL, Storage, SMTP capture, application,
 and worker processes were real. Test identities and financial data were
-synthetic; external AI, VAT registry, exchange-rate, and provider-control
+synthetic; external AI, VAT registry, exchange-rate and provider-control
 dependencies used the existing fake adapters or Postman simulations. No paid
 provider or live Google calls were made.
 
@@ -18,18 +19,22 @@ provider or live Google calls were made.
 
 | Check | Revision | Result | Elapsed |
 | --- | --- | --- | --- |
-| `npm ci` | `5d813218018616f92247b75d47fd2bc43341514c` | Passed | 6.31 s |
-| Fresh `npm run db:start -- --profile=e2e`, `npm run db:reset`, `npm run db:types` and generated-type diff | `5d813218018616f92247b75d47fd2bc43341514c` | Passed; generated types matched | 26.89 s / 24.73 s / 0.48 s |
-| `npm run test:serial` | `5d813218018616f92247b75d47fd2bc43341514c` | 880 passed, 6 skipped; 86 passing files, 6 skipped files | 345.96 s test / 346.61 s command |
-| `npm run typecheck` | `5d813218018616f92247b75d47fd2bc43341514c` | Passed | 5.48 s |
-| `npm run lint` | `5d813218018616f92247b75d47fd2bc43341514c` | Passed | 5.74 s |
-| CI policy, release identity, prepare, host and connect Node checks | `5d813218018616f92247b75d47fd2bc43341514c` | 23 passed | 9.00 s |
-| Full opt-in host/SSH runtime fixture | `80ace776d9325550214c1ac5e447532ba80b8807` | 3 passed, zero skipped | 190.09 s |
-| Complete repository production E2E command | `a1986d9d6d29d89c532e9f28eebe781231a192c2` | 84 passed, zero skipped | 305.4 s browser phase / 342.34 s command |
-| Next development runtime and browser checks | `a1986d9d6d29d89c532e9f28eebe781231a192c2` | MCP, React inspection and all 40 layout observations passed | Separate runtime confirmation |
+| `npm ci` | `cf16536ae79e8e9a2583fbdc74f94f4108b92c40` | Passed | 6.86 s |
+| Fresh `npm run db:start -- --profile=e2e`, `npm run db:reset`, `npm run db:types` and generated-type diff | `cf16536ae79e8e9a2583fbdc74f94f4108b92c40` | Passed; generated types matched | 26.96 s / 24.76 s / 0.47 s |
+| `npm run test:serial` | `cf16536ae79e8e9a2583fbdc74f94f4108b92c40` | 882 passed, 6 skipped; 86 passing files, 6 skipped files | 345.35 s test / 345.83 s command |
+| `npm run typecheck` | `cf16536ae79e8e9a2583fbdc74f94f4108b92c40` | Passed | 2.72 s |
+| `npm run lint` | `cf16536ae79e8e9a2583fbdc74f94f4108b92c40` | Passed | 5.32 s |
+| CI policy, release identity, prepare, host and connect Node checks | `cf16536ae79e8e9a2583fbdc74f94f4108b92c40` | 23 passed | 8.77 s |
+| Updated full opt-in host/SSH runtime fixture, including six public assets | `cf16536ae79e8e9a2583fbdc74f94f4108b92c40` | 3 passed, zero skipped | 192.61 s |
+| Four affected browser cases, plus typecheck and lint | `53a22d7db08ce3067ab91cdae6e2e3111c43c435` | 4 passed, zero skipped; static checks passed | 26.3 s browser |
+| Complete repository production E2E command | `e36ed6266badc247e7051a4a1688be4a6d0a4c6b` | 85 passed, zero skipped | 315.2 s browser phase / 352.90 s command |
+| Next development runtime and browser checks | `e36ed6266badc247e7051a4a1688be4a6d0a4c6b` | MCP, React inspection and all 40 layout observations passed | Separate runtime confirmation |
 
 The six serial-suite skips are five opt-in live-provider contract checks and
 one optional OpenAI simulation check. They were not enabled for this local run.
+The two additional cases since the earlier 880-test run cover actual native
+MagicLink template/session behavior and catalog-generated Auth template/subject
+artifact drift in normal saved verification.
 
 The exact additional Node command was:
 
@@ -50,7 +55,9 @@ test SSH and a disposable production Compose stack. Passing scenarios included
 preflight refusals, interrupted-observer lock retention and durable completion,
 selected-image inspection failure, successful upgrade, installed generator and
 compiled login tag/full-revision identity, retained data, and the failed-migration
-manual-recovery guard. Disposable host services were removed afterward.
+manual-recovery guard. Anonymous HTTP checks through the real proxy verified
+both brand SVGs and four published icon paths: 200 responses, correct MIME types,
+exact source bytes and image signatures. Disposable host services were removed.
 
 The complete browser command was:
 
@@ -60,22 +67,24 @@ PLAYWRIGHT_BASE_URL=http://127.0.0.1:3104 npm run test:e2e
 
 Its harness started a fresh isolated e2e-profile stack with local Mailpit,
 Postman ARES simulation, fake provider adapters, production Next server and
-worker. Its actual `npm run build` passed in 3.4 seconds and is the production
-build counted for this final run. The command ran every repository browser
-case, including native Auth/invitation/password/MFA recovery, manual-original
-attachment and explicit AI replacement, Role boundaries, Source recovery,
-review, reports, archive/export workflows, branding and shared-shell checks.
-The harness stopped its managed application, worker and simulation processes.
+worker. Its actual `npm run build` passed in 4.1 seconds and is the production
+build counted for this final run. Every repository browser case ran, including
+native Auth/invitation/password/MFA recovery, localized workbook downloads,
+abortable cancellation, manual-original attachment and explicit AI replacement,
+Role boundaries, Source recovery, review, reports, archive/export, branding
+and shared-shell checks. The new 85th case independently retains a live
+operational alert with long labels across both languages and all four widths,
+so successful Source remediation cannot mask layout regressions. The harness
+stopped its managed application, worker and simulation processes.
 
-The application/schema/dependencies did not change between the serial-suite
-revision and the later host/browser revisions: the two intervening corrections
-only changed release-fixture HTTP transport and stale browser test locators.
-The passing application checks therefore carry forward without redundant full
-serial runs. The host proof likewise carries forward across the locator-only
-correction. This evidence commit changes documentation only. A subsequent
-formatting-only follow-up removes surplus EOF blank lines from four new
-migrations and the TOTP test helper; SQL tokens, schema behavior and helper
-logic are unchanged.
+After `cf16536`, the only behavioral correction was the existing facts grid's
+minimum widths; the other change was deterministic browser-fixture selection
+with its independent alert regression. Application/worker logic, Auth, schema,
+dependencies and release runtime fixture did not change. The passing application
+and host checks therefore carry forward without redundant full serial or host
+runs. Typecheck and lint passed again on that two-file correction, which both
+review axes approved before the complete 85-case rerun. This evidence commit
+changes documentation only.
 
 ## Development runtime confirmation
 
@@ -91,17 +100,17 @@ AI-authored Extraction Version awaiting human review, and a saved VAT Report.
 Auth, Company, Source, Review and Report surfaces were observed in Czech and
 English at 360, 720, 1024 and 1440 pixels: 40 observations and screenshots.
 Every observation had one main region, a visible main heading, loaded branding,
-no body horizontal overflow, and light styling despite a dark system preference.
+no body horizontal overflow and light styling despite a dark system preference.
 Representative mobile and desktop images were visually inspected.
 
 React inspection confirmed the live login ActionState, the saved report's
 `GenerateForm` with `exists: true` and `disabled: true` matching the pending
-review blocker, and the actual `CorrectionForm` Version and payload. Runtime
-metadata identified the corresponding application routes. This was runtime
-confirmation, not a second E2E suite. The development output was preserved while
-the server ran. The scoped browser, development server and owned database
-stack were stopped afterward; no ticket stacks or owned application listeners
-remained. The integration working tree and verified HEAD remained unchanged.
+review blocker, and the actual `CorrectionForm` Version and populated payload.
+Runtime metadata and observed links identified the corresponding routes.
+This was runtime confirmation, not a second E2E suite. Development output was
+preserved while the server ran. The scoped browser, development server and
+owned database were stopped afterward; no ticket stacks or owned application
+listeners remained. The integration working tree and verified HEAD stayed clean.
 
 ## Earlier failed attempts, retained separately
 
@@ -109,26 +118,71 @@ remained. The integration working tree and verified HEAD remained unchanged.
   18 failed, 861 passed and 6 skipped tests (307.44 seconds command). Repeated
   local startup had invalidated mounted Auth template files. The wrapper was
   corrected to preserve file identity and received actual HTTP/template/mail
-  regression proof before the passing serial run above.
+  regression proof before the later passing serial runs.
 - At `5d813218018616f92247b75d47fd2bc43341514c`, the full host fixture had one
   passing source-preparation case and one failing runtime case, zero skips
   (247.21 seconds). The fixture's independent login request lost its explicit
   Host header through Node's global fetch and received 404. Its HTTP transport
-  was corrected and proved with a real loopback server before the full passing
-  host run above. Compiled tag and full-revision assertions were preserved.
+  was corrected and proved with a real loopback server before the later full passing
+  host runs. Compiled tag and full-revision assertions were preserved.
 - At `80ace776d9325550214c1ac5e447532ba80b8807`, the first complete browser run
   had 83 passed and one failed case, zero skips (354.55 seconds command). Two
   shared-shell locators still expected the old Auth banner brand placement.
   They were aligned with the approved centered panel. The full affected case
   and seven related Auth/branding cases then passed before the complete
-  84-case passing command above. All later shell/Role/accessibility assertions
-  remained intact.
+  84-case historical passing command below. All later shell, Role and
+  accessibility assertions remained intact.
+
+- At `cf16536ae79e8e9a2583fbdc74f94f4108b92c40`, the fresh complete browser
+  command had 81 passed, three failed and zero skipped cases (343.4 seconds
+  browser / 381.55 seconds command). One remediation fixture accepted the
+  first configuration in mixed inventory: OpenAI was assigned to a worker
+  deliberately configured with only the fake adapter. Two 720-pixel Platform
+  views overflowed to 733 pixels while that legitimate live alert was present.
+  The application suite and updated full host fixture at this revision passed;
+  the development runtime phase was held after the browser failure.
+
+The Source diagnosis replayed the original stored input through actual native
+AAL2 authorization, the real queue claim and the production worker handler.
+The incompatible assignment reproduced `waiting_for_platform` with
+`configuration_unusable` in 0.111 seconds. Changing only the assignment to an
+existing fake configuration reached `split` in 0.132 seconds; restoring the
+incompatible assignment reproduced the refusal in 0.087 seconds. Generations
+matched and jobs completed, ruling out a need to relax worker availability or
+increase timeouts. The browser fixture now creates its own fake configuration
+and explicitly selects its ID despite incompatible inventory; both the first
+remediation and final terminal-job retry must reach durable `split`.
+
+For the independent layout diagnosis, the same live alert, long Company and
+configuration labels stayed present. Changing only the facts-grid minimums
+reduced 733 pixels to 720; restoring them restored the overflow. Select minimums
+and text wrapping alone did not repair it. The new standalone browser regression
+reproduced the card ending at 733 pixels in a 720-pixel viewport before the
+one-line CSS correction. It keeps the real alert and open editing/assignment
+forms visible in both languages and all four widths before repairing its own
+Company through the UI and checking durable Source completion. No labels were
+shortened, content hidden, provider guard bypassed or timeout increased.
 
 Original failure logs and private traces were preserved rather than overwritten
 or represented as passing runs. One temporary runtime fixture launcher also
 needed its outside-repository top-level-await execution shape adapted to the
 local TypeScript loader; this occurred before any application call and changed
 no repository source.
+
+## Earlier passing results, retained as history
+
+| Check | Revision | Historical result |
+| --- | --- | --- |
+| Application serial suite | `5d813218018616f92247b75d47fd2bc43341514c` | 880 passed, 6 optional skips; 346.61 s command |
+| Full host/SSH fixture before asset assertions | `80ace776d9325550214c1ac5e447532ba80b8807` | 3 passed, zero skipped; 190.09 s |
+| Complete browser suite before combined-review corrections | `a1986d9d6d29d89c532e9f28eebe781231a192c2` | 84 passed, zero skipped; 342.34 s command |
+| Next runtime before combined-review corrections | `a1986d9d6d29d89c532e9f28eebe781231a192c2` | MCP, React and 40 layout observations passed |
+
+These historical results were not carried across the subsequent application
+and runtime corrections. Fresh application/host checks at `cf16536` and the
+complete browser/Next checks at `e36ed62` establish the current evidence instead.
+A formatting-only follow-up also removed surplus EOF blank lines from four
+new migrations and the TOTP helper without changing SQL tokens or helper logic.
 
 ## Combined-review corrections: focused proof
 
@@ -174,11 +228,6 @@ Focused verification during this correction:
   overflow. Explicit Czech confirmation reached Cancelled; local Mailpit
   contained no message for this silent workflow. Owned resources were stopped.
 
-The earlier 880-test, 84-browser, three-host-case and 40-layout results above
-remain pre-fix history. Fresh complete integration checks, including the updated
-full host fixture and production browser build, follow reviewed integration of
-these application/runtime corrections. Their future results are not claimed here.
-
 ## Remaining gates and limits
 
 These are local integration results, not production provider or delivery proof.
@@ -186,11 +235,18 @@ A separate read-only production SSH inventory informed SMTP preparation; no
 production writes, mail sends, Release activation or monitored production
 Release were performed. Production SMTP acceptance (#169) still requires the
 owner-supplied existing credentials and a controlled delivery check. Production
-release verification (#180) remains separate. Exact-main CI and Deployment
-verification remain release gates; these draft integration results do not
-replace them.
+release verification (#180) remains separate. Ready/full-cloud checks and
+exact-main CI and Deployment verification remain gates; these local integration
+results do not replace them.
 
-The final two independent combined review axes follow this evidence merge.
-This record does not itself mark the integration PR ready or close the spec.
+The initial independent combined reviews found three hard findings: translated
+workbook/native-mail copy, abortable Invitation cancellation, and production
+public-asset packaging. Those corrections received focused proof and both axes
+re-reviewed them with zero hard or code findings; the optional range-editor
+suggestion was withdrawn. Both axes also reviewed the final CSS/browser-fixture
+follow-up with zero hard, code or optional findings. This documentation-only
+record still receives its separate evidence review before merge. It does not
+itself mark the integration PR ready or close the spec.
+
 Credentials, tokens, factor secrets, private host details, test account values,
 and raw logs/screenshots are excluded from this public record.
