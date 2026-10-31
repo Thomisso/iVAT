@@ -261,12 +261,13 @@ async function failOnFinalAttempt(attempt: Attempt, markFailed: () => Promise<vo
 
 async function recordPlatformIntervention(
   system: SystemClient,
-  target: { kind: "source_file"; id: string } | { kind: "document"; id: string; extractionRequestId: string },
+  target: { kind: "source_file"; id: string; splitRequestId: string } | { kind: "document"; id: string; extractionRequestId: string },
   error: AiProviderError,
   availability: ProviderAvailability | undefined,
   state: "waiting_for_platform" | "terminal" = "waiting_for_platform",
 ) {
   const recorded = await system.rpc("record_ai_processing_issue", {
+    target_split_request_id: target.kind === "source_file" ? target.splitRequestId : undefined,
     target_kind: target.kind,
     target_id: target.id,
     target_extraction_request_id: target.kind === "document" ? target.extractionRequestId : undefined,
@@ -281,23 +282,21 @@ async function recordPlatformIntervention(
 async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId: string, attempt: Attempt) {
   const { data: file, error } = await system
     .from("source_file")
-    .select("id, organization_id, company_id, format, normalized_format, page_count, status")
+    .select("id, organization_id, company_id, format, normalized_format, page_count, status, split_request_id")
     .eq("id", sourceFileId)
     .single();
   if (error) throw error;
-  if (file.status === "failed") return;
+  if (!["uploaded", "processing", "waiting_for_platform", "split"].includes(file.status)) return;
 
   if (file.status !== "split") {
     // Moves the status only from the given ones, so a job that read a stale status cannot undo another's result.
     const moveStatus = async (to: SourceFileStatus, from: SourceFileStatus[]) => {
-      const { data, error } = await system
-        .from("source_file")
-        .update({ status: to })
-        .eq("id", file.id)
-        .in("status", from)
-        .select("id");
+      const { data, error } = await system.rpc("move_source_processing_status", {
+        target_source_file_id: file.id, target_split_request_id: file.split_request_id,
+        target_status: to, expected_statuses: from,
+      });
       if (error) throw error;
-      return data.length > 0;
+      return data;
     };
     let availability: ProviderAvailability | undefined;
     try {
@@ -336,18 +335,18 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
         target_job_id: file.id,
       });
       if (metered.error) throw metered.error;
-      const { error } = await system.rpc("record_split", { target_source_file_id: file.id, source_ranges: documents });
+      const { error } = await system.rpc("record_split", { target_source_file_id: file.id, target_split_request_id: file.split_request_id, source_ranges: documents });
       if (error) throw error;
       });
     } catch (error) {
       if (error instanceof AiProviderError && error.platformIntervention) {
-        await recordPlatformIntervention(system, { kind: "source_file", id: file.id }, error, availability);
+        await recordPlatformIntervention(system, { kind: "source_file", id: file.id, splitRequestId: file.split_request_id }, error, availability);
         return;
       }
       if (error instanceof AiProviderError && (attempt.final || !error.transient)) {
-        await recordPlatformIntervention(system, { kind: "source_file", id: file.id }, error, availability, "terminal");
+        await recordPlatformIntervention(system, { kind: "source_file", id: file.id, splitRequestId: file.split_request_id }, error, availability, "terminal");
       } else if (attempt.final) {
-        await recordPlatformIntervention(system, { kind: "source_file", id: file.id }, new AiProviderError(
+        await recordPlatformIntervention(system, { kind: "source_file", id: file.id, splitRequestId: file.split_request_id }, new AiProviderError(
           "processing_failed",
           "Source File processing failed",
           { transient: false, classification: "processing_failed" },

@@ -1,3 +1,4 @@
+import { SourceReadinessList } from "./source-readiness-list";
 import Link from "next/link";
 import { withCompanyReturnTo } from "@/application/return-context";
 import { getLocale, getTranslations } from "next-intl/server";
@@ -59,6 +60,7 @@ export async function ReportIssues({
 }) {
   const t = await getTranslations("vatReports");
   const counts = readinessDocumentCounts(readiness);
+  const unresolvedSources = readiness.sourceFiles.filter((source) => source.status !== "rejected").length;
   const documentLink = (documentId: string) => {
     const document = report.documents.find((candidate) => candidate.id === documentId);
     return (
@@ -75,16 +77,17 @@ export async function ReportIssues({
           <h2 id="vat-output-issues-title">{t("issuesTitle")}</h2>
           <p>{t("issuesHint")}</p>
         </div>
-        <strong className={counts.blockers ? "has-blockers" : "is-ready"}>
-          {counts.blockers
-            ? t("blockerCount", { count: counts.blockers })
+        <strong className={counts.blockers + unresolvedSources ? "has-blockers" : "is-ready"}>
+          {counts.blockers + unresolvedSources
+            ? t(unresolvedSources ? "unresolvedItemCount" : "blockerCount", { count: counts.blockers + unresolvedSources })
             : t("ready")}
         </strong>
       </header>
+      <SourceReadinessList companyId={companyId} sources={readiness.sourceFiles} returnTo={returnTo} />
       <div className="vat-output-issue-columns">
         <div>
           <h3>{t("readinessBlockers")}</h3>
-          {readiness.blockers.length === 0 ? (
+          {readiness.blockers.length === 0 && unresolvedSources === 0 ? (
             <p>{t("noReadinessBlockers")}</p>
           ) : (
             <ul>
