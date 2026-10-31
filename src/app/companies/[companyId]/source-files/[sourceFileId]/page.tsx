@@ -275,7 +275,7 @@ export default async function SourceFilePage({
             <div className="workbook-source">
               <p>{t("sourceFiles.workbookPreview")}</p>
               <a href={contentUrl}>{t("sourceFiles.downloadOriginal")}</a>
-              <pre>{workbookSource?.text}</pre>
+              <pre tabIndex={0}>{workbookSource?.text}</pre>
             </div>
           ) : file.format === "pdf" ? (
             <iframe src={contentUrl} title={file.fileName} />
