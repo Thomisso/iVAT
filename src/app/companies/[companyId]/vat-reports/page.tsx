@@ -1,3 +1,4 @@
+import { SourceReadinessList } from "./source-readiness-list";
 import Link from "next/link";
 import { DocumentReportingSummary } from "@/components/document-reporting-summary";
 import { companyPageContext, withCompanyReturnTo } from "@/application/return-context";
@@ -104,6 +105,7 @@ export default async function VatReportsPage({
             included: Object.values(readiness.documentReporting).filter(document => document.included).length,
             excluded: Object.values(readiness.documentReporting).filter(document => !document.included).length,
           })}</p>
+          <SourceReadinessList companyId={companyId} sources={readiness.sourceFiles} returnTo={`${context}#vat-step-review`} />
           {groupRows.length > 0 && <dl className="vat-document-groups">
             {groupRows.map(([group, ids]) => (
               <div key={group}>

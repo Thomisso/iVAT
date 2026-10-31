@@ -1,3 +1,4 @@
+import { sourceSplitRequestFixture } from "./source-request";
 import fs from "node:fs/promises";
 import { createClient } from "@supabase/supabase-js";
 import { PDFDocument } from "pdf-lib";
@@ -45,7 +46,7 @@ export async function controlStatementBrowserFixture() {
   for (let index = 0; index < cases.length; index++) pdf.addPage();
   const uploaded = await uploadSourceFile(client, { async send() {} }, { companyId, fileName: "grouped-statements.pdf", bytes: await pdf.save() });
   if (!uploaded.ok) throw new Error(uploaded.error);
-  const split = await service.rpc("record_split", { target_source_file_id: uploaded.value.id, source_ranges: cases.map((_, index) => ({ firstPage: index + 1, lastPage: index + 1 })) });
+  const split = await service.rpc("record_split", { target_source_file_id: uploaded.value.id, target_split_request_id: await sourceSplitRequestFixture(service, uploaded.value.id), source_ranges: cases.map((_, index) => ({ firstPage: index + 1, lastPage: index + 1 })) });
   if (split.error) throw split.error;
   const documents = await service.from("document").select("id, extraction_request_id").eq("company_id", companyId).order("first_page");
   if (documents.error) throw documents.error;
