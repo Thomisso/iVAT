@@ -21,6 +21,7 @@ export type VatProcessingStepKey = (typeof VAT_PROCESSING_STEPS)[number];
 export type VatProcessingStepState = "done" | "needs_attention" | "blocked" | "not_started" | "partial" | "skipped";
 export type VatProcessingStepReason =
   | "documents_need_review"
+  | "source_files_need_review"
   | "report_missing"
   | "report_stale"
   | "warnings"
@@ -93,8 +94,8 @@ export async function getVatProcessingWizard(
       step("finalize", finalExport.downloadedFormats.length === 2 ? "done" : "partial"),
     ];
   } else {
-    const review = blockerIds.length > 0
-      ? step("review", "needs_attention", "documents_need_review")
+    const review = !readiness.ready
+      ? step("review", "needs_attention", blockerIds.length > 0 ? "documents_need_review" : "source_files_need_review")
       : step("review", "done");
     const generate = review.state !== "done"
       ? step("generate", "blocked", review.reason, "review")
