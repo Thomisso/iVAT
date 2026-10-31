@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { beginBackupRecovery, finishBackupRecovery, mfaReplacementStatus, startReplacementEnrollment, verifyReplacementAuthenticator } from "@/application/mfa-replacement";
-import { delayedNativeEnrollmentFixture, expireRecoverySessionFixture, freshEmailRecoveryFixture, mfaReplacementAuthenticationFixture, staleAccessTokenFixture } from "./support/mfa-replacement";
+import { expireAfterNativeMfaVerificationFixture, expireMfaMaintenanceFixture, delayedNativeEnrollmentFixture, expireRecoverySessionFixture, freshEmailRecoveryFixture, mfaReplacementAuthenticationFixture, staleAccessTokenFixture } from "./support/mfa-replacement";
 import { beginTotpEnrollment, completeTotpEnrollment, disenrollMfa, mfaPolicy, mfaStatus, setOrganizationMfaRequired, verifyRecoveryCode } from "@/application/mfa";
 import { administratorWithCompany } from "./support/fixtures";
 import { anonymousClient } from "./support/clients";
@@ -27,6 +27,46 @@ async function recoveryFixture() {
 }
 
 describe("backup MFA recovery", () => {
+  it("refuses expired authenticator setup before native verification and preserves the working session", async () => {
+    const fixture = await recoveryFixture();
+    expect((await beginBackupRecovery(fixture.recovery, { code: fixture.codes[0] })).ok).toBe(true);
+    const bridge = mfaReplacementAuthenticationFixture();
+    const replacement = await startReplacementEnrollment(fixture.recovery, bridge);
+    if (!replacement.ok) throw new Error(replacement.error);
+    expect((await verifyReplacementAuthenticator(fixture.recovery, totp(replacement.value.secret))).ok).toBe(true);
+    expect((await finishBackupRecovery(fixture.recovery, bridge, { newPassword: "Maintenance-recovered-168", confirmation: "Maintenance-recovered-168" })).ok).toBe(true);
+    const next = await beginTotpEnrollment(fixture.recovery);
+    if (!next.ok) throw new Error(next.error);
+    await expireMfaMaintenanceFixture(fixture.recovery);
+    expect(await completeTotpEnrollment(fixture.recovery, { factorId: next.value.factorId, code: totp(next.value.secret) }))
+      .toEqual({ ok: false, error: "mfa_setup_expired" });
+    expect(await listMyCompanies(fixture.recovery)).toHaveLength(1);
+    expect((await fixture.recovery.auth.mfa.listFactors()).data?.all.find(factor => factor.id === next.value.factorId)?.status).toBe("unverified");
+    const retried = await beginTotpEnrollment(fixture.recovery);
+    if (!retried.ok) throw new Error(retried.error);
+    const deadlineCrossing = await expireAfterNativeMfaVerificationFixture(fixture.recovery);
+    expect((await completeTotpEnrollment(deadlineCrossing, { factorId: retried.value.factorId, code: totp(retried.value.secret) })).ok).toBe(true);
+    expect(await listMyCompanies(deadlineCrossing)).toHaveLength(1);
+  });
+
+  it("removes the current trusted factor and reauthenticates a remaining legitimate authenticator without email recovery", async () => {
+    const fixture = await recoveryFixture();
+    expect((await beginBackupRecovery(fixture.recovery, { code: fixture.codes[0] })).ok).toBe(true);
+    const bridge = mfaReplacementAuthenticationFixture();
+    const replacement = await startReplacementEnrollment(fixture.recovery, bridge);
+    if (!replacement.ok) throw new Error(replacement.error);
+    expect((await verifyReplacementAuthenticator(fixture.recovery, totp(replacement.value.secret))).ok).toBe(true);
+    expect((await finishBackupRecovery(fixture.recovery, bridge, { newPassword: "Multifactor-maintenance-168", confirmation: "Multifactor-maintenance-168" })).ok).toBe(true);
+    const next = await beginTotpEnrollment(fixture.recovery);
+    if (!next.ok) throw new Error(next.error);
+    expect((await completeTotpEnrollment(fixture.recovery, { factorId: next.value.factorId, code: totp(next.value.secret) })).ok).toBe(true);
+    expect(await disenrollMfa(fixture.recovery, next.value.factorId)).toEqual({ ok: true, value: null });
+    expect(await mfaReplacementStatus(fixture.recovery)).toMatchObject({ pending: false, needsRecovery: false, factorId: replacement.value.factorId });
+    expect(await listMyCompanies(fixture.recovery)).toEqual([]);
+    expect((await fixture.recovery.auth.mfa.challengeAndVerify({ factorId: replacement.value.factorId, code: totp(replacement.value.secret) })).error).toBeNull();
+    expect(await listMyCompanies(fixture.recovery)).toHaveLength(1);
+  });
+
   it("consumes a prepared legacy code once and restricts every session without claiming native elevation", async () => {
     const fixture = await recoveryFixture();
     expect(await listMyCompanies(fixture.user.client)).toHaveLength(1);

@@ -561,6 +561,7 @@
     "invalid_credentials": "Wrong email or password.",
     "organization_blocked": "This Organization is blocked. Contact platform support.",
     "invalid_upload_limits": "Upload limits must be positive whole numbers; a Source File may be at most 50 MiB.",
+    "mfa_setup_expired": "This authenticator setup has expired. Start setup again; your current authenticator still works.",
     "mfa_enrollment_failed": "Authenticator enrollment failed. Please try again.",
     "invalid_mfa_code": "The verification code is invalid or has already been used.",
     "recovery_codes_failed": "Recovery codes could not be created. Please try again.",

@@ -5,6 +5,7 @@ create table private.mfa_replacement (
   session_id uuid not null,
   continuation_hash bytea not null,
   replacement_factor_id uuid,
+  trusted_factor_ids uuid[] not null default '{}',
   started_at timestamptz not null default clock_timestamp(),
   completed_at timestamptz,
   access_after timestamptz,
@@ -31,8 +32,8 @@ returns boolean language sql stable security definer set search_path = '' as $$
         and s.id::text = auth.jwt() ->> 'session_id'
         and (s.id = r.session_id or s.created_at >= r.access_after)
         and (r.replacement_factor_id is null or (
-          s.factor_id = r.replacement_factor_id and s.aal::text = 'aal2'
-          and exists(select 1 from auth.mfa_factors f where f.id = r.replacement_factor_id
+          s.factor_id = any(r.trusted_factor_ids) and s.aal::text = 'aal2'
+          and exists(select 1 from auth.mfa_factors f where f.id = s.factor_id
             and f.user_id = r.user_id and f.status::text = 'verified')
         ))
     );
@@ -115,14 +116,17 @@ returns jsonb language sql stable security definer set search_path = '' as $$
       and exists(select 1 from private.password_recovery_intent i where i.session_id = r.session_id
         and i.user_id = auth.uid() and (i.state = 'ready' or r.password_updated_at is not null)
         and (i.expires_at > now() or r.native_finish_confirmed_at is not null)),
-    'factorId', case when r.completed_at is not null or r.session_id::text = auth.jwt() ->> 'session_id' then r.replacement_factor_id else null end,
+    'factorId', case when r.completed_at is not null then coalesce((select f.id from auth.mfa_factors f
+      where f.user_id = r.user_id and f.id = any(r.trusted_factor_ids) and f.status::text = 'verified'
+      order by (f.id = r.replacement_factor_id) desc, f.created_at desc limit 1), r.replacement_factor_id)
+      when r.session_id::text = auth.jwt() ->> 'session_id' then r.replacement_factor_id else null end,
     'factorVerified', exists(select 1 from auth.mfa_factors f where f.id = r.replacement_factor_id and f.status::text = 'verified'),
     'passwordUpdated', r.password_updated_at is not null,
     'completionReady', r.native_finish_confirmed_at is not null,
     'hasHistory', true,
     'accessAllowed', private.recovery_data_access_allowed(),
     'needsRecovery', r.completed_at is not null and r.replacement_factor_id is not null
-      and not exists(select 1 from auth.mfa_factors f where f.id = r.replacement_factor_id and f.status::text = 'verified')
+      and not exists(select 1 from auth.mfa_factors f where f.user_id = r.user_id and f.id = any(r.trusted_factor_ids) and f.status::text = 'verified')
   ) from private.mfa_replacement r where r.user_id = auth.uid()),
   '{"pending":false,"authorized":false,"factorId":null,"factorVerified":false,"passwordUpdated":false,"completionReady":false,"hasHistory":false,"accessAllowed":true,"needsRecovery":false}'::jsonb);
 $$;
@@ -288,7 +292,8 @@ begin
     raise insufficient_privilege;
   end if;
   update private.mfa_replacement set completed_at = clock_timestamp(), access_after = clock_timestamp(),
-    operation_id = null, operation_kind = null, operation_expires_at = null where user_id = pending.user_id;
+    operation_id = null, operation_kind = null, operation_expires_at = null,
+    trusted_factor_ids = array[pending.replacement_factor_id] where user_id = pending.user_id;
   perform private.record_user_mfa_change('user.mfa_recovered');
 end;
 $$;
@@ -339,7 +344,9 @@ create table private.mfa_maintenance (
   session_id uuid primary key references auth.sessions(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
   operation text not null check(operation in ('enroll', 'remove')),
-  expires_at timestamptz not null default now() + interval '5 minutes'
+  expires_at timestamptz not null default now() + interval '5 minutes',
+  target_factor_id uuid,
+  claimed_at timestamptz
 );
 alter table private.mfa_maintenance enable row level security;
 revoke all on private.mfa_maintenance from public, anon, authenticated, service_role;
@@ -359,11 +366,43 @@ begin
   end if;
   insert into private.mfa_maintenance(session_id, user_id, operation)
     values(native_session.id, auth.uid(), operation)
-    on conflict(session_id) do update set operation = excluded.operation, expires_at = now() + interval '5 minutes';
+    on conflict(session_id) do update set operation = excluded.operation, expires_at = now() + interval '5 minutes',
+      target_factor_id = null, claimed_at = null;
 end;
 $$;
 revoke execute on function public.authorize_mfa_maintenance(text) from public, anon, authenticated, service_role;
 grant execute on function public.authorize_mfa_maintenance(text) to authenticated;
+
+-- Claim before native verification/deletion. A setup may expire before the
+-- claim, but its exact-factor completion receipt survives native side effects.
+create function public.claim_mfa_maintenance(target_factor_id uuid)
+returns void language plpgsql security definer set search_path = '' as $$
+declare history private.mfa_replacement; maintenance private.mfa_maintenance;
+begin
+  select * into history from private.mfa_replacement where user_id = auth.uid() for update;
+  if history.user_id is null then return; end if;
+  if history.completed_at is null then raise insufficient_privilege; end if;
+  select * into maintenance from private.mfa_maintenance m where m.user_id = auth.uid()
+    and m.session_id::text = auth.jwt() ->> 'session_id' for update;
+  if maintenance.session_id is null or not exists(select 1 from auth.sessions s where s.id = maintenance.session_id and s.user_id = auth.uid()) then
+    raise insufficient_privilege;
+  end if;
+  if maintenance.claimed_at is null then
+    if maintenance.expires_at <= now() then
+      raise exception 'authenticator setup expired' using errcode = 'P0001', hint = 'mfa_setup_expired';
+    end if;
+    if not private.recovery_data_access_allowed() then raise insufficient_privilege; end if;
+    if not exists(select 1 from auth.mfa_factors f where f.id = target_factor_id and f.user_id = auth.uid()
+      and (maintenance.operation = 'remove' or f.status::text = 'unverified')) then raise insufficient_privilege; end if;
+    update private.mfa_maintenance m set target_factor_id = claim_mfa_maintenance.target_factor_id, claimed_at = clock_timestamp()
+      where m.session_id = maintenance.session_id;
+  elsif maintenance.target_factor_id is distinct from target_factor_id then
+    raise insufficient_privilege;
+  end if;
+end;
+$$;
+revoke execute on function public.claim_mfa_maintenance(uuid) from public, anon, authenticated, service_role;
+grant execute on function public.claim_mfa_maintenance(uuid) to authenticated;
 
 create or replace function public.finish_mfa_enrollment()
 returns text[] language plpgsql security definer set search_path = '' as $$
@@ -374,14 +413,16 @@ begin
   select * into history from private.mfa_replacement where user_id = target_user for update;
   if history.user_id is not null then
     if history.completed_at is null or not exists(select 1 from private.mfa_maintenance where user_id = target_user
-      and session_id::text = auth.jwt() ->> 'session_id' and operation = 'enroll' and expires_at > now()) then
+      and session_id::text = auth.jwt() ->> 'session_id' and operation = 'enroll' and claimed_at is not null
+      and target_factor_id = (select factor_id from auth.sessions where id = session_id)) then
       raise insufficient_privilege;
     end if;
     select s.factor_id into selected_factor from auth.sessions s join auth.mfa_factors f on f.id = s.factor_id
       where s.id::text = auth.jwt() ->> 'session_id' and s.user_id = target_user and s.aal::text = 'aal2'
         and f.user_id = target_user and f.status::text = 'verified' and f.factor_type::text = 'totp';
     if selected_factor is null then raise insufficient_privilege; end if;
-    update private.mfa_replacement set replacement_factor_id = selected_factor where user_id = target_user;
+    update private.mfa_replacement set replacement_factor_id = selected_factor,
+      trusted_factor_ids = array(select distinct unnest(trusted_factor_ids || array[selected_factor])) where user_id = target_user;
     delete from private.mfa_maintenance where user_id = target_user and session_id::text = auth.jwt() ->> 'session_id';
   end if;
   delete from private.mfa_recovery_code where user_id = target_user;
@@ -397,19 +438,24 @@ $$;
 
 create or replace function public.finish_mfa_disenrollment()
 returns void language plpgsql security definer set search_path = '' as $$
-declare target_user uuid := auth.uid(); history private.mfa_replacement;
+declare target_user uuid := auth.uid(); history private.mfa_replacement; remaining_factors uuid[];
 begin
   if target_user is null or coalesce(auth.jwt() ->> 'aal', '') <> 'aal2' then raise insufficient_privilege; end if;
   select * into history from private.mfa_replacement where user_id = target_user for update;
   if history.user_id is not null then
     if history.completed_at is null or not exists(select 1 from private.mfa_maintenance where user_id = target_user
-      and session_id::text = auth.jwt() ->> 'session_id' and operation = 'remove' and expires_at > now()) then
+      and session_id::text = auth.jwt() ->> 'session_id' and operation = 'remove' and claimed_at is not null
+      and not exists(select 1 from auth.mfa_factors f where f.id = target_factor_id and f.user_id = target_user)) then
       raise insufficient_privilege;
     end if;
-    if not exists(select 1 from auth.mfa_factors where id = history.replacement_factor_id and user_id = target_user and status::text = 'verified') then
-      if exists(select 1 from auth.mfa_factors where user_id = target_user and status::text = 'verified') then raise insufficient_privilege; end if;
-      update private.mfa_replacement set replacement_factor_id = null where user_id = target_user;
-    end if;
+    select coalesce(array_agg(f.id order by f.created_at), '{}') into remaining_factors from auth.mfa_factors f
+      where f.user_id = target_user and f.id = any(history.trusted_factor_ids) and f.status::text = 'verified';
+    update private.mfa_replacement set trusted_factor_ids = remaining_factors,
+      replacement_factor_id = case when history.replacement_factor_id = any(remaining_factors) then history.replacement_factor_id
+        when cardinality(remaining_factors) > 0 then remaining_factors[1]
+        when not exists(select 1 from auth.mfa_factors where user_id = target_user and status::text = 'verified') then null
+        else history.replacement_factor_id end
+      where user_id = target_user;
     delete from private.mfa_maintenance where user_id = target_user and session_id::text = auth.jwt() ->> 'session_id';
   end if;
   delete from private.mfa_recovery_code where user_id = target_user;

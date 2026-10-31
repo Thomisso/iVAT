@@ -223,10 +223,13 @@ export async function verifyRecoveryCodeAction(_state: FormState, formData: Form
   redirect("/");
 }
 
-export async function disenrollMfaAction(): Promise<void> {
+export async function disenrollMfaAction(): Promise<FormState> {
   const client = await requireUserClient();
   const status = await mfaStatus(client);
-  if (status.factorId) await disenrollMfa(client, status.factorId);
+  if (status.factorId) {
+    const result = await disenrollMfa(client, status.factorId);
+    if (!result.ok) return { error: result.error, values: {} };
+  }
   redirect("/settings/security");
 }
 

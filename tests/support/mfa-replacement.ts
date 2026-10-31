@@ -89,3 +89,30 @@ export async function delayedNativeEnrollmentFixture(userId: string) {
     },
   };
 }
+
+/** Advance only the private setup deadline; native Auth remains untouched. */
+export async function expireMfaMaintenanceFixture(client: AppClient) {
+  const claims = await client.auth.getClaims();
+  const { Client } = await import("pg");
+  const database = new Client({ connectionString: inject("databaseUrl") });
+  await database.connect();
+  try { await database.query("update private.mfa_maintenance set expires_at = now() - interval '1 second' where session_id = $1", [claims.data?.claims.session_id]); }
+  finally { await database.end(); }
+}
+
+/** Expire the setup only after the actual native verify response, before finalization. */
+export async function expireAfterNativeMfaVerificationFixture(client: AppClient) {
+  const session = (await client.auth.getSession()).data.session;
+  if (!session) throw new Error("Real native session required");
+  const transport: typeof fetch = async (input, options) => {
+    const response = await fetch(input, options);
+    const url = new URL(typeof input === "string" || input instanceof URL ? input : input.url);
+    if (response.ok && /\/factors\/[^/]+\/verify$/.test(url.pathname)) await expireMfaMaintenanceFixture(client);
+    return response;
+  };
+  const scoped = asUserClient(createClient(inject("supabaseUrl"), inject("supabaseAnonKey"), {
+    auth: { persistSession: false, autoRefreshToken: false }, global: { fetch: transport },
+  }));
+  await scoped.auth.setSession(session);
+  return scoped;
+}
