@@ -1,0 +1,10 @@
+version: 1
+name: Supabase Auth login failures
+slug: supabase-auth
+protocol: http
+port: 4930
+interceptRequests: true
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true
