@@ -139,6 +139,7 @@ describe("backup MFA recovery", () => {
     expect((await gap.client.rpc("claim_mfa_replacement_operation", { operation: "finish" })).error?.hint).toBe("email_recovery_required");
     expect((await gap.client.rpc("complete_mfa_replacement")).error).not.toBeNull();
     expect((await gap.client.rpc("finish_mfa_enrollment")).error?.code).toBe("42501");
+    expect((await gap.client.rpc("claim_mfa_maintenance", { target_factor_id: rogue.data.id })).error?.code).toBe("42501");
     expect(await beginBackupRecovery(gap.client, { code: fixture.codes[0] })).toEqual({ ok: false, error: "invalid_mfa_code" });
     const legitimate = await freshEmailRecoveryFixture(fixture.user.email, gap.message.requestToken);
     const resumed = await beginBackupRecovery(legitimate.client, { continuationToken: begun.value.continuationToken });
@@ -240,6 +241,7 @@ describe("backup MFA recovery", () => {
       expect(await listMyCompanies(after.client)).toEqual([]);
       expect((await after.client.rpc("authorize_mfa_maintenance", { operation: "enroll" })).error).not.toBeNull();
       expect((await after.client.rpc("finish_mfa_enrollment")).error).not.toBeNull();
+      expect((await after.client.rpc("claim_mfa_maintenance", { target_factor_id: late.data.id })).error?.code).toBe("42501");
       expect(await listMyCompanies(legitimate.client)).toHaveLength(1);
     } finally {
       await gate.release();

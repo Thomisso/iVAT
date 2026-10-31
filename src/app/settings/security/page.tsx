@@ -23,7 +23,7 @@ export default async function SecuritySettingsPage() {
           <h2>{t("authenticatorTitle")}</h2>
           <p>{status.enrolled ? t("authenticatorEnabled") : t("authenticatorDisabled")}</p>
           {status.enrolled ? (
-            <DisenrollMfaForm />
+            <><Link href="/mfa/enroll">{t("addAuthenticator")}</Link><DisenrollMfaForm /></>
           ) : <Link href="/mfa/enroll">{t("enableAuthenticator")}</Link>}
         </section>
         {organizations.map((organization) => (

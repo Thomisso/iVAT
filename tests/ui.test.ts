@@ -88,7 +88,7 @@ test("MFA routing forces enrollment or verification before application access", 
       enrolled: true,
       satisfied: true,
     }),
-  ).toBe("/");
+  ).toBeNull();
   expect(
     mfaRedirectPath("/companies/new", {
       required: false,
