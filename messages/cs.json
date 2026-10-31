@@ -289,6 +289,7 @@
     "user": "Běžný uživatel",
     "invite": "Pozvat uživatele",
     "activeTitle": "Aktivní uživatelé",
+    "activeCount": "{count, plural, one {# aktivní uživatel} few {# aktivní uživatelé} other {# aktivních uživatelů}}",
     "activeIntro": "Odebrání přístupu platí jen pro tuto oblast. Přihlašovací účet uživatele se nesmaže.",
     "none": "V této oblasti nemá aktivní přístup žádný uživatel.",
     "changeRole": "Změnit roli",
@@ -534,6 +535,9 @@
     "mfa_recovery_required": "Před touto akcí dokončete svou oprávněnou obnovu MFA.",
     "mfa_recovery_busy": "Právě probíhá jiný krok obnovy. Chvíli počkejte a zkuste to znovu.",
     "mfa_replacement_confirmation_required": "Potvrďte, že chcete nahradit ztracený autentizátor.",
+    "exclusion_reason_required": "Zadejte důvod vyloučení o délce 1–500 znaků.",
+    "not_recoverable": "Tento doklad nelze převzít k ručnímu doplnění.",
+    "not_rejected": "Vrátit lze pouze vyloučený doklad.",
     "recovery_link_invalid": "Odkaz pro obnovu je neplatný, vypršel nebo už byl použit. Vyžádejte si nový e-mail pro obnovu.",
     "recovery_link_expired": "Platnost odkazu pro obnovu po jedné hodině vypršela. Vyžádejte si nový e-mail pro obnovu.",
     "recovery_link_used": "Odkaz pro obnovu už byl použit. Pokračujte v prohlížeči, kde jste jej ověřili, nebo si vyžádejte nový e-mail.",
@@ -951,6 +955,9 @@
     "moveFirstToPrevious": "Přesunout stranu {page} do předchozího"
   },
   "review": {
+    "takeOverManually": "Doplnit ručně",
+    "reverseExclusion": "Vrátit vyloučení",
+    "exclusionReason": "Důvod vyloučení",
     "createManual": "Zadat doklad ručně",
     "manualDocument": "Ručně zadaný doklad",
     "noSourceFile": "K dokladu není přiložen zdrojový soubor.",

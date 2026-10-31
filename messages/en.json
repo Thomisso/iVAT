@@ -289,6 +289,7 @@
     "user": "Regular user",
     "invite": "Invite user",
     "activeTitle": "Active users",
+    "activeCount": "{count, plural, one {# active user} other {# active users}}",
     "activeIntro": "Removing access only affects this scope. It does not delete the user's sign-in account.",
     "none": "No users have active access in this scope.",
     "changeRole": "Change Role",
@@ -534,6 +535,9 @@
     "mfa_recovery_required": "Complete your authorized MFA recovery before using this action.",
     "mfa_recovery_busy": "Another recovery step is in progress. Wait a moment and try again.",
     "mfa_replacement_confirmation_required": "Confirm that you want to replace the lost authenticator.",
+    "exclusion_reason_required": "Enter an exclusion reason of 1–500 characters.",
+    "not_recoverable": "This Document cannot be taken over manually.",
+    "not_rejected": "Only an excluded Document can be restored.",
     "recovery_link_invalid": "This recovery link is invalid, expired or already used. Request a new recovery email.",
     "recovery_link_expired": "This recovery link expired after one hour. Request a new recovery email.",
     "recovery_link_used": "This recovery link has already been used. Continue in the browser where you verified it, or request a new email.",
@@ -951,6 +955,9 @@
     "moveFirstToPrevious": "Move page {page} to previous"
   },
   "review": {
+    "takeOverManually": "Complete manually",
+    "reverseExclusion": "Reverse exclusion",
+    "exclusionReason": "Exclusion reason",
     "createManual": "Enter a Document manually",
     "manualDocument": "Manual Document",
     "noSourceFile": "No Source File is attached to this Document.",

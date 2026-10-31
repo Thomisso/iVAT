@@ -122,6 +122,7 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   const rejectFinished = page.waitForResponse((response) =>
     response.request().method() === "POST" && response.url() === secondDocumentUrl && response.ok()
   );
+  await page.getByLabel("Exclusion reason", { exact: true }).fill("Not a business Document");
   await page.getByRole("button", { name: "Reject" }).click();
   await rejectFinished;
   await page.goto(reviewBatchUrl);
