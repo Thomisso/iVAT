@@ -513,3 +513,32 @@ export async function addBrowserUnsplitSourceFixture(input: { companyId: string;
   if (!year.ok) throw new Error(year.error);
   return { sourceFileId: source.id, period };
 }
+
+/** Uses native Auth and the manual command; browser assertions exercise subsequent attachment/AI actions. */
+export async function addBrowserManualDocumentFixture(input: { companyId: string; email: string; password: string; approved?: boolean }) {
+  const environment = await browserFixtureEnvironment();
+  const client = createClient<Database>(environment.NEXT_PUBLIC_SUPABASE_URL, environment.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+  const signedIn = await client.auth.signInWithPassword({ email: input.email, password: input.password });
+  if (signedIn.error) throw signedIn.error;
+  const { createManualDocument, approveDocument } = await import("@/application/documents");
+  const { SAMPLE_EXTRACTION } = await import("@/ai/fake");
+  const created = await createManualDocument(asUserClient(client), { companyId: input.companyId, payload: { ...SAMPLE_EXTRACTION, documentNumber: "MANUAL-BROWSER-175" } });
+  if (!created.ok) throw new Error(created.error);
+  if (input.approved !== false) {
+    const approved = await approveDocument(asUserClient(client), { companyId: input.companyId, documentId: created.value.id, version: 1 });
+    if (!approved.ok) throw new Error(approved.error);
+  }
+  await client.auth.signOut({ scope: "local" });
+  return created.value.id;
+}
+
+/** Makes this Company's configured adapter unavailable on the fake-only browser worker. */
+export async function makeBrowserAiProviderUnavailableFixture(companyId: string) {
+  const environment = await browserFixtureEnvironment();
+  const database = new DatabaseClient({ connectionString: environment.DATABASE_URL });
+  await database.connect();
+  try {
+    await database.query(`update public.ai_configuration set provider = 'openai'
+      where id = (select configuration_id from public.company_ai_configuration where company_id = $1)`, [companyId]);
+  } finally { await database.end(); }
+}

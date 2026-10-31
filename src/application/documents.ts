@@ -18,14 +18,47 @@ import {
   currentValidationFindings,
   type ValidationFinding,
 } from "./document-validation";
-import { pdfPages, readSourceFile, SOURCE_FILE_MEDIA_TYPES } from "./source-files";
-import { workbookRowsToText, type WorkbookRowSet } from "./workbooks";
+import { pdfPages, readSourceFile, SOURCE_FILE_MEDIA_TYPES, prepareSourceFile, storeSourceFileObjects, type UploadSourceFileError } from "./source-files";
+import { assertWorkbookRanges, workbookToText, workbookRowsToText, type WorkbookRowSet } from "./workbooks";
 import { applyCnbConversion, type ExchangeRateProvider } from "./exchange-rates";
 import { vatRegistryFindings, type VatPayerRegistry } from "./vat-registry";
 import { prepareDocumentReporting, type DocumentReporting } from "./document-reporting";
+import { randomUUID } from "node:crypto";
+import type { SourceRange } from "./ai-provider";
 
 const unavailableExchangeRates: ExchangeRateProvider = { rateFor: async () => null };
 const unavailableVatPayerRegistry: VatPayerRegistry = { check: async () => ({ outcome: "unavailable" }) };
+
+export type AttachDocumentSourceError = UploadSourceFileError | "not_attachable" | "source_already_attached" | "invalid_source_range" | "invalid_workbook_ranges" | "period_locked";
+
+/** Adds evidence to the same Document without changing its human data or dispatching AI. */
+export async function attachDocumentSource(client: AppClient, input: {
+  companyId: string; documentId: string; fileName: string; bytes: Uint8Array; range?: SourceRange; sourceFileId?: string;
+}): Promise<Result<{ sourceFileId: string }, AttachDocumentSourceError>> {
+  if (!isUuid(input.companyId) || !isUuid(input.documentId) || (input.sourceFileId !== undefined && !isUuid(input.sourceFileId))) return { ok: false, error: "forbidden" };
+  const sourceFileId = input.sourceFileId ?? randomUUID();
+  const target = { target_company_id: input.companyId, target_document_id: input.documentId, target_source_file_id: sourceFileId };
+  const allowed = await client.rpc("prepare_document_source_attachment", target);
+  if (allowed.error) return refusal(allowed.error, ["not_attachable", "source_already_attached", "period_locked", "invalid_choice"]);
+  const prepared = await prepareSourceFile(client, input);
+  if (!prepared.ok) return prepared;
+  const metadata = prepared.value;
+  let range: SourceRange;
+  if (metadata.format === "xlsx" || metadata.format === "xls") {
+    try { assertWorkbookRanges(workbookToText(input.bytes).rowSets, [input.range]); }
+    catch { return { ok: false, error: "invalid_workbook_ranges" }; }
+    range = input.range!;
+  } else {
+    range = input.range ?? { firstPage: 1, lastPage: metadata.pageCount };
+    if (!("firstPage" in range) || Object.keys(range).length !== 2 || !Number.isSafeInteger(range.firstPage) || !Number.isSafeInteger(range.lastPage)
+      || range.firstPage < 1 || range.lastPage < range.firstPage || range.lastPage > metadata.pageCount) return { ok: false, error: "invalid_source_range" };
+  }
+  const stored = await storeSourceFileObjects(client, { companyId: input.companyId, sourceFileId, format: metadata.format, bytes: input.bytes });
+  if (!stored.ok) return stored;
+  const attached = await client.rpc("attach_document_source", { ...target, source_metadata: { ...metadata, ...stored.value }, source_range: range });
+  if (attached.error) return refusal(attached.error, ["not_attachable", "source_already_attached", "period_locked", "invalid_choice", "invalid_source_range", "invalid_workbook_ranges"]);
+  return { ok: true, value: { sourceFileId: attached.data } };
+}
 
 /** Creates the first User-authored Version without fabricating source evidence. */
 export async function createManualDocument(
@@ -627,20 +660,26 @@ function refusal<E extends string>(error: PostgrestError, codes: E[]): { ok: fal
   throw error;
 }
 
-/**
- * Runs Extraction of a Document again: a retry after it failed, or a reprocess
- * after review. The run adds a new Extraction Version; earlier ones are kept.
- */
+export type ReprocessDocumentError = "not_reprocessable" | "period_locked" | "forbidden" | "confirmation_required" | "ai_configuration_unavailable" | "allowance_exhausted" | "processing_dispatch_failed";
+
+/** Requests another immutable AI Version; replacing human work requires explicit consent. */
 export async function reprocessDocument(
   client: AppClient,
   jobs: JobQueue,
-  input: { companyId: string; documentId: string },
-): Promise<Result<null, "not_reprocessable" | "period_locked" | "forbidden">> {
+  input: { companyId: string; documentId: string; confirmed?: boolean },
+): Promise<Result<null, ReprocessDocumentError>> {
   const document = await findDocumentId(client, input.companyId, input.documentId);
   if (!document) return { ok: false, error: "forbidden" };
-  const { error } = await client.rpc("reprocess_document", { target_document_id: document });
-  if (error) return refusal(error, ["not_reprocessable", "period_locked"]);
-  await jobs.send(extractJob(document));
+  const { data: requestId, error } = await client.rpc("reprocess_document", { target_document_id: document, replacement_confirmed: input.confirmed === true });
+  if (error) return refusal(error, ["not_reprocessable", "period_locked", "confirmation_required", "ai_configuration_unavailable", "allowance_exhausted"]);
+  try { await jobs.send(extractJob(document)); }
+  catch {
+    // The receipt belongs to this request only. A lost acknowledgement after
+    // completion, or newer human work, must never be rolled back.
+    const cancelled = await client.rpc("cancel_document_reprocess_dispatch", { target_document_id: document, target_extraction_request_id: requestId });
+    if (cancelled.error) return refusal(cancelled.error, []);
+    if (cancelled.data !== "completed") return { ok: false, error: "processing_dispatch_failed" };
+  }
   return { ok: true, value: null };
 }
 

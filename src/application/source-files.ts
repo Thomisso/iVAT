@@ -180,6 +180,52 @@ async function storeImmutableObject(
   return storedHash === createHash("sha256").update(bytes).digest("hex") ? null : error;
 }
 
+export type PreparedSourceFile = {
+  fileName: string;
+  format: SourceFileFormat;
+  byteSize: number;
+  pageCount: number;
+  sha256: string;
+};
+
+/** Shared content validation for upload and later attachment of real originals. */
+export async function prepareSourceFile(client: AppClient, input: { fileName: string; bytes: Uint8Array }): Promise<Result<PreparedSourceFile, UploadSourceFileError>> {
+  const fileName = input.fileName.trim();
+  if (!fileName || input.bytes.length === 0) return { ok: false, error: "file_required" };
+  const limits = await getUploadLimits(client);
+  if (input.bytes.length > limits.maxFileBytes) return { ok: false, error: "file_too_large" };
+  const format = formatOf(fileName);
+  if (!format) return { ok: false, error: "unsupported_format" };
+  if (!contentMatches(format, input.bytes)) return { ok: false, error: "content_does_not_match_format" };
+  const pageCount = await countPages(format, input.bytes);
+  if (!pageCount) return { ok: false, error: "unreadable_file" };
+  if (pageCount > limits.maxFilePages) return { ok: false, error: "too_many_pages" };
+  return { ok: true, value: { fileName, format, pageCount, byteSize: input.bytes.length, sha256: createHash("sha256").update(input.bytes).digest("hex") } };
+}
+
+/** Stores only immutable evidence. Recording/association and dispatch are separate. */
+export async function storeSourceFileObjects(client: AppClient, input: { companyId: string; sourceFileId: string; format: SourceFileFormat; bytes: Uint8Array }): Promise<Result<{
+  normalizedFormat: "jpeg" | null; normalizedByteSize: number | null; normalizedSha256: string | null;
+}, UploadSourceFileError>> {
+  const derivative = await normalizedDerivative(input.format, input.bytes);
+  if ((input.format === "heic" || input.format === "heif") && !derivative) return { ok: false, error: "unreadable_file" };
+  const storedError = await storeImmutableObject(client, sourceFileObjectPath(input.companyId, input.sourceFileId), input.bytes, SOURCE_FILE_MEDIA_TYPES[input.format]);
+  if (storedError) {
+    if ("statusCode" in storedError && storedError.statusCode === "403") return { ok: false, error: "forbidden" };
+    if ("statusCode" in storedError && storedError.statusCode === "409") return { ok: false, error: "invalid_choice" };
+    throw storedError;
+  }
+  if (derivative) {
+    const error = await storeImmutableObject(client, sourceFileDerivativeObjectPath(input.companyId, input.sourceFileId), derivative, SOURCE_FILE_MEDIA_TYPES.jpeg);
+    if (error) throw error;
+  }
+  return { ok: true, value: {
+    normalizedFormat: derivative ? "jpeg" : null,
+    normalizedByteSize: derivative?.length ?? null,
+    normalizedSha256: derivative ? createHash("sha256").update(derivative).digest("hex") : null,
+  } };
+}
+
 /**
  * Stores an uploaded file unchanged as a Source File of the Company. The file
  * is stored before its row is recorded (the database refuses a row without a
@@ -198,15 +244,9 @@ export async function uploadSourceFile(
     return { ok: false, error: "invalid_choice" };
   }
   if (input.batchId !== undefined && !isUuid(input.batchId)) return { ok: false, error: "forbidden" };
-  const limits = await getUploadLimits(client);
-  if (input.bytes.length > limits.maxFileBytes) return { ok: false, error: "file_too_large" };
-  const format = formatOf(fileName);
-  if (!format) return { ok: false, error: "unsupported_format" };
-  if (!contentMatches(format, input.bytes)) return { ok: false, error: "content_does_not_match_format" };
-  const pageCount = await countPages(format, input.bytes);
-  if (!pageCount) return { ok: false, error: "unreadable_file" };
-  if (pageCount > limits.maxFilePages) return { ok: false, error: "too_many_pages" };
-  const sha256 = createHash("sha256").update(input.bytes).digest("hex");
+  const prepared = await prepareSourceFile(client, input);
+  if (!prepared.ok) return prepared;
+  const { format, pageCount, sha256 } = prepared.value;
 
   // Only for the Organization of the row; RLS hides Companies the user cannot access.
   const company = await getCompany(client, input.companyId);
@@ -231,20 +271,8 @@ export async function uploadSourceFile(
     return { ok: true, value: { id: existing.id } };
   }
 
-  const derivative = await normalizedDerivative(format, input.bytes);
-  if ((format === "heic" || format === "heif") && !derivative) {
-    return { ok: false, error: "unreadable_file" };
-  }
-  const storedError = await storeImmutableObject(client, sourceFileObjectPath(company.id, id), input.bytes, SOURCE_FILE_MEDIA_TYPES[format]);
-  if (storedError) {
-    if ("statusCode" in storedError && storedError.statusCode === "403") return { ok: false, error: "forbidden" };
-    if ("statusCode" in storedError && storedError.statusCode === "409") return { ok: false, error: "invalid_choice" };
-    throw storedError;
-  }
-  if (derivative) {
-    const derivativeError = await storeImmutableObject(client, sourceFileDerivativeObjectPath(company.id, id), derivative, SOURCE_FILE_MEDIA_TYPES.jpeg);
-    if (derivativeError) throw derivativeError;
-  }
+  const stored = await storeSourceFileObjects(client, { companyId: company.id, sourceFileId: id, format, bytes: input.bytes });
+  if (!stored.ok) return stored;
 
   const { error } = await client.from("source_file").insert({
     id,
@@ -255,11 +283,9 @@ export async function uploadSourceFile(
     format,
     byte_size: input.bytes.length,
     sha256,
-    normalized_format: derivative ? "jpeg" : null,
-    normalized_byte_size: derivative?.length ?? null,
-    normalized_sha256: derivative
-      ? createHash("sha256").update(derivative).digest("hex")
-      : null,
+    normalized_format: stored.value.normalizedFormat,
+    normalized_byte_size: stored.value.normalizedByteSize,
+    normalized_sha256: stored.value.normalizedSha256,
     page_count: pageCount,
   });
   if (error) {
