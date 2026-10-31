@@ -27,6 +27,8 @@ import {
 } from "./support/fixtures";
 import { fixtureFile } from "./support/files";
 import { testWorker } from "./support/worker";
+import { exportReportingPeriodWorkbook } from "@/application/reporting-period-excel";
+import * as XLSX from "xlsx";
 
 it("lists the generated Reporting Periods and advances the oldest unfinished period", async () => {
   const company = await administratorWithCompany();
@@ -317,4 +319,11 @@ it("counts every relevant Document beyond the API row cap", async () => {
   expect(readiness.value.groups.needsReview).toHaveLength(1001);
   expect(readiness.value.blockers.filter((finding) => finding.code === "needs_review"))
     .toHaveLength(1001);
+  expect(Object.keys(readiness.value.documentReporting)).toHaveLength(1001);
+  const exported = await exportReportingPeriodWorkbook(company.client, { companyId: company.companyId, period: "2026-10" });
+  if (!exported.ok) throw new Error(exported.error);
+  const workbook = XLSX.read(exported.value.bytes, { type: "array" });
+  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets.Attention);
+  expect(new Set(rows.map(row => row["Document ID"])).size).toBe(1001);
+  expect(rows.filter(row => row["VAT Return line"] === "40" && row["Control Statement section"] === "B.3" && row["Mapping status"] === "proposed")).toHaveLength(1001);
 }, 60_000);
