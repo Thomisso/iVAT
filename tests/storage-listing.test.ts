@@ -1,20 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { uploadSourceFile } from "@/application/source-files";
 import { administratorWithCompany, platformCompanyInventoryFixture, storageObjectMetadataFixture } from "./support/fixtures";
-import { signedUpUser } from "./support/clients";
+import { provisionedUser } from "./support/clients";
 import { fixtureFile } from "./support/files";
-import { testWorker } from "./support/worker";
+import { testWorker, systemClient } from "./support/worker";
 import { promotedSuperAdministrator } from "./support/platform";
 
 describe("authenticated Source File Storage access", () => {
-  it("lists only the authorized Company's objects among more than 1000 unrelated Companies and objects", async () => {
+  it("lists only the authorized Company's objects among unrelated Companies and objects", async () => {
     const owner = await administratorWithCompany("Storage listing owner");
-    const outsider = await signedUpUser("Storage listing outsider");
+    const outsider = await provisionedUser("Storage listing outsider");
     const uploaded = await uploadSourceFile(owner.client, testWorker().jobs, {
       companyId: owner.companyId, fileName: "receipt.png", bytes: fixtureFile("receipt.png"),
     });
     if (!uploaded.ok) throw new Error(uploaded.error);
-    const inventory = await platformCompanyInventoryFixture(1001, outsider.userId);
+    const inventory = await platformCompanyInventoryFixture(31, outsider.userId);
     const removeMetadata = await storageObjectMetadataFixture(inventory.map((company) => `${company.companyId}/${crypto.randomUUID()}`));
     try {
       const denied = await outsider.client.storage.from("source-files").list(owner.companyId);
@@ -28,6 +28,10 @@ describe("authenticated Source File Storage access", () => {
       expect(new Uint8Array(await bytes.data!.arrayBuffer())).toEqual(fixtureFile("receipt.png"));
     } finally {
       await removeMetadata();
+      const companies = await systemClient().from("company").delete().in("id", inventory.map(entry => entry.companyId));
+      if (companies.error) throw companies.error;
+      const deleted = await systemClient().from("organization").delete().in("id", inventory.map(entry => entry.organizationId));
+      if (deleted.error) throw deleted.error;
     }
   });
 

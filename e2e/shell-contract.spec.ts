@@ -1,3 +1,4 @@
+import { provisionAndLogIn } from "./support/accounts";
 import { createHmac } from "node:crypto";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
@@ -91,7 +92,7 @@ test("real Auth, Company, Organization and Platform surfaces share one accessibl
   for (const viewport of viewports) {
     await page.setViewportSize(viewport);
     await page.goto("/login");
-    await expect(page.getByRole("banner").getByRole("link", { name: "iVAT" })).toBeVisible();
+    await expect(page.locator(".focused-shell-panel").getByRole("link", { name: "iVAT" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Log in", level: 1 })).toBeVisible();
     await expect(page.getByRole("navigation")).toHaveCount(0);
     await expectAccessibleSurface(page);
@@ -101,13 +102,9 @@ test("real Auth, Company, Organization and Platform surfaces share one accessibl
 
   const run = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const email = `shell-contract-${run}@example.test`;
-  await page.goto("/signup");
-  await page.getByLabel("Organization name").fill(`Contract Organization ${run}`);
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Sign up" }).click();
+  await provisionAndLogIn(page, { organizationName: `Contract Organization ${run}`, email, password });
   await expect(page).toHaveURL(/\/companies\/new$/);
-  await expect(page.getByRole("banner").getByRole("link", { name: "iVAT" })).toBeVisible();
+  await expect(page.locator(".focused-shell-panel").getByRole("link", { name: "iVAT" })).toBeVisible();
   await expect(page.getByRole("navigation")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Add a company", level: 1 })).toBeVisible();
   await expectAccessibleSurface(page);

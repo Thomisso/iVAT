@@ -1,4 +1,5 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { provisionAndLogIn } from "./support/accounts";
 
 const password = "Playwright-password-77";
 
@@ -7,12 +8,8 @@ async function english(context: BrowserContext, baseURL: string | undefined) {
   await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: new URL(baseURL).origin }]);
 }
 
-async function signUp(page: Page, run: string) {
-  await page.goto("/signup");
-  await page.getByLabel("Organization name").fill(`Onboarding Organization ${run}`);
-  await page.getByLabel("Email").fill(`onboarding-${run}@example.test`);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Sign up" }).click();
+async function provisionAdministrator(page: Page, run: string) {
+  await provisionAndLogIn(page, { organizationName: `Onboarding Organization ${run}`, email: `onboarding-${run}@example.test`, password });
   await expect(page).toHaveURL(/\/companies\/new$/);
 }
 
@@ -28,7 +25,7 @@ test("legal Company setup uses structured ARES data, resumes, and reaches the fo
   await english(context, baseURL);
   const run = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const ico = Date.now().toString().slice(-8);
-  await signUp(page, run);
+  await provisionAdministrator(page, run);
 
   await page.getByLabel("Person type").selectOption("natural");
   await page.getByLabel("IČO").fill(ico);
@@ -84,7 +81,7 @@ test("natural-person setup derives its immutable name and shows precise EPO comp
   await english(context, baseURL);
   const run = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const ico = "90000001";
-  await signUp(page, run);
+  await provisionAdministrator(page, run);
 
   await page.getByLabel("IČO").fill(ico);
   await page.getByRole("button", { name: "Prefill from ARES" }).click();
@@ -127,7 +124,7 @@ test("natural-person setup derives its immutable name and shows precise EPO comp
 
 test("incomplete and unavailable ARES identity remains editable without inventing names", async ({ baseURL, context, page }) => {
   await english(context, baseURL);
-  await signUp(page, `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`);
+  await provisionAdministrator(page, `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`);
   await page.getByLabel("IČO").fill("90000002");
   await page.getByRole("button", { name: "Prefill from ARES" }).click();
   await expect(page.getByLabel("Person type")).toHaveValue("natural");

@@ -1,3 +1,4 @@
+import { provisionAndLogIn } from "./support/accounts";
 import { createHmac } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import { promoteBrowserSuperAdminFixture } from "../tests/support/e2e";
@@ -20,9 +21,11 @@ function authenticatorCode(secret: string) {
 }
 
 async function expectFocusedJourney(page: Page, heading: string) {
-  await expect(page.getByRole("banner").getByRole("link", { name: "iVAT" })).toBeVisible();
+  await expect(page.locator(".focused-shell-panel").getByRole("link", { name: "iVAT" })).toBeVisible();
+  await expect.poll(() => page.locator(".brand-logo").evaluate(image => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
   await expect(page.getByRole("main").getByRole("heading", { name: heading, level: 1 })).toBeVisible();
   await expect(page.getByRole("navigation", { name: /Company|Organization|Platform/ })).toHaveCount(0);
+  await page.screenshot({ path: `test-results/auth-${heading.replaceAll(/[^a-z0-9]+/gi, "-").toLowerCase()}-${page.viewportSize()?.width}.png`, fullPage: true });
 }
 
 test("login presents the shared brand as a focused authentication journey", async ({ baseURL, context, page }) => {
@@ -32,7 +35,7 @@ test("login presents the shared brand as a focused authentication journey", asyn
   await page.emulateMedia({ colorScheme: "dark" });
   await page.goto("/login");
 
-  await expect(page.getByRole("banner").getByRole("link", { name: "iVAT" })).toBeVisible();
+  await expect(page.locator(".focused-shell-panel").getByRole("link", { name: "iVAT" })).toBeVisible();
   await expect(page.getByRole("main").getByRole("heading", { name: "Log in", level: 1 })).toBeVisible();
   await expect(page.getByRole("navigation", { name: /Company|Organization|Platform/ })).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).colorScheme)).toBe("light");
@@ -48,13 +51,14 @@ test("an invalid invitation keeps the focused brand and explains the refusal acc
 
   await page.goto("/invitations/accept?token=invalid");
 
-  await expect(page.getByRole("banner").getByRole("link", { name: "iVAT" })).toBeVisible();
+  await expect(page.locator(".focused-shell-panel").getByRole("link", { name: "iVAT" })).toBeVisible();
   await expect(page.getByRole("main").getByRole("heading", { name: "Accept invitation", level: 1 })).toBeVisible();
   await expect(page.getByRole("alert").filter({ hasText: "This invitation link is invalid" })).toBeVisible();
+  await page.screenshot({ path: "test-results/auth-invalid-invitation.png", fullPage: true });
   await expect(page.getByRole("navigation", { name: /Company|Organization|Platform/ })).toHaveCount(0);
 });
 
-test("login errors and signup locale changes remain accessible on a narrow screen", async ({ baseURL, context, page }) => {
+test("login errors and locale changes remain accessible on a narrow screen", async ({ baseURL, context, page }) => {
   if (!baseURL) throw new Error("Playwright baseURL is required");
   await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: new URL(baseURL).origin }]);
 
@@ -66,12 +70,12 @@ test("login errors and signup locale changes remain accessible on a narrow scree
   await expect(page.getByRole("alert").filter({ hasText: "Wrong email or password" })).toBeVisible();
   await expect(page.getByLabel("Email")).toHaveValue("missing@example.test");
 
-  await page.goto("/signup");
-  await expectFocusedJourney(page, "Create your account");
+  await page.goto("/login");
+  await expectFocusedJourney(page, "Log in");
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(360);
   await page.getByRole("button", { name: "Čeština" }).click();
-  await expect(page).toHaveURL(/\/signup$/);
-  await expect(page.getByRole("heading", { name: "Vytvořte si účet", level: 1 })).toBeVisible();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole("heading", { name: "Přihlášení", level: 1 })).toBeVisible();
 });
 
 test("account security, MFA enrollment and verification stay focused at desktop and mobile widths", async ({
@@ -84,23 +88,22 @@ test("account security, MFA enrollment and verification stay focused at desktop 
   const run = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const email = `auth-shell-${run}@example.test`;
 
-  await page.goto("/signup");
-  await page.getByLabel("Organization name").fill(`Auth Shell ${run}`);
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Sign up" }).click();
+  await provisionAndLogIn(page, { organizationName: `Auth Shell ${run}`, email, password });
   await expect(page).toHaveURL(/\/companies\/new$/);
 
   await page.goto("/settings/security");
   await expectFocusedJourney(page, "Security");
   await page.setViewportSize({ width: 360, height: 800 });
   await expect(page.getByRole("link", { name: "Enable authenticator" })).toBeVisible();
+  await page.screenshot({ path: "test-results/auth-security-mobile.png", fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(360);
 
   await page.getByRole("link", { name: "Enable authenticator" }).click();
   await expect(page).toHaveURL(/\/mfa\/enroll$/);
   await expectFocusedJourney(page, "Set up two-factor authentication");
   await page.getByRole("button", { name: "Start setup" }).click();
+  await expect(page.locator("code")).toBeVisible();
+  await page.screenshot({ path: "test-results/auth-mfa-qr-mobile.png", fullPage: true });
   const secret = await page.locator("code").textContent();
   if (!secret) throw new Error("MFA enrollment did not expose a setup key");
   await page.getByLabel("Authenticator code").fill(authenticatorCode(secret));
@@ -121,6 +124,9 @@ test("account security, MFA enrollment and verification stay focused at desktop 
   await page.getByRole("button", { name: "Log in" }).click();
   await expect(page).toHaveURL(/\/mfa\/verify$/);
   await expectFocusedJourney(page, "Two-factor verification");
+  const pendingMfaLogo = await page.request.get(`/brand/logo.svg?pending-mfa=${crypto.randomUUID()}`, { maxRedirects: 0 });
+  expect(pendingMfaLogo.status()).toBe(200);
+  expect(pendingMfaLogo.headers()["content-type"]).toContain("image/svg+xml");
   await page.getByLabel("Authenticator code").fill("000000");
   await page.getByRole("button", { name: "Verify", exact: true }).click();
   await expect(page.getByRole("alert").filter({ hasText: "verification code is invalid" })).toBeVisible();

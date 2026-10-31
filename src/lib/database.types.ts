@@ -299,17 +299,23 @@ isOneToOne: false
                   ]
                 },"document": {
                   Row: {
-                    "claimed_reporting_period": string | null,"company_id": string,"created_at": string,"extraction_request_id": string,"first_page": number,"first_row": number | null,"has_document_image": boolean,"id": string,"last_page": number,"last_row": number | null,"organization_id": string,"source_file_id": string,"source_sheet": string | null,"status": Database["public"]['Enums']["document_status"],"superseded_at": string | null
+                    "claimed_reporting_period": string | null,"company_id": string,"created_at": string,"excluded_at": string | null,"excluded_by": string | null,"exclusion_reason": string | null,"extraction_request_id": string,"first_page": number | null,"first_row": number | null,"has_document_image": boolean,"id": string,"last_page": number | null,"last_row": number | null,"organization_id": string,"source_file_id": string | null,"source_sheet": string | null,"status": Database["public"]['Enums']["document_status"],"superseded_at": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "claimed_reporting_period"?: string | null,"company_id": string,"created_at"?: string,"extraction_request_id"?: string,"first_page": number,"first_row"?: number | null,"has_document_image"?: boolean,"id"?: string,"last_page": number,"last_row"?: number | null,"organization_id": string,"source_file_id": string,"source_sheet"?: string | null,"status"?: Database["public"]['Enums']["document_status"],"superseded_at"?: string | null
+                    "claimed_reporting_period"?: string | null,"company_id": string,"created_at"?: string,"excluded_at"?: string | null,"excluded_by"?: string | null,"exclusion_reason"?: string | null,"extraction_request_id"?: string,"first_page"?: number | null,"first_row"?: number | null,"has_document_image"?: boolean,"id"?: string,"last_page"?: number | null,"last_row"?: number | null,"organization_id": string,"source_file_id"?: string | null,"source_sheet"?: string | null,"status"?: Database["public"]['Enums']["document_status"],"superseded_at"?: string | null
                   }
                   Update: {
-                    "claimed_reporting_period"?: string | null,"company_id"?: string,"created_at"?: string,"extraction_request_id"?: string,"first_page"?: number,"first_row"?: number | null,"has_document_image"?: boolean,"id"?: string,"last_page"?: number,"last_row"?: number | null,"organization_id"?: string,"source_file_id"?: string,"source_sheet"?: string | null,"status"?: Database["public"]['Enums']["document_status"],"superseded_at"?: string | null
+                    "claimed_reporting_period"?: string | null,"company_id"?: string,"created_at"?: string,"excluded_at"?: string | null,"excluded_by"?: string | null,"exclusion_reason"?: string | null,"extraction_request_id"?: string,"first_page"?: number | null,"first_row"?: number | null,"has_document_image"?: boolean,"id"?: string,"last_page"?: number | null,"last_row"?: number | null,"organization_id"?: string,"source_file_id"?: string | null,"source_sheet"?: string | null,"status"?: Database["public"]['Enums']["document_status"],"superseded_at"?: string | null
                   }
                   Relationships: [
                     {
+      foreignKeyName: "document_company_tenant"
+      columns: ["company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "company"
+      referencedColumns: ["id","organization_id"]
+    },{
       foreignKeyName: "document_source_file_id_company_id_organization_id_fkey"
       columns: ["source_file_id","company_id","organization_id"]
 isOneToOne: false
@@ -357,14 +363,14 @@ isOneToOne: false
                   ]
                 },"invitation": {
                   Row: {
-                    "accepted_at": string | null,"accepted_by": string | null,"company_id": string | null,"created_at": string,"created_by": string,"email": string,"expires_at": string,"id": string,"invitee_existed": boolean,"organization_id": string,"role": Database["public"]['Enums']["membership_role"],"token_hash": string
+                    "accepted_at": string | null,"accepted_by": string | null,"cancelled_at": string | null,"company_id": string | null,"created_at": string,"created_by": string,"email": string,"expires_at": string,"id": string,"invitee_existed": boolean,"organization_id": string,"replaced_by": string | null,"role": Database["public"]['Enums']["membership_role"],"token_hash": string,"token_secret_id": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "accepted_at"?: string | null,"accepted_by"?: string | null,"company_id"?: string | null,"created_at"?: string,"created_by"?: string,"email": string,"expires_at"?: string,"id"?: string,"invitee_existed"?: boolean,"organization_id": string,"role": Database["public"]['Enums']["membership_role"],"token_hash": string
+                    "accepted_at"?: string | null,"accepted_by"?: string | null,"cancelled_at"?: string | null,"company_id"?: string | null,"created_at"?: string,"created_by"?: string,"email": string,"expires_at"?: string,"id"?: string,"invitee_existed"?: boolean,"organization_id": string,"replaced_by"?: string | null,"role": Database["public"]['Enums']["membership_role"],"token_hash": string,"token_secret_id"?: string | null
                   }
                   Update: {
-                    "accepted_at"?: string | null,"accepted_by"?: string | null,"company_id"?: string | null,"created_at"?: string,"created_by"?: string,"email"?: string,"expires_at"?: string,"id"?: string,"invitee_existed"?: boolean,"organization_id"?: string,"role"?: Database["public"]['Enums']["membership_role"],"token_hash"?: string
+                    "accepted_at"?: string | null,"accepted_by"?: string | null,"cancelled_at"?: string | null,"company_id"?: string | null,"created_at"?: string,"created_by"?: string,"email"?: string,"expires_at"?: string,"id"?: string,"invitee_existed"?: boolean,"organization_id"?: string,"replaced_by"?: string | null,"role"?: Database["public"]['Enums']["membership_role"],"token_hash"?: string,"token_secret_id"?: string | null
                   }
                   Relationships: [
                     {
@@ -378,6 +384,12 @@ isOneToOne: false
       columns: ["organization_id"]
 isOneToOne: false
       referencedRelation: "organization"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "invitation_replaced_by_fkey"
+      columns: ["replaced_by"]
+isOneToOne: false
+      referencedRelation: "invitation"
       referencedColumns: ["id"]
     }
                   ]
@@ -531,14 +543,14 @@ isOneToOne: false
                   ]
                 },"source_file": {
                   Row: {
-                    "byte_size": number,"company_id": string,"file_name": string,"format": Database["public"]['Enums']["source_file_format"],"id": string,"normalized_byte_size": number | null,"normalized_format": Database["public"]['Enums']["source_file_format"] | null,"normalized_sha256": string | null,"organization_id": string,"page_count": number,"preselected_direction": string | null,"sha256": string,"status": Database["public"]['Enums']["source_file_status"],"upload_batch_id": string | null,"uploaded_at": string,"uploaded_by": string | null
+                    "byte_size": number,"company_id": string,"excluded_at": string | null,"excluded_by": string | null,"exclusion_reason": string | null,"file_name": string,"format": Database["public"]['Enums']["source_file_format"],"id": string,"manual_definition": Json | null,"manually_defined_at": string | null,"manually_defined_by": string | null,"normalized_byte_size": number | null,"normalized_format": Database["public"]['Enums']["source_file_format"] | null,"normalized_sha256": string | null,"organization_id": string,"page_count": number,"preselected_direction": string | null,"sha256": string,"split_request_id": string,"status": Database["public"]['Enums']["source_file_status"],"upload_batch_id": string | null,"uploaded_at": string,"uploaded_by": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "byte_size": number,"company_id": string,"file_name": string,"format": Database["public"]['Enums']["source_file_format"],"id": string,"normalized_byte_size"?: number | null,"normalized_format"?: Database["public"]['Enums']["source_file_format"] | null,"normalized_sha256"?: string | null,"organization_id": string,"page_count": number,"preselected_direction"?: string | null,"sha256": string,"status"?: Database["public"]['Enums']["source_file_status"],"upload_batch_id"?: string | null,"uploaded_at"?: string,"uploaded_by"?: string | null
+                    "byte_size": number,"company_id": string,"excluded_at"?: string | null,"excluded_by"?: string | null,"exclusion_reason"?: string | null,"file_name": string,"format": Database["public"]['Enums']["source_file_format"],"id": string,"manual_definition"?: Json | null,"manually_defined_at"?: string | null,"manually_defined_by"?: string | null,"normalized_byte_size"?: number | null,"normalized_format"?: Database["public"]['Enums']["source_file_format"] | null,"normalized_sha256"?: string | null,"organization_id": string,"page_count": number,"preselected_direction"?: string | null,"sha256": string,"split_request_id"?: string,"status"?: Database["public"]['Enums']["source_file_status"],"upload_batch_id"?: string | null,"uploaded_at"?: string,"uploaded_by"?: string | null
                   }
                   Update: {
-                    "byte_size"?: number,"company_id"?: string,"file_name"?: string,"format"?: Database["public"]['Enums']["source_file_format"],"id"?: string,"normalized_byte_size"?: number | null,"normalized_format"?: Database["public"]['Enums']["source_file_format"] | null,"normalized_sha256"?: string | null,"organization_id"?: string,"page_count"?: number,"preselected_direction"?: string | null,"sha256"?: string,"status"?: Database["public"]['Enums']["source_file_status"],"upload_batch_id"?: string | null,"uploaded_at"?: string,"uploaded_by"?: string | null
+                    "byte_size"?: number,"company_id"?: string,"excluded_at"?: string | null,"excluded_by"?: string | null,"exclusion_reason"?: string | null,"file_name"?: string,"format"?: Database["public"]['Enums']["source_file_format"],"id"?: string,"manual_definition"?: Json | null,"manually_defined_at"?: string | null,"manually_defined_by"?: string | null,"normalized_byte_size"?: number | null,"normalized_format"?: Database["public"]['Enums']["source_file_format"] | null,"normalized_sha256"?: string | null,"organization_id"?: string,"page_count"?: number,"preselected_direction"?: string | null,"sha256"?: string,"split_request_id"?: string,"status"?: Database["public"]['Enums']["source_file_status"],"upload_batch_id"?: string | null,"uploaded_at"?: string,"uploaded_by"?: string | null
                   }
                   Relationships: [
                     {
@@ -708,15 +720,27 @@ isOneToOne: false
                   }
                   ComputedFields: never
                   Relationships: [
-
+                    {
+      foreignKeyName: "document_company_tenant"
+      columns: ["company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "company"
+      referencedColumns: ["id","organization_id"]
+    }
                   ]
                 },"document_overview": {
                   Row: {
-                    "claimed_reporting_period": string | null,"company_id": string,"counterparty_ico": string | null,"counterparty_name": string | null,"counterparty_search": string | null,"counterparty_vat_id": string | null,"created_at": string,"currency": string | null,"direction": string | null,"document_number": string | null,"finding_count": number | null,"first_page": number,"gross_amount": string | null,"id": string,"import_date": string | null,"last_page": number,"organization_id": string,"reporting_period": string | null,"source_file_id": string,"status": Database["public"]['Enums']["document_status"],"tax_point_date": string | null,"version": number | null
+                    "claimed_reporting_period": string | null,"company_id": string,"counterparty_ico": string | null,"counterparty_name": string | null,"counterparty_search": string | null,"counterparty_vat_id": string | null,"created_at": string,"currency": string | null,"direction": string | null,"document_number": string | null,"extraction_version_id": string | null,"finding_count": number | null,"first_page": number | null,"gross_amount": string | null,"id": string,"import_date": string | null,"last_page": number | null,"organization_id": string,"proposed_vat_regime": string | null,"reporting_findings": Json | null,"reporting_payload": Json | null,"reporting_period": string | null,"source_file_id": string | null,"status": Database["public"]['Enums']["document_status"],"tax_point_date": string | null,"version": number | null
                   }
                   ComputedFields: never
                   Relationships: [
                     {
+      foreignKeyName: "document_company_tenant"
+      columns: ["company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "company"
+      referencedColumns: ["id","organization_id"]
+    },{
       foreignKeyName: "document_source_file_id_company_id_organization_id_fkey"
       columns: ["source_file_id","company_id","organization_id"]
 isOneToOne: false
@@ -738,12 +762,21 @@ isOneToOne: false
                   }
                   ComputedFields: never
                   Relationships: [
-
+                    {
+      foreignKeyName: "document_company_tenant"
+      columns: ["company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "company"
+      referencedColumns: ["id","organization_id"]
+    }
                   ]
                 }
           }
           Functions: {
-            "accept_invitation":
+            "abort_invitation_acceptance":
+{ Args: { "acceptance_claim_id": string }; Returns: undefined
+                           },
+"accept_invitation":
 { Args: { "invitation_token": string }; Returns: undefined
                            },
 "acknowledge_vat_report_download":
@@ -755,6 +788,9 @@ isOneToOne: false
 "assign_company_ai_configuration":
 { Args: { "target_company_id": string,"target_configuration_id": string }; Returns: undefined
                            },
+"attach_document_source":
+{ Args: { "source_metadata": Json,"source_range": Json,"target_company_id": string,"target_document_id": string,"target_source_file_id": string }; Returns: string
+                           },
 "audit_actors":
 { Args: { "target_organization_id": string }; Returns: {
               "email": string,"user_id": string
@@ -765,17 +801,47 @@ isOneToOne: false
               "id": string,"name": string
             }[]
                            },
+"authorize_mfa_maintenance":
+{ Args: { "operation": string }; Returns: undefined
+                           },
+"authorize_password_recovery":
+{ Args: { "request_token": string,"verified_session_id": string }; Returns: undefined
+                           },
+"begin_invitation_acceptance":
+{ Args: { "invitation_token": string }; Returns: string
+                           },
+"begin_mfa_replacement":
+{ Args: { "continuation_token"?: string,"input_code": string }; Returns: string
+                           },
 "begin_upload_batch":
 { Args: { "requested_batch_id"?: string,"selected_file_count": number,"selected_files"?: Json,"target_company_id": string }; Returns: string
                            },
+"bind_mfa_replacement_factor":
+{ Args: { "enrolled_factor_id": string,"recovery_operation_id": string }; Returns: undefined
+                           },
+"cancel_document_reprocess_dispatch":
+{ Args: { "target_document_id": string,"target_extraction_request_id": string }; Returns: string
+                           },
 "cancel_invitation":
 { Args: { "invitation_token": string }; Returns: undefined
+                           },
+"cancel_invitation_by_id":
+{ Args: { "target_invitation_id": string }; Returns: undefined
                            },
 "change_company_reporting_year_frequency":
 { Args: { "new_frequency": Database["public"]['Enums']["filing_frequency"],"target_company_id": string,"target_year": number }; Returns: undefined
                            },
 "change_membership_role":
 { Args: { "target_membership_id": string,"target_role": Database["public"]['Enums']["membership_role"] }; Returns: undefined
+                           },
+"claim_mfa_maintenance":
+{ Args: { "target_factor_id": string }; Returns: undefined
+                           },
+"claim_mfa_replacement_operation":
+{ Args: { "operation": string }; Returns: string
+                           },
+"claim_password_recovery":
+{ Args: Record<PropertyKey, never>; Returns: string
                            },
 "clear_default_ai_configuration":
 { Args: Record<PropertyKey, never>; Returns: undefined
@@ -796,6 +862,18 @@ isOneToOne: false
                            },
 "complete_company_data_export":
 { Args: { "target_byte_size": number,"target_export_id": string,"target_sha256": string }; Returns: undefined
+                           },
+"complete_invitation_acceptance":
+{ Args: { "acceptance_claim_id": string }; Returns: undefined
+                           },
+"complete_mfa_replacement":
+{ Args: Record<PropertyKey, never>; Returns: undefined
+                           },
+"confirm_mfa_replacement_native_finish":
+{ Args: { "recovery_operation_id": string }; Returns: undefined
+                           },
+"confirm_mfa_replacement_password":
+{ Args: { "recovery_operation_id": string }; Returns: undefined
                            },
 "correct_document":
 { Args: { "based_on_version": number,"findings": Json,"payload": Json,"target_document_id": string }; Returns: number
@@ -818,6 +896,12 @@ isOneToOne: false
 "create_invitation":
 { Args: { "target_company_id": string,"target_email": string,"target_organization_id": string,"target_role": Database["public"]['Enums']["membership_role"] }; Returns: string
                            },
+"create_manual_document":
+{ Args: { "findings": Json,"payload": Json,"target_company_id": string }; Returns: string
+                           },
+"create_password_recovery_request":
+{ Args: { "target_email": string }; Returns: string
+                           },
 "current_company_role":
 { Args: { "target_company_id": string }; Returns: Database["public"]['Enums']["membership_role"]
                            },
@@ -832,6 +916,9 @@ isOneToOne: false
 "current_user_can_use_application":
 { Args: Record<PropertyKey, never>; Returns: boolean
                            },
+"define_source_documents":
+{ Args: { "document_ranges": Json,"target_source_file_id": string }; Returns: (string)[]
+                           },
 "delete_company_reporting_year":
 { Args: { "target_company_id": string,"target_year": number }; Returns: undefined
                            },
@@ -843,6 +930,9 @@ isOneToOne: false
                            },
 "dismiss_upload_notification":
 { Args: { "target_notification_id": string }; Returns: undefined
+                           },
+"exclude_source_file":
+{ Args: { "exclusion_reason": string,"target_source_file_id": string }; Returns: undefined
                            },
 "fail_company_data_export":
 { Args: { "target_export_id": string }; Returns: undefined
@@ -856,6 +946,9 @@ isOneToOne: false
 "finish_mfa_enrollment":
 { Args: Record<PropertyKey, never>; Returns: (string)[]
                            },
+"finish_password_recovery":
+{ Args: { "recovery_attempt_id": string,"succeeded": boolean }; Returns: undefined
+                           },
 "finish_upload_batch":
 { Args: { "target_batch_id": string }; Returns: undefined
                            },
@@ -865,10 +958,16 @@ isOneToOne: false
 "generate_company_reporting_years":
 { Args: { "from_year": number,"new_frequency": Database["public"]['Enums']["filing_frequency"],"target_company_id": string,"to_year": number }; Returns: Json
                            },
+"invitation_authentication_authority":
+{ Args: { "acceptance_claim_id": string }; Returns: Json
+                           },
 "invitation_onboarding":
 { Args: { "invitation_token": string }; Returns: {
               "invitee_email": string,"invitee_existed": boolean,"onboarding_status": string,"target_company_id": string
             }[]
+                           },
+"list_active_memberships":
+{ Args: { "target_company_id"?: string,"target_organization_id": string }; Returns: Json
                            },
 "list_ai_configuration_providers":
 { Args: Record<PropertyKey, never>; Returns: (string)[]
@@ -892,6 +991,9 @@ isOneToOne: false
                            },
 "list_organization_administrations":
 { Args: Record<PropertyKey, never>; Returns: Json
+                           },
+"list_pending_invitations":
+{ Args: { "target_company_id": string,"target_organization_id": string }; Returns: Json
                            },
 "list_platform_ai_processing_allowances":
 { Args: Record<PropertyKey, never>; Returns: {
@@ -935,8 +1037,26 @@ isOneToOne: false
 "mfa_recovery_codes_remaining":
 { Args: Record<PropertyKey, never>; Returns: number
                            },
+"mfa_replacement_authority":
+{ Args: { "recovery_operation_id": string }; Returns: Json
+                           },
+"mfa_replacement_status":
+{ Args: Record<PropertyKey, never>; Returns: Json
+                           },
 "move_document_page":
 { Args: { "page": number,"source_document_id": string,"target_document_id": string }; Returns: (string)[]
+                           },
+"move_document_processing_status":
+{ Args: { "expected_statuses": (Database["public"]['Enums']["document_status"])[],"target_document_id": string,"target_extraction_request_id": string,"target_status": Database["public"]['Enums']["document_status"] }; Returns: boolean
+                           },
+"move_source_processing_status":
+{ Args: { "expected_statuses": (Database["public"]['Enums']["source_file_status"])[],"target_source_file_id": string,"target_split_request_id": string,"target_status": Database["public"]['Enums']["source_file_status"] }; Returns: boolean
+                           },
+"password_recovery_link_status":
+{ Args: { "request_token": string }; Returns: string
+                           },
+"password_recovery_status":
+{ Args: Record<PropertyKey, never>; Returns: string
                            },
 "platform_company_history":
 { Args: { "target_company_id": string }; Returns: Json
@@ -946,6 +1066,9 @@ isOneToOne: false
               "max_source_file_bytes": number,"max_source_file_pages": number,"max_upload_batch_files": number
             }[]
                            },
+"prepare_document_source_attachment":
+{ Args: { "target_company_id": string,"target_document_id": string,"target_source_file_id": string }; Returns: undefined
+                           },
 "read_vat_report_artifact":
 { Args: { "target_artifact_id": string,"target_company_id": string }; Returns: Json
                            },
@@ -953,28 +1076,40 @@ isOneToOne: false
 { Args: { "findings": Json,"model": string,"payload": Json,"provider": string,"target_document_id": string,"target_extraction_request_id": string,"target_reservation_id": string }; Returns: undefined
                            },
 "record_ai_processing_issue":
-{ Args: { "target_classification": Database["public"]['Enums']["ai_processing_issue_classification"],"target_configuration_id"?: string,"target_id": string,"target_kind": Database["public"]['Enums']["ai_processing_target_kind"],"target_provider"?: string,"target_state": Database["public"]['Enums']["ai_processing_issue_state"] }; Returns: undefined
+{ Args: { "target_classification": Database["public"]['Enums']["ai_processing_issue_classification"],"target_configuration_id"?: string,"target_extraction_request_id"?: string,"target_id": string,"target_kind": Database["public"]['Enums']["ai_processing_target_kind"],"target_provider"?: string,"target_split_request_id"?: string,"target_state": Database["public"]['Enums']["ai_processing_issue_state"] }; Returns: undefined
                            },
 "record_ai_usage":
 { Args: { "target_company_id": string,"target_configuration_id": string,"target_input_tokens": number,"target_job_id": string,"target_job_name": string,"target_model": string,"target_operation": string,"target_organization_id": string,"target_output_tokens": number,"target_provider": string,"target_provider_cost_usd"?: number }; Returns: undefined
                            },
 "record_split":
-{ Args: { "source_ranges": Json,"target_source_file_id": string }; Returns: undefined
+{ Args: { "source_ranges": Json,"target_source_file_id": string,"target_split_request_id": string }; Returns: undefined
                            },
 "reject_document":
-{ Args: { "target_document_id": string }; Returns: undefined
+{ Args: { "rejection_reason"?: string,"target_document_id": string }; Returns: undefined
                            },
 "release_ai_processing_reservation":
 { Args: { "target_reservation_id": string }; Returns: undefined
                            },
+"release_mfa_replacement_operation":
+{ Args: { "recovery_operation_id": string }; Returns: undefined
+                           },
+"release_superadmin_identity":
+{ Args: { "reserved_user_id": string }; Returns: undefined
+                           },
 "remove_membership":
 { Args: { "target_membership_id": string }; Returns: undefined
                            },
+"replace_invitation":
+{ Args: { "target_invitation_id": string }; Returns: string
+                           },
 "reprocess_document":
-{ Args: { "target_document_id": string }; Returns: undefined
+{ Args: { "replacement_confirmed"?: boolean,"target_document_id": string }; Returns: string
                            },
 "reserve_ai_processing":
 { Args: { "target_document_id": string,"target_extraction_request_id": string,"target_reservation_id": string }; Returns: string
+                           },
+"reserve_superadmin_identity":
+{ Args: { "target_email": string }; Returns: string
                            },
 "resolve_assigned_ai_configuration":
 { Args: { "target_company_id": string }; Returns: {
@@ -984,12 +1119,18 @@ isOneToOne: false
 "restore_ai_processing_allowance_wait":
 { Args: { "target_company_id": string,"target_document_ids": (string)[] }; Returns: undefined
                            },
+"restore_document":
+{ Args: { "target_document_id": string }; Returns: undefined
+                           },
 "restore_platform_ai_processing_wait":
 { Args: { "target_work": Json }; Returns: undefined
                            },
+"restore_source_file":
+{ Args: { "target_source_file_id": string }; Returns: undefined
+                           },
 "resume_platform_ai_processing":
 { Args: { "target_company_id"?: string,"target_configuration_id"?: string }; Returns: {
-              "classification": Database["public"]['Enums']["ai_processing_issue_classification"],"configuration_id": string,"first_detected_at": string,"provider": string,"target_id": string,"target_kind": Database["public"]['Enums']["ai_processing_target_kind"]
+              "classification": Database["public"]['Enums']["ai_processing_issue_classification"],"configuration_id": string,"extraction_request_id": string,"first_detected_at": string,"provider": string,"split_request_id": string,"target_id": string,"target_kind": Database["public"]['Enums']["ai_processing_target_kind"]
             }[]
                            },
 "retry_failed_processing_job":
@@ -1039,8 +1180,20 @@ isOneToOne: false
 "soft_delete_company":
 { Args: { "target_company_id": string,"target_export_id": string }; Returns: Json
                            },
+"source_file_period_lock":
+{ Args: { "target_source_file_id": string }; Returns: string
+                           },
+"source_file_readiness":
+{ Args: { "target_company_id": string,"target_period": string }; Returns: Json
+                           },
 "split_document":
 { Args: { "split_after_page": number,"target_document_id": string }; Returns: (string)[]
+                           },
+"start_manual_document_review":
+{ Args: { "target_document_id": string }; Returns: undefined
+                           },
+"start_manual_source_review":
+{ Args: { "target_source_file_id": string }; Returns: undefined
                            },
 "unlock_reporting_period":
 { Args: { "target_company_id": string,"target_period": string,"unlock_confirmed": boolean,"unlock_reason": string }; Returns: undefined
@@ -1097,7 +1250,7 @@ isOneToOne: false
                            }
           }
           Enums: {
-            "ai_processing_issue_classification": "configuration_missing"|"configuration_unusable"|"invalid_credentials"|"provider_credits_exhausted"|"provider_unavailable"|"provider_response_invalid"|"processing_failed","ai_processing_issue_state": "waiting_for_platform"|"terminal","ai_processing_target_kind": "source_file"|"document","company_setup_state": "completed"|"skipped","company_setup_step": "identity"|"filing_frequency"|"filing_defaults"|"ai_processing","document_status": "uploaded"|"waiting_for_allowance"|"waiting_for_platform"|"processing"|"needs_review"|"failed"|"approved"|"rejected","filing_frequency": "monthly"|"quarterly","membership_role": "administrator"|"user","person_type": "legal"|"natural","platform_role": "super_admin","source_file_format": "pdf"|"png"|"jpeg"|"xlsx"|"xls"|"heic"|"heif","source_file_status": "uploaded"|"waiting_for_platform"|"processing"|"split"|"failed"
+            "ai_processing_issue_classification": "configuration_missing"|"configuration_unusable"|"invalid_credentials"|"provider_credits_exhausted"|"provider_unavailable"|"provider_response_invalid"|"processing_failed","ai_processing_issue_state": "waiting_for_platform"|"terminal","ai_processing_target_kind": "source_file"|"document","company_setup_state": "completed"|"skipped","company_setup_step": "identity"|"filing_frequency"|"filing_defaults"|"ai_processing","document_status": "uploaded"|"waiting_for_allowance"|"waiting_for_platform"|"processing"|"needs_review"|"failed"|"approved"|"rejected","filing_frequency": "monthly"|"quarterly","membership_role": "administrator"|"user","person_type": "legal"|"natural","platform_role": "super_admin","source_file_format": "pdf"|"png"|"jpeg"|"xlsx"|"xls"|"heic"|"heif","source_file_status": "uploaded"|"waiting_for_platform"|"processing"|"split"|"failed"|"rejected"|"needs_review"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -1217,7 +1370,7 @@ export const Constants = {
           }
         },"public": {
           Enums: {
-            "ai_processing_issue_classification": ["configuration_missing", "configuration_unusable", "invalid_credentials", "provider_credits_exhausted", "provider_unavailable", "provider_response_invalid", "processing_failed"],"ai_processing_issue_state": ["waiting_for_platform", "terminal"],"ai_processing_target_kind": ["source_file", "document"],"company_setup_state": ["completed", "skipped"],"company_setup_step": ["identity", "filing_frequency", "filing_defaults", "ai_processing"],"document_status": ["uploaded", "waiting_for_allowance", "waiting_for_platform", "processing", "needs_review", "failed", "approved", "rejected"],"filing_frequency": ["monthly", "quarterly"],"membership_role": ["administrator", "user"],"person_type": ["legal", "natural"],"platform_role": ["super_admin"],"source_file_format": ["pdf", "png", "jpeg", "xlsx", "xls", "heic", "heif"],"source_file_status": ["uploaded", "waiting_for_platform", "processing", "split", "failed"]
+            "ai_processing_issue_classification": ["configuration_missing", "configuration_unusable", "invalid_credentials", "provider_credits_exhausted", "provider_unavailable", "provider_response_invalid", "processing_failed"],"ai_processing_issue_state": ["waiting_for_platform", "terminal"],"ai_processing_target_kind": ["source_file", "document"],"company_setup_state": ["completed", "skipped"],"company_setup_step": ["identity", "filing_frequency", "filing_defaults", "ai_processing"],"document_status": ["uploaded", "waiting_for_allowance", "waiting_for_platform", "processing", "needs_review", "failed", "approved", "rejected"],"filing_frequency": ["monthly", "quarterly"],"membership_role": ["administrator", "user"],"person_type": ["legal", "natural"],"platform_role": ["super_admin"],"source_file_format": ["pdf", "png", "jpeg", "xlsx", "xls", "heic", "heif"],"source_file_status": ["uploaded", "waiting_for_platform", "processing", "split", "failed", "rejected", "needs_review"]
           }
         }
 } as const

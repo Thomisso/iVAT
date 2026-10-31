@@ -2,6 +2,13 @@ purpose:
   stands_in_for: GitHub exact-main-push workflow evidence and Roští Compose storage/readback HTTP dependencies of the real release flow.
   unblocks: Verify Release authorization, real SSH transport and disposable Compose upgrades without live services or production credentials.
 assumptions:
+  - id: runtime-identity-matches-prepared-bundle
+    status: unknown
+    claim: The revised disposable host/SSH fixture installs a versioned image built from the complete tagged source represented by its validated bundle, and its compiled login and runtime generator report that same identity.
+    reason: The fixture now commits its probe migration before building and passes that tag and revision into the image build. The new runtime assertions have not yet been exercised through the full host/SSH flow.
+    verification: In the release-162-runtime-fixture-development fingerprint the fast source-preparation regression passed with the full runtime case explicitly skipped. Run the opt-in host/SSH fixture under final integration ticket 179 after ticket stacks stop; no new full-runtime pass is claimed here.
+    source: deploy/tests/release-runtime.test.mjs; docs/deployment.md
+    updated_at: "2026-10-30"
   - id: github-workflow-evidence-contract
     status: supported
     claim: GitHub lists workflow runs for a workflow filename with head_sha, branch and event filters and returns workflow_runs carrying identity, status and conclusion.
@@ -13,7 +20,7 @@ assumptions:
     status: supported
     claim: Against this stand-in, the real preparation caller waits for both exact main-push checks and refuses newer failed runs, wrong-SHA or PR-only evidence, missing/pending runs, HTTP 403, HTML errors, malformed JSON and response timeouts.
     reason: Focused tests invoke the actual HTTP evidence caller and assert success or bounded non-secret failure. Simulation request events confirm both required workflow paths were exercised.
-    verification: On 2026-10-30 all 15 focused release preparation, host and connection tests passed on the release-156-development fingerprint. These results establish the caller's behavior against the modelled cases, not GitHub availability or repository permissions.
+    verification: On 2026-10-30 all 15 focused release preparation, host and connection tests passed on the release-156-development fingerprint. Repeated with the release-162-development fingerprint alongside three build-identity checks; all 18 tests passed, and simulation request events again confirmed both workflow paths. These results establish the caller's behavior against the modelled cases, not GitHub availability or repository permissions.
     source: deploy/tests/release-connect.test.mjs; deploy/scripts/prepare-release.mjs; postman/mocks/github-release/default.js
     updated_at: "2026-10-30"
   - id: rosti-contract-reuse
@@ -38,6 +45,14 @@ assumptions:
     source: deploy/tests/release-runtime.test.mjs; deploy/scripts/connect-release.mjs; deploy/scripts/launch-release.sh; postman/simulations/release-flow/release-flow.sim.yaml
     updated_at: "2026-10-30"
 fingerprints:
+  - id: release-162-runtime-fixture-development
+    date: "2026-10-30"
+    commit: 707fa4ca7fc3da2b64ba6e1b99d1b2318fba1f98 with dirty ticket 162 runtime fixture correction
+    cli: Postman CLI 1.73.0
+  - id: release-162-development
+    date: "2026-10-30"
+    commit: c6b1345855b792cf1213a331efc377b34eed02c0 with dirty ticket 162 build-identity implementation
+    cli: Postman CLI 1.73.0
   - id: release-156-development
     date: "2026-10-30"
     commit: 0dc023b with dirty ticket 156 implementation

@@ -46,6 +46,7 @@ export default async function UploadBatchPage({
     { key: "extraction", count: batch.counts.extracting, active: batch.counts.extracting > 0 },
     { key: "review", count: batch.counts.review, active: batch.counts.review > 0 },
   ] as const;
+  const manualSources = batch.sourceFiles.filter((source) => source.status === "needs_review");
   const failedSources = batch.sourceFiles.filter((source) => source.status === "failed");
   const failedDocuments = batch.sourceFiles.flatMap((source) =>
     source.documents.filter((document) => document.status === "failed"),
@@ -76,6 +77,7 @@ export default async function UploadBatchPage({
       <Link className="iv-btn iv-btn-primary iv-btn-md" href={reviewHref}>{t("reviewAction", { count: batch.counts.review })}</Link>
     </section>}
 
+    {manualSources.length > 0 && <p>{t("manualSources", { count: manualSources.length })}</p>}
     {batch.counts.failures > 0 && <section className="upload-failures" aria-labelledby="batch-failures-title">
       <div className="upload-section-heading"><div><h2 id="batch-failures-title">{t("failuresTitle")}</h2><p>{t("failuresHint")}</p></div><span>{batch.counts.failures}</span></div>
       {batch.counts.transportFailures > 0 && <p className="upload-failure-row">{t("transportFailures", { count: batch.counts.transportFailures })}</p>}
@@ -103,7 +105,7 @@ export default async function UploadBatchPage({
             <Link href={withCompanyReturnTo(companyId, `/companies/${companyId}/documents/${document.id}`, `${context}#document-${document.id}`)}>{t("documentPages", { first: document.firstPage, last: document.lastPage })}</Link>
             <StatusBadge status={statusBadgeState(document.status, "document")}>{t(`documentStatus.${document.status}`)}</StatusBadge>
           </li>)}
-        </ol> : <p className="iv-muted">{source.status === "failed" ? t("noDocumentsFailed") : t("noDocumentsYet")}</p>}
+        </ol> : <p className="iv-muted">{source.status === "rejected" ? t("sourceExcludedNoDocuments") : source.status === "needs_review" ? t("sourceManualDefinitionNeeded") : source.status === "failed" ? t("noDocumentsFailed") : t("noDocumentsYet")}</p>}
       </article>)}
     </section>
     {deletion && <BatchDeletionForm companyId={companyId} preview={deletion} returnTo={returnTo ?? undefined} />}

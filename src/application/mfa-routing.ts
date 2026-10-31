@@ -9,6 +9,8 @@ export function mfaRedirectPath(
   pathname: string,
   policy: MfaPolicy,
 ): string | null {
+  // Recovery performs its own native TOTP challenge before credential updates.
+  if (pathname === "/password/forgot" || pathname === "/password/reset") return null;
   const onEnrollment = pathname === "/mfa/enroll";
   const onVerification = pathname === "/mfa/verify";
 
@@ -18,7 +20,6 @@ export function mfaRedirectPath(
   if (policy.enrolled && !policy.satisfied) {
     return onVerification ? null : "/mfa/verify";
   }
-  if (onEnrollment && policy.enrolled) return "/";
   if (onVerification && policy.satisfied) return "/";
   return null;
 }

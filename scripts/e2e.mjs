@@ -19,6 +19,7 @@ const environment = {
 };
 const managed = [];
 const serviceLogDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "ivat-e2e-"));
+environment.IVAT_E2E_SERVICE_LOG_DIRECTORY = serviceLogDirectory;
 
 async function phase(label, operation) {
   const startedAt = performance.now();
@@ -149,7 +150,7 @@ async function main() {
   environment.PLAYWRIGHT_BASE_URL = baseUrl;
   environment.APP_ORIGIN = new URL(baseUrl).origin;
   environment.AUTH_REDIRECT_ALLOWLIST = `${environment.APP_ORIGIN}/auth/callback`;
-  environment.SUPABASE_E2E_REDIRECT_URL = `${environment.AUTH_REDIRECT_ALLOWLIST}?**`;
+  environment.SUPABASE_E2E_REDIRECT_URL = `${environment.APP_ORIGIN}/**`;
   const port = new URL(baseUrl).port;
   const aresPort = await availablePort();
   environment.ARES_BASE_URL = `http://127.0.0.1:${aresPort}/ares/ekonomicke-subjekty-v-be/rest/ekonomicke-subjekty`;
@@ -162,6 +163,12 @@ async function main() {
     { cwd: process.cwd(), env: environment, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
   ));
   environment.MAILPIT_URL = localStack.MAILPIT_URL;
+  const smtpPort = fs.readFileSync(".env.local", "utf8").match(/^SMTP_PORT=(\d+)$/m)?.[1];
+  if (!smtpPort) throw new Error("Local invitation SMTP capture is not configured");
+  Object.assign(environment, {
+    SMTP_HOST: "127.0.0.1", SMTP_PORT: smtpPort, SMTP_LOCAL_CAPTURE: "true",
+    SMTP_USER: "", SMTP_PASS: "", SMTP_ADMIN_EMAIL: "noreply@ivat.cz",
+  });
   if (!useDevelopmentServer) {
     await phase("Build production application", () => command("npm", ["run", "build"]));
   }

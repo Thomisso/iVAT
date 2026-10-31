@@ -25,6 +25,22 @@ async function openAiStandIn(
 }
 
 describe("OpenAI provider", () => {
+  it.each([1, 2])("refuses a nullable human draft row in provider payload version %i", async (schemaVersion) => {
+    const baseUrl = await openAiStandIn((_request, _body, response) => {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({
+        model: "gpt-extract", status: "completed",
+        output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify({
+          ...SAMPLE_EXTRACTION, schemaVersion,
+          rateBreakdown: [{ rate: 21, netAmount: "100.00", vatAmount: null }],
+        }) }] }],
+      }));
+    });
+    const provider = openAiProvider({ apiKey: "test-secret", splitModel: "gpt-split", extractModel: "gpt-extract", baseUrl });
+    await expect(provider.extract({ format: "png", mediaType: "image/png", bytes: new Uint8Array([137, 80, 78, 71]), pageCount: 1 }))
+      .rejects.toThrow("invalid Extraction payload");
+  });
+
   it("sends a PDF natively and returns the schema-constrained Split", async () => {
     let received: { headers: IncomingMessage["headers"]; body: unknown } | undefined;
     const baseUrl = await openAiStandIn((request, body, response) => {

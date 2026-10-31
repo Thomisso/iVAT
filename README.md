@@ -23,7 +23,13 @@ npm run dev                  # app on http://localhost:3000
 npm run worker               # background worker, in a second terminal
 ```
 
-Open http://localhost:3000/signup. Signing up creates your Organization, makes you its Administrator, and takes you to create your first Company. Local email confirmation is off, so you are signed in right away. Supabase Studio runs at http://127.0.0.1:54323.
+Open http://localhost:3000/login. Public registration is closed (future design:
+[#158](https://github.com/Thomisso/iVAT/issues/158)). For a fresh local QA account,
+run `npm run dev:seed`; it privately provisions the User, signs in through Auth,
+and prints sign-in details. Local SuperAdmin bootstrap and administrator-issued
+Invitations remain the supported provisioning paths. Signed-in Administrators
+can still create and manage Companies. Supabase Studio runs at
+http://127.0.0.1:54323.
 
 Email/password sign-in works without third-party credentials. To enable Google
 sign-in locally, follow [`docs/google-sign-in.md`](docs/google-sign-in.md).
@@ -106,6 +112,15 @@ and add `--password-stdin`. To promote an existing identity without creating
 one, use `--user-id <auth-user-uuid>`; a missing UUID is rejected. Repeating the
 command is safe and leaves exactly one SuperAdmin record.
 
+New operators are created through native Auth with a service-only, short-lived
+reserved User id. This skips automatic Organization/Membership provisioning;
+the reservation grants no Role itself and is released after Auth creation.
+Retired ids remain without email so delayed requests fail closed rather than
+falling back to automatic tenant provisioning.
+Promoting an existing User preserves their historical Memberships and credentials.
+Active user lists and counts omit platform SuperAdmins without deleting those
+Memberships. Platform access still requires the operator's own MFA session.
+
 The command accepts only a localhost Supabase URL and reads the secret key from
 the gitignored `.env.local` written by `db:start`; it never prints that key.
 MFA is not seeded. After signing in, the SuperAdmin follows the normal product
@@ -144,6 +159,14 @@ npm run db:start
 npm test
 ```
 
+Integration and browser fixtures provision accounts through the isolated Auth
+admin API, then sign in with their real credentials. Browser scenarios still
+use the login UI; they do not need public registration. Privileged setup runs
+only in the test process using the local stack's secret key, with no public
+provisioning endpoint or browser access to that key. `db:start` exposes this
+checkout's Mailpit SMTP port and writes local-only invitation capture settings
+to `.env.local`; routine browser tests never use the production mailbox.
+
 The end-to-end acceptance suite stops this worktree's existing Supabase stack
 without retaining its data, starts only the services needed by the browser
 tests, builds the production Next.js application, and runs it with the worker
@@ -171,4 +194,6 @@ illustrative fixtures are documented in
 
 ## CI
 
-`.github/workflows/ci.yml` runs on every pull request and on `main`. It checks that `package-lock.json` matches `package.json` and, on a pull request, that no migration already on `main` was changed, renamed or deleted. It then starts local Supabase, checks that `src/lib/database.types.ts` matches the migrations, and runs typecheck, lint, tests and build. A separate job installs Chromium and runs the end-to-end acceptance scenario. After changing a migration, run `npm run db:types` and commit the result. Coding conventions that need judgement rather than a check are in [`CODING_STANDARDS.md`](CODING_STANDARDS.md).
+`.github/workflows/ci.yml` and deployment verification use docs, draft and full profiles. Documentation-only PRs avoid runtime stacks; drafts check types/lint without databases or browsers; ready PRs and every main push receive complete verification. Add the `ci:full` label to request full verification while an integration PR stays draft. Stable required gates always report, and obsolete runs cancel only within the same PR/workflow. Release evidence still requires successful full checks of the exact main commit. See [CI profiles, fixture decisions and timing evidence](docs/ci.md).
+
+After changing a migration, run `npm run db:types` and commit the result. Coding conventions that need judgement rather than a check are in [`CODING_STANDARDS.md`](CODING_STANDARDS.md).

@@ -8,6 +8,7 @@ import {
   omitZeroRateBreakdownRows,
   isZeroRateBreakdownLine,
   type ExtractionPayload,
+  type RateBreakdownLine,
 } from "./extraction-payload";
 import {
   reportingPeriodForDate,
@@ -137,7 +138,17 @@ function add(
   if (!target.documentIds.includes(id)) target.documentIds.push(id);
 }
 
-function exclusion(document: ReportDocument): ExclusionReason | null {
+/** The Rules Engine's mandatory counterparty identity, independently of amount. */
+export function missingRequiredReportingVatId(p: ExtractionPayload): boolean {
+  if (!p.direction) return false;
+  const counterparty = p.direction === "incoming" ? p.supplier : p.customer;
+  return (p.proposedVatRegime === "domestic_reverse_charge" && !/^CZ[0-9]{8,10}$/.test(counterparty.vatId ?? ""))
+    || (p.direction === "incoming" && (p.proposedVatRegime === "eu_acquisition_of_goods" || p.proposedVatRegime === "eu_received_service")
+      && !/^[A-Z]{2}[A-Z0-9+*.]{2,12}$/.test(p.supplier.vatId ?? ""))
+    || (p.proposedVatRegime === "domestic" && p.direction === "incoming" && !/^CZ[0-9]{8,10}$/.test(p.supplier.vatId ?? ""));
+}
+
+export function vatReportDocumentExclusion(document: ReportDocument): ExclusionReason | null {
   if (document.status !== "approved") return "not_approved";
   const p = document.payload;
   if (
@@ -168,20 +179,13 @@ function exclusion(document: ReportDocument): ExclusionReason | null {
       p.czkConversion.originalCurrency !== p.currency ||
       p.czkConversion.rateDate > p.taxPointDate)
   ) return "currency_conversion_required";
-  const counterparty = p.direction === "incoming" ? p.supplier : p.customer;
-  if (
-    (regime === "domestic_reverse_charge" &&
-      !/^CZ[0-9]{8,10}$/.test(counterparty.vatId ?? "")) ||
-    ((regime === "eu_acquisition_of_goods" || regime === "eu_received_service") &&
-      !/^[A-Z]{2}[A-Z0-9+*.]{2,12}$/.test(p.supplier.vatId ?? "")) ||
-    (regime === "domestic" &&
-      p.direction === "incoming" &&
-      !/^CZ[0-9]{8,10}$/.test(p.supplier.vatId ?? ""))
-  ) return "incomplete_data";
+  if (missingRequiredReportingVatId(p)) return "incomplete_data";
   return null;
 }
 
-function czkPayload(payload: ExtractionPayload): ExtractionPayload {
+type CompleteExtractionPayload = Omit<ExtractionPayload, "rateBreakdown"> & { rateBreakdown: RateBreakdownLine[] };
+
+function czkPayload(payload: CompleteExtractionPayload): CompleteExtractionPayload {
   if (payload.currency === "CZK" || !payload.czkConversion) return payload;
   return {
     ...payload,
@@ -212,8 +216,68 @@ function returnLines(
   }
 }
 
+export type MappingUnknownReason = "missing_payload" | "missing_regime" | "missing_direction" | "unsupported_regime" | "missing_rate" | "unsupported_rate" | "missing_gross_amount" | "missing_currency" | "currency_conversion_required";
+export type DocumentVatMapping = {
+  vatReturnLines: VatReturnLineNumber[];
+  controlStatementSection: ControlStatementEntry["section"] | null;
+  vatReturnUnknownReason: MappingUnknownReason | null;
+  controlStatementUnknownReason: MappingUnknownReason | null;
+};
+
+/** Derives classification only, never amounts, approval or report membership. */
+export function deriveDocumentVatMapping(payload: ExtractionPayload | null): DocumentVatMapping {
+  const unavailable = (reason: MappingUnknownReason): DocumentVatMapping => ({
+    vatReturnLines: [], controlStatementSection: null, vatReturnUnknownReason: reason, controlStatementUnknownReason: reason,
+  });
+  if (!payload) return unavailable("missing_payload");
+  const p = omitZeroRateBreakdownRows(payload);
+  if (!p.proposedVatRegime) return unavailable("missing_regime");
+  if (!p.direction) return unavailable("missing_direction");
+  if (p.proposedVatRegime === "other" ||
+    ((p.proposedVatRegime === "eu_acquisition_of_goods" || p.proposedVatRegime === "eu_received_service") && p.direction !== "incoming")) {
+    return unavailable("unsupported_regime");
+  }
+  const vatReturnUnknownReason = !p.rateBreakdown.length || p.rateBreakdown.some(rate => rate.rate === null)
+    ? "missing_rate" : p.rateBreakdown.some(rate => rate.rate !== 21 && rate.rate !== 12) ? "unsupported_rate" : null;
+  const derivedLines = new Set(vatReturnUnknownReason ? [] : p.rateBreakdown.flatMap(rate => returnLines(p, rate.rate!)));
+  const vatReturnLines = VAT_RETURN_LINES.filter(line => derivedLines.has(line));
+  const domestic = p.proposedVatRegime === "domestic";
+  let section: ControlStatementEntry["section"] | null = null;
+  let controlStatementUnknownReason: MappingUnknownReason | null = null;
+  if (p.proposedVatRegime === "domestic_reverse_charge") section = p.direction === "outgoing" ? "A.1" : "B.1";
+  else if (!domestic) section = "A.2";
+  else {
+    const converted = p.currency === "CZK" ? p : p.czkConversion
+      && p.czkConversion.originalCurrency === p.currency && p.taxPointDate
+      && p.czkConversion.rateDate <= p.taxPointDate ? p.czkConversion : null;
+    const grossAmount = converted?.totals.grossAmount;
+    if (!p.currency) controlStatementUnknownReason = "missing_currency";
+    else if (!converted) controlStatementUnknownReason = "currency_conversion_required";
+    else if (!grossAmount || !/^-?\d+\.\d{2}$/.test(grossAmount)) controlStatementUnknownReason = "missing_gross_amount";
+    else {
+      const gross = halers(grossAmount);
+      const vatId = (p.direction === "incoming" ? p.supplier : p.customer).vatId;
+      const individual = (gross < BigInt(0) ? -gross : gross) > BigInt(1000000)
+        && (p.direction === "incoming" || /^CZ[0-9]{8,10}$/.test(vatId ?? ""));
+      section = p.direction === "outgoing" ? individual ? "A.4" : "A.5" : individual ? "B.2" : "B.3";
+    }
+  }
+  return { vatReturnLines, controlStatementSection: section, vatReturnUnknownReason, controlStatementUnknownReason };
+}
+
 const OUTPUT_LINES = new Set<VatReturnLineNumber>(["1", "2", "3", "4", "5", "6", "10", "11"]);
 const INPUT_LINES = new Set<VatReturnLineNumber>(["40", "41", "43", "44"]);
+
+/** Preserves the engine's assignment of malformed legacy dates for exclusion. */
+export function reportingPeriodForReportDocument(document: ReportDocument, reportingYears: readonly ReportingYear[]): string | null {
+  const payload = document.payload;
+  if (!payload) return null;
+  return reportingPeriodForDocument({
+    direction: payload.direction, taxPointDate: payload.taxPointDate,
+    claimedReportingPeriod: document.claimedReportingPeriod ?? null,
+  }, reportingYears) ?? (/^20\d{2}-(0[1-9]|1[0-2])-\d{2}$/.test(payload.taxPointDate ?? "")
+    ? reportingPeriodForDate(`${payload.taxPointDate!.slice(0, 7)}-01`, reportingYears) : null);
+}
 
 /**
  * Supported Czech VAT regimes at 21% and 12%, in the assigned Reporting Period.
@@ -237,49 +301,23 @@ export function computeVatReport(
   const excludedDocuments: ComputedVatReport["excludedDocuments"] = [];
   for (const document of documents) {
     const payload = document.payload ? omitZeroRateBreakdownRows(document.payload) : null;
-    const assignedPeriod = payload
-      ? reportingPeriodForDocument(
-          {
-            direction: payload.direction,
-            taxPointDate: payload.taxPointDate,
-            claimedReportingPeriod: document.claimedReportingPeriod ?? null,
-          },
-          reportingYears,
-        ) ??
-        (/^20\d{2}-(0[1-9]|1[0-2])-\d{2}$/.test(payload.taxPointDate ?? "")
-          ? reportingPeriodForDate(
-              `${payload.taxPointDate!.slice(0, 7)}-01`,
-              reportingYears,
-            )
-          : null)
-      : null;
+    const assignedPeriod = reportingPeriodForReportDocument({ ...document, payload }, reportingYears);
     if (
       !payload ||
       assignedPeriod !== period
     ) continue;
-    const reason = exclusion({ ...document, payload });
+    const reason = vatReportDocumentExclusion({ ...document, payload });
     if (reason) {
       excludedDocuments.push({ documentId: document.id, reason });
       continue;
     }
-    const p = czkPayload(payload);
+    // exclusion() refused every incomplete row through validateExtractionPayload.
+    const p = czkPayload(payload as CompleteExtractionPayload);
     const counterparty = p.direction === "incoming" ? p.supplier : p.customer;
     const vatId = counterparty.vatId;
     const domestic = p.proposedVatRegime === "domestic";
-    const gross = halers(p.totals.grossAmount!);
-    const individualDomestic =
-      domestic &&
-      (gross < BigInt(0) ? -gross : gross) > BigInt(1000000) &&
-      (p.direction === "incoming" || /^CZ[0-9]{8,10}$/.test(vatId ?? ""));
-    const section: ControlStatementEntry["section"] =
-      p.proposedVatRegime === "domestic_reverse_charge"
-        ? p.direction === "outgoing" ? "A.1" : "B.1"
-        : p.proposedVatRegime === "eu_acquisition_of_goods" ||
-            p.proposedVatRegime === "eu_received_service"
-          ? "A.2"
-          : p.direction === "outgoing"
-            ? individualDomestic ? "A.4" : "A.5"
-            : individualDomestic ? "B.2" : "B.3";
+    const section = deriveDocumentVatMapping(p).controlStatementSection!;
+    const individualDomestic = domestic && (section === "A.4" || section === "B.2");
     const individual = !domestic || individualDomestic;
     let entry = individual
       ? undefined

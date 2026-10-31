@@ -1,3 +1,6 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { provisionAndLogIn } from "./support/accounts";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 
 const administratorPassword = "Playwright-password-76";
@@ -7,12 +10,8 @@ async function english(context: BrowserContext, baseURL: string) {
   await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: new URL(baseURL).origin }]);
 }
 
-async function signUp(page: Page, organization: string, email: string, password = administratorPassword) {
-  await page.goto("/signup");
-  await page.getByLabel("Organization name").fill(organization);
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Sign up" }).click();
+async function provisionAdministrator(page: Page, organization: string, email: string, password = administratorPassword) {
+  await provisionAndLogIn(page, { organizationName: organization, email, password });
   await expect(page).toHaveURL(/\/companies\/new$/);
 }
 
@@ -59,12 +58,12 @@ async function invitationLink(email: string, excludedMessageId = "") {
     .map((match) => match[1].replaceAll("&amp;", "&"))
     .find((candidate) => {
       try {
-        return new URL(candidate).pathname === "/auth/callback";
+        return new URL(candidate).pathname === "/invitations/accept";
       } catch {
         return false;
       }
     });
-  if (!href) throw new Error("Rendered invitation email has no absolute Auth callback link");
+  if (!href) throw new Error("Rendered invitation email has no absolute invitation link");
   return { href, messageId };
 }
 
@@ -84,11 +83,11 @@ test("rendered invitation emails onboard new and existing Users with the right c
       failedAssets.push(`${url.pathname}: ${error}`);
     }
   });
-  await signUp(administratorPage, `Invitation Organization ${run}`, administratorEmail);
+  await provisionAdministrator(administratorPage, `Invitation Organization ${run}`, administratorEmail);
   const companyId = await createCompany(administratorPage, companyName, `${Date.now()}`.slice(-8));
   // Send the hostile headers to the real invitation action only. Applying
   // them to page resources makes Chromium reject lazy chunks with ERR_INVALID_ARGUMENT.
-  await administratorPage.route(`**/companies/${companyId}/members`, async (route) => {
+  await administratorPage.route(`**/companies/${companyId}/settings/users`, async (route) => {
     const request = route.request();
     if (request.method() !== "POST") return route.continue();
     const response = await route.fetch({
@@ -109,23 +108,22 @@ test("rendered invitation emails onboard new and existing Users with the right c
   const unusedLink = new URL(unusedMessage.href);
   expect(unusedLink.origin).toBe(new URL(baseURL).origin);
 
-  // Local Auth deliberately throttles repeat magic links for one address for one second.
-  await administratorPage.waitForTimeout(1_100);
   await invite(administratorPage, companyId, newEmail);
   const newLink = new URL((await invitationLink(newEmail, unusedMessage.messageId)).href);
   expect(newLink.toString()).not.toBe(unusedLink.toString());
   expect(newLink.origin).toBe(new URL(baseURL).origin);
-  expect(newLink.pathname).toBe("/auth/callback");
-  expect(newLink.searchParams.get("token_hash")).toMatch(/^pkce_[0-9a-f]{56}$/);
-  expect(newLink.searchParams.get("type")).toBe("magiclink");
-  const newDestination = new URL(newLink.searchParams.get("next")!, baseURL);
-  expect(newDestination.pathname).toBe("/invitations/accept");
-  expect(newDestination.searchParams.get("token")).toMatch(/^[0-9a-f-]{72}$/);
+  expect(newLink.pathname).toBe("/invitations/accept");
+  expect(newLink.search).toBe("");
+  expect(new URLSearchParams(newLink.hash.slice(1)).get("token")).toBeTruthy();
+  const newDestination = newLink;
 
   const newContext = await browser.newContext();
   await english(newContext, baseURL);
   const newPage = await newContext.newPage();
   await newPage.goto(newLink.toString());
+  await expect(newPage.getByRole("heading", { name: "Set your password" })).toBeVisible();
+  expect((await newContext.cookies()).filter(cookie => cookie.name.startsWith("sb-"))).toEqual([]);
+  await newPage.reload();
   await expect(newPage.getByRole("heading", { name: "Set your password" })).toBeVisible();
   await newPage.getByLabel("New password").fill("12345678");
   await newPage.getByRole("button", { name: "Accept invitation" }).click();
@@ -139,7 +137,7 @@ test("rendered invitation emails onboard new and existing Users with the right c
   const existingSetupContext = await browser.newContext();
   await english(existingSetupContext, baseURL);
   const existingSetupPage = await existingSetupContext.newPage();
-  await signUp(existingSetupPage, `Existing Organization ${run}`, existingEmail, existingPassword);
+  await provisionAdministrator(existingSetupPage, `Existing Organization ${run}`, existingEmail, existingPassword);
   await invite(administratorPage, companyId, existingEmail);
   const existingLink = (await invitationLink(existingEmail)).href;
 
@@ -167,6 +165,12 @@ test("rendered invitation emails onboard new and existing Users with the right c
     .toBeVisible();
 
   expect(failedAssets).toEqual([]);
+  const logDirectory = process.env.IVAT_E2E_SERVICE_LOG_DIRECTORY;
+  if (!logDirectory) throw new Error("Acceptance service logs are required for credential privacy coverage");
+  const serverLog = await readFile(path.join(logDirectory, "next.log"), "utf8");
+  for (const secret of [new URLSearchParams(newLink.hash.slice(1)).get("token")!, "12345678", existingPassword]) {
+    expect(serverLog).not.toContain(secret);
+  }
 
   await Promise.all([
     administratorContext.close(),
@@ -175,4 +179,74 @@ test("rendered invitation emails onboard new and existing Users with the right c
     existingContext.close(),
     invalidContext.close(),
   ]);
+});
+
+test("copied invitation links survive reload, replacement and cancellation without sending email", async ({ baseURL, browser, context, page }) => {
+  if (!baseURL) throw new Error("Playwright baseURL is required");
+  await english(context, baseURL);
+  const run = crypto.randomUUID();
+  await provisionAdministrator(page, `Link Organization ${run}`, `link-admin-${run}@example.test`);
+  const companyId = await createCompany(page, `Link Company ${run}`, `${Date.now()}`.slice(-8));
+  await page.goto(`/companies/${companyId}/settings/users`);
+  const email = `link-invitee-${run}@example.test`;
+  await page.getByLabel("Email", { exact: true }).fill(email);
+  await page.getByRole("button", { name: "Generate link", exact: true }).click();
+  const pending = () => page.getByRole("listitem").filter({ hasText: email }).filter({ hasText: "Pending" });
+  await expect(pending()).toBeVisible();
+  const firstLink = await pending().getByLabel("Invitation link").inputValue();
+  const firstExpiry = await pending().getByText(/^Expires /).innerText();
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await pending().getByRole("button", { name: "Copy link", exact: true }).click();
+  await expect(pending().getByRole("status")).toHaveText("Link copied");
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(firstLink);
+  await page.reload();
+  await expect(pending().getByLabel("Invitation link")).toHaveValue(firstLink);
+  await expect(pending().getByText(/^Expires /)).toHaveText(firstExpiry);
+  await page.setViewportSize({ width: 360, height: 800 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+
+  const visitor = await browser.newContext();
+  await english(visitor, baseURL);
+  const invitee = await visitor.newPage();
+  await invitee.goto(firstLink);
+  await expect(invitee.getByRole("heading", { name: "Set your password" })).toBeVisible();
+  expect((await visitor.cookies()).filter(cookie => cookie.name.startsWith("sb-"))).toEqual([]);
+  await pending().getByRole("button", { name: "Generate replacement link", exact: true }).click();
+  await expect(page.getByRole("listitem").filter({ hasText: email }).filter({ hasText: "Replaced" })).toBeVisible();
+  await expect(pending()).toBeVisible();
+  const replacement = await pending().getByLabel("Invitation link").inputValue();
+  expect(replacement).not.toBe(firstLink);
+  await invitee.goto(firstLink);
+  await invitee.reload();
+  await expect(invitee.getByText("This invitation was replaced. Use the new link from the Administrator.")).toBeVisible();
+  const replacementExpiry = await pending().getByText(/^Expires /).innerText();
+  await pending().getByRole("button", { name: "Cancel invitation", exact: true }).click();
+  const confirmation = () => pending().getByRole("group", { name: "Cancel this invitation?", exact: true });
+  await expect(confirmation()).toBeVisible();
+  await expect(pending().getByLabel("Invitation link")).toHaveValue(replacement);
+  await confirmation().getByRole("button", { name: "Keep invitation", exact: true }).click();
+  await expect(confirmation()).toHaveCount(0);
+  await expect(pending().getByRole("button", { name: "Cancel invitation", exact: true })).toBeFocused();
+  await page.reload();
+  await expect(pending().getByLabel("Invitation link")).toHaveValue(replacement);
+  await expect(pending().getByText(/^Expires /)).toHaveText(replacementExpiry);
+  await invitee.goto(replacement);
+  await expect(invitee.getByRole("heading", { name: "Set your password" })).toBeVisible();
+  await pending().getByRole("button", { name: "Cancel invitation", exact: true }).click();
+  await confirmation().getByRole("button", { name: "Confirm cancellation", exact: true }).click();
+  await expect(page.getByRole("listitem").filter({ hasText: email }).filter({ hasText: "Cancelled" })).toBeVisible();
+  await invitee.goto(replacement);
+  await invitee.reload();
+  await expect(invitee.getByText("This invitation was cancelled. Ask an Administrator for a new invitation.")).toBeVisible();
+  const mailpit = process.env.MAILPIT_URL;
+  if (!mailpit) throw new Error("MAILPIT_URL is required");
+  const messages = await (await fetch(`${mailpit}/api/v1/search?query=${encodeURIComponent(`to:${email}`)}`)).json() as { messages: unknown[] };
+  expect(messages.messages).toEqual([]);
+  await page.setViewportSize({ width: 360, height: 800 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+  await page.getByRole("button", { name: "Open account menu" }).click();
+  await page.getByRole("menuitem", { name: "Čeština", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Vygenerovat link", exact: true })).toBeVisible();
+  await expect(page.getByRole("listitem").filter({ hasText: email }).filter({ hasText: "Zrušena" })).toBeVisible();
+  await visitor.close();
 });

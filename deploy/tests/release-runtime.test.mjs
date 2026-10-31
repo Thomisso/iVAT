@@ -3,16 +3,19 @@ import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
 import { access, chmod, cp, mkdir, mkdtemp, readFile, realpath, rm, utimes, writeFile } from "node:fs/promises";
 import { createConnection, createServer } from "node:net";
+import { createServer as createHttpServer } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { parseEnv } from "node:util";
-import { createReleaseBundle } from "../scripts/release-bundle.mjs";
+import { createReleaseBundle, validateReleaseBundle } from "../scripts/release-bundle.mjs";
 import { deployPreparedRelease } from "../scripts/connect-release.mjs";
 import { waitForRequiredChecks } from "../scripts/prepare-release.mjs";
 import { resolveReleaseRevision } from "../scripts/release-policy.mjs";
 import { spawnSimulation } from "./simulation-process.mjs";
+import { assertPublicApplicationAssets, requestPublicApplication } from "./public-application.mjs";
 
-const source = process.cwd();
+const checkout = process.cwd();
+const probeMigration = "99999999990000_release_probe.sql";
 const docker = (...args) => execFileSync("docker", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 600000 }).trim();
 async function freePort() {
   const server = createServer(); await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
@@ -27,9 +30,62 @@ async function command(args, env = {}) {
   });
 }
 
+async function requestCompiledLogin(endpoint) {
+  const response = await requestPublicApplication(endpoint);
+  return { status: response.status, body: response.bytes.toString("utf8") };
+}
+
+test("the compiled login request preserves application Host routing and response HTML", async () => {
+  const html = "<html>Verze v0.2.0 · Revize 0123456789012345678901234567890123456789</html>";
+  let received;
+  const server = createHttpServer((request, response) => {
+    received = { host: request.headers.host, forwardedProto: request.headers["x-forwarded-proto"], path: request.url };
+    const accepted = received.host === "app.ivat.cz" && received.forwardedProto === "https" && received.path === "/login";
+    response.writeHead(accepted ? 200 : 404, { "content-type": "text/html; charset=utf-8" });
+    response.end(accepted ? html : "Unknown application Host");
+  });
+  await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+  try {
+    assert.deepEqual(await requestCompiledLogin(`http://127.0.0.1:${server.address().port}/login`), { status: 200, body: html });
+    assert.deepEqual(received, { host: "app.ivat.cz", forwardedProto: "https", path: "/login" });
+  } finally { await new Promise(resolve => server.close(resolve)); }
+});
+
+async function prepareRuntimeReleaseSource(source) {
+  await mkdir(source);
+  const git = (...args) => execFileSync("git", args, { cwd: source, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+  git("init", "-b", "main");
+  git("config", "user.name", "Release fixture");
+  git("config", "user.email", "release@example.test");
+  // Fetch the actual committed application tree, without copying credentials,
+  // build output, or unrelated files from the working checkout.
+  git("fetch", "--no-tags", checkout, "HEAD");
+  git("reset", "--hard", "FETCH_HEAD");
+  await writeFile(path.join(source, "supabase/migrations", probeMigration), "select pg_sleep(5); create table public.ivat_release_probe (value text); insert into public.ivat_release_probe values ('upgrade-completed');\n");
+  git("add", `supabase/migrations/${probeMigration}`);
+  git("commit", "-m", "Disposable release migration probe");
+  const revision = git("rev-parse", "HEAD");
+  git("update-ref", "refs/remotes/origin/main", revision);
+  git("tag", "-a", "v0.2.0", "-m", "Disposable Release fixture");
+  return { repository: "thomisso/ivat", revision, tag: "v0.2.0", releaseId: 155 };
+}
+
+test("the runtime release fixture tags the complete application source it builds", async t => {
+  const directory = await mkdtemp(path.join(tmpdir(), "ivat-release-source-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const source = path.join(directory, "source");
+  const release = await prepareRuntimeReleaseSource(source);
+  const git = (...args) => execFileSync("git", args, { cwd: source, encoding: "utf8", stdio: "pipe" }).trim();
+  assert.equal(resolveReleaseRevision(release.tag, release.revision, source), release.revision);
+  assert.equal(git("status", "--porcelain"), "");
+  assert.equal(await readFile(path.join(source, "src/application/epo-xml.ts"), "utf8"), await readFile(path.join(checkout, "src/application/epo-xml.ts"), "utf8"));
+  assert.match(git("show", `${release.revision}:supabase/migrations/${probeMigration}`), /pg_sleep\(5\).*upgrade-completed/);
+});
+
 test("the real release command guards and upgrades a disposable production stack", { skip: process.env.IVAT_RELEASE_RUNTIME_TEST !== "1", timeout: 1800000 }, async () => {
   await access("deploy/scripts/deploy-release.sh");
   const directory = await realpath(await mkdtemp(path.join(tmpdir(), "ivat-release-runtime-")));
+  const source = path.join(directory, "release-source");
   const stack = path.join(directory, "stack");
   const project = "ivat-release155-check";
   const httpPort = await freePort(), apiPort = await freePort(), sshPort = await freePort();
@@ -38,21 +94,24 @@ test("the real release command guards and upgrades a disposable production stack
   const common = ["compose", "--project-directory", stack, "--project-name", project, "--env-file", path.join(stack, ".env"), "-f", path.join(stack, "docker-compose.rosti.yml"), "-f", path.join(stack, "test-override.yml")];
   const operator = (script, args = [], env = {}) => command(["run", "--rm", "--entrypoint", "bash", "-v", "/var/run/docker.sock:/var/run/docker.sock", "-v", `${directory}:${directory}`, "-v", `${source}:${source}:ro`, ...Object.entries(env).flatMap(([key, value]) => ["-e", `${key}=${value}`]), "ivat-release155-operator:verify", script, ...args]);
   try {
+    const release = await prepareRuntimeReleaseSource(source);
+    const { revision } = release;
     await mkdir(stack, { recursive: true });
     execFileSync(process.execPath, [path.join(source, "deploy/scripts/init.mjs"), path.join(stack, ".env")], { cwd: stack, stdio: "ignore" });
     await writeFile(path.join(stack, ".ivat-disposable-deployment"), "Test-only installation.\n");
     const env = parseEnv(await readFile(path.join(stack, ".env"), "utf8"));
     console.log("Build disposable operator and AMD64 application images.");
-    docker("build", "-f", "deploy/tests/operator.Dockerfile", "-t", "ivat-release155-operator:verify", ".");
-    for (const name of ["db", "gateway", "proxy"]) docker("build", "--platform", "linux/amd64", "-t", `ivat-release155-${name}:verify`, `deploy/${name}`);
-    docker("build", "--platform", "linux/amd64", "--build-arg", `NEXT_PUBLIC_SUPABASE_URL=${env.SUPABASE_PUBLIC_URL}`, "--build-arg", `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${env.ANON_KEY}`, "-t", "ivat-release155-app:verify", ".");
-    await writeFile(path.join(directory, "probe.sql"), "select pg_sleep(5); create table public.ivat_release_probe (value text); insert into public.ivat_release_probe values ('upgrade-completed');\n");
-    await writeFile(path.join(directory, "upgrade.Dockerfile"), "FROM ivat-release155-app:verify\nUSER root\nCOPY probe.sql /app/supabase/migrations/99999999990000_release_probe.sql\nUSER node\n");
-    docker("build", "--platform", "linux/amd64", "-f", path.join(directory, "upgrade.Dockerfile"), "-t", "ivat-release155-upgrade:verify", directory);
+    docker("build", "-f", path.join(source, "deploy/tests/operator.Dockerfile"), "-t", "ivat-release155-operator:verify", source);
+    for (const name of ["db", "gateway", "proxy"]) docker("build", "--platform", "linux/amd64", "-t", `ivat-release155-${name}:verify`, path.join(source, "deploy", name));
+    docker("build", "--platform", "linux/amd64", "--build-arg", `NEXT_PUBLIC_SUPABASE_URL=${env.SUPABASE_PUBLIC_URL}`, "--build-arg", `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${env.ANON_KEY}`, "--build-arg", `IVAT_RELEASE_TAG=${release.tag}`, "--build-arg", `IVAT_RELEASE_REVISION=${revision}`, "-t", "ivat-release155-upgrade:verify", source);
+    // Synthetic baseline only: omit the new migration to leave real upgrade
+    // work pending. The versioned target image above is the committed tree.
+    await writeFile(path.join(directory, "baseline.Dockerfile"), `FROM ivat-release155-upgrade:verify\nUSER root\nRUN rm /app/supabase/migrations/${probeMigration}\nUSER node\n`);
+    docker("build", "--platform", "linux/amd64", "-f", path.join(directory, "baseline.Dockerfile"), "-t", "ivat-release155-app:verify", directory);
     await writeFile(path.join(directory, "failure.sql"), "select this_migration_must_fail();\n");
     await writeFile(path.join(directory, "failure.Dockerfile"), "FROM ivat-release155-upgrade:verify\nUSER root\nCOPY failure.sql /app/supabase/migrations/99999999990001_release_failure.sql\nUSER node\n");
     docker("build", "--platform", "linux/amd64", "-f", path.join(directory, "failure.Dockerfile"), "-t", "ivat-release155-failure:verify", directory);
-    const compose = JSON.parse(docker("compose", "-f", "docker-compose.rosti.yml", "config", "--no-interpolate", "--no-path-resolution", "--format", "json"));
+    const compose = JSON.parse(docker("compose", "-f", path.join(source, "docker-compose.rosti.yml"), "config", "--no-interpolate", "--no-path-resolution", "--format", "json"));
     delete compose.name;
     const local = { app: "ivat-release155-app:verify", db: "ivat-release155-db:verify", gateway: "ivat-release155-gateway:verify", proxy: "ivat-release155-proxy:verify" };
     for (const [kind, services] of Object.entries({ app: ["web", "worker", "migrate", "backup"], db: ["db"], gateway: ["gateway"], proxy: ["proxy"] })) for (const service of services) { compose.services[service].image = local[kind]; delete compose.services[service].build; }
@@ -60,8 +119,8 @@ test("the real release command guards and upgrades a disposable production stack
     delete compose.services.backup.volumes.find(volume => volume.target === "/backup-config/.env").volume;
     await writeFile(path.join(stack, "docker-compose.rosti.yml"), JSON.stringify(compose));
     await writeFile(path.join(stack, "docker-compose.yml"), JSON.stringify(compose));
-    await cp("deploy/scripts", path.join(stack, "deploy/scripts"), { recursive: true });
-    await cp("deploy/restore.yml", path.join(stack, "deploy/restore.yml"));
+    await cp(path.join(source, "deploy/scripts"), path.join(stack, "deploy/scripts"), { recursive: true });
+    await cp(path.join(source, "deploy/restore.yml"), path.join(stack, "deploy/restore.yml"));
     const override = app => `services:\n  web:\n    image: ${app}\n    healthcheck:\n      interval: 2s\n      start_period: 0s\n  worker:\n    image: ${app}\n    healthcheck:\n      interval: 2s\n      start_period: 0s\n  migrate:\n    image: ${app}\n  backup:\n    image: ${app}\n  db:\n    image: ${local.db}\n  gateway:\n    image: ${local.gateway}\n  proxy:\n    image: ${local.proxy}\n    healthcheck:\n      interval: 2s\n    ports: !override\n      - \"127.0.0.1:${httpPort}:80\"\n  storage:\n    volumes: !override\n      - test-storage:/var/lib/storage\nvolumes:\n  test-storage:\n`;
     await writeFile(path.join(stack, "test-override.yml"), override(local.app));
     console.log("Boot baseline production services.");
@@ -75,21 +134,13 @@ test("the real release command guards and upgrades a disposable production stack
     const archive = path.join(stack, "deploy/backups", (await readdir(path.join(stack, "deploy/backups"))).find(name => name.endsWith(".tar.gz")));
     const archiveBytes = await readFile(archive), inventoryBytes = await readFile(archive + ".images.json");
     const originalEnv = await readFile(path.join(stack, ".env"), "utf8");
-    const targetCompose = JSON.parse(docker("compose", "-f", "docker-compose.rosti.yml", "config", "--no-interpolate", "--no-path-resolution", "--format", "json"));
+    const targetCompose = JSON.parse(docker("compose", "-f", path.join(source, "docker-compose.rosti.yml"), "config", "--no-interpolate", "--no-path-resolution", "--format", "json"));
     const bundle = path.join(directory, "bundle");
     const images = Object.fromEntries(["app", "db", "gateway", "proxy"].map(name => [name, `ghcr.io/thomisso/ivat/${name}@sha256:${"a".repeat(64)}`]));
-    const gitDirectory = path.join(directory, "release-source");
-    await mkdir(gitDirectory);
-    const git = (...args) => execFileSync("git", args, { cwd: gitDirectory, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
-    git("init", "-b", "main"); git("config", "user.name", "Release fixture"); git("config", "user.email", "release@example.test");
-    await writeFile(path.join(gitDirectory, "source"), "complete tested main revision\n");
-    git("add", "."); git("commit", "-m", "Release fixture");
-    const revision = git("rev-parse", "HEAD");
-    git("update-ref", "refs/remotes/origin/main", revision); git("tag", "-a", "v0.2.0", "-m", "Release fixture");
-    const release = { repository: "thomisso/ivat", revision, tag: "v0.2.0", releaseId: 155 };
     const event = { action: "published", repository: { full_name: "Thomisso/iVAT" }, release: { id: 155, tag_name: "v0.2.0", draft: false, prerelease: false } };
-    assert.equal(resolveReleaseRevision(release.tag, revision, gitDirectory), revision);
+    assert.equal(resolveReleaseRevision(release.tag, revision, source), revision);
     await createReleaseBundle({ sourceDirectory: source, outputDirectory: bundle, release, publicBuild: { supabaseUrl: env.SUPABASE_PUBLIC_URL, publishableKey: env.ANON_KEY }, images, compose: targetCompose });
+    const manifest = await validateReleaseBundle(bundle);
     const releaseArchive = path.join(directory, "release.tar.gz");
     execFileSync("tar", ["--format", "ustar", "-czf", releaseArchive, "-C", bundle, "."], { env: { ...process.env, COPYFILE_DISABLE: "1" } });
     await writeFile(path.join(stack, "test-override.yml"), override("ivat-release155-upgrade:verify"));
@@ -200,6 +251,17 @@ exec /usr/local/bin/docker "$@"
     assert.equal(success.revision, revision);
     const verified = JSON.parse(await readFile(path.join(stack, "deploy/verified-release.json"), "utf8"));
     assert.equal(verified.revision, revision);
+    const runtimeIdentity = JSON.parse(docker(...common, "exec", "-T", "web", "node_modules/.bin/tsx", "-e", 'import{releaseIdentity,xmlGeneratorVersion}from"./src/lib/release-identity";console.log(JSON.stringify({releaseIdentity,xmlGeneratorVersion}))'));
+    assert.deepEqual(runtimeIdentity, {
+      releaseIdentity: { tag: manifest.tag, revision: manifest.revision },
+      xmlGeneratorVersion: `${manifest.tag}+${manifest.revision}`,
+    });
+    const login = await requestCompiledLogin(`http://127.0.0.1:${httpPort}/login`);
+    assert.equal(login.status, 200);
+    const loginHtml = login.body;
+    assert.ok(loginHtml.includes(`Verze ${manifest.tag}`), "compiled login must identify the validated release tag");
+    assert.ok(loginHtml.includes(`Revize ${manifest.revision}`), "compiled login must identify the validated release revision");
+    await assertPublicApplicationAssets(`http://127.0.0.1:${httpPort}`, source);
     const repeated = await deploy(bundle, { IVAT_DEPLOY_ATTEMPT_ID: path.basename(verified.attempt) });
     assert.notEqual(repeated.status, 0);
     assert.equal((await readFile(path.join(stack, verified.attempt, "result"), "utf8")).trim(), "success");
@@ -208,12 +270,14 @@ exec /usr/local/bin/docker "$@"
     assert.equal(docker("inspect", "--format", "{{.Image}}", docker(...common, "ps", "-q", "web")), docker("image", "inspect", "--format", "{{.Id}}", "ivat-release155-upgrade:verify"));
     assert.equal(await readFile(path.join(stack, ".env"), "utf8"), originalEnv);
     const failing = path.join(directory, "failing");
-    await createReleaseBundle({ sourceDirectory: source, outputDirectory: failing, release: { repository: "thomisso/ivat", revision: "2".repeat(40), tag: "v0.3.0", releaseId: 156 }, publicBuild: { supabaseUrl: env.SUPABASE_PUBLIC_URL, publishableKey: env.ANON_KEY }, images, compose: targetCompose });
+    // Inject a bad migration through the disposable-only image override. It is
+    // deliberately not represented as a different successfully built release.
+    await createReleaseBundle({ sourceDirectory: source, outputDirectory: failing, release, publicBuild: { supabaseUrl: env.SUPABASE_PUBLIC_URL, publishableKey: env.ANON_KEY }, images, compose: targetCompose });
     await writeFile(path.join(stack, "test-override.yml"), override("ivat-release155-failure:verify"));
     console.log("Run a failing migration and verify manual recovery guard.");
     const failed = await deploy(failing, { IVAT_DEPLOY_TEST_APP_IMAGE: "ivat-release155-failure:verify" });
     assert.notEqual(failed.status, 0); assert.match(failed.stderr, /migration/);
-    assert.equal(JSON.parse(await readFile(path.join(stack, "deploy/verified-release.json"), "utf8")).revision, verified.revision);
+    assert.deepEqual(JSON.parse(await readFile(path.join(stack, "deploy/verified-release.json"), "utf8")), verified);
     assert.equal(docker(...common, "ps", "-q", "web"), "");
     await access(path.join(stack, "deploy/.deployment-unresolved"));
     const blockedBackup = await operator(path.join(stack, "deploy/scripts/backup.sh"), [path.join(stack, "deploy/backups")], { DEPLOY_ENV_FILE: ".env", DEPLOY_COMPOSE_OVERRIDE: path.join(stack, "test-override.yml"), COMPOSE_PROJECT_NAME: project });

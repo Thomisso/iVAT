@@ -36,6 +36,18 @@ export function workbookFile(
   return new Uint8Array(XLSX.write(workbook, { bookType, type: "buffer", cellDates: true }));
 }
 
+/** Multiple actual worksheets, including several Documents on one sheet. */
+export function multiSheetWorkbookFile(bookType: "xlsx" | "xls"): Uint8Array {
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([
+    ["Document number", "Gross amount"], ["MANUAL-1", 121], ["MANUAL-2", 242], ["MANUAL-3", 363],
+  ]), "Přijaté účty");
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([
+    ["Document number", "Gross amount"], ["ISSUED-1", 484], ["ISSUED-2", 605],
+  ]), "Issued");
+  return new Uint8Array(XLSX.write(workbook, { bookType, type: "buffer" }));
+}
+
 /** A pending Upload Selection with the same stable identities and content hashes used on transfer. */
 export function selectUploadFiles(inputs: { fileName: string; bytes: Uint8Array }[]) {
   const files = inputs.map((file) => ({ ...file, sourceFileId: randomUUID() }));

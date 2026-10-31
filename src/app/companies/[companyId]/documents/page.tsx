@@ -19,6 +19,7 @@ import { formatDate } from "@/lib/format-date";
 import { requireUserClient } from "@/lib/supabase/server";
 import { companyPageContext, safeCompanyReturnTo, withCompanyReturnTo } from "@/application/return-context";
 import { CompanyReturnLink } from "@/components/company-return-link";
+import { DocumentReportingSummary } from "@/components/document-reporting-summary";
 
 export default async function DocumentsPage({ params, searchParams }: PageProps<"/companies/[companyId]/documents">) {
   const { companyId } = await params;
@@ -46,6 +47,7 @@ export default async function DocumentsPage({ params, searchParams }: PageProps<
     <PageHeader
       description={batch ? t("uploadWorkspace.filteredQueue", { count: documents.length }) : t("shell.documentsDescription")}
       title={t("shell.documentsTitle")}
+      actions={<Link href={`/companies/${companyId}/documents/new`} className="iv-btn iv-btn-primary">{t("documents.createManual")}</Link>}
     >
       {returnTo ? <CompanyReturnLink companyId={companyId} returnTo={returnTo} fallback={`/companies/${companyId}/documents`} />
         : batch && <Link href={`/companies/${companyId}/upload-batches/${batch.id}`}>{t("uploadWorkspace.backToBatch")}</Link>}
@@ -80,11 +82,12 @@ export default async function DocumentsPage({ params, searchParams }: PageProps<
       rowId={(document) => `document-${document.id}`}
       columns={[
         { key: "counterparty", header: t("documents.counterparty"), render: (document) => <Link href={withCompanyReturnTo(companyId, `/companies/${companyId}/documents/${document.id}?${queueQuery}`, `${currentContext}#document-${document.id}`)}>{document.counterparty?.name ?? document.counterparty?.vatId ?? t("documents.unknownCounterparty")}</Link> },
-        { key: "document", header: t("documents.documentNumber"), mono: true, render: (document) => document.documentNumber ?? t("uploadWorkspace.documentPages", { first: document.firstPage, last: document.lastPage }) },
+        { key: "document", header: t("documents.documentNumber"), mono: true, render: (document) => document.documentNumber ?? (document.firstPage !== null && document.lastPage !== null ? t("uploadWorkspace.documentPages", { first: document.firstPage, last: document.lastPage }) : t("documents.manualDocument")) },
         { key: "direction", header: t("documents.direction"), render: (document) => document.direction ? t(`review.direction.${document.direction}`) : t("review.notSet") },
         { key: "date", header: t("documents.taxPointDate"), render: (document) => document.taxPointDate ? formatDate(document.taxPointDate) : t("review.notSet") },
         { key: "amount", header: t("documents.grossAmount"), align: "right", mono: true, render: (document) => document.grossAmount && document.currency ? format.number(Number(document.grossAmount), { style: "currency", currency: document.currency }) : t("review.notSet") },
         { key: "status", header: t("documents.status"), render: (document) => <StatusBadge status={statusBadgeState(document.status, "document")}>{t(`documentStatus.${document.status}`)}</StatusBadge> },
+        { key: "reporting", header: t("documentReporting.liveTitle"), render: (document) => <DocumentReportingSummary compact reporting={document.reporting} /> },
       ]}
     /> : <section className="company-workspace-empty"><span aria-hidden="true" /><p>{t("documents.noMatch")}</p></section>}
     </PageContent>

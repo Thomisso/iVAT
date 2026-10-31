@@ -577,6 +577,7 @@ describe("AI Processing Allowance", () => {
     expect(await reprocessDocument(company.client, worker.jobs, {
       companyId: company.companyId,
       documentId: document.id,
+      confirmed: true,
     })).toEqual({ ok: true, value: null });
     expect(await worker.runJobs()).toEqual([]);
     expect((await listExtractionVersions(company.client, company.companyId, document.id)).map((version) =>

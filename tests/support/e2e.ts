@@ -1,9 +1,16 @@
+import { sourceSplitRequestFixture } from "./source-request";
 import fs from "node:fs/promises";
-import { selectFixtureFiles } from "./files";
+import { asUserClient } from "@/application/client";
+import { setCurrentReportingYear } from "@/application/companies";
+import { pragueDate } from "@/application/reporting-periods";
+import { uploadSourceFile, getSourceFile } from "@/application/source-files";
+import { listDocuments } from "@/application/documents";
+import { fixtureFile, heicFixture, multiSheetWorkbookFile, selectFixtureFiles } from "./files";
 import { createClient } from "@supabase/supabase-js";
 import { Client as DatabaseClient } from "pg";
 import type { Database } from "@/lib/database.types";
 import { addLegacyRateBreakdownVersionFixture } from "./rate-breakdown-history";
+import { provisionAccountFixture, type AccountFixtureInput } from "./accounts";
 
 async function browserFixtureEnvironment() {
   const contents = await fs.readFile(".env.local", "utf8");
@@ -18,6 +25,11 @@ async function browserFixtureClient() {
   return createClient<Database>(environment.NEXT_PUBLIC_SUPABASE_URL, environment.SUPABASE_SECRET_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
+}
+
+/** Runs in Playwright's Node process; privileged credentials never enter the browser. */
+export async function provisionBrowserAccountFixture(input: AccountFixtureInput) {
+  return provisionAccountFixture(await browserFixtureClient(), input);
 }
 
 export async function addBrowserLegacyRateBreakdownVersionFixture(documentId: string) {
@@ -215,7 +227,7 @@ export async function addBrowserDocumentWarningFixture(documentId: string) {
   }
 }
 
-/** Browser-fixture setup for a user who signed up through the real UI. */
+/** Browser-fixture setup for a user whose account was privately provisioned. */
 export async function addBrowserCompanyMemberFixture(companyId: string, email: string, role: "administrator" | "user" = "user") {
   const service = await browserFixtureClient();
   const [{ data: company }, { data: users }] = await Promise.all([
@@ -234,7 +246,7 @@ export async function addBrowserCompanyMemberFixture(companyId: string, email: s
   if (membership.error) throw membership.error;
 }
 
-/** Browser-fixture setup for a SuperAdmin who signed up through the real UI. */
+/** Browser-fixture setup for a SuperAdmin whose account was privately provisioned. */
 export async function promoteBrowserSuperAdminFixture(email: string) {
   const service = await browserFixtureClient();
   const { data: users, error: usersError } = await service.auth.admin.listUsers();
@@ -453,4 +465,80 @@ export async function ensureBrowserReportingYearFixture(companyId: string, year:
   } finally {
     await database.end();
   }
+}
+
+/** Real upload/Auth fixture stopped before Extraction, with no AI Configuration. */
+export async function addBrowserUnextractedDocumentFixture(input: { companyId: string; email: string; password: string; status: "failed" | "waiting_for_platform" }) {
+  const environment = await browserFixtureEnvironment();
+  const client = asUserClient(createClient<Database>(environment.NEXT_PUBLIC_SUPABASE_URL, environment.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  }));
+  const signedIn = await client.auth.signInWithPassword({ email: input.email, password: input.password });
+  if (signedIn.error) throw signedIn.error;
+  const uploaded = await uploadSourceFile(client, { async send() {} }, {
+    companyId: input.companyId, fileName: "receipt.png", bytes: fixtureFile("receipt.png"),
+  });
+  if (!uploaded.ok) throw new Error(uploaded.error);
+  const system = await browserFixtureClient();
+  const split = await system.rpc("record_split", { target_source_file_id: uploaded.value.id, target_split_request_id: await sourceSplitRequestFixture(system, uploaded.value.id), source_ranges: [{ firstPage: 1, lastPage: 1 }] });
+  if (split.error) throw split.error;
+  const [document] = await listDocuments(client, input.companyId, uploaded.value.id);
+  const setup = await system.from("document").update({ status: input.status }).eq("id", document.id);
+  if (setup.error) throw setup.error;
+  return document.id;
+}
+
+/** Expire only this browser's private MFA setup deadline, preserving real Auth. */
+export async function expireBrowserMfaMaintenanceFixture(sessionId: string) {
+  const environment = await browserFixtureEnvironment();
+  const database = new DatabaseClient({ connectionString: environment.DATABASE_URL });
+  await database.connect();
+  try { await database.query("update private.mfa_maintenance set expires_at = now() - interval '1 second' where session_id = $1", [sessionId]); }
+  finally { await database.end(); }
+}
+
+/** An actual stored Source before Split, provisioned through the User's application command. */
+export async function addBrowserUnsplitSourceFixture(input: { companyId: string; email: string; password: string; fileName: "receipt.png" | "two-invoices.pdf" | "receipt.heic" | "invoice-list.xlsx" }) {
+  const environment = await browserFixtureEnvironment();
+  const client = asUserClient(createClient<Database>(environment.NEXT_PUBLIC_SUPABASE_URL, environment.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, { auth: { autoRefreshToken: false, persistSession: false } }));
+  const signedIn = await client.auth.signInWithPassword({ email: input.email, password: input.password });
+  if (signedIn.error) throw signedIn.error;
+  const bytes = input.fileName === "invoice-list.xlsx" ? multiSheetWorkbookFile("xlsx") : input.fileName === "receipt.heic" ? heicFixture() : fixtureFile(input.fileName);
+  const uploaded = await uploadSourceFile(client, { async send() {} }, { companyId: input.companyId, fileName: input.fileName, bytes });
+  if (!uploaded.ok) throw new Error(uploaded.error);
+  const source = await getSourceFile(client, input.companyId, uploaded.value.id);
+  if (!source) throw new Error("Source fixture is missing");
+  const period = pragueDate(source.uploadedAt).slice(0, 7);
+  const year = await setCurrentReportingYear(client, { companyId: input.companyId, filingFrequency: "monthly", year: Number(period.slice(0, 4)) });
+  if (!year.ok) throw new Error(year.error);
+  return { sourceFileId: source.id, period };
+}
+
+/** Uses native Auth and the manual command; browser assertions exercise subsequent attachment/AI actions. */
+export async function addBrowserManualDocumentFixture(input: { companyId: string; email: string; password: string; approved?: boolean }) {
+  const environment = await browserFixtureEnvironment();
+  const client = createClient<Database>(environment.NEXT_PUBLIC_SUPABASE_URL, environment.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+  const signedIn = await client.auth.signInWithPassword({ email: input.email, password: input.password });
+  if (signedIn.error) throw signedIn.error;
+  const { createManualDocument, approveDocument } = await import("@/application/documents");
+  const { SAMPLE_EXTRACTION } = await import("@/ai/fake");
+  const created = await createManualDocument(asUserClient(client), { companyId: input.companyId, payload: { ...SAMPLE_EXTRACTION, documentNumber: "MANUAL-BROWSER-175" } });
+  if (!created.ok) throw new Error(created.error);
+  if (input.approved !== false) {
+    const approved = await approveDocument(asUserClient(client), { companyId: input.companyId, documentId: created.value.id, version: 1 });
+    if (!approved.ok) throw new Error(approved.error);
+  }
+  await client.auth.signOut({ scope: "local" });
+  return created.value.id;
+}
+
+/** Makes this Company's configured adapter unavailable on the fake-only browser worker. */
+export async function makeBrowserAiProviderUnavailableFixture(companyId: string) {
+  const environment = await browserFixtureEnvironment();
+  const database = new DatabaseClient({ connectionString: environment.DATABASE_URL });
+  await database.connect();
+  try {
+    await database.query(`update public.ai_configuration set provider = 'openai'
+      where id = (select configuration_id from public.company_ai_configuration where company_id = $1)`, [companyId]);
+  } finally { await database.end(); }
 }

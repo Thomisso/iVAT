@@ -1,3 +1,4 @@
+import { sourceSplitRequestFixture } from "./source-request";
 import {
   createCompany,
   type CompanySettingsInput,
@@ -9,7 +10,7 @@ import { Client as DatabaseClient } from "pg";
 import { inject } from "vitest";
 import { SAMPLE_EXTRACTION } from "@/ai/fake";
 import { selectUploadFiles } from "./files";
-import { signedUpUser } from "./clients";
+import { provisionedUser } from "./clients";
 import { systemClient } from "./worker";
 
 let icoCounter = 0;
@@ -177,7 +178,7 @@ export function companyDetails(
 export async function administratorWithCompany(
   organizationName = "Test Organization",
 ) {
-  const user = await signedUpUser(organizationName);
+  const user = await provisionedUser(organizationName);
   const result = await createCompany(user.client, {
     organizationId: user.organizationId,
     ...companyDetails({
@@ -197,7 +198,7 @@ export async function companyMember(
   { organizationId, companyId }: { organizationId: string; companyId: string },
   role: "administrator" | "user" = "user",
 ) {
-  const user = await signedUpUser("Member's own Organization");
+  const user = await provisionedUser("Member's own Organization");
   const { error } = await systemClient()
     .from("membership")
     .insert({
@@ -225,11 +226,14 @@ export async function removeCompletedCompanyIdentityFixture(companyId: string) {
 /** Large report fixture. Uses platform-sized Source Files and the worker's narrow
  * write functions to avoid 1001 full PDF extraction jobs; application tests still
  * generate/read as a User. */
-export async function companyWithManyReportDocuments(count: number) {
+export async function companyWithManyReportDocuments(
+  count: number,
+  existingCompany?: Awaited<ReturnType<typeof administratorWithCompany>>,
+) {
   const { PDFDocument } = await import("pdf-lib");
   const { uploadSourceFile } = await import("@/application/source-files");
   const { SAMPLE_EXTRACTION } = await import("@/ai/fake");
-  const admin = await administratorWithCompany();
+  const admin = existingCompany ?? await administratorWithCompany();
   const system = systemClient();
   const unlimited = await system
     .from("company")
@@ -255,7 +259,7 @@ export async function companyWithManyReportDocuments(count: number) {
     );
     if (!file.ok) throw new Error(file.error);
     const split = await system.rpc("record_split", {
-      target_source_file_id: file.value.id,
+      target_source_file_id: file.value.id, target_split_request_id: await sourceSplitRequestFixture(system, file.value.id),
       source_ranges: Array.from({ length: pageCount }, (_, i) => ({
         firstPage: i + 1,
         lastPage: i + 1,
@@ -263,58 +267,35 @@ export async function companyWithManyReportDocuments(count: number) {
     });
     if (split.error) throw split.error;
   }
-  for (let offset = 0; offset < count; offset += 100) {
-    const { data, error } = await system
-      .from("document")
-      .select("id, extraction_request_id")
-      .eq("company_id", admin.companyId)
-      .order("id")
-      .range(offset, offset + 99);
-    if (error) throw error;
-    await Promise.all(
-      data.map(async (d) => {
-        const reservationId = crypto.randomUUID();
-        const reservation = await system.rpc("reserve_ai_processing", {
-          target_document_id: d.id,
-          target_extraction_request_id: d.extraction_request_id,
-          target_reservation_id: reservationId,
-        });
-        if (reservation.error) throw reservation.error;
-        if (reservation.data !== "reserved") throw new Error(`Extraction fixture was not reserved: ${reservation.data}`);
-        const result = await system.rpc("record_ai_extraction", {
-          target_document_id: d.id,
-          target_extraction_request_id: d.extraction_request_id,
-          target_reservation_id: reservationId,
-          provider: "fake",
-          model: "fake-extract",
-          payload: SAMPLE_EXTRACTION,
-          findings: [],
-        });
-        if (result.error) throw result.error;
-      }),
-    );
+  // Keep the worker's actual reservation/recording invariants, but avoid two
+  // HTTP round trips for each of 1001 rows in a completeness fixture. One
+  // transaction also avoids racing on the same Company's allowance row.
+  const database = new DatabaseClient({ connectionString: inject("databaseUrl") });
+  await database.connect();
+  try {
+    await database.query("begin");
+    await database.query("set local role service_role");
+    await database.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ role: "service_role" })]);
+    const recorded = await database.query(`
+      with requests as materialized (
+        select id, extraction_request_id, gen_random_uuid() as reservation_id
+        from public.document where company_id = $1
+      ), reserved as materialized (
+        select *, public.reserve_ai_processing(id, extraction_request_id, reservation_id) as state
+        from requests
+      )
+      select public.record_ai_extraction(id, extraction_request_id, reservation_id, 'fake', 'fake-extract', $2::jsonb, '[]'::jsonb)
+      from reserved where state = 'reserved'
+    `, [admin.companyId, JSON.stringify(SAMPLE_EXTRACTION)]);
+    if (recorded.rowCount !== count) throw new Error("Report fixture did not record every Extraction");
+    await database.query("commit");
+  } catch (error) {
+    await database.query("rollback");
+    throw error;
+  } finally {
+    await database.end();
   }
   return admin;
-}
-
-/** A large, finalizable VAT Report fixture approved through the Application layer. */
-export async function companyWithManyApprovedReportDocuments(count: number) {
-  const { approveDocument, listCompanyDocuments } = await import("@/application/documents");
-  const company = await companyWithManyReportDocuments(count);
-  const documents = await listCompanyDocuments(company.client, company.companyId);
-  for (let offset = 0; offset < documents.length; offset += 25) {
-    const results = await Promise.all(documents.slice(offset, offset + 25).map((document) =>
-      approveDocument(company.client, {
-        companyId: company.companyId,
-        documentId: document.id,
-        version: 1,
-      })
-    ));
-    for (const result of results) {
-      if (!result.ok) throw new Error(`Document approval failed: ${result.error}`);
-    }
-  }
-  return company;
 }
 
 /** A Company with more than one PostgREST page of uploaded Documents waiting for Extraction. */
@@ -336,7 +317,7 @@ export async function companyWithWaitingDocuments(count: number) {
     });
     if (!uploaded.ok) throw new Error(uploaded.error);
     const split = await systemClient().rpc("record_split", {
-      target_source_file_id: uploaded.value.id,
+      target_source_file_id: uploaded.value.id, target_split_request_id: await sourceSplitRequestFixture(systemClient(), uploaded.value.id),
       source_ranges: Array.from({ length: documentsInFile }, (_, page) => ({
         firstPage: page + 1,
         lastPage: page + 1,
@@ -376,7 +357,7 @@ export async function uploadBatchWithWaitingDocuments(count: number) {
     if (!uploaded.ok) throw new Error(uploaded.error);
     const documentsInFile = Math.min(50, count - created);
     const split = await systemClient().rpc("record_split", {
-      target_source_file_id: uploaded.value.id,
+      target_source_file_id: uploaded.value.id, target_split_request_id: await sourceSplitRequestFixture(systemClient(), uploaded.value.id),
       source_ranges: Array.from({ length: documentsInFile }, (_, page) => ({
         firstPage: page + 1,
         lastPage: page + 1,

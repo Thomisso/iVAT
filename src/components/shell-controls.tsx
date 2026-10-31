@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { logOutAction, setLocaleAction } from "@/app/actions";
+import { ReleaseVersion } from "@/components/release-version";
 
 export function ShellIcon({ path }: { path: string }) {
   return <svg aria-hidden="true" className="company-shell-icon" viewBox="0 0 24 24"><path d={path} /></svg>;
@@ -63,6 +64,7 @@ export function AccountMenu({ email }: { email: string }) {
   const language = useTranslations("language");
   return <Menu label={t("accountMenu")} trigger={<><span className="profile-avatar" aria-hidden="true">{email.slice(0, 1).toUpperCase()}</span><span className="profile-copy"><strong>{t("account")}</strong><small>{email}</small></span><ShellIcon path="m9 6 6 6-6 6" /></>}>
     <p className="company-shell-menu-label">{email}</p>
+    <ReleaseVersion />
     <form action={setLocaleAction} aria-label={language("label")} className="company-shell-languages">
       <button lang="cs" name="locale" role="menuitem" type="submit" value="cs">{language("cs")}</button>
       <button lang="en" name="locale" role="menuitem" type="submit" value="en">{language("en")}</button>
