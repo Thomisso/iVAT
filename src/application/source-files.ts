@@ -4,7 +4,8 @@ import { PDFDocument } from "pdf-lib";
 import { isUuid, type AppClient, type Result } from "./client";
 import { getCompany } from "./companies";
 import { splitJob, type JobQueue } from "./processing";
-import { workbookToText } from "./workbooks";
+import { assertWorkbookRanges, workbookToText } from "./workbooks";
+import type { SourceRange } from "./ai-provider";
 
 export type SourceFileFormat = "pdf" | "png" | "jpeg" | "heic" | "heif" | "xlsx" | "xls";
 export type ImageSourceFileFormat = "pdf" | "png" | "jpeg" | "heic" | "heif";
@@ -417,22 +418,36 @@ export async function retrySplit(
 }
 
 
-/** Defines real PDF/image boundaries for manual review without starting AI. */
+/** Defines actual page or worksheet boundaries for manual review without starting AI. */
 export async function defineSourceDocuments(
   client: AppClient,
-  input: { companyId: string; sourceFileId: string; ranges: { firstPage: number; lastPage: number }[] },
-): Promise<Result<{ documentIds: string[] }, "forbidden" | "source_already_resolved" | "manual_source_format_unsupported" | "invalid_source_ranges" | "period_locked">> {
+  input: { companyId: string; sourceFileId: string; ranges: SourceRange[] },
+): Promise<Result<{ documentIds: string[] }, "forbidden" | "source_already_resolved" | "manual_source_format_unsupported" | "invalid_source_ranges" | "invalid_workbook_ranges" | "period_locked">> {
   const file = await getSourceFile(client, input.companyId, input.sourceFileId);
   if (!file) return { ok: false, error: "forbidden" };
+  if (file.format === "xlsx" || file.format === "xls") {
+    const workbook = await readSourceWorkbook(client, input.companyId, file.id);
+    if (!workbook) return { ok: false, error: "forbidden" };
+    try { assertWorkbookRanges(workbook.rowSets, input.ranges); }
+    catch { return { ok: false, error: "invalid_workbook_ranges" }; }
+  }
   const { data, error } = await client.rpc("define_source_documents", { target_source_file_id: file.id, document_ranges: input.ranges });
   if (error) {
     if (error.code === "42501") return { ok: false, error: "forbidden" };
+    if (error.code === "P0001" && error.hint === "invalid_source_ranges" && (file.format === "xlsx" || file.format === "xls")) return { ok: false, error: "invalid_workbook_ranges" };
     for (const refusal of ["source_already_resolved", "manual_source_format_unsupported", "invalid_source_ranges", "period_locked"] as const) {
       if (error.code === "P0001" && error.hint === refusal) return { ok: false, error: refusal };
     }
     throw error;
   }
   return { ok: true, value: { documentIds: data } };
+}
+
+/** Actual worksheet names, bounds and row-numbered text from the unchanged original. */
+export async function readSourceWorkbook(client: AppClient, companyId: string, sourceFileId: string) {
+  const stored = await readSourceFile(client, companyId, sourceFileId);
+  if (!stored || (stored.file.format !== "xlsx" && stored.file.format !== "xls")) return null;
+  return workbookToText(stored.bytes);
 }
 
 
