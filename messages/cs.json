@@ -1489,5 +1489,44 @@
     "actor": "Kdo",
     "identityLine": "{name} · IČO {ico} · {vatId}",
     "notAvailable": "Neuvedeno"
+  },
+  "documentReporting": {
+    "liveTitle": "Živý výpočet DPH",
+    "period": "Období DPH: {period}",
+    "unassigned": "nepřiřazeno",
+    "included": "Zahrnuto do živého výpočtu",
+    "excluded": "Nezahrnuto do živého výpočtu",
+    "derived": "Odvozené zařazení",
+    "proposed": "Navržené zařazení — nezapočteno",
+    "unknown": "nelze odvodit",
+    "returnLines": "Řádky přiznání DPH: {lines}",
+    "section": "Oddíl kontrolního hlášení: {section}",
+    "blocking": "Blokující nálezy: {count}",
+    "advisories": "Upozornění: {count}",
+    "liveNote": "Aktuální verze a aktuální pravidla. Uložené výkazy zachovávají vlastní snímek.",
+    "reasons": {
+      "not_approved": "Je nutné schválení člověkem.",
+      "manual_classification_required": "Údaje nemají podporované zařazení do výkazu.",
+      "currency_conversion_required": "Je nutný platný přepočet do CZK.",
+      "incomplete_data": "Chybí povinné údaje pro výkaz.",
+      "no_reporting_period": "Nelze přiřadit období DPH.",
+      "different_reporting_period": "Doklad patří do jiného období DPH.",
+      "rejected": "Doklad byl vědomě vyloučen."
+    },
+    "details": {
+      "counterparty_vat_id_required": "Pro zahrnutí je nutné platné DIČ protistrany."
+    },
+    "unknownReasons": {
+      "missing_payload": "Údaje dokladu nejsou k dispozici.",
+      "missing_regime": "Zvolte režim DPH.",
+      "missing_direction": "Zvolte směr dokladu.",
+      "unsupported_regime": "Tato kombinace režimu DPH a směru nemá podporované zařazení.",
+      "missing_rate": "Je nutná sazba DPH.",
+      "unsupported_rate": "Sazba DPH nemá podporované zařazení.",
+      "missing_gross_amount": "K určení oddílu je nutná celková částka dokladu v CZK.",
+      "missing_currency": "K určení limitu v CZK je nutná měna.",
+      "currency_conversion_required": "K určení limitu je nutný platný přepočet do CZK."
+    },
+    "liveSummary": "Živý výpočet: {included} zahrnuto, {excluded} nezahrnuto."
   }
 }
