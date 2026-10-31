@@ -57,10 +57,21 @@ function worktreeSlot() {
   return 1 + (createHash("sha256").update(root).digest().readUInt32BE(0) % 99);
 }
 
+// Kong binds individual template files. Replacing their directory or unlinking
+// existing files leaves a running container with dead mounts on repeated start.
+function copyTemplatesInPlace(source, target) {
+  fs.mkdirSync(target, { recursive: true });
+  for (const entry of fs.readdirSync(source, { withFileTypes: true })) {
+    const from = path.join(source, entry.name);
+    const to = path.join(target, entry.name);
+    if (entry.isDirectory()) copyTemplatesInPlace(from, to);
+    else fs.writeFileSync(to, fs.readFileSync(from));
+  }
+}
+
 function prepareWorktreeWorkdir(slot) {
   const source = path.join(root, "supabase");
   const target = path.join(root, ".supabase-worktree", "supabase");
-  fs.rmSync(path.dirname(target), { recursive: true, force: true });
   fs.mkdirSync(target, { recursive: true });
 
   for (const entry of fs.readdirSync(source)) {
@@ -68,9 +79,15 @@ function prepareWorktreeWorkdir(slot) {
     // The CLI rejects email template symlinks that resolve outside the generated
     // worktree project root; copy templates while migrations and fixtures remain shared.
     if (entry === "templates") {
-      fs.cpSync(path.join(source, entry), path.join(target, entry), { recursive: true });
+      copyTemplatesInPlace(path.join(source, entry), path.join(target, entry));
     } else {
-      fs.symlinkSync(path.join(source, entry), path.join(target, entry));
+      const from = path.join(source, entry);
+      const to = path.join(target, entry);
+      const current = fs.existsSync(to) && fs.lstatSync(to).isSymbolicLink() && fs.readlinkSync(to) === from;
+      if (!current) {
+        fs.rmSync(to, { recursive: true, force: true });
+        fs.symlinkSync(from, to);
+      }
     }
   }
 
