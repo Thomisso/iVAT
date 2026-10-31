@@ -214,7 +214,8 @@ function workspaceOf(
   const active = !batch.upload_finished_at || sourceFiles.some(
     (source) => source.status === "uploaded"
       || source.status === "waiting_for_platform"
-      || source.status === "processing",
+      || source.status === "processing"
+      || source.status === "needs_review",
   ) || documents.some(
     (document) => document.status === "uploaded"
       || document.status === "waiting_for_allowance"
