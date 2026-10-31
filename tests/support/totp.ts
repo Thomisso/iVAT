@@ -22,4 +22,3 @@ export function totp(secret: string, at = Date.now()): string {
     1_000_000;
   return String(value).padStart(6, "0");
 }
-
