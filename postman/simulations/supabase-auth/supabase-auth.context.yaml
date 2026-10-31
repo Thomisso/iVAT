@@ -1,0 +1,23 @@
+purpose:
+  stands_in_for: Supabase Auth password-login refusals, never successful authentication or production credentials.
+  unblocks: Runtime verification that login distinguishes invalid credentials, HTTP 429, and HTTP 503.
+assumptions:
+  - id: distinct-login-errors
+    status: supported
+    claim: Against this stand-in, the real Next.js login action displays separate Czech messages for invalid credentials, HTTP 429 and HTTP 503.
+    reason: The browser submitted the real form and waited for each translated message; simulation request events confirmed POST /auth/v1/token with the corresponding statuses.
+    verification: On 2026-10-31 ran the local simulation on port 4930 and next dev on port 3107 with NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:4930/supabase-auth. Submitted unavailable@example.test, limited@example.test and invalid@example.test using fixture passwords. All three messages appeared; React inspection showed the expected ActionState without a password; Next MCP reported no compilation or runtime errors. Successful login after a simulated TLS failure was separately checked against real local Auth in tests/login-errors.test.ts. The HTTP simulation does not model TLS. This local mock was built from the official error-code documentation and the installed SDK; no provider-owned mock was searched or pulled.
+    source: postman/mocks/supabase-auth/default.js; src/application/auth.ts; tests/login-errors.test.ts; https://supabase.com/docs/guides/auth/debugging/error-codes
+    updated_at: "2026-10-31"
+  - id: production-incident-cause
+    status: unknown
+    claim: A TLS failure caused the reported intermittent login refusals around 13:00 Europe/Prague on 2026-10-31.
+    reason: A self-signed certificate error exists in production web logs at 08:08:33 UTC (09:08 local), but does not establish the cause of the later reported incident. Auth logs showed no password refusal in the 11:40–12:30 UTC window.
+    verification: Read production Auth, web and proxy logs without changing production. Thirty public API settings requests from web succeeded. Twelve additional IPv4 requests with fresh TLS connections succeeded; IPv6 connections were unreachable from the container. No reproduction of the production outage was achieved. Further incidents need timestamped login diagnostics; the new server log records only error name, code and HTTP status.
+    source: Production app.ivat.cz logs on 2026-10-31; src/application/auth.ts
+    updated_at: "2026-10-31"
+fingerprints:
+  - id: login-reliability-2026-10-31
+    date: "2026-10-31"
+    commit: ffa38a5 (dirty fix/login-reliability worktree)
+    cli: Postman CLI 1.73.0

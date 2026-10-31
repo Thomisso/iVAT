@@ -595,6 +595,8 @@
     "sign_up_failed": "Registrace se nezdařila. Zkuste to prosím znovu.",
     "google_sign_in_failed": "Přihlášení přes Google se nezdařilo. Zkuste to prosím znovu.",
     "invalid_credentials": "Nesprávný e-mail nebo heslo.",
+    "login_rate_limited": "Příliš mnoho pokusů o přihlášení. Chvíli počkejte a zkuste to znovu.",
+    "login_unavailable": "Přihlášení se nyní nepodařilo ověřit. Zkuste to prosím za chvíli znovu.",
     "organization_blocked": "Tato organizace je zablokovaná. Obraťte se na podporu platformy.",
     "invalid_upload_limits": "Limity nahrávání musí být kladná celá čísla; zdrojový soubor může mít nejvýše 50 MiB.",
     "mfa_setup_expired": "Platnost tohoto nastavení autentizátoru vypršela. Začněte nastavení znovu; váš současný autentizátor stále funguje.",
