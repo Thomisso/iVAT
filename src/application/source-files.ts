@@ -11,7 +11,7 @@ export type ImageSourceFileFormat = "pdf" | "png" | "jpeg" | "heic" | "heif";
 export type SpreadsheetSourceFileFormat = "xlsx" | "xls";
 
 /** Where the Split of a Source File stands; its Documents carry their own status. */
-export type SourceFileStatus = "uploaded" | "waiting_for_platform" | "processing" | "split" | "failed";
+export type SourceFileStatus = "uploaded" | "waiting_for_platform" | "processing" | "split" | "failed" | "rejected" | "needs_review";
 
 export type SourceFile = {
   id: string;
@@ -28,6 +28,8 @@ export type SourceFile = {
   pageCount: number;
   status: SourceFileStatus;
   uploadedAt: string;
+  exclusion?: { reason: string; at: string; userId: string | null };
+  manualDefinition?: { at: string; userId: string | null };
 };
 
 export type UploadSourceFileInput = {
@@ -279,7 +281,7 @@ export async function uploadSourceFile(
   return { ok: true, value: { id } };
 }
 
-const COLUMNS = "id, company_id, file_name, format, byte_size, sha256, normalized_format, normalized_byte_size, normalized_sha256, page_count, status, uploaded_at";
+const COLUMNS = "id, company_id, file_name, format, byte_size, sha256, normalized_format, normalized_byte_size, normalized_sha256, page_count, status, uploaded_at, exclusion_reason, excluded_at, excluded_by, manually_defined_at, manually_defined_by";
 
 type SourceFileRow = {
   id: string;
@@ -294,6 +296,11 @@ type SourceFileRow = {
   page_count: number;
   status: SourceFileStatus;
   uploaded_at: string;
+  exclusion_reason: string | null;
+  excluded_at: string | null;
+  excluded_by: string | null;
+  manually_defined_at: string | null;
+  manually_defined_by: string | null;
 };
 
 function toSourceFile(row: SourceFileRow): SourceFile {
@@ -315,6 +322,8 @@ function toSourceFile(row: SourceFileRow): SourceFile {
     pageCount: row.page_count,
     status: row.status,
     uploadedAt: row.uploaded_at,
+    ...(row.exclusion_reason && row.excluded_at ? { exclusion: { reason: row.exclusion_reason, at: row.excluded_at, userId: row.excluded_by } } : {}),
+    ...(row.manually_defined_at ? { manualDefinition: { at: row.manually_defined_at, userId: row.manually_defined_by } } : {}),
   };
 }
 
@@ -392,15 +401,78 @@ export async function retrySplit(
   client: AppClient,
   jobs: JobQueue,
   input: { companyId: string; sourceFileId: string },
-): Promise<Result<null, "not_retryable" | "forbidden">> {
+): Promise<Result<null, "not_retryable" | "forbidden" | "period_locked" | "source_already_resolved">> {
   const file = await getSourceFile(client, input.companyId, input.sourceFileId);
   if (!file) return { ok: false, error: "forbidden" };
   const { error } = await client.rpc("retry_split", { target_source_file_id: file.id });
   if (error) {
     if (error.code === "42501") return { ok: false, error: "forbidden" };
-    if (error.hint === "not_retryable") return { ok: false, error: "not_retryable" };
+    for (const refusal of ["not_retryable", "period_locked", "source_already_resolved"] as const) {
+      if (error.code === "P0001" && error.hint === refusal) return { ok: false, error: refusal };
+    }
     throw error;
   }
   await jobs.send(splitJob(file.id));
   return { ok: true, value: null };
+}
+
+
+/** Defines real PDF/image boundaries for manual review without starting AI. */
+export async function defineSourceDocuments(
+  client: AppClient,
+  input: { companyId: string; sourceFileId: string; ranges: { firstPage: number; lastPage: number }[] },
+): Promise<Result<{ documentIds: string[] }, "forbidden" | "source_already_resolved" | "manual_source_format_unsupported" | "invalid_source_ranges" | "period_locked">> {
+  const file = await getSourceFile(client, input.companyId, input.sourceFileId);
+  if (!file) return { ok: false, error: "forbidden" };
+  const { data, error } = await client.rpc("define_source_documents", { target_source_file_id: file.id, document_ranges: input.ranges });
+  if (error) {
+    if (error.code === "42501") return { ok: false, error: "forbidden" };
+    for (const refusal of ["source_already_resolved", "manual_source_format_unsupported", "invalid_source_ranges", "period_locked"] as const) {
+      if (error.code === "P0001" && error.hint === refusal) return { ok: false, error: refusal };
+    }
+    throw error;
+  }
+  return { ok: true, value: { documentIds: data } };
+}
+
+
+export type SourceRecoveryError = "forbidden" | "source_already_resolved" | "exclusion_reason_required" | "source_not_rejected" | "period_locked";
+
+/** Cancels pending Split work so the User can define actual boundaries. */
+export async function startManualSourceReview(client: AppClient, input: { companyId: string; sourceFileId: string }): Promise<Result<null, SourceRecoveryError>> {
+  return sourceRecoveryCommand(client, input, "start_manual_source_review");
+}
+
+/** Resolves a Source before any Document exists, preserving its bytes and reason. */
+export async function excludeSourceFile(client: AppClient, input: { companyId: string; sourceFileId: string; reason: string }): Promise<Result<null, SourceRecoveryError>> {
+  return sourceRecoveryCommand(client, input, "exclude_source_file", input.reason);
+}
+
+/** Reversal returns to manual review; starting AI remains an explicit choice. */
+export async function restoreSourceFile(client: AppClient, input: { companyId: string; sourceFileId: string }): Promise<Result<null, SourceRecoveryError>> {
+  return sourceRecoveryCommand(client, input, "restore_source_file");
+}
+
+async function sourceRecoveryCommand(client: AppClient, input: { companyId: string; sourceFileId: string }, command: "start_manual_source_review" | "exclude_source_file" | "restore_source_file", reason?: string): Promise<Result<null, SourceRecoveryError>> {
+  const file = await getSourceFile(client, input.companyId, input.sourceFileId);
+  if (!file) return { ok: false, error: "forbidden" };
+  const { error } = await client.rpc(command, { target_source_file_id: file.id, ...(command === "exclude_source_file" ? { exclusion_reason: reason } : {}) });
+  if (error) {
+    if (error.code === "42501") return { ok: false, error: "forbidden" };
+    for (const refusal of ["source_already_resolved", "exclusion_reason_required", "source_not_rejected", "period_locked"] as const) {
+      if (error.code === "P0001" && error.hint === refusal) return { ok: false, error: refusal };
+    }
+    throw error;
+  }
+  return { ok: true, value: null };
+}
+
+
+/** A Source lock comes only from an existing locked readiness snapshot. */
+export async function sourceFilePeriodLock(client: AppClient, companyId: string, sourceFileId: string): Promise<string | null> {
+  const file = await getSourceFile(client, companyId, sourceFileId);
+  if (!file) return null;
+  const { data, error } = await client.rpc("source_file_period_lock", { target_source_file_id: file.id });
+  if (error) throw error;
+  return data;
 }

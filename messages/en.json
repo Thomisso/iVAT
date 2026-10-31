@@ -340,6 +340,21 @@
     "companies": "Companies"
   },
   "sourceFiles": {
+    "manualStart": "Define Documents manually",
+    "manualImage": "Create one Document manually",
+    "manualTitle": "Document page ranges",
+    "manualHint": "Choose ascending, non-overlapping ranges within the {count} source pages. Saving boundaries starts manual review without AI.",
+    "firstPage": "First page",
+    "lastPage": "Last page",
+    "addRange": "Add Document range",
+    "removeRange": "Remove range",
+    "defineDocuments": "Save Document boundaries",
+    "exclude": "Exclude Source File",
+    "reverseExclusion": "Reverse Source exclusion",
+    "excludedNote": "Excluded Source File. Its original is preserved.",
+    "manualDefined": "Initial boundaries defined manually on {date}.",
+    "lockedSource": "This Source File is protected by the locked {period} snapshot.",
+    "readinessTitle": "Source Files before Split",
     "title": "Source files",
     "file": "File",
     "fileHint": "PDF, PNG, JPEG, HEIC, HEIF, XLSX or XLS. The original is kept unchanged.",
@@ -409,6 +424,9 @@
     "clear": "Clear filters"
   },
   "uploadWorkspace": {
+    "manualSources": "{count, plural, one {# Source File needs manual definition.} other {# Source Files need manual definition.}}",
+    "sourceExcludedNoDocuments": "This Source File was consciously excluded; no Document was created.",
+    "sourceManualDefinitionNeeded": "Open this Source File to define its Documents manually.",
     "newBatch": "Add Source Files",
     "newBatchHint": "Transport runs first. Split and Extraction continue in the background and stay visible in this workspace.",
     "history": "Batch history",
@@ -465,6 +483,8 @@
     "sourceFilesHint": "A Source File is the stored original. Each nested row is a separate Document created by Split.",
     "documentPages": "Document · pages {first}–{last}",
     "sourceStatus": {
+      "needs_review": "Manual definition needed",
+      "rejected": "Excluded · resolved",
       "uploaded": "Waiting",
       "waiting_for_platform": "Waiting for platform intervention",
       "processing": "Splitting",
@@ -535,6 +555,10 @@
     "mfa_recovery_required": "Complete your authorized MFA recovery before using this action.",
     "mfa_recovery_busy": "Another recovery step is in progress. Wait a moment and try again.",
     "mfa_replacement_confirmation_required": "Confirm that you want to replace the lost authenticator.",
+    "source_not_rejected": "Only an excluded Source File can be restored.",
+    "source_already_resolved": "This Source is resolved. Use its existing Documents or reverse its exclusion.",
+    "manual_source_format_unsupported": "Use workbook ranges to define Documents in this Source.",
+    "invalid_source_ranges": "Enter ascending, non-overlapping page ranges within the actual Source.",
     "exclusion_reason_required": "Enter an exclusion reason of 1–500 characters.",
     "not_recoverable": "This Document cannot be taken over manually.",
     "not_rejected": "Only an excluded Document can be restored.",
@@ -879,6 +903,8 @@
     "administratorOnly": "The SuperAdmin manages this setting."
   },
   "sourceFileStatus": {
+    "rejected": "Excluded · resolved",
+    "needs_review": "Manual definition needed",
     "uploaded": "Waiting",
     "waiting_for_platform": "Waiting for platform intervention",
     "processing": "Splitting",
@@ -1121,6 +1147,7 @@
     "rejected": "Rejected"
   },
   "vatReports": {
+    "unresolvedItemCount": "{count, plural, one {# unresolved item} other {# unresolved items}}",
     "wizard": {
       "finalPartial": "Partially completed — {count}/2",
       "draftPartial": "Partially completed — {count}/2",
@@ -1159,6 +1186,7 @@
         }
       },
       "reasons": {
+        "source_files_need_review": "Source Files need manual definition or exclusion.",
         "documents_need_review": "Documents in this Reporting Period still need review.",
         "report_missing": "No VAT Report has been generated yet.",
         "report_stale": "Documents changed after the VAT Report was generated. Generate it again.",

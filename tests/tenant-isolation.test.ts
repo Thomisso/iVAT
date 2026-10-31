@@ -258,7 +258,7 @@ describe("tenant isolation", () => {
         }),
         await a.client.from("extraction_version").update({ payload: {} }).eq("id", version.id),
         await a.client.from("extraction_version").delete().eq("id", version.id),
-        await a.client.rpc("record_split", { target_source_file_id: a.sourceFileId, source_ranges: [] }),
+        await a.client.rpc("record_split", { target_source_file_id: a.sourceFileId, target_split_request_id: crypto.randomUUID(), source_ranges: [] }),
         await a.client.rpc("record_ai_extraction", {
           target_document_id: a.documentId,
           target_extraction_request_id: "00000000-0000-4000-8000-000000000000",
