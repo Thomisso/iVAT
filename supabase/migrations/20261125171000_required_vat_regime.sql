@@ -145,4 +145,3 @@ $$;
 
 revoke execute on function private.reporting_period_readiness_stats(uuid, text)
   from public;
-

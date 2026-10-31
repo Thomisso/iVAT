@@ -66,7 +66,10 @@ revision and the later host/browser revisions: the two intervening corrections
 only changed release-fixture HTTP transport and stale browser test locators.
 The passing application checks therefore carry forward without redundant full
 serial runs. The host proof likewise carries forward across the locator-only
-correction. This evidence commit changes documentation only.
+correction. This evidence commit changes documentation only. A subsequent
+formatting-only follow-up removes surplus EOF blank lines from four new
+migrations and the TOTP test helper; SQL tokens, schema behavior and helper
+logic are unchanged.
 
 ## Development runtime confirmation
 
