@@ -1,3 +1,4 @@
+import { reportingWorkbookCopy } from "./support/reporting-workbook-copy";
 import { expect, inject, it } from "vitest";
 import { approveDocument, correctDocument, createManualDocument, listCompanyDocuments, returnDocumentToReview } from "@/application/documents";
 import { administratorWithCompany } from "./support/fixtures";
@@ -38,12 +39,12 @@ it("does not label a historical Approved purchase as included when the live Rule
   const readiness = await getReportingPeriodReadiness(company.client, { companyId: company.companyId, period: "2026-10" });
   expect(readiness.ok && readiness.value.ready).toBe(false);
   expect(readiness.ok && readiness.value.blockers).toContainEqual({ code: "error_finding", documentId: created.value.id, findingCode: "counterparty_vat_id_required" });
-  const exported = await exportReportingPeriodWorkbook(company.client, { companyId: company.companyId, period: "2026-10" });
+  const exported = await exportReportingPeriodWorkbook(company.client, { companyId: company.companyId, period: "2026-10" }, reportingWorkbookCopy());
   if (!exported.ok) throw new Error(exported.error);
   const workbook = XLSX.read(exported.value.bytes, { type: "array" });
   const [row] = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets.Attention, { defval: "" });
   expect(row).toEqual(expect.objectContaining({
-    "Live inclusion": "excluded", "Exclusion reason": "incomplete_data", "Exclusion detail": "counterparty_vat_id_required",
+    "Live inclusion": "excluded", "Exclusion reason": "Required reporting data is incomplete.", "Exclusion detail": "A valid counterparty VAT ID is required for reporting.",
     "Mapping status": "proposed", "VAT Return line": "40", "Control Statement section": "B.3",
   }));
 });
@@ -77,7 +78,7 @@ it("keeps an Approved Document with only a bank advisory included even when it a
   expect(document.reporting.advisoryFindings).toEqual([{ field: "payment.bankAccount", severity: "warning", code: "missing_bank_account" }]);
   const readiness = await getReportingPeriodReadiness(company.client, { companyId: company.companyId, period: "2026-10" });
   expect(readiness.ok && readiness.value.ready).toBe(true);
-  const exported = await exportReportingPeriodWorkbook(company.client, { companyId: company.companyId, period: "2026-10" });
+  const exported = await exportReportingPeriodWorkbook(company.client, { companyId: company.companyId, period: "2026-10" }, reportingWorkbookCopy());
   if (!exported.ok) throw new Error(exported.error);
   const workbook = XLSX.read(exported.value.bytes, { type: "array" });
   for (const sheet of ["Included", "Attention"]) {

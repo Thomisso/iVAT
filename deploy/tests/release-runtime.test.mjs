@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
 import { access, chmod, cp, mkdir, mkdtemp, readFile, realpath, rm, utimes, writeFile } from "node:fs/promises";
 import { createConnection, createServer } from "node:net";
-import { createServer as createHttpServer, request as httpRequest } from "node:http";
+import { createServer as createHttpServer } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { parseEnv } from "node:util";
@@ -12,6 +12,7 @@ import { deployPreparedRelease } from "../scripts/connect-release.mjs";
 import { waitForRequiredChecks } from "../scripts/prepare-release.mjs";
 import { resolveReleaseRevision } from "../scripts/release-policy.mjs";
 import { spawnSimulation } from "./simulation-process.mjs";
+import { assertPublicApplicationAssets, requestPublicApplication } from "./public-application.mjs";
 
 const checkout = process.cwd();
 const probeMigration = "99999999990000_release_probe.sql";
@@ -30,20 +31,8 @@ async function command(args, env = {}) {
 }
 
 async function requestCompiledLogin(endpoint) {
-  // Match the deployment probe: fetch may discard Host for a loopback URL.
-  // A direct HTTP request also refuses to follow redirects to a live host.
-  return new Promise((resolve, reject) => {
-    const request = httpRequest(endpoint, { signal: AbortSignal.timeout(15000), headers: { Host: "app.ivat.cz", "X-Forwarded-Proto": "https" } }, response => {
-      let body = "";
-      response.setEncoding("utf8");
-      response.on("data", chunk => { body += chunk; });
-      response.on("error", reject);
-      response.on("end", () => resolve({ status: response.statusCode, body }));
-    });
-    request.setTimeout(15000, () => request.destroy(new Error("Compiled login request timed out.")));
-    request.on("error", reject);
-    request.end();
-  });
+  const response = await requestPublicApplication(endpoint);
+  return { status: response.status, body: response.bytes.toString("utf8") };
 }
 
 test("the compiled login request preserves application Host routing and response HTML", async () => {
@@ -272,6 +261,7 @@ exec /usr/local/bin/docker "$@"
     const loginHtml = login.body;
     assert.ok(loginHtml.includes(`Verze ${manifest.tag}`), "compiled login must identify the validated release tag");
     assert.ok(loginHtml.includes(`Revize ${manifest.revision}`), "compiled login must identify the validated release revision");
+    await assertPublicApplicationAssets(`http://127.0.0.1:${httpPort}`, source);
     const repeated = await deploy(bundle, { IVAT_DEPLOY_ATTEMPT_ID: path.basename(verified.attempt) });
     assert.notEqual(repeated.status, 0);
     assert.equal((await readFile(path.join(stack, verified.attempt, "result"), "utf8")).trim(), "success");

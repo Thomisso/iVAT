@@ -1,3 +1,4 @@
+import { reportingWorkbookCopy } from "./support/reporting-workbook-copy";
 import { expect, it } from "vitest";
 import { SAMPLE_EXTRACTION } from "@/ai/fake";
 import { approveDocument, correctDocument, createManualDocument, getDocument, listCompanyDocuments, listExtractionVersions, mergeDocuments, moveDocumentPage, readDocumentPages, readDocumentRows, reprocessDocument, splitDocument, updateDocumentReporting } from "@/application/documents";
@@ -129,7 +130,7 @@ it("keeps a DUZP-only draft visible and preserves nullable version-2 values in a
   const readiness = await getReportingPeriodReadiness(administrator.client, { companyId: administrator.companyId, period: "2026-10" });
   expect(readiness.ok && readiness.value.groups.needsReview).toEqual([created.value.id]);
   expect(readiness.ok && readiness.value.ready).toBe(false);
-  const workbookResult = await exportReportingPeriodWorkbook(administrator.client, { companyId: administrator.companyId, period: "2026-10" });
+  const workbookResult = await exportReportingPeriodWorkbook(administrator.client, { companyId: administrator.companyId, period: "2026-10" }, reportingWorkbookCopy());
   if (!workbookResult.ok) throw new Error(workbookResult.error);
   const workbook = XLSX.read(workbookResult.value.bytes, { type: "array" });
   expect(XLSX.utils.sheet_to_json(workbook.Sheets.Attention, { defval: "" })).toMatchObject([{

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useId, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { cancelInvitationAction, changeMembershipRoleAction, inviteMemberAction, removeMembershipAction, replaceInvitationAction } from "@/app/actions";
 import type { CompanyAccess, Membership, PendingInvitation } from "@/application/memberships";
@@ -54,6 +54,9 @@ function InvitationRow({ invitation, acceptUrl }: { invitation: PendingInvitatio
   const [replaceState, replaceAction, replacing] = useActionState(replaceInvitationAction, { error: null, values: {} });
   const [copied, setCopied] = useState(false);
   const [manualCopy, setManualCopy] = useState(false);
+  const [confirmingCancellation, setConfirmingCancellation] = useState(false);
+  const cancelTrigger = useRef<HTMLButtonElement>(null);
+  const confirmationId = useId();
   const linkInput = useRef<HTMLInputElement>(null);
   const link = acceptUrl && invitation.token ? `${acceptUrl}#${new URLSearchParams({ token: invitation.token })}` : null;
   const available = invitation.status === "pending" || invitation.status === "expired";
@@ -76,10 +79,22 @@ function InvitationRow({ invitation, acceptUrl }: { invitation: PendingInvitatio
         <input type="hidden" name="invitationId" value={invitation.id} />
         <Button type="submit" disabled={replacing || cancelling}>{t("replaceLink")}</Button>
       </form>
-      <form action={cancelAction}>
-        <input type="hidden" name="invitationId" value={invitation.id} />
-        <Button type="submit" variant="danger" disabled={replacing || cancelling}>{t("cancelInvitation")}</Button>
-      </form>
+      <Button type="button" variant="danger" disabled={replacing || cancelling}
+        aria-expanded={confirmingCancellation} aria-controls={confirmingCancellation ? confirmationId : undefined}
+        onClick={event => { cancelTrigger.current = event.currentTarget; setConfirmingCancellation(true); }}>
+        {t("cancelInvitation")}
+      </Button>
+      {confirmingCancellation && <fieldset id={confirmationId} className="form">
+        <legend>{t("cancelInvitationTitle")}</legend>
+        <p>{t("cancelInvitationHint")}</p>
+        <form action={cancelAction} className="form-row">
+          <input type="hidden" name="invitationId" value={invitation.id} />
+          <Button type="submit" variant="danger" disabled={replacing || cancelling}>{t("confirmCancellation")}</Button>
+          <Button type="button" disabled={replacing || cancelling} onClick={() => {
+            setConfirmingCancellation(false); cancelTrigger.current?.focus();
+          }}>{t("keepInvitation")}</Button>
+        </form>
+      </fieldset>}
       <FormError error={replaceState.error ?? cancelState.error} />
     </>}
   </li>;
