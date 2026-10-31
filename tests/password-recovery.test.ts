@@ -20,7 +20,10 @@ describe("password recovery", () => {
     expect(email.url.pathname).toBe("/password/reset");
     expect(email.requestToken).toMatch(/^[a-f0-9]{64}$/);
     expect(email.tokenHash.length).toBeGreaterThan(20);
-    expect(email.html).toContain("one hour");
+    expect(email.html.includes("one hour")).toBe(true);
+    expect(email.html.includes("jednu hodinu")).toBe(true);
+    expect(email.html.includes("Obnovit heslo iVAT")).toBe(true);
+    expect(email.subject).toBe("Obnova hesla iVAT / Reset your iVAT password");
   });
 
   it("only verifies on explicit action, resets without the old password, and keeps the current session while revoking other refresh sessions", async () => {

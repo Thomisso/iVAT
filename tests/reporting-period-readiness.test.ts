@@ -1,3 +1,4 @@
+import { reportingWorkbookCopy } from "./support/reporting-workbook-copy";
 import { expect, it } from "vitest";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import {
@@ -320,7 +321,7 @@ it("counts every relevant Document beyond the API row cap", async () => {
   expect(readiness.value.blockers.filter((finding) => finding.code === "needs_review"))
     .toHaveLength(1001);
   expect(Object.keys(readiness.value.documentReporting)).toHaveLength(1001);
-  const exported = await exportReportingPeriodWorkbook(company.client, { companyId: company.companyId, period: "2026-10" });
+  const exported = await exportReportingPeriodWorkbook(company.client, { companyId: company.companyId, period: "2026-10" }, reportingWorkbookCopy());
   if (!exported.ok) throw new Error(exported.error);
   const workbook = XLSX.read(exported.value.bytes, { type: "array" });
   const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets.Attention);

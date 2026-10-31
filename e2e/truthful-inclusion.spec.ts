@@ -47,10 +47,16 @@ test("Document detail separates approval from current inclusion and preserves pr
     const path = await download.path();
     if (!path) throw new Error("Workbook download missing");
     const workbook = XLSX.readFile(path);
-    const included = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets.Included, { defval: "" });
-    const attention = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets.Attention, { defval: "" });
-    expect(included).toContainEqual(expect.objectContaining({ "Document ID": fixture.includedId, "Live inclusion": "included" }));
-    expect(attention).toContainEqual(expect.objectContaining({ "Document ID": fixture.includedId, "Live inclusion": "included" }));
-    expect(attention).toContainEqual(expect.objectContaining({ "Document ID": fixture.excludedId, "Live inclusion": "excluded", "Exclusion detail": "counterparty_vat_id_required", "VAT Return line": "40", "Control Statement section": "B.3" }));
+    const included = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[locale === "en" ? "Included" : "Zahrnuté"], { defval: "" });
+    const attention = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[locale === "en" ? "Attention" : "Ke kontrole"], { defval: "" });
+    if (locale === "en") {
+      expect(included).toContainEqual(expect.objectContaining({ "Document ID": fixture.includedId, "Live inclusion": "included" }));
+      expect(attention).toContainEqual(expect.objectContaining({ "Document ID": fixture.includedId, "Live inclusion": "included" }));
+      expect(attention).toContainEqual(expect.objectContaining({ "Document ID": fixture.excludedId, "Live inclusion": "excluded", "Exclusion detail": "A valid counterparty VAT ID is required for reporting.", "VAT Return line": "40", "Control Statement section": "B.3", "Mapping status": "proposed" }));
+    } else {
+      expect(included).toContainEqual(expect.objectContaining({ "ID dokladu": fixture.includedId, "Živé zahrnutí": "zahrnuto" }));
+      expect(attention).toContainEqual(expect.objectContaining({ "ID dokladu": fixture.includedId, "Živé zahrnutí": "zahrnuto" }));
+      expect(attention).toContainEqual(expect.objectContaining({ "ID dokladu": fixture.excludedId, "Živé zahrnutí": "nezahrnuto", "Podrobnost vyloučení": "Pro zahrnutí je nutné platné DIČ protistrany.", "Řádek přiznání k DPH": "40", "Oddíl kontrolního hlášení": "B.3", "Stav zařazení": "navrženo" }));
+    }
   }
 });

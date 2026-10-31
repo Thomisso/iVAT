@@ -1,5 +1,11 @@
 # QA v5 final local verification (#179)
 
+The results below are retained pre-fix evidence at their exact revisions. The
+subsequent combined-review corrections change workbook/native-mail copy,
+Invitation confirmation and production asset packaging. Fresh final integration
+checks are required after those corrections; the earlier application results
+must not be treated as passing coverage of the corrected HEAD.
+
 Verified on 31 October 2026 in the isolated integration worktree, after all
 ticket stacks stopped. Tests ran sequentially on Docker Desktop for macOS with
 Linux containers. Local Auth, PostgreSQL, Storage, SMTP capture, application,
@@ -123,6 +129,55 @@ or represented as passing runs. One temporary runtime fixture launcher also
 needed its outside-repository top-level-await execution shape adapted to the
 local TypeScript loader; this occurred before any application call and changed
 no repository source.
+
+## Combined-review corrections: focused proof
+
+The fixes based on `0c46f95711ef350ccb3da5dd2ff0f8f87785628c` add translated
+workbook copy through a next-intl route boundary, catalog-generated bilingual
+native Auth templates/subjects, an abortable in-page Invitation cancellation
+confirmation, and the missing `public` directory in the production image.
+Application workbook generation remains framework-free. Auth still sends and
+verifies its own single-use tokens; localization does not introduce a replacement
+mailer, session flag, environment variable or MFA exception.
+
+Focused verification during this correction:
+
+- Seven application test files passed all 43 cases: workbook generation,
+  inclusion/readiness (including the large projection), manual Documents,
+  messages, native password recovery and live Auth templates. Actual Mailpit
+  recovery and MagicLink emails contain Czech/English body and subject copy;
+  native session verification/single use, one-hour recovery expiry, existing MFA,
+  refresh-session handling and repeated-start template mounts remain covered.
+  The normal messages test also checks generated artifacts against the catalogs.
+- An actual CS/EN browser workbook download passed after its untranslated-copy
+  failure. Four further browser cases passed: full new/existing-user invitation
+  onboarding, silent copied-link replacement/cancellation, and existing real
+  PDF/workbook boundary refusal, add/remove and entered-value restoration.
+  Aborting cancellation preserves the same pending link and expiry, returns
+  focus and sends no email. Only explicit confirmation invalidates the link.
+- Actual AMD64 production web/proxy images reproduced anonymous 404 responses
+  for both brand SVGs, while the four existing icon paths returned 200. After
+  copying `public` into the runtime image, all six paths returned anonymous 200
+  with correct MIME types, exact published bytes and valid image signatures.
+  These shared HTTP assertions now run in the existing deployment CI runtime
+  stage and the full host fixture, without adding another CI image or stack.
+  Two earlier local harness port-setup attempts did not reach HTTP and are not
+  counted as the missing-asset reproduction.
+- Typecheck and lint passed. Focused Node CI/release/prepare/host/connect/runtime
+  checks passed 25 cases; their one opt-in full-host skip does not establish a
+  fresh full-host pass. No full application suite or full host fixture was run
+  during this fix delivery.
+- A fresh Next/Turbopack MCP and scoped React/browser check reported no
+  compilation, configuration, session or browser errors. English/Czech
+  cancellation groups at 360 and 1440 pixels preserved link/status/expiry on
+  abort, returned focus, remained light under dark preference and had no body
+  overflow. Explicit Czech confirmation reached Cancelled; local Mailpit
+  contained no message for this silent workflow. Owned resources were stopped.
+
+The earlier 880-test, 84-browser, three-host-case and 40-layout results above
+remain pre-fix history. Fresh complete integration checks, including the updated
+full host fixture and production browser build, follow reviewed integration of
+these application/runtime corrections. Their future results are not claimed here.
 
 ## Remaining gates and limits
 

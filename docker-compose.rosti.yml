@@ -155,9 +155,9 @@ services:
       GOTRUE_SMTP_ADMIN_EMAIL: ${SMTP_ADMIN_EMAIL:-noreply@ivat.cz}
       GOTRUE_SMTP_SENDER_NAME: iVAT
       GOTRUE_MAILER_TEMPLATES_MAGIC_LINK: http://proxy:8081/magic_link.html
-      GOTRUE_MAILER_SUBJECTS_MAGIC_LINK: Your iVAT sign-in link
+      GOTRUE_MAILER_SUBJECTS_MAGIC_LINK: "Přihlášení do iVAT / Your iVAT sign-in link"
       GOTRUE_MAILER_TEMPLATES_RECOVERY: http://proxy:8081/recovery.html
-      GOTRUE_MAILER_SUBJECTS_RECOVERY: Reset your iVAT password
+      GOTRUE_MAILER_SUBJECTS_RECOVERY: "Obnova hesla iVAT / Reset your iVAT password"
       GOTRUE_MAILER_OTP_EXP: "3600"
       GOTRUE_MAILER_URLPATHS_INVITE: /auth/v1/verify
       GOTRUE_MAILER_URLPATHS_CONFIRMATION: /auth/v1/verify

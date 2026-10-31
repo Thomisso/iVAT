@@ -9,7 +9,7 @@ import {
 } from "./companies";
 import type { AppClient, Result } from "./client";
 import { isReportingPeriod, type ReportDocument } from "./vat-rules";
-import { loadStoredDocumentFindings, prepareDocumentReporting } from "./document-reporting";
+import { loadStoredDocumentFindings, prepareDocumentReporting, type DocumentReporting } from "./document-reporting";
 
 export type ReportingPeriodWorkbookDownload = {
   bytes: Uint8Array;
@@ -22,30 +22,41 @@ export type ExportReportingPeriodWorkbookError = "forbidden" | "company_setup_in
 type WorkbookDocument = ReportDocument & { findings: ValidationFinding[] };
 
 const COLUMNS = [
-  "Document ID",
-  "Document number",
-  "Direction",
-  "Tax Point Date",
-  "Counterparty",
-  "VAT Regime",
-  "VAT Return line",
-  "Control Statement section",
-  "VAT rate (%)",
-  "Net amount",
-  "VAT amount",
-  "Gross amount",
-  "Currency",
-  "Status",
-  "Findings",
-  "Live inclusion",
-  "Exclusion reason",
-  "Exclusion detail",
-  "Mapping status",
-  "VAT Return mapping unavailable",
-  "Control Statement mapping unavailable",
-  "Blocking findings",
-  "Advisory findings",
+  "documentId",
+  "documentNumber",
+  "direction",
+  "taxPointDate",
+  "counterparty",
+  "vatRegime",
+  "vatReturnLine",
+  "controlStatementSection",
+  "vatRate",
+  "netAmount",
+  "vatAmount",
+  "grossAmount",
+  "currency",
+  "status",
+  "findings",
+  "liveInclusion",
+  "exclusionReason",
+  "exclusionDetail",
+  "mappingStatus",
+  "vatReturnUnavailable",
+  "controlStatementUnavailable",
+  "blockingFindings",
+  "advisoryFindings",
 ] as const;
+
+export type ReportingPeriodWorkbookCopy = {
+  columns: Record<(typeof COLUMNS)[number], string>;
+  sheets: { included: string; attention: string };
+  fileNamePrefix: string;
+  inclusion: { included: string; excluded: string };
+  mapping: { included: string; proposed: string; unavailable: string };
+  reasons: Record<NonNullable<DocumentReporting["exclusionReason"]>, string>;
+  details: Record<NonNullable<DocumentReporting["exclusionDetail"]>, string>;
+  unknownReasons: Record<NonNullable<DocumentReporting["mapping"]["vatReturnUnknownReason"]>, string>;
+};
 
 type WorkbookRow = Record<(typeof COLUMNS)[number], string | number>;
 
@@ -102,10 +113,10 @@ function findings(values: readonly ValidationFinding[]): string {
     .join("; ");
 }
 
-function worksheet(rows: WorkbookRow[]): XLSX.WorkSheet {
-  const sheet = XLSX.utils.json_to_sheet(rows, { header: [...COLUMNS] });
+function worksheet(rows: WorkbookRow[], copy: ReportingPeriodWorkbookCopy): XLSX.WorkSheet {
+  const sheet = XLSX.utils.aoa_to_sheet([COLUMNS.map(column => copy.columns[column]), ...rows.map(row => COLUMNS.map(column => row[column]))]);
   sheet["!cols"] = COLUMNS.map((column) => ({
-    wch: column === "Document ID" ? 38 : column === "Findings" ? 52 : Math.max(14, column.length + 2),
+    wch: column === "documentId" ? 38 : column === "findings" ? 52 : Math.max(14, copy.columns[column].length + 2),
   }));
   sheet["!autofilter"] = { ref: sheet["!ref"] ?? `A1:${XLSX.utils.encode_col(COLUMNS.length - 1)}1` };
   for (let row = 1; row <= rows.length; row++) {
@@ -121,6 +132,7 @@ function worksheet(rows: WorkbookRow[]): XLSX.WorkSheet {
 export async function exportReportingPeriodWorkbook(
   client: AppClient,
   input: { companyId: string; period: string },
+  copy: ReportingPeriodWorkbookCopy,
 ): Promise<Result<ReportingPeriodWorkbookDownload, ExportReportingPeriodWorkbookError>> {
   if (!isReportingPeriod(input.period)) return { ok: false, error: "invalid_reporting_period" };
   const company = await getCompany(client, input.companyId);
@@ -160,42 +172,42 @@ export async function exportReportingPeriodWorkbook(
     for (const rate of rates) {
       const values = details(document.payload, rate);
       const row: WorkbookRow = {
-        "Document ID": document.id,
-        "Document number": values.documentNumber,
-        Direction: values.direction,
-        "Tax Point Date": values.taxPointDate,
-        Counterparty: values.counterparty,
-        "VAT Regime": values.vatRegime,
-        "VAT Return line": reporting.mapping.vatReturnLines.join(", "),
-        "Control Statement section": reporting.mapping.controlStatementSection ?? "",
-        "VAT rate (%)": values.rate,
-        "Net amount": values.netAmount,
-        "VAT amount": values.vatAmount,
-        "Gross amount": values.grossAmount,
-        Currency: values.currency,
-        Status: document.status,
-        Findings: findingText,
-        "Live inclusion": reporting.included ? "included" : "excluded",
-        "Exclusion reason": reporting.exclusionReason ?? "",
-        "Exclusion detail": reporting.exclusionDetail ?? "",
-        "Mapping status": reporting.included ? "included" : reporting.mapping.vatReturnLines.length || reporting.mapping.controlStatementSection ? "proposed" : "unavailable",
-        "VAT Return mapping unavailable": reporting.mapping.vatReturnUnknownReason ?? "",
-        "Control Statement mapping unavailable": reporting.mapping.controlStatementUnknownReason ?? "",
-        "Blocking findings": findings(reporting.blockingFindings),
-        "Advisory findings": findings(reporting.advisoryFindings),
+        "documentId": document.id,
+        "documentNumber": values.documentNumber,
+        direction: values.direction,
+        "taxPointDate": values.taxPointDate,
+        counterparty: values.counterparty,
+        "vatRegime": values.vatRegime,
+        "vatReturnLine": reporting.mapping.vatReturnLines.join(", "),
+        "controlStatementSection": reporting.mapping.controlStatementSection ?? "",
+        "vatRate": values.rate,
+        "netAmount": values.netAmount,
+        "vatAmount": values.vatAmount,
+        "grossAmount": values.grossAmount,
+        currency: values.currency,
+        status: document.status,
+        findings: findingText,
+        "liveInclusion": reporting.included ? copy.inclusion.included : copy.inclusion.excluded,
+        "exclusionReason": reporting.exclusionReason ? copy.reasons[reporting.exclusionReason] : "",
+        "exclusionDetail": reporting.exclusionDetail ? copy.details[reporting.exclusionDetail] : "",
+        "mappingStatus": reporting.included ? copy.mapping.included : reporting.mapping.vatReturnLines.length || reporting.mapping.controlStatementSection ? copy.mapping.proposed : copy.mapping.unavailable,
+        "vatReturnUnavailable": reporting.mapping.vatReturnUnknownReason ? copy.unknownReasons[reporting.mapping.vatReturnUnknownReason] : "",
+        "controlStatementUnavailable": reporting.mapping.controlStatementUnknownReason ? copy.unknownReasons[reporting.mapping.controlStatementUnknownReason] : "",
+        "blockingFindings": findings(reporting.blockingFindings),
+        "advisoryFindings": findings(reporting.advisoryFindings),
       };
       if (reporting.included) included.push(row);
       if (!reporting.included || findingText) attention.push(row);
     }
   }
   const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet(included), "Included");
-  XLSX.utils.book_append_sheet(workbook, worksheet(attention), "Attention");
+  XLSX.utils.book_append_sheet(workbook, worksheet(included, copy), copy.sheets.included);
+  XLSX.utils.book_append_sheet(workbook, worksheet(attention, copy), copy.sheets.attention);
   return {
     ok: true,
     value: {
       bytes: new Uint8Array(XLSX.write(workbook, { bookType: "xlsx", type: "buffer", compression: true })),
-      fileName: `VAT-overview-${input.period}.xlsx`,
+      fileName: `${copy.fileNamePrefix}-${input.period}.xlsx`,
       mediaType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     },
   };
