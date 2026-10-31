@@ -1,5 +1,7 @@
 "use server";
 
+import { defineSourceDocuments, startManualSourceReview, excludeSourceFile, restoreSourceFile } from "@/application/source-files";
+
 import { refresh } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -959,4 +961,31 @@ export async function retryFailedProcessingJobAction(
     await requireUserClient(),
     field(formData, "jobId"),
   ));
+}
+
+
+export async function startManualSourceReviewAction(_state: FormState, data: FormData): Promise<FormState> {
+  return settled(await startManualSourceReview(await requireUserClient(), { companyId: field(data, "companyId"), sourceFileId: field(data, "sourceFileId") }));
+}
+
+export async function defineSourceDocumentsAction(_state: FormState, data: FormData): Promise<FormState> {
+  const companyId = field(data, "companyId"); const sourceFileId = field(data, "sourceFileId");
+  const lastPages = data.getAll("lastPage");
+  const entered = data.getAll("firstPage").map((first, index) => ({ firstPage: String(first), lastPage: String(lastPages[index] ?? "") }));
+  const result = await defineSourceDocuments(await requireUserClient(), {
+    companyId, sourceFileId, ranges: entered.map((range) => ({ firstPage: Number(range.firstPage), lastPage: Number(range.lastPage) })),
+  });
+  if (!result.ok) return { error: result.error, values: { ranges: JSON.stringify(entered) } };
+  if (field(data, "openDocument") === "1" && result.value.documentIds[0]) redirect(`/companies/${companyId}/documents/${result.value.documentIds[0]}`);
+  refresh(); return { error: null, values: {} };
+}
+
+export async function excludeSourceFileAction(_state: FormState, data: FormData): Promise<FormState> {
+  const result = await excludeSourceFile(await requireUserClient(), { companyId: field(data, "companyId"), sourceFileId: field(data, "sourceFileId"), reason: field(data, "reason") });
+  if (!result.ok) return refused(result.error, data, ["reason"]);
+  return settled(result);
+}
+
+export async function restoreSourceFileAction(_state: FormState, data: FormData): Promise<FormState> {
+  return settled(await restoreSourceFile(await requireUserClient(), { companyId: field(data, "companyId"), sourceFileId: field(data, "sourceFileId") }));
 }

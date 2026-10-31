@@ -87,7 +87,9 @@ export default async function DocumentReviewPage({
   const reviewing = document.status === "needs_review" && current !== undefined && !lockedPeriod;
   const recoverable = !["approved", "rejected", "needs_review"].includes(document.status) && !lockedPeriod;
   const excludable = !["approved", "rejected"].includes(document.status) && !lockedPeriod;
-  const contentUrl = `/companies/${companyId}/documents/${document.id}/content`;
+  const contentUrl = file?.normalizedDerivative
+    ? `/companies/${companyId}/source-files/${file.id}/preview`
+    : `/companies/${companyId}/documents/${document.id}/content`;
   const sourceLocation = document.rowSet
     ? document.rowSet.firstRow === document.rowSet.lastRow
       ? t("review.row", { sheet: document.rowSet.sheetName, row: document.rowSet.firstRow })
