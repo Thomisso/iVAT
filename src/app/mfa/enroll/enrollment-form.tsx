@@ -13,8 +13,10 @@ import { FormError } from "@/components/form-error";
 import { TextField } from "@/components/text-field";
 
 function CompleteEnrollment({
-  enrollment,
+  enrollment, restartAction, restarting,
 }: {
+  restartAction: () => void;
+  restarting: boolean;
   enrollment: {
     factorId: string;
     qrCode: string;
@@ -26,6 +28,10 @@ function CompleteEnrollment({
     error: null,
     recoveryCodes: null,
   });
+  if (state.error === "mfa_setup_expired") return <form action={restartAction} className="form">
+    <FormError error={state.error} />
+    <Button type="submit" variant="primary" disabled={restarting}>{t("startEnrollment")}</Button>
+  </form>;
   if (state.recoveryCodes) {
     return (
       <section className="form">
@@ -57,7 +63,7 @@ export function EnrollmentForm() {
     error: null,
     enrollment: null,
   });
-  if (state.enrollment) return <CompleteEnrollment enrollment={state.enrollment} />;
+  if (state.enrollment) return <CompleteEnrollment key={state.enrollment.factorId} enrollment={state.enrollment} restartAction={action} restarting={pending} />;
   return (
     <form action={action} className="form">
       <p>{t("enrollIntro")}</p>

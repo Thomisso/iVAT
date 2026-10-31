@@ -484,3 +484,12 @@ export async function addBrowserUnextractedDocumentFixture(input: { companyId: s
   if (setup.error) throw setup.error;
   return document.id;
 }
+
+/** Expire only this browser's private MFA setup deadline, preserving real Auth. */
+export async function expireBrowserMfaMaintenanceFixture(sessionId: string) {
+  const environment = await browserFixtureEnvironment();
+  const database = new DatabaseClient({ connectionString: environment.DATABASE_URL });
+  await database.connect();
+  try { await database.query("update private.mfa_maintenance set expires_at = now() - interval '1 second' where session_id = $1", [sessionId]); }
+  finally { await database.end(); }
+}

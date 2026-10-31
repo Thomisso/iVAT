@@ -828,6 +828,9 @@ isOneToOne: false
 "change_membership_role":
 { Args: { "target_membership_id": string,"target_role": Database["public"]['Enums']["membership_role"] }; Returns: undefined
                            },
+"claim_mfa_maintenance":
+{ Args: { "target_factor_id": string }; Returns: undefined
+                           },
 "claim_mfa_replacement_operation":
 { Args: { "operation": string }; Returns: string
                            },

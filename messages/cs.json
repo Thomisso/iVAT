@@ -561,6 +561,7 @@
     "invalid_credentials": "Nesprávný e-mail nebo heslo.",
     "organization_blocked": "Tato organizace je zablokovaná. Obraťte se na podporu platformy.",
     "invalid_upload_limits": "Limity nahrávání musí být kladná celá čísla; zdrojový soubor může mít nejvýše 50 MiB.",
+    "mfa_setup_expired": "Platnost tohoto nastavení autentizátoru vypršela. Začněte nastavení znovu; váš současný autentizátor stále funguje.",
     "mfa_enrollment_failed": "Nastavení autentizátoru se nezdařilo. Zkuste to znovu.",
     "invalid_mfa_code": "Ověřovací kód je neplatný nebo už byl použit.",
     "recovery_codes_failed": "Obnovovací kódy se nepodařilo vytvořit. Zkuste to znovu.",

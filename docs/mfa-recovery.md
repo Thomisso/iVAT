@@ -31,3 +31,12 @@ Local proof uses the worktree's native Auth and Mailpit. Focused checks include
 recovery journeys. Cases exercise concurrent code use, real competing AAL2
 sessions, enrollment finishing after cleanup, stale JWTs, failed deletion/logout,
 legitimate continuation and mandatory MFA. Production SMTP proof is separate.
+
+After recovery, ordinary authenticator maintenance authorizes an exact native
+session and target factor before verification or deletion. Expired setup is
+refused before changing Auth and can restart while the current authenticator
+continues working. A claimed operation can finish or retry after its setup
+deadline, so a native side effect does not strand the session. Only explicitly
+authorized, verified factors join the trusted set; removing the current factor
+can then require normal verification with another remaining trusted factor.
+Factors created by a competing recovery-gap session never join that set.

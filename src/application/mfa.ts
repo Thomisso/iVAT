@@ -4,7 +4,8 @@ export type MfaError =
   | "mfa_enrollment_failed"
   | "invalid_mfa_code"
   | "recovery_codes_failed"
-  | "mfa_status_failed";
+  | "mfa_status_failed"
+  | "mfa_setup_expired";
 
 export type TotpEnrollment = {
   factorId: string;
@@ -47,6 +48,10 @@ export async function completeTotpEnrollment(
   client: AppClient,
   input: { factorId: string; code: string },
 ): Promise<Result<{ recoveryCodes: string[] }, MfaError>> {
+  const claim = await client.rpc("claim_mfa_maintenance", { target_factor_id: input.factorId });
+  if (claim.error?.code === "P0001" && claim.error.hint === "mfa_setup_expired") return { ok: false, error: "mfa_setup_expired" };
+  if (claim.error?.code === "42501") return { ok: false, error: "mfa_enrollment_failed" };
+  if (claim.error) throw claim.error;
   const verified = await client.auth.mfa.challengeAndVerify({
     factorId: input.factorId,
     code: input.code.trim(),
@@ -54,6 +59,7 @@ export async function completeTotpEnrollment(
   if (verified.error) return { ok: false, error: "invalid_mfa_code" };
 
   const generated = await client.rpc("finish_mfa_enrollment");
+  if (generated.error?.code === "42501") return { ok: false, error: "mfa_enrollment_failed" };
   if (generated.error) throw generated.error;
   if (generated.data.length !== 10) {
     return { ok: false, error: "recovery_codes_failed" };
@@ -119,9 +125,13 @@ export async function disenrollMfa(
   const authorized = await client.rpc("authorize_mfa_maintenance", { operation: "remove" });
   if (authorized.error?.code === "42501" || authorized.error?.code === "P0001" && authorized.error.hint === "mfa_recovery_required") return { ok: false, error: "mfa_disenrollment_failed" };
   if (authorized.error) throw authorized.error;
+  const claim = await client.rpc("claim_mfa_maintenance", { target_factor_id: factorId });
+  if (claim.error?.code === "42501" || claim.error?.code === "P0001" && claim.error.hint === "mfa_setup_expired") return { ok: false, error: "mfa_disenrollment_failed" };
+  if (claim.error) throw claim.error;
   const removed = await client.auth.mfa.unenroll({ factorId });
   if (removed.error) return { ok: false, error: "mfa_disenrollment_failed" };
   const cleanup = await client.rpc("finish_mfa_disenrollment");
+  if (cleanup.error?.code === "42501") return { ok: false, error: "mfa_disenrollment_failed" };
   if (cleanup.error) throw cleanup.error;
   return { ok: true, value: null };
 }

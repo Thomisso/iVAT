@@ -80,11 +80,14 @@ password-update receipt permits cleanup retry without replacing the password
 again. Only the bound legitimate session, with its verified replacement factor
 and native AAL2, can finish the transition and audit under the real User.
 
-Completed affected Users retain a native-session liveness/cutoff check and trusted
-factor identity. This rejects stale AAL2 JWTs and factors created by competing or
+Completed affected Users retain a native-session liveness/cutoff check and an
+explicit set of trusted native factor ids, initially only the replacement. This rejects stale AAL2 JWTs and factors created by competing or
 already-in-flight enrollment requests during the removal window, even after
-completion. Normal factor maintenance explicitly authorizes updating that identity
-from an already trusted session. These checks apply only to affected Users and
+completion. Normal factor maintenance claims its exact target before native verification or
+deletion from an already trusted session. Setup expiry refuses before a native
+side effect; a claimed operation can finalize or retry after that deadline. Only
+its verified target can join the trusted set. Removing one factor preserves the
+other legitimate factors, which can restore native AAL2 through normal verification. These checks apply only to affected Users and
 preserve Organization/SuperAdmin MFA and existing tenant authorization boundaries.
 The old application recovery-session-as-MFA shortcut grants no access; ordinary
 login recovery directs Users through email and replacement instead.
