@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
-import { approveDocument, reprocessDocument, correctDocument, startManualDocumentReview, readDocumentRows, attachDocumentSource, createManualDocument, getDocument, listDocuments, listExtractionVersions, readDocumentPages } from "@/application/documents";
+import { approveDocument, reprocessDocument, correctDocument, startManualDocumentReview, readDocumentRows, attachDocumentSource, createManualDocument, getDocument, listDocuments, listExtractionVersions, readDocumentPages, rejectDocument, returnDocumentToReview } from "@/application/documents";
 import { getSourceFile, readSourceFile } from "@/application/source-files";
 import { getCompanyAiProcessingAllowance, setCompanyAiProcessingAllowance } from "@/application/ai-processing-allowance";
 import { administratorWithCompany, assignAiConfigurationFixture, companyMember } from "./support/fixtures";
@@ -11,6 +11,11 @@ import { finalizeVatReport, generateVatReport, getVatReport } from "@/applicatio
 import { promotedSuperAdministrator } from "./support/platform";
 import { listAuditEvents } from "@/application/audit";
 import { PDFDocument } from "pdf-lib";
+import { saveCompanyFilingDefaults } from "@/application/company-filing-defaults";
+import { getReportingPeriodReadiness } from "@/application/reporting-period-readiness";
+import { exportVatReport, readVatReportArtifact } from "@/application/epo-export";
+import { exportCompanyData } from "@/application/company-deletion";
+import { unzipSync } from "fflate";
 
 it("attaches a real original to the same Approved manual Document without changing values, history or successful AI usage", async () => {
   const company = await administratorWithCompany();
@@ -82,6 +87,40 @@ it("a Company User confirmed AI replaces the current values with a new immutable
   const after = await listExtractionVersions(context.client, context.companyId, context.documentId);
   expect(after.slice(0, 1)).toEqual(before);
   expect(after.map(v => [v.version, v.author.kind, v.payload.documentNumber])).toEqual([[1, "user", "MANUAL-PRESERVED"], [2, "ai", "AI-REPLACEMENT"]]);
+  expect(await getCompanyAiProcessingAllowance(context.client, context.companyId)).toMatchObject({ ok: true, value: { used: 1 } });
+  expect(await approveDocument(user.client, { ...context, version: 2 })).toEqual({ ok: true, value: null });
+  expect(await saveCompanyFilingDefaults(context.client, {
+    companyId: context.companyId, taxOffice: "451", territorialOffice: "2003", economicActivity: "621000",
+    signatoryFirstName: "Jana", signatoryLastName: "Nováková", signatoryCapacity: "jednatelka",
+    email: "podatelna@example.test", phone: "+420123456789", epoAddressOverride: null,
+  })).toEqual({ ok: true, value: null });
+  const period = { companyId: context.companyId, period: "2026-10" };
+  expect((await generateVatReport(user.client, period)).ok).toBe(true);
+  const snapshot = await getVatReport(user.client, period.companyId, period.period);
+  const included = await getReportingPeriodReadiness(user.client, period);
+  if (!included.ok) throw new Error(included.error);
+  expect(included.value.documentReporting[context.documentId].included).toBe(true);
+  expect(included.value.snapshot?.freshness).toBe("current");
+  const archived = await exportVatReport(user.client, { ...period, format: "dphdp3", details: { preparedOn: "2026-10-29" } });
+  if (!archived.ok) throw new Error(archived.error);
+  expect(await returnDocumentToReview(user.client, context)).toEqual({ ok: true, value: null });
+  expect(await rejectDocument(user.client, { ...context, reason: "Excluded after human review of the AI replacement" })).toEqual({ ok: true, value: null });
+  const excluded = await getReportingPeriodReadiness(user.client, period);
+  if (!excluded.ok) throw new Error(excluded.error);
+  expect(excluded.value.documentReporting[context.documentId].included).toBe(false);
+  expect(excluded.value.snapshot?.freshness).toBe("stale");
+  expect(excluded.value.ready).toBe(true);
+  expect(await getVatReport(user.client, period.companyId, period.period)).toEqual(snapshot);
+  expect((await generateVatReport(user.client, period)).ok).toBe(true);
+  expect((await getVatReport(user.client, period.companyId, period.period))?.finalization.rejectedDocumentCount).toBe(1);
+  expect(await listExtractionVersions(user.client, context.companyId, context.documentId)).toEqual(after);
+  expect((await readSourceFile(user.client, context.companyId, context.sourceFileId))?.bytes).toEqual(fixtureFile("receipt.png"));
+  expect((await readVatReportArtifact(user.client, { companyId: context.companyId, artifactId: archived.value.artifactId }))?.bytes).toEqual(archived.value.bytes);
+  const exported = await exportCompanyData(context.client, worker.jobs, { companyId: context.companyId });
+  if (!exported.ok) throw new Error(exported.error);
+  const archive = unzipSync(exported.value.bytes);
+  expect(archive[`vat-report-artifacts/${archived.value.artifactId}/${archived.value.fileName}`]).toEqual(archived.value.bytes);
+  expect(archive[`source-files/${context.sourceFileId}/receipt.png`]).toEqual(fixtureFile("receipt.png"));
   expect(await getCompanyAiProcessingAllowance(context.client, context.companyId)).toMatchObject({ ok: true, value: { used: 1 } });
 });
 
