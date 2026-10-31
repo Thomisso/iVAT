@@ -598,24 +598,34 @@ probe migration and annotated tag, before building the versioned target image.
 It compares the installed source generator and compiled login identity with the
 validated bundle. Its synthetic baseline omits only the probe migration; failure
 injection still uses disposable-only overrides. The fast source-preparation
-check passed during #162. After stopping the ticket stacks, final integration
-verification for #179 ran
+check passed during #162. After stopping the ticket stacks, final corrected
+integration verification for #179 ran
 `IVAT_RELEASE_RUNTIME_TEST=1 node --test deploy/tests/release-runtime.test.mjs`
-at `cf16536ae79e8e9a2583fbdc74f94f4108b92c40` on Docker Desktop for macOS:
-all three tests passed, with zero skips, in 192.61 seconds. This includes the
-compiled release tag and full revision, interrupted-observer recovery,
-failed-migration recovery guard, and anonymous proxy delivery of both brand
-SVGs and four published icons with exact bytes, MIME types and signatures.
-Through `e36ed62`, subsequent changes only corrected one layout grid declaration
-and browser fixtures, so the host result carried forward. The complete 85-case
-production browser command and fresh Next/MCP/React runtime checks passed at
-`e36ed6266badc247e7051a4a1688be4a6d0a4c6b`. See
-[the final local verification record](qa-v5-verification.md) for exact commands,
-application/browser counts, retained earlier failures and remaining checks.
-The later cloud-performance correction adds a Duplicate Warning view migration;
-fresh complete integration and full host verification of that correction remain
-pending independent review. Existing CI and Deployment verification remain
-required for the exact `main` revision; integration checks do not replace those release gates. The runtime
+at `df6148c185e06f358f79b4ad4d3af2c006971366` on Docker Desktop for macOS:
+all three cases passed, with zero skips, in 188.41 seconds. This includes actual
+pinned test SSH, interrupted-observer recovery, selected-image producer failure,
+compiled tag/full revision and installed XML generator, failed-migration recovery
+guards, and anonymous proxy delivery of both brand SVGs and four published icons
+with exact bytes, MIME types and signatures.
+
+The baseline contains the complete current application and omits only the
+synthetic probe migration. The real view migration therefore runs during fresh
+baseline preparation; the later actual deployment upgrade applies the probe.
+Separate isolated old-view-to-migration proof verifies the view replacement.
+The earlier host attempt failed baseline bootstrap because a private runner's
+umask made copied SQL files unreadable. Correcting only that private subprocess
+umask restored intended source modes, while logs and secret files retained
+private modes. The failed attempt remains recorded, and repository code and
+health limits were unchanged.
+
+Fresh full application checks and 16 relevant production browser cases passed
+at the same `df6148c` revision, including an actual production build. The complete
+85-case browser pass and Next/MCP/React 40-observation proof remain earlier
+history for unchanged UI/Auth code, not a new full browser run at this revision.
+See [the final local verification record](qa-v5-verification.md) for exact
+commands, revisions, counts, retained failures and remaining checks. Replacement
+cloud CI has not started. Exact-main CI and Deployment verification remain
+required; integration evidence does not replace those release gates. The runtime
 fixture used disposable credentials and pinned test host keys. A separate
 read-only production SSH inventory informed SMTP preparation; it did not prove
 production mail delivery. No production writes, mail sends, Release activation,

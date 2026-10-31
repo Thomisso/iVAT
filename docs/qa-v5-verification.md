@@ -1,15 +1,93 @@
 # QA v5 final local verification (#179)
 
-The ready-profile [cloud CI run 41162978978](https://github.com/Thomisso/iVAT/actions/runs/41162978978)
+The reviewed correction passed fresh local integration verification at
+`df6148c185e06f358f79b4ad4d3af2c006971366`: 882 application tests, the complete
+three-case host/SSH fixture, and 16 relevant production browser cases.
+The latest local browser run selected seven files; it was not a complete
+85-case rerun. The replacement ready-profile cloud run has not started and
+remains required for the final revision.
+
+The earlier [cloud CI run 41162978978](https://github.com/Thomisso/iVAT/actions/runs/41162978978)
 at `3dc4bd8bb05abdb02321e0db0d01f6cf530a5752` failed the application suite:
 878 passed, four failed and six optional checks skipped (1019.67 seconds;
-84 passing files, two failing files and six skipped files). The same run's
-complete 85-case browser job passed, and
-[Deployment verification 41162979086](https://github.com/Thomisso/iVAT/actions/runs/41162979086)
-passed, including actual image/proxy assets and release identity. The required
-application check remains unsatisfied until the reviewed correction receives
-fresh complete integration and cloud verification. Focused proof is recorded
-below; the earlier passing local results retain their exact historical revisions.
+84 passing files, two failing files and six skipped files). Its complete
+85-case browser job passed, as did
+[Deployment verification 41162979086](https://github.com/Thomisso/iVAT/actions/runs/41162979086),
+including actual image/proxy assets and release identity. That failed
+application result is retained rather than replaced by local evidence.
+
+## Latest corrected local integration results
+
+All rows below were executed at
+`df6148c185e06f358f79b4ad4d3af2c006971366`, after independent delta review.
+
+| Check | Result | Elapsed |
+| --- | --- | --- |
+| `npm ci` | Passed | 6.21 s |
+| Fresh e2e-profile stack, canonical reset, generated types and diff | Passed; types matched | 23.43 s / 24.50 s / 0.46 s |
+| `npm run test:serial` | 882 passed, 6 optional skips; 86 passing files, 6 skipped files (888 cases / 92 files) | 311.01 s Vitest / 311.48 s command |
+| `npm run typecheck` | Passed | 3.35 s |
+| `npm run lint` | Passed | 4.92 s |
+| Mandatory full opt-in host/SSH runtime fixture | 3 passed, zero skipped | 188.41 s command |
+| Seven relevant production browser files, including their production build | 16 passed, zero skipped | 74.1 s browser phase / 112.17 s command; build 4.8 s |
+
+The six skips remain the five opt-in live-provider contracts and one optional
+OpenAI simulation. Local providers used existing fake adapters and Postman
+simulations; native Auth, database, Storage, worker and Mailpit were real.
+
+The full host command was:
+
+```bash
+IVAT_RELEASE_RUNTIME_TEST=1 node --test deploy/tests/release-runtime.test.mjs
+```
+
+The passing rerun lasted from 04:30:45 to 04:33:53 UTC. It exercised actual
+pinned test SSH, interrupted-observer durable lock/completion, selected-image
+producer failure, successful deployment, compiled tag/full-revision identity
+against its validated disposable release bundle, the installed XML generator,
+all six anonymous public assets with exact bytes/MIME/signatures, and
+failed-migration recovery guards. Node reported 188387.926 ms, with no skips.
+
+The fixture built the complete current application plus its synthetic probe
+migration. Its baseline omits only that probe, so the real Duplicate Warning
+view migration is applied during fresh baseline preparation. The later actual
+deployment upgrade applies the probe and exercises the upgrade/guard path.
+Separately, the earlier isolated old-view-to-`db:migrate` red/green proof verified
+replacement of the existing view. The host result does not imply that the view
+migration was first applied during its later probe upgrade.
+
+The relevant browser command was:
+
+```bash
+PLAYWRIGHT_BASE_URL=http://127.0.0.1:3104 npm run test:e2e -- e2e/acceptance.spec.ts e2e/manual-documents.spec.ts e2e/document-recovery.spec.ts e2e/source-recovery.spec.ts e2e/documents-queue.spec.ts e2e/vat-processing-wizard.spec.ts e2e/truthful-inclusion.spec.ts
+```
+
+It ran from 04:34:01 to 04:35:54 UTC with a fresh e2e-profile stack, local
+Mailpit, Postman ARES, fake providers, actual production Next server and worker.
+Its 4.8-second `npm run build` is the build counted for this validation. All
+16 selected cases passed. Managed services and the owned database stopped;
+no owned application listener or diagnostic stack remained.
+
+UI and Auth code did not change in the query/fixture correction. The earlier
+complete 85-case cloud pass at `3dc4bd8` and local pass at `e36ed62`, plus the
+40-observation Next/MCP/React confirmation at `e36ed62`, remain the full-browser
+and development-runtime history for those unchanged surfaces. They are not
+represented as fresh 85-case or Next checks at `df6148c`. The final replacement
+cloud workflow will run all 85 browser cases for its exact final revision.
+
+The first host attempt at this same revision passed two preparation cases but
+failed baseline service startup (one actual-host failure, zero skips;
+126.12 seconds). A private runner's inherited umask made checked-out SQL files
+root-only; Docker preserved those modes, bootstrap stopped on an unreadable
+script and the API role password remained unset. A narrow unchanged DB/REST
+reproduction and a one-variable three-file mode correction confirmed the
+cause. Only the private host subprocess umask was corrected to 022. Parent
+logs stayed 0600, temporary evidence directories 0700, and explicit environment,
+connection JSON and SSH private-key modes 0600. Repository code, credentials,
+health limits and test assertions were unchanged. The failed log is retained;
+its later upgrade/guard assertions had not been reached.
+
+## Earlier verification history
 
 Earlier local integration verification passed the complete 85-case production
 browser suite and live Next/React runtime checks at
@@ -96,8 +174,8 @@ dependencies and release runtime fixture did not change. For that CSS/browser-
 fixture revision, the passing application and host checks carried forward
 without redundant full serial or host runs. Typecheck and lint passed again on
 that two-file correction, which both review axes approved before the complete
-85-case rerun. The later cloud-performance correction adds a view migration and
-requires fresh full integration application and host checks after review.
+85-case rerun. The later cloud-performance correction adds a view migration;
+the fresh application and full host checks for it are recorded above.
 
 ## Development runtime confirmation
 
@@ -297,10 +375,12 @@ passed the original three Duplicate Warning cases and all 18 Period Lock cases
 in 9.82 seconds, with typecheck, lint and combined diff checks passing again.
 The complete application suite retains its original 888 cases, including six
 optional checks. Generated database types matched during the view correction.
-No full application, host or browser suite was rerun during this focused fix
-delivery. Fresh full integration validation, including actual host upgrade
-through the new migration, follows independent review; subsequent cloud CI is
-still required. Production operations remain separate.
+No full application, host or browser suite was rerun during that focused fix
+delivery. Both independent delta axes then reported zero hard/code findings
+after the internal observation was moved outside the repository. Fresh full
+application and host verification, plus the relevant 16-case production browser
+run, subsequently passed at `df6148c` as recorded above. Replacement cloud CI
+is still required. Production operations remain separate.
 
 ## Remaining gates and limits
 
@@ -319,8 +399,10 @@ public-asset packaging. Those corrections received focused proof and both axes
 re-reviewed them with zero hard or code findings; the optional range-editor
 suggestion was withdrawn. Both axes also reviewed the final CSS/browser-fixture
 follow-up with zero hard, code or optional findings. The cloud-performance
-correction above awaits its independent delta reviews and fresh full checks.
-This record does not itself mark the integration PR ready or close the spec.
+correction also passed both independent delta axes after the test-boundary
+reconciliation, followed by the latest local checks above. This evidence-only
+update receives its separate truthfulness review. It does not establish a
+passing replacement cloud check, mark release gates complete or close the spec.
 
 Credentials, tokens, factor secrets, private host details, test account values,
 and raw logs/screenshots are excluded from this public record.
