@@ -259,11 +259,11 @@ otp_expiry = 3600
 # content_path = "./supabase/templates/invite.html"
 
 [auth.email.template.magic_link]
-subject = "Your iVAT sign-in link"
+subject = "Přihlášení do iVAT / Your iVAT sign-in link"
 content_path = "./supabase/templates/magic_link.html"
 
 [auth.email.template.recovery]
-subject = "Reset your iVAT password"
+subject = "Obnova hesla iVAT / Reset your iVAT password"
 content_path = "./supabase/templates/recovery.html"
 
 # Uncomment to customize notification email template
