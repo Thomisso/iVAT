@@ -6,6 +6,25 @@ export type WorkbookRowSet = {
   lastRow: number;
 };
 
+/** Both AI and manual Split must refer to actual, disjoint worksheet rows. */
+export function assertWorkbookRanges(sheets: WorkbookRowSet[], ranges: unknown): asserts ranges is WorkbookRowSet[] {
+  if (!Array.isArray(ranges) || ranges.length === 0) throw new Error("Workbook row sets are required");
+  const previousLastRow = new Map<string, number>();
+  for (const range of ranges) {
+    if (!range || typeof range !== "object" || Array.isArray(range)
+      || Object.keys(range).some((key) => !["sheetName", "firstRow", "lastRow"].includes(key))) {
+      throw new Error("A workbook Split must return row sets");
+    }
+    const sheet = sheets.find(({ sheetName }) => sheetName === range.sheetName);
+    if (!sheet || !Number.isSafeInteger(range.firstRow) || !Number.isSafeInteger(range.lastRow)
+      || range.firstRow < sheet.firstRow || range.lastRow < range.firstRow || range.lastRow > sheet.lastRow
+      || range.firstRow <= (previousLastRow.get(range.sheetName) ?? 0)) {
+      throw new Error("Workbook row sets must be ascending, disjoint, and within their worksheets");
+    }
+    previousLastRow.set(range.sheetName, range.lastRow);
+  }
+}
+
 type ParsedSheet = WorkbookRowSet & { worksheet: XLSX.WorkSheet };
 
 function parsedSheets(bytes: Uint8Array): ParsedSheet[] {
