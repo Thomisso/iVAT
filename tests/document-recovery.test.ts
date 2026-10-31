@@ -127,7 +127,7 @@ it.each([true, false])("late AI failure (platform intervention %s) cannot roll b
   await started.promise;
   await startManualDocumentReview(context.client, input);
   await correctDocument(context.client, { ...input, basedOnVersion: 0, payload: { ...SAMPLE_EXTRACTION, documentNumber: "HUMAN" } });
-  expect(await reprocessDocument(context.client, worker.jobs, input)).toEqual({ ok: true, value: null });
+  expect(await reprocessDocument(context.client, worker.jobs, { ...input, confirmed: true })).toEqual({ ok: true, value: null });
   finish.release();
   await running;
   expect((await getDocument(context.client, input.companyId, input.documentId))?.status).toBe("needs_review");
@@ -200,7 +200,7 @@ it("a failed remediation dispatch cannot restore a wait over a later human takeo
   await expect(resumePlatformAiProcessing(operator.client, { async send() {
     await startManualDocumentReview(context.client, input);
     await correctDocument(context.client, { ...input, basedOnVersion: 0, payload: SAMPLE_EXTRACTION });
-    await reprocessDocument(context.client, worker.jobs, input);
+    await reprocessDocument(context.client, worker.jobs, { ...input, confirmed: true });
     throw new Error("Lost broker acknowledgement");
   } }, { companyId: context.companyId })).rejects.toThrow("Lost broker acknowledgement");
   expect((await getDocument(context.client, input.companyId, input.documentId))?.status).toBe("uploaded");

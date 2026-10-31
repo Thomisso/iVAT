@@ -444,7 +444,7 @@ it("keeps review commands inapplicable to the Approved Documents required by Fin
       companyId: company.companyId,
       documentId: company.documents[0].id,
     }),
-  ).toEqual({ ok: false, error: "not_reprocessable" });
+  ).toEqual({ ok: false, error: "period_locked" });
   expect(company.worker.queued).toEqual([]);
 });
 

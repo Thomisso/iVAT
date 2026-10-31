@@ -40,6 +40,7 @@ import { CorrectionForm } from "./correction-form";
 import { findingMessage } from "./finding-message";
 import { ReportingAssignmentForm } from "./reporting-assignment-form";
 import { companyPageContext, safeCompanyReturnTo, withCompanyReturnTo } from "@/application/return-context";
+import { AttachDocumentSourceForm, DocumentAiReplacementForm } from "./source-attachment-form";
 import { CompanyReturnLink } from "@/components/company-return-link";
 
 // The review workspace: the Document's original pages next to its extracted
@@ -155,12 +156,13 @@ export default async function DocumentReviewPage({
             <Notice>{t("review.rejectedNote")}{document.exclusion && <p>{document.exclusion.reason} · {t(document.exclusion.userId === userId ? "review.userAuthorYou" : "review.userAuthor")} · {formatDateTime(document.exclusion.at)}</p>}</Notice>
           )}
           {lockedPeriod && <Notice tone="warning" title={t("review.lockedTitle", { period: lockedPeriod })}>{t("review.lockedNote")}</Notice>}
-          {document.sourceFileId && document.status === "failed" && !lockedPeriod && <CommandButton
+          {document.sourceFileId && document.status === "failed" && current?.author.kind !== "user" && !lockedPeriod && <CommandButton
             variant="ai"
             icon="marker"
             action={reprocessDocumentAction}
             fields={{ companyId, documentId: document.id }}
           >{t("review.retryExtraction")}</CommandButton>}
+          {document.sourceFileId && !lockedPeriod && ["failed", "needs_review", "approved"].includes(document.status) && (current?.author.kind === "user" || document.status === "approved") && <DocumentAiReplacementForm companyId={companyId} documentId={document.id} />}
           {recoverable && <CommandButton action={startManualDocumentReviewAction} fields={{ companyId, documentId: document.id }}>{t("review.takeOverManually")}</CommandButton>}
           {document.status === "rejected" && !lockedPeriod && <CommandButton action={restoreDocumentAction} fields={{ companyId, documentId: document.id }}>{t("review.reverseExclusion")}</CommandButton>}
           {missingPeriod && (
@@ -200,7 +202,10 @@ export default async function DocumentReviewPage({
               // eslint-disable-next-line @next/next/no-img-element -- the original is shown as stored, not optimized
               <img src={contentUrl} alt={file.fileName} />
             )}
-          </DocumentViewer> : <EmptyState icon="file" title={t("review.noSourceFile")} />}
+          </DocumentViewer> : <>
+            <EmptyState icon="file" title={t("review.noSourceFile")} />
+            {!lockedPeriod && current?.author.kind === "user" && <AttachDocumentSourceForm companyId={companyId} documentId={document.id} />}
+          </>}
         </section>
         <section className="review-data">
           {shown && current && shown !== current && (

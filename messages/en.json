@@ -639,7 +639,7 @@
     "content_does_not_match_format": "The file content does not match its extension. Check that the file is really a PDF, PNG, JPEG, HEIC or HEIF.",
     "unreadable_file": "The file cannot be read. It may be damaged.",
     "not_retryable": "This failed processing job can no longer be retried.",
-    "not_reprocessable": "The document is still being processed.",
+    "not_reprocessable": "This Document cannot be reprocessed in its current state.",
     "not_correctable": "Wait until extraction finishes before correcting the split.",
     "invalid_split_boundary": "The selected split correction is no longer valid. Reload the page and try again.",
     "not_in_review": "Only a document that needs review can be changed, approved or rejected.",
@@ -699,7 +699,13 @@
     "invitation_replaced": "This invitation was replaced. Use the new link from the Administrator.",
     "invitation_busy": "This invitation is being accepted. Wait a moment and try again.",
     "invitation_identity_changed": "This account already exists. Reload this invitation and use the existing credentials.",
-    "invitation_unavailable": "The invitation could not be loaded. Reload the page and try again."
+    "invitation_unavailable": "The invitation could not be loaded. Reload the page and try again.",
+    "not_attachable": "An original can only be attached to a manual Document.",
+    "source_already_attached": "This Document already has an original.",
+    "invalid_source_range": "Select an actual page range within the original.",
+    "ai_configuration_unavailable": "AI is not enabled or has no usable configuration. Your current values and approval are unchanged.",
+    "processing_dispatch_failed": "AI could not be queued. Your values and history are preserved; check the current review status before trying again.",
+    "allowance_exhausted": "No successful AI allowance remains after queued and running work. Your values and approval are unchanged."
   },
   "aiUsage": {
     "platformNav": "Platform AI usage",
@@ -1132,7 +1138,16 @@
       "eu_acquisition_of_goods": "EU acquisition of goods",
       "eu_received_service": "Service received from the EU",
       "other": "Other (manual classification required)"
-    }
+    },
+    "attachSourceTitle": "Attach an original",
+    "attachSourceHint": "Add the real original to this same Document. Its values, history and approval stay unchanged. Attaching alone does not run AI.",
+    "attachPagesHint": "Leave both page fields empty to attach all pages. For a PDF, you can select an actual page range. Images use page 1.",
+    "attachRowsHint": "Enter the exact worksheet name and the actual first and last rows belonging to this Document.",
+    "attachSource": "Attach original",
+    "aiReplacementTitle": "Replace values using AI",
+    "aiReplacementWarning": "AI will replace the current values and withdraw any approval. All earlier Versions stay in history. A successful result needs a new human review and uses one successful AI allowance. Failure keeps the last values and history; approval is not restored automatically.",
+    "aiReplacementConfirm": "I understand that AI will replace the current values and withdraw approval.",
+    "aiReplacementStart": "Run AI replacement"
   },
   "duplicateWarning": {
     "document_identity": "Possible duplicate: the counterparty VAT ID, document number and direction match an earlier Document.",

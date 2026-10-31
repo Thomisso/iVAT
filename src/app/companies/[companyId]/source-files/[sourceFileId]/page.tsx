@@ -251,6 +251,7 @@ export default async function SourceFilePage({
                   render: (document) => {
                     const lockedPeriod = lockedPeriods[document.id];
                     if (lockedPeriod) return <span className="iv-muted">{t("documents.lockedPeriod", { period: lockedPeriod })}</span>;
+                    if (["failed", "needs_review", "approved"].includes(document.status) && (document.current?.author.kind === "user" || document.status === "approved")) return <Link href={withCompanyReturnTo(companyId, `/companies/${companyId}/documents/${document.id}`, context)}>{t("review.aiReplacementTitle")}</Link>;
                     return (document.status === "failed" || document.status === "needs_review") && (
                       <CommandButton
                         variant="ai"

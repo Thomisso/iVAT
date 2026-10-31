@@ -55,7 +55,8 @@ test("a manual Document survives partial saves and approval without a file or AI
   await page.getByRole("button", { name: "Approve version 3", exact: true }).click();
   await expect(page).toHaveURL(/\/documents(?:\?.*)?$/);
   await page.goto(reviewUrl);
-  await expect(page.getByText("Approved. The document counts towards VAT reports.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Return to review", exact: true })).toBeVisible();
+  await expect(page.getByRole("group", { name: "Live VAT calculation" })).toContainText("Included in live calculation");
   await expect(page.getByText("No Source File is attached to this Document.", { exact: true })).toBeVisible();
   await page.goto(`/companies/${companyId}/vat-reports?period=2026-10`);
   await page.getByRole("button", { name: "Generate draft", exact: true }).click();
