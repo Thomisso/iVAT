@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   computeVatReport,
+  deriveDocumentVatMapping,
   reportingPeriodForDocument,
   type ReportDocument,
 } from "@/application/vat-rules";
@@ -21,6 +22,17 @@ const company = {
 };
 const period = "2026-10";
 const monthly = [{ year: 2026, frequency: "monthly", firstMonth: 1 }] as const;
+
+it("presents proposed Return lines in statutory order even when draft rates were entered in reverse order", () => {
+  const mapping = deriveDocumentVatMapping({
+    ...SAMPLE_EXTRACTION, schemaVersion: 2,
+    rateBreakdown: [{ rate: 12, netAmount: null, vatAmount: null }, { rate: 21, netAmount: null, vatAmount: null }],
+    totals: { netAmount: null, vatAmount: null, grossAmount: null },
+  });
+  expect(mapping.vatReturnLines).toEqual(["40", "41"]);
+  expect(mapping.controlStatementSection).toBeNull();
+  expect(mapping.controlStatementUnknownReason).toBe("missing_gross_amount");
+});
 function document(
   overrides: Partial<typeof SAMPLE_EXTRACTION> = {},
 ): ReportDocument {

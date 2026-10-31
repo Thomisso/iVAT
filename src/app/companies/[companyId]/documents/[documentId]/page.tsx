@@ -9,7 +9,9 @@ import {
   reprocessDocumentAction,
   returnDocumentToReviewAction,
 } from "@/app/actions";
-import { getCompany, getMyCompanyRole } from "@/application/companies";
+import { getCompany, getMyCompanyRole, listCompanyReportingYears } from "@/application/companies";
+import { prepareDocumentReporting } from "@/application/document-reporting";
+import { DocumentReportingSummary } from "@/components/document-reporting-summary";
 import { missingReportingPeriodFinding } from "@/application/reporting-years";
 import { currentUserId } from "@/application/auth";
 import { documentQueueQuery, getDocumentQueuePosition } from "@/application/document-queue";
@@ -50,7 +52,7 @@ export default async function DocumentReviewPage({
   const search = await searchParams;
   const requestedVersion = typeof search.version === "string" ? search.version : undefined;
   const client = await requireUserClient();
-  const [company, document, versions, userId, duplicateWarnings, missingPeriod, role] = await Promise.all([
+  const [company, document, versions, userId, duplicateWarnings, missingPeriod, role, reportingYears] = await Promise.all([
     getCompany(client, companyId),
     getDocument(client, companyId, documentId),
     listExtractionVersions(client, companyId, documentId),
@@ -58,6 +60,7 @@ export default async function DocumentReviewPage({
     listDuplicateWarnings(client, companyId, documentId),
     missingReportingPeriodFinding(client, companyId, documentId),
     getMyCompanyRole(client, companyId),
+    listCompanyReportingYears(client, companyId),
   ]);
   if (!company || !document) notFound();
   const file = document.sourceFileId ? await getSourceFile(client, companyId, document.sourceFileId) : null;
@@ -82,6 +85,10 @@ export default async function DocumentReviewPage({
     : null;
 
   const current = versions.at(-1);
+  const reporting = prepareDocumentReporting({
+    id: document.id, status: document.status, extractionVersionId: current?.id ?? null,
+    payload: current?.payload ?? null, claimedReportingPeriod: document.claimedReportingPeriod,
+  }, reportingYears, undefined, current?.findings ?? []);
   const shown =
     versions.find((v) => String(v.version) === requestedVersion) ?? current;
   const reviewing = document.status === "needs_review" && current !== undefined && !lockedPeriod;
@@ -133,12 +140,7 @@ export default async function DocumentReviewPage({
           {document.importDate && <p>
             {t("review.importDate")}: {formatDate(document.importDate)}
           </p>}
-          {document.status === "approved" && current?.payload.proposedVatRegime && (
-            <Notice>{t("review.approvedNote")}</Notice>
-          )}
-          {document.status === "approved" && !current?.payload.proposedVatRegime && (
-            <Notice tone="danger">{t("review.approvedWithoutVatRegime")}</Notice>
-          )}
+          <DocumentReportingSummary reporting={reporting} />
           {document.status === "approved" && !lockedPeriod && (
             <CommandButton
               action={returnDocumentToReviewAction}

@@ -33,6 +33,9 @@ const COLUMNS = [
   "Currency",
   "Status",
   "Findings",
+  "Live inclusion", "Exclusion reason", "Exclusion detail", "Mapping status",
+  "VAT Return mapping unavailable", "Control Statement mapping unavailable",
+  "Blocking findings", "Advisory findings",
 ];
 
 async function companyWithOverviewDocuments() {
@@ -115,7 +118,7 @@ it("exports the Reporting Period overview with approved and attention sheets", a
     expect(headers).toEqual(COLUMNS);
   }
   const included = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets.Included, { defval: "" });
-  expect(included).toEqual([{
+  expect(included).toEqual(expect.arrayContaining([{
     "Document ID": company.documentIds[0],
     "Document number": "APPROVED-1",
     Direction: "incoming",
@@ -131,7 +134,14 @@ it("exports the Reporting Period overview with approved and attention sheets", a
     Currency: "CZK",
     Status: "approved",
     Findings: "",
-  }]);
+    "Live inclusion": "included", "Exclusion reason": "", "Exclusion detail": "", "Mapping status": "included",
+    "VAT Return mapping unavailable": "", "Control Statement mapping unavailable": "", "Blocking findings": "", "Advisory findings": "",
+  }]));
+  expect(included).toHaveLength(2);
+  expect(included).toContainEqual(expect.objectContaining({
+    "Document ID": company.documentIds[2], "Live inclusion": "included",
+    "Blocking findings": "error: invalid_vat_id_checksum (supplier.vatId)",
+  }));
   const attention = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets.Attention, { defval: "" });
   expect(attention).toEqual(expect.arrayContaining([
     expect.objectContaining({
@@ -139,8 +149,9 @@ it("exports the Reporting Period overview with approved and attention sheets", a
       "Document number": "WAITING-1",
       Status: "needs_review",
       Findings: "",
-      "VAT Return line": "",
-      "Control Statement section": "",
+      "VAT Return line": "40",
+      "Control Statement section": "B.3",
+      "Mapping status": "proposed", "Exclusion reason": "not_approved",
     }),
     expect.objectContaining({
       "Document ID": company.documentIds[2],
@@ -149,6 +160,7 @@ it("exports the Reporting Period overview with approved and attention sheets", a
       Findings: "error: invalid_vat_id_checksum (supplier.vatId)",
       "VAT Return line": "40",
       "Control Statement section": "B.3",
+      "Live inclusion": "included",
     }),
   ]));
   expect(attention).toHaveLength(2);

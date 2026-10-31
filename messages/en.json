@@ -1432,5 +1432,44 @@
     "actor": "Actor",
     "identityLine": "{name} · IČO {ico} · {vatId}",
     "notAvailable": "Not available"
+  },
+  "documentReporting": {
+    "liveTitle": "Live VAT calculation",
+    "period": "Reporting Period: {period}",
+    "unassigned": "unassigned",
+    "included": "Included in live calculation",
+    "excluded": "Excluded from live calculation",
+    "derived": "Derived mapping",
+    "proposed": "Proposed mapping — not counted",
+    "unknown": "not derivable",
+    "returnLines": "VAT Return lines: {lines}",
+    "section": "Control Statement section: {section}",
+    "blocking": "Blocking findings: {count}",
+    "advisories": "Advisory findings: {count}",
+    "liveNote": "Current version and current rules. Saved reports retain their own snapshot.",
+    "reasons": {
+      "not_approved": "Human approval is required.",
+      "manual_classification_required": "The data has no supported reporting classification.",
+      "currency_conversion_required": "A valid CZK conversion is required.",
+      "incomplete_data": "Required reporting data is incomplete.",
+      "no_reporting_period": "No Reporting Period can be assigned.",
+      "different_reporting_period": "The Document belongs to another Reporting Period.",
+      "rejected": "The Document was deliberately excluded."
+    },
+    "details": {
+      "counterparty_vat_id_required": "A valid counterparty VAT ID is required for reporting."
+    },
+    "unknownReasons": {
+      "missing_payload": "Document data is not available.",
+      "missing_regime": "Choose a VAT Regime.",
+      "missing_direction": "Choose the Direction.",
+      "unsupported_regime": "This VAT Regime and Direction have no supported mapping.",
+      "missing_rate": "A VAT rate is required.",
+      "unsupported_rate": "The VAT rate has no supported mapping.",
+      "missing_gross_amount": "The Document's gross amount in CZK is required to determine the section.",
+      "missing_currency": "The currency is required to determine the CZK threshold.",
+      "currency_conversion_required": "A valid CZK conversion is required to determine the threshold."
+    },
+    "liveSummary": "Live calculation: {included} included, {excluded} excluded."
   }
 }
