@@ -1,10 +1,22 @@
 # QA v5 final local verification (#179)
 
-The reviewed integration passed the complete 85-case production browser suite
-and live Next/React runtime checks at
+The ready-profile [cloud CI run 41162978978](https://github.com/Thomisso/iVAT/actions/runs/41162978978)
+at `3dc4bd8bb05abdb02321e0db0d01f6cf530a5752` failed the application suite:
+878 passed, four failed and six optional checks skipped (1019.67 seconds;
+84 passing files, two failing files and six skipped files). The same run's
+complete 85-case browser job passed, and
+[Deployment verification 41162979086](https://github.com/Thomisso/iVAT/actions/runs/41162979086)
+passed, including actual image/proxy assets and release identity. The required
+application check remains unsatisfied until the reviewed correction receives
+fresh complete integration and cloud verification. Focused proof is recorded
+below; the earlier passing local results retain their exact historical revisions.
+
+Earlier local integration verification passed the complete 85-case production
+browser suite and live Next/React runtime checks at
 `e36ed6266badc247e7051a4a1688be4a6d0a4c6b`. The fresh application and updated
 full host results below were executed at `cf16536ae79e8e9a2583fbdc74f94f4108b92c40`
-and carry across the subsequent one-line CSS and browser-fixture correction.
+and carried across the subsequent one-line CSS/browser-fixture correction at
+that revision.
 Earlier failures and pre-fix passing runs remain separate history below.
 
 Verified on 31 October 2026 in the isolated integration worktree, after all
@@ -15,7 +27,7 @@ synthetic; external AI, VAT registry, exchange-rate and provider-control
 dependencies used the existing fake adapters or Postman simulations. No paid
 provider or live Google calls were made.
 
-## Passing results and exact revisions
+## Earlier passing local results and exact revisions
 
 | Check | Revision | Result | Elapsed |
 | --- | --- | --- | --- |
@@ -80,11 +92,12 @@ stopped its managed application, worker and simulation processes.
 After `cf16536`, the only behavioral correction was the existing facts grid's
 minimum widths; the other change was deterministic browser-fixture selection
 with its independent alert regression. Application/worker logic, Auth, schema,
-dependencies and release runtime fixture did not change. The passing application
-and host checks therefore carry forward without redundant full serial or host
-runs. Typecheck and lint passed again on that two-file correction, which both
-review axes approved before the complete 85-case rerun. This evidence commit
-changes documentation only.
+dependencies and release runtime fixture did not change. For that CSS/browser-
+fixture revision, the passing application and host checks carried forward
+without redundant full serial or host runs. Typecheck and lint passed again on
+that two-file correction, which both review axes approved before the complete
+85-case rerun. The later cloud-performance correction adds a view migration and
+requires fresh full integration application and host checks after review.
 
 ## Development runtime confirmation
 
@@ -228,6 +241,67 @@ Focused verification during this correction:
   overflow. Explicit Czech confirmation reached Cancelled; local Mailpit
   contained no message for this silent workflow. Owned resources were stopped.
 
+## Ready-profile cloud failure and focused correction
+
+Three cloud failures were Duplicate Warning requests cancelled by PostgreSQL's
+normal eight-second authenticated statement limit. The fourth was the
+1,001-Document Period Lock pagination case's 60-second outer test deadline.
+Original cloud logs and local reproduction evidence were retained.
+
+A cached real native-authenticated warning lookup for two owned Documents
+scaled with foreign current-Document inventory: about 1.94 seconds at 4,021
+Documents and 5.65 seconds at 12,029. At 18,035 it reproduced the same database
+refusal twice, at 8.004 and 8.011 seconds. Native query plans showed a global
+materialized CTE causing 18,427 Company-access checks and 36,854 MFA checks
+before returning one warning. The existing latest-version index was working.
+Changing only CTE materialization in the diagnostic native query reduced the
+lookup from about 9.6 seconds to 4 milliseconds and five Company-access checks,
+with the same result and authorization. A 20-second local transaction limit was
+confined to diagnostic plan capture and rolled back; normal API limits remained
+unchanged. The migration preserves the view's `security_invoker`, grants, RLS
+predicates and warning semantics, allowing request filters into its branches.
+
+A private diagnostic used two owned and 32 foreign current Documents, real
+native sessions and actual application results/isolation. On a clean fixture,
+the old view failed its measured database-work bound with 38 access checks;
+the corrected view passed fewer than 16. The scoped measurement used verified
+Auth identity and unchanged claims, with rolled-back counter settings and a
+closed connection. Standards review required keeping this internal execution
+observation outside the repository's application-observation test boundary.
+Its source, reproduction configuration and red/green evidence were preserved
+privately. The permanent regressions remain the original three real native
+application cases covering identity matches, nonblocking repeated hashes and
+cross-Company isolation. No internal-counter hook or 32-Document performance
+fixture remains in the normal suite, and no standards exception was introduced.
+
+The cloud 60-second deadline was not reproduced on the developer host. The
+exact fresh original pagination case completed in 17.55 seconds, including
+1,001 genuine successful approvals and matching actor audit events. Its purpose
+is lock-map completeness, so a controlled setup-order comparison finalized an
+empty real report first and then recorded 1,001 actual Source-derived
+Extractions in the locked period, which ADR-0007 permits for review. The same
+1,001 lock mappings, first/last native approval refusals (`period_locked`), and
+unchanged finalized snapshot passed in 5.84 seconds. The fixture now uses that
+order, retaining every row and the original 60-second test/eight-second API
+limits. Remaining Period Lock tests retain approved-document safeguards.
+No CPU/storage explanation for the cloud deadline is asserted. Running the
+11 actual MFA recovery cases and comparing the same cached reads also ruled
+out a material slowdown from other Users' recovery history; MFA guards were
+left unchanged.
+
+Before Standards review, focused checks passed 33 cases in 22.32 seconds,
+including the subsequently removed internal-work observation and all 11 actual
+native MFA replacement cases. That MFA proof carries across the test-only
+removal; application, view and guard behavior did not change. Post-review checks
+passed the original three Duplicate Warning cases and all 18 Period Lock cases
+in 9.82 seconds, with typecheck, lint and combined diff checks passing again.
+The complete application suite retains its original 888 cases, including six
+optional checks. Generated database types matched during the view correction.
+No full application, host or browser suite was rerun during this focused fix
+delivery. Fresh full integration validation, including actual host upgrade
+through the new migration, follows independent review; subsequent cloud CI is
+still required. Production operations remain separate.
+
 ## Remaining gates and limits
 
 These are local integration results, not production provider or delivery proof.
@@ -244,9 +318,9 @@ workbook/native-mail copy, abortable Invitation cancellation, and production
 public-asset packaging. Those corrections received focused proof and both axes
 re-reviewed them with zero hard or code findings; the optional range-editor
 suggestion was withdrawn. Both axes also reviewed the final CSS/browser-fixture
-follow-up with zero hard, code or optional findings. This documentation-only
-record still receives its separate evidence review before merge. It does not
-itself mark the integration PR ready or close the spec.
+follow-up with zero hard, code or optional findings. The cloud-performance
+correction above awaits its independent delta reviews and fresh full checks.
+This record does not itself mark the integration PR ready or close the spec.
 
 Credentials, tokens, factor secrets, private host details, test account values,
 and raw logs/screenshots are excluded from this public record.
