@@ -267,6 +267,7 @@
     "user": "Běžný uživatel",
     "invite": "Pozvat uživatele",
     "activeTitle": "Aktivní uživatelé",
+    "activeCount": "{count, plural, one {# aktivní uživatel} few {# aktivní uživatelé} other {# aktivních uživatelů}}",
     "activeIntro": "Odebrání přístupu platí jen pro tuto oblast. Přihlašovací účet uživatele se nesmaže.",
     "none": "V této oblasti nemá aktivní přístup žádný uživatel.",
     "changeRole": "Změnit roli",

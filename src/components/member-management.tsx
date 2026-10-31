@@ -132,6 +132,7 @@ export function MemberManagement({
       </section>
       <section>
         <h2>{t("activeTitle")}</h2>
+        <p>{t("activeCount", { count: activeAccess.length })}</p>
         <p>{t("activeIntro")}</p>
         {activeAccess.length === 0 ? <p>{t("none")}</p> : (
           <ul className="member-list">{activeAccess.map((access) => <AccessRow
