@@ -21,6 +21,7 @@ export async function beginBackupRecoveryAction(_state: RecoveryFormState, form:
 }
 
 export async function resumeBackupRecoveryAction(_state: RecoveryFormState): Promise<RecoveryFormState> {
+  void _state;
   const options = mfaContinuationCookieOptions();
   const token = (await cookies()).get(mfaContinuationCookie)?.value ?? "";
   const result = await beginBackupRecovery(await createRequestClient(), { continuationToken: token });
@@ -31,6 +32,7 @@ export async function resumeBackupRecoveryAction(_state: RecoveryFormState): Pro
 }
 
 export async function startReplacementEnrollmentAction(_state: ReplacementEnrollmentState): Promise<ReplacementEnrollmentState> {
+  void _state;
   const result = await startReplacementEnrollment(await createRequestClient(), mfaReplacementAuthentication());
   return result.ok ? { error: null, enrollment: result.value } : { error: result.error, enrollment: null };
 }

@@ -17,7 +17,8 @@ export async function beginTotpEnrollment(
   client: AppClient,
 ): Promise<Result<TotpEnrollment, MfaError>> {
   const authorized = await client.rpc("authorize_mfa_maintenance", { operation: "enroll" });
-  if (authorized.error) return { ok: false, error: "mfa_enrollment_failed" };
+  if (authorized.error?.code === "42501" || authorized.error?.code === "P0001" && authorized.error.hint === "mfa_recovery_required") return { ok: false, error: "mfa_enrollment_failed" };
+  if (authorized.error) throw authorized.error;
   const factors = await client.auth.mfa.listFactors();
   if (factors.error) return { ok: false, error: "mfa_enrollment_failed" };
   for (const factor of factors.data.all) {
@@ -116,7 +117,8 @@ export async function disenrollMfa(
   factorId: string,
 ): Promise<Result<null, "mfa_disenrollment_failed">> {
   const authorized = await client.rpc("authorize_mfa_maintenance", { operation: "remove" });
-  if (authorized.error) return { ok: false, error: "mfa_disenrollment_failed" };
+  if (authorized.error?.code === "42501" || authorized.error?.code === "P0001" && authorized.error.hint === "mfa_recovery_required") return { ok: false, error: "mfa_disenrollment_failed" };
+  if (authorized.error) throw authorized.error;
   const removed = await client.auth.mfa.unenroll({ factorId });
   if (removed.error) return { ok: false, error: "mfa_disenrollment_failed" };
   const cleanup = await client.rpc("finish_mfa_disenrollment");
