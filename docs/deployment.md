@@ -597,15 +597,21 @@ The #162 fixture now prepares a complete committed source tree, including its
 probe migration and annotated tag, before building the versioned target image.
 It compares the installed source generator and compiled login identity with the
 validated bundle. Its synthetic baseline omits only the probe migration; failure
-injection still uses disposable-only overrides. The new fast source-preparation
-check passed during #162. After stopping the ticket stacks, earlier pre-fix
-integration verification for #179 ran
+injection still uses disposable-only overrides. The fast source-preparation
+check passed during #162. After stopping the ticket stacks, final integration
+verification for #179 ran
 `IVAT_RELEASE_RUNTIME_TEST=1 node --test deploy/tests/release-runtime.test.mjs`
-at `80ace776d9325550214c1ac5e447532ba80b8807` on Docker Desktop for macOS:
-all three tests passed, with zero skips, in 190 seconds. This includes the
-compiled release tag and full revision, interrupted-observer recovery, and
-failed-migration recovery guard. See [the final local verification record](qa-v5-verification.md)
-for the application and browser history, earlier failures, and remaining checks.
+at `cf16536ae79e8e9a2583fbdc74f94f4108b92c40` on Docker Desktop for macOS:
+all three tests passed, with zero skips, in 192.61 seconds. This includes the
+compiled release tag and full revision, interrupted-observer recovery,
+failed-migration recovery guard, and anonymous proxy delivery of both brand
+SVGs and four published icons with exact bytes, MIME types and signatures.
+The subsequent change only corrected one layout grid declaration and browser
+fixtures, so the host result carries forward. The complete 85-case production
+browser command and fresh Next/MCP/React runtime checks passed at
+`e36ed6266badc247e7051a4a1688be4a6d0a4c6b`. See
+[the final local verification record](qa-v5-verification.md) for exact commands,
+application/browser counts, retained earlier failures and remaining checks.
 Existing CI and Deployment verification remain required for the exact `main`
 revision; integration checks do not replace those release gates. The runtime
 fixture used disposable credentials and pinned test host keys. A separate
