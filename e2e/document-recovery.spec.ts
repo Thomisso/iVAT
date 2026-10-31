@@ -47,6 +47,7 @@ test("unextracted Documents recover manually or by reversible reasoned exclusion
   await page.getByLabel("Total incl. VAT", { exact: true }).fill("121.00");
   await page.getByRole("button", { name: "Save corrections", exact: true }).click();
   await page.getByRole("button", { name: "Approve version 2", exact: true }).click();
+  await expect(page).toHaveURL(url => url.pathname === `/companies/${companyId}/documents`);
   await page.goto(`/companies/${companyId}/documents/${failed}`);
   await expect(page.getByText("Approved. The document counts towards VAT reports.", { exact: true })).toBeVisible();
   const waiting = await addBrowserUnextractedDocumentFixture({ companyId, email, password, status: "waiting_for_platform" });
@@ -57,6 +58,7 @@ test("unextracted Documents recover manually or by reversible reasoned exclusion
   await expect(page.getByLabel("Exclusion reason", { exact: true })).toHaveValue("  ");
   await page.getByLabel("Exclusion reason", { exact: true }).fill("Personal receipt");
   await page.getByRole("button", { name: "Reject", exact: true }).click();
+  await expect(page).toHaveURL(url => url.pathname === `/companies/${companyId}/documents`);
   await page.goto(`/companies/${companyId}/documents/${waiting}`);
   await expect(page.getByText("Personal receipt", { exact: false })).toBeVisible();
   await expect(page.getByRole("img", { name: "receipt.png", exact: true })).toBeVisible();
@@ -65,6 +67,7 @@ test("unextracted Documents recover manually or by reversible reasoned exclusion
   await page.reload();
   await page.getByLabel("Exclusion reason", { exact: true }).fill("Confirmed personal receipt");
   await page.getByRole("button", { name: "Reject", exact: true }).click();
+  await expect(page).toHaveURL(url => url.pathname === `/companies/${companyId}/documents`);
   await page.goto(`/companies/${companyId}/documents/${waiting}`);
   await expect(page.getByText("Confirmed personal receipt", { exact: false })).toBeVisible();
 });

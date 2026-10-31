@@ -88,14 +88,19 @@ async function resolveUser(client: SupabaseClient<Database>, options: Options): 
 
   const generatedPassword = options.passwordFromStdin ? null : randomBytes(24).toString("base64url");
   const password = generatedPassword ?? suppliedPassword();
-  const { data, error } = await client.auth.admin.createUser({
-    email: options.value,
-    password,
-    email_confirm: true,
-  });
-  if (error || !data.user) throw new Error(`Could not create Auth User: ${error?.message ?? "unknown error"}`);
-  if (generatedPassword) console.log(`Generated one-time password: ${generatedPassword}`);
-  return data.user;
+  const reservation = await client.rpc("reserve_superadmin_identity", { target_email: options.value });
+  if (reservation.error) throw new Error(`Could not reserve Auth User: ${reservation.error.message}`);
+  try {
+    // Native GoTrue accepts an explicit id, also used by Invitation acceptance.
+    const attributes = { id: reservation.data, email: options.value, password, email_confirm: true };
+    const { data, error } = await client.auth.admin.createUser(attributes);
+    if (error || !data.user) throw new Error(`Could not create Auth User: ${error?.message ?? "unknown error"}`);
+    if (generatedPassword) console.log(`Generated one-time password: ${generatedPassword}`);
+    return data.user;
+  } finally {
+    const released = await client.rpc("release_superadmin_identity", { reserved_user_id: reservation.data });
+    if (released.error) throw new Error(`Could not release Auth User reservation: ${released.error.message}`);
+  }
 }
 
 async function main() {

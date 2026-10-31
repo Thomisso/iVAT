@@ -936,6 +936,9 @@ isOneToOne: false
               "invitee_email": string,"invitee_existed": boolean,"onboarding_status": string,"target_company_id": string
             }[]
                            },
+"list_active_memberships":
+{ Args: { "target_company_id"?: string,"target_organization_id": string }; Returns: Json
+                           },
 "list_ai_configuration_providers":
 { Args: Record<PropertyKey, never>; Returns: (string)[]
                            },
@@ -1048,6 +1051,9 @@ isOneToOne: false
 "release_ai_processing_reservation":
 { Args: { "target_reservation_id": string }; Returns: undefined
                            },
+"release_superadmin_identity":
+{ Args: { "reserved_user_id": string }; Returns: undefined
+                           },
 "remove_membership":
 { Args: { "target_membership_id": string }; Returns: undefined
                            },
@@ -1059,6 +1065,9 @@ isOneToOne: false
                            },
 "reserve_ai_processing":
 { Args: { "target_document_id": string,"target_extraction_request_id": string,"target_reservation_id": string }; Returns: string
+                           },
+"reserve_superadmin_identity":
+{ Args: { "target_email": string }; Returns: string
                            },
 "resolve_assigned_ai_configuration":
 { Args: { "target_company_id": string }; Returns: {
