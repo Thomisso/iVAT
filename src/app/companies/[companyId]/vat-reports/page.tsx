@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DocumentReportingSummary } from "@/components/document-reporting-summary";
 import { companyPageContext, withCompanyReturnTo } from "@/application/return-context";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
@@ -99,6 +100,10 @@ export default async function VatReportsPage({
     switch (step.key) {
       case "review":
         return <>
+          <p>{t("documentReporting.liveSummary", {
+            included: Object.values(readiness.documentReporting).filter(document => document.included).length,
+            excluded: Object.values(readiness.documentReporting).filter(document => !document.included).length,
+          })}</p>
           {groupRows.length > 0 && <dl className="vat-document-groups">
             {groupRows.map(([group, ids]) => (
               <div key={group}>
@@ -125,6 +130,7 @@ export default async function VatReportsPage({
                     </Link>
                     {document.counterparty?.name && <span>{document.counterparty.name}</span>}
                     <small>{reasons.map((code) => t(`vatReports.blockerReasons.${code}`)).join(" · ")}</small>
+                    {readiness.documentReporting[document.id] && <DocumentReportingSummary compact reporting={readiness.documentReporting[document.id]} />}
                   </li>;
                 })}
               </ul>

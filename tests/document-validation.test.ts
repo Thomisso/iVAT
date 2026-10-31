@@ -187,7 +187,7 @@ describe("Document validation", () => {
     });
   });
 
-  it("does not require a counterparty VAT ID below the domestic Control Statement threshold", () => {
+  it("requires the incoming supplier VAT ID independently of the domestic Control Statement threshold", () => {
     expect(
       validateDocument(
         {
@@ -196,7 +196,7 @@ describe("Document validation", () => {
         },
         CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA,
       ),
-    ).toEqual([]);
+    ).toContainEqual({ field: "supplier.vatId", severity: "error", code: "counterparty_vat_id_required" });
   });
 
   it("accepts an EU supplier VAT ID for an EU acquisition", () => {

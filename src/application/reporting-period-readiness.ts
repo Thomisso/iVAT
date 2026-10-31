@@ -1,4 +1,4 @@
-import { currentValidationFindings } from "./document-validation";
+import { loadStoredDocumentFindings, prepareDocumentReporting, type DocumentReporting } from "./document-reporting";
 import type { AppClient, Result } from "./client";
 import { isUuid } from "./client";
 import {
@@ -56,6 +56,7 @@ export type ReportingPeriodReadiness = {
     approved: string[];
   };
   source: ReportingPeriodReadinessSource[];
+  documentReporting: Record<string, DocumentReporting>;
   snapshot: {
     reportId: string;
     generatedAt: string;
@@ -96,7 +97,7 @@ export function readinessDocumentCounts(readiness: ReportingPeriodReadiness) {
   };
 }
 
-type LiveDocument = ReportDocument & { findings: ValidationFinding[] };
+type LiveDocument = ReportDocument & { findings: ValidationFinding[]; reporting: DocumentReporting };
 type SavedSourceSnapshot = {
   id: string;
   generatedAt: string;
@@ -221,30 +222,6 @@ export async function listReportingPeriods(
   });
 }
 
-async function findingsByVersion(
-  client: AppClient,
-  documents: ReportDocument[],
-): Promise<Map<string, ValidationFinding[]>> {
-  const ids = [...new Set(documents.flatMap((document) =>
-    document.extractionVersionId ? [document.extractionVersionId] : [],
-  ))];
-  const result = new Map<string, ValidationFinding[]>();
-  for (let offset = 0; offset < ids.length; offset += 100) {
-    const { data, error } = await client
-      .from("extraction_version")
-      .select("id, payload, findings")
-      .in("id", ids.slice(offset, offset + 100));
-    if (error) throw error;
-    for (const version of data) {
-      result.set(version.id, currentValidationFindings(
-        version.payload as unknown as NonNullable<ReportDocument["payload"]>,
-        version.findings as ValidationFinding[],
-      ));
-    }
-  }
-  return result;
-}
-
 async function relevantDocuments(
   client: AppClient,
   companyId: string,
@@ -317,7 +294,7 @@ export async function getReportingPeriodReadiness(
     relevantDocuments(client, input.companyId, input.period, reportingYears),
     getSavedSourceSnapshot(client, input.companyId, input.period),
   ]);
-  const byVersion = await findingsByVersion(client, relevant);
+  const byVersion = await loadStoredDocumentFindings(client, relevant);
   const source = readinessSource(relevant);
   const assignedIds = new Set(assigned.map((document) => document.id));
   const documents: LiveDocument[] = relevant.map((document) => {
@@ -325,12 +302,14 @@ export async function getReportingPeriodReadiness(
     const gap = assignedIds.has(document.id)
       ? null
       : reportingPeriodGapFinding(document.payload?.taxPointDate, reportingYears);
+    const reporting = prepareDocumentReporting(document, reportingYears, input.period, [
+      ...(document.extractionVersionId ? byVersion.get(document.extractionVersionId) ?? [] : []),
+      ...(gap ? [gap] : []),
+    ]);
     return {
       ...document,
-      findings: [
-        ...(document.extractionVersionId ? byVersion.get(document.extractionVersionId) ?? [] : []),
-        ...(gap ? [gap] : []),
-      ],
+      reporting,
+      findings: [...reporting.blockingFindings, ...reporting.advisoryFindings],
     };
   });
   const groups: ReportingPeriodReadiness["groups"] = {
@@ -399,6 +378,7 @@ export async function getReportingPeriodReadiness(
       warnings,
       groups,
       source,
+      documentReporting: Object.fromEntries(documents.map(document => [document.id, document.reporting])),
       snapshot: report
         ? {
             reportId: report.id,

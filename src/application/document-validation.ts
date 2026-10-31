@@ -1,4 +1,5 @@
 import type { ExtractionPayload } from "./extraction-payload";
+import { missingRequiredReportingVatId } from "./vat-rules";
 
 export type ValidationFindingSeverity = "error" | "warning";
 
@@ -153,9 +154,8 @@ function requiredFieldFindings(payload: ExtractionPayload): ValidationFinding[] 
         ? "customer"
         : null;
   if (
-    requiresCounterpartyVatId &&
     counterpartyName &&
-    !payload[counterpartyName].vatId
+    ((requiresCounterpartyVatId && !payload[counterpartyName].vatId) || missingRequiredReportingVatId(payload))
   ) {
     findings.push(
       error(
@@ -296,6 +296,7 @@ export function currentValidationFindings(
   payload: ExtractionPayload,
   findings: readonly ValidationFinding[],
 ): ValidationFinding[] {
+  const requiredFields = requiredFieldFindings(payload);
   const historicalGrossError = findings.some((finding) =>
     finding.code === "total_gross_amount_mismatch" && finding.severity === "error");
   const grossWarning = historicalGrossError
@@ -303,10 +304,11 @@ export function currentValidationFindings(
       .find((finding) => finding.code === "total_gross_amount_mismatch")
     : undefined;
   const current = findings.map<ValidationFinding>((finding) => historicalGrossError && finding.code === "total_gross_amount_mismatch"
-    ? grossWarning ?? { ...finding, severity: "warning" } : finding);
+    ? grossWarning ?? { ...finding, severity: "warning" } : finding)
+    .map(finding => requiredFields.find(required => required.code === finding.code && required.field === finding.field) ?? finding);
   const requiredRegime = !payload.proposedVatRegime
     ? [error("proposedVatRegime", "vat_regime_required")]
     : [];
-  return [...current, ...[...paymentFindings(payload), ...requiredRegime]
+  return [...current, ...[...paymentFindings(payload), ...requiredFields, ...requiredRegime]
     .filter((finding) => !current.some((entry) => entry.code === finding.code))];
 }
