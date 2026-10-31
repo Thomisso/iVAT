@@ -92,7 +92,7 @@ test("real Auth, Company, Organization and Platform surfaces share one accessibl
   for (const viewport of viewports) {
     await page.setViewportSize(viewport);
     await page.goto("/login");
-    await expect(page.getByRole("banner").getByRole("link", { name: "iVAT" })).toBeVisible();
+    await expect(page.locator(".focused-shell-panel").getByRole("link", { name: "iVAT" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Log in", level: 1 })).toBeVisible();
     await expect(page.getByRole("navigation")).toHaveCount(0);
     await expectAccessibleSurface(page);
@@ -104,7 +104,7 @@ test("real Auth, Company, Organization and Platform surfaces share one accessibl
   const email = `shell-contract-${run}@example.test`;
   await provisionAndLogIn(page, { organizationName: `Contract Organization ${run}`, email, password });
   await expect(page).toHaveURL(/\/companies\/new$/);
-  await expect(page.getByRole("banner").getByRole("link", { name: "iVAT" })).toBeVisible();
+  await expect(page.locator(".focused-shell-panel").getByRole("link", { name: "iVAT" })).toBeVisible();
   await expect(page.getByRole("navigation")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Add a company", level: 1 })).toBeVisible();
   await expectAccessibleSurface(page);
