@@ -585,12 +585,17 @@ probe migration and annotated tag, before building the versioned target image.
 It compares the installed source generator and compiled login identity with the
 validated bundle. Its synthetic baseline omits only the probe migration; failure
 injection still uses disposable-only overrides. The new fast source-preparation
-check passed during #162, but the revised full host/SSH runtime fixture was not
-executed while ticket stacks were active. Run
+check passed during #162. After stopping the ticket stacks, final integration
+verification for #179 ran
 `IVAT_RELEASE_RUNTIME_TEST=1 node --test deploy/tests/release-runtime.test.mjs`
-under final integration ticket #179 after stopping the ticket stacks, and record
-that result separately from the earlier runtime evidence above.
+at `80ace776d9325550214c1ac5e447532ba80b8807` on Docker Desktop for macOS:
+all three tests passed, with zero skips, in 190 seconds. This includes the
+compiled release tag and full revision, interrupted-observer recovery, and
+failed-migration recovery guard. See [the final local verification record](qa-v5-verification.md)
+for the complete application and browser results, earlier failures, and limits.
 Existing CI and Deployment verification remain required for the exact `main`
-revision. The integration PR records the exact local checks and final combined
-test results; no production credentials, live SSH, registry pulls, activation
+revision; integration checks do not replace those release gates. The runtime
+fixture used disposable credentials and pinned test host keys. A separate
+read-only production SSH inventory informed SMTP preparation; it did not prove
+production mail delivery. No production writes, mail sends, Release activation,
 or monitored production Release were performed while preparing this PR.
