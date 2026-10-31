@@ -595,6 +595,8 @@
     "sign_up_failed": "Sign-up failed. Please try again.",
     "google_sign_in_failed": "Google sign-in failed. Please try again.",
     "invalid_credentials": "Wrong email or password.",
+    "login_rate_limited": "Too many sign-in attempts. Please wait a moment and try again.",
+    "login_unavailable": "Sign-in could not be verified right now. Please try again shortly.",
     "organization_blocked": "This Organization is blocked. Contact platform support.",
     "invalid_upload_limits": "Upload limits must be positive whole numbers; a Source File may be at most 50 MiB.",
     "mfa_setup_expired": "This authenticator setup has expired. Start setup again; your current authenticator still works.",

@@ -52,9 +52,17 @@ async function applicationAccessAllowed(client: AppClient): Promise<boolean> {
 export async function logIn(
   client: AppClient,
   input: LogInInput,
-): Promise<Result<null, "invalid_credentials" | "organization_blocked">> {
+): Promise<Result<null, "invalid_credentials" | "login_rate_limited" | "login_unavailable" | "organization_blocked">> {
   const { error } = await client.auth.signInWithPassword({ email: input.email.trim(), password: input.password });
-  if (error) return { ok: false, error: "invalid_credentials" };
+  if (error) {
+    if (error.code === "invalid_credentials") return { ok: false, error: "invalid_credentials" };
+    // Keep credentials, provider messages and session data out of operational logs.
+    console.error("[auth:login-failed]", { name: error.name, code: error.code, status: error.status });
+    return {
+      ok: false,
+      error: error.status === 429 ? "login_rate_limited" : "login_unavailable",
+    };
+  }
   if (!(await applicationAccessAllowed(client))) {
     return { ok: false, error: "organization_blocked" };
   }
