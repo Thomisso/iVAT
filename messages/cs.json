@@ -639,7 +639,7 @@
     "content_does_not_match_format": "Obsah souboru neodpovídá jeho příponě. Zkontrolujte, že jde opravdu o PDF, PNG, JPEG, HEIC nebo HEIF.",
     "unreadable_file": "Soubor nelze přečíst. Může být poškozený.",
     "not_retryable": "Tuto neúspěšnou úlohu zpracování již nelze zopakovat.",
-    "not_reprocessable": "Doklad se ještě zpracovává.",
+    "not_reprocessable": "Doklad v aktuálním stavu nelze zpracovat znovu.",
     "not_correctable": "Před opravou rozdělení počkejte na dokončení vytěžení.",
     "invalid_split_boundary": "Vybraná oprava rozdělení už není platná. Načtěte stránku znovu a opakujte akci.",
     "not_in_review": "Měnit, schválit nebo zamítnout lze jen doklad, který čeká na kontrolu.",
@@ -699,7 +699,13 @@
     "invitation_replaced": "Tato pozvánka byla nahrazena. Použijte nový odkaz od administrátora.",
     "invitation_busy": "Probíhá přijímání pozvánky. Za chvíli to zkuste znovu.",
     "invitation_identity_changed": "Tento účet již existuje. Obnovte pozvánku a použijte stávající přihlašovací údaje.",
-    "invitation_unavailable": "Pozvánku se nepodařilo načíst. Obnovte stránku a zkuste to znovu."
+    "invitation_unavailable": "Pozvánku se nepodařilo načíst. Obnovte stránku a zkuste to znovu.",
+    "not_attachable": "Originál lze připojit pouze k ručnímu dokladu.",
+    "source_already_attached": "Tento doklad už má originál.",
+    "invalid_source_range": "Vyberte skutečný rozsah stran v originálu.",
+    "ai_configuration_unavailable": "AI není zapnuté nebo nemá použitelnou konfiguraci. Aktuální hodnoty a schválení zůstaly beze změny.",
+    "processing_dispatch_failed": "AI se nepodařilo zařadit ke zpracování. Hodnoty a historie jsou zachované; před opakováním ověřte aktuální stav kontroly.",
+    "allowance_exhausted": "Po započtení čekajícího a probíhajícího zpracování nezbývá volný limit úspěšného AI zpracování. Hodnoty a schválení zůstaly beze změny."
   },
   "aiUsage": {
     "platformNav": "Využití AI na platformě",
@@ -1132,7 +1138,16 @@
       "eu_acquisition_of_goods": "Pořízení zboží z EU",
       "eu_received_service": "Přijetí služby z EU",
       "other": "Jiný (vyžaduje ruční klasifikaci)"
-    }
+    },
+    "attachSourceTitle": "Připojit originál",
+    "attachSourceHint": "Připojte skutečný originál ke stejnému dokladu. Hodnoty, historie i schválení zůstanou zachované. Samotné připojení nespustí AI.",
+    "attachPagesHint": "Pro celý soubor ponechte obě pole stran prázdná. U PDF můžete vybrat skutečný rozsah stran. Obrázky používají stranu 1.",
+    "attachRowsHint": "Zadejte přesný název listu a skutečný první a poslední řádek patřící tomuto dokladu.",
+    "attachSource": "Připojit originál",
+    "aiReplacementTitle": "Nahradit hodnoty pomocí AI",
+    "aiReplacementWarning": "AI nahradí aktuální hodnoty a odebere případné schválení. Všechny předchozí verze zůstanou v historii. Úspěšný výsledek vyžaduje novou lidskou kontrolu a započítá se jako jedno úspěšné AI zpracování. Při selhání zůstanou poslední hodnoty a historie; schválení se automaticky neobnoví.",
+    "aiReplacementConfirm": "Rozumím, že AI nahradí aktuální hodnoty a odebere schválení.",
+    "aiReplacementStart": "Spustit nahrazení pomocí AI"
   },
   "duplicateWarning": {
     "document_identity": "Možný duplikát: DIČ protistrany, číslo dokladu a směr se shodují se starším dokladem.",

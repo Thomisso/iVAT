@@ -788,6 +788,9 @@ isOneToOne: false
 "assign_company_ai_configuration":
 { Args: { "target_company_id": string,"target_configuration_id": string }; Returns: undefined
                            },
+"attach_document_source":
+{ Args: { "source_metadata": Json,"source_range": Json,"target_company_id": string,"target_document_id": string,"target_source_file_id": string }; Returns: string
+                           },
 "audit_actors":
 { Args: { "target_organization_id": string }; Returns: {
               "email": string,"user_id": string
@@ -815,6 +818,9 @@ isOneToOne: false
                            },
 "bind_mfa_replacement_factor":
 { Args: { "enrolled_factor_id": string,"recovery_operation_id": string }; Returns: undefined
+                           },
+"cancel_document_reprocess_dispatch":
+{ Args: { "target_document_id": string,"target_extraction_request_id": string }; Returns: string
                            },
 "cancel_invitation":
 { Args: { "invitation_token": string }; Returns: undefined
@@ -1060,6 +1066,9 @@ isOneToOne: false
               "max_source_file_bytes": number,"max_source_file_pages": number,"max_upload_batch_files": number
             }[]
                            },
+"prepare_document_source_attachment":
+{ Args: { "target_company_id": string,"target_document_id": string,"target_source_file_id": string }; Returns: undefined
+                           },
 "read_vat_report_artifact":
 { Args: { "target_artifact_id": string,"target_company_id": string }; Returns: Json
                            },
@@ -1094,7 +1103,7 @@ isOneToOne: false
 { Args: { "target_invitation_id": string }; Returns: string
                            },
 "reprocess_document":
-{ Args: { "target_document_id": string }; Returns: undefined
+{ Args: { "replacement_confirmed"?: boolean,"target_document_id": string }; Returns: string
                            },
 "reserve_ai_processing":
 { Args: { "target_document_id": string,"target_extraction_request_id": string,"target_reservation_id": string }; Returns: string

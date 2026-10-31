@@ -719,7 +719,7 @@ describe("approving and rejecting a Document", () => {
     );
   });
 
-  it("closes the review: a decided Document can no longer be corrected, decided again or reprocessed", async () => {
+  it("closes the review: a decided Document cannot be changed, and approved AI replacement needs explicit confirmation", async () => {
     const approved = await documentInReview();
     await approveDocument(approved.client, { ...approved, version: 1 });
     const rejected = await documentInReview();
@@ -737,7 +737,7 @@ describe("approving and rejecting a Document", () => {
       expect(await rejectDocument(document.client, { ...document, reason: "Not a business Document" })).toEqual({ ok: false, error: "not_in_review" });
       expect(await reprocessDocument(document.client, document.worker.jobs, document)).toEqual({
         ok: false,
-        error: "not_reprocessable",
+        error: document === approved ? "confirmation_required" : "not_reprocessable",
       });
     }
   });

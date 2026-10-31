@@ -42,6 +42,7 @@ import { cancelInvitation, changeMembershipRole, completeInvitationOnboarding, g
 import { configuredInvitationUrls, invitationAuthentication, invitationMailer } from "@/lib/invitations";
 import {
   approveDocument,
+  attachDocumentSource,
   correctDocument,
   createManualDocument,
   mergeDocuments,
@@ -429,12 +430,30 @@ export async function retrySplitAction(_state: FormState, formData: FormData): P
 }
 
 export async function reprocessDocumentAction(_state: FormState, formData: FormData): Promise<FormState> {
-  return settled(
-    await reprocessDocument(await requireUserClient(), jobQueue, {
-      companyId: field(formData, "companyId"),
-      documentId: field(formData, "documentId"),
-    }),
-  );
+  const result = await reprocessDocument(await requireUserClient(), jobQueue, {
+    companyId: field(formData, "companyId"), documentId: field(formData, "documentId"), confirmed: field(formData, "confirmed") === "on",
+  });
+  if (!result.ok) {
+    // Queue compensation has changed the durable review state even though
+    // dispatch failed. Show that state together with the retained consent.
+    if (result.error === "processing_dispatch_failed") refresh();
+    return refused(result.error, formData, ["confirmed"]);
+  }
+  return settled(result);
+}
+
+export async function attachDocumentSourceAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const file = formData.get("file");
+  const sheetName = field(formData, "sheetName");
+  const firstPage = field(formData, "firstPage"); const lastPage = field(formData, "lastPage");
+  const result = await attachDocumentSource(await requireUserClient(), {
+    companyId: field(formData, "companyId"), documentId: field(formData, "documentId"), sourceFileId: field(formData, "sourceFileId") || undefined,
+    fileName: file instanceof File ? file.name : "", bytes: file instanceof File ? new Uint8Array(await file.arrayBuffer()) : new Uint8Array(),
+    range: field(formData, "rangeKind") === "workbook" ? { sheetName, firstRow: Number(field(formData, "firstRow")), lastRow: Number(field(formData, "lastRow")) }
+      : firstPage || lastPage ? { firstPage: Number(firstPage), lastPage: Number(lastPage) } : undefined,
+  });
+  if (!result.ok) return refused(result.error, formData, ["firstPage", "lastPage", "sheetName", "firstRow", "lastRow"]);
+  return settled(result);
 }
 
 /** Runs when a User opens a batch's detail; refreshes the inbox badge in the shell. */
