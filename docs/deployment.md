@@ -623,8 +623,10 @@ at the same `df6148c` revision, including an actual production build. The comple
 85-case browser pass and Next/MCP/React 40-observation proof remain earlier
 history for unchanged UI/Auth code, not a new full browser run at this revision.
 See [the final local verification record](qa-v5-verification.md) for exact
-commands, revisions, counts, retained failures and remaining checks. Replacement
-cloud CI has not started. Exact-main CI and Deployment verification remain
+commands, revisions, counts, retained failures and remaining checks. At this
+local evidence capture, replacement cloud CI had not started. See the
+[PR checks](https://github.com/Thomisso/iVAT/pull/182/checks) for current cloud status.
+Exact-main CI and Deployment verification remain
 required; integration evidence does not replace those release gates. The runtime
 fixture used disposable credentials and pinned test host keys. A separate
 read-only production SSH inventory informed SMTP preparation; it did not prove
