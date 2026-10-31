@@ -623,9 +623,14 @@ at the same `df6148c` revision, including an actual production build. The comple
 85-case browser pass and Next/MCP/React 40-observation proof remain earlier
 history for unchanged UI/Auth code, not a new full browser run at this revision.
 See [the final local verification record](qa-v5-verification.md) for exact
-commands, revisions, counts, retained failures and remaining checks. At this
-local evidence capture, replacement cloud CI had not started. See the
-[PR checks](https://github.com/Thomisso/iVAT/pull/182/checks) for current cloud status.
+commands, revisions, counts, retained failures and remaining checks. Replacement
+cloud CI at `1e8735ee4ad9770a3b706445a2ae498b2239f458` passed the previous
+four timeout cases, all 85 browser cases and Deployment verification, but failed
+one concurrent Upload Batch retry case (881 passed, one failed, six optional
+skips). Its narrow conflict-arbiter migration has focused local evidence; fresh
+integration/full host verification and replacement cloud CI remain pending at
+this capture. See the
+[PR checks](https://github.com/Thomisso/iVAT/pull/182/checks) for current status.
 Exact-main CI and Deployment verification remain
 required; integration evidence does not replace those release gates. The runtime
 fixture used disposable credentials and pinned test host keys. A separate

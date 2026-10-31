@@ -1,12 +1,22 @@
 # QA v5 final local verification (#179)
 
-The reviewed correction passed fresh local integration verification at
-`df6148c185e06f358f79b4ad4d3af2c006971366`: 882 application tests, the complete
-three-case host/SSH fixture, and 16 relevant production browser cases.
-The latest local browser run selected seven files; it was not a complete
-85-case rerun. At this local evidence capture, the replacement ready-profile
-cloud run had not started. See the [PR checks](https://github.com/Thomisso/iVAT/pull/182/checks)
-for current cloud status and the required final-revision result.
+Replacement ready-profile cloud CI at
+`1e8735ee4ad9770a3b706445a2ae498b2239f458` passed all four earlier timeout
+cases but exposed one concurrent Upload Batch retry failure: 881 application
+cases passed, one failed and six optional checks skipped (888 total;
+85 passing files, one failing file and six skipped files; 653.27 seconds).
+Its complete browser job passed all 85 cases (918.2 seconds; build 50.6 seconds),
+and Deployment verification passed. The elapsed application times are separate
+runs, not a controlled benchmark. The narrowly corrected retry path has focused
+local proof below; fresh integration and replacement cloud verification remain
+pending at this capture. See the [PR checks](https://github.com/Thomisso/iVAT/pull/182/checks)
+for current status and the required final-revision result.
+
+Earlier fresh local integration verification at
+`df6148c185e06f358f79b4ad4d3af2c006971366` passed 882 application tests,
+the complete three-case host/SSH fixture and 16 relevant production browser
+cases. That browser command selected seven files; it was not a complete
+85-case rerun. These results predate the Upload Batch retry correction.
 
 The earlier [cloud CI run 41162978978](https://github.com/Thomisso/iVAT/actions/runs/41162978978)
 at `3dc4bd8bb05abdb02321e0db0d01f6cf530a5752` failed the application suite:
@@ -17,7 +27,40 @@ at `3dc4bd8bb05abdb02321e0db0d01f6cf530a5752` failed the application suite:
 including actual image/proxy assets and release identity. That failed
 application result is retained rather than replaced by local evidence.
 
-## Latest corrected local integration results
+## Upload Batch retry correction after replacement cloud CI
+
+The existing response-loss case sends two concurrent native requests with one
+Batch id and one frozen file selection. A private loop using the same public
+application command reproduced the cloud error on its tenth pair in 34.6 ms:
+PostgreSQL `23505` named the Batch's tenant-scoped composite unique key.
+The winning Batch remained visible, a serial retry restored it and a changed
+selection was refused. The first overlap, not the later Source File transfer,
+was the failing stage.
+
+The insert selected only the id primary key as its conflict arbiter. The table
+also needs its composite unique key for tenant-scoped foreign keys. Changing
+only the insert to `ON CONFLICT DO NOTHING` made all 100 native overlap pairs
+pass in 232.7 ms; restoring the original function reproduced the same error on
+pair 28 in 78.7 ms. PostgreSQL documents that an omitted `DO NOTHING` target
+handles all usable unique constraints and indexes ([PostgreSQL 17 INSERT](https://www.postgresql.org/docs/17/sql-insert.html#SQL-ON-CONFLICT)).
+
+The new `20261126100000_retry_upload_batch_constraints.sql` migration applies
+that single conflict-target change. It retains both unique keys, tenant foreign
+keys, locked creator/Company checks, frozen manifest, count limits, legacy retry
+branch and explicit privileges. It adds no exception catch or application API.
+The existing real-user concurrent response-loss case remains the routine
+regression; the repeated diagnostic loop and catalog probes remain private.
+
+After applying the migration to the isolated stack, all 15 existing Upload Batch
+application cases passed (7.83 seconds). The private 100-pair native loop passed
+again (219.1 ms). Private real-user checks also confirmed refusal for a foreign
+actor using the original Company, a foreign actor reusing the Batch id within
+their own Company, another creator in the same Company, and a changed manifest;
+the original creator could still restore the unchanged Batch. Generated database
+types matched; typecheck, lint and diff checks passed. No full application,
+host or browser suite was repeated on this fix branch.
+
+## Earlier corrected local integration results
 
 All rows below were executed at
 `df6148c185e06f358f79b4ad4d3af2c006971366`, after independent delta review.
