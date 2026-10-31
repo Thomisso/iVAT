@@ -1,3 +1,4 @@
+import { sourceSplitRequestFixture } from "./support/source-request";
 import { expect, inject, it } from "vitest";
 import { Client as DatabaseClient } from "pg";
 import { PDFDocument } from "pdf-lib";
@@ -25,7 +26,7 @@ async function unextractedDocument(status: "failed" | "waiting_for_platform" | "
   });
   if (!uploaded.ok) throw new Error(uploaded.error);
   const system = systemClient();
-  const split = await system.rpc("record_split", { target_source_file_id: uploaded.value.id, source_ranges: [{ firstPage: 1, lastPage: 1 }] });
+  const split = await system.rpc("record_split", { target_source_file_id: uploaded.value.id, target_split_request_id: await sourceSplitRequestFixture(system, uploaded.value.id), source_ranges: [{ firstPage: 1, lastPage: 1 }] });
   if (split.error) throw split.error;
   const [document] = await listDocuments(administrator.client, administrator.companyId, uploaded.value.id);
   const changed = await system.from("document").update({ status }).eq("id", document.id);
@@ -394,7 +395,7 @@ async function pageCorrectionDocuments(administrator?: Awaited<ReturnType<typeof
     companyId: administrator.companyId, fileName: "pages.pdf", bytes: await pdf.save(),
   });
   if (!uploaded.ok) throw new Error(uploaded.error);
-  const split = await systemClient().rpc("record_split", { target_source_file_id: uploaded.value.id, source_ranges: [{ firstPage: 1, lastPage: 2 }, { firstPage: 3, lastPage: 4 }] });
+  const split = await systemClient().rpc("record_split", { target_source_file_id: uploaded.value.id, target_split_request_id: await sourceSplitRequestFixture(systemClient(), uploaded.value.id), source_ranges: [{ firstPage: 1, lastPage: 2 }, { firstPage: 3, lastPage: 4 }] });
   if (split.error) throw split.error;
   const documents = await listDocuments(administrator.client, administrator.companyId, uploaded.value.id);
   for (const document of documents) {

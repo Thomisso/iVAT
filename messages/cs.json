@@ -317,6 +317,21 @@
     "companies": "Firmy"
   },
   "sourceFiles": {
+    "manualStart": "Vymezit doklady ručně",
+    "manualImage": "Vytvořit jeden doklad ručně",
+    "manualTitle": "Rozsahy stránek dokladů",
+    "manualHint": "Zadejte vzestupné nepřekrývající se rozsahy v rámci {count} stran zdroje. Uložení hranic zahájí ruční kontrolu bez AI.",
+    "firstPage": "První strana",
+    "lastPage": "Poslední strana",
+    "addRange": "Přidat rozsah dokladu",
+    "removeRange": "Odebrat rozsah",
+    "defineDocuments": "Uložit hranice dokladů",
+    "exclude": "Vyloučit zdrojový soubor",
+    "reverseExclusion": "Vrátit vyloučení zdroje",
+    "excludedNote": "Vyloučený zdrojový soubor. Originál zůstává zachován.",
+    "manualDefined": "První hranice ručně vymezeny {date}.",
+    "lockedSource": "Tento zdrojový soubor chrání uzamčený snímek období {period}.",
+    "readinessTitle": "Zdrojové soubory před rozdělením",
     "title": "Zdrojové soubory",
     "file": "Soubor",
     "fileHint": "PDF, PNG, JPEG, HEIC, HEIF, XLSX nebo XLS. Originál se uchová beze změny.",
@@ -386,6 +401,9 @@
     "clear": "Zrušit filtry"
   },
   "uploadWorkspace": {
+    "manualSources": "{count, plural, one {# zdrojový soubor čeká na ruční vymezení.} few {# zdrojové soubory čekají na ruční vymezení.} other {# zdrojových souborů čeká na ruční vymezení.}}",
+    "sourceExcludedNoDocuments": "Zdrojový soubor byl vědomě vyloučen; žádný doklad nevznikl.",
+    "sourceManualDefinitionNeeded": "Otevřete zdrojový soubor a ručně vymezte jeho doklady.",
     "newBatch": "Přidat zdrojové soubory",
     "newBatchHint": "Nejprve proběhne přenos. Rozdělení a vytěžení pokračují na pozadí a zůstávají viditelné v této pracovní ploše.",
     "history": "Historie dávek",
@@ -442,6 +460,8 @@
     "sourceFilesHint": "Zdrojový soubor je uložený originál. Každý vnořený řádek je samostatný doklad vzniklý rozdělením.",
     "documentPages": "Doklad · strany {first}–{last}",
     "sourceStatus": {
+      "needs_review": "Čeká na ruční vymezení",
+      "rejected": "Vyloučeno · vyřešeno",
       "uploaded": "Čeká",
       "waiting_for_platform": "Čeká na zásah správce platformy",
       "processing": "Rozděluje se",
@@ -507,6 +527,10 @@
     "invalid": "Zadejte platné datum ve tvaru dd.mm.rrrr."
   },
   "errors": {
+    "source_not_rejected": "Vrátit lze pouze vyloučený zdrojový soubor.",
+    "source_already_resolved": "Tento zdroj je vyřešený. Pracujte s jeho doklady nebo vraťte vyloučení.",
+    "manual_source_format_unsupported": "Pro vymezení dokladů v tomto zdroji použijte rozsahy řádků sešitu.",
+    "invalid_source_ranges": "Zadejte vzestupné nepřekrývající se rozsahy v rámci skutečných stran zdroje.",
     "exclusion_reason_required": "Zadejte důvod vyloučení o délce 1–500 znaků.",
     "not_recoverable": "Tento doklad nelze převzít k ručnímu doplnění.",
     "not_rejected": "Vrátit lze pouze vyloučený doklad.",
@@ -850,6 +874,8 @@
     "administratorOnly": "Toto nastavení spravuje SuperAdmin."
   },
   "sourceFileStatus": {
+    "rejected": "Vyloučeno · vyřešeno",
+    "needs_review": "Čeká na ruční vymezení",
     "uploaded": "Čeká",
     "waiting_for_platform": "Čeká na zásah správce platformy",
     "processing": "Rozděluje se",
@@ -1092,6 +1118,7 @@
     "rejected": "Zamítnuto"
   },
   "vatReports": {
+    "unresolvedItemCount": "{count, plural, one {# nevyřešená položka} few {# nevyřešené položky} other {# nevyřešených položek}}",
     "wizard": {
       "finalPartial": "Částečně dokončeno — {count}/2",
       "draftPartial": "Částečně dokončeno — {count}/2",
@@ -1130,6 +1157,7 @@
         }
       },
       "reasons": {
+        "source_files_need_review": "Zdrojové soubory vyžadují ruční vymezení nebo vyloučení.",
         "documents_need_review": "Doklady v tomto zdaňovacím období ještě vyžadují kontrolu.",
         "report_missing": "Přiznání k DPH zatím nebylo vygenerováno.",
         "report_stale": "Doklady se po vygenerování přiznání změnily. Vygenerujte ho znovu.",

@@ -16,6 +16,7 @@ import type { Json } from "@/lib/database.types";
 import {
   getReportingPeriodReadiness,
   type ReportingPeriodReadinessSource,
+  type SourceFileReadiness,
 } from "./reporting-period-readiness";
 
 export type VatReport = {
@@ -25,6 +26,7 @@ export type VatReport = {
   generatedAt: string;
   result: ComputedVatReport & {
     readinessSource?: ReportingPeriodReadinessSource[];
+    sourceFilesReadinessSource?: SourceFileReadiness[];
   };
   documents: ReportDocument[];
   finalization: {
@@ -237,6 +239,7 @@ export async function generateVatReport(
       reportingYears,
     ),
     readinessSource: readiness.value.source,
+    sourceFilesReadinessSource: readiness.value.sourceFiles,
   };
   const saved = await client.rpc("save_vat_report", {
     target_company_id: company.id,

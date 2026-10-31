@@ -2,12 +2,15 @@ import Link from "next/link";
 import { companyPageContext, safeCompanyReturnTo, withCompanyReturnTo } from "@/application/return-context";
 import { CompanyReturnLink } from "@/components/company-return-link";
 
+import { ManualSourceForm, SourceExclusionForm } from "./manual-source-form";
+import { Notice } from "@/components/notice";
+import { defineSourceDocumentsAction, startManualSourceReviewAction, restoreSourceFileAction } from "@/app/actions";
 import { notFound } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
 import { mergeDocumentsAction, moveDocumentPageAction, reprocessDocumentAction, retrySplitAction } from "@/app/actions";
 import { getCompany, getMyCompanyRole } from "@/application/companies";
 import { documentPeriodLocks, isBeingExtracted, listDocuments, listExtractionVersions } from "@/application/documents";
-import { getSourceFile } from "@/application/source-files";
+import { getSourceFile, sourceFilePeriodLock } from "@/application/source-files";
 import { PageLayout } from "@/components/app-shell";
 import { CommandButton } from "@/components/command-button";
 import { RefreshWhile } from "@/components/refresh-while";
@@ -40,6 +43,7 @@ export default async function SourceFilePage({
       current: (await listExtractionVersions(client, companyId, document.id)).at(-1),
     })),
   );
+  const lockedSourcePeriod = await sourceFilePeriodLock(client, companyId, file.id);
   const lockedPeriods = await documentPeriodLocks(client, companyId, documents.map((document) => document.id));
   const t = await getTranslations();
   const format = await getFormatter();
@@ -47,6 +51,8 @@ export default async function SourceFilePage({
     ? `/companies/${companyId}/source-files/${file.id}/preview`
     : `/companies/${companyId}/source-files/${file.id}/content`;
   const workbook = file.format === "xlsx" || file.format === "xls";
+  const waitingForAi = !company.aiProcessingEnabled && ["uploaded", "processing", "waiting_for_platform"].includes(file.status);
+  const unresolvedSource = documents.length === 0 && !["split", "rejected"].includes(file.status);
   // Nothing moves until the platform enables an assigned AI Configuration.
   const processing =
     company.aiProcessingEnabled &&
@@ -82,12 +88,12 @@ export default async function SourceFilePage({
             <StatusBadge status={statusBadgeState(file.status, "source-file")}>
               {t(`sourceFileStatus.${file.status}`)}
             </StatusBadge>
-            {!company.aiProcessingEnabled && <span className="iv-muted"> · {t("aiProcessing.waitingTitle")}</span>}
+            {waitingForAi && <span className="iv-muted"> · {t("aiProcessing.waitingTitle")}</span>}
           </p>
-          {!company.aiProcessingEnabled && role === "administrator" && <p>
+          {waitingForAi && role === "administrator" && <p>
             <Link href={`/companies/${companyId}/settings`}>{t("aiProcessing.viewAllowance")}</Link>
           </p>}
-          {file.status === "failed" && (
+          {unresolvedSource && !lockedSourcePeriod && (file.status === "failed" || file.status === "needs_review") && (
             <CommandButton
               variant="ai"
               icon="marker"
@@ -97,6 +103,16 @@ export default async function SourceFilePage({
               {t("documents.retrySplit")}
             </CommandButton>
           )}
+          {lockedSourcePeriod && <Notice tone="warning">{t("sourceFiles.lockedSource", { period: lockedSourcePeriod })}</Notice>}
+          {file.exclusion && <Notice><p>{t("sourceFiles.excludedNote")}</p><p>{file.exclusion.reason} · {formatDateTime(file.exclusion.at)}</p></Notice>}
+          {file.status === "rejected" && !lockedSourcePeriod && <CommandButton action={restoreSourceFileAction} fields={{ companyId, sourceFileId: file.id }}>{t("sourceFiles.reverseExclusion")}</CommandButton>}
+          {file.manualDefinition && <Notice>{t("sourceFiles.manualDefined", { date: formatDateTime(file.manualDefinition.at) })}</Notice>}
+          {unresolvedSource && !lockedSourcePeriod && <>
+            {!workbook && (file.format !== "pdf" ? <CommandButton action={defineSourceDocumentsAction} fields={{ companyId, sourceFileId: file.id, firstPage: "1", lastPage: "1", openDocument: "1" }}>{t("sourceFiles.manualImage")}</CommandButton>
+              : file.status === "needs_review" ? <ManualSourceForm companyId={companyId} sourceFileId={file.id} pageCount={file.pageCount} />
+              : <CommandButton action={startManualSourceReviewAction} fields={{ companyId, sourceFileId: file.id }}>{t("sourceFiles.manualStart")}</CommandButton>)}
+            <SourceExclusionForm companyId={companyId} sourceFileId={file.id} />
+          </>}
           {documents.length > 0 ? (
             <DataTable
               caption={t("documents.title")}
@@ -247,7 +263,7 @@ export default async function SourceFilePage({
               ]}
             />
           ) : (
-            <EmptyState icon="file" title={t("documents.none")} />
+            <EmptyState icon="file" title={t(file.status === "rejected" ? "uploadWorkspace.sourceExcludedNoDocuments" : "documents.none")} />
           )}
         </section>
         <DocumentViewer label={file.fileName}>
