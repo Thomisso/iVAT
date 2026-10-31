@@ -117,4 +117,3 @@ begin
   where id = doc.id;
 end;
 $$;
-

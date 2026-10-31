@@ -54,6 +54,3 @@ left join lateral (
   end as party
 ) c on true
 where d.superseded_at is null;
-
-
-
