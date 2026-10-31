@@ -57,6 +57,37 @@ and implicit recovery JWTs use `otp`, so AMR alone cannot establish the
 specific email-recovery request. Native Auth still verifies the email token,
 enforces its one-hour expiry and single use, requires actual AAL2 for an enrolled
 authenticator, updates the password and revokes other refresh sessions. The
-application intent grants no MFA elevation or data access, never removes a
-factor, and writes only private application state; native Auth tables are read
+email-only application intent grants no MFA elevation or data access and cannot
+authorize factor removal. It writes only private application state; native Auth tables are read
 for identity/session binding, without unsupported changes to their internals.
+
+Lost-authenticator recovery additionally consumes a prepared backup code and
+restricts the User globally across all sessions. [Native recovery codes](https://github.com/supabase/auth/blob/v2.197.0/internal/api/recovery_codes.go)
+can establish real AAL2, but their experimental API generates its own codes and
+offers no supported import of existing iVAT SHA-256 hashes. Preserve those
+prepared codes through a narrow bridge: database-issued, session-bound claims
+authorize supported admin factor deletion; the User then enrolls and verifies a
+new native TOTP factor, changes their password through the original native
+session and positively confirms other-session revocation. No session/AAL writes
+or application-only elevation are used. Other unused prepared codes remain valid.
+
+The restriction survives request expiry, logout and interrupted native calls.
+A hashed continuation held in an HttpOnly cookie can rebind only after fresh
+email verification; another unused backup code is an alternative proof. Neither
+the global pending state nor an arbitrary email session authorizes continuation.
+Failed native deletion or scoped logout leaves the restriction intact; a trusted
+password-update receipt permits cleanup retry without replacing the password
+again. Only the bound legitimate session, with its verified replacement factor
+and native AAL2, can finish the transition and audit under the real User.
+
+Completed affected Users retain a native-session liveness/cutoff check and an
+explicit set of trusted native factor ids, initially only the replacement. This rejects stale AAL2 JWTs and factors created by competing or
+already-in-flight enrollment requests during the removal window, even after
+completion. Normal factor maintenance claims its exact target before native verification or
+deletion from an already trusted session. Setup expiry refuses before a native
+side effect; a claimed operation can finalize or retry after that deadline. Only
+its verified target can join the trusted set. Removing one factor preserves the
+other legitimate factors, which can restore native AAL2 through normal verification. These checks apply only to affected Users and
+preserve Organization/SuperAdmin MFA and existing tenant authorization boundaries.
+The old application recovery-session-as-MFA shortcut grants no access; ordinary
+login recovery directs Users through email and replacement instead.

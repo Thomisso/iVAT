@@ -20,7 +20,6 @@ export function mfaRedirectPath(
   if (policy.enrolled && !policy.satisfied) {
     return onVerification ? null : "/mfa/verify";
   }
-  if (onEnrollment && policy.enrolled) return "/";
   if (onVerification && policy.satisfied) return "/";
   return null;
 }

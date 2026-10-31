@@ -1,12 +1,11 @@
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
-import { disenrollMfaAction } from "@/app/actions";
 import { listOrganizationMfaSettings, mfaStatus } from "@/application/mfa";
-import { Button } from "@/components/button";
 import { FocusedShell } from "@/components/focused-shell";
 import { requireUserClient } from "@/lib/supabase/server";
 import { OrganizationMfaForm } from "./organization-mfa-form";
 import { PasswordChangeForm } from "./password-change-form";
+import { DisenrollMfaForm } from "./disenroll-mfa-form";
 
 export default async function SecuritySettingsPage() {
   const client = await requireUserClient();
@@ -24,9 +23,7 @@ export default async function SecuritySettingsPage() {
           <h2>{t("authenticatorTitle")}</h2>
           <p>{status.enrolled ? t("authenticatorEnabled") : t("authenticatorDisabled")}</p>
           {status.enrolled ? (
-            <form action={disenrollMfaAction}>
-              <Button type="submit" variant="ghost">{t("disableAuthenticator")}</Button>
-            </form>
+            <><Link href="/mfa/enroll">{t("addAuthenticator")}</Link><DisenrollMfaForm /></>
           ) : <Link href="/mfa/enroll">{t("enableAuthenticator")}</Link>}
         </section>
         {organizations.map((organization) => (

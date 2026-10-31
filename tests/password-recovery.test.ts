@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 import { recoverPassword, recoveryLinkStatus, recoveryStatus, requestPasswordRecovery, verifyPasswordRecovery } from "@/application/password-recovery";
 import { anonymousClient, provisionedUser, uniqueEmail } from "./support/clients";
 import { ageNativeRecoveryFixture, expireRecoveryRequestFixture, magicLinkSessionFixture, passwordRecoveryAuthenticationFixture, recoveryEmailFixture } from "./support/password-recovery";
-import { beginTotpEnrollment, completeTotpEnrollment, mfaStatus, verifyRecoveryCode, verifyTotp } from "@/application/mfa";
+import { beginTotpEnrollment, completeTotpEnrollment, mfaStatus, verifyTotp } from "@/application/mfa";
 import { totp } from "./support/totp";
+import { legacyMfaRecoverySessionFixture } from "./support/mfa-replacement";
 import { listMyOrganizations } from "@/application/organizations";
 
 describe("password recovery", () => {
@@ -74,7 +75,7 @@ describe("password recovery", () => {
     const password = { newPassword: "protected-password-167", confirmation: "protected-password-167" };
     expect(await recoverPassword(visitor, password)).toEqual({ ok: false, error: "mfa_verification_required" });
     expect((await visitor.auth.updateUser({ password: password.newPassword })).error?.code).toBe("insufficient_aal");
-    expect(await verifyRecoveryCode(visitor, enrolled.value.recoveryCodes[0])).toEqual({ ok: true, value: null });
+    await legacyMfaRecoverySessionFixture(visitor);
     expect(await recoverPassword(visitor, password)).toEqual({ ok: false, error: "mfa_verification_required" });
     expect(await verifyTotp(visitor, { factorId: enrollment.value.factorId, code: totp(enrollment.value.secret) })).toEqual({ ok: true, value: null });
     expect(await recoverPassword(visitor, password)).toEqual({ ok: true, value: null });
