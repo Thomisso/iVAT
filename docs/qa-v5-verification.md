@@ -4,8 +4,9 @@ The reviewed correction passed fresh local integration verification at
 `df6148c185e06f358f79b4ad4d3af2c006971366`: 882 application tests, the complete
 three-case host/SSH fixture, and 16 relevant production browser cases.
 The latest local browser run selected seven files; it was not a complete
-85-case rerun. The replacement ready-profile cloud run has not started and
-remains required for the final revision.
+85-case rerun. At this local evidence capture, the replacement ready-profile
+cloud run had not started. See the [PR checks](https://github.com/Thomisso/iVAT/pull/182/checks)
+for current cloud status and the required final-revision result.
 
 The earlier [cloud CI run 41162978978](https://github.com/Thomisso/iVAT/actions/runs/41162978978)
 at `3dc4bd8bb05abdb02321e0db0d01f6cf530a5752` failed the application suite:
@@ -72,8 +73,8 @@ UI and Auth code did not change in the query/fixture correction. The earlier
 complete 85-case cloud pass at `3dc4bd8` and local pass at `e36ed62`, plus the
 40-observation Next/MCP/React confirmation at `e36ed62`, remain the full-browser
 and development-runtime history for those unchanged surfaces. They are not
-represented as fresh 85-case or Next checks at `df6148c`. The final replacement
-cloud workflow will run all 85 browser cases for its exact final revision.
+represented as fresh 85-case or Next checks at `df6148c`. The replacement
+cloud workflow runs all 85 browser cases for its exact final revision.
 
 The first host attempt at this same revision passed two preparation cases but
 failed baseline service startup (one actual-host failure, zero skips;
