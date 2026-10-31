@@ -323,6 +323,10 @@
     "copyManually": "Select and copy the link above.",
     "replaceLink": "Generate replacement link",
     "cancelInvitation": "Cancel invitation",
+    "cancelInvitationTitle": "Cancel this invitation?",
+    "cancelInvitationHint": "Its shared link will stop working. This cannot be undone.",
+    "confirmCancellation": "Confirm cancellation",
+    "keepInvitation": "Keep invitation",
     "legacyLinkIntro": "This older link cannot be copied again. Generate a replacement to copy it.",
     "loadingInvitation": "Loading invitation…",
     "wrongAccountIntro": "You are signed in with another account. Sign out to accept this invitation with its intended email.",
@@ -1551,5 +1555,61 @@
       "currency_conversion_required": "A valid CZK conversion is required to determine the threshold."
     },
     "liveSummary": "Live calculation: {included} included, {excluded} excluded."
+  },
+  "reportingWorkbook": {
+    "columns": {
+      "documentId": "Document ID",
+      "documentNumber": "Document number",
+      "direction": "Direction",
+      "taxPointDate": "Tax Point Date",
+      "counterparty": "Counterparty",
+      "vatRegime": "VAT Regime",
+      "vatReturnLine": "VAT Return line",
+      "controlStatementSection": "Control Statement section",
+      "vatRate": "VAT rate (%)",
+      "netAmount": "Net amount",
+      "vatAmount": "VAT amount",
+      "grossAmount": "Gross amount",
+      "currency": "Currency",
+      "status": "Status",
+      "findings": "Findings",
+      "liveInclusion": "Live inclusion",
+      "exclusionReason": "Exclusion reason",
+      "exclusionDetail": "Exclusion detail",
+      "mappingStatus": "Mapping status",
+      "vatReturnUnavailable": "VAT Return mapping unavailable",
+      "controlStatementUnavailable": "Control Statement mapping unavailable",
+      "blockingFindings": "Blocking findings",
+      "advisoryFindings": "Advisory findings"
+    },
+    "sheets": {
+      "included": "Included",
+      "attention": "Attention"
+    },
+    "fileNamePrefix": "VAT-overview",
+    "inclusion": {
+      "included": "included",
+      "excluded": "excluded"
+    },
+    "mapping": {
+      "included": "included",
+      "proposed": "proposed",
+      "unavailable": "unavailable"
+    }
+  },
+  "authEmails": {
+    "magicLink": {
+      "subject": "Your iVAT sign-in link",
+      "title": "Your iVAT sign-in link",
+      "intro": "Follow this single-use link to sign in to iVAT. The link expires after one hour.",
+      "action": "Sign in to iVAT"
+    },
+    "recovery": {
+      "subject": "Reset your iVAT password",
+      "title": "Reset your iVAT password",
+      "intro": "Open this single-use link, then explicitly verify your email to choose a new password. The link expires after one hour. MFA protection remains required: use your authenticator or restore it with a prepared backup code.",
+      "action": "Open password recovery",
+      "ignore": "If you did not request this, you can ignore this email."
+    }
   }
 }

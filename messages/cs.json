@@ -323,6 +323,10 @@
     "copyManually": "Označte a zkopírujte odkaz výše.",
     "replaceLink": "Vygenerovat nový link",
     "cancelInvitation": "Zrušit pozvánku",
+    "cancelInvitationTitle": "Zrušit tuto pozvánku?",
+    "cancelInvitationHint": "Sdílený odkaz přestane fungovat. Zrušení nelze vrátit zpět.",
+    "confirmCancellation": "Potvrdit zrušení",
+    "keepInvitation": "Ponechat pozvánku",
     "legacyLinkIntro": "Tento starší odkaz nelze znovu zkopírovat. Pro kopírování vygenerujte nový.",
     "loadingInvitation": "Načítání pozvánky…",
     "wrongAccountIntro": "Jste přihlášeni jiným účtem. Odhlaste se a přijměte pozvánku pod určeným e-mailem.",
@@ -1551,5 +1555,61 @@
       "currency_conversion_required": "K určení limitu je nutný platný přepočet do CZK."
     },
     "liveSummary": "Živý výpočet: {included} zahrnuto, {excluded} nezahrnuto."
+  },
+  "reportingWorkbook": {
+    "columns": {
+      "documentId": "ID dokladu",
+      "documentNumber": "Číslo dokladu",
+      "direction": "Směr",
+      "taxPointDate": "Datum zdanitelného plnění",
+      "counterparty": "Protistrana",
+      "vatRegime": "Režim DPH",
+      "vatReturnLine": "Řádek přiznání k DPH",
+      "controlStatementSection": "Oddíl kontrolního hlášení",
+      "vatRate": "Sazba DPH (%)",
+      "netAmount": "Základ daně",
+      "vatAmount": "DPH",
+      "grossAmount": "Celková částka",
+      "currency": "Měna",
+      "status": "Stav",
+      "findings": "Nálezy",
+      "liveInclusion": "Živé zahrnutí",
+      "exclusionReason": "Důvod vyloučení",
+      "exclusionDetail": "Podrobnost vyloučení",
+      "mappingStatus": "Stav zařazení",
+      "vatReturnUnavailable": "Nedostupné zařazení do přiznání",
+      "controlStatementUnavailable": "Nedostupné zařazení do kontrolního hlášení",
+      "blockingFindings": "Blokující nálezy",
+      "advisoryFindings": "Upozornění"
+    },
+    "sheets": {
+      "included": "Zahrnuté",
+      "attention": "Ke kontrole"
+    },
+    "fileNamePrefix": "Prehled-DPH",
+    "inclusion": {
+      "included": "zahrnuto",
+      "excluded": "nezahrnuto"
+    },
+    "mapping": {
+      "included": "zahrnuto",
+      "proposed": "navrženo",
+      "unavailable": "nedostupné"
+    }
+  },
+  "authEmails": {
+    "magicLink": {
+      "subject": "Přihlášení do iVAT",
+      "title": "Váš přihlašovací odkaz do iVAT",
+      "intro": "Tento jednorázový odkaz slouží k přihlášení do iVAT. Platí jednu hodinu.",
+      "action": "Přihlásit se do iVAT"
+    },
+    "recovery": {
+      "subject": "Obnova hesla iVAT",
+      "title": "Obnovit heslo iVAT",
+      "intro": "Otevřete jednorázový odkaz a poté výslovně ověřte svůj e-mail pro nastavení nového hesla. Odkaz platí jednu hodinu. Dvoufaktorová ochrana zůstává povinná: použijte svůj autentizátor, nebo jej obnovte pomocí připraveného záložního kódu.",
+      "action": "Otevřít obnovu hesla",
+      "ignore": "Pokud jste o obnovu nežádali, můžete tento e-mail ignorovat."
+    }
   }
 }

@@ -117,7 +117,38 @@ failed attempts are not folded into the successful baseline above.
 
 Before these changes both test workflows ran heavy stacks for
 every PR/main trigger, without obsolete-PR cancellation; docs/draft profiles now
-omit those stacks. Real before/after GitHub runner measurement and cancellation
-observations must be appended to the integration PR before #181 is considered
-complete. Local timing is development evidence only, not a substitute for a
-comparable successful full GitHub run or proof of a promised percentage.
+omit those stacks. The completed #181 comparison used successful baseline CI
+[41110237322](https://github.com/Thomisso/iVAT/actions/runs/41110237322) and
+deployment [41110237242](https://github.com/Thomisso/iVAT/actions/runs/41110237242)
+at `58048c1cfd14e30c0c188a81782eb8e3b53c1f78`, versus full opted-in draft PR CI
+[41134309954](https://github.com/Thomisso/iVAT/actions/runs/41134309954) and
+deployment [41134309990](https://github.com/Thomisso/iVAT/actions/runs/41134309990)
+at `c6b1345855b792cf1213a331efc377b34eed02c0`. All stable gates and cleanup passed.
+
+| Measurement | Before | After |
+| --- | ---: | ---: |
+| CI workflow wall | 1,014 s | 670 s |
+| CI summed runner time | 1,647 s | 1,313 s |
+| Deployment workflow wall | 281 s | 293 s |
+| Deployment summed runner time | 281 s | 289 s |
+| Combined runner time, including profile/gate jobs | 1,928 s | 1,602 s |
+
+Both workflows had three-second initial queues. Heavy jobs used the same Ubuntu
+26.04 image `20261025.179.1`, runner `2.338.2` and npm primary-cache hit; one
+12-second final gate used an older Ubuntu 26 image and is included in the total.
+The event differs (main push versus full opted-in draft PR), while application
+behavior and lockfile matched. This is a representative observation, not a
+performance guarantee. The serial test step fell from 768.70 to 377.47 seconds;
+browser execution remained 408.3 versus 409.0 seconds. Deployment alone became
+12 seconds slower; its added overhead is included rather than omitted.
+
+An independent same-PR replacement cancelled obsolete CI
+[41134349157](https://github.com/Thomisso/iVAT/actions/runs/41134349157) and
+deployment [41134349223](https://github.com/Thomisso/iVAT/actions/runs/41134349223),
+while the separate integration PR's full runs continued. Heavy jobs were
+cancelled, stable gates refused incomplete verification, and the database and
+runtime cleanup steps succeeded. Replacement docs CI
+[41134425777](https://github.com/Thomisso/iVAT/actions/runs/41134425777) skipped
+heavy jobs and passed both gates. These observed cancellations and cleanups are
+separate from the successful full-run timing comparison. Local timings and
+draft checks do not replace exact-main CI or release gates.

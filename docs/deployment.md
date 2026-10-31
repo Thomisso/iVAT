@@ -54,12 +54,25 @@ separate seven-day lifetime. The proxy serves `recovery.html` only on its privat
 template listener; Auth uses the canonical `/password/reset` redirect with a
 fragment carrying both the private request capability and native token hash.
 Opening the link is read-only. Explicit verification establishes the real Auth
-session; enrolled Users must verify their existing authenticator before changing
-their password. Reset success keeps that session and revokes other refresh
+session; enrolled Users must verify their authenticator or complete the restricted
+prepared-code replacement below before changing their password. Reset success
+keeps that session and revokes other refresh
 sessions; already-issued access JWTs retain their normal short lifetime.
 Allow only the configured application origin for recovery redirects. Production
 delivery proof must include the captured recipient email and completed reset,
 alongside the separate Invitation onboarding proof.
+
+GoTrue's configured template and subject are shared across requests. Native
+recovery and MagicLink emails therefore include both Czech and English copy,
+with both language links carrying the same native single-use token. Source text
+lives in `authEmails.recovery` and `authEmails.magicLink` in the next-intl
+catalogs `messages/cs.json` and `messages/en.json`. After editing that text, run
+`npm run auth:templates`; `node scripts/generate-auth-templates.mjs --check`
+verifies the committed CLI/proxy HTML and both subject configurations. The normal
+messages test runs this consistency check in CI. Generation writes files in
+place; the existing local-stack wrapper preserves its live template mounts.
+Localization adds no environment variable and does not replace Auth's mailer,
+token expiry, session verification or MFA authority.
 
 Lost-authenticator recovery uses prepared backup codes and the restricted native
 factor-replacement flow described in [MFA recovery](mfa-recovery.md). It does not
@@ -585,14 +598,14 @@ probe migration and annotated tag, before building the versioned target image.
 It compares the installed source generator and compiled login identity with the
 validated bundle. Its synthetic baseline omits only the probe migration; failure
 injection still uses disposable-only overrides. The new fast source-preparation
-check passed during #162. After stopping the ticket stacks, final integration
-verification for #179 ran
+check passed during #162. After stopping the ticket stacks, earlier pre-fix
+integration verification for #179 ran
 `IVAT_RELEASE_RUNTIME_TEST=1 node --test deploy/tests/release-runtime.test.mjs`
 at `80ace776d9325550214c1ac5e447532ba80b8807` on Docker Desktop for macOS:
 all three tests passed, with zero skips, in 190 seconds. This includes the
 compiled release tag and full revision, interrupted-observer recovery, and
 failed-migration recovery guard. See [the final local verification record](qa-v5-verification.md)
-for the complete application and browser results, earlier failures, and limits.
+for the application and browser history, earlier failures, and remaining checks.
 Existing CI and Deployment verification remain required for the exact `main`
 revision; integration checks do not replace those release gates. The runtime
 fixture used disposable credentials and pinned test host keys. A separate
