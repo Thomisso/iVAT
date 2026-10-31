@@ -29,6 +29,15 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
   if (data.user) {
+    const recovery = await supabase.rpc("mfa_replacement_status");
+    if (recovery.error) throw recovery.error;
+    const recoveryState = recovery.data as { pending?: boolean; needsRecovery?: boolean };
+    if (recoveryState?.pending || recoveryState?.needsRecovery) {
+      if (!["/password/reset", "/password/forgot", "/auth/callback", "/login"].includes(request.nextUrl.pathname)) {
+        return NextResponse.redirect(new URL("/password/reset", request.url));
+      }
+      return response;
+    }
     const policy = await supabase.rpc("current_mfa_policy");
     const current = policy.data?.[0];
     if (current) {

@@ -798,14 +798,23 @@ isOneToOne: false
               "id": string,"name": string
             }[]
                            },
+"authorize_mfa_maintenance":
+{ Args: { "operation": string }; Returns: undefined
+                           },
 "authorize_password_recovery":
 { Args: { "request_token": string,"verified_session_id": string }; Returns: undefined
                            },
 "begin_invitation_acceptance":
 { Args: { "invitation_token": string }; Returns: string
                            },
+"begin_mfa_replacement":
+{ Args: { "continuation_token"?: string,"input_code": string }; Returns: string
+                           },
 "begin_upload_batch":
 { Args: { "requested_batch_id"?: string,"selected_file_count": number,"selected_files"?: Json,"target_company_id": string }; Returns: string
+                           },
+"bind_mfa_replacement_factor":
+{ Args: { "enrolled_factor_id": string,"recovery_operation_id": string }; Returns: undefined
                            },
 "cancel_invitation":
 { Args: { "invitation_token": string }; Returns: undefined
@@ -818,6 +827,12 @@ isOneToOne: false
                            },
 "change_membership_role":
 { Args: { "target_membership_id": string,"target_role": Database["public"]['Enums']["membership_role"] }; Returns: undefined
+                           },
+"claim_mfa_maintenance":
+{ Args: { "target_factor_id": string }; Returns: undefined
+                           },
+"claim_mfa_replacement_operation":
+{ Args: { "operation": string }; Returns: string
                            },
 "claim_password_recovery":
 { Args: Record<PropertyKey, never>; Returns: string
@@ -844,6 +859,15 @@ isOneToOne: false
                            },
 "complete_invitation_acceptance":
 { Args: { "acceptance_claim_id": string }; Returns: undefined
+                           },
+"complete_mfa_replacement":
+{ Args: Record<PropertyKey, never>; Returns: undefined
+                           },
+"confirm_mfa_replacement_native_finish":
+{ Args: { "recovery_operation_id": string }; Returns: undefined
+                           },
+"confirm_mfa_replacement_password":
+{ Args: { "recovery_operation_id": string }; Returns: undefined
                            },
 "correct_document":
 { Args: { "based_on_version": number,"findings": Json,"payload": Json,"target_document_id": string }; Returns: number
@@ -1007,6 +1031,12 @@ isOneToOne: false
 "mfa_recovery_codes_remaining":
 { Args: Record<PropertyKey, never>; Returns: number
                            },
+"mfa_replacement_authority":
+{ Args: { "recovery_operation_id": string }; Returns: Json
+                           },
+"mfa_replacement_status":
+{ Args: Record<PropertyKey, never>; Returns: Json
+                           },
 "move_document_page":
 { Args: { "page": number,"source_document_id": string,"target_document_id": string }; Returns: (string)[]
                            },
@@ -1050,6 +1080,9 @@ isOneToOne: false
                            },
 "release_ai_processing_reservation":
 { Args: { "target_reservation_id": string }; Returns: undefined
+                           },
+"release_mfa_replacement_operation":
+{ Args: { "recovery_operation_id": string }; Returns: undefined
                            },
 "release_superadmin_identity":
 { Args: { "reserved_user_id": string }; Returns: undefined

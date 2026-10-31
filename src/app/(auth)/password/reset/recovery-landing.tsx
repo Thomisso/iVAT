@@ -7,6 +7,8 @@ import { recoverPasswordAction, recoveryLinkStatusAction, verifyPasswordRecovery
 import { Button } from "@/components/button";
 import { FormError } from "@/components/form-error";
 import { TextField } from "@/components/text-field";
+import type { MfaReplacementStatus } from "@/application/mfa-replacement";
+import { BackupRecoveryForm, MfaReplacementPanel } from "./mfa-replacement";
 
 const initial = { error: null, values: {} };
 
@@ -29,12 +31,13 @@ function RecoveryAuthenticatorForm() {
   const t = useTranslations("passwordRecovery");
   const mfa = useTranslations("mfa");
   const [state, action, pending] = useActionState(verifyRecoveryAuthenticatorAction, initial);
-  return <form action={action} className="form">
+  const backup = useTranslations("mfaRecovery");
+  return <section className="form"><form action={action} className="form">
     <p>{t("authenticatorIntro")}</p>
     <TextField label={mfa("codeLabel")} name="code" autoComplete="one-time-code" inputMode="numeric" required />
     <FormError error={state.error} />
     <Button type="submit" variant="primary" disabled={pending}>{t("verifyAuthenticator")}</Button>
-  </form>;
+  </form><details><summary>{backup("lostAuthenticator")}</summary><BackupRecoveryForm /></details></section>;
 }
 
 function RecoveryPasswordForm() {
@@ -49,8 +52,9 @@ function RecoveryPasswordForm() {
   </form>;
 }
 
-export function RecoveryLanding({ sessionStatus, needsAuthenticator }: {
+export function RecoveryLanding({ sessionStatus, needsAuthenticator, replacement, canResume, nativeAal2 }: {
   sessionStatus: "ready" | "complete" | "invalid" | "used" | "expired"; needsAuthenticator: boolean;
+  replacement: MfaReplacementStatus; canResume: boolean; nativeAal2: boolean;
 }) {
   const t = useTranslations("passwordRecovery");
   const [link, setLink] = useState<{ requestToken: string; tokenHash: string; status: string } | null>(null);
@@ -76,6 +80,8 @@ export function RecoveryLanding({ sessionStatus, needsAuthenticator }: {
     return () => { disposed = true; generation++; window.removeEventListener("hashchange", changed); };
   }, []);
   if (!loaded) return <p role="status">{t("loading")}</p>;
+  if (!link && replacement.needsRecovery && sessionStatus === "ready") return <BackupRecoveryForm />;
+  if (!link && replacement.pending) return <MfaReplacementPanel status={replacement} canResume={canResume} emailVerified={sessionStatus === "ready"} nativeAal2={nativeAal2} />;
   if (!link && sessionStatus === "complete") return <><p role="status">{t("complete")}</p><Link href="/">{t("continue")}</Link></>;
   if (!link && sessionStatus === "ready") return needsAuthenticator ? <RecoveryAuthenticatorForm /> : <RecoveryPasswordForm />;
   const status = link?.status ?? sessionStatus;
