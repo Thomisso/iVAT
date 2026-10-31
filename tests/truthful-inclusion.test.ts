@@ -1,5 +1,5 @@
 import { expect, inject, it } from "vitest";
-import { approveDocument, createManualDocument, listCompanyDocuments, returnDocumentToReview } from "@/application/documents";
+import { approveDocument, correctDocument, createManualDocument, listCompanyDocuments, returnDocumentToReview } from "@/application/documents";
 import { administratorWithCompany } from "./support/fixtures";
 import { setLegacyDocumentApprovedFixture, setLegacyReadinessCountFixture } from "./support/legacy-document-approval";
 import { SYNTHETIC_EXCLUDED_PURCHASE } from "./support/truthful-inclusion";
@@ -10,6 +10,10 @@ import { finalizeVatReport, generateVatReport, getPeriodLock, getVatReport } fro
 import { saveCompanyFilingDefaults } from "@/application/company-filing-defaults";
 import { exportVatReport, readVatReportArtifact } from "@/application/epo-export";
 import { createHash } from "node:crypto";
+import { excludeSourceFile, getSourceFile, restoreSourceFile, uploadSourceFile } from "@/application/source-files";
+import { setCurrentReportingYear } from "@/application/companies";
+import { pragueDate } from "@/application/reporting-periods";
+import { fixtureFile } from "./support/files";
 
 it("does not label a historical Approved purchase as included when the live Rules Engine excludes its missing supplier identity", async () => {
   const company = await administratorWithCompany();
@@ -138,4 +142,60 @@ it("refuses cached-zero Finalization and a concurrent live correction without re
   const retained = await readVatReportArtifact(company.client, { companyId: company.companyId, artifactId: archived.value.artifactId });
   expect(retained?.bytes).toEqual(archived.value.bytes);
   expect(retained?.artifact.sha256).toBe(hash);
+});
+
+it("combines unresolved Source and current Document blockers, then resolves them independently before Finalization", async () => {
+  const company = await administratorWithCompany();
+  const uploaded = await uploadSourceFile(company.client, { async send() {} }, {
+    companyId: company.companyId, fileName: "receipt.png", bytes: fixtureFile("receipt.png"),
+  });
+  if (!uploaded.ok) throw new Error(uploaded.error);
+  const sourceInput = { companyId: company.companyId, sourceFileId: uploaded.value.id };
+  const source = await getSourceFile(company.client, company.companyId, uploaded.value.id);
+  if (!source) throw new Error("Source fixture missing");
+  const date = pragueDate(source.uploadedAt);
+  const period = { companyId: company.companyId, period: date.slice(0, 7) };
+  expect((await setCurrentReportingYear(company.client, { companyId: company.companyId, filingFrequency: "monthly", year: Number(date.slice(0, 4)) })).ok).toBe(true);
+  const payload = { ...SYNTHETIC_EXCLUDED_PURCHASE, taxPointDate: date };
+  const document = await createManualDocument(company.client, { companyId: company.companyId, payload });
+  if (!document.ok) throw new Error(document.error);
+  await setLegacyDocumentApprovedFixture(inject("databaseUrl"), document.value.id, [
+    { field: "payment.bankAccount", severity: "warning", code: "missing_bank_account" },
+  ]);
+  const documentInput = { companyId: company.companyId, documentId: document.value.id };
+  const initial = await getReportingPeriodReadiness(company.client, period);
+  if (!initial.ok) throw new Error(initial.error);
+  expect(initial.value.sourceFiles).toEqual([expect.objectContaining({ sourceFileId: uploaded.value.id, status: "uploaded" })]);
+  expect(initial.value.blockers).toContainEqual({ code: "error_finding", documentId: document.value.id, findingCode: "counterparty_vat_id_required" });
+  expect(initial.value.documentReporting[document.value.id].included).toBe(false);
+  expect((await listCompanyDocuments(company.client, company.companyId)).map(row => row.id)).toEqual([document.value.id]);
+  expect((await generateVatReport(company.client, period)).ok).toBe(true);
+  expect((await getVatReport(company.client, company.companyId, period.period))?.finalization.blockerCount).toBe(2);
+
+  expect(await excludeSourceFile(company.client, { ...sourceInput, reason: "Synthetic non-accounting source" })).toEqual({ ok: true, value: null });
+  const sourceResolved = await getReportingPeriodReadiness(company.client, period);
+  if (!sourceResolved.ok) throw new Error(sourceResolved.error);
+  expect(sourceResolved.value.ready).toBe(false);
+  expect(sourceResolved.value.sourceFiles).toEqual([expect.objectContaining({ sourceFileId: uploaded.value.id, status: "rejected" })]);
+  expect(sourceResolved.value.groups.rejected).toEqual([]);
+  expect(sourceResolved.value.snapshot?.freshness).toBe("stale");
+  expect((await generateVatReport(company.client, period)).ok).toBe(true);
+  expect((await getVatReport(company.client, company.companyId, period.period))?.finalization.blockerCount).toBe(1);
+  expect(await finalizeVatReport(company.client, { ...period, confirmed: true })).toEqual({ ok: false, error: "readiness_blocked" });
+
+  expect(await returnDocumentToReview(company.client, documentInput)).toEqual({ ok: true, value: null });
+  expect(await correctDocument(company.client, {
+    ...documentInput, basedOnVersion: 1, payload: { ...payload, supplier: { ...payload.supplier, vatId: "CZ27082440" } },
+  }, undefined, { async check() { return { outcome: "checked", unreliable: false, publishedAccounts: [] }; } })).toEqual({ ok: true, value: { version: 2 } });
+  expect(await approveDocument(company.client, { ...documentInput, version: 2 })).toEqual({ ok: true, value: null });
+  const complete = await getReportingPeriodReadiness(company.client, period);
+  if (!complete.ok) throw new Error(complete.error);
+  expect(complete.value.ready).toBe(true);
+  expect(complete.value.blockers).toEqual([]);
+  expect(complete.value.documentReporting[document.value.id].included).toBe(true);
+  expect((await generateVatReport(company.client, period)).ok).toBe(true);
+  expect((await getVatReport(company.client, company.companyId, period.period))?.finalization.blockerCount).toBe(0);
+  expect(await finalizeVatReport(company.client, { ...period, confirmed: true })).toEqual({ ok: true, value: null });
+  expect(await restoreSourceFile(company.client, sourceInput)).toEqual({ ok: false, error: "period_locked" });
+  expect(await returnDocumentToReview(company.client, documentInput)).toEqual({ ok: false, error: "period_locked" });
 });
