@@ -606,14 +606,16 @@ all three tests passed, with zero skips, in 192.61 seconds. This includes the
 compiled release tag and full revision, interrupted-observer recovery,
 failed-migration recovery guard, and anonymous proxy delivery of both brand
 SVGs and four published icons with exact bytes, MIME types and signatures.
-The subsequent change only corrected one layout grid declaration and browser
-fixtures, so the host result carries forward. The complete 85-case production
-browser command and fresh Next/MCP/React runtime checks passed at
+Through `e36ed62`, subsequent changes only corrected one layout grid declaration
+and browser fixtures, so the host result carried forward. The complete 85-case
+production browser command and fresh Next/MCP/React runtime checks passed at
 `e36ed6266badc247e7051a4a1688be4a6d0a4c6b`. See
 [the final local verification record](qa-v5-verification.md) for exact commands,
 application/browser counts, retained earlier failures and remaining checks.
-Existing CI and Deployment verification remain required for the exact `main`
-revision; integration checks do not replace those release gates. The runtime
+The later cloud-performance correction adds a Duplicate Warning view migration;
+fresh complete integration and full host verification of that correction remain
+pending independent review. Existing CI and Deployment verification remain
+required for the exact `main` revision; integration checks do not replace those release gates. The runtime
 fixture used disposable credentials and pinned test host keys. A separate
 read-only production SSH inventory informed SMTP preparation; it did not prove
 production mail delivery. No production writes, mail sends, Release activation,

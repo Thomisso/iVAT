@@ -29,7 +29,7 @@ import {
   administratorWithCompany,
   assignAiConfigurationFixture as enableAiProcessing,
   companyMember,
-  companyWithManyApprovedReportDocuments,
+  companyWithManyReportDocuments,
   removeCompletedCompanyIdentityFixture,
 } from "./support/fixtures";
 import { fixtureFile } from "./support/files";
@@ -139,10 +139,15 @@ it("preserves a newly uploaded Document for review when Extraction discovers a l
 });
 
 it("identifies locks beyond the configured PostgREST row limit", async () => {
-  const company = await companyWithManyApprovedReportDocuments(1001);
+  const company = await administratorWithCompany();
   const input = { companyId: company.companyId, period: "2026-10" };
   expect((await generateVatReport(company.client, input)).ok).toBe(true);
   expect(await finalizeVatReport(company.client, { ...input, confirmed: true })).toEqual({ ok: true, value: null });
+  const snapshot = await getVatReport(company.client, input.companyId, input.period);
+  expect(snapshot?.documents).toEqual([]);
+  // This tests lookup completeness, not 1001 approvals. New Extractions in a
+  // locked period remain preserved for review under ADR-0007.
+  await companyWithManyReportDocuments(1001, company);
   const documents = await listCompanyDocuments(company.client, company.companyId);
 
   const locks = await documentPeriodLocks(
@@ -154,6 +159,14 @@ it("identifies locks beyond the configured PostgREST row limit", async () => {
   expect(documents).toHaveLength(1001);
   expect(Object.keys(locks)).toHaveLength(1001);
   expect(new Set(Object.values(locks))).toEqual(new Set(["2026-10"]));
+  for (const document of [documents[0], documents.at(-1)!]) {
+    expect(await approveDocument(company.client, {
+      companyId: company.companyId,
+      documentId: document.id,
+      version: 1,
+    })).toEqual({ ok: false, error: "period_locked" });
+  }
+  expect(await getVatReport(company.client, input.companyId, input.period)).toEqual(snapshot);
 }, 60_000);
 
 it("only an Administrator finalizes and unlocks a stored VAT Report, and both transitions are audited", async () => {
