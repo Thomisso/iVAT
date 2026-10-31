@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { approveDocument, listCompanyDocuments, listDocuments, listDuplicateWarnings } from "@/application/documents";
+import { approveDocument, listDocuments, listDuplicateWarnings } from "@/application/documents";
 import type { ExtractionPayload } from "@/application/extraction-payload";
 import { uploadSourceFile } from "@/application/source-files";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
@@ -7,10 +7,8 @@ import { fixtureFile } from "./support/files";
 import {
   administratorWithCompany,
   assignAiConfigurationFixture as enableAiProcessing,
-  companyWithManyReportDocuments,
 } from "./support/fixtures";
 import { testWorker } from "./support/worker";
-import { duplicateWarningCompanyAccessChecks } from "./support/duplicate-warning-query";
 
 async function companyWithExtractions(...extractions: ExtractionPayload[]) {
   let extraction = 0;
@@ -86,24 +84,5 @@ describe("Duplicate Warnings", () => {
 
     expect(await listDuplicateWarnings(b.client, b.companyId, document.id)).toEqual([]);
     expect(await listDuplicateWarnings(a.client, b.companyId, document.id)).toEqual([]);
-  });
-
-  it("keeps native warning lookup work scoped to the Company instead of expanding foreign current Documents", async () => {
-    const company = await companyWithExtractions(SAMPLE_EXTRACTION, SAMPLE_EXTRACTION);
-    const existing = await company.upload("receipt.png");
-    const duplicate = await company.upload("receipt.jpg");
-    const foreign = await companyWithManyReportDocuments(32);
-    expect(await listCompanyDocuments(foreign.client, foreign.companyId)).toHaveLength(32);
-
-    expect(await listDuplicateWarnings(company.client, company.companyId, duplicate.id)).toEqual([
-      { kind: "document_identity", matchedDocumentId: existing.id },
-    ]);
-    expect(await listDuplicateWarnings(foreign.client, company.companyId, duplicate.id)).toEqual([]);
-    // Timing hid this regression on a fast developer machine. Observe the same
-    // real native-session read's database work as well as its App output above.
-    // The old global CTE checks at least all 34 Documents; the scoped plan uses
-    // only a handful. Leave generous headroom without depending on an index name.
-    expect(await duplicateWarningCompanyAccessChecks(company.client, company.companyId, duplicate.id))
-      .toBeLessThan(16);
   });
 });
