@@ -1527,7 +1527,7 @@ select:disabled {
 .operational-problem-facts {
   margin: 0;
   display: grid;
-  grid-template-columns: minmax(10rem, .5fr) minmax(16rem, 1.5fr);
+  grid-template-columns: minmax(0, .5fr) minmax(0, 1.5fr);
   gap: var(--space-3);
 }
 .operational-problem-facts div { min-width: 0; }
