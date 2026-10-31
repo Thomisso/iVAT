@@ -226,11 +226,14 @@ export async function removeCompletedCompanyIdentityFixture(companyId: string) {
 /** Large report fixture. Uses platform-sized Source Files and the worker's narrow
  * write functions to avoid 1001 full PDF extraction jobs; application tests still
  * generate/read as a User. */
-export async function companyWithManyReportDocuments(count: number) {
+export async function companyWithManyReportDocuments(
+  count: number,
+  existingCompany?: Awaited<ReturnType<typeof administratorWithCompany>>,
+) {
   const { PDFDocument } = await import("pdf-lib");
   const { uploadSourceFile } = await import("@/application/source-files");
   const { SAMPLE_EXTRACTION } = await import("@/ai/fake");
-  const admin = await administratorWithCompany();
+  const admin = existingCompany ?? await administratorWithCompany();
   const system = systemClient();
   const unlimited = await system
     .from("company")
@@ -293,26 +296,6 @@ export async function companyWithManyReportDocuments(count: number) {
     await database.end();
   }
   return admin;
-}
-
-/** A large, finalizable VAT Report fixture approved through the Application layer. */
-export async function companyWithManyApprovedReportDocuments(count: number) {
-  const { approveDocument, listCompanyDocuments } = await import("@/application/documents");
-  const company = await companyWithManyReportDocuments(count);
-  const documents = await listCompanyDocuments(company.client, company.companyId);
-  for (let offset = 0; offset < documents.length; offset += 25) {
-    const results = await Promise.all(documents.slice(offset, offset + 25).map((document) =>
-      approveDocument(company.client, {
-        companyId: company.companyId,
-        documentId: document.id,
-        version: 1,
-      })
-    ));
-    for (const result of results) {
-      if (!result.ok) throw new Error(`Document approval failed: ${result.error}`);
-    }
-  }
-  return company;
 }
 
 /** A Company with more than one PostgREST page of uploaded Documents waiting for Extraction. */
