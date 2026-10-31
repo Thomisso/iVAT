@@ -10,6 +10,12 @@ import { requestPasswordRecovery, verifyPasswordRecovery } from "@/application/p
 import { listMyCompanies } from "@/application/companies";
 import { systemClient } from "./support/worker";
 import { listAuditEvents } from "@/application/audit";
+import { listMemberships } from "@/application/memberships";
+import { defineSourceDocuments, getSourceFile, readSourceFile, sourceFileObjectPath, uploadSourceFile } from "@/application/source-files";
+import { generateVatReport, getVatReport } from "@/application/vat-reports";
+import { getReportingPeriodReadiness } from "@/application/reporting-period-readiness";
+import { fixtureFile } from "./support/files";
+import type { AppClient } from "@/application/client";
 
 async function recoveryFixture() {
   const user = await administratorWithCompany();
@@ -120,6 +126,31 @@ describe("backup MFA recovery", () => {
 
   it("denies a competing email-only session that enrolls its own factor during the native removal gap, before and after legitimate completion", async () => {
     const fixture = await recoveryFixture();
+    const originalBytes = fixtureFile("receipt.png");
+    const uploaded = await uploadSourceFile(fixture.user.client, { async send() {} }, { companyId: fixture.user.companyId, fileName: "receipt.png", bytes: originalBytes });
+    if (!uploaded.ok) throw new Error(uploaded.error);
+    const source = { companyId: fixture.user.companyId, sourceFileId: uploaded.value.id, ranges: [{ firstPage: 1, lastPage: 1 }] };
+    const members = { organizationId: fixture.user.organizationId, companyId: null };
+    const report = { companyId: fixture.user.companyId, period: "2026-10" };
+    expect((await generateVatReport(fixture.user.client, report)).ok).toBe(true);
+    expect(await listMemberships(fixture.user.client, members)).toHaveLength(1);
+    const storedReport = await getVatReport(fixture.user.client, report.companyId, report.period);
+    expect(storedReport).not.toBeNull();
+    async function restrictedSurfaces(actor: AppClient) {
+      expect(await listMemberships(actor, members)).toEqual([]);
+      expect((await actor.rpc("list_active_memberships", { target_organization_id: members.organizationId, target_company_id: null as unknown as string })).data).toEqual([]);
+      expect(await getSourceFile(actor, source.companyId, source.sourceFileId)).toBeNull();
+      expect(await readSourceFile(actor, source.companyId, source.sourceFileId)).toBeNull();
+      const bucket = actor.storage.from("source-files");
+      const objectPath = sourceFileObjectPath(source.companyId, source.sourceFileId);
+      expect((await bucket.download(objectPath)).data).toBeNull();
+      expect((await bucket.createSignedUrl(objectPath, 60)).data).toBeNull();
+      expect((await bucket.list(source.companyId)).data).toEqual([]);
+      expect(await getVatReport(actor, report.companyId, report.period)).toBeNull();
+      expect(await getReportingPeriodReadiness(actor, report)).toEqual({ ok: false, error: "forbidden" });
+      expect(await defineSourceDocuments(actor, source)).toEqual({ ok: false, error: "forbidden" });
+      expect((await actor.rpc("define_source_documents", { target_source_file_id: source.sourceFileId, document_ranges: source.ranges })).error?.code).toBe("42501");
+    }
     const oldAal2 = await staleAccessTokenFixture(fixture.user.client);
     const begun = await beginBackupRecovery(fixture.recovery, { code: fixture.codes[0] });
     if (!begun.ok) throw new Error(begun.error);
@@ -135,6 +166,7 @@ describe("backup MFA recovery", () => {
     for (const actor of [oldAal2, gapAal2]) {
       expect(await listMyCompanies(actor)).toEqual([]);
       expect((await actor.from("membership").select("id").eq("organization_id", fixture.user.organizationId)).data).toEqual([]);
+      await restrictedSurfaces(actor);
     }
     expect((await gap.client.rpc("claim_mfa_replacement_operation", { operation: "finish" })).error?.hint).toBe("email_recovery_required");
     expect((await gap.client.rpc("complete_mfa_replacement")).error).not.toBeNull();
@@ -149,10 +181,19 @@ describe("backup MFA recovery", () => {
     if (!replacement.ok) throw new Error(replacement.error);
     expect(await verifyReplacementAuthenticator(legitimate.client, totp(replacement.value.secret))).toEqual({ ok: true, value: null });
     expect(await listMyCompanies(legitimate.client)).toEqual([]);
+    await restrictedSurfaces(legitimate.client);
     expect(await finishBackupRecovery(legitimate.client, authentication, { newPassword: "Safe-replacement-password-168", confirmation: "Safe-replacement-password-168" }))
       .toEqual({ ok: true, value: null });
     expect(await listMyCompanies(legitimate.client)).toHaveLength(1);
-    for (const actor of [oldAal2, gapAal2]) expect(await listMyCompanies(actor)).toEqual([]);
+    expect(await listMemberships(legitimate.client, members)).toHaveLength(1);
+    expect((await readSourceFile(legitimate.client, source.companyId, source.sourceFileId))?.bytes).toEqual(originalBytes);
+    expect(await getVatReport(legitimate.client, report.companyId, report.period)).toEqual(storedReport);
+    expect((await getReportingPeriodReadiness(legitimate.client, report)).ok).toBe(true);
+    for (const actor of [oldAal2, gapAal2]) {
+      expect(await listMyCompanies(actor)).toEqual([]);
+      await restrictedSurfaces(actor);
+    }
+    expect((await defineSourceDocuments(legitimate.client, source)).ok).toBe(true);
     expect((await gap.client.auth.refreshSession()).error).not.toBeNull();
   });
 

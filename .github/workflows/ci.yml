@@ -86,7 +86,7 @@ jobs:
         run: node --test scripts/tests/release-identity.test.mjs deploy/tests/release-prepare.test.mjs deploy/tests/release-host.test.mjs deploy/tests/release-connect.test.mjs deploy/tests/release-runtime.test.mjs
 
       - name: Start local Supabase
-        run: npm run db:start -- -x studio,mailpit,logflare,vector,edge-runtime,imgproxy,supavisor
+        run: npm run db:start -- --profile=e2e
 
       - name: Generated database types match the migrations
         run: |
