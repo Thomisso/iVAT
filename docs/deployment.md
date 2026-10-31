@@ -601,35 +601,45 @@ injection still uses disposable-only overrides. The fast source-preparation
 check passed during #162. After stopping the ticket stacks, final corrected
 integration verification for #179 ran
 `IVAT_RELEASE_RUNTIME_TEST=1 node --test deploy/tests/release-runtime.test.mjs`
-at `df6148c185e06f358f79b4ad4d3af2c006971366` on Docker Desktop for macOS:
-all three cases passed, with zero skips, in 188.41 seconds. This includes actual
+at `8a8472bcd5733754bbcb6386d0e475cc9f9bf2f0` on Docker Desktop for macOS:
+all three cases passed, with zero skips, in 187.75 seconds. This includes actual
 pinned test SSH, interrupted-observer recovery, selected-image producer failure,
 compiled tag/full revision and installed XML generator, failed-migration recovery
 guards, and anonymous proxy delivery of both brand SVGs and four published icons
 with exact bytes, MIME types and signatures.
 
 The baseline contains the complete current application and omits only the
-synthetic probe migration. The real view migration therefore runs during fresh
-baseline preparation; the later actual deployment upgrade applies the probe.
-Separate isolated old-view-to-migration proof verifies the view replacement.
+synthetic probe migration. The real view and RPC migrations therefore run during
+fresh baseline preparation; the later actual deployment upgrade applies the probe.
+Separate isolated old-definition-to-migration proofs verify the view and RPC
+replacements; the host fixture does not claim their first application during
+its later probe upgrade.
 The earlier host attempt failed baseline bootstrap because a private runner's
 umask made copied SQL files unreadable. Correcting only that private subprocess
 umask restored intended source modes, while logs and secret files retained
 private modes. The failed attempt remains recorded, and repository code and
 health limits were unchanged.
 
-Fresh full application checks and 16 relevant production browser cases passed
-at the same `df6148c` revision, including an actual production build. The complete
-85-case browser pass and Next/MCP/React 40-observation proof remain earlier
-history for unchanged UI/Auth code, not a new full browser run at this revision.
+Fresh full application checks passed at the same `8a8472b` revision:
+882 passed, six optional checks skipped, typecheck/lint passed and generated
+database types matched. The eight-file production browser command passed all
+22 relevant cases, including six Upload Workspace cases, with an actual
+3.3-second production build (104.8 seconds browser phase; 141.36 seconds total).
+Both independent retry-correction review axes reported no hard or optional
+findings. The complete 85-case browser pass at `1e8735e` and Next/MCP/React
+40-observation proof at `e36ed62` remain earlier history for unchanged UI/Auth
+code, not fresh complete browser/Next runs at this revision. Managed services
+and the owned database stopped after these checks; no owned listener remained.
 See [the final local verification record](qa-v5-verification.md) for exact
 commands, revisions, counts, retained failures and remaining checks. Replacement
 cloud CI at `1e8735ee4ad9770a3b706445a2ae498b2239f458` passed the previous
 four timeout cases, all 85 browser cases and Deployment verification, but failed
 one concurrent Upload Batch retry case (881 passed, one failed, six optional
-skips). Its narrow conflict-arbiter migration has focused local evidence; fresh
-integration/full host verification and replacement cloud CI remain pending at
-this capture. See the
+skips; 653.27 seconds). Its browser job passed in 918.2 seconds (build 50.6
+seconds), and [Deployment verification 41169488471](https://github.com/Thomisso/iVAT/actions/runs/41169488471)
+passed. The narrow conflict-arbiter correction subsequently passed the fresh
+integration/full host checks above. At this local evidence capture, the next
+replacement cloud run had not started and remained required. See the
 [PR checks](https://github.com/Thomisso/iVAT/pull/182/checks) for current status.
 Exact-main CI and Deployment verification remain
 required; integration evidence does not replace those release gates. The runtime
