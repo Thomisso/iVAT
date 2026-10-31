@@ -5,7 +5,7 @@ import { setCurrentReportingYear } from "@/application/companies";
 import { pragueDate } from "@/application/reporting-periods";
 import { uploadSourceFile, getSourceFile } from "@/application/source-files";
 import { listDocuments } from "@/application/documents";
-import { fixtureFile, heicFixture, selectFixtureFiles } from "./files";
+import { fixtureFile, heicFixture, multiSheetWorkbookFile, selectFixtureFiles } from "./files";
 import { createClient } from "@supabase/supabase-js";
 import { Client as DatabaseClient } from "pg";
 import type { Database } from "@/lib/database.types";
@@ -489,12 +489,13 @@ export async function addBrowserUnextractedDocumentFixture(input: { companyId: s
 }
 
 /** An actual stored Source before Split, provisioned through the User's application command. */
-export async function addBrowserUnsplitSourceFixture(input: { companyId: string; email: string; password: string; fileName: "receipt.png" | "two-invoices.pdf" | "receipt.heic" }) {
+export async function addBrowserUnsplitSourceFixture(input: { companyId: string; email: string; password: string; fileName: "receipt.png" | "two-invoices.pdf" | "receipt.heic" | "invoice-list.xlsx" }) {
   const environment = await browserFixtureEnvironment();
   const client = asUserClient(createClient<Database>(environment.NEXT_PUBLIC_SUPABASE_URL, environment.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, { auth: { autoRefreshToken: false, persistSession: false } }));
   const signedIn = await client.auth.signInWithPassword({ email: input.email, password: input.password });
   if (signedIn.error) throw signedIn.error;
-  const uploaded = await uploadSourceFile(client, { async send() {} }, { companyId: input.companyId, fileName: input.fileName, bytes: input.fileName === "receipt.heic" ? heicFixture() : fixtureFile(input.fileName) });
+  const bytes = input.fileName === "invoice-list.xlsx" ? multiSheetWorkbookFile("xlsx") : input.fileName === "receipt.heic" ? heicFixture() : fixtureFile(input.fileName);
+  const uploaded = await uploadSourceFile(client, { async send() {} }, { companyId: input.companyId, fileName: input.fileName, bytes });
   if (!uploaded.ok) throw new Error(uploaded.error);
   const source = await getSourceFile(client, input.companyId, uploaded.value.id);
   if (!source) throw new Error("Source fixture is missing");

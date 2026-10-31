@@ -971,9 +971,15 @@ export async function startManualSourceReviewAction(_state: FormState, data: For
 export async function defineSourceDocumentsAction(_state: FormState, data: FormData): Promise<FormState> {
   const companyId = field(data, "companyId"); const sourceFileId = field(data, "sourceFileId");
   const lastPages = data.getAll("lastPage");
-  const entered = data.getAll("firstPage").map((first, index) => ({ firstPage: String(first), lastPage: String(lastPages[index] ?? "") }));
+  const firstRows = data.getAll("firstRow"); const lastRows = data.getAll("lastRow");
+  const workbook = data.has("sheetName");
+  const entered = workbook
+    ? data.getAll("sheetName").map((sheet, index) => ({ sheetName: String(sheet), firstRow: String(firstRows[index] ?? ""), lastRow: String(lastRows[index] ?? "") }))
+    : data.getAll("firstPage").map((first, index) => ({ firstPage: String(first), lastPage: String(lastPages[index] ?? "") }));
   const result = await defineSourceDocuments(await requireUserClient(), {
-    companyId, sourceFileId, ranges: entered.map((range) => ({ firstPage: Number(range.firstPage), lastPage: Number(range.lastPage) })),
+    companyId, sourceFileId, ranges: entered.map((range) => "sheetName" in range
+      ? { sheetName: range.sheetName, firstRow: Number(range.firstRow), lastRow: Number(range.lastRow) }
+      : { firstPage: Number(range.firstPage), lastPage: Number(range.lastPage) }),
   });
   if (!result.ok) return { error: result.error, values: { ranges: JSON.stringify(entered) } };
   if (field(data, "openDocument") === "1" && result.value.documentIds[0]) redirect(`/companies/${companyId}/documents/${result.value.documentIds[0]}`);
