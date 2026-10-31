@@ -49,7 +49,7 @@ test("unextracted Documents recover manually or by reversible reasoned exclusion
   await page.getByRole("button", { name: "Approve version 2", exact: true }).click();
   await expect(page).toHaveURL(url => url.pathname === `/companies/${companyId}/documents`);
   await page.goto(`/companies/${companyId}/documents/${failed}`);
-  await expect(page.getByText("Approved. The document counts towards VAT reports.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("group", { name: "Live VAT calculation" })).toContainText("Included in live calculation");
   const waiting = await addBrowserUnextractedDocumentFixture({ companyId, email, password, status: "waiting_for_platform" });
   await page.goto(`/companies/${companyId}/documents/${waiting}`);
   await page.getByLabel("Exclusion reason", { exact: true }).fill("  ");

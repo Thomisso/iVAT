@@ -2,14 +2,14 @@ import * as XLSX from "xlsx";
 import type { ValidationFinding } from "./document-validation";
 import { isZeroRateBreakdownLine, type ExtractionPayload, type DraftRateBreakdownLine } from "./extraction-payload";
 import {
-  type CompanyDetails,
   getCompany,
   getCompanySetupChecklist,
   getReportingPeriodFrequency,
   listCompanyReportingYears,
 } from "./companies";
 import type { AppClient, Result } from "./client";
-import { computeVatReport, isReportingPeriod, type ReportDocument } from "./vat-rules";
+import { isReportingPeriod, type ReportDocument } from "./vat-rules";
+import { loadStoredDocumentFindings, prepareDocumentReporting } from "./document-reporting";
 
 export type ReportingPeriodWorkbookDownload = {
   bytes: Uint8Array;
@@ -37,6 +37,14 @@ const COLUMNS = [
   "Currency",
   "Status",
   "Findings",
+  "Live inclusion",
+  "Exclusion reason",
+  "Exclusion detail",
+  "Mapping status",
+  "VAT Return mapping unavailable",
+  "Control Statement mapping unavailable",
+  "Blocking findings",
+  "Advisory findings",
 ] as const;
 
 type WorkbookRow = Record<(typeof COLUMNS)[number], string | number>;
@@ -88,8 +96,8 @@ function details(payload: ExtractionPayload | null, line: DraftRateBreakdownLine
   };
 }
 
-function findings(document: WorkbookDocument): string {
-  return document.findings
+function findings(values: readonly ValidationFinding[]): string {
+  return values
     .map((finding) => `${finding.severity}: ${finding.code} (${finding.field})`)
     .join("; ");
 }
@@ -107,20 +115,6 @@ function worksheet(rows: WorkbookRow[]): XLSX.WorkSheet {
     }
   }
   return sheet;
-}
-
-async function currentFindings(client: AppClient, documents: ReportDocument[]): Promise<Map<string, ValidationFinding[]>> {
-  const versionIds = documents.flatMap((document) => document.extractionVersionId ? [document.extractionVersionId] : []);
-  const byVersion = new Map<string, ValidationFinding[]>();
-  for (let offset = 0; offset < versionIds.length; offset += 500) {
-    const { data, error } = await client
-      .from("extraction_version")
-      .select("id, findings")
-      .in("id", versionIds.slice(offset, offset + 500));
-    if (error) throw error;
-    for (const version of data) byVersion.set(version.id, version.findings as ValidationFinding[]);
-  }
-  return byVersion;
 }
 
 /** Builds a current-data overview for checking a Reporting Period before generation. */
@@ -151,56 +145,29 @@ export async function exportReportingPeriodWorkbook(
   ]);
   if (error) throw error;
   const reportDocuments = data as unknown as ReportDocument[];
-  const findingsByVersion = await currentFindings(client, reportDocuments);
+  const findingsByVersion = await loadStoredDocumentFindings(client, reportDocuments);
   const documents: WorkbookDocument[] = reportDocuments.map((document) => ({
     ...document,
     findings: document.extractionVersionId ? findingsByVersion.get(document.extractionVersionId) ?? [] : [],
   }));
-  const companyDetails: CompanyDetails = {
-    name: company.name,
-    firstName: company.firstName,
-    lastName: company.lastName,
-    ico: company.ico,
-    vatId: company.vatId,
-    streetName: company.streetName,
-    houseNumber: company.houseNumber,
-    orientationNumber: company.orientationNumber,
-    city: company.city,
-    postalCode: company.postalCode,
-    personType: company.personType,
-  };
-  const report = computeVatReport(companyDetails, input.period, documents, reportingYears);
-  const returnLines = new Map(documents.map((document) => [
-    document.id,
-    report.vatReturn.filter((line) => line.documentIds.includes(document.id)).map((line) => line.line).join(", "),
-  ]));
-  const statementSections = new Map(documents.map((document) => [
-    document.id,
-    [...new Set(report.controlStatement
-      .filter((entry) => entry.documentIds.includes(document.id))
-      .map((entry) => entry.section))].join(", "),
-  ]));
-  const exclusions = new Map(report.excludedDocuments.map((excluded) => [excluded.documentId, excluded.reason]));
   const included: WorkbookRow[] = [];
   const attention: WorkbookRow[] = [];
   for (const document of documents) {
-    const findingText = findings(document);
-    const target = document.status === "approved" && !findingText && !exclusions.has(document.id)
-      ? included
-      : attention;
+    const reporting = prepareDocumentReporting(document, reportingYears, input.period, document.findings);
+    const findingText = findings([...reporting.blockingFindings, ...reporting.advisoryFindings]);
     const meaningfulRates = document.payload?.rateBreakdown.filter((line) => !isZeroRateBreakdownLine(line)) ?? [];
     const rates = meaningfulRates.length ? meaningfulRates : [null];
     for (const rate of rates) {
       const values = details(document.payload, rate);
-      target.push({
+      const row: WorkbookRow = {
         "Document ID": document.id,
         "Document number": values.documentNumber,
         Direction: values.direction,
         "Tax Point Date": values.taxPointDate,
         Counterparty: values.counterparty,
         "VAT Regime": values.vatRegime,
-        "VAT Return line": returnLines.get(document.id) ?? "",
-        "Control Statement section": statementSections.get(document.id) ?? "",
+        "VAT Return line": reporting.mapping.vatReturnLines.join(", "),
+        "Control Statement section": reporting.mapping.controlStatementSection ?? "",
         "VAT rate (%)": values.rate,
         "Net amount": values.netAmount,
         "VAT amount": values.vatAmount,
@@ -208,7 +175,17 @@ export async function exportReportingPeriodWorkbook(
         Currency: values.currency,
         Status: document.status,
         Findings: findingText,
-      });
+        "Live inclusion": reporting.included ? "included" : "excluded",
+        "Exclusion reason": reporting.exclusionReason ?? "",
+        "Exclusion detail": reporting.exclusionDetail ?? "",
+        "Mapping status": reporting.included ? "included" : reporting.mapping.vatReturnLines.length || reporting.mapping.controlStatementSection ? "proposed" : "unavailable",
+        "VAT Return mapping unavailable": reporting.mapping.vatReturnUnknownReason ?? "",
+        "Control Statement mapping unavailable": reporting.mapping.controlStatementUnknownReason ?? "",
+        "Blocking findings": findings(reporting.blockingFindings),
+        "Advisory findings": findings(reporting.advisoryFindings),
+      };
+      if (reporting.included) included.push(row);
+      if (!reporting.included || findingText) attention.push(row);
     }
   }
   const workbook = XLSX.utils.book_new();

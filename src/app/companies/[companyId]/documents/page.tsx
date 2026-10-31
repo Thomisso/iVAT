@@ -19,6 +19,7 @@ import { formatDate } from "@/lib/format-date";
 import { requireUserClient } from "@/lib/supabase/server";
 import { companyPageContext, safeCompanyReturnTo, withCompanyReturnTo } from "@/application/return-context";
 import { CompanyReturnLink } from "@/components/company-return-link";
+import { DocumentReportingSummary } from "@/components/document-reporting-summary";
 
 export default async function DocumentsPage({ params, searchParams }: PageProps<"/companies/[companyId]/documents">) {
   const { companyId } = await params;
@@ -86,6 +87,7 @@ export default async function DocumentsPage({ params, searchParams }: PageProps<
         { key: "date", header: t("documents.taxPointDate"), render: (document) => document.taxPointDate ? formatDate(document.taxPointDate) : t("review.notSet") },
         { key: "amount", header: t("documents.grossAmount"), align: "right", mono: true, render: (document) => document.grossAmount && document.currency ? format.number(Number(document.grossAmount), { style: "currency", currency: document.currency }) : t("review.notSet") },
         { key: "status", header: t("documents.status"), render: (document) => <StatusBadge status={statusBadgeState(document.status, "document")}>{t(`documentStatus.${document.status}`)}</StatusBadge> },
+        { key: "reporting", header: t("documentReporting.liveTitle"), render: (document) => <DocumentReportingSummary compact reporting={document.reporting} /> },
       ]}
     /> : <section className="company-workspace-empty"><span aria-hidden="true" /><p>{t("documents.noMatch")}</p></section>}
     </PageContent>
