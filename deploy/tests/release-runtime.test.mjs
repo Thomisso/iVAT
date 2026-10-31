@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
 import { access, chmod, cp, mkdir, mkdtemp, readFile, realpath, rm, utimes, writeFile } from "node:fs/promises";
 import { createConnection, createServer } from "node:net";
+import { createServer as createHttpServer, request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { parseEnv } from "node:util";
@@ -27,6 +28,39 @@ async function command(args, env = {}) {
     child.on("exit", status => resolve({ status, stdout, stderr }));
   });
 }
+
+async function requestCompiledLogin(endpoint) {
+  // Match the deployment probe: fetch may discard Host for a loopback URL.
+  // A direct HTTP request also refuses to follow redirects to a live host.
+  return new Promise((resolve, reject) => {
+    const request = httpRequest(endpoint, { signal: AbortSignal.timeout(15000), headers: { Host: "app.ivat.cz", "X-Forwarded-Proto": "https" } }, response => {
+      let body = "";
+      response.setEncoding("utf8");
+      response.on("data", chunk => { body += chunk; });
+      response.on("error", reject);
+      response.on("end", () => resolve({ status: response.statusCode, body }));
+    });
+    request.setTimeout(15000, () => request.destroy(new Error("Compiled login request timed out.")));
+    request.on("error", reject);
+    request.end();
+  });
+}
+
+test("the compiled login request preserves application Host routing and response HTML", async () => {
+  const html = "<html>Verze v0.2.0 · Revize 0123456789012345678901234567890123456789</html>";
+  let received;
+  const server = createHttpServer((request, response) => {
+    received = { host: request.headers.host, forwardedProto: request.headers["x-forwarded-proto"], path: request.url };
+    const accepted = received.host === "app.ivat.cz" && received.forwardedProto === "https" && received.path === "/login";
+    response.writeHead(accepted ? 200 : 404, { "content-type": "text/html; charset=utf-8" });
+    response.end(accepted ? html : "Unknown application Host");
+  });
+  await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+  try {
+    assert.deepEqual(await requestCompiledLogin(`http://127.0.0.1:${server.address().port}/login`), { status: 200, body: html });
+    assert.deepEqual(received, { host: "app.ivat.cz", forwardedProto: "https", path: "/login" });
+  } finally { await new Promise(resolve => server.close(resolve)); }
+});
 
 async function prepareRuntimeReleaseSource(source) {
   await mkdir(source);
@@ -233,9 +267,9 @@ exec /usr/local/bin/docker "$@"
       releaseIdentity: { tag: manifest.tag, revision: manifest.revision },
       xmlGeneratorVersion: `${manifest.tag}+${manifest.revision}`,
     });
-    const login = await fetch(`http://127.0.0.1:${httpPort}/login`, { headers: { Host: "app.ivat.cz" } });
+    const login = await requestCompiledLogin(`http://127.0.0.1:${httpPort}/login`);
     assert.equal(login.status, 200);
-    const loginHtml = await login.text();
+    const loginHtml = login.body;
     assert.ok(loginHtml.includes(`Verze ${manifest.tag}`), "compiled login must identify the validated release tag");
     assert.ok(loginHtml.includes(`Revize ${manifest.revision}`), "compiled login must identify the validated release revision");
     const repeated = await deploy(bundle, { IVAT_DEPLOY_ATTEMPT_ID: path.basename(verified.attempt) });
