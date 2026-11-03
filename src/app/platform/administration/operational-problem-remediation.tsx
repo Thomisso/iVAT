@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { retryFailedProcessingJobAction } from "@/app/actions";
+import { retryFailedProcessingJobAction, takeOverFailedProcessingJobAction } from "@/app/actions";
 import type { AiConfigurationSummary } from "@/application/ai-configurations";
 import type { PlatformAiProcessingAllowance } from "@/application/ai-processing-allowance";
 import type { OperationalProblem, OperationalProblemKind } from "@/application/operational-problems";
@@ -100,6 +100,11 @@ export function OperationalProblemRemediation({
             >
               {t("retry")}
             </CommandButton>
+            {job.name !== "complete-company-export" && (
+              <CommandButton action={takeOverFailedProcessingJobAction} fields={{ jobId: job.id }} size="sm">
+                {t("manualTakeover")}
+              </CommandButton>
+            )}
           </div>
         )) : (
           <Link href="#failed-jobs">{t("viewFailedJobs")}</Link>
