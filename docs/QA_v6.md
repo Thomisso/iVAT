@@ -1,9 +1,9 @@
 # QA v6: vytěžování, revize dokladů a správa přístupů
 
 **Datum zápisu:** 31. 10. 2026
-**Stav:** Bugs / Improvements a–g ze specifikace [#185](https://github.com/Thomisso/iVAT/issues/185) jsou implementovány ve všech 12 ticketech #186–#197 a sloučeny do integračního [PR #198](https://github.com/Thomisso/iVAT/pull/198). Jednotlivé změny i společný diff prošly nezávislou kontrolou. Sekce Features 1–8 nebyla součástí implementace.
-**Rozsah:** 8 funkcí a 7 chyb nebo zlepšení. Identifikátory zachovávají původní číslování a označení nálezů.
-**Další postup:** revize a sloučení PR #198; produkční release bude samostatně až později podle pokynu uživatele. Produkční release ani změny produkčních dat či konfigurace se při implementaci neprováděly. Výsledky lokálního ověření a jeho hranice jsou v [implementačním záznamu](QA_v6_implementation.md).
+**Stav:** `grill-with-docs`, `to-spec` i `to-tickets` dokončeny pro Bugs / Improvements a–g. Uživatel potvrdil společné porozumění v Q22, testovací hranice specifikace i rozdělení ticketů. Specifikace [#185](https://github.com/Thomisso/iVAT/issues/185) má 12 podřízených issues #186–#197 s označením `ready-for-agent` a ověřenými nativními závislostmi. Sekce Features nebyla součástí tohoto rozpracování.
+**Rozsah:** 9 funkcí a 7 chyb nebo zlepšení. Identifikátory zachovávají původní číslování a označení nálezů.
+**Další postup:** implementace připravených ticketů pomocí `mattpocock-skills:implement-spec` podle nativních závislostí a [integračního workflow](agents/implementation-workflow.md). Implementace zatím nebyla zahájena. Samostatně povolená lokální diagnostika bodu b je dokončena a její výsledky jsou níže; opravy aplikace ani změny produkce provedeny nebyly.
 
 ## Features
 
@@ -54,6 +54,54 @@
 - Do nastavení firmy přidat volbu „Automaticky schválit doklady, které nevyžadují pozornost“.
 - Pokud je volba pro firmu zapnutá, doklady vyhodnocené jako bezproblémové automaticky schválit.
 - Přesná definice dokladu, který „nevyžaduje pozornost“, zůstává k rozpracování.
+
+### 9. Průběžné sledování práce agentů nad issues v GitHubu
+
+**Doplněno:** 3. 11. 2026. Nový požadavek s doporučeným řešením k rozpracování; není součástí schválené specifikace #185 ani jejích implementačních ticketů.
+
+**Problém a cíl**
+
+- Otevřené issue s labelem `ready-for-agent` nerozlišuje čekající práci, aktivního agenta, review a dokončenou implementaci v integrační větvi. Informace jen v konverzaci, lokálním souboru nebo později vytvořeném PR nestačí.
+- Přímo v GitHubu zobrazit, na kterém issue agent právě pracuje, co je připravené, co čeká na review či odblokování a co už prošlo integrací. Uživatel má vidět i stáří poslední aktualizace.
+
+**Doporučené řešení: jeden GitHub Project pro repozitář**
+
+- Do projektu přidávat existující issues; nevytvářet jejich kopie. Nabídnout board podle stavu a tabulku s filtrem podle nadřazené specifikace. [GitHub Projects podporuje různé pohledy, vlastní pole a automatizace](https://docs.github.com/en/issues/planning-and-tracking-with-projects/learning-about-projects/about-projects).
+- Použít samostatné projektové pole `Status`. Stávající [triage labely](agents/triage-labels.md) nadále vyjadřují připravenost zadání, nikoli průběh implementace.
+
+| Status | Význam a okamžik aktualizace |
+| --- | --- |
+| Připraveno | Schválený ticket čeká na převzetí; jeho implementační závislosti jsou splněné. |
+| Implementace | Konkrétní agent převzal ticket; je uvedena jeho pracovní větev. |
+| Review | Implementace a cílené kontroly jsou dokončené; probíhá nezávislé review. Připomínky vracejí ticket do Implementace. |
+| V integrační větvi | Review prošlo a změna je sloučená do integrační větve; issue zůstává otevřené. |
+| Hotovo | Výsledné PR je po společných kontrolách a review sloučené do cílové větve a issue uzavřené. Nasazení do produkce je samostatný krok. |
+| Blokováno | Nelze pokračovat kvůli závislosti, chybějícím podkladům nebo jiné překážce; uvést důvod a podmínku návratu do předchozí fáze. |
+
+**Informace u každého ticketu**
+
+- Číslo a název issue, nadřazená specifikace, Status, jméno implementujícího agenta a případně reviewera, pracovní větev, související PR a čas posledního potvrzeného stavu v UTC. Čas s hodinami ukládat jako text v ISO 8601.
+- Nativní GitHub assignee označuje odpovědný účet; samostatné pole Agent rozlišuje souběžné agenty běžící pod týmž účtem. Při čekání musí být zřejmé, že agent už aktivně nepracuje.
+- U integrace uchovat odkaz na merge commit a výsledek review; u blokace důvod a odkaz na blokující issue. Podrobné důkazy kontrol mohou být v jednom průběžně aktualizovaném stavovém komentáři issue, aby nevznikal komentář při každém kroku.
+- V pohledu specifikace ukázat počty ticketů podle stavů a zvlášť stav společných testů, celkového review a integračního PR. Součet ticketů „V integrační větvi“ sám o sobě neznamená připravenost celého PR. Odkaz na projekt má být snadno dostupný z dokumentace repozitáře a přehledu specifikace.
+
+**Jak aktualizace implementovat**
+
+- Doplnit do orchestrace implementace malý společný adaptér pro publikování stavu přes `gh project` a podle potřeby `gh api`. Projektová pole lze měnit přes [`gh project item-edit`](https://cli.github.com/manual/gh_project_item-edit). Identifikátory projektu, polí a hodnot spravovat v jedné konfiguraci; přihlašovací údaje do ní nepatří.
+- Orchestrátor je jediným zapisovatelem průběžného stavu. Aktualizuje jej při převzetí ticketu, předání na review, vrácení připomínek, integraci, blokaci, obnovení a finálním merge. Pracující agenti hlásí výsledky orchestrátoru; nezapisují si navzájem konkurenční stavy.
+- Při zahájení a obnovení běhu doplnit chybějící položky projektu a porovnat uložený stav se skutečnými větvemi, commity, review a PR. Publikování musí být opakovatelné bez duplicit a odolné vůči opožděné zprávě ze staršího běhu agenta. Obnovitelný stav synchronizace nesmí být uložen jen v dočasném `/tmp` souboru.
+- Při delší práci posílat nejvýše jednou za pět minut potvrzení aktivity. Bez potvrzení déle než 15 minut zobrazit stav jako neověřený; přerušeného agenta nevydávat za právě pracujícího. Zmeškané potvrzení samo neopravňuje jiného agenta převzít stejný ticket.
+- Selhání zápisu do GitHubu nesmí být vydáno za úspěšnou aktualizaci. Uchovat požadovanou změnu pro opakování, oznámit chybu v konverzaci a po obnově spojení stav dorovnat. Uživatel musí podle času aktualizace poznat zastaralý údaj.
+- Zachovat [review a testovací brány integračního workflow](agents/implementation-workflow.md). Závislost ticketu uvnitř jedné specifikace může být implementačně splněna po čistém review a merge do integrační větve, přestože blokující issue zůstává otevřené. Rozlišit tuto situaci od externí závislosti čekající na finální merge; nepoužívat jen počet otevřených blockerů a neuzavírat issues předčasně.
+- Nativní automatizace projektu využít pro jednoznačné události, například finální uzavření issue. Přiřazení agenta, průběh review a začlenění do integrační větve musí publikovat orchestrátor; samotný stav PR je nevyjadřuje. Znovuotevření nebo revert musí stav vrátit podle skutečného výsledku, nikoli ponechat Hotovo.
+- Při realizaci sjednotit pravidla v dokumentaci issue trackeru, integračního workflow a instrukcích pro implementaci. Tracking je vývojářský workflow v GitHubu; nevyžaduje dashboard v aplikaci iVAT ani automatizaci produkčního releasu.
+
+**Akceptační ověření**
+
+- U specifikace s několika souběžnými tickety lze bez čtení konverzace určit aktivní agenty, čekající práci, review, blokace i již integrované změny, včetně odkazu na odpovídající větev nebo PR.
+- Ověřit návrat z review k opravám, odblokování po integraci stále otevřeného issue, přerušení a obnovení běhu, opakované doručení stejné události, výpadek GitHubu a obnovu synchronizace bez duplicit či přepsání novějšího stavu.
+- Po integraci všech ticketů zůstává viditelné čekání na společné kontroly a finální merge. Teprve merge výsledného PR uzavře příslušná issues a nastaví Hotovo; tím se nespouští produkční nasazení.
+- Publikované údaje obsahují pouze technický průběh práce a potřebné odkazy, bez tokenů, session, soukromých dokladů a obsahu lokálních debug podkladů.
 
 ## Bugs / Improvements
 
@@ -142,8 +190,8 @@ Tento oddíl je schváleným výstupem uzavřeného rozhovoru: zahrnuje souhlas 
 - Sedm vydaných dokladů kontroluje DIČ a příjmový účet vlastní Company; všechny patří do skupiny IBAN/domácí účet. Jedenáct falešných varování se týká přijatých dokladů.
 - Devatenáctý případ není chybou extrakce proti originálu: originál obsahuje pod označením čísla účtu identifikátor GoPay a uvádí platbu kartou. Identifikátor nemá formát bankovního účtu; označení „nezveřejněný účet“ proto zaměňuje nemožnost porovnání za negativní výsledek ověření.
 - SOAP odpovědi byly získány nově lokálně z veřejného registru. Dokládají současný stav a umožňují replay bez sítě, nikoli rekonstrukci historického stavu registru. Nejde o end-to-end ověření rozhraní.
-- Soukromé originály, payloady a opakovatelný diagnostický příkaz jsou mimo Git v `~/.config/ivat/qa-v6-bank-debug/evidence.md`. Příkaz byl opakovaně spuštěn s očekávaným neúspěchem: `Expected 0 false unpublished-account warnings; actual 18/18`. V okamžiku diagnostiky oprava aplikace ještě nebyla provedena; následnou implementaci zachycuje záznam výše.
-- Při diagnostice se registry findings ukládaly do neměnných Extraction Versions a čtení je automaticky neověřovalo znovu. Tehdejší obnova probíhala při uložení nové verze; u schváleného dokladu vyžadovala návrat do revize, u zamčeného období také odemčení. Samotná oprava porovnávání historická varování automaticky neodstraňuje; nová ruční akce nyní ukládá samostatný datovaný Bank Account Check bez změny těchto neměnných verzí.
+- Soukromé originály, payloady a opakovatelný diagnostický příkaz jsou mimo Git v `~/.config/ivat/qa-v6-bank-debug/evidence.md`. Příkaz byl opakovaně spuštěn s očekávaným neúspěchem: `Expected 0 false unpublished-account warnings; actual 18/18`. Oprava aplikace dosud nebyla provedena.
+- Registry findings se ukládají do neměnných Extraction Versions a čtení je automaticky neověřuje znovu. Současná obnova probíhá při uložení nové verze; u schváleného dokladu vyžaduje návrat do revize, u zamčeného období také odemčení. Samotná oprava porovnávání proto historická varování automaticky neodstraní.
 - Při současném vyplnění odlišného IBAN a domácího čísla účtu má dnes IBAN bez vysvětlení přednost a druhý účet se nekontroluje.
 
 ### c. Neúspěšné úlohy — vyřešení a rozsah
@@ -185,7 +233,7 @@ Tento oddíl je schváleným výstupem uzavřeného rozhovoru: zahrnuje souhlas 
 - Při nedostupnosti interní gateway oznámit dočasnou nedostupnost bez automatického přechodu serverových požadavků na veřejnou Supabase adresu. Samotný výpadek nesmí způsobit hromadné odhlášení ani být vykázán jako nesprávné heslo.
 - Rozlišovat běh webu od schopnosti webového prostředí spojit se s Auth. Kontrola závislosti je pouze pro čtení, samostatná od kontroly běhu webu; při selhání hlásí omezenou dostupnost. Porucha Auth sama nespouští automatické restarty jinak zdravého webu.
 - Ověření musí pokrýt přihlášení, obnovování session, odhlášení, MFA, obnovu hesla a Invitations při simulovaném selhání veřejného DNS/TLS a dostupné interní gateway; dále nedostupnou gateway bez veřejného fallbacku, zachování cookies a session, veřejné OAuth/e-mailové/souborové URL a odlišení kontroly webu od kontroly Auth. Úplné přihlašovací scénáře se ověřují lokálně, nikoli opakovaným automatickým přihlašováním produkčních uživatelů.
-- Implementace navazuje na klasifikaci chyb již sloučenou v PR #184. Podklady pro šetření resolveru Roští lze připravit nezávisle; tato session neobjednává odeslání zprávy podpoře.
+- Návaznost na klasifikaci chyb v PR #184 zůstává součástí přípravy implementace. Podklady pro šetření resolveru Roští lze připravit nezávisle; tato session neobjednává odeslání zprávy podpoře.
 
 ## Implementační tickety Bugs / Improvements
 
