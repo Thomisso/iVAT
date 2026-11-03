@@ -4,6 +4,7 @@ import type { PasswordRecoveryAuthentication } from "@/application/password-reco
 import type { Database } from "@/lib/database.types";
 import { asUserClient } from "@/application/client";
 import { recoveryLinkStatus } from "@/application/password-recovery";
+import { authDependencyAvailable } from "./auth-dependency";
 
 /** Request secrets reach only the native recovery email, never the request response. */
 export function supabasePasswordRecovery(configuration: {
@@ -15,9 +16,7 @@ export function supabasePasswordRecovery(configuration: {
     async request(email) {
       // Check the dependency without an email first. Native mail/SMTP/rate-limit
       // refusals remain private: they can differ for known and unknown Users.
-      const available = await (configuration.fetch ?? fetch)(`${configuration.url.replace(/\/$/, "")}/auth/v1/settings`, {
-        headers: { apikey: configuration.publishableKey }, signal: AbortSignal.timeout(3_000), cache: "no-store",
-      }).then(response => response.ok).catch(() => false);
+      const available = await authDependencyAvailable(configuration);
       if (!available) return { ok: false, error: "auth_unavailable" };
       const request = await administration.rpc("create_password_recovery_request", { target_email: email });
       if (authDependencyUnavailable(request)) return { ok: false, error: "auth_unavailable" };
