@@ -68,7 +68,7 @@ describe("backup MFA recovery", () => {
     if (!next.ok) throw new Error(next.error);
     expect((await completeTotpEnrollment(fixture.recovery, { factorId: next.value.factorId, code: totp(next.value.secret) })).ok).toBe(true);
     expect(await disenrollMfa(fixture.recovery, next.value.factorId)).toEqual({ ok: true, value: null });
-    expect(await mfaReplacementStatus(fixture.recovery)).toMatchObject({ pending: false, needsRecovery: false, factorId: replacement.value.factorId });
+    expect(succeeded(await mfaReplacementStatus(fixture.recovery))).toMatchObject({ pending: false, needsRecovery: false, factorId: replacement.value.factorId });
     expect(await listMyCompanies(fixture.recovery)).toEqual([]);
     expect((await fixture.recovery.auth.mfa.challengeAndVerify({ factorId: replacement.value.factorId, code: totp(replacement.value.secret) })).error).toBeNull();
     expect(await listMyCompanies(fixture.recovery)).toHaveLength(1);
@@ -81,7 +81,7 @@ describe("backup MFA recovery", () => {
     expect(begun.ok).toBe(true);
     if (!begun.ok) throw new Error(begun.error);
     expect(begun.value.continuationToken).toMatch(/^[a-f0-9]{64}$/);
-    expect(await mfaReplacementStatus(fixture.recovery)).toMatchObject({ pending: true, authorized: true, factorId: null });
+    expect(succeeded(await mfaReplacementStatus(fixture.recovery))).toMatchObject({ pending: true, authorized: true, factorId: null });
     expect(await listMyCompanies(fixture.user.client)).toEqual([]);
     expect(await listMyCompanies(fixture.recovery)).toEqual([]);
     expect((succeeded(await mfaStatus(fixture.recovery))).currentLevel).toBe("aal1");
@@ -106,7 +106,7 @@ describe("backup MFA recovery", () => {
     expect(await listMyCompanies(fixture.recovery)).toEqual([]);
     expect(await finishBackupRecovery(fixture.recovery, authentication, { newPassword: "Restored-password-168", confirmation: "Restored-password-168" }))
       .toEqual({ ok: true, value: null });
-    expect(await mfaReplacementStatus(fixture.recovery)).toMatchObject({ pending: false });
+    expect(succeeded(await mfaReplacementStatus(fixture.recovery))).toMatchObject({ pending: false });
     expect(await listMyCompanies(fixture.recovery)).toHaveLength(1);
     expect((succeeded(await mfaStatus(fixture.recovery))).recoveryCodesRemaining).toBe(9);
     expect((await fixture.user.client.auth.refreshSession()).error).not.toBeNull();
@@ -163,7 +163,7 @@ describe("backup MFA recovery", () => {
     if (rogue.error) throw rogue.error;
     expect((await gap.client.auth.mfa.challengeAndVerify({ factorId: rogue.data.id, code: totp(rogue.data.totp.secret) })).error).toBeNull();
     const gapAal2 = await staleAccessTokenFixture(gap.client);
-    expect(await mfaReplacementStatus(gap.client)).toMatchObject({ pending: true, authorized: false });
+    expect(succeeded(await mfaReplacementStatus(gap.client))).toMatchObject({ pending: true, authorized: false });
     for (const actor of [oldAal2, gapAal2]) {
       expect(await listMyCompanies(actor)).toEqual([]);
       expect((await actor.from("membership").select("id").eq("organization_id", fixture.user.organizationId)).data).toEqual([]);
@@ -214,7 +214,7 @@ describe("backup MFA recovery", () => {
       }
       return fetch(input, init);
     });
-    expect(await startReplacementEnrollment(fixture.recovery, authentication)).toEqual({ ok: false, error: "mfa_recovery_failed" });
+    expect(await startReplacementEnrollment(fixture.recovery, authentication)).toEqual({ ok: false, error: "auth_unavailable" });
     expect((await fixture.recovery.auth.mfa.listFactors()).data?.totp.map(factor => factor.id)).toContain(fixture.enrollment.factorId);
     expect(await listMyCompanies(fixture.user.client)).toEqual([]);
     failDelete = false;
@@ -223,7 +223,7 @@ describe("backup MFA recovery", () => {
     expect(await verifyReplacementAuthenticator(fixture.recovery, totp(enrollment.value.secret))).toEqual({ ok: true, value: null });
     const password = { newPassword: "Retry-restored-password-168", confirmation: "Retry-restored-password-168" };
     expect(await finishBackupRecovery(fixture.recovery, authentication, password)).toEqual({ ok: false, error: "mfa_recovery_failed" });
-    expect(await mfaReplacementStatus(fixture.recovery)).toMatchObject({ pending: true, authorized: true, passwordUpdated: true, completionReady: false });
+    expect(succeeded(await mfaReplacementStatus(fixture.recovery))).toMatchObject({ pending: true, authorized: true, passwordUpdated: true, completionReady: false });
     expect(await listMyCompanies(fixture.recovery)).toEqual([]);
     expect((await fixture.recovery.auth.refreshSession()).error).toBeNull();
     failLogout = false;
@@ -237,19 +237,19 @@ describe("backup MFA recovery", () => {
     const begun = await beginBackupRecovery(fixture.recovery, { code: fixture.codes[0] });
     if (!begun.ok) throw new Error(begun.error);
     await expireRecoverySessionFixture(fixture.recovery);
-    expect(await mfaReplacementStatus(fixture.recovery)).toMatchObject({ pending: true, authorized: false });
+    expect(succeeded(await mfaReplacementStatus(fixture.recovery))).toMatchObject({ pending: true, authorized: false });
     expect(await listMyCompanies(fixture.user.client)).toEqual([]);
     expect(await beginBackupRecovery(fixture.recovery, { continuationToken: begun.value.continuationToken }))
       .toEqual({ ok: false, error: "email_recovery_required" });
     const fresh = await freshEmailRecoveryFixture(fixture.user.email, fixture.email.requestToken);
     expect(await beginBackupRecovery(fresh.client, { continuationToken: "wrong" })).toEqual({ ok: false, error: "invalid_mfa_code" });
-    expect(await mfaReplacementStatus(fresh.client)).toMatchObject({ pending: true, authorized: false });
+    expect(succeeded(await mfaReplacementStatus(fresh.client))).toMatchObject({ pending: true, authorized: false });
     expect((await beginBackupRecovery(fresh.client, { continuationToken: begun.value.continuationToken })).ok).toBe(true);
     const another = await freshEmailRecoveryFixture(fixture.user.email, fresh.message.requestToken);
     expect(await beginBackupRecovery(another.client, { code: fixture.codes[0] })).toEqual({ ok: false, error: "invalid_mfa_code" });
     expect((await beginBackupRecovery(another.client, { code: fixture.codes[1] })).ok).toBe(true);
     expect((succeeded(await mfaStatus(another.client))).recoveryCodesRemaining).toBe(8);
-    expect(await mfaReplacementStatus(fresh.client)).toMatchObject({ pending: true, authorized: false });
+    expect(succeeded(await mfaReplacementStatus(fresh.client))).toMatchObject({ pending: true, authorized: false });
   });
 
   it("rejects an untrusted factor whose already-authenticated native enrollment completes after recovery cleanup", async () => {
@@ -306,12 +306,12 @@ describe("backup MFA recovery", () => {
       expect((await client.rpc("bind_mfa_replacement_factor", { recovery_operation_id: operation.data, enrolled_factor_id: fixture.enrollment.factorId })).error?.code).toBe("42501");
     }
     expect((await other.client.rpc("release_mfa_replacement_operation", { recovery_operation_id: operation.data })).error).toBeNull();
-    expect(await mfaReplacementStatus(other.client)).toMatchObject({ pending: false, authorized: false });
+    expect(succeeded(await mfaReplacementStatus(other.client))).toMatchObject({ pending: false, authorized: false });
     expect((await other.client.schema("private" as "public").from("mfa_replacement" as "membership").select("*")).error?.code).toBe("PGRST106");
     expect((await systemClient().rpc("verify_mfa_recovery_code", { input_code: fixture.codes[1] })).error?.code).toBe("42501");
     expect((await systemClient().rpc("begin_mfa_replacement", { input_code: fixture.codes[1] })).error?.code).toBe("42501");
     expect((await fixture.recovery.rpc("mfa_replacement_authority", { recovery_operation_id: operation.data })).error?.code).toBe("42501");
-    expect(await mfaReplacementStatus(fixture.recovery)).toMatchObject({ pending: true, authorized: true });
+    expect(succeeded(await mfaReplacementStatus(fixture.recovery))).toMatchObject({ pending: true, authorized: true });
     expect((await fixture.recovery.rpc("release_mfa_replacement_operation", { recovery_operation_id: operation.data })).error).toBeNull();
   });
 

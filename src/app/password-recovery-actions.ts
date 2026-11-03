@@ -13,7 +13,8 @@ const field = (form: FormData, name: string) => String(form.get(name) ?? "");
 export async function requestPasswordRecoveryAction(_state: RecoveryFormState, form: FormData): Promise<RecoveryFormState> {
   const email = field(form, "email");
   try {
-    await requestPasswordRecovery(await createRequestClient(), passwordRecoveryAuthentication(), email);
+    const result = await requestPasswordRecovery(await createRequestClient(), passwordRecoveryAuthentication(), email);
+    if (!result.ok) return { error: result.error, values: { email } };
   } catch {
     return { error: "password_recovery_failed", values: { email } };
   }

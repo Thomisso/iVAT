@@ -68,10 +68,11 @@ export function RecoveryLanding({ sessionStatus, needsAuthenticator, replacement
       const requestToken = parameters.get("request") ?? "";
       const tokenHash = parameters.get("token_hash") ?? "";
       if (!requestToken && !tokenHash) { setLink(null); setLoaded(true); return; }
-      recoveryLinkStatusAction(requestToken).then(status => {
+      recoveryLinkStatusAction(requestToken).then(result => {
+        const status = result.ok ? result.value : result.error;
         if (!disposed && request === generation) { setLink({ requestToken, tokenHash, status }); setLoaded(true); }
       }).catch(() => {
-        if (!disposed && request === generation) { setLink({ requestToken: "", tokenHash: "", status: "invalid" }); setLoaded(true); }
+        if (!disposed && request === generation) { setLink({ requestToken: "", tokenHash: "", status: "auth_unavailable" }); setLoaded(true); }
       });
     };
     const changed = () => { setLoaded(false); load(); };
@@ -86,7 +87,7 @@ export function RecoveryLanding({ sessionStatus, needsAuthenticator, replacement
   if (!link && sessionStatus === "ready") return needsAuthenticator ? <RecoveryAuthenticatorForm /> : <RecoveryPasswordForm />;
   const status = link?.status ?? sessionStatus;
   return <>
-    {status === "valid" && link ? <VerifyRecoveryLink requestToken={link.requestToken} tokenHash={link.tokenHash} /> : <FormError error={`recovery_link_${status}`} />}
+    {status === "valid" && link ? <VerifyRecoveryLink requestToken={link.requestToken} tokenHash={link.tokenHash} /> : <FormError error={status === "auth_unavailable" ? status : `recovery_link_${status}`} />}
     <p><Link href="/password/forgot">{t("requestAgain")}</Link></p>
   </>;
 }
