@@ -1,4 +1,6 @@
 import { expect, it } from "vitest";
+import { SAMPLE_EXTRACTION } from "@/ai/fake";
+import { createManualDocument } from "@/application/documents";
 import { resolveSecurityReturnTo } from "@/application/security-return";
 import { createCompany } from "@/application/companies";
 import { listMemberships, removeMembership } from "@/application/memberships";
@@ -19,8 +21,12 @@ it("restores Company Settings and unified Organization scope only under their ow
   expect(await resolveSecurityReturnTo(user.client, organization, null)).toBe(organization);
 });
 
-it("falls back for a stale Document even when its Company remains accessible", async () => {
+it("restores an existing Document with its workflow parent and falls back for a stale Document", async () => {
   const user = await administratorWithCompany();
+  const created = await createManualDocument(user.client, { companyId: user.companyId, payload: SAMPLE_EXTRACTION });
+  if (!created.ok) throw new Error(created.error);
+  const origin = `/companies/${user.companyId}/documents/${created.value.id}?version=1&returnTo=${encodeURIComponent(`/companies/${user.companyId}/vat-reports?period=2026-10#vat-step-review`)}`;
+  expect(await resolveSecurityReturnTo(user.client, origin, null)).toBe(origin);
   expect(await resolveSecurityReturnTo(user.client, `/companies/${user.companyId}/documents/00000000-0000-4000-8000-000000000001`, null))
     .toBe(`/companies/${user.companyId}`);
 });

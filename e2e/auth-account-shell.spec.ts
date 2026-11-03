@@ -99,7 +99,7 @@ test("account security, MFA enrollment and verification stay focused at desktop 
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(360);
 
   await page.getByRole("link", { name: "Enable authenticator" }).click();
-  await expect(page).toHaveURL(/\/mfa\/enroll(?:\?returnTo=.+)?$/);
+  await expect(page).toHaveURL(/\/mfa\/enroll$/);
   await expectFocusedJourney(page, "Set up two-factor authentication");
   await page.getByRole("button", { name: "Start setup" }).click();
   await expect(page.locator("code")).toBeVisible();

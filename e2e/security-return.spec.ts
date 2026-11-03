@@ -46,6 +46,7 @@ test("Security explicitly returns to its precise Company and Organization workfl
       `/companies/${companyId}/vat-reports?period=2026-10#vat-step-review`,
       `/companies/${companyId}/settings/users?scope=organization`,
       `/organizations/${organization.id}/users?scope=${companyId}`,
+      `/organizations/${organization.id}/audit-log?companyId=${companyId}&action=company.created&page=1`,
     ]) {
       await page.goto(origin);
       await openSecurity(page);
@@ -53,7 +54,8 @@ test("Security explicitly returns to its precise Company and Organization workfl
       await expect(back).toHaveAttribute("href", origin);
       await expect(page.getByRole("navigation", { name: /Company navigation|Organization navigation/ })).toHaveCount(0);
       await page.reload();
-      await back.click();
+      await back.focus();
+      await page.keyboard.press("Enter");
       await expect(page).toHaveURL(`${baseURL}${origin}`);
     }
   }
@@ -68,6 +70,9 @@ test("Security explicitly returns to its precise Company and Organization workfl
       await expect(page.getByRole("heading", { name: "Overview", exact: true })).toBeVisible();
     }
   }
+  await page.goto(`/companies/${companyId}/settings`);
+  await page.getByRole("link", { name: /^Organization security/ }).click();
+  await expect(page.getByRole("link", { name: "Return to work", exact: true })).toHaveAttribute("href", `/companies/${companyId}/settings`);
   const origin = `/companies/${companyId}/documents?view=review&status=review_required&page=1`;
   await page.goto(origin);
   await openSecurity(page);
@@ -90,15 +95,19 @@ test("Security explicitly returns to its precise Company and Organization workfl
   await expect(page.getByRole("heading", { name: "Security", exact: true })).toBeVisible();
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.screenshot({ path: "test-results/194-security-desktop-en.png", fullPage: true });
+  const securityUrl = page.url();
   const administration = await context.newPage();
   await administration.goto(`/organizations/${organization.id}/users`);
   await administration.locator(".member-access-row").filter({ hasText: email }).getByRole("button", { name: /Remove Membership/ }).click();
   await expect(administration.getByRole("heading", { name: "This page could not be found." })).toBeVisible();
   await administration.close();
-  await page.reload();
-  const fallback = page.getByRole("link", { name: "Return to work", exact: true });
-  await expect(fallback).toHaveAttribute("href", "/");
-  await fallback.click();
-  await expect(page).toHaveURL(`${baseURL}/`);
-  await expect(page.getByRole("heading", { name: "Choose a Company", exact: true })).toBeVisible();
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(securityUrl);
+    const fallback = page.getByRole("link", { name: "Return to work", exact: true });
+    await expect(fallback).toHaveAttribute("href", "/");
+    await fallback.click();
+    await expect(page).toHaveURL(`${baseURL}/`);
+    await expect(page.getByRole("heading", { name: "Choose a Company", exact: true })).toBeVisible();
+  }
 });

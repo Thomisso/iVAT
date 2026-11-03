@@ -144,7 +144,7 @@ for (const language of ["en", "cs"] as const) {
     await expect(login.getByRole("button", { name: /Backup Recovery Company/ })).toBeVisible();
     await login.goto("/settings/security");
     await login.getByRole("link", { name: language === "en" ? "Add authenticator" : "Přidat autentizátor" }).click();
-    await expect(login).toHaveURL(/\/mfa\/enroll(?:\?returnTo=.+)?$/);
+    await expect(login).toHaveURL(/\/mfa\/enroll$/);
     const startSetup = language === "en" ? "Start setup" : "Zahájit nastavení";
     const verifySetup = language === "en" ? "Verify and enable" : "Ověřit a zapnout";
     await login.getByRole("button", { name: startSetup }).click();

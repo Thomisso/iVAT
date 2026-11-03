@@ -90,7 +90,7 @@ export function safeSecurityReturnTo(requested: unknown): string | null {
     allowed = path.endsWith("/users") ? ["scope"] : ["companyId", "actorUserId", "action", "from", "to", "page"];
   } else if (new RegExp(`^/platform/companies/${UUID_PATH}/(?:history|members)$`).test(path)) {
     allowed = path.endsWith("/members") ? ["scope"] : [];
-  } else if (["/platform", "/platform/settings", "/platform/administration", "/platform/ai-settings", "/platform/ai-usage"].includes(path)) {
+  } else if (["/platform/settings", "/platform/administration", "/platform/ai-settings", "/platform/ai-usage"].includes(path)) {
     allowed = path === "/platform/ai-usage" ? ["from", "to", "organizationId", "companyId", "configurationId", "model", "operation", "groupBy"] : [];
   } else return null;
   const query = new URLSearchParams();

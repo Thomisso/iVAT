@@ -12,9 +12,10 @@ import { DisenrollMfaForm } from "./disenroll-mfa-form";
 
 export default async function SecuritySettingsPage({ searchParams }: PageProps<"/settings/security">) {
   const client = await requireUserClient();
-  const returnHref = await resolveSecurityReturnTo(client, (await searchParams).returnTo,
+  const requested = (await searchParams).returnTo;
+  const returnHref = await resolveSecurityReturnTo(client, requested,
     parseCompanyContext((await cookies()).get(companyContextCookie)?.value));
-  const enrollmentHref = `/mfa/enroll?${new URLSearchParams({ returnTo: returnHref })}`;
+  const enrollmentHref = requested === undefined ? "/mfa/enroll" : `/mfa/enroll?${new URLSearchParams({ returnTo: returnHref })}`;
   const [status, organizations, t] = await Promise.all([
     mfaStatus(client).then(availableAuthValue),
     listOrganizationMfaSettings(client).then(availableAuthValue),

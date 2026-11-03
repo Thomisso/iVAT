@@ -54,7 +54,7 @@ it("retains supported Security origins for Platform remediation and Company VAT 
 it.each([
   "https://evil.test/platform/settings", "//evil.test/platform/settings", "/\\evil.test/platform/settings",
   "/%2f%2fevil.test/platform/settings", "/platform/administration\n", "/platform/../platform/settings",
-  "/platform/settings/delete", "/settings/security", "/mfa/enroll",
+  "/platform/settings/delete", "/platform", "/settings/security", "/mfa/enroll",
 ])("refuses unsafe or non-work Security origins %s", (origin) => {
   expect(safeSecurityReturnTo(origin)).toBeNull();
 });
