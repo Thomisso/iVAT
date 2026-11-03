@@ -2,6 +2,8 @@ import { provisionAndLogIn } from "./support/accounts";
 import { createHmac } from "node:crypto";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import {
+  addBrowserFailedExportAttemptFixture,
+  browserExportAttemptState,
   addBrowserMissingConfigurationIssueFixture,
   addBrowserTerminalProcessingJobFixture,
   addBrowserLaterSplitFailureFixture,
@@ -259,4 +261,43 @@ test("live operational alerts retain long configuration controls within CS/EN wo
   await expect.poll(() => browserSourceFileStatus(sourceFileId), { timeout: 45_000 }).toBe("split");
   await page.reload();
   await expect(problem).toHaveCount(0);
+});
+
+test("SuperAdmin closes a failed Company export attempt and sees a later independent failure in CS/EN", async ({ baseURL, context, page }) => {
+  if (!baseURL) throw new Error("Playwright baseURL is required");
+  await english(context, baseURL);
+  const run = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const { companyId, email } = await provisionCompanyAdministrator(page, run);
+  await enrollSuperAdmin(page, email);
+  const first = await addBrowserFailedExportAttemptFixture(companyId);
+  const before = await browserExportAttemptState(first.exportId, first.jobId);
+  await page.goto("/platform/administration");
+  const problem = page.locator(".operational-problem").filter({ hasText: first.exportId });
+  await expect(problem).toBeVisible();
+  await expect(problem.getByRole("heading", { name: "Failed Company export", exact: true })).toBeVisible();
+  await expect(problem.getByText("Affected exports", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Platform alerts, 1 unresolved" })).toBeVisible();
+  await expect(page.locator("#failed-jobs").getByRole("row").filter({ hasText: first.exportId }).getByRole("button", { name: "Close failed export attempt", exact: true })).toBeVisible();
+  await problem.getByRole("button", { name: "Close failed export attempt", exact: true }).click();
+  await expect.poll(() => browserExportAttemptState(first.exportId, first.jobId)).toEqual({ ...before, closed_retry_count: 0 });
+  await waitForHealthyDashboard(page);
+  await expect(page.locator("#failed-jobs").getByRole("row").filter({ hasText: first.exportId })).toHaveCount(0);
+
+  const later = await addBrowserFailedExportAttemptFixture(companyId);
+  await page.reload();
+  await expect(page.getByRole("link", { name: "Platform alerts, 1 unresolved" })).toBeVisible();
+  await expect(page.locator("#failed-jobs").getByRole("row").filter({ hasText: later.exportId })).toHaveCount(1);
+  await expect(page.locator("#failed-jobs").getByRole("row").filter({ hasText: first.exportId })).toHaveCount(0);
+  await context.addCookies([{ name: "NEXT_LOCALE", value: "cs", url: baseURL }]);
+  await page.reload();
+  const row = page.locator("#failed-jobs").getByRole("row").filter({ hasText: later.exportId });
+  await row.getByRole("button", { name: "Uzavřít neúspěšný pokus exportu", exact: true }).click();
+  await expect.poll(async () => (await browserExportAttemptState(later.exportId, later.jobId)).closed_retry_count).toBe(0);
+  await expect.poll(() => browserRemediationAuditActions([first.exportId, later.exportId])).toEqual([
+    "company.export_attempt_closed", "company.export_attempt_closed",
+  ]);
+  expect(await browserExportAttemptState(first.exportId, first.jobId)).toEqual({ ...before, closed_retry_count: 0 });
+  await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseURL }]);
+  await page.reload();
+  await waitForHealthyDashboard(page);
 });

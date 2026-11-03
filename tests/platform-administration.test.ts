@@ -13,7 +13,7 @@ import { fakeAiProvider } from "@/ai/fake";
 import { asUserClient } from "@/application/client";
 import { logIn } from "@/application/auth";
 import { listAuditEvents } from "@/application/audit";
-import { exportCompanyData, getCompanyDataExportStatus } from "@/application/company-deletion";
+import { exportCompanyData, getCompanyDataExportStatus, softDeleteCompany } from "@/application/company-deletion";
 import { listDocuments, listExtractionVersions, getDocument, reprocessDocument, startManualDocumentReview, approveDocument } from "@/application/documents";
 import {
   listPlatformOrganizationCompanies,
@@ -22,6 +22,7 @@ import {
   setPlatformOrganizationBlocked,
 } from "@/application/platform-administration";
 import {
+  closeFailedExportAttempt,
   listFailedProcessingJobs,
   takeOverFailedProcessingJob,
   retryFailedProcessingJob,
@@ -36,6 +37,7 @@ import {
 } from "@/lib/jobs";
 import {
   administratorWithCompany,
+  companyMember,
   assignAiConfigurationFixture as enableAiProcessing,
 } from "./support/fixtures";
 import { anonymousClient, provisionedUser } from "./support/clients";
@@ -988,4 +990,209 @@ it.each([
     } else expect(versions).toEqual(before.versions);
     expect(await boss.getJobById("split-source-file", oldId)).toMatchObject({ state: "failed" });
   } finally { await database.end(); await boss.stop(); }
+});
+
+
+describe("failed Company export attempts", () => {
+  it("allows only an MFA-verified SuperAdmin to close the exact failure without completing its archive", async () => {
+    const company = await administratorWithCompany();
+    const operator = await superAdministrator();
+    process.loadEnvFile(".env.local");
+    const boss = createBoss({ supervise: false });
+    await boss.start();
+    await createProcessingQueues(boss);
+    try {
+      await boss.deleteAllJobs("complete-company-export");
+      const exported = await exportCompanyData(company.client, { async send(job) { await boss.send(job.name, job.data, { retryLimit: 0 }); } }, { companyId: company.companyId });
+      if (!exported.ok) throw new Error(exported.error);
+      expect((await systemClient().rpc("fail_company_data_export", { target_export_id: exported.value.exportId })).error).toBeNull();
+      const [job] = await boss.fetch("complete-company-export", { includeMetadata: true });
+      await boss.fail("complete-company-export", job, { message: "archive storage unavailable" });
+      const receipt = await systemClient().rpc("company_data_export_for_completion", { target_export_id: exported.value.exportId });
+      const ordinary = company.client;
+      const aal1 = anonymousClient();
+      expect((await aal1.auth.signInWithPassword({ email: operator.email, password: "correct-horse-battery" })).error).toBeNull();
+      expect(await closeFailedExportAttempt(ordinary, job.id, 0)).toEqual({ ok: false, error: "forbidden" });
+      expect(await closeFailedExportAttempt(aal1, job.id, 0)).toEqual({ ok: false, error: "forbidden" });
+      expect(await listFailedProcessingJobs(operator.client)).toEqual(expect.objectContaining({ value: expect.arrayContaining([expect.objectContaining({ id: job.id })]) }));
+      expect(await closeFailedExportAttempt(operator.client, job.id, 0)).toEqual({ ok: true, value: null });
+      expect(await listFailedProcessingJobs(operator.client)).toEqual(expect.objectContaining({ value: expect.not.arrayContaining([expect.objectContaining({ id: job.id })]) }));
+      expect(await getCompanyDataExportStatus(company.client, { companyId: company.companyId, exportId: exported.value.exportId })).toEqual({ ok: true, value: "failed" });
+      expect(await systemClient().rpc("company_data_export_for_completion", { target_export_id: exported.value.exportId })).toEqual(receipt);
+      expect(await boss.getJobById("complete-company-export", job.id)).toEqual(expect.objectContaining({ state: "failed" }));
+      expect(await softDeleteCompany(company.client, { companyId: company.companyId, exportId: exported.value.exportId })).toEqual({ ok: false, error: "export_required" });
+      expect(await retryFailedProcessingJob(operator.client, job.id)).toEqual({ ok: false, error: "not_retryable" });
+      expect(await closeFailedExportAttempt(operator.client, job.id, 0)).toEqual({ ok: false, error: "not_closable" });
+      expect(await listAuditEvents(operator.client, company.organizationId)).toContainEqual(expect.objectContaining({
+        action: "company.export_attempt_closed", actorUserId: operator.userId, targetId: exported.value.exportId,
+        payload: { job_id: job.id, retry_count: 0 },
+      }));
+      // An independent request remains visible after the prior attempt was closed.
+      const later = await exportCompanyData(company.client, { async send(next) { await boss.send(next.name, next.data, { retryLimit: 0 }); } }, { companyId: company.companyId });
+      if (!later.ok) throw new Error(later.error);
+      expect((await systemClient().rpc("fail_company_data_export", { target_export_id: later.value.exportId })).error).toBeNull();
+      const [laterJob] = await boss.fetch("complete-company-export", { includeMetadata: true });
+      await boss.fail("complete-company-export", laterJob, { message: "new independent failure" });
+      const laterRows = await listFailedProcessingJobs(operator.client);
+      if (!laterRows.ok) throw new Error(laterRows.error);
+      expect(laterRows.value.filter((row) => [job.id, laterJob.id].includes(row.id)).map((row) => row.id)).toEqual([laterJob.id]);
+      // Even the same queue job's later retry has an independent retry counter.
+      await boss.retry("complete-company-export", job.id);
+      const [retried] = await boss.fetch("complete-company-export", { includeMetadata: true });
+      expect(retried.id).toBe(job.id);
+      expect(retried.retryCount).toBe(1);
+      await boss.fail("complete-company-export", retried, { message: "later attempt failed" });
+      const retriedRows = await listFailedProcessingJobs(operator.client);
+      if (!retriedRows.ok) throw new Error(retriedRows.error);
+      expect(retriedRows.value).toContainEqual(expect.objectContaining({ id: job.id }));
+      expect(await closeFailedExportAttempt(operator.client, job.id, 0)).toEqual({ ok: false, error: "not_closable" });
+      expect(await closeFailedExportAttempt(operator.client, job.id, 1)).toEqual({ ok: true, value: null });
+      expect(await listAuditEvents(operator.client, company.organizationId)).toContainEqual(expect.objectContaining({
+        action: "company.export_attempt_closed", targetId: exported.value.exportId,
+        payload: { job_id: job.id, retry_count: 1 },
+      }));
+    } finally { await boss.stop({ graceful: true }); }
+  });
+
+  it.each(["same author", "other author", "stale revision", "replacement while active"] as const)("supersedes only obsolete failures: %s", async (replacement) => {
+    const company = await administratorWithCompany();
+    const other = await companyMember(company, "administrator");
+    const operator = await superAdministrator();
+    process.loadEnvFile(".env.local");
+    const boss = createBoss({ supervise: false });
+    await boss.start();
+    await createProcessingQueues(boss);
+    try {
+      await boss.deleteAllJobs("complete-company-export");
+      const exported = await exportCompanyData(company.client, { async send(job) { await boss.send(job.name, job.data, { retryLimit: 0 }); } }, { companyId: company.companyId });
+      if (!exported.ok) throw new Error(exported.error);
+      const [job] = await boss.fetch("complete-company-export", { includeMetadata: true });
+      if (replacement !== "replacement while active") {
+        expect((await systemClient().rpc("fail_company_data_export", { target_export_id: exported.value.exportId })).error).toBeNull();
+        await boss.fail("complete-company-export", job, { message: "first archive failure" });
+      }
+      if (replacement === "stale revision") {
+        expect(await setCurrentReportingYear(company.client, { companyId: company.companyId, year: 2026, filingFrequency: "quarterly" })).toEqual({ ok: true, value: null });
+      } else {
+        const worker = testWorker();
+        const completed = await exportCompanyData(replacement === "other author" ? other.client : company.client, worker.jobs, { companyId: company.companyId });
+        if (!completed.ok) throw new Error(completed.error);
+        expect(await worker.runJobs()).toEqual([]);
+      }
+      if (replacement === "replacement while active") {
+        expect((await systemClient().rpc("fail_company_data_export", { target_export_id: exported.value.exportId })).error).toBeNull();
+        await boss.fail("complete-company-export", job, { message: "first archive eventually failed" });
+      }
+      const rows = await listFailedProcessingJobs(operator.client);
+      const problems = await listPlatformOperationalProblems(operator.client);
+      if (!rows.ok || !problems.ok) throw new Error("SuperAdmin cannot observe active work");
+      const stillActive = replacement === "other author";
+      expect(rows.value.some((row) => row.id === job.id)).toBe(stillActive);
+      expect(problems.value.filter((problem) => problem.targetIds.includes(exported.value.exportId)).map((problem) => problem.affectedDocumentCount)).toEqual(stillActive ? [1] : []);
+      if (stillActive) expect(problems.value.find((problem) => problem.targetIds.includes(exported.value.exportId))).toEqual(expect.objectContaining({ kind: "failed_company_export", configuration: null }));
+      if (!stillActive) {
+        expect(await closeFailedExportAttempt(operator.client, job.id, 0)).toEqual({ ok: false, error: "not_closable" });
+        expect(await retryFailedProcessingJob(operator.client, job.id)).toEqual({ ok: false, error: "not_retryable" });
+      }
+      expect(await softDeleteCompany(company.client, { companyId: company.companyId, exportId: exported.value.exportId })).toEqual({ ok: false, error: "export_required" });
+      expect(await listAuditEvents(operator.client, company.organizationId)).not.toContainEqual(expect.objectContaining({ action: "company.export_attempt_closed" }));
+      expect(await boss.getJobById("complete-company-export", job.id)).toEqual(expect.objectContaining({ state: "failed" }));
+      if (replacement === "same author") {
+        await boss.retry("complete-company-export", job.id);
+        const [retried] = await boss.fetch("complete-company-export", { includeMetadata: true });
+        expect(retried.retryCount).toBe(1);
+        await boss.fail("complete-company-export", retried, { message: "failed after the prior replacement succeeded" });
+        const rowsAfterRetry = await listFailedProcessingJobs(operator.client);
+        if (!rowsAfterRetry.ok) throw new Error(rowsAfterRetry.error);
+        expect(rowsAfterRetry.value).toContainEqual(expect.objectContaining({ id: job.id }));
+      }
+    } finally { await boss.stop({ graceful: true }); }
+  });
+
+
+  it.each(["close", "retry"] as const)("recovers an expired pre-handler export still pending through %s", async (resolution) => {
+    const company = await administratorWithCompany();
+    const operator = await superAdministrator();
+    process.loadEnvFile(".env.local");
+    const boss = createBoss({ supervise: false });
+    await boss.start();
+    await createProcessingQueues(boss);
+    try {
+      await boss.deleteAllJobs("complete-company-export");
+      const exported = await exportCompanyData(company.client, { async send(job) { await boss.send(job.name, job.data, { retryLimit: 0 }); } }, { companyId: company.companyId });
+      if (!exported.ok) throw new Error(exported.error);
+      const [job] = await boss.fetch("complete-company-export", { includeMetadata: true });
+      // The process dies after claiming, before it can enter the application handler.
+      await boss.fail("complete-company-export", job, { message: "process died before handler" });
+      expect(await getCompanyDataExportStatus(company.client, { companyId: company.companyId, exportId: exported.value.exportId })).toEqual({ ok: true, value: "pending" });
+      const rows = await listFailedProcessingJobs(operator.client);
+      if (!rows.ok) throw new Error(rows.error);
+      expect(rows.value).toContainEqual(expect.objectContaining({ id: job.id, retryCount: 0 }));
+      const before = await systemClient().rpc("company_data_export_for_completion", { target_export_id: exported.value.exportId });
+      if (resolution === "close") {
+        expect(await closeFailedExportAttempt(operator.client, job.id, 0)).toEqual({ ok: true, value: null });
+        expect(await getCompanyDataExportStatus(company.client, { companyId: company.companyId, exportId: exported.value.exportId })).toEqual({ ok: true, value: "failed" });
+        const after = await systemClient().rpc("company_data_export_for_completion", { target_export_id: exported.value.exportId });
+        expect(after.data).toEqual({ ...(before.data as object), status: "failed" });
+        const lateWorker = testWorker();
+        lateWorker.queued.push({ name: "complete-company-export", data: { exportId: exported.value.exportId } });
+        expect(await lateWorker.runJobs()).toEqual([]);
+        // A worker that already read pending before closure is refused at commit too.
+        expect((await systemClient().rpc("complete_company_data_export", {
+          target_export_id: exported.value.exportId, target_byte_size: 10, target_sha256: "0".repeat(64),
+        })).error?.hint).toBe("export_failed");
+        expect(await getCompanyDataExportStatus(company.client, { companyId: company.companyId, exportId: exported.value.exportId })).toEqual({ ok: true, value: "failed" });
+        expect(await softDeleteCompany(company.client, { companyId: company.companyId, exportId: exported.value.exportId })).toEqual({ ok: false, error: "export_required" });
+        const nextWorker = testWorker();
+        const next = await exportCompanyData(company.client, nextWorker.jobs, { companyId: company.companyId });
+        if (!next.ok) throw new Error(next.error);
+        expect(await nextWorker.runJobs()).toEqual([]);
+        expect(await getCompanyDataExportStatus(company.client, { companyId: company.companyId, exportId: next.value.exportId })).toEqual({ ok: true, value: "completed" });
+      } else {
+        expect(await retryFailedProcessingJob(operator.client, job.id)).toEqual({ ok: true, value: null });
+        const [retried] = await boss.fetch("complete-company-export", { includeMetadata: true });
+        expect(retried.retryCount).toBe(1);
+        const worker = testWorker();
+        worker.queued.push({ name: "complete-company-export", data: { exportId: exported.value.exportId } });
+        await worker.runNextJob({ queueJobId: retried.id, queueRetryCount: retried.retryCount });
+        await boss.complete("complete-company-export", retried.id);
+        expect(await getCompanyDataExportStatus(company.client, { companyId: company.companyId, exportId: exported.value.exportId })).toEqual({ ok: true, value: "completed" });
+      }
+    } finally { await boss.stop({ graceful: true }); }
+  });
+
+
+  it("serializes closing and retrying the same attempt without losing the next failure", async () => {
+    const company = await administratorWithCompany();
+    const operator = await superAdministrator();
+    process.loadEnvFile(".env.local");
+    const boss = createBoss({ supervise: false });
+    await boss.start();
+    await createProcessingQueues(boss);
+    try {
+      await boss.deleteAllJobs("complete-company-export");
+      const exported = await exportCompanyData(company.client, { async send(job) { await boss.send(job.name, job.data, { retryLimit: 0 }); } }, { companyId: company.companyId });
+      if (!exported.ok) throw new Error(exported.error);
+      const [job] = await boss.fetch("complete-company-export", { includeMetadata: true });
+      await boss.fail("complete-company-export", job, { message: "process expired" });
+      const [closed, retried] = await Promise.all([
+        closeFailedExportAttempt(operator.client, job.id, 0),
+        retryFailedProcessingJob(operator.client, job.id),
+      ]);
+      expect([closed, retried].filter((result) => result.ok)).toHaveLength(1);
+      if (closed.ok) {
+        expect(retried).toEqual({ ok: false, error: "not_retryable" });
+        expect(await getCompanyDataExportStatus(company.client, { companyId: company.companyId, exportId: exported.value.exportId })).toEqual({ ok: true, value: "failed" });
+      } else {
+        expect(closed).toEqual({ ok: false, error: "not_closable" });
+        const [next] = await boss.fetch("complete-company-export", { includeMetadata: true });
+        await boss.fail("complete-company-export", next, { message: "later process expired" });
+        const rows = await listFailedProcessingJobs(operator.client);
+        if (!rows.ok) throw new Error(rows.error);
+        expect(rows.value).toContainEqual(expect.objectContaining({ id: job.id, retryCount: 1 }));
+        expect(await closeFailedExportAttempt(operator.client, job.id, 0)).toEqual({ ok: false, error: "not_closable" });
+      }
+    } finally { await boss.stop({ graceful: true }); }
+  });
+
 });

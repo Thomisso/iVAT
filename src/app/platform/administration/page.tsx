@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import {
+  closeFailedExportAttemptAction,
   retryFailedProcessingJobAction,
   takeOverFailedProcessingJobAction,
   setPlatformOrganizationBlockedAction,
@@ -55,6 +56,7 @@ export default async function PlatformAdministrationPage() {
     provider_response_invalid: t("problemProviderResponseInvalid"),
     processing_failed: t("problemProcessingFailed"),
     terminal_processing_job: t("problemTerminalJob"),
+    failed_company_export: t("problemFailedExport"),
   };
 
   return (
@@ -92,7 +94,7 @@ export default async function PlatformAdministrationPage() {
                     </div>
                     <dl className="operational-problem-facts">
                       <div>
-                        <dt>{t("affectedDocuments")}</dt>
+                        <dt>{t(problem.kind === "failed_company_export" ? "affectedExports" : "affectedDocuments")}</dt>
                         <dd>{problem.affectedDocumentCount}</dd>
                       </div>
                       {problem.configuration && (
@@ -112,7 +114,7 @@ export default async function PlatformAdministrationPage() {
                         {problem.companies.map((company) => (
                           <li key={company.id}>
                             <span>{company.name}</span>
-                            <span>{t("companyDocumentCount", { count: company.affectedDocumentCount })}</span>
+                            <span>{t(problem.kind === "failed_company_export" ? "companyExportCount" : "companyDocumentCount", { count: company.affectedDocumentCount })}</span>
                           </li>
                         ))}
                       </ul>
@@ -198,7 +200,11 @@ export default async function PlatformAdministrationPage() {
                       <CommandButton action={retryFailedProcessingJobAction} fields={{ jobId: job.id }} size="sm">
                         {t("retry")}
                       </CommandButton>
-                      {job.name !== "complete-company-export" && (
+                      {job.name === "complete-company-export" ? (
+                        <CommandButton action={closeFailedExportAttemptAction} fields={{ jobId: job.id, retryCount: String(job.retryCount) }} size="sm">
+                          {t("closeExportAttempt")}
+                        </CommandButton>
+                      ) : (
                         <CommandButton action={takeOverFailedProcessingJobAction} fields={{ jobId: job.id }} size="sm">
                           {t("manualTakeover")}
                         </CommandButton>
