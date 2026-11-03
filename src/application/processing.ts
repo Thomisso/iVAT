@@ -78,7 +78,7 @@ export type Worker = {
 };
 
 /** Whether this is the job's last attempt; a technical failure then marks its target Failed. */
-export type Attempt = { final: boolean };
+export type Attempt = { final: boolean; queueJobId?: string; queueRetryCount?: number };
 
 /** Runs one job. The worker process and the tests both run jobs through here. */
 export async function runJob(worker: Worker, job: ProcessingJob, attempt: Attempt): Promise<void> {
@@ -90,6 +90,14 @@ export async function runJob(worker: Worker, job: ProcessingJob, attempt: Attemp
     case "complete-company-export":
       return completeCompanyExport(worker.system, job.data.exportId, attempt);
   }
+}
+
+async function bindProcessingRequest(system: SystemClient, attempt: Attempt, requestId: string) {
+  if (!attempt.queueJobId) return;
+  const { error } = await system.rpc("bind_processing_job_request", {
+    target_job_id: attempt.queueJobId, target_request_id: requestId, target_retry_count: attempt.queueRetryCount ?? 0,
+  });
+  if (error) throw error;
 }
 
 async function completeCompanyExport(
@@ -286,6 +294,7 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
     .eq("id", sourceFileId)
     .single();
   if (error) throw error;
+  await bindProcessingRequest(system, attempt, file.split_request_id);
   if (!["uploaded", "processing", "waiting_for_platform", "split"].includes(file.status)) return;
 
   if (file.status !== "split") {
@@ -366,6 +375,10 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
     .order("first_page");
   if (listError) throw listError;
   for (const document of documents) await jobs.send(extractJob(document.id));
+  const dispatched = await system.rpc("complete_source_processing_dispatch", {
+    target_source_file_id: file.id, target_split_request_id: file.split_request_id,
+  });
+  if (dispatched.error) throw dispatched.error;
 }
 
 async function extractDocument(
@@ -379,6 +392,7 @@ async function extractDocument(
     .eq("id", documentId)
     .single();
   if (error) throw error;
+  await bindProcessingRequest(system, attempt, document.extraction_request_id);
   if (
     document.superseded_at !== null
     || document.source_file_id === null || document.first_page === null || document.last_page === null || document.source_file === null

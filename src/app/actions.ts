@@ -70,7 +70,7 @@ import {
   setPlatformOrganizationBlocked,
   setPlatformUploadLimits,
 } from "@/application/platform-administration";
-import { retryFailedProcessingJob } from "@/application/processing-administration";
+import { retryFailedProcessingJob, takeOverFailedProcessingJob } from "@/application/processing-administration";
 import {
   deleteUploadBatch,
   dismissCompanyUploadNotifications,
@@ -979,6 +979,13 @@ export async function setPlatformUploadLimitsAction(
   if (!result.ok) return refused(result.error, formData, ["maxFileBytes", "maxFilePages", "maxBatchFiles"]);
   refresh();
   return { error: null, values: {} };
+}
+
+export async function takeOverFailedProcessingJobAction(
+  _state: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  return settled(await takeOverFailedProcessingJob(await requireUserClient(), field(formData, "jobId")));
 }
 
 export async function retryFailedProcessingJobAction(

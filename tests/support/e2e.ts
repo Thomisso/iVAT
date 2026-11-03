@@ -261,7 +261,7 @@ export async function promoteBrowserSuperAdminFixture(email: string) {
 }
 
 /** Creates one failed pg-boss split job whose target can be safely retried. */
-export async function addBrowserTerminalProcessingJobFixture(companyId: string) {
+export async function addBrowserTerminalProcessingJobFixture(companyId: string, sourceStatus: "failed" | "uploaded" | "split" = "failed") {
   const environment = await browserFixtureEnvironment();
   const database = new DatabaseClient({ connectionString: environment.DATABASE_URL });
   const service = await browserFixtureClient();
@@ -293,11 +293,15 @@ export async function addBrowserTerminalProcessingJobFixture(companyId: string) 
        )
        select
          $2, organization_id, company_id, file_name, format,
-         byte_size, sha256, page_count, uploaded_by, 'failed'
+         byte_size, sha256, page_count, uploaded_by, $3::public.source_file_status
        from public.source_file
        where id = $1`,
-      [source.rows[0].id, retrySourceFileId],
+      [source.rows[0].id, retrySourceFileId, sourceStatus],
     );
+    if (sourceStatus === "split") {
+      await database.query(`insert into public.document (organization_id, company_id, source_file_id, first_page, last_page)
+        select organization_id, company_id, id, 1, 1 from public.source_file where id = $1`, [retrySourceFileId]);
+    }
     const inserted = await database.query<{ id: string }>(
       `insert into pgboss.job (
          name, data, state, retry_limit, started_on, completed_on, output
@@ -540,5 +544,24 @@ export async function makeBrowserAiProviderUnavailableFixture(companyId: string)
   try {
     await database.query(`update public.ai_configuration set provider = 'openai'
       where id = (select configuration_id from public.company_ai_configuration where company_id = $1)`, [companyId]);
+  } finally { await database.end(); }
+}
+
+/** A distinct later failed request for a manually recovered Source File. */
+export async function addBrowserLaterSplitFailureFixture(sourceFileId: string) {
+  const environment = await browserFixtureEnvironment();
+  const database = new DatabaseClient({ connectionString: environment.DATABASE_URL });
+  await database.connect();
+  try {
+    await database.query("begin");
+    await database.query("update public.source_file set status = 'failed', split_request_id = gen_random_uuid() where id = $1", [sourceFileId]);
+    const inserted = await database.query<{ id: string }>(`insert into pgboss.job (
+      name, data, state, retry_limit, started_on, completed_on, output
+    ) values ('split-source-file', jsonb_build_object('sourceFileId', $1::uuid), 'failed', 0,
+      clock_timestamp(), clock_timestamp(), '{"message":"later browser request failed"}'::jsonb) returning id`, [sourceFileId]);
+    await database.query("commit");
+    return { jobId: inserted.rows[0].id, sourceFileId };
+  } catch (error) {
+    await database.query("rollback"); throw error;
   } finally { await database.end(); }
 }
