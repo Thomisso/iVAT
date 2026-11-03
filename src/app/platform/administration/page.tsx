@@ -24,6 +24,7 @@ import { requireUserClient } from "@/lib/supabase/server";
 import { UploadLimitsForm } from "./upload-limits-form";
 import { OperationalProblemRemediation } from "./operational-problem-remediation";
 import { currentPlatformOperationalProblems } from "../current-operational-problems";
+import { PlatformPageLayout } from "../platform-page-layout";
 
 export default async function PlatformAdministrationPage() {
   const client = await requireUserClient();
@@ -59,11 +60,7 @@ export default async function PlatformAdministrationPage() {
 
   return (
     <>
-      <main className="dashboard platform-page">
-        <header>
-          <h1>{t("title")}</h1>
-          <p className="iv-muted">{t("intro")}</p>
-        </header>
+      <PlatformPageLayout title={t("title")} description={t("intro")}>
 
         <section className="panel operational-problems" aria-labelledby="operational-problems-title">
           <header className="operational-problems-header">
@@ -224,7 +221,7 @@ export default async function PlatformAdministrationPage() {
           <p className="iv-muted">{t("uploadLimitsIntro")}</p>
           <UploadLimitsForm limits={limits.value} />
         </section>
-      </main>
+      </PlatformPageLayout>
     </>
   );
 }

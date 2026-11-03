@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getCompany, getMyCompanyRole } from "@/application/companies";
-import { PageLayout } from "@/components/app-shell";
+import { SettingsPageLayout } from "@/components/app-shell";
 import { requireUserClient } from "@/lib/supabase/server";
 import { SettingsNavigation } from "./settings-navigation";
 
@@ -16,12 +16,7 @@ export default async function CompanySettingsLayout({ children, params }: Layout
   if (!company) notFound();
   if (role !== "administrator") redirect(`/companies/${company.id}`);
 
-  return <PageLayout className="company-workspace company-settings" measure="wide">
-    <header className="company-page-header">
-      <h1>{t("settingsTitle")}</h1>
-      <p>{t("settingsIntro")}</p>
-    </header>
-    <SettingsNavigation companyId={company.id} administrator={role === "administrator"} />
-    <div className="company-settings-content">{children}</div>
-  </PageLayout>;
+  return <SettingsPageLayout title={t("settingsTitle")} description={t("settingsIntro")}
+    navigation={<SettingsNavigation companyId={company.id} administrator={role === "administrator"} />}
+  >{children}</SettingsPageLayout>;
 }

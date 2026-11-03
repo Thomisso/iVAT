@@ -2,12 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getPlatformCompanyHistory } from "@/application/platform-company-history";
-import { PageContent, PageHeader, PageLayout } from "@/components/app-shell";
+import { PageContent } from "@/components/app-shell";
 import { DataTable } from "@/components/data-table";
 import { Notice } from "@/components/notice";
 import { Money } from "@/components/money";
 import { formatDate, formatDateTime } from "@/lib/format-date";
 import { requireUserClient } from "@/lib/supabase/server";
+import { PlatformPageLayout } from "../../../platform-page-layout";
 
 export default async function PlatformCompanyHistoryPage({ params }: PageProps<"/platform/companies/[companyId]/history">) {
   const { companyId } = await params;
@@ -18,8 +19,7 @@ export default async function PlatformCompanyHistoryPage({ params }: PageProps<"
   const { snapshot, deletedAt, blocked, organizationName, auditEvents } = history.value;
   const { company } = snapshot;
   const base = `/platform/companies/${company.id}/history`;
-  return <PageLayout measure="wide">
-    <PageHeader title={t("title", { company: company.name })} description={organizationName} />
+  return <PlatformPageLayout title={t("title", { company: company.name })} description={organizationName}>
     <PageContent measure="wide">
       <Notice tone={deletedAt || blocked ? "warning" : "info"}>
         {deletedAt ? t("deletedNotice", { date: formatDateTime(deletedAt) })
@@ -83,5 +83,5 @@ export default async function PlatformCompanyHistoryPage({ params }: PageProps<"
         ]} />
       </section>
     </PageContent>
-  </PageLayout>;
+  </PlatformPageLayout>;
 }
