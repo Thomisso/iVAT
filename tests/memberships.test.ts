@@ -11,6 +11,7 @@ import {
   changeMembershipRole,
   completeInvitationOnboarding,
   getInvitationOnboarding,
+  generateInvitationLink,
   inviteMember,
   listCompanyAccess,
   listMemberships,
@@ -85,6 +86,30 @@ async function inviteAndAccept(
 }
 
 describe("Membership invitations", () => {
+  it("shows one User with independent direct and inherited Memberships and exact manageable scopes", async () => {
+    const administrator = await administratorWithCompany();
+    const member = await inviteAndAccept(administrator);
+    const invitation = await generateInvitationLink(administrator.client, {
+      organizationId: administrator.organizationId, companyId: null,
+      email: member.email, role: "administrator", acceptUrl: "http://localhost/invitations/accept",
+    });
+    if (!invitation.ok) throw new Error(invitation.error);
+    expect(await acceptInvitation(member.client, invitation.value.token)).toEqual({ ok: true, value: null });
+    const access = await listCompanyAccess(administrator.client, administrator.companyId);
+    if (!access.ok) throw new Error(access.error);
+    const users = access.value.filter(user => user.email === member.email);
+    expect(users).toHaveLength(1);
+    expect(users[0]).toMatchObject({
+      role: "administrator", source: "company_and_organization",
+      memberships: [
+        { id: expect.any(String), organizationId: administrator.organizationId, companyId: administrator.companyId,
+          scopeName: "Novák s.r.o.", source: "company", role: "user", manageable: true },
+        { id: expect.any(String), organizationId: administrator.organizationId, companyId: null,
+          scopeName: "Test Organization", source: "organization", role: "administrator", manageable: true },
+      ],
+    });
+  });
+
   it("lets a new User set an eight-character password, accept the Membership and enter the target Company", async () => {
     const administrator = await administratorWithCompany();
     const email = uniqueEmail();
@@ -225,6 +250,66 @@ describe("Membership invitations", () => {
     expect(succeeded(await getInvitationOnboarding(anonymousClient(), expiredToken))).toEqual({ status: "expired" });
   });
 
+  it("targets one Membership, refuses a Company Administrator's inherited-scope writes and preserves remaining Effective Access", async () => {
+    const owner = await administratorWithCompany();
+    const companyAdministrator = await inviteAndAccept(owner, "administrator");
+    const member = await inviteAndAccept(owner);
+    const second = await createCompany(owner.client, {
+      organizationId: owner.organizationId, ...companyDetails({ name: "Second Company" }),
+    });
+    if (!second.ok) throw new Error(second.error);
+    for (const scope of [{ companyId: null }, { companyId: second.value.id }]) {
+      const invitation = await generateInvitationLink(owner.client, {
+        organizationId: owner.organizationId, companyId: scope.companyId,
+        email: member.email, role: "administrator", acceptUrl: "http://localhost/invitations/accept",
+      });
+      if (!invitation.ok) throw new Error(invitation.error);
+      expect(await acceptInvitation(member.client, invitation.value.token)).toEqual({ ok: true, value: null });
+    }
+    const read = async (client = owner.client, companyId = owner.companyId) => {
+      const result = await listCompanyAccess(client, companyId);
+      if (!result.ok) throw new Error(result.error);
+      return result.value.find(user => user.email === member.email)!;
+    };
+    const scoped = await read(companyAdministrator.client);
+    expect(scoped.memberships.map(membership => [membership.source, membership.role, membership.manageable]))
+      .toEqual([["company", "user", true], ["organization", "administrator", false]]);
+    const [direct, inherited] = scoped.memberships;
+    expect(await changeMembershipRole(owner.client, { membershipId: inherited.id, role: "user" }))
+      .toEqual({ ok: false, error: "forbidden" });
+    expect(await changeMembershipRole(companyAdministrator.client, { membershipId: inherited.id, role: "user" }))
+      .toEqual({ ok: false, error: "forbidden" });
+    expect(await removeMembership(companyAdministrator.client, inherited.id)).toEqual({ ok: false, error: "forbidden" });
+    const denied = await companyAdministrator.client.from("membership").delete().eq("id", inherited.id).select("id");
+    expect(denied.error?.code).toBe("42501");
+    expect(await changeMembershipRole(companyAdministrator.client, { membershipId: direct.id, role: "administrator" }))
+      .toEqual({ ok: true, value: null });
+    expect((await read()).memberships[0].role).toBe("administrator");
+    expect(await changeMembershipRole(companyAdministrator.client, { membershipId: direct.id, role: "user" }))
+      .toEqual({ ok: true, value: null });
+    expect((await read(owner.client, second.value.id)).memberships[0].role).toBe("administrator");
+    expect(await removeMembership(companyAdministrator.client, direct.id)).toEqual({ ok: true, value: null });
+    expect(await read()).toMatchObject({ role: "administrator", source: "organization", memberships: [
+      { id: inherited.id, source: "organization", role: "administrator", manageable: true },
+    ] });
+    const invitation = await generateInvitationLink(owner.client, {
+      organizationId: owner.organizationId, companyId: owner.companyId, email: member.email,
+      role: "user", acceptUrl: "http://localhost/invitations/accept",
+    });
+    if (!invitation.ok) throw new Error(invitation.error);
+    expect(await acceptInvitation(member.client, invitation.value.token)).toEqual({ ok: true, value: null });
+    expect(await removeMembership(owner.client, inherited.id)).toEqual({ ok: true, value: null });
+    expect(await read()).toMatchObject({ role: "user", source: "company", memberships: [
+      { source: "company", role: "user" },
+    ] });
+    expect((await read(owner.client, second.value.id)).memberships).toMatchObject([{ role: "administrator", source: "company" }]);
+    expect((await listMyCompanies(member.client)).map(company => company.id).sort())
+      .toEqual([owner.companyId, second.value.id].sort());
+    const outsider = await administratorWithCompany("Unrelated Organization");
+    expect(await listCompanyAccess(outsider.client, owner.companyId)).toEqual({ ok: false, error: "forbidden" });
+    expect(await removeMembership(outsider.client, (await read()).memberships[0].id)).toEqual({ ok: false, error: "forbidden" });
+  });
+
   it("lists direct and inherited Company access separately from pending invitations", async () => {
     const administrator = await administratorWithCompany();
     const directUser = await inviteAndAccept(administrator);
@@ -313,6 +398,7 @@ describe("Membership invitations", () => {
           if (!access.ok) throw new Error(access.error);
           expect(access.value).toHaveLength(22);
           expect(new Set(access.value.map((entry) => entry.userId)).size).toBe(22);
+          expect(access.value.every(entry => entry.memberships.length === 1)).toBe(true);
         },
       );
     } finally {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { acceptInvitation, generateInvitationLink, listCompanyAccess, listMemberships } from "@/application/memberships";
+import { acceptInvitation, generateInvitationLink, listCompanyAccess, listMemberships, removeMembership } from "@/application/memberships";
 import { administratorWithCompany, companyMember } from "./support/fixtures";
 import { provisionedUser } from "./support/clients";
 import { aal2Client } from "./support/platform";
@@ -50,6 +50,31 @@ describe("active tenant users exclude platform SuperAdmins", () => {
     const outsider = await provisionedUser("Unrelated Organization");
     expect(await listMemberships(outsider.client, { organizationId: target.organizationId, companyId: null })).toEqual([]);
     expect(await listCompanyAccess(outsider.client, target.companyId)).toEqual({ ok: false, error: "forbidden" });
+  });
+
+  it("lets a membership-free SuperAdmin remove inherited Organization access from Company context while direct access remains", async () => {
+    const owner = await administratorWithCompany();
+    const member = await companyMember(owner);
+    const invitation = await generateInvitationLink(owner.client, {
+      organizationId: owner.organizationId, companyId: null, email: member.email,
+      role: "administrator", acceptUrl: "http://localhost/invitations/accept",
+    });
+    if (!invitation.ok) throw new Error(invitation.error);
+    expect(await acceptInvitation(member.client, invitation.value.token)).toEqual({ ok: true, value: null });
+    const platform = await provisionedUser("Platform operator");
+    const promoted = await systemClient().from("platform_user").insert({ user_id: platform.userId, role: "super_admin" });
+    if (promoted.error) throw promoted.error;
+    const operator = aal2Client(platform.userId);
+    const before = await listCompanyAccess(operator, owner.companyId);
+    if (!before.ok) throw new Error(before.error);
+    const user = before.value.find(row => row.userId === member.userId)!;
+    expect(user.memberships.map(row => [row.source, row.manageable])).toEqual([["company", true], ["organization", true]]);
+    expect(await removeMembership(operator, user.memberships[1].id)).toEqual({ ok: true, value: null });
+    const after = await listCompanyAccess(operator, owner.companyId);
+    if (!after.ok) throw new Error(after.error);
+    expect(after.value.find(row => row.userId === member.userId)).toMatchObject({
+      role: "user", source: "company", memberships: [{ source: "company", role: "user", manageable: true }],
+    });
   });
 
   it("keeps complete active rows and counts beyond the PostgREST response cap", async () => {
