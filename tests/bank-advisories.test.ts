@@ -47,6 +47,16 @@ it.each([
     label: "supplier not found", code: "bank_account_not_verified", field: "payment.bankAccount", payload: SAMPLE_EXTRACTION,
     registry: fakeVatPayerRegistry({ outcome: "not_found" }),
   },
+  {
+    label: "contradictory representations", code: "inconsistent_payment_account", field: "payment.bankAccount",
+    payload: { ...SAMPLE_EXTRACTION, payment: { ...SAMPLE_EXTRACTION.payment, bankAccount: "2000145399/0800", iban: "CZ6508000000192000145399" } },
+    registry: fakeVatPayerRegistry({ outcome: "checked", unreliable: false, publishedAccounts: ["19-2000145399/0800"] }),
+  },
+  {
+    label: "gateway identifier", code: "unrecognized_payment_account", field: "payment.bankAccount",
+    payload: { ...SAMPLE_EXTRACTION, payment: { ...SAMPLE_EXTRACTION.payment, bankAccount: "gateway-order-123" } },
+    registry: fakeVatPayerRegistry(),
+  },
 ])("keeps $label advisory through human review, reporting and Finalization", async ({ payload, registry, code, field }) => {
   const { company, document } = await documentInBankReview(payload, registry);
   expect(document.status).toBe("needs_review");
@@ -65,6 +75,53 @@ it.each([
   expect((await generateVatReport(company.client, period)).ok).toBe(true);
   expect((await getVatReport(company.client, company.companyId, period.period))?.result.totals.inputVat).toBe("210.00");
   expect(await finalizeVatReport(company.client, { ...period, confirmed: true })).toEqual({ ok: true, value: null });
+});
+
+it("preserves the extracted Payment Account and rechecks both corrected representations as one account", async () => {
+  const payment = { ...SAMPLE_EXTRACTION.payment, bankAccount: "000019-02000145399 / 0800", iban: "cz65 0800 0000 1920 0014 5399" };
+  const registry = fakeVatPayerRegistry({ outcome: "checked", unreliable: true, publishedAccounts: ["19-2000145399/0800"] });
+  const { company, document } = await documentInBankReview({ ...SAMPLE_EXTRACTION, payment }, registry);
+  const reliability = { field: "supplier.vatId", severity: "warning", code: "unreliable_vat_payer" };
+  expect((await listExtractionVersions(company.client, company.companyId, document.id))[0]).toMatchObject({
+    payload: { payment }, findings: [reliability],
+  });
+  expect(await correctDocument(company.client, {
+    companyId: company.companyId, documentId: document.id, basedOnVersion: 1,
+    payload: { ...SAMPLE_EXTRACTION, payment: { ...payment, bankAccount: "2000145399/0800" } },
+  }, fakeExchangeRates(), registry)).toEqual({ ok: true, value: { version: 2 } });
+  const versions = await listExtractionVersions(company.client, company.companyId, document.id);
+  expect(versions[0]).toMatchObject({ payload: { payment }, findings: [reliability] });
+  expect(versions[1].findings).toEqual([
+    reliability, { field: "payment.bankAccount", severity: "warning", code: "inconsistent_payment_account" },
+  ]);
+  expect(await correctDocument(company.client, {
+    companyId: company.companyId, documentId: document.id, basedOnVersion: 2,
+    payload: { ...SAMPLE_EXTRACTION, payment: { ...payment, bankAccount: "19-2000145399/0800" } },
+  }, fakeExchangeRates(), registry)).toEqual({ ok: true, value: { version: 3 } });
+  expect((await listExtractionVersions(company.client, company.companyId, document.id))[2].findings).toEqual([reliability]);
+});
+
+it("checks an outgoing Document's own-Company receiving account through extraction and correction", async () => {
+  const payload: ExtractionPayload = { ...SAMPLE_EXTRACTION,
+    supplier: SAMPLE_EXTRACTION.customer, customer: SAMPLE_EXTRACTION.supplier,
+    payment: { ...SAMPLE_EXTRACTION.payment, bankAccount: "19-2000145399/0800", iban: "CZ6508000000192000145399" },
+  };
+  const registry: VatPayerRegistry = { check: async (vatId) => ({
+    outcome: "checked", unreliable: false, publishedAccounts: vatId === "CZ25596641" ? ["19-2000145399/0800"] : [],
+  }) };
+  const { company, document } = await documentInBankReview(payload, registry);
+  const [extracted] = await listExtractionVersions(company.client, company.companyId, document.id);
+  expect(extracted).toMatchObject({ payload: { direction: "outgoing" }, findings: [] });
+  expect(await correctDocument(company.client, {
+    companyId: company.companyId, documentId: document.id, basedOnVersion: 1,
+    payload: { ...extracted.payload, payment: { ...payload.payment, bankAccount: "2000145399/0800", iban: null } },
+  }, fakeExchangeRates(), registry)).toEqual({ ok: true, value: { version: 2 } });
+  expect((await listExtractionVersions(company.client, company.companyId, document.id))[1].findings).toEqual([
+    { field: "payment.bankAccount", severity: "warning", code: "unpublished_own_bank_account" },
+  ]);
+  expect(await approveDocument(company.client, { companyId: company.companyId, documentId: document.id, version: 2 }))
+    .toEqual({ ok: true, value: null });
+  expect((await listDocuments(company.client, company.companyId, document.sourceFileId!)).find((item) => item.id === document.id)?.status).toBe("approved");
 });
 
 it("rechecks a corrected payment account and records an unpublished-account advisory on the new Version", async () => {
