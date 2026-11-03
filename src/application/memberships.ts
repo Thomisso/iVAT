@@ -12,6 +12,16 @@ export type Membership = {
   role: MembershipRole;
 };
 
+export type ScopedMembership = {
+  id: string;
+  organizationId: string;
+  companyId: string | null;
+  scopeName: string;
+  source: "company" | "organization";
+  role: MembershipRole;
+  manageable: boolean;
+};
+
 export type CompanyAccess = {
   membershipId: string;
   userId: string;
@@ -19,6 +29,7 @@ export type CompanyAccess = {
   role: MembershipRole;
   source: "company" | "organization" | "company_and_organization";
   manageableMembershipId: string | null;
+  memberships: ScopedMembership[];
 };
 
 type CompanyAccessDatabaseRow = {
@@ -28,6 +39,10 @@ type CompanyAccessDatabaseRow = {
   role: MembershipRole;
   source: CompanyAccess["source"];
   manageable_membership_id: string | null;
+  memberships: {
+    id: string; organization_id: string; company_id: string | null;
+    scope_name: string; source: ScopedMembership["source"]; role: MembershipRole; manageable: boolean;
+  }[];
 };
 
 export type PendingInvitation = {
@@ -291,6 +306,11 @@ export async function listCompanyAccess(
       role: access.role,
       source: access.source,
       manageableMembershipId: access.manageable_membership_id,
+      memberships: access.memberships.map(membership => ({
+        id: membership.id, organizationId: membership.organization_id, companyId: membership.company_id,
+        scopeName: membership.scope_name, source: membership.source, role: membership.role,
+        manageable: membership.manageable,
+      })),
     })),
   };
 }
