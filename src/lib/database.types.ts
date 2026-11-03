@@ -1034,6 +1034,9 @@ isOneToOne: false
               "invitee_email": string,"invitee_existed": boolean,"onboarding_status": string,"target_company_id": string
             }[]
                            },
+"list_access_management":
+{ Args: { "target_company_id": string,"target_organization_id": string }; Returns: Json
+                           },
 "list_active_memberships":
 { Args: { "target_company_id"?: string,"target_organization_id": string }; Returns: Json
                            },

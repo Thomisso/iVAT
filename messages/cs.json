@@ -282,6 +282,13 @@
     "saved": "Výchozí údaje podání byly uloženy."
   },
   "members": {
+    "managementScope": "Rozsah správy",
+    "applyScope": "Použít rozsah",
+    "organizationScope": "Organizace: {name}",
+    "companyScope": "Společnost: {name}",
+    "scopeForbidden": "Tento rozsah nemůžete spravovat.",
+    "organizationAccess": "Členství v této organizaci: {scopes}. Každé členství si zachovává vlastní roli. Přístup administrátora organizace platí i pro její společnosti.",
+    "invitationScopeHint": "Pozvánky se vztahují k vybranému rozsahu. Pro správu pozvánek jiného rozsahu jej vyberte.",
     "nav": "Uživatelé",
     "organizationNav": "Spravovat {organization}",
     "companyTitle": "Uživatelé firmy {company}",

@@ -144,7 +144,7 @@ export default async function PlatformAdministrationPage() {
             columns={[
               {
                 key: "name", header: t("organization"),
-                render: (organization) => <Link href={`/organizations/${organization.id}/members`}>{organization.name}</Link>,
+                render: (organization) => <Link href={`/organizations/${organization.id}/users`}>{organization.name}</Link>,
               },
               {
                 key: "companies", header: t("companies"),

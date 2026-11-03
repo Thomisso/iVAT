@@ -73,9 +73,14 @@ test("native bootstrap SuperAdmin manages real tenant users without appearing in
     await context.addCookies([{ name: "NEXT_LOCALE", value: locale, url: baseURL }]);
     await page.goto(`/organizations/${organization.id}/members`);
     const organizationRows = page.locator(".member-access-row");
-    await expect(organizationRows).toHaveCount(1);
-    await expect(organizationRows).toContainText(owner.email);
-    await expect(page.getByText(locale === "en" ? "1 active user" : "1 aktivní uživatel", { exact: true })).toBeVisible();
+    await expect(organizationRows).toHaveCount(2);
+    await expect(organizationRows.filter({ hasText: historical.email })).toHaveCount(0);
+    await expect(page.getByLabel(locale === "en" ? "Management scope" : "Rozsah správy", { exact: true })).toHaveValue("organization");
+    await expect(organizationRows.filter({ hasText: owner.email })).toHaveCount(1);
+    await expect(page.getByText(locale === "en" ? "2 active users" : "2 aktivní uživatelé", { exact: true })).toBeVisible();
+    await page.goto(`/platform/companies/${companyId}/members`);
+    await expect(page.getByLabel(locale === "en" ? "Management scope" : "Rozsah správy", { exact: true })).toHaveValue(companyId);
+    await expect(page.locator(".member-access-row")).toHaveCount(2);
     await page.goto(`/companies/${companyId}/settings/users`);
     await expect(page.locator(".member-access-row")).toHaveCount(2);
     await expect(page.locator(".member-access-row").filter({ hasText: historical.email })).toHaveCount(0);

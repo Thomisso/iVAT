@@ -282,6 +282,13 @@
     "saved": "Filing defaults saved."
   },
   "members": {
+    "managementScope": "Management scope",
+    "applyScope": "Apply scope",
+    "organizationScope": "Organization: {name}",
+    "companyScope": "Company: {name}",
+    "scopeForbidden": "You cannot manage this scope.",
+    "organizationAccess": "Memberships in this Organization: {scopes}. Each Membership retains its own Role. Organization Administrator access also applies to its Companies.",
+    "invitationScopeHint": "Invitations apply to the selected scope. Select another scope to manage its Invitations.",
     "nav": "Users",
     "organizationNav": "Manage {organization}",
     "companyTitle": "Users of {company}",

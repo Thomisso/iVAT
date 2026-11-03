@@ -315,6 +315,43 @@ export async function listCompanyAccess(
   };
 }
 
+export type AccessManagementScope = { organizationId: string; companyId: string | null; name: string };
+export type ManagedUser = { userId: string; email: string; effectiveRole: MembershipRole | null; memberships: ScopedMembership[] };
+export type AccessManagement = {
+  scope: AccessManagementScope;
+  scopes: AccessManagementScope[];
+  users: ManagedUser[];
+  pendingInvitations: PendingInvitation[];
+  blocked: boolean;
+};
+
+/** Read one authorized scope; Organization scope includes all active Company
+ * Memberships without inventing a per-person Organization Role. Writes retain
+ * their independent database authorization and exact Membership targets.
+ * Read-only; forbidden covers invalid, foreign, deleted and unauthorized scopes.
+ * Scalar JSON keeps scope choices, Users, Memberships and Invitations complete. */
+export async function listAccessManagement(
+  client: AppClient,
+  input: { organizationId: string; companyId: string | null },
+): Promise<Result<AccessManagement, "forbidden">> {
+  if (!isUuid(input.organizationId) || (input.companyId !== null && !isUuid(input.companyId))) return { ok: false, error: "forbidden" };
+  const { data, error } = await client.rpc("list_access_management", {
+    target_organization_id: input.organizationId, target_company_id: input.companyId as string,
+  });
+  if (error) {
+    if (databaseRefusal(error) === "forbidden") return { ok: false, error: "forbidden" };
+    throw error;
+  }
+  const result = data as unknown as Omit<AccessManagement, "users"> & { users: CompanyAccessDatabaseRow[] };
+  return { ok: true, value: { ...result, users: result.users.map(user => ({
+    userId: user.user_id, email: user.email, effectiveRole: input.companyId === null ? null : user.role,
+    memberships: user.memberships.map(membership => ({
+      id: membership.id, organizationId: membership.organization_id, companyId: membership.company_id,
+      scopeName: membership.scope_name, source: membership.source, role: membership.role, manageable: membership.manageable,
+    })),
+  })) } };
+}
+
 export async function listPendingInvitations(
   client: AppClient,
   input: { organizationId: string; companyId: string | null },
