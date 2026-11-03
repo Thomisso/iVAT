@@ -1,5 +1,6 @@
 import type { ValidationFinding } from "./document-validation";
 import type { ExtractionPayload } from "./extraction-payload";
+import { normalizedPaymentAccount, paymentAccountIdentity } from "./payment-account";
 
 export type VatPayerRegistryCheck =
   | {
@@ -22,29 +23,20 @@ const warning = (field: string, code: string): ValidationFinding => ({
   code,
 });
 
-/**
- * Accounts have insignificant spaces, letter case and leading zeroes. Czech
- * standard accounts use `prefix-number/bank`; non-standard accounts are IBANs.
- */
-function normalizedAccount(value: string): string {
-  const compact = value.replace(/\s+/g, "").toUpperCase();
-  const standard = /^(?:(\d+)-)?(\d+)\/(\d{4})$/.exec(compact);
-  if (!standard) return compact;
-  const digits = (part: string | undefined) =>
-    part === undefined ? undefined : part.replace(/^0+(?=\d)/, "");
-  const prefix = digits(standard[1]);
-  return `${prefix ? `${prefix}-` : ""}${digits(standard[2])}/${standard[3]}`;
-}
-
 /** Registry warnings for one freshly extracted Document. */
 export async function vatRegistryFindings(
   registry: VatPayerRegistry,
   payload: ExtractionPayload,
 ): Promise<ValidationFinding[]> {
+  const ownAccount = payload.direction === "outgoing";
+  const account = paymentAccountIdentity(payload.payment);
+  const accountFindings = account.outcome === "inconsistent"
+    ? [warning(account.field, "inconsistent_payment_account")]
+    : account.outcome === "unrecognized"
+      ? [warning(account.field, "unrecognized_payment_account")]
+      : [];
   const vatId = payload.supplier.vatId;
-  if (!vatId || !/^CZ\d{8,10}$/.test(vatId)) return [];
-  const paymentAccount = payload.payment.iban?.trim() || payload.payment.bankAccount?.trim() || null;
-  const accountField = payload.payment.iban?.trim() ? "payment.iban" : "payment.bankAccount";
+  if (!vatId || !/^CZ\d{8,10}$/.test(vatId)) return accountFindings;
 
   let check: VatPayerRegistryCheck;
   try {
@@ -53,28 +45,28 @@ export async function vatRegistryFindings(
     check = { outcome: "unavailable" };
   }
   if (check.outcome === "unavailable") {
-    return [warning("supplier.vatId", "vat_registry_check_not_performed")];
+    return [warning("supplier.vatId", ownAccount ? "own_vat_registry_check_not_performed" : "vat_registry_check_not_performed"), ...accountFindings];
   }
   if (check.outcome === "not_found") {
-    return paymentAccount ? [warning(accountField, "bank_account_not_verified")] : [];
+    return account.outcome === "recognized" ? [warning(account.field, ownAccount ? "own_bank_account_not_verified" : "bank_account_not_verified")] : accountFindings;
   }
 
   const findings: ValidationFinding[] = [];
   if (check.unreliable) {
-    findings.push(warning("supplier.vatId", "unreliable_vat_payer"));
+    findings.push(warning("supplier.vatId", ownAccount ? "unreliable_own_vat_payer" : "unreliable_vat_payer"));
   }
   if (
-    paymentAccount &&
+    account.outcome === "recognized" &&
     !check.publishedAccounts
-      .map(normalizedAccount)
-      .includes(normalizedAccount(paymentAccount))
+      .map(normalizedPaymentAccount)
+      .includes(account.account)
   ) {
     findings.push(
       warning(
-        accountField,
-        "unpublished_bank_account",
+        account.field,
+        ownAccount ? "unpublished_own_bank_account" : "unpublished_bank_account",
       ),
     );
   }
-  return findings;
+  return [...findings, ...accountFindings];
 }
