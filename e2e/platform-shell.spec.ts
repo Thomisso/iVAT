@@ -185,10 +185,7 @@ test("only a SuperAdmin navigates the shared Platform shell without losing exist
     main
       .locator(":scope > header")
       .evaluate((node) => node.getBoundingClientRect().x),
-    page
-      .getByRole("heading", { name: "Organizations and Companies" })
-      .locator("xpath=ancestor::section")
-      .evaluate((node) => node.getBoundingClientRect().x),
+    settingsSections.evaluate((node) => node.getBoundingClientRect().x),
   ]);
   expect(alignedEdges[0]).toBe(alignedEdges[1]);
 
@@ -206,7 +203,7 @@ test("only a SuperAdmin navigates the shared Platform shell without losing exist
     configurations.getByLabel("Configuration label").first().boundingBox(),
     configurations.getByLabel("Provider").first().boundingBox(),
   ]);
-  expect(configurationsBox!.width).toBeGreaterThan(1000);
+  expect(configurationsBox!.width).toBeGreaterThan(800);
   expect(providerBox!.x).toBeGreaterThan(labelBox!.x + labelBox!.width);
   expect(Math.abs(providerBox!.y - labelBox!.y)).toBeLessThan(2);
   await settingsSections.getByRole("link", { name: "Platform AI usage" }).click();

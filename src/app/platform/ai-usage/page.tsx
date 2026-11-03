@@ -19,6 +19,7 @@ import { Button } from "@/components/button";
 import { DateInput } from "@/components/date-input";
 import { Notice } from "@/components/notice";
 import { requireUserClient } from "@/lib/supabase/server";
+import { PlatformPageLayout } from "../platform-page-layout";
 
 /** The first and last calendar day of the current month in Prague. */
 function currentMonth() {
@@ -130,11 +131,7 @@ export default async function PlatformAiUsagePage({ searchParams }: PageProps<"/
     organization.companies.map((company) => ({ id: company.id, name: `${organization.name} · ${company.name}` })));
 
   return (
-    <main className="dashboard platform-page">
-      <header>
-        <h1>{t("platformTitle")}</h1>
-        <p className="iv-muted">{t("platformIntro")}</p>
-      </header>
+    <PlatformPageLayout title={t("platformTitle")} description={t("platformIntro")}>
       <form className="form settings-form" method="get" aria-label={t("filters")}>
         <DateInput label={t("from")} name="from" defaultValue={filters.from} />
         <DateInput label={t("to")} name="to" defaultValue={filters.to} />
@@ -188,6 +185,6 @@ export default async function PlatformAiUsagePage({ searchParams }: PageProps<"/
           empty: t("empty"),
         }}
       />
-    </main>
+    </PlatformPageLayout>
   );
 }
