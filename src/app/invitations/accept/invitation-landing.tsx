@@ -14,6 +14,7 @@ export function InvitationLanding({ legacyToken }: { legacyToken: string }) {
   const [token, setToken] = useState("");
   const [loaded, setLoaded] = useState<LoadedInvitation | null>(null);
   const [failed, setFailed] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
   useEffect(() => {
     let disposed = false;
     let generation = 0;
@@ -32,12 +33,14 @@ export function InvitationLanding({ legacyToken }: { legacyToken: string }) {
     return () => { disposed = true; generation++; window.removeEventListener("hashchange", changed); };
   }, [legacyToken]);
   if (failed) return <><h1>{t("acceptTitle")}</h1><FormError error="invitation_unavailable" /></>;
+  if (loaded && !loaded.ok) return <><h1>{t("acceptTitle")}</h1><FormError error={loaded.error} /></>;
   if (!loaded) return <p role="status">{t("loadingInvitation")}</p>;
   const onboarding = loaded.onboarding;
   if (onboarding.status !== "valid") return <><h1>{t("acceptTitle")}</h1><FormError error={`invitation_${onboarding.status}`} /></>;
   if (loaded.wrongAccount) return <>
     <h1>{t("acceptTitle")}</h1><p>{t("wrongAccountIntro")}</p>
-    <Button onClick={async () => { await signOutInvitationAction(); window.location.reload(); }}>{t("signOutToAccept")}</Button>
+    <FormError error={signOutError} />
+    <Button onClick={async () => { const result = await signOutInvitationAction(); if (result.ok) window.location.reload(); else setSignOutError(result.error); }}>{t("signOutToAccept")}</Button>
   </>;
   return <>
     <h1>{t(loaded.authenticated ? "acceptTitle" : onboarding.existingUser ? "logInToAcceptTitle" : "setPasswordTitle")}</h1>

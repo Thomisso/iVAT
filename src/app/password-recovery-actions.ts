@@ -13,7 +13,8 @@ const field = (form: FormData, name: string) => String(form.get(name) ?? "");
 export async function requestPasswordRecoveryAction(_state: RecoveryFormState, form: FormData): Promise<RecoveryFormState> {
   const email = field(form, "email");
   try {
-    await requestPasswordRecovery(await createRequestClient(), passwordRecoveryAuthentication(), email);
+    const result = await requestPasswordRecovery(await createRequestClient(), passwordRecoveryAuthentication(), email);
+    if (!result.ok) return { error: result.error, values: { email } };
   } catch {
     return { error: "password_recovery_failed", values: { email } };
   }
@@ -33,7 +34,9 @@ export async function verifyPasswordRecoveryAction(_state: RecoveryFormState, fo
 
 export async function verifyRecoveryAuthenticatorAction(_state: RecoveryFormState, form: FormData): Promise<RecoveryFormState> {
   const client = await createRequestClient();
-  const status = await mfaStatus(client);
+  const statusResult = await mfaStatus(client);
+  if (!statusResult.ok) return { error: statusResult.error, values: {} };
+  const status = statusResult.value;
   if (!status.factorId) return { error: "mfa_verification_required", values: {} };
   const result = await verifyTotp(client, { factorId: status.factorId, code: field(form, "code") });
   if (result.ok) refresh();

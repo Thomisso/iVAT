@@ -185,10 +185,7 @@ test("only a SuperAdmin navigates the shared Platform shell without losing exist
     main
       .locator(":scope > header")
       .evaluate((node) => node.getBoundingClientRect().x),
-    page
-      .getByRole("heading", { name: "Organizations and Companies" })
-      .locator("xpath=ancestor::section")
-      .evaluate((node) => node.getBoundingClientRect().x),
+    settingsSections.evaluate((node) => node.getBoundingClientRect().x),
   ]);
   expect(alignedEdges[0]).toBe(alignedEdges[1]);
 
@@ -206,7 +203,7 @@ test("only a SuperAdmin navigates the shared Platform shell without losing exist
     configurations.getByLabel("Configuration label").first().boundingBox(),
     configurations.getByLabel("Provider").first().boundingBox(),
   ]);
-  expect(configurationsBox!.width).toBeGreaterThan(1000);
+  expect(configurationsBox!.width).toBeGreaterThan(800);
   expect(providerBox!.x).toBeGreaterThan(labelBox!.x + labelBox!.width);
   expect(Math.abs(providerBox!.y - labelBox!.y)).toBeLessThan(2);
   await settingsSections.getByRole("link", { name: "Platform AI usage" }).click();
@@ -349,12 +346,14 @@ test("SuperAdmin supports a blocked Organization and reads a deleted Company's r
   await expect(page.getByText(targetEmail, { exact: true })).toBeVisible();
   const memberRow = page.getByRole("listitem").filter({ has: page.getByText(memberEmail, { exact: true }) });
   await expect(memberRow).toBeVisible();
-  await memberRow.getByRole("combobox", { name: "Role", exact: true }).selectOption("administrator");
-  await memberRow.getByRole("button", { name: "Change Role", exact: true }).click();
+  const membershipScope = `Company Membership: ${companyName}`;
+  const membership = memberRow.getByRole("group", { name: membershipScope, exact: true });
+  await membership.getByRole("combobox", { name: "Role", exact: true }).selectOption("administrator");
+  await membership.getByRole("button", { name: `Change Role — ${membershipScope}`, exact: true }).click();
   await expect(memberRow.getByText("Administrator", { exact: true }).first()).toBeVisible();
   await page.reload();
-  await expect(memberRow.getByRole("combobox", { name: "Role", exact: true })).toHaveValue("administrator");
-  await memberRow.getByRole("button", { name: "Remove access", exact: true }).click();
+  await expect(membership.getByRole("combobox", { name: "Role", exact: true })).toHaveValue("administrator");
+  await membership.getByRole("button", { name: `Remove Membership — ${membershipScope}`, exact: true }).click();
   await expect(page.getByText(memberEmail, { exact: true })).toHaveCount(0);
   await page.reload();
   await expect(page.getByText(memberEmail, { exact: true })).toHaveCount(0);

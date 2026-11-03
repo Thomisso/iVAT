@@ -30,8 +30,9 @@ Return lines to whole CZK while Control Statement amounts remain unrounded.
 
 Control Statement classification uses the absolute **whole Document gross amount**,
 not individual rates: above CZK 10,000 → A.4 (outgoing) or B.2 (incoming), otherwise
-A.5/B.3. Exactly CZK 10,000 is aggregated. Outgoing supplies without a domestic
-counterparty VAT ID are aggregated in A.5 regardless of amount. Each A.4/B.2
+A.5/B.3. Exactly CZK 10,000 is aggregated. Outgoing supplies with a supplied foreign
+counterparty VAT ID are aggregated in A.5 regardless of amount. Missing
+counterparty VAT IDs above the limit are excluded until corrected. Each A.4/B.2
 Document has its own entry; A.5/B.3 aggregate by rate. Each value retains its
 contributing Document ids, including summary totals through their Return lines.
 
@@ -50,9 +51,13 @@ exclusion, period assignment and classification used by `computeVatReport`.
 Detail, Document lists, period readiness and the checking workbook distinguish
 approval, actual live inclusion, exclusion reason, blocking findings and advisory
 findings. Historical findings remain immutable; current required identity checks
-are projected separately. In particular, the existing engine requires a Czech
-supplier VAT ID for every domestic incoming Document, independently of the
-Control Statement amount threshold.
+are projected separately. Ordinary domestic Documents may omit the counterparty VAT ID when the absolute
+whole-Document gross amount is at most CZK 10,000, using the stored ČNB conversion
+for foreign currency. Exactly CZK 10,000 qualifies; above it, both Directions
+require the counterparty VAT ID. A missing supplier VAT ID within the exception
+is advisory: an absent field in iVAT does not establish the original document's
+legal completeness. Supplied-invalid identifiers, Company identity and the
+reverse-charge/supported EU requirements retain their validation.
 
 Available classification remains visible as a proposed mapping when a Document
 is not counted. Return lines can be known even while amounts are unfinished;

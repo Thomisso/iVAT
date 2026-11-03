@@ -31,15 +31,15 @@ export async function GET(request: NextRequest) {
     if (result.ok) {
       return NextResponse.redirect(new URL(next, appOrigin));
     }
-    if ("error" in result && result.error === "organization_blocked") {
-      return NextResponse.redirect(new URL("/login?error=organization_blocked", appOrigin));
+    if (result.error === "organization_blocked" || result.error === "auth_unavailable") {
+      return NextResponse.redirect(new URL(result.error === "auth_unavailable" ? "/auth/unavailable" : "/login?error=organization_blocked", appOrigin));
     }
   }
   if (code) {
     const result = await completeGoogleSignIn(client, code);
     if (result.ok) return NextResponse.redirect(new URL("/", appOrigin));
-    if (result.error === "organization_blocked") {
-      return NextResponse.redirect(new URL("/login?error=organization_blocked", appOrigin));
+    if (result.error === "organization_blocked" || result.error === "auth_unavailable") {
+      return NextResponse.redirect(new URL(result.error === "auth_unavailable" ? "/auth/unavailable" : "/login?error=organization_blocked", appOrigin));
     }
   }
   return NextResponse.redirect(new URL(`/login${code ? "?error=google_sign_in_failed" : ""}`, appOrigin));

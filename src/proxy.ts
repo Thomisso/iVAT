@@ -1,6 +1,12 @@
-import { createServerClient } from "@supabase/ssr";
+import { createTranslator } from "next-intl";
+import { defaultLocale, isLocale, localeCookie } from "@/i18n/locales";
 import { NextResponse, type NextRequest } from "next/server";
 import { supabasePublishableKey, supabaseUrl } from "@/lib/env";
+import { createSessionClient } from "@/lib/supabase/session-client";
+import { serverSupabaseFetch } from "@/lib/supabase/server-transport";
+import { authUnavailable } from "@/application/auth-availability";
+import cs from "../messages/cs.json";
+import en from "../messages/en.json";
 import { mfaRedirectPath } from "@/application/mfa-routing";
 
 const PUBLIC_PATHS = ["/login", "/signup", "/auth/callback", "/invitations/accept", "/password/forgot", "/password/reset"];
@@ -9,28 +15,45 @@ const PUBLIC_ASSETS = new Set(["/brand/logo.svg", "/brand/mark.svg", "/icon.svg"
 // Refreshes the Supabase session cookie on every request and sends anonymous
 // visitors to the login page. Pages still check the user themselves.
 export async function proxy(request: NextRequest) {
-  // Brand assets remain available before login and during pending MFA, without session routing.
-  if (PUBLIC_ASSETS.has(request.nextUrl.pathname)) return NextResponse.next();
+  // Brand assets and the stateless refusal surface remain available without
+  // session dependencies. All protected destinations still enforce native MFA.
+  if (PUBLIC_ASSETS.has(request.nextUrl.pathname) || request.nextUrl.pathname === "/auth/unavailable") return NextResponse.next();
   let response = NextResponse.next({ request });
 
-  const supabase = createServerClient(supabaseUrl, supabasePublishableKey, {
+  const supabase = createSessionClient(supabaseUrl, supabasePublishableKey, {
+    fetch: serverSupabaseFetch,
     cookies: {
       getAll: () => request.cookies.getAll(),
-      setAll: (cookiesToSet) => {
+      setAll: (cookiesToSet, headers) => {
         cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
         response = NextResponse.next({ request });
         cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
+        Object.entries(headers).forEach(([name, value]) => response.headers.set(name, value));
       },
     },
   });
 
-  const { data } = await supabase.auth.getUser();
+  const unavailable = () => {
+    const storedLocale = request.cookies.get(localeCookie)?.value;
+    const locale = isLocale(storedLocale) ? storedLocale : defaultLocale;
+    const t = createTranslator({ locale, messages: locale === "en" ? en : cs, namespace: "errors" });
+    const result = new NextResponse(
+      t("auth_unavailable"),
+      { status: 503, headers: { "Cache-Control": "no-store", "Retry-After": "30", "Content-Type": "text/plain; charset=utf-8" } },
+    );
+    // A successful refresh may precede a later policy/database outage. Retain
+    // those rotated tokens even while refusing access to protected content.
+    response.cookies.getAll().forEach(cookie => result.cookies.set(cookie));
+    return result;
+  };
+  const { data, error } = await supabase.auth.getUser();
+  if (authUnavailable(error)) return unavailable();
   if (!data.user && !PUBLIC_PATHS.includes(request.nextUrl.pathname)) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
   if (data.user) {
     const recovery = await supabase.rpc("mfa_replacement_status");
-    if (recovery.error) throw recovery.error;
+    if (recovery.error) return unavailable();
     const recoveryState = recovery.data as { pending?: boolean; needsRecovery?: boolean };
     if (recoveryState?.pending || recoveryState?.needsRecovery) {
       if (!["/password/reset", "/password/forgot", "/auth/callback", "/login"].includes(request.nextUrl.pathname)) {
@@ -39,7 +62,8 @@ export async function proxy(request: NextRequest) {
       return response;
     }
     const policy = await supabase.rpc("current_mfa_policy");
-    const current = policy.data?.[0];
+    if (policy.error || !policy.data?.[0]) return unavailable();
+    const current = policy.data[0];
     if (current) {
       const destination = mfaRedirectPath(request.nextUrl.pathname, current);
       if (destination) return NextResponse.redirect(new URL(destination, request.url));
@@ -49,5 +73,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|health/live$|health/auth$).*)"],
 };

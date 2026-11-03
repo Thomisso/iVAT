@@ -1,3 +1,5 @@
+import { refreshBankAccountCheck } from "@/application/bank-account-checks";
+import { fakeVatPayerRegistry } from "@/vat-registry/fake";
 import { describe, expect, it, vi } from "vitest";
 import { getCompanyAiProcessingAllowance } from "@/application/ai-processing-allowance";
 import { listAuditEvents } from "@/application/audit";
@@ -99,6 +101,7 @@ describe("Upload Batch deletion", () => {
       documentId: approved,
       version: 1,
     })).toEqual({ ok: true, value: null });
+    expect(await refreshBankAccountCheck(member.client, { companyId: admin.companyId, documentId: approved }, fakeVatPayerRegistry())).toMatchObject({ ok: true });
     expect(await getUploadBatchDeletionPreview(member.client, (await getUploadBatch(member.client, admin.companyId, batchId))!)).toEqual({
       batchId,
       createdBy: member.userId,

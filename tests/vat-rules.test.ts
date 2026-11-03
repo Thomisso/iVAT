@@ -364,7 +364,7 @@ it("uses stored CZK conversion amounts while preserving foreign originals", () =
     documentIds: ["doc-1"],
   });
 });
-it("keeps separate high-value Documents, and outgoing supplies without a Czech VAT ID go to A.5", () => {
+it("keeps separate high-value Documents, and outgoing supplies with a foreign VAT ID go to A.5", () => {
   const data = {
     direction: "outgoing" as const,
     customer: SAMPLE_EXTRACTION.supplier,
@@ -378,7 +378,7 @@ it("keeps separate high-value Documents, and outgoing supplies without a Czech V
     document(data),
     { ...document(data), id: "doc-2" },
     {
-      ...document({ ...data, customer: { ...data.customer, vatId: null } }),
+      ...document({ ...data, customer: { ...data.customer, vatId: "DE123456789" } }),
       id: "consumer",
     },
   ]);

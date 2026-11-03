@@ -111,7 +111,7 @@ test("real Auth, Company, Organization and Platform surfaces share one accessibl
 
   const companyId = await createCompany(page, `Contract Company with a long official accounting and advisory business name ${run}`, `${Date.now()}`.slice(-8));
   await page.goto(`/companies/${companyId}/settings`);
-  const organizationHref = await page.locator('a[href^="/organizations/"][href$="/members"]').first().getAttribute("href");
+  const organizationHref = await page.locator('a[href^="/organizations/"][href$="/users"]').first().getAttribute("href");
   if (!organizationHref) throw new Error("Organization context link was not rendered");
 
   const configuration = await assignBrowserAiConfigurationFixture(companyId);
@@ -147,7 +147,7 @@ test("real Auth, Company, Organization and Platform surfaces share one accessibl
       href: "/platform/administration",
       navigation: "Platform navigation",
       heading: "Platform administration",
-      content: "main > section",
+      content: ".settings-section-nav a",
       menu: "Open account menu",
     },
   ] as const;
@@ -203,7 +203,7 @@ test("real Auth, Company, Organization and Platform surfaces share one accessibl
       expect(bounds.x).toBeGreaterThanOrEqual(assignmentBox.x);
       expect(bounds.x + bounds.width).toBeLessThanOrEqual(assignmentBox.x + assignmentBox.width);
     }
-    if (width === 1440) expect((await configurationCard.boundingBox())!.width).toBeGreaterThan(800);
+    if (width === 1440) expect((await configurationCard.boundingBox())!.width).toBeGreaterThan(700);
     await testInfo.attach(`platform-ai-${width}`, { body: await configurationCard.screenshot({ path: testInfo.outputPath(`platform-ai-${width}.png`) }), contentType: "image/png" });
   }
   await unlimited.check();

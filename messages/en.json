@@ -134,6 +134,10 @@
     "requestAgain": "Request a new recovery email",
     "loading": "Checking recovery link…"
   },
+  "availability": {
+    "title": "Temporarily unavailable",
+    "retry": "Try again"
+  },
   "auth": {
     "email": "Email",
     "password": "Password",
@@ -278,6 +282,13 @@
     "saved": "Filing defaults saved."
   },
   "members": {
+    "managementScope": "Management scope",
+    "applyScope": "Apply scope",
+    "organizationScope": "Organization: {name}",
+    "companyScope": "Company: {name}",
+    "scopeForbidden": "You cannot manage this scope.",
+    "organizationAccess": "Memberships in this Organization: {scopes}. Each Membership retains its own Role. Organization Administrator access also applies to its Companies.",
+    "invitationScopeHint": "Invitations apply to the selected scope. Select another scope to manage its Invitations.",
     "nav": "Users",
     "organizationNav": "Manage {organization}",
     "companyTitle": "Users of {company}",
@@ -292,6 +303,13 @@
     "activeCount": "{count, plural, one {# active user} other {# active users}}",
     "activeIntro": "Removing access only affects this scope. It does not delete the user's sign-in account.",
     "none": "No users have active access in this scope.",
+    "companyMembership": "Company Membership: {scope}",
+    "organizationMembership": "Organization Membership: {scope}",
+    "changeScopeRole": "Change Role — {scope}",
+    "removeScope": "Remove Membership — {scope}",
+    "inheritedManagementHint": "Only an Organization Administrator or SuperAdmin can manage this inherited Membership.",
+    "effectiveAccess": "Effective Access remains: {role} through {scopes}.",
+    "scopedAccessIntro": "Each action changes only the named Membership. Other Memberships can retain Effective Access. Removing a Membership does not delete the sign-in account.",
     "changeRole": "Change Role",
     "remove": "Remove access",
     "pendingTitle": "Pending invitations",
@@ -572,6 +590,7 @@
     "invalid_workbook_ranges": "Enter ascending, non-overlapping row ranges within the actual worksheet.",
     "invalid_source_ranges": "Enter ascending, non-overlapping page ranges within the actual Source.",
     "exclusion_reason_required": "Enter an exclusion reason of 1–500 characters.",
+    "not_closable": "This failed export attempt is no longer active.",
     "not_recoverable": "This Document cannot be taken over manually.",
     "not_rejected": "Only an excluded Document can be restored.",
     "recovery_link_invalid": "This recovery link is invalid, expired or already used. Request a new recovery email.",
@@ -596,6 +615,8 @@
     "google_sign_in_failed": "Google sign-in failed. Please try again.",
     "invalid_credentials": "Wrong email or password.",
     "login_rate_limited": "Too many sign-in attempts. Please wait a moment and try again.",
+    "mfa_status_failed": "Two-factor authentication status could not be verified. Please try again shortly.",
+    "auth_unavailable": "Session verification is temporarily unavailable. Please try again shortly.",
     "login_unavailable": "Sign-in could not be verified right now. Please try again shortly.",
     "organization_blocked": "This Organization is blocked. Contact platform support.",
     "invalid_upload_limits": "Upload limits must be positive whole numbers; a Source File may be at most 50 MiB.",
@@ -711,7 +732,8 @@
     "invalid_source_range": "Select an actual page range within the original.",
     "ai_configuration_unavailable": "AI is not enabled or has no usable configuration. Your current values and approval are unchanged.",
     "processing_dispatch_failed": "AI could not be queued. Your values and history are preserved; check the current review status before trying again.",
-    "allowance_exhausted": "No successful AI allowance remains after queued and running work. Your values and approval are unchanged."
+    "allowance_exhausted": "No successful AI allowance remains after queued and running work. Your values and approval are unchanged.",
+    "not_extracted": "The Document has no Extraction Version to check yet."
   },
   "aiUsage": {
     "platformNav": "Platform AI usage",
@@ -833,7 +855,7 @@
     "resolveConfiguration": "Resolve AI Configuration",
     "repairConfiguration": "Repair {label}",
     "createConfiguration": "Create an AI Configuration",
-    "retryTerminalJobs": "Retry terminal jobs",
+    "retryTerminalJobs": "Resolve failed processing",
     "viewFailedJobs": "View failed jobs",
     "problemAllowanceExhausted": "Processing allowance exhausted",
     "problemAllowanceHigh": "Processing allowance at or above 80%",
@@ -845,6 +867,9 @@
     "problemProviderUnavailable": "AI provider repeatedly unavailable",
     "problemProviderResponseInvalid": "AI provider response invalid",
     "problemProcessingFailed": "AI processing failed",
+    "problemFailedExport": "Failed Company export",
+    "affectedExports": "Affected exports",
+    "companyExportCount": "{count, plural, one {# export} other {# exports}}",
     "problemTerminalJob": "Terminal processing job",
     "organizations": "Organizations and Companies",
     "organization": "Organization",
@@ -855,8 +880,10 @@
     "action": "Action",
     "block": "Block",
     "unblock": "Unblock",
+    "closeExportAttempt": "Close failed export attempt",
+    "manualTakeover": "Take over for manual review",
     "failedJobs": "Failed processing jobs",
-    "failedJobsIntro": "Terminal pg-boss failures remain here until retried. Retry safely resets a stuck target and re-enqueues its stored job.",
+    "failedJobsIntro": "Only failed attempts that still require intervention appear here. Resolved and superseded attempts remain recorded.",
     "noFailedJobs": "No terminal processing failures.",
     "job": "Job",
     "target": "Target ID",
@@ -882,6 +909,7 @@
     "success": "Password changed. You are still signed in here."
   },
   "mfa": {
+    "returnToWork": "Return to work",
     "securityTitle": "Security",
     "authenticatorTitle": "Authenticator app",
     "authenticatorEnabled": "Two-factor authentication is enabled.",
@@ -1072,7 +1100,14 @@
       "invalid_vat_id_checksum": "The VAT ID checksum is invalid.",
       "counterparty_vat_id_required": "The counterparty VAT ID is required for this VAT treatment.",
       "unreliable_vat_payer": "The supplier is listed as an unreliable VAT payer.",
+      "inconsistent_payment_account": "The domestic account number and IBAN identify different payment accounts. Correct the payment details; publication remains undetermined. You can still approve the Document.",
+      "unrecognized_payment_account": "The payment identifier is not a recognized bank account, so its publication could not be verified. Check the payment details manually; you can still approve the Document.",
+      "unpublished_own_bank_account": "Your Company's own receiving account is not published for your Company in the VAT payer registry.",
+      "own_bank_account_not_verified": "Your Company was not found in the VAT payer registry, so its own receiving account could not be verified. Check it manually.",
+      "own_vat_registry_check_not_performed": "The VAT payer registry was unavailable, so the check of your Company and its own receiving account was not performed.",
+      "unreliable_own_vat_payer": "Your Company is listed as an unreliable VAT payer.",
       "unpublished_bank_account": "The payment account is not published for this supplier in the VAT payer registry.",
+      "missing_supplier_vat_id": "No supplier VAT ID is entered in iVAT. This ordinary domestic Document is at or below CZK 10,000 including VAT and can be approved. Check the original document; approval does not confirm that it meets its legal requirements.",
       "missing_bank_account": "No payment account is entered. Check the payment details; you can still approve the Document.",
       "bank_account_not_verified": "The supplier was not found in the VAT payer registry, so its payment account could not be verified. Check it manually.",
       "vat_registry_check_not_performed": "The VAT payer registry was unavailable, so the supplier and payment account check was not performed.",
@@ -1612,6 +1647,36 @@
       "intro": "Open this single-use link, then explicitly verify your email to choose a new password. The link expires after one hour. MFA protection remains required: use your authenticator or restore it with a prepared backup code.",
       "action": "Open password recovery",
       "ignore": "If you did not request this, you can ignore this email."
+    }
+  },
+  "bankAccountCheck": {
+    "title": "Bank Account Check",
+    "refresh": "Check payment account again",
+    "currentInformation": "This check describes current registry information. It does not prove publication when the Document was issued. For an outgoing Document, this is your Company’s receiving account.",
+    "notRefreshed": "No manual refresh for the current Document data. Existing findings remain visible.",
+    "checkedAt": "Checked: {time}",
+    "history": "Bank Account Check history",
+    "inputs": "Supplier VAT ID: {supplier}; payment account: {account}",
+    "version": "Extraction Version {version}",
+    "olderData": "Earlier Document data; does not verify the current payment account",
+    "viewingRecordedVersion": "You are viewing the recorded findings of Extraction Version {version}. Open the current view for dated Bank Account Checks.",
+    "outcomes": {
+      "published": "The payment account is published for the supplier.",
+      "unpublished": "The payment account was checked and is not published for the supplier.",
+      "unavailable": "The registry was unavailable. This check did not verify publication.",
+      "unverified": "Publication could not be verified for this supplier.",
+      "missing": "No payment account is entered; publication could not be verified.",
+      "inconsistent": "The domestic account number and IBAN conflict; publication remains undetermined.",
+      "unrecognized": "The payment identifier is not a recognized bank account; publication remains undetermined."
+    },
+    "ownOutcomes": {
+      "published": "Your Company’s receiving account is published in the registry.",
+      "unpublished": "Your Company’s receiving account was checked and is not published in the registry.",
+      "unavailable": "The registry was unavailable. This check did not verify publication.",
+      "unverified": "Publication of your Company’s receiving account could not be verified.",
+      "missing": "No payment account is entered; publication could not be verified.",
+      "inconsistent": "The domestic account number and IBAN conflict; publication remains undetermined.",
+      "unrecognized": "The payment identifier is not a recognized bank account; publication remains undetermined."
     }
   }
 }

@@ -64,8 +64,8 @@ test("Settings keep scoped Organization discovery and use the desktop width", as
 
   await page.goto(`/companies/${companyId}/settings/company`);
   const settingsNavigation = page.getByRole("navigation", { name: "Company settings sections" });
-  await expect(settingsNavigation.getByRole("link", { name: "Company details" })).toHaveAttribute("aria-current", "true");
-  await expect(page.locator('[aria-current="page"]')).toHaveCount(1);
+  await expect(settingsNavigation.getByRole("link", { name: "Company details" })).toHaveAttribute("aria-current", "page");
+  await expect(settingsNavigation.locator('[aria-current="page"]')).toHaveCount(1);
   await expect(page.getByRole("combobox", { name: "Company settings sections" })).toHaveCount(0);
   const section = page.getByRole("heading", { name: "Company details", level: 2 }).locator("xpath=ancestor::section");
   const [navigationBox, sectionBox, mainBox] = await Promise.all([
@@ -251,17 +251,19 @@ test("Organization membership and batch deletion cards use the workspace without
   await provisionAdministrator(page, organizationName, `layout-members-${run}@example.test`);
   const companyId = await createCompany(page, "Long Company name used by the Organization accounting administrators", Date.now().toString().slice(-8));
   await page.goto(`/companies/${companyId}/settings`);
-  const membersHref = await page.locator('a[href^="/organizations/"][href$="/members"]').first().getAttribute("href");
-  if (!membersHref) throw new Error("Organization users link is missing");
-  await page.goto(membersHref);
-  const invitation = page.getByRole("heading", { name: "Invite user", exact: true }).locator("xpath=ancestor::section");
-  const active = page.getByRole("heading", { name: "Active users", exact: true }).locator("xpath=ancestor::section").getByRole("listitem").first();
+  const organizationArea = page.getByRole("region", { name: `Organization settings: ${organizationName}`, exact: true });
+  const usersLink = organizationArea.getByRole("link", { name: /^Organization users/ });
+  await expect(usersLink).toHaveAttribute("href", /^\/organizations\/[0-9a-f-]+\/users$/);
+  await usersLink.click();
+  await expect(page).toHaveURL(/\/organizations\/[0-9a-f-]+\/users$/);
+  const invitation = page.getByRole("heading", { name: "Invite user", exact: true }).locator("xpath=ancestor::section[1]");
+  const active = page.getByRole("heading", { name: "Active users", exact: true }).locator("xpath=ancestor::section[1]").getByRole("listitem").first();
   await page.setViewportSize(desktop);
   expect((await box(invitation)).width).toBeGreaterThan(800);
   const email = `${"advisory".repeat(7)}@business-services.example.test`;
   await invitation.getByRole("textbox", { name: "Email", exact: true }).fill(email);
   await invitation.getByRole("button", { name: "Invite user", exact: true }).click();
-  const pending = page.getByRole("heading", { name: "Pending invitations", exact: true }).locator("xpath=ancestor::section").getByRole("listitem");
+  const pending = page.getByRole("heading", { name: "Pending invitations", exact: true }).locator("xpath=ancestor::section[1]").getByRole("listitem");
   await expect(pending.getByText(email, { exact: true })).toBeVisible();
   await page.reload();
   await expect(pending.getByText(email, { exact: true })).toBeVisible();

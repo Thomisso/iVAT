@@ -131,3 +131,17 @@ export function PageContent({ children, measure = "wide" }: {
 }) {
   return <div className={`app-page-content app-page-content-${measure}`}>{children}</div>;
 }
+
+/** The established Settings frame in both Company and Platform work. */
+export function SettingsPageLayout({ children, description, navigation, title }: {
+  children?: ReactNode;
+  description?: ReactNode;
+  navigation: ReactNode;
+  title: ReactNode;
+}) {
+  return <PageLayout className="settings-page" measure="wide">
+    <PageHeader title={title} description={description} />
+    {navigation}
+    <div className="settings-page-content">{children}</div>
+  </PageLayout>;
+}

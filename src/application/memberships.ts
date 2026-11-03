@@ -1,3 +1,4 @@
+import { authDependencyUnavailable, authUnavailable } from "./auth-availability";
 import type { InvitationAuthentication, InvitationAuthenticationError } from "./invitation-authentication";
 import { isUuid, type AppClient, type Result } from "./client";
 
@@ -12,6 +13,16 @@ export type Membership = {
   role: MembershipRole;
 };
 
+export type ScopedMembership = {
+  id: string;
+  organizationId: string;
+  companyId: string | null;
+  scopeName: string;
+  source: "company" | "organization";
+  role: MembershipRole;
+  manageable: boolean;
+};
+
 export type CompanyAccess = {
   membershipId: string;
   userId: string;
@@ -19,6 +30,7 @@ export type CompanyAccess = {
   role: MembershipRole;
   source: "company" | "organization" | "company_and_organization";
   manageableMembershipId: string | null;
+  memberships: ScopedMembership[];
 };
 
 type CompanyAccessDatabaseRow = {
@@ -28,6 +40,10 @@ type CompanyAccessDatabaseRow = {
   role: MembershipRole;
   source: CompanyAccess["source"];
   manageable_membership_id: string | null;
+  memberships: {
+    id: string; organization_id: string; company_id: string | null;
+    scope_name: string; source: ScopedMembership["source"]; role: MembershipRole; manageable: boolean;
+  }[];
 };
 
 export type PendingInvitation = {
@@ -53,7 +69,7 @@ export type InviteMemberInput = {
 };
 
 export type InvitationError = "invalid_invitation" | "forbidden" | "invitation_failed";
-export type AcceptInvitationError = "invitation_invalid" | "invitation_used" | "invitation_expired" | "invitation_cancelled" | "invitation_replaced" | "forbidden";
+export type AcceptInvitationError = "auth_unavailable" | "invitation_invalid" | "invitation_used" | "invitation_expired" | "invitation_cancelled" | "invitation_replaced" | "forbidden";
 export type InvitationOnboarding =
   | { status: "invalid" | "used" | "expired" | "cancelled" | "replaced" }
   | { status: "valid"; email: string; existingUser: boolean; companyId: string | null };
@@ -133,20 +149,22 @@ export async function inviteMember(
 export async function getInvitationOnboarding(
   client: AppClient,
   token: string,
-): Promise<InvitationOnboarding> {
-  const { data, error } = await client.rpc("invitation_onboarding", { invitation_token: token });
+): Promise<Result<InvitationOnboarding, "auth_unavailable">> {
+  const response = await client.rpc("invitation_onboarding", { invitation_token: token });
+  if (authDependencyUnavailable(response)) return { ok: false, error: "auth_unavailable" };
+  const { data, error } = response;
   if (error) throw error;
   const [onboarding] = data;
   if (!onboarding || onboarding.onboarding_status !== "valid") {
     const status = onboarding?.onboarding_status;
-    return { status: status === "used" || status === "expired" || status === "cancelled" || status === "replaced" ? status : "invalid" };
+    return { ok: true, value: { status: status === "used" || status === "expired" || status === "cancelled" || status === "replaced" ? status : "invalid" } };
   }
-  return {
+  return { ok: true, value: {
     status: "valid",
     email: onboarding.invitee_email,
     existingUser: onboarding.invitee_existed,
     companyId: onboarding.target_company_id,
-  };
+  } };
 }
 
 function invitationRefusal(error: { code?: string; hint?: string | null }): AcceptInvitationError | null {
@@ -160,15 +178,19 @@ export async function completeInvitationOnboarding(
   input: { token: string; password: string },
   authentication: InvitationAuthentication,
 ): Promise<Result<{ companyId: string | null }, CompleteInvitationOnboardingError>> {
-  const onboarding = await getInvitationOnboarding(client, input.token);
+  const loaded = await getInvitationOnboarding(client, input.token);
+  if (!loaded.ok) return loaded;
+  const onboarding = loaded.value;
   if (onboarding.status !== "valid") return { ok: false, error: `invitation_${onboarding.status}` };
   const current = await client.auth.getUser();
+  if (authUnavailable(current.error)) return { ok: false, error: "auth_unavailable" };
   if (current.data.user) {
     if (current.data.user.email?.toLowerCase() !== onboarding.email) return { ok: false, error: "forbidden" };
     const accepted = await acceptInvitation(client, input.token);
     return accepted.ok ? { ok: true, value: { companyId: onboarding.companyId } } : accepted;
   }
   const claimed = await client.rpc("begin_invitation_acceptance", { invitation_token: input.token });
+  if (authDependencyUnavailable(claimed)) return { ok: false, error: "auth_unavailable" };
   if (claimed.error) {
     if (databaseRefusal(claimed.error) === "invitation_busy") return { ok: false, error: "invitation_busy" };
     const refusal = invitationRefusal(claimed.error);
@@ -176,33 +198,40 @@ export async function completeInvitationOnboarding(
     throw claimed.error;
   }
   const claimId = claimed.data;
-  let temporaryClient: AppClient | null = null;
-  let accepted = false;
+  const attempt: { client: AppClient | null; accepted: boolean } = { client: null, accepted: false };
+  let result: Result<{ companyId: string | null }, CompleteInvitationOnboardingError>;
+  let cleanup: Result<null, "auth_unavailable"> = { ok: true, value: null };
   try {
-    const authenticated = await authentication.authenticate(claimId, input.password);
-    if (!authenticated.ok) {
-      const current = await getInvitationOnboarding(client, input.token);
-      if (current.status !== "valid") return { ok: false, error: `invitation_${current.status}` };
-      return authenticated;
-    }
-    temporaryClient = authenticated.value.client;
-    const completed = await temporaryClient.rpc("complete_invitation_acceptance", { acceptance_claim_id: claimId });
-    if (completed.error) {
-      const refusal = invitationRefusal(completed.error);
-      if (refusal) return { ok: false, error: refusal };
-      throw completed.error;
-    }
-    accepted = true;
-    const session = authenticated.value.session;
-    const published = await client.auth.setSession({ access_token: session.access_token, refresh_token: session.refresh_token });
-    if (published.error) return { ok: false, error: "invitation_authentication_failed" };
-    return { ok: true, value: { companyId: onboarding.companyId } };
+    result = await (async (): Promise<Result<{ companyId: string | null }, CompleteInvitationOnboardingError>> => {
+      const authenticated = await authentication.authenticate(claimId, input.password);
+      if (!authenticated.ok) {
+        const current = await getInvitationOnboarding(client, input.token);
+        if (!current.ok) return current;
+        if (current.value.status !== "valid") return { ok: false, error: `invitation_${current.value.status}` };
+        return authenticated;
+      }
+      attempt.client = authenticated.value.client;
+      const completed = await attempt.client.rpc("complete_invitation_acceptance", { acceptance_claim_id: claimId });
+      if (authDependencyUnavailable(completed)) return { ok: false, error: "auth_unavailable" };
+      if (completed.error) {
+        const refusal = invitationRefusal(completed.error);
+        if (refusal) return { ok: false, error: refusal };
+        throw completed.error;
+      }
+      attempt.accepted = true;
+      const session = authenticated.value.session;
+      const published = await client.auth.setSession({ access_token: session.access_token, refresh_token: session.refresh_token });
+      if (authUnavailable(published.error)) return { ok: false, error: "auth_unavailable" };
+      if (published.error) return { ok: false, error: "invitation_authentication_failed" };
+      return { ok: true, value: { companyId: onboarding.companyId } };
+    })();
   } finally {
-    if (!accepted) {
-      if (temporaryClient) await temporaryClient.auth.signOut({ scope: "local" });
-      await authentication.abort(claimId);
+    if (!attempt.accepted) {
+      if (attempt.client) await attempt.client.auth.signOut({ scope: "local" });
+      cleanup = await authentication.abort(claimId);
     }
   }
+  return cleanup.ok ? result : cleanup;
 }
 
 export async function acceptInvitation(
@@ -210,7 +239,9 @@ export async function acceptInvitation(
   token: string,
 ): Promise<Result<null, AcceptInvitationError>> {
   if (!token) return { ok: false, error: "invitation_invalid" };
-  const { error } = await client.rpc("accept_invitation", { invitation_token: token });
+  const response = await client.rpc("accept_invitation", { invitation_token: token });
+  if (authDependencyUnavailable(response)) return { ok: false, error: "auth_unavailable" };
+  const { error } = response;
   if (error) {
     const refusal = invitationRefusal(error);
     if (refusal) return { ok: false, error: refusal };
@@ -291,8 +322,50 @@ export async function listCompanyAccess(
       role: access.role,
       source: access.source,
       manageableMembershipId: access.manageable_membership_id,
+      memberships: access.memberships.map(membership => ({
+        id: membership.id, organizationId: membership.organization_id, companyId: membership.company_id,
+        scopeName: membership.scope_name, source: membership.source, role: membership.role,
+        manageable: membership.manageable,
+      })),
     })),
   };
+}
+
+export type AccessManagementScope = { organizationId: string; companyId: string | null; name: string };
+export type ManagedUser = { userId: string; email: string; effectiveRole: MembershipRole | null; memberships: ScopedMembership[] };
+export type AccessManagement = {
+  scope: AccessManagementScope;
+  scopes: AccessManagementScope[];
+  users: ManagedUser[];
+  pendingInvitations: PendingInvitation[];
+  blocked: boolean;
+};
+
+/** Read one authorized scope; Organization scope includes all active Company
+ * Memberships without inventing a per-person Organization Role. Writes retain
+ * their independent database authorization and exact Membership targets.
+ * Read-only; forbidden covers invalid, foreign, deleted and unauthorized scopes.
+ * Scalar JSON keeps scope choices, Users, Memberships and Invitations complete. */
+export async function listAccessManagement(
+  client: AppClient,
+  input: { organizationId: string; companyId: string | null },
+): Promise<Result<AccessManagement, "forbidden">> {
+  if (!isUuid(input.organizationId) || (input.companyId !== null && !isUuid(input.companyId))) return { ok: false, error: "forbidden" };
+  const { data, error } = await client.rpc("list_access_management", {
+    target_organization_id: input.organizationId, target_company_id: input.companyId as string,
+  });
+  if (error) {
+    if (databaseRefusal(error) === "forbidden") return { ok: false, error: "forbidden" };
+    throw error;
+  }
+  const result = data as unknown as Omit<AccessManagement, "users"> & { users: CompanyAccessDatabaseRow[] };
+  return { ok: true, value: { ...result, users: result.users.map(user => ({
+    userId: user.user_id, email: user.email, effectiveRole: input.companyId === null ? null : user.role,
+    memberships: user.memberships.map(membership => ({
+      id: membership.id, organizationId: membership.organization_id, companyId: membership.company_id,
+      scopeName: membership.scope_name, source: membership.source, role: membership.role, manageable: membership.manageable,
+    })),
+  })) } };
 }
 
 export async function listPendingInvitations(

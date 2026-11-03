@@ -1,9 +1,17 @@
 import { provisionAndLogIn } from "./support/accounts";
 import { createHmac } from "node:crypto";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { listAuditEvents } from "@/application/audit";
+import { createCompany, getCompany } from "@/application/companies";
+import { getCompanyDataExportStatus } from "@/application/company-deletion";
+import { listDocuments } from "@/application/documents";
+import { closeFailedExportAttempt, listFailedProcessingJobs } from "@/application/processing-administration";
 import {
+  addBrowserFailedExportAttemptFixture,
+  browserUserClient,
   addBrowserMissingConfigurationIssueFixture,
   addBrowserTerminalProcessingJobFixture,
+  addBrowserLaterSplitFailureFixture,
   browserRemediationAuditActions,
   browserSourceFileStatus,
   promoteBrowserSuperAdminFixture,
@@ -155,11 +163,50 @@ test("SuperAdmin resolves live Platform alerts in place without mixing Company n
   ).toBe("split");
   await waitForHealthyDashboard(page);
 
-  await expect.poll(async () => browserRemediationAuditActions([companyId, terminal.jobId])).toEqual(
+  const manual = await addBrowserTerminalProcessingJobFixture(companyId, "uploaded");
+  await page.reload();
+  await expect(terminalProblem).toBeVisible();
+  await expect(page.getByRole("link", { name: "Platform alerts, 1 unresolved" })).toBeVisible();
+  await terminalProblem.getByRole("button", { name: "Take over for manual review", exact: true }).click();
+  await expect.poll(() => browserSourceFileStatus(manual.sourceFileId)).toBe("needs_review");
+  await waitForHealthyDashboard(page);
+  await expect(page.locator("#failed-jobs").getByRole("row").filter({ hasText: manual.sourceFileId })).toHaveCount(0);
+  await page.goto(`/companies/${companyId}/source-files/${manual.sourceFileId}`);
+  await expect(page.getByRole("button", { name: "Create one Document manually", exact: true })).toBeVisible();
+
+  const later = await addBrowserLaterSplitFailureFixture(manual.sourceFileId);
+  await page.goto("/platform/administration");
+  await expect(terminalProblem).toBeVisible();
+  await expect(page.getByRole("link", { name: "Platform alerts, 1 unresolved" })).toBeVisible();
+  await expect(page.locator("#failed-jobs").getByRole("row").filter({ hasText: manual.sourceFileId })).toHaveCount(1);
+  if (!baseURL) throw new Error("Playwright baseURL is required");
+  await context.addCookies([{ name: "NEXT_LOCALE", value: "cs", url: baseURL }]);
+  await page.reload();
+  const czechProblem = page.locator(".operational-problem").filter({ hasText: manual.sourceFileId });
+  await czechProblem.getByRole("button", { name: "Převzít k ruční kontrole", exact: true }).click();
+  await expect.poll(() => browserSourceFileStatus(later.sourceFileId)).toBe("needs_review");
+  await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseURL }]);
+  await page.reload();
+  await waitForHealthyDashboard(page);
+
+  const postSplit = await addBrowserTerminalProcessingJobFixture(companyId, "split");
+  await page.reload();
+  await expect(terminalProblem).toBeVisible();
+  await terminalProblem.getByRole("button", { name: "Take over for manual review", exact: true }).click();
+  await expect(terminalProblem).toHaveCount(0);
+  await page.goto(`/companies/${companyId}/source-files/${postSplit.sourceFileId}`);
+  const continuedDocuments = page.getByRole("table", { name: "Documents", exact: true });
+  await expect(continuedDocuments.getByText("Needs review", { exact: true })).toHaveCount(1);
+  await expect.poll(() => browserSourceFileStatus(postSplit.sourceFileId)).toBe("split");
+  await page.goto("/platform/administration");
+  await waitForHealthyDashboard(page);
+
+  await expect.poll(async () => browserRemediationAuditActions([companyId, terminal.jobId, manual.sourceFileId])).toEqual(
     expect.arrayContaining([
       "company.ai_configuration_assigned",
       "company.ai_processing_allowance_changed",
       "processing.job_retried",
+      "source_file.manual_review_started",
     ]),
   );
 });
@@ -217,6 +264,104 @@ test("live operational alerts retain long configuration controls within CS/EN wo
   await row.getByLabel(locale === "cs" ? "AI konfigurace" : "AI Configuration", { exact: true }).selectOption(fakeId);
   await row.getByRole("button", { name: locale === "cs" ? "Přiřadit" : "Assign", exact: true }).click();
   await expect.poll(() => browserSourceFileStatus(sourceFileId), { timeout: 45_000 }).toBe("split");
+  const client = await browserUserClient(await context.cookies());
+  await expect.poll(async () => (await listDocuments(client, companyId, sourceFileId)).map(document => document.status), {
+    timeout: 45_000,
+  }).toEqual(["needs_review"]);
   await page.reload();
   await expect(problem).toHaveCount(0);
+});
+
+test("SuperAdmin closes a failed Company export attempt and sees a later independent failure in CS/EN", async ({ baseURL, context, page }) => {
+  if (!baseURL) throw new Error("Playwright baseURL is required");
+  await english(context, baseURL);
+  const run = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const { companyId, email } = await provisionCompanyAdministrator(page, run);
+  await enrollSuperAdmin(page, email);
+  const client = await browserUserClient(await context.cookies());
+  const company = await getCompany(client, companyId);
+  const { data: { user }, error } = await client.auth.getUser();
+  if (!company || !user || error) throw new Error("Browser's authenticated Company context is missing");
+  // Closing this journey's attempts must preserve another Company's active failure.
+  const otherCompany = await createCompany(client, {
+    organizationId: company.organizationId, name: `Unrelated export Company ${run}`,
+    ico: "27082440", vatId: "CZ27082440", personType: "legal",
+    streetName: "Vinohradská", houseNumber: "12", city: "Praha", postalCode: "12000",
+    filingFrequency: "monthly", reportingYear: 2026,
+  });
+  if (!otherCompany.ok) throw new Error(otherCompany.error);
+  const unrelated = await addBrowserFailedExportAttemptFixture(otherCompany.value.id);
+  const attemptState = async (attempt: { exportId: string; jobId: string }) => {
+    const receipt = await getCompanyDataExportStatus(client, { companyId, exportId: attempt.exportId });
+    const failures = await listFailedProcessingJobs(client);
+    if (!failures.ok) throw new Error(failures.error);
+    const audit = await listAuditEvents(client, company.organizationId);
+    return {
+      receipt,
+      activeFailures: failures.value.filter((failure) => failure.id === attempt.jobId),
+      closure: audit.filter((event) => event.targetId === attempt.exportId && event.action === "company.export_attempt_closed"),
+    };
+  };
+  const closedAttempt = (attempt: { exportId: string; jobId: string }) => ({
+    receipt: { ok: true, value: "failed" },
+    activeFailures: [],
+    closure: [expect.objectContaining({
+      actorUserId: user.id, targetId: attempt.exportId,
+      payload: { job_id: attempt.jobId, retry_count: 0 },
+    })],
+  });
+  const expectExportOverview = async (exportId: string, active: 0 | 1) => {
+    await expect.poll(async () => {
+      await page.reload();
+      const problems = page.locator(".operational-problem");
+      // Other work can finish between steps; compare against this page's unrelated groups.
+      const unrelatedCount = await problems.filter({ hasNotText: exportId }).count();
+      return {
+        targetGroups: await problems.filter({ hasText: exportId }).count(),
+        unrelatedFixtureGroups: await problems.filter({ hasText: unrelated.exportId }).count(),
+        matchingAlert: await page.getByRole("link", {
+          name: `Platform alerts, ${unrelatedCount + active} unresolved`, exact: true,
+        }).count(),
+      };
+    }).toEqual({ targetGroups: active, unrelatedFixtureGroups: 1, matchingAlert: 1 });
+  };
+  try {
+    const first = await addBrowserFailedExportAttemptFixture(companyId);
+    expect(await attemptState(first)).toEqual({
+      receipt: { ok: true, value: "failed" },
+      activeFailures: [expect.objectContaining({ id: first.jobId, targetId: first.exportId, retryCount: 0 })],
+      closure: [],
+    });
+    await page.goto("/platform/administration");
+    const problem = page.locator(".operational-problem").filter({ hasText: first.exportId });
+    await expect(problem).toBeVisible();
+    await expect(problem.getByRole("heading", { name: "Failed Company export", exact: true })).toBeVisible();
+    await expect(problem.getByText("Affected exports", { exact: true })).toBeVisible();
+    await expectExportOverview(first.exportId, 1);
+    await expect(page.locator("#failed-jobs").getByRole("row").filter({ hasText: first.exportId }).getByRole("button", { name: "Close failed export attempt", exact: true })).toBeVisible();
+    await problem.getByRole("button", { name: "Close failed export attempt", exact: true }).click();
+    await expect.poll(() => attemptState(first)).toEqual(closedAttempt(first));
+    await expectExportOverview(first.exportId, 0);
+    await expect(page.locator("#failed-jobs").getByRole("row").filter({ hasText: first.exportId })).toHaveCount(0);
+
+    const later = await addBrowserFailedExportAttemptFixture(companyId);
+    expect(await attemptState(later)).toEqual({
+      receipt: { ok: true, value: "failed" },
+      activeFailures: [expect.objectContaining({ id: later.jobId, targetId: later.exportId, retryCount: 0 })],
+      closure: [],
+    });
+    await expectExportOverview(later.exportId, 1);
+    await expect(page.locator("#failed-jobs").getByRole("row").filter({ hasText: later.exportId })).toHaveCount(1);
+    await expect(page.locator("#failed-jobs").getByRole("row").filter({ hasText: first.exportId })).toHaveCount(0);
+    await context.addCookies([{ name: "NEXT_LOCALE", value: "cs", url: baseURL }]);
+    await page.reload();
+    const row = page.locator("#failed-jobs").getByRole("row").filter({ hasText: later.exportId });
+    await row.getByRole("button", { name: "Uzavřít neúspěšný pokus exportu", exact: true }).click();
+    await expect.poll(() => attemptState(later)).toEqual(closedAttempt(later));
+    expect(await attemptState(first)).toEqual(closedAttempt(first));
+    await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseURL }]);
+    await expectExportOverview(later.exportId, 0);
+  } finally {
+    expect(await closeFailedExportAttempt(client, unrelated.jobId, 0)).toEqual({ ok: true, value: null });
+  }
 });

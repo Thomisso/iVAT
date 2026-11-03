@@ -13,8 +13,9 @@ import { FormError } from "@/components/form-error";
 import { TextField } from "@/components/text-field";
 
 function CompleteEnrollment({
-  enrollment, restartAction, restarting,
+  enrollment, restartAction, restarting, completionHref,
 }: {
+  completionHref: string;
   restartAction: () => void;
   restarting: boolean;
   enrollment: {
@@ -40,7 +41,7 @@ function CompleteEnrollment({
         <ol className="recovery-codes">
           {state.recoveryCodes.map((code) => <li key={code}><code>{code}</code></li>)}
         </ol>
-        <Link className="iv-btn iv-btn-primary iv-btn-md" href="/">{t("recoveryCodesSaved")}</Link>
+        <Link className="iv-btn iv-btn-primary iv-btn-md" href={completionHref}>{t("recoveryCodesSaved")}</Link>
       </section>
     );
   }
@@ -57,13 +58,13 @@ function CompleteEnrollment({
   );
 }
 
-export function EnrollmentForm() {
+export function EnrollmentForm({ completionHref = "/" }: { completionHref?: string }) {
   const t = useTranslations("mfa");
   const [state, action, pending] = useActionState(beginTotpEnrollmentAction, {
     error: null,
     enrollment: null,
   });
-  if (state.enrollment) return <CompleteEnrollment key={state.enrollment.factorId} enrollment={state.enrollment} restartAction={action} restarting={pending} />;
+  if (state.enrollment) return <CompleteEnrollment completionHref={completionHref} key={state.enrollment.factorId} enrollment={state.enrollment} restartAction={action} restarting={pending} />;
   return (
     <form action={action} className="form">
       <p>{t("enrollIntro")}</p>
