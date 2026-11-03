@@ -1,3 +1,4 @@
+import { succeeded } from "./support/results";
 import { describe, expect, it } from "vitest";
 import { listMyOrganizations } from "@/application/organizations";
 import { getCompany, listMyCompanies } from "@/application/companies";
@@ -176,8 +177,8 @@ describe("SuperAdmin support for unavailable tenants", () => {
     const replacement = await replaceInvitationLink(operator.client, { invitationId: pending.id, acceptUrl: "http://localhost/invitations/accept" });
     expect(replacement.ok).toBe(true);
     if (!replacement.ok || !pending.token) throw new Error("Support replacement invitation was not created");
-    expect(await getInvitationOnboarding(operator.client, pending.token)).toEqual({ status: "replaced" });
-    expect(await getInvitationOnboarding(operator.client, replacement.value.token)).toMatchObject({ status: "valid" });
+    expect(succeeded(await getInvitationOnboarding(operator.client, pending.token))).toEqual({ status: "replaced" });
+    expect(succeeded(await getInvitationOnboarding(operator.client, replacement.value.token))).toMatchObject({ status: "valid" });
     expect(await removeMembership(operator.client, membershipId)).toEqual({ ok: true, value: null });
     expect(await listMemberships(operator.client, { organizationId: target.organizationId, companyId: target.companyId })).toEqual([]);
     expect((await listAuditEvents(operator.client, target.organizationId))
