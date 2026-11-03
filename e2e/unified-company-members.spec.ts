@@ -27,12 +27,23 @@ test("Company context shows one User, real scoped Memberships, Invitations and t
   }
   const owner = await account("owner");
   const [organization] = await listMyOrganizations(owner.client);
+  await login(page, owner.email);
+  await page.goto(`/organizations/${organization.id}/members`);
+  await expect(page).toHaveURL(`/organizations/${organization.id}/users`);
+  await expect(page.getByLabel("Management scope", { exact: true }).locator("option")).toHaveCount(1);
+  await expect(page.getByRole("heading", { name: `Users of ${organization.name}`, exact: true })).toBeVisible();
   const created = await createCompany(owner.client, {
     organizationId: organization.id, name: `Selected Company ${run}`, ico: "27082440", vatId: "CZ27082440",
     personType: "legal", city: "Praha", postalCode: "12000", streetName: "Vinohradská", houseNumber: "12", filingFrequency: "monthly", reportingYear: 2026,
   });
   if (!created.ok) throw new Error(created.error);
   const company = { ...created.value, name: `Selected Company ${run}` };
+  const secondResult = await createCompany(owner.client, {
+    organizationId: organization.id, name: `Other Company ${run}`, ico: "00006947", vatId: "CZ00006947",
+    personType: "legal", city: "Praha", postalCode: "12000", streetName: "Vinohradská", houseNumber: "12", filingFrequency: "monthly", reportingYear: 2026,
+  });
+  if (!secondResult.ok) throw new Error(secondResult.error);
+  const second = { ...secondResult.value, name: `Other Company ${run}` };
   const member = await account("member");
   const companyAdmin = await account("company-admin");
   async function invite(email: string, companyId: string | null, role: "user" | "administrator") {
@@ -41,13 +52,21 @@ test("Company context shows one User, real scoped Memberships, Invitations and t
     return result.value.token;
   }
   for (const [actor, companyId, role] of [
-    [member, company.id, "user"], [member, null, "administrator"], [companyAdmin, company.id, "administrator"],
+    [member, company.id, "user"], [member, second.id, "administrator"], [member, null, "administrator"], [companyAdmin, company.id, "administrator"],
   ] as const) {
     const accepted = await acceptInvitation(actor.client, await invite(actor.email, companyId, role));
     if (!accepted.ok) throw new Error(accepted.error);
   }
-  const pendingEmail = `pending-${run}@example.test`;
+  const [foreignOrganization] = await listMyOrganizations(companyAdmin.client);
+  const foreignResult = await createCompany(companyAdmin.client, {
+    organizationId: foreignOrganization.id, name: `Foreign Company ${run}`, ico: "00006947", vatId: "CZ00006947",
+    personType: "legal", city: "Praha", postalCode: "12000", streetName: "Vinohradská", houseNumber: "12", filingFrequency: "monthly", reportingYear: 2026,
+  });
+  if (!foreignResult.ok) throw new Error(foreignResult.error);
+  const pendingEmail = `company-pending-${run}@example.test`;
   await invite(pendingEmail, company.id, "user");
+  const organizationPending = `organization-pending-${run}@example.test`;
+  await invite(organizationPending, null, "administrator");
   await fs.mkdir("test-results", { recursive: true });
   await fs.writeFile("test-results/unified-members-runtime-fixture.json", JSON.stringify({ email: owner.email, password, organizationId: organization.id, companyId: company.id }), { mode: 0o600 });
   async function login(browser: Page, email: string) {
@@ -60,6 +79,42 @@ test("Company context shows one User, real scoped Memberships, Invitations and t
     await expect(browser).not.toHaveURL(/\/login$/);
   }
   await login(page, owner.email);
+  await page.goto(`/companies/${company.id}/settings/users`);
+  const scope = page.getByLabel("Management scope", { exact: true });
+  await expect(scope).toHaveValue(company.id);
+  await page.goto(`/companies/${company.id}/settings/users?scope=${foreignResult.value.id}`);
+  await expect(page.getByText("You cannot manage this scope.", { exact: true })).toBeVisible();
+  await expect(page.locator(".member-access-row")).toHaveCount(0);
+  await page.goto(`/companies/${company.id}/settings/users`);
+  await scope.selectOption("organization");
+  await page.getByRole("button", { name: "Apply scope", exact: true }).click();
+  await expect(page.getByRole("heading", { name: `Users of ${organization.name}`, exact: true })).toBeVisible();
+  const grouped = page.locator(".member-access-row").filter({ hasText: member.email });
+  await expect(grouped).toHaveCount(1);
+  await expect(grouped.getByRole("group")).toHaveCount(3);
+  await expect(grouped.getByRole("group", { name: `Company Membership: ${company.name}`, exact: true })).toContainText("Regular user");
+  await expect(grouped.getByRole("group", { name: `Company Membership: ${second.name}`, exact: true })).toContainText("Administrator");
+  await expect(page.locator(".member-invitation-row").filter({ hasText: organizationPending })).toHaveCount(1);
+  await expect(page.locator(".member-invitation-row").filter({ hasText: pendingEmail })).toHaveCount(0);
+  await expect(page.locator('form.settings-form select[name="role"] option')).toHaveCount(1);
+  const secondMembership = grouped.getByRole("group", { name: `Company Membership: ${second.name}`, exact: true });
+  await secondMembership.getByRole("combobox").selectOption("user");
+  await secondMembership.getByRole("button", { name: /Change Role/ }).click();
+  await expect(secondMembership.getByText("Regular user", { exact: true }).first()).toBeVisible();
+  await page.reload();
+  await expect(secondMembership.getByText("Regular user", { exact: true }).first()).toBeVisible();
+  await expect(grouped.getByRole("group", { name: `Company Membership: ${company.name}`, exact: true })).toContainText("Regular user");
+  await secondMembership.getByRole("combobox").selectOption("administrator");
+  await secondMembership.getByRole("button", { name: /Change Role/ }).click();
+  await expect(secondMembership.getByText("Administrator", { exact: true }).first()).toBeVisible();
+  await scope.selectOption(second.id);
+  await page.getByRole("button", { name: "Apply scope", exact: true }).click();
+  await expect(grouped.getByRole("group")).toHaveCount(2);
+  await expect(page.getByRole("heading", { name: `Users of ${second.name}`, exact: true })).toBeVisible();
+  await page.goto(`/organizations/${organization.id}/members`);
+  await expect(page).toHaveURL(`/organizations/${organization.id}/users`);
+  await expect(scope).toHaveValue("organization");
+  await expect(grouped.getByRole("group")).toHaveCount(3);
   for (const locale of ["en", "cs"] as const) {
     await context.addCookies([{ name: "NEXT_LOCALE", value: locale, url: baseURL }]);
     await page.goto(`/companies/${company.id}/members`);
@@ -80,6 +135,11 @@ test("Company context shows one User, real scoped Memberships, Invitations and t
     await page.screenshot({ path: `test-results/unified-members-${locale}.png`, fullPage: true });
   }
   await login(page, companyAdmin.email);
+  await page.goto(`/companies/${company.id}/settings/users`);
+  await expect(scope.locator("option")).toHaveCount(1);
+  await page.goto(`/companies/${company.id}/settings/users?scope=organization`);
+  await expect(page.getByText("You cannot manage this scope.", { exact: true })).toBeVisible();
+  await expect(page.locator(".member-access-row")).toHaveCount(0);
   await page.goto(`/companies/${company.id}/settings/users`);
   const user = page.locator(".member-access-row").filter({ hasText: member.email });
   const direct = user.getByRole("group", { name: `Company Membership: ${company.name}`, exact: true });
