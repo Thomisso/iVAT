@@ -1,9 +1,11 @@
+import { getDocumentBankAccountChecks, isBankAccountFinding } from "@/application/bank-account-checks";
 import { listDeferredClaimPeriods } from "@/application/documents";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
 import {
   approveDocumentAction,
+  refreshBankAccountCheckAction,
   startManualDocumentReviewAction,
   restoreDocumentAction,
   reprocessDocumentAction,
@@ -86,12 +88,17 @@ export default async function DocumentReviewPage({
     : null;
 
   const current = versions.at(-1);
+  const bankChecks = await getDocumentBankAccountChecks(client, { companyId, documentId });
+  const currentFindings = bankChecks.extractionVersionId === current?.id ? bankChecks.findings : current?.findings ?? [];
+
   const reporting = prepareDocumentReporting({
     id: document.id, status: document.status, extractionVersionId: current?.id ?? null,
     payload: current?.payload ?? null, claimedReportingPeriod: document.claimedReportingPeriod,
-  }, reportingYears, undefined, current?.findings ?? []);
+  }, reportingYears, undefined, currentFindings);
   const shown =
     versions.find((v) => String(v.version) === requestedVersion) ?? current;
+  const viewingRecorded = versions.some((version) => String(version.version) === requestedVersion);
+  const shownFindings = viewingRecorded ? shown?.findings : currentFindings;
   const reviewing = document.status === "needs_review" && current !== undefined && !lockedPeriod;
   const recoverable = !["approved", "rejected", "needs_review"].includes(document.status) && !lockedPeriod;
   const excludable = !["approved", "rejected"].includes(document.status) && !lockedPeriod;
@@ -208,9 +215,9 @@ export default async function DocumentReviewPage({
           </>}
         </section>
         <section className="review-data">
-          {shown && current && shown !== current && (
+          {shown && current && viewingRecorded && (
             <Notice>
-              {t("review.viewingOld", {
+              {t(shown === current ? "bankAccountCheck.viewingRecordedVersion" : "review.viewingOld", {
                 version: shown.version,
                 current: current.version,
               })}{" "}
@@ -219,8 +226,35 @@ export default async function DocumentReviewPage({
               </Link>
             </Notice>
           )}
-          {shown?.findings
-            .filter((finding) => finding.severity === "warning")
+          {shown && current && !viewingRecorded && (
+            <section aria-label={t("bankAccountCheck.title")}>
+              <h2>{t("bankAccountCheck.title")}</h2>
+              <p>{t("bankAccountCheck.currentInformation")}</p>
+              {bankChecks.current && bankChecks.extractionVersionId === current.id ? (
+                <Notice tone={bankChecks.current.outcome === "published" ? "info" : "warning"}>
+                  {t(`bankAccountCheck.${bankChecks.current.direction === "outgoing" ? "ownOutcomes" : "outcomes"}.${bankChecks.current.outcome}`)}{" "}
+                  {t("bankAccountCheck.checkedAt", { time: formatDateTime(bankChecks.current.checkedAt) })}
+                </Notice>
+              ) : <p>{t("bankAccountCheck.notRefreshed")}</p>}
+              <CommandButton action={refreshBankAccountCheckAction} fields={{ companyId, documentId }}>
+                {t("bankAccountCheck.refresh")}
+              </CommandButton>
+              {bankChecks.checks.length > 0 && <details>
+                <summary>{t("bankAccountCheck.history")}</summary>
+                <ol>
+                  {bankChecks.checks.map((check) => <li key={check.id}>
+                    {t("bankAccountCheck.checkedAt", { time: formatDateTime(check.checkedAt) })}{" · "}
+                    {t(`bankAccountCheck.${check.direction === "outgoing" ? "ownOutcomes" : "outcomes"}.${check.outcome}`)}{" · "}
+                    {t("bankAccountCheck.inputs", { supplier: check.supplierVatId ?? t("review.notSet"), account: [check.payment.bankAccount, check.payment.iban].filter(Boolean).join(" / ") || t("review.notSet") })}{" · "}
+                    <Link href={reviewHref(document.id, check.version)}>{t("bankAccountCheck.version", { version: check.version })}</Link>
+                    {check.extractionVersionId !== current.id && <> · {t("bankAccountCheck.olderData")}</>}
+                  </li>)}
+                </ol>
+              </details>}
+            </section>
+          )}
+          {shownFindings
+            ?.filter((finding) => finding.severity === "warning" && !(!viewingRecorded && bankChecks.current && bankChecks.extractionVersionId === current?.id && isBankAccountFinding(finding)))
             .map((finding) => (
               <Notice
                 key={`${finding.field}-${finding.code}`}
@@ -239,8 +273,8 @@ export default async function DocumentReviewPage({
               documentId={document.id}
               version={shown.version}
               payload={shown.payload}
-              findings={shown.findings}
-              editable={reviewing && shown === current}
+              findings={shownFindings ?? []}
+              editable={reviewing && !viewingRecorded}
               aiProposed={
                 shown.author.kind === "ai" && document.status !== "approved"
               }
