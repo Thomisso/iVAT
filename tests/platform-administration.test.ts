@@ -565,11 +565,21 @@ it("manual Platform takeover resolves a current Split failure before Document de
     if (!laterId) throw new Error("later enqueue refused");
     const [later] = await boss.fetch("split-source-file", { includeMetadata: true });
     expect(await retrySplit(company.client, worker.jobs, { companyId: company.companyId, sourceFileId: source.value.id })).toEqual({ ok: true, value: null });
+    await boss.fail("split-source-file", later, { message: "queue expired before the handler read its request" });
     await expect(worker.runNextJob({ final: true, queueJobId: laterId })).rejects.toThrow("terminal split");
-    await boss.fail("split-source-file", later, { message: "later current failure" });
     const renewed = await listFailedProcessingJobs(operator.client);
     if (!renewed.ok) throw new Error(renewed.error);
     expect(renewed.value.filter((job) => job.targetId === source.value.id).map((job) => job.id)).toEqual([laterId]);
+    // A stale worker cannot replace this attempt's generation binding.
+    expect((await systemClient().rpc("bind_processing_job_request", {
+      target_job_id: laterId, target_request_id: crypto.randomUUID(), target_retry_count: 1,
+    })).error).toBeNull();
+    const afterStaleBinding = await listFailedProcessingJobs(operator.client);
+    if (!afterStaleBinding.ok) throw new Error(afterStaleBinding.error);
+    expect(afterStaleBinding.value.filter((job) => job.targetId === source.value.id).map((job) => job.id)).toEqual([laterId]);
+    expect((await company.client.rpc("bind_processing_job_request", {
+      target_job_id: laterId, target_request_id: crypto.randomUUID(), target_retry_count: 0,
+    })).error?.code).toBe("42501");
     expect(await retryFailedProcessingJob(operator.client, id)).toEqual({ ok: false, error: "not_retryable" });
 
   } finally { await boss.stop(); }

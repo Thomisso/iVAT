@@ -10,9 +10,9 @@ create function private.date_processing_request()
 returns trigger language plpgsql security definer set search_path = '' as $$
 begin
   if tg_table_name = 'source_file' then
-    if new.split_request_id is distinct from old.split_request_id then new.split_requested_at := statement_timestamp(); end if;
+    if new.split_request_id is distinct from old.split_request_id then new.split_requested_at := clock_timestamp(); end if;
   else
-    if new.extraction_request_id is distinct from old.extraction_request_id then new.extraction_requested_at := statement_timestamp(); end if;
+    if new.extraction_request_id is distinct from old.extraction_request_id then new.extraction_requested_at := clock_timestamp(); end if;
   end if;
   return new;
 end;
@@ -25,20 +25,22 @@ create trigger document_date_processing_request before update on public.document
 
 -- Bind the generation actually read by the handler, rather than guessing it
 -- from pg-boss.started_on (which precedes that read). Only ID metadata is stored;
+-- A matching attempt may already have expired. Its retry counter prevents a
+-- late worker from overwriting the binding of a newer attempt of the same job.
 -- pg-boss continues to own job state, attempts and failure output.
-create function public.bind_processing_job_request(target_job_id uuid, target_request_id uuid)
+create function public.bind_processing_job_request(target_job_id uuid, target_request_id uuid, target_retry_count integer default 0)
 returns void language plpgsql security definer set search_path = '' as $$
 begin
   if auth.role() <> 'service_role' then raise exception 'forbidden' using errcode = '42501'; end if;
   if to_regclass('pgboss.job') is null then return; end if;
   execute $query$
     update pgboss.job set data = data || jsonb_build_object('processingRequestId', $2)
-    where id = $1 and name in ('split-source-file', 'extract-document') and state::text = 'active'
-  $query$ using target_job_id, target_request_id;
+    where id = $1 and name in ('split-source-file', 'extract-document') and state::text in ('active', 'failed') and retry_count = $3
+  $query$ using target_job_id, target_request_id, target_retry_count;
 end;
 $$;
-revoke all on function public.bind_processing_job_request(uuid, uuid) from public, anon, authenticated;
-grant execute on function public.bind_processing_job_request(uuid, uuid) to service_role;
+revoke all on function public.bind_processing_job_request(uuid, uuid, integer) from public, anon, authenticated;
+grant execute on function public.bind_processing_job_request(uuid, uuid, integer) to service_role;
 
 -- One live failure boundary for rows, grouped alerts and privileged remediation.
 -- Queue attempts remain historical failures after authoritative target recovery.

@@ -888,7 +888,7 @@ isOneToOne: false
 { Args: { "enrolled_factor_id": string,"recovery_operation_id": string }; Returns: undefined
                            },
 "bind_processing_job_request":
-{ Args: { "target_job_id": string,"target_request_id": string }; Returns: undefined
+{ Args: { "target_job_id": string,"target_request_id": string,"target_retry_count"?: number }; Returns: undefined
                            },
 "cancel_document_reprocess_dispatch":
 { Args: { "target_document_id": string,"target_extraction_request_id": string }; Returns: string

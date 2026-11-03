@@ -78,7 +78,7 @@ export type Worker = {
 };
 
 /** Whether this is the job's last attempt; a technical failure then marks its target Failed. */
-export type Attempt = { final: boolean; queueJobId?: string };
+export type Attempt = { final: boolean; queueJobId?: string; queueRetryCount?: number };
 
 /** Runs one job. The worker process and the tests both run jobs through here. */
 export async function runJob(worker: Worker, job: ProcessingJob, attempt: Attempt): Promise<void> {
@@ -95,7 +95,7 @@ export async function runJob(worker: Worker, job: ProcessingJob, attempt: Attemp
 async function bindProcessingRequest(system: SystemClient, attempt: Attempt, requestId: string) {
   if (!attempt.queueJobId) return;
   const { error } = await system.rpc("bind_processing_job_request", {
-    target_job_id: attempt.queueJobId, target_request_id: requestId,
+    target_job_id: attempt.queueJobId, target_request_id: requestId, target_retry_count: attempt.queueRetryCount ?? 0,
   });
   if (error) throw error;
 }
