@@ -145,20 +145,3 @@ export function SettingsPageLayout({ children, description, navigation, title }:
     <div className="settings-page-content">{children}</div>
   </PageLayout>;
 }
-
-export function SettingsSectionNavigation({ items, label }: {
-  items: ContextNavigationItem[];
-  label: string;
-}) {
-  return <nav aria-label={label} className="settings-section-nav">
-    {items.map((item) => <Link
-      aria-current={item.current ? "page" : undefined}
-      href={item.href}
-      key={item.href}
-    >
-      {item.label}
-      {item.assistiveDescription && <span className="sr-only"> {item.assistiveDescription}</span>}
-      {item.badge !== undefined && item.badge > 0 && <span aria-hidden="true" className="context-navigation-count">{item.badge}</span>}
-    </Link>)}
-  </nav>;
-}

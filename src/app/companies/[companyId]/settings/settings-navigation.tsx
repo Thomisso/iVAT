@@ -1,6 +1,6 @@
 "use client";
 
-import { SettingsSectionNavigation } from "@/components/app-shell";
+import { SettingsSectionNavigation } from "@/components/settings-section-navigation";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 

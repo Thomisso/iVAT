@@ -65,7 +65,7 @@ test("Settings keep scoped Organization discovery and use the desktop width", as
   await page.goto(`/companies/${companyId}/settings/company`);
   const settingsNavigation = page.getByRole("navigation", { name: "Company settings sections" });
   await expect(settingsNavigation.getByRole("link", { name: "Company details" })).toHaveAttribute("aria-current", "page");
-  await expect(page.locator('[aria-current="page"]')).toHaveCount(1);
+  await expect(settingsNavigation.locator('[aria-current="page"]')).toHaveCount(1);
   await expect(page.getByRole("combobox", { name: "Company settings sections" })).toHaveCount(0);
   const section = page.getByRole("heading", { name: "Company details", level: 2 }).locator("xpath=ancestor::section");
   const [navigationBox, sectionBox, mainBox] = await Promise.all([

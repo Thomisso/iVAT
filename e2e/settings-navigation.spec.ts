@@ -42,6 +42,16 @@ async function settingsAppearance(navigation: Locator) {
   return { x: bounds.x, width: bounds.width, ...appearance };
 }
 
+async function expectCurrentSectionVisible(navigation: Locator) {
+  await expect.poll(async () => {
+    const activeBounds = await navigation.locator('[aria-current="page"]').boundingBox();
+    const navigationBounds = await navigation.boundingBox();
+    return activeBounds !== null && navigationBounds !== null
+      && activeBounds.x >= navigationBounds.x
+      && activeBounds.x + activeBounds.width <= navigationBounds.x + navigationBounds.width;
+  }).toBe(true);
+}
+
 test("Settings navigation follows actual scoped Roles and a membership-free SuperAdmin", async ({ page, context, baseURL }, testInfo) => {
   if (!baseURL) throw new Error("Playwright baseURL is required");
   const english = () => context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseURL }]);
@@ -113,6 +123,7 @@ test("Settings navigation follows actual scoped Roles and a membership-free Supe
   await page.getByLabel("Authenticator code").fill(authenticatorCode(secret));
   await page.getByRole("button", { name: "Verify and enable", exact: true }).click();
   await page.getByRole("link", { name: "I saved the codes", exact: true }).click();
+  await context.storageState({ path: "test-results/191-browser-state.json" });
   await page.goto(`/companies/${companyId}/settings`);
   await expect(organizationArea.getByRole("link", { name: /^Organization users/ })).toBeVisible();
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -152,6 +163,11 @@ test("Settings navigation follows actual scoped Roles and a membership-free Supe
   await expect(page).toHaveURL(`/companies/${companyId}`);
   for (const width of [360, 720, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
+    if (width === 360) {
+      await page.goto(`/companies/${companyId}/settings/data`);
+      await page.reload();
+      await expectCurrentSectionVisible(companySections);
+    }
     await page.goto(`/companies/${companyId}/settings`);
     const companyAppearance = await settingsAppearance(companySections);
     if (width === 360 || width === 1440) await page.screenshot({ path: testInfo.outputPath(`company-settings-${width}.png`) });
@@ -162,7 +178,7 @@ test("Settings navigation follows actual scoped Roles and a membership-free Supe
     await expect(page.getByRole("group", { name: "Platform context", exact: true }).filter({ visible: true }).getByText("Platform", { exact: true })).toBeVisible();
     expect(await settingsAppearance(sections)).toEqual(companyAppearance);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
-    const accountMenu = page.getByRole("button", { name: "Open account menu", exact: true });
+    const accountMenu = page.getByRole("button", { name: "Open account menu" });
     await accountMenu.focus();
     await page.keyboard.press("ArrowDown");
     await expect(page.getByRole("menu", { name: "Open account menu" }).getByRole("menuitem").first()).toBeFocused();
@@ -171,6 +187,17 @@ test("Settings navigation follows actual scoped Roles and a membership-free Supe
     await page.keyboard.press("Escape");
     await expect(accountMenu).toBeFocused();
     await expect(page.getByRole("menu", { name: "Open account menu" })).toHaveCount(0);
+    if (width === 360) {
+      const usageLink = sections.getByRole("link", { name: "Platform AI usage", exact: true });
+      await usageLink.focus();
+      await page.keyboard.press("Enter");
+      await expect(page).toHaveURL(/\/platform\/ai-usage$/);
+      await page.reload();
+      await expect(usageLink).toHaveAttribute("aria-current", "page");
+      await expectCurrentSectionVisible(sections);
+      await sections.getByRole("link", { name: "Platform overview", exact: true }).click();
+      await expect(page).toHaveURL(/\/platform\/administration$/);
+    }
     if (width === 360 || width === 1440) await page.screenshot({ path: testInfo.outputPath(`platform-settings-${width}.png`) });
     await page.getByRole("link", { name: "Return to Company work", exact: true }).click();
     await expect(page).toHaveURL(`/companies/${companyId}`);
@@ -194,6 +221,7 @@ test("Settings navigation follows actual scoped Roles and a membership-free Supe
   for (const width of [360, 720, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await expect(czechSections).toBeVisible();
+    if (width === 360 || width === 1440) await page.screenshot({ path: testInfo.outputPath(`platform-settings-cs-${width}.png`) });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
   }
   await page.getByRole("link", { name: "Vrátit se k práci ve firmě", exact: true }).click();
