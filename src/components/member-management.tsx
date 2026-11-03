@@ -3,7 +3,7 @@
 import { useActionState, useId, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { cancelInvitationAction, changeMembershipRoleAction, inviteMemberAction, removeMembershipAction, replaceInvitationAction } from "@/app/actions";
-import type { CompanyAccess, Membership, PendingInvitation } from "@/application/memberships";
+import type { CompanyAccess, Membership, PendingInvitation, ScopedMembership } from "@/application/memberships";
 import { Button } from "./button";
 import { FormError } from "./form-error";
 import { TextField } from "./text-field";
@@ -46,6 +46,52 @@ function AccessRow({ access, organizationScope }: { access: ActiveAccess; organi
       <FormError error={removeState.error} />
     </li>
   );
+}
+
+function MembershipRow({ membership }: { membership: ScopedMembership }) {
+  const t = useTranslations("members");
+  const scope = t(membership.source === "company" ? "companyMembership" : "organizationMembership", { scope: membership.scopeName });
+  const [roleState, roleAction, rolePending] = useActionState(changeMembershipRoleAction, { error: null, values: {} });
+  const [removeState, removeAction, removePending] = useActionState(removeMembershipAction, { error: null, values: {} });
+  return <li className="member-membership-row">
+    <fieldset className="form">
+      <legend>{scope}</legend>
+      <span>{t(membership.role === "administrator" ? "administrator" : "user")}</span>
+      <span className="member-access-source">{t(`source.${membership.source}`)}</span>
+      {!membership.manageable && <p>{t("inheritedManagementHint")}</p>}
+      {membership.manageable && <>
+        {membership.companyId !== null && <form action={roleAction} className="form-row" aria-label={t("changeScopeRole", { scope })}>
+          <input type="hidden" name="membershipId" value={membership.id} />
+          <label className="iv-field-label">
+            {t("role")}
+            <select name="role" defaultValue={roleState.values.role ?? membership.role}>
+              <option value="administrator">{t("administrator")}</option>
+              <option value="user">{t("user")}</option>
+            </select>
+          </label>
+          <Button type="submit" disabled={rolePending || removePending}>{t("changeScopeRole", { scope })}</Button>
+        </form>}
+        <FormError error={roleState.error} />
+        <form action={removeAction}>
+          <input type="hidden" name="membershipId" value={membership.id} />
+          <Button type="submit" variant="danger" disabled={removePending || rolePending}>{t("removeScope", { scope })}</Button>
+        </form>
+        <FormError error={removeState.error} />
+      </>}
+    </fieldset>
+  </li>;
+}
+
+function CompanyAccessRow({ access }: { access: CompanyAccess }) {
+  const t = useTranslations("members");
+  const scopes = access.memberships.map(membership => t(
+    membership.source === "company" ? "companyMembership" : "organizationMembership", { scope: membership.scopeName },
+  )).join("; ");
+  return <li className="panel member-access-row">
+    <strong>{access.email}</strong>
+    <p className="member-effective-access">{t("effectiveAccess", { role: t(access.role === "administrator" ? "administrator" : "user"), scopes })}</p>
+    <ul className="member-list">{access.memberships.map(membership => <MembershipRow key={membership.id} membership={membership} />)}</ul>
+  </li>;
 }
 
 function InvitationRow({ invitation, acceptUrl }: { invitation: PendingInvitation; acceptUrl: string | null }) {
@@ -117,12 +163,13 @@ export function MemberManagement({
 }) {
   const t = useTranslations("members");
   const [state, action, pending] = useActionState(inviteMemberAction, { error: null, values: {} });
-  const activeAccess: ActiveAccess[] = companyAccess ?? (memberships ?? []).map((membership) => ({
+  const activeAccess: ActiveAccess[] = (memberships ?? []).map((membership) => ({
     email: membership.email,
     role: membership.role,
     source: null,
     manageableMembershipId: membership.id,
   }));
+  const activeCount = companyAccess?.length ?? activeAccess.length;
   return (
     <div className="member-management">
       <section className="panel">
@@ -147,9 +194,11 @@ export function MemberManagement({
       </section>
       <section>
         <h2>{t("activeTitle")}</h2>
-        <p>{t("activeCount", { count: activeAccess.length })}</p>
-        <p>{t("activeIntro")}</p>
-        {activeAccess.length === 0 ? <p>{t("none")}</p> : (
+        <p>{t("activeCount", { count: activeCount })}</p>
+        <p>{t(companyAccess ? "scopedAccessIntro" : "activeIntro")}</p>
+        {activeCount === 0 ? <p>{t("none")}</p> : companyAccess ? (
+          <ul className="member-list">{companyAccess.map(access => <CompanyAccessRow key={access.userId} access={access} />)}</ul>
+        ) : (
           <ul className="member-list">{activeAccess.map((access) => <AccessRow
             access={access}
             key={`${access.email}:${access.source ?? "organization"}`}
