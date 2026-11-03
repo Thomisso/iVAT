@@ -13,8 +13,8 @@ export const metadata: Metadata = { referrer: "no-referrer", robots: { index: fa
 export default async function PasswordRecoveryPage() {
   const t = await getTranslations("passwordRecovery");
   const client = await createRequestClient();
-  const status = await recoveryStatus(client);
-  const replacement = await mfaReplacementStatus(client);
+  const status = await recoveryStatus(client).then(availableAuthValue);
+  const replacement = await mfaReplacementStatus(client).then(availableAuthValue);
   const mfa = status === "ready" || replacement.authorized ? await mfaStatus(client).then(availableAuthValue) : null;
   return <main className="focused-shell-card" id="main-content" tabIndex={-1}>
     <h1>{t("resetTitle")}</h1>

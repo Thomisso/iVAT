@@ -1,4 +1,5 @@
 import "server-only";
+import { serverSupabaseFetch } from "./supabase/server-transport";
 import { supabaseMfaReplacementAuthentication } from "@/auth/supabase-mfa-replacement";
 import { configuredInvitationUrls } from "./invitations";
 import { supabasePublishableKey, supabaseUrl } from "./env";
@@ -14,5 +15,5 @@ export function mfaContinuationCookieOptions() {
 export function mfaReplacementAuthentication() {
   const secretKey = process.env.SUPABASE_SECRET_KEY;
   if (!secretKey) throw new Error("mfa_recovery_unavailable");
-  return supabaseMfaReplacementAuthentication({ url: supabaseUrl, publishableKey: supabasePublishableKey, secretKey });
+  return supabaseMfaReplacementAuthentication({ url: supabaseUrl, publishableKey: supabasePublishableKey, fetch: serverSupabaseFetch, secretKey });
 }

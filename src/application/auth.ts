@@ -114,8 +114,8 @@ export async function currentUser(client: AppClient): Promise<Result<{ id: strin
 
 /** Revoke the current User's native sessions. A dependency refusal must not
  * be presented as successful logout; request cookies remain recoverable. */
-export async function logOut(client: AppClient): Promise<Result<null, "auth_unavailable">> {
-  const { error } = await client.auth.signOut();
+export async function logOut(client: AppClient, scope: "global" | "local" = "global"): Promise<Result<null, "auth_unavailable">> {
+  const { error } = await client.auth.signOut({ scope });
   return error ? { ok: false, error: "auth_unavailable" } : { ok: true, value: null };
 }
 
