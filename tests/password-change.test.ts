@@ -1,3 +1,4 @@
+import { succeeded } from "./support/results";
 import { expect, inject, it } from "vitest";
 import { changePassword } from "@/application/password-change";
 import { supabasePasswordVerifier } from "@/application/supabase-password-verifier";
@@ -64,7 +65,7 @@ it("requires actual MFA and preserves the original AAL2 session and enrolled fac
   const after = (await user.client.auth.getSession()).data.session!;
   expect(after.access_token).toBe(before.access_token);
   expect(after.refresh_token).toBe(before.refresh_token);
-  expect(await mfaStatus(user.client)).toEqual(expect.objectContaining({ enrolled: true, currentLevel: "aal2", factorId: enrollment.value.factorId }));
+  expect(succeeded(await mfaStatus(user.client))).toEqual(expect.objectContaining({ enrolled: true, currentLevel: "aal2", factorId: enrollment.value.factorId }));
   expect((await user.client.auth.refreshSession()).error).toBeNull();
   expect((await lower.auth.refreshSession()).error).not.toBeNull();
   expect((await anonymousClient().auth.signInWithPassword({ email: user.email, password: newPassword })).error).toBeNull();
@@ -125,7 +126,7 @@ it.each([401, 403, 404, 500])("refuses the change if temporary verifier logout r
     if (!enrollment.ok) throw new Error(enrollment.error);
     const completed = await completeTotpEnrollment(user.client, { factorId: enrollment.value.factorId, code: totp(enrollment.value.secret) });
     if (!completed.ok) throw new Error(completed.error);
-    expect((await mfaStatus(user.client)).currentLevel).toBe("aal2");
+    expect((succeeded(await mfaStatus(user.client))).currentLevel).toBe("aal2");
   }
   const before = (await user.client.auth.getSession()).data.session!;
   let ephemeralAccessToken = "";
@@ -144,7 +145,7 @@ it.each([401, 403, 404, 500])("refuses the change if temporary verifier logout r
     const after = (await user.client.auth.getSession()).data.session!;
     expect(after.access_token).toBe(before.access_token);
     expect(after.refresh_token).toBe(before.refresh_token);
-    if (status === 403) expect((await mfaStatus(user.client)).currentLevel).toBe("aal2");
+    if (status === 403) expect((succeeded(await mfaStatus(user.client))).currentLevel).toBe("aal2");
     expect((await user.client.auth.refreshSession()).error).toBeNull();
     expect((await anonymousClient().auth.signInWithPassword({ email: user.email, password: originalPassword })).error).toBeNull();
     expect((await anonymousClient().auth.signInWithPassword({ email: user.email, password: newPassword })).error).not.toBeNull();

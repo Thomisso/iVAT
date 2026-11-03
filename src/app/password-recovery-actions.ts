@@ -33,7 +33,9 @@ export async function verifyPasswordRecoveryAction(_state: RecoveryFormState, fo
 
 export async function verifyRecoveryAuthenticatorAction(_state: RecoveryFormState, form: FormData): Promise<RecoveryFormState> {
   const client = await createRequestClient();
-  const status = await mfaStatus(client);
+  const statusResult = await mfaStatus(client);
+  if (!statusResult.ok) return { error: statusResult.error, values: {} };
+  const status = statusResult.value;
   if (!status.factorId) return { error: "mfa_verification_required", values: {} };
   const result = await verifyTotp(client, { factorId: status.factorId, code: field(form, "code") });
   if (result.ok) refresh();

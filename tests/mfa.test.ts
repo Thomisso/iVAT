@@ -1,3 +1,4 @@
+import { succeeded } from "./support/results";
 import { totp } from "./support/totp";
 import { describe, expect, it } from "vitest";
 import {
@@ -44,7 +45,7 @@ describe("MFA", () => {
     });
     if (!completed.ok) return;
     expect(completed.value.recoveryCodes).toHaveLength(10);
-    expect(await mfaStatus(user.client)).toEqual(
+    expect(succeeded(await mfaStatus(user.client))).toEqual(
       expect.objectContaining({ enrolled: true, currentLevel: "aal2" }),
     );
     expect((await listAuditEvents(user.client, user.organizationId)).at(-1)).toEqual(
@@ -74,7 +75,7 @@ describe("MFA", () => {
       password: "correct-horse-battery",
     });
     expect(await verifyRecoveryCode(user.client, recoveryCode!)).toEqual({ ok: false, error: "email_recovery_required" });
-    expect((await mfaStatus(user.client)).recoveryCodesRemaining).toBe(10);
+    expect((succeeded(await mfaStatus(user.client))).recoveryCodesRemaining).toBe(10);
     expect(await listMyOrganizations(user.client)).toEqual([]);
   });
 
@@ -93,7 +94,7 @@ describe("MFA", () => {
       email: user.email,
       password: "correct-horse-battery",
     });
-    expect(await mfaStatus(user.client)).toEqual(
+    expect(succeeded(await mfaStatus(user.client))).toEqual(
       expect.objectContaining({ currentLevel: "aal1", nextLevel: "aal2" }),
     );
     expect(await listMyOrganizations(user.client)).toEqual([]);
@@ -111,7 +112,7 @@ describe("MFA", () => {
       ok: true,
       value: null,
     });
-    expect(await mfaStatus(user.client)).toEqual(
+    expect(succeeded(await mfaStatus(user.client))).toEqual(
       expect.objectContaining({ enrolled: false, recoveryCodesRemaining: 0 }),
     );
     expect((await listAuditEvents(user.client, user.organizationId)).at(-1)).toEqual(
@@ -181,7 +182,7 @@ describe("MFA", () => {
     });
     if (promoted.error) throw promoted.error;
 
-    expect(await mfaPolicy(superAdmin.client)).toEqual({
+    expect(succeeded(await mfaPolicy(superAdmin.client))).toEqual({
       required: true,
       enrolled: false,
       satisfied: false,
@@ -196,7 +197,7 @@ describe("MFA", () => {
     });
     if (!completed.ok) throw new Error(completed.error);
 
-    expect(await mfaPolicy(superAdmin.client)).toEqual({
+    expect(succeeded(await mfaPolicy(superAdmin.client))).toEqual({
       required: true,
       enrolled: true,
       satisfied: true,

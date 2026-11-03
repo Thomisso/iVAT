@@ -134,6 +134,10 @@
     "requestAgain": "Request a new recovery email",
     "loading": "Checking recovery link…"
   },
+  "availability": {
+    "title": "Temporarily unavailable",
+    "retry": "Try again"
+  },
   "auth": {
     "email": "Email",
     "password": "Password",
@@ -603,6 +607,8 @@
     "google_sign_in_failed": "Google sign-in failed. Please try again.",
     "invalid_credentials": "Wrong email or password.",
     "login_rate_limited": "Too many sign-in attempts. Please wait a moment and try again.",
+    "mfa_status_failed": "Two-factor authentication status could not be verified. Please try again shortly.",
+    "auth_unavailable": "Session verification is temporarily unavailable. Please try again shortly.",
     "login_unavailable": "Sign-in could not be verified right now. Please try again shortly.",
     "organization_blocked": "This Organization is blocked. Contact platform support.",
     "invalid_upload_limits": "Upload limits must be positive whole numbers; a Source File may be at most 50 MiB.",

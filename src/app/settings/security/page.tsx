@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { listOrganizationMfaSettings, mfaStatus } from "@/application/mfa";
 import { FocusedShell } from "@/components/focused-shell";
-import { requireUserClient } from "@/lib/supabase/server";
+import { availableAuthValue, requireUserClient } from "@/lib/supabase/server";
 import { OrganizationMfaForm } from "./organization-mfa-form";
 import { PasswordChangeForm } from "./password-change-form";
 import { DisenrollMfaForm } from "./disenroll-mfa-form";
@@ -10,8 +10,8 @@ import { DisenrollMfaForm } from "./disenroll-mfa-form";
 export default async function SecuritySettingsPage() {
   const client = await requireUserClient();
   const [status, organizations, t] = await Promise.all([
-    mfaStatus(client),
-    listOrganizationMfaSettings(client),
+    mfaStatus(client).then(availableAuthValue),
+    listOrganizationMfaSettings(client).then(availableAuthValue),
     getTranslations("mfa"),
   ]);
   return (
