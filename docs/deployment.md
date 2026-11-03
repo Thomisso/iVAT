@@ -28,7 +28,11 @@ preserves the request path/query and refuses redirects out of the private hop.
 An unavailable gateway never triggers a retry through the public URL. The session
 proxy refuses protected content with a translated, uncached 503; failed native
 logout and refresh preserve the existing browser cookies so the same session can
-be verified after recovery. No successful dependency check substitutes for MFA or
+be verified after recovery. An account query that fails after proxy verification
+returns a refusal to the stateless `/auth/unavailable` surface. That surface
+performs no session or policy queries; its Retry link re-enters the normal native
+verification and MFA gates, so a targeted query outage cannot create a login/MFA
+redirect loop. No successful dependency check substitutes for MFA or
 database authorization. Worker-only SystemClient privileges remain unchanged.
 
 For host-run development, omit `SUPABASE_INTERNAL_URL` and use the CLI-generated

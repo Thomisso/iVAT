@@ -83,7 +83,7 @@ import { configuredExchangeRates } from "@/cnb";
 import { configuredVatPayerRegistry } from "@/vat-registry";
 import { jobQueue } from "@/lib/jobs";
 import { serverSupabaseFetch } from "@/lib/supabase/server-transport";
-import { createRequestClient, requireUserClient } from "@/lib/supabase/server";
+import { availableAuthValue, createRequestClient, requireUserClient } from "@/lib/supabase/server";
 import { isLocale, localeCookie } from "@/i18n/locales";
 import { companyContextCookie, serializeCompanyContext } from "@/lib/company-context";
 import { documentDecisionHref } from "@/application/document-queue";
@@ -102,7 +102,7 @@ const field = (formData: FormData, name: string) => String(formData.get(name) ??
 async function storeCompanyContext(companyId: string): Promise<boolean> {
   const client = await requireUserClient();
   const [user, company] = await Promise.all([
-    currentUser(client),
+    currentUser(client).then(availableAuthValue),
     getCompany(client, companyId),
   ]);
   if (!user || !company) return false;
@@ -160,7 +160,7 @@ export async function logInAction(_state: FormState, formData: FormData): Promis
     password: field(formData, "password"),
   });
   if (!result.ok) return refused(result.error, formData, ["email"]);
-  const destination = mfaRedirectPath("/", await mfaPolicy(client));
+  const destination = mfaRedirectPath("/", await mfaPolicy(client).then(availableAuthValue));
   if (destination) redirect(destination);
   redirect("/");
 }
@@ -178,7 +178,7 @@ export async function googleSignInAction(): Promise<void> {
 
 export async function logOutAction(): Promise<void> {
   const result = await logOut(await createRequestClient());
-  if (!result.ok) redirect("/login?error=auth_unavailable");
+  if (!result.ok) redirect("/auth/unavailable");
   redirect("/login");
 }
 
@@ -212,7 +212,7 @@ export async function completeTotpEnrollmentAction(
 
 export async function verifyTotpAction(_state: FormState, formData: FormData): Promise<FormState> {
   const client = await requireUserClient();
-  const status = await mfaStatus(client);
+  const status = await mfaStatus(client).then(availableAuthValue);
   if (!status.factorId) redirect("/mfa/enroll");
   const result = await verifyTotp(client, {
     factorId: status.factorId,
@@ -230,12 +230,12 @@ export async function verifyRecoveryCodeAction(_state: FormState, formData: Form
 
 export async function disenrollMfaAction(): Promise<FormState> {
   const client = await requireUserClient();
-  const status = await mfaStatus(client);
+  const status = await mfaStatus(client).then(availableAuthValue);
   if (status.factorId) {
     const result = await disenrollMfa(client, status.factorId);
     if (!result.ok) return { error: result.error, values: {} };
   }
-  redirect(mfaRedirectPath("/settings/security", await mfaPolicy(client)) ?? "/settings/security");
+  redirect(mfaRedirectPath("/settings/security", await mfaPolicy(client).then(availableAuthValue)) ?? "/settings/security");
 }
 
 export async function setOrganizationMfaRequiredAction(_state: FormState, formData: FormData): Promise<FormState> {
@@ -807,7 +807,7 @@ export async function replaceInvitationAction(_state: FormState, formData: FormD
 export async function loadInvitationAction(formData: FormData) {
   const client = await createRequestClient();
   const onboarding = await getInvitationOnboarding(client, field(formData, "token"));
-  const user = await currentUser(client);
+  const user = await currentUser(client).then(availableAuthValue);
   return {
     onboarding,
     authenticated: Boolean(user && onboarding.status === "valid" && user.email.toLowerCase() === onboarding.email),

@@ -1,3 +1,5 @@
+import { createTranslator } from "next-intl";
+import { defaultLocale, isLocale, localeCookie } from "@/i18n/locales";
 import { NextResponse, type NextRequest } from "next/server";
 import { supabasePublishableKey, supabaseUrl } from "@/lib/env";
 import { createSessionClient } from "@/lib/supabase/session-client";
@@ -13,8 +15,9 @@ const PUBLIC_ASSETS = new Set(["/brand/logo.svg", "/brand/mark.svg", "/icon.svg"
 // Refreshes the Supabase session cookie on every request and sends anonymous
 // visitors to the login page. Pages still check the user themselves.
 export async function proxy(request: NextRequest) {
-  // Brand assets remain available before login and during pending MFA, without session routing.
-  if (PUBLIC_ASSETS.has(request.nextUrl.pathname)) return NextResponse.next();
+  // Brand assets and the stateless refusal surface remain available without
+  // session dependencies. All protected destinations still enforce native MFA.
+  if (PUBLIC_ASSETS.has(request.nextUrl.pathname) || request.nextUrl.pathname === "/auth/unavailable") return NextResponse.next();
   let response = NextResponse.next({ request });
 
   const supabase = createSessionClient(supabaseUrl, supabasePublishableKey, {
@@ -31,8 +34,11 @@ export async function proxy(request: NextRequest) {
   });
 
   const unavailable = () => {
+    const storedLocale = request.cookies.get(localeCookie)?.value;
+    const locale = isLocale(storedLocale) ? storedLocale : defaultLocale;
+    const t = createTranslator({ locale, messages: locale === "en" ? en : cs, namespace: "errors" });
     const result = new NextResponse(
-      (request.cookies.get("NEXT_LOCALE")?.value === "en" ? en : cs).errors.auth_unavailable,
+      t("auth_unavailable"),
       { status: 503, headers: { "Cache-Control": "no-store", "Retry-After": "30", "Content-Type": "text/plain; charset=utf-8" } },
     );
     // A successful refresh may precede a later policy/database outage. Retain

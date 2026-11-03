@@ -99,16 +99,17 @@ export async function completeGoogleSignIn(
 }
 
 /** The verified signed-in User id, or null for an absent/revoked session.
- * Dependency unavailability is thrown, never presented as anonymous access. */
-export async function currentUserId(client: AppClient): Promise<string | null> {
-  return (await currentUser(client))?.id ?? null;
+ * Dependency unavailability is a refusal, never anonymous access. */
+export async function currentUserId(client: AppClient): Promise<Result<string | null, "auth_unavailable">> {
+  const user = await currentUser(client);
+  return user.ok ? { ok: true, value: user.value?.id ?? null } : user;
 }
 
 /** Verified identity fields safe for the signed-in User's account menu. */
-export async function currentUser(client: AppClient): Promise<{ id: string; email: string } | null> {
+export async function currentUser(client: AppClient): Promise<Result<{ id: string; email: string } | null, "auth_unavailable">> {
   const { data, error } = await client.auth.getUser();
-  if (authUnavailable(error)) throw new Error("auth_unavailable");
-  return data.user ? { id: data.user.id, email: data.user.email ?? "" } : null;
+  if (authUnavailable(error)) return { ok: false, error: "auth_unavailable" };
+  return { ok: true, value: data.user ? { id: data.user.id, email: data.user.email ?? "" } : null };
 }
 
 /** Revoke the current User's native sessions. A dependency refusal must not

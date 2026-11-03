@@ -26,7 +26,7 @@ import {
 import { getSourceFile } from "@/application/source-files";
 import { CommandButton } from "@/components/command-button";
 import { RefreshWhile } from "@/components/refresh-while";
-import { requireUserClient } from "@/lib/supabase/server";
+import { availableAuthValue, requireUserClient } from "@/lib/supabase/server";
 import { DocumentViewer } from "@/components/document-viewer";
 import { EmptyState } from "@/components/empty-state";
 import { Notice } from "@/components/notice";
@@ -57,7 +57,7 @@ export default async function DocumentReviewPage({
     getCompany(client, companyId),
     getDocument(client, companyId, documentId),
     listExtractionVersions(client, companyId, documentId),
-    currentUserId(client),
+    currentUserId(client).then(availableAuthValue),
     listDuplicateWarnings(client, companyId, documentId),
     missingReportingPeriodFinding(client, companyId, documentId),
     getMyCompanyRole(client, companyId),

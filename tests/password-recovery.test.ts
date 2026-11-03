@@ -1,3 +1,4 @@
+import { succeeded } from "./support/results";
 import { describe, expect, it } from "vitest";
 import { recoverPassword, recoveryLinkStatus, recoveryStatus, requestPasswordRecovery, verifyPasswordRecovery } from "@/application/password-recovery";
 import { anonymousClient, provisionedUser, uniqueEmail } from "./support/clients";
@@ -82,7 +83,7 @@ describe("password recovery", () => {
     expect(await recoverPassword(visitor, password)).toEqual({ ok: false, error: "mfa_verification_required" });
     expect(await verifyTotp(visitor, { factorId: enrollment.value.factorId, code: totp(enrollment.value.secret) })).toEqual({ ok: true, value: null });
     expect(await recoverPassword(visitor, password)).toEqual({ ok: true, value: null });
-    expect(await mfaStatus(visitor)).toMatchObject({ enrolled: true, currentLevel: "aal2", factorId: enrollment.value.factorId });
+    expect(succeeded(await mfaStatus(visitor))).toMatchObject({ enrolled: true, currentLevel: "aal2", factorId: enrollment.value.factorId });
     expect(await listMyOrganizations(visitor)).toHaveLength(1);
   });
 

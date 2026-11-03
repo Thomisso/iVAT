@@ -8,7 +8,7 @@ import {
   companyContextCookie,
   parseCompanyContext,
 } from "@/lib/company-context";
-import { requireUserClient } from "@/lib/supabase/server";
+import { availableAuthValue, requireUserClient } from "@/lib/supabase/server";
 import { currentPlatformOperationalProblems } from "./current-operational-problems";
 
 export default async function PlatformLayout({
@@ -19,7 +19,7 @@ export default async function PlatformLayout({
     (await cookies()).get(companyContextCookie)?.value,
   );
   const [auth, { superAdmin }, companyContext, operationalProblems] = await Promise.all([
-    currentUser(client),
+    currentUser(client).then(availableAuthValue),
     loadAdministrationAccess(),
     resolveCompanyContext(client, remembered),
     currentPlatformOperationalProblems(),

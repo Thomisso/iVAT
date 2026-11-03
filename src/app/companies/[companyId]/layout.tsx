@@ -4,7 +4,7 @@ import { currentUser } from "@/application/auth";
 import { countUnreadUploadNotifications, listUploadNotifications } from "@/application/upload-batches";
 import { CompanyShell } from "@/components/company-shell";
 import { loadAdministrationAccess } from "@/lib/administration-access";
-import { requireUserClient } from "@/lib/supabase/server";
+import { availableAuthValue, requireUserClient } from "@/lib/supabase/server";
 
 export default async function CompanyLayout({ children, params }: LayoutProps<"/companies/[companyId]">) {
   const { companyId } = await params;
@@ -14,7 +14,7 @@ export default async function CompanyLayout({ children, params }: LayoutProps<"/
     listMyCompanies(client),
     getMyCompanyRole(client, companyId),
     loadAdministrationAccess(),
-    currentUser(client),
+    currentUser(client).then(availableAuthValue),
     listUploadNotifications(client, companyId),
     countUnreadUploadNotifications(client, companyId),
   ]);

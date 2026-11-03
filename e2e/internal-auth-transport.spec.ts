@@ -118,6 +118,27 @@ test("the old public cookie refreshes through private transport, survives an out
   await expect(page).toHaveURL(`${baseURL}/mfa/verify`);
   await page.goto("/companies/new");
   await expect(page).toHaveURL(`${baseURL}/mfa/verify`);
+  // Only the MFA status query fails. The proxy's native verification and MFA
+  // policy still succeed; the action must show a refusal without a redirect loop.
+  const beforeQueryOutage = cookieState(await authCookies());
+  gateway.unavailable(true, "/rest/v1/rpc/mfa_recovery_codes_remaining");
+  await page.getByLabel("Authenticator code", { exact: true }).fill(totp(secret, Date.now() + 30_000));
+  await page.getByRole("button", { name: "Verify", exact: true }).click();
+  await expect(page).toHaveURL(`${baseURL}/auth/unavailable`);
+  await expect(page.getByRole("heading", { name: "Temporarily unavailable", exact: true })).toBeVisible();
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("Session verification is temporarily unavailable");
+  expect(cookieState(await authCookies())).toEqual(beforeQueryOutage);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Temporarily unavailable", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Čeština", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Dočasně nedostupné", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "English", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Temporarily unavailable", exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Try again", exact: true }).click();
+  await expect(page).toHaveURL(`${baseURL}/mfa/verify`);
+  await page.goto("/companies/new");
+  await expect(page).toHaveURL(`${baseURL}/mfa/verify`);
+  gateway.unavailable(false);
   await page.getByLabel("Authenticator code", { exact: true }).fill(totp(secret, Date.now() + 30_000));
   await page.getByRole("button", { name: "Verify", exact: true }).click();
   await expect(page).toHaveURL(`${baseURL}/`);

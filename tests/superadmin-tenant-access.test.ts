@@ -1,3 +1,4 @@
+import { succeeded } from "./support/results";
 import { withPostgrestRowLimit } from "./support/postgrest";
 import { describe, expect, it } from "vitest";
 import { createCompany, getCompany, getMyCompanyRole, listMyCompanies, updateCompanyIdentity } from "@/application/companies";
@@ -135,13 +136,13 @@ describe("membership-independent SuperAdmin authority", () => {
   it("can inspect and change Organization MFA settings through the normal command", async () => {
     const target = await administratorWithCompany("MFA administration target");
     const operator = await promotedSuperAdministrator("MFA operator");
-    expect(await listOrganizationMfaSettings(operator.client)).toContainEqual({
+    expect(succeeded(await listOrganizationMfaSettings(operator.client))).toContainEqual({
       id: target.organizationId, name: "MFA administration target", required: false,
     });
     expect(await setOrganizationMfaRequired(operator.client, {
       organizationId: target.organizationId, required: true,
     })).toEqual({ ok: true, value: null });
-    expect(await listOrganizationMfaSettings(operator.client)).toContainEqual({
+    expect(succeeded(await listOrganizationMfaSettings(operator.client))).toContainEqual({
       id: target.organizationId, name: "MFA administration target", required: true,
     });
     expect((await listAuditEvents(operator.client, target.organizationId)).at(-1)).toEqual(expect.objectContaining({

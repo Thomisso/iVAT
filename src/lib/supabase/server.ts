@@ -1,8 +1,8 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { asUserClient, type AppClient } from "@/application/client";
+import { asUserClient, type AppClient, type Result } from "@/application/client";
 import { supabasePublishableKey, supabaseUrl } from "@/lib/env";
-import { authUnavailable } from "@/application/auth-availability";
+import { currentUser } from "@/application/auth";
 import { createSessionClient } from "./session-client";
 import { serverSupabaseFetch } from "./server-transport";
 
@@ -28,8 +28,14 @@ export async function createRequestClient(): Promise<AppClient> {
 /** The current request's client, redirecting to login when nobody is signed in. */
 export async function requireUserClient(): Promise<AppClient> {
   const client = await createRequestClient();
-  const { data, error } = await client.auth.getUser();
-  if (authUnavailable(error)) redirect("/login?error=auth_unavailable");
-  if (!data.user) redirect("/login");
+  const user = availableAuthValue(await currentUser(client));
+  if (!user) redirect("/login");
   return client;
+}
+
+/** Map an expected account-dependency refusal at a page/action boundary. The
+ * stateless unavailable surface translates it without entering MFA routing. */
+export function availableAuthValue<T>(result: Result<T, "auth_unavailable" | "mfa_status_failed">): T {
+  if (!result.ok) redirect("/auth/unavailable");
+  return result.value;
 }

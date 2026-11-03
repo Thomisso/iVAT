@@ -1,3 +1,4 @@
+import { succeeded } from "./support/results";
 import { createHash } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
@@ -40,7 +41,7 @@ it("keeps an existing public-identity cookie usable and refreshable through inte
     cookies,
     fetch: createSupabaseTransport({ publicUrl, internalUrl: url }),
   }));
-  expect(await currentUserId(client)).toBe(user.userId);
+  expect(await currentUserId(client)).toEqual({ ok: true, value: user.userId });
   expect((await client.auth.refreshSession()).error).toBeNull();
   expect([...cookies.stored.keys()].every(name => /^sb-127-auth-token\.\d+$/.test(name))).toBe(true);
   expect(cookies.stored.get(names[0])?.options).toMatchObject({ path: "/", sameSite: "lax", httpOnly: false, maxAge: 34560000 });
@@ -65,14 +66,14 @@ it("refuses verification and logout during internal outage without deleting an e
     expect(await logIn(requestClient(), { email: user.email, password: "correct-horse-battery" })).toEqual({ ok: true, value: null });
     const before = cookies.snapshot();
     proxy.unavailable(true);
-    await expect(currentUserId(requestClient())).rejects.toThrow("auth_unavailable");
+    expect(await currentUserId(requestClient())).toEqual({ ok: false, error: "auth_unavailable" });
     expect(await logOut(requestClient())).toEqual({ ok: false, error: "auth_unavailable" });
     expect(cookies.snapshot()).toEqual(before);
     expect(await logIn(requestClient(), { email: user.email, password: "correct-horse-battery" })).toEqual({ ok: false, error: "login_unavailable" });
     expect(cookies.snapshot()).toEqual(before);
     expect(targets.every(target => target.startsWith(`${proxy.url}/`))).toBe(true);
     proxy.unavailable(false);
-    expect(await currentUserId(requestClient())).toBe(user.userId);
+    expect(await currentUserId(requestClient())).toEqual({ ok: true, value: user.userId });
     expect((await requestClient().auth.refreshSession()).error).toBeNull();
     expect(await logOut(requestClient())).toEqual({ ok: true, value: null });
     expect(cookies.getAll().map(cookie => cookie.name)).toEqual([]);
@@ -99,14 +100,14 @@ it("uses real internal Auth for native MFA, password maintenance and public OAut
     const enrollment = await beginTotpEnrollment(client);
     if (!enrollment.ok) throw new Error(enrollment.error);
     expect((await completeTotpEnrollment(client, { factorId: enrollment.value.factorId, code: totp(enrollment.value.secret) })).ok).toBe(true);
-    expect((await mfaStatus(client)).currentLevel).toBe("aal2");
+    expect((succeeded(await mfaStatus(client))).currentLevel).toBe("aal2");
     expect(await changePassword(client, supabasePasswordVerifier(publicUrl, inject("supabaseAnonKey"), transport), {
       currentPassword: "correct-horse-battery", newPassword: "new-internal-password", confirmation: "new-internal-password",
     })).toEqual({ ok: true, value: null });
     expect(await logOut(client)).toEqual({ ok: true, value: null });
     const next = requestClient();
     expect(await logIn(next, { email: user.email, password: "new-internal-password" })).toEqual({ ok: true, value: null });
-    expect((await mfaStatus(next)).currentLevel).toBe("aal1");
+    expect((succeeded(await mfaStatus(next))).currentLevel).toBe("aal1");
     const before = cookies.snapshot();
     proxy.unavailable(true);
     expect(await verifyTotp(requestClient(), { factorId: enrollment.value.factorId, code: totp(enrollment.value.secret) })).toEqual({ ok: false, error: "auth_unavailable" });
@@ -114,7 +115,7 @@ it("uses real internal Auth for native MFA, password maintenance and public OAut
     proxy.unavailable(false);
     const restored = requestClient();
     expect(await verifyTotp(restored, { factorId: enrollment.value.factorId, code: totp(enrollment.value.secret, Date.now() + 30_000) })).toEqual({ ok: true, value: null });
-    expect((await mfaStatus(restored)).currentLevel).toBe("aal2");
+    expect((succeeded(await mfaStatus(restored))).currentLevel).toBe("aal2");
     const oauth = await restored.auth.signInWithOAuth({ provider: "google", options: { redirectTo: "https://app.example.test/auth/callback", skipBrowserRedirect: true } });
     expect(oauth.error).toBeNull();
     expect(oauth.data.url).toContain(`${publicUrl}/auth/v1/authorize?`);
@@ -142,11 +143,11 @@ it("preserves an expired cookie through failed native refresh and refreshes the 
     cookies.setAll([{ name: "sb-127-auth-token", value: `base64-${Buffer.from(JSON.stringify(session)).toString("base64url")}`, options: cookie.options }]);
     const before = cookies.snapshot();
     proxy.unavailable(true);
-    await expect(currentUserId(requestClient())).rejects.toThrow("auth_unavailable");
+    expect(await currentUserId(requestClient())).toEqual({ ok: false, error: "auth_unavailable" });
     expect(cookies.snapshot()).toEqual(before);
     proxy.unavailable(false);
     const restored = requestClient();
-    expect(await currentUserId(restored)).toBe(user.userId);
+    expect(await currentUserId(restored)).toEqual({ ok: true, value: user.userId });
     const refreshed = (await restored.auth.getSession()).data.session!;
     expect(refreshed.expires_at).toBeGreaterThan(Date.now() / 1_000);
     expect(JSON.parse(Buffer.from(refreshed.access_token.split(".")[1], "base64url").toString()).session_id).toBe(sessionId);
@@ -207,7 +208,7 @@ it("logs in through internal Auth when the public server hostname does not resol
     cookies: cookieJar(), fetch: createSupabaseTransport({ publicUrl, internalUrl: inject("supabaseUrl") }),
   }));
   expect(await logIn(client, { email: user.email, password: "correct-horse-battery" })).toEqual({ ok: true, value: null });
-  expect(await currentUserId(client)).toBe(user.userId);
+  expect(await currentUserId(client)).toEqual({ ok: true, value: user.userId });
   expect(await logOut(client)).toEqual({ ok: true, value: null });
 });
 
@@ -245,8 +246,82 @@ it("reports temporary login unavailability if native sign-in succeeds but the au
     expect(await logIn(requestClient(), { email: user.email, password: "correct-horse-battery" })).toEqual({ ok: false, error: "login_unavailable" });
     expect(cookies.getAll().length).toBeGreaterThan(0);
     proxy.unavailable(false);
-    expect(await currentUserId(requestClient())).toBe(user.userId);
+    expect(await currentUserId(requestClient())).toEqual({ ok: true, value: user.userId });
     expect((await requestClient().rpc("current_user_can_use_application")).data).toBe(true);
+  } finally {
+    proxy.close();
+  }
+});
+
+it("returns a temporary MFA refusal when its REST prerequisite fails but native Auth stays healthy", async () => {
+  const { beginTotpEnrollment } = await import("@/application/mfa");
+  const user = await provisionedUser("MFA prerequisite outage");
+  const proxy = await supabaseHttpGateway(inject("supabaseUrl"));
+  try {
+    const publicUrl = inject("supabaseUrl").replace("http:", "https:");
+    const cookies = cookieJar();
+    const client = asUserClient(createSessionClient(publicUrl, inject("supabaseAnonKey"), { cookies,
+      fetch: createSupabaseTransport({ publicUrl, internalUrl: proxy.url }),
+    }));
+    expect((await logIn(client, { email: user.email, password: "correct-horse-battery" })).ok).toBe(true);
+    proxy.unavailable(true, "/rest/v1/rpc/authorize_mfa_maintenance");
+    expect(await beginTotpEnrollment(client)).toEqual({ ok: false, error: "auth_unavailable" });
+    expect(await currentUserId(client)).toEqual({ ok: true, value: user.userId });
+    expect((await client.auth.mfa.listFactors()).data?.totp).toEqual([]);
+    proxy.unavailable(false);
+    expect((await beginTotpEnrollment(client)).ok).toBe(true);
+  } finally {
+    proxy.close();
+  }
+});
+
+it.each(["mfaStatus", "mfaPolicy", "listOrganizationMfaSettings"] as const)("returns temporary unavailability from %s when only its REST dependency fails", async query => {
+  const mfa = await import("@/application/mfa");
+  const user = await provisionedUser("MFA query outage");
+  const proxy = await supabaseHttpGateway(inject("supabaseUrl"));
+  try {
+    const publicUrl = inject("supabaseUrl").replace("http:", "https:");
+    const client = asUserClient(createSessionClient(publicUrl, inject("supabaseAnonKey"), { cookies: cookieJar(),
+      fetch: createSupabaseTransport({ publicUrl, internalUrl: proxy.url }),
+    }));
+    expect((await logIn(client, { email: user.email, password: "correct-horse-battery" })).ok).toBe(true);
+    proxy.unavailable(true, "/rest/v1/");
+    expect(await mfa[query](client)).toEqual({ ok: false, error: "auth_unavailable" });
+    expect(await currentUserId(client)).toEqual({ ok: true, value: user.userId });
+    proxy.unavailable(false);
+    expect((await mfa[query](client)).ok).toBe(true);
+  } finally {
+    proxy.close();
+  }
+});
+
+it.each(["claim_mfa_maintenance", "finish_mfa_enrollment", "finish_mfa_disenrollment"] as const)("returns temporary unavailability at the native MFA %s REST boundary", async boundary => {
+  const { beginTotpEnrollment, completeTotpEnrollment, disenrollMfa } = await import("@/application/mfa");
+  const { totp } = await import("./support/totp");
+  const user = await provisionedUser("MFA transition outage");
+  const proxy = await supabaseHttpGateway(inject("supabaseUrl"));
+  try {
+    const publicUrl = inject("supabaseUrl").replace("http:", "https:");
+    const cookies = cookieJar();
+    const client = asUserClient(createSessionClient(publicUrl, inject("supabaseAnonKey"), { cookies,
+      fetch: createSupabaseTransport({ publicUrl, internalUrl: proxy.url }),
+    }));
+    expect((await logIn(client, { email: user.email, password: "correct-horse-battery" })).ok).toBe(true);
+    const enrollment = succeeded(await beginTotpEnrollment(client));
+    if (boundary === "finish_mfa_disenrollment") {
+      expect((await completeTotpEnrollment(client, { factorId: enrollment.factorId, code: totp(enrollment.secret) })).ok).toBe(true);
+    }
+    proxy.unavailable(true, `/rest/v1/rpc/${boundary}`);
+    const result = boundary === "finish_mfa_disenrollment"
+      ? await disenrollMfa(client, enrollment.factorId)
+      : await completeTotpEnrollment(client, { factorId: enrollment.factorId, code: totp(enrollment.secret) });
+    expect(result).toEqual({ ok: false, error: "auth_unavailable" });
+    expect(await currentUserId(client)).toEqual({ ok: true, value: user.userId });
+    proxy.unavailable(false);
+    expect((await client.auth.getUser()).data.user?.id).toBe(user.userId);
+    // A native side effect before the refused database completion must never be
+    // reported as a successfully completed application transition.
+    expect(cookies.getAll().length).toBeGreaterThan(0);
   } finally {
     proxy.close();
   }

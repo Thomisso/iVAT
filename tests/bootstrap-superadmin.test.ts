@@ -1,3 +1,4 @@
+import { succeeded } from "./support/results";
 import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
@@ -167,7 +168,7 @@ describe("SuperAdmin bootstrap command", () => {
     const login = await client.auth.signInWithPassword({ email, password });
     expect(login.error).toBeNull();
     expect(await getCompany(client, target.companyId)).toBeNull();
-    expect(await mfaPolicy(client)).toEqual({ required: true, enrolled: false, satisfied: false });
+    expect(succeeded(await mfaPolicy(client))).toEqual({ required: true, enrolled: false, satisfied: false });
     const enrollment = await beginTotpEnrollment(client);
     if (!enrollment.ok) throw new Error(enrollment.error);
     const completed = await completeTotpEnrollment(client, { factorId: enrollment.value.factorId, code: totp(enrollment.value.secret) });
