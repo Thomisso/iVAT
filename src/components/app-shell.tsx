@@ -131,3 +131,34 @@ export function PageContent({ children, measure = "wide" }: {
 }) {
   return <div className={`app-page-content app-page-content-${measure}`}>{children}</div>;
 }
+
+/** The established Settings frame in both Company and Platform work. */
+export function SettingsPageLayout({ children, description, navigation, title }: {
+  children?: ReactNode;
+  description?: ReactNode;
+  navigation: ReactNode;
+  title: ReactNode;
+}) {
+  return <PageLayout className="settings-page" measure="wide">
+    <PageHeader title={title} description={description} />
+    {navigation}
+    <div className="settings-page-content">{children}</div>
+  </PageLayout>;
+}
+
+export function SettingsSectionNavigation({ items, label }: {
+  items: ContextNavigationItem[];
+  label: string;
+}) {
+  return <nav aria-label={label} className="settings-section-nav">
+    {items.map((item) => <Link
+      aria-current={item.current ? "page" : undefined}
+      href={item.href}
+      key={item.href}
+    >
+      {item.label}
+      {item.assistiveDescription && <span className="sr-only"> {item.assistiveDescription}</span>}
+      {item.badge !== undefined && item.badge > 0 && <span aria-hidden="true" className="context-navigation-count">{item.badge}</span>}
+    </Link>)}
+  </nav>;
+}

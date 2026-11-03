@@ -147,7 +147,7 @@ test("real Auth, Company, Organization and Platform surfaces share one accessibl
       href: "/platform/administration",
       navigation: "Platform navigation",
       heading: "Platform administration",
-      content: "main > section",
+      content: ".settings-section-nav",
       menu: "Open account menu",
     },
   ] as const;

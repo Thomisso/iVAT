@@ -349,5 +349,5 @@ test("nested Company routes keep one aligned shell at desktop and mobile widths"
   await expect(settingsNavigation).toBeVisible();
   await settingsNavigation.getByRole("link", { name: "Company details" }).click();
   await expect(page).toHaveURL(new RegExp(`/companies/${companyId}/settings/company$`));
-  await expect(settingsNavigation.getByRole("link", { name: "Company details" })).toHaveAttribute("aria-current", "true");
+  await expect(settingsNavigation.getByRole("link", { name: "Company details" })).toHaveAttribute("aria-current", "page");
 });

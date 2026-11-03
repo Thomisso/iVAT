@@ -3,10 +3,11 @@ import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getPlatformCompanyHistory } from "@/application/platform-company-history";
 import { listCompanyAccess, listPendingInvitations } from "@/application/memberships";
-import { PageContent, PageHeader, PageLayout } from "@/components/app-shell";
+import { PageContent } from "@/components/app-shell";
 import { MemberManagement } from "@/components/member-management";
 import { Notice } from "@/components/notice";
 import { requireUserClient } from "@/lib/supabase/server";
+import { PlatformPageLayout } from "../../../platform-page-layout";
 
 export default async function PlatformCompanyMembersPage({ params }: PageProps<"/platform/companies/[companyId]/members">) {
   const { companyId } = await params;
@@ -21,12 +22,11 @@ export default async function PlatformCompanyMembersPage({ params }: PageProps<"
     getTranslations("members"), getTranslations("platformHistory"),
   ]);
   if (!access.ok) notFound();
-  return <PageLayout measure="wide">
-    <PageHeader title={members("companyTitle", { company: company.name })} />
+  return <PlatformPageLayout title={members("companyTitle", { company: company.name })}>
     <PageContent measure="wide">
       {history.value.blocked && <Notice tone="warning">{support("blockedNotice")}</Notice>}
       <MemberManagement acceptUrl={urls.ok ? urls.value.acceptUrl : null} organizationId={company.organizationId} companyId={companyId}
         companyAccess={access.value} pendingInvitations={invitations} />
     </PageContent>
-  </PageLayout>;
+  </PlatformPageLayout>;
 }

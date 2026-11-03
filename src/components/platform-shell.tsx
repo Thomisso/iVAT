@@ -9,7 +9,6 @@ import {
   ContextNavigation,
 } from "@/components/app-shell";
 import { AccountMenu, ShellIcon } from "@/components/shell-controls";
-import { PlatformSettingsNavigation } from "@/components/platform-settings-navigation";
 import { WorkSectionSwitch } from "@/components/work-section-switch";
 
 export function PlatformShell({
@@ -35,8 +34,8 @@ export function PlatformShell({
         {t("platform").slice(0, 1)}
       </span>
       <span className="company-menu-copy">
-        <small>{t("platform")}</small>
-        <strong>{t("superAdmin")}</strong>
+        <strong>{t("platform")}</strong>
+        <small>{t("superAdmin")}</small>
       </span>
     </div>
   );
@@ -77,7 +76,6 @@ export function PlatformShell({
       navigation={navigation}
       skipLabel={t("skip")}
     >
-      <PlatformSettingsNavigation operationalProblemCount={operationalProblemCount} />
       {children}
     </AppShell>
   );
