@@ -8,7 +8,7 @@ import {
   AppShell,
   ContextNavigation,
 } from "@/components/app-shell";
-import { AccountMenu, ShellIcon } from "@/components/shell-controls";
+import { AccountMenu, ShellIcon, settingsIconPath } from "@/components/shell-controls";
 import { WorkSectionSwitch } from "@/components/work-section-switch";
 
 export function PlatformShell({
@@ -44,7 +44,7 @@ export function PlatformShell({
       items={[{
         current: true,
         href: "/platform/settings",
-        icon: <ShellIcon path="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M5.6 18.4 7 17m10-10 1.4-1.4" />,
+        icon: <ShellIcon path={settingsIconPath} />,
         label: t("settings"),
       }]}
       label={t("platformNavigation")}

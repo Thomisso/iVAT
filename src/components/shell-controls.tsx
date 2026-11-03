@@ -6,6 +6,8 @@ import { useTranslations } from "next-intl";
 import { logOutAction, setLocaleAction } from "@/app/actions";
 import { ReleaseVersion } from "@/components/release-version";
 
+export const settingsIconPath = "M9.5 3h5l.6 2.4 2 .8 2.1-1.2 2.5 4.3-1.8 1.6.2 2.2 1.8 1.6-2.5 4.3-2.1-1.2-2 .8-.6 2.4h-5l-.6-2.4-2-.8-2.1 1.2-2.5-4.3 1.8-1.6-.2-2.2-1.8-1.6L4.8 5l2.1 1.2 2-.8L9.5 3Zm2.5 6a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z";
+
 export function ShellIcon({ path }: { path: string }) {
   return <svg aria-hidden="true" className="company-shell-icon" viewBox="0 0 24 24"><path d={path} /></svg>;
 }
