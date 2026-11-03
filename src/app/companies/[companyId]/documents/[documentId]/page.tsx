@@ -1,4 +1,4 @@
-import { getDocumentBankAccountChecks } from "@/application/bank-account-checks";
+import { getDocumentBankAccountChecks, isBankAccountFinding } from "@/application/bank-account-checks";
 import { listDeferredClaimPeriods } from "@/application/documents";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -97,6 +97,8 @@ export default async function DocumentReviewPage({
   }, reportingYears, undefined, currentFindings);
   const shown =
     versions.find((v) => String(v.version) === requestedVersion) ?? current;
+  const viewingRecorded = versions.some((version) => String(version.version) === requestedVersion);
+  const shownFindings = viewingRecorded ? shown?.findings : currentFindings;
   const reviewing = document.status === "needs_review" && current !== undefined && !lockedPeriod;
   const recoverable = !["approved", "rejected", "needs_review"].includes(document.status) && !lockedPeriod;
   const excludable = !["approved", "rejected"].includes(document.status) && !lockedPeriod;
@@ -213,9 +215,9 @@ export default async function DocumentReviewPage({
           </>}
         </section>
         <section className="review-data">
-          {shown && current && shown !== current && (
+          {shown && current && viewingRecorded && (
             <Notice>
-              {t("review.viewingOld", {
+              {t(shown === current ? "bankAccountCheck.viewingRecordedVersion" : "review.viewingOld", {
                 version: shown.version,
                 current: current.version,
               })}{" "}
@@ -224,7 +226,7 @@ export default async function DocumentReviewPage({
               </Link>
             </Notice>
           )}
-          {shown && current && shown === current && (
+          {shown && current && !viewingRecorded && (
             <section aria-label={t("bankAccountCheck.title")}>
               <h2>{t("bankAccountCheck.title")}</h2>
               <p>{t("bankAccountCheck.currentInformation")}</p>
@@ -251,8 +253,8 @@ export default async function DocumentReviewPage({
               </details>}
             </section>
           )}
-          {(shown === current ? currentFindings : shown?.findings)
-            ?.filter((finding) => finding.severity === "warning")
+          {shownFindings
+            ?.filter((finding) => finding.severity === "warning" && !(!viewingRecorded && bankChecks.current && bankChecks.extractionVersionId === current?.id && isBankAccountFinding(finding)))
             .map((finding) => (
               <Notice
                 key={`${finding.field}-${finding.code}`}
@@ -271,8 +273,8 @@ export default async function DocumentReviewPage({
               documentId={document.id}
               version={shown.version}
               payload={shown.payload}
-              findings={shown === current ? currentFindings : shown.findings}
-              editable={reviewing && shown === current}
+              findings={shownFindings ?? []}
+              editable={reviewing && !viewingRecorded}
               aiProposed={
                 shown.author.kind === "ai" && document.status !== "approved"
               }

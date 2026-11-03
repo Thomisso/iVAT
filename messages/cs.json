@@ -1632,6 +1632,7 @@
     "inputs": "DIČ dodavatele: {supplier}; platební účet: {account}",
     "version": "Verze vytěžení {version}",
     "olderData": "Dřívější údaje dokladu; neověřuje aktuální platební účet",
+    "viewingRecordedVersion": "Prohlížíte zaznamenaná zjištění verze vytěžení {version}. Datovaná ověření bankovního účtu najdete v aktuálním zobrazení.",
     "outcomes": {
       "published": "Platební účet je zveřejněn pro dodavatele.",
       "unpublished": "Platební účet byl ověřen a není zveřejněn pro dodavatele.",

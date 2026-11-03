@@ -23,6 +23,11 @@ declare doc public.document; observation_id uuid;
 begin
   select * into doc from public.document where id = target_document_id;
   if not found or not private.can_access_company(doc.company_id, doc.organization_id) then raise insufficient_privilege; end if;
+  -- Match accounting transition lock order, without changing either row.
+  -- Keep deletion/correction races from invalidating the input receipt mid-write.
+  perform 1 from public.company where id = doc.company_id for key share;
+  select * into doc from public.document where id = target_document_id for key share;
+  if not found or not private.can_access_company(doc.company_id, doc.organization_id) then raise insufficient_privilege; end if;
   -- An older Version is intentional: a delayed response remains history, never a
   -- verification of corrected data. The immutable Version is the input receipt.
   if doc.superseded_at is not null or not exists (

@@ -97,11 +97,19 @@ test("bank advisories stay distinct through correction, approval and Finalizatio
   await expect(checks.getByRole("status")).toContainText("The payment account was checked and is not published for the supplier.");
   await expect(checks.getByRole("status")).toContainText("Checked:");
   await expect(page.getByText(unavailable, { exact: true })).toHaveCount(0);
+  await expect(page.getByText(unpublished, { exact: true })).toHaveCount(0);
   await expect(page.getByText("Approved", { exact: true })).toBeVisible();
   await expect(page.getByText("Reporting period 2026-10 is locked.", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Return to review", exact: true })).toHaveCount(0);
   await checks.getByText("Bank Account Check history", { exact: true }).click();
   await expect(checks.getByRole("link", { name: "Extraction Version 8", exact: true })).toBeVisible();
+  await checks.getByRole("link", { name: "Extraction Version 8", exact: true }).click();
+  await expect(page.getByText(unavailable, { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Check payment account again", exact: true })).toHaveCount(0);
+  await page.getByRole("link", { name: "Show the current version", exact: true }).click();
+  await expect(checks.getByRole("status")).toContainText("Checked:");
+  await expect(page.getByText(unavailable, { exact: true })).toHaveCount(0);
+
   await expect(page.getByRole("link", { name: /Version 9/ })).toHaveCount(0);
   await context.addCookies([{ name: "NEXT_LOCALE", value: "cs", url: baseURL }]);
   await page.reload();

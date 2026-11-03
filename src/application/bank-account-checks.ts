@@ -23,6 +23,11 @@ const accountFindingCodes = new Set([
   "own_vat_registry_check_not_performed", "inconsistent_payment_account", "unrecognized_payment_account",
 ]);
 
+/** Account advisories superseded by a current dated observation. */
+export function isBankAccountFinding(finding: ValidationFinding): boolean {
+  return accountFindingCodes.has(finding.code);
+}
+
 function observationFindings(check: BankAccountCheck): ValidationFinding[] {
   const own = check.direction === "outgoing";
   const account = paymentAccountIdentity(check.payment);
@@ -69,7 +74,7 @@ export async function getDocumentBankAccountChecks(client: AppClient, input: { c
   const current = checks.find((check) => check.extractionVersionId === latestVersion.id) ?? null;
   const findings = currentValidationFindings(latestVersion.payload as ExtractionPayload, latestVersion.findings as ValidationFinding[]);
   return { checks, current, extractionVersionId: latestVersion.id,
-    findings: current ? [...findings.filter((finding) => !accountFindingCodes.has(finding.code)), ...observationFindings(current)] : findings };
+    findings: current ? [...findings.filter((finding) => !isBankAccountFinding(finding)), ...observationFindings(current)] : findings };
 }
 
 /**

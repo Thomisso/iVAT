@@ -1632,6 +1632,7 @@
     "inputs": "Supplier VAT ID: {supplier}; payment account: {account}",
     "version": "Extraction Version {version}",
     "olderData": "Earlier Document data; does not verify the current payment account",
+    "viewingRecordedVersion": "You are viewing the recorded findings of Extraction Version {version}. Open the current view for dated Bank Account Checks.",
     "outcomes": {
       "published": "The payment account is published for the supplier.",
       "unpublished": "The payment account was checked and is not published for the supplier.",
