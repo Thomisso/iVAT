@@ -1,9 +1,9 @@
 # QA v6: vytěžování, revize dokladů a správa přístupů
 
 **Datum zápisu:** 31. 10. 2026
-**Stav:** `grill-with-docs`, `to-spec` i `to-tickets` dokončeny pro Bugs / Improvements a–g. Uživatel potvrdil společné porozumění v Q22, testovací hranice specifikace i rozdělení ticketů. Specifikace [#185](https://github.com/Thomisso/iVAT/issues/185) má 12 podřízených issues #186–#197 s označením `ready-for-agent` a ověřenými nativními závislostmi. Sekce Features nebyla součástí tohoto rozpracování.
+**Stav:** Bugs / Improvements a–g ze specifikace [#185](https://github.com/Thomisso/iVAT/issues/185) jsou implementovány ve všech 12 ticketech #186–#197 a sloučeny do integračního [PR #198](https://github.com/Thomisso/iVAT/pull/198). Jednotlivé změny i společný diff prošly nezávislou kontrolou. Sekce Features 1–8 nebyla součástí implementace.
 **Rozsah:** 8 funkcí a 7 chyb nebo zlepšení. Identifikátory zachovávají původní číslování a označení nálezů.
-**Další postup:** implementace připravených ticketů pomocí `mattpocock-skills:implement-spec` podle nativních závislostí a [integračního workflow](agents/implementation-workflow.md). Implementace zatím nebyla zahájena. Samostatně povolená lokální diagnostika bodu b je dokončena a její výsledky jsou níže; opravy aplikace ani změny produkce provedeny nebyly.
+**Další postup:** revize a sloučení PR #198; produkční release bude samostatně až později podle pokynu uživatele. Produkční release ani změny produkčních dat či konfigurace se při implementaci neprováděly. Výsledky lokálního ověření a jeho hranice jsou v [implementačním záznamu](QA_v6_implementation.md).
 
 ## Features
 
@@ -142,8 +142,8 @@ Tento oddíl je schváleným výstupem uzavřeného rozhovoru: zahrnuje souhlas 
 - Sedm vydaných dokladů kontroluje DIČ a příjmový účet vlastní Company; všechny patří do skupiny IBAN/domácí účet. Jedenáct falešných varování se týká přijatých dokladů.
 - Devatenáctý případ není chybou extrakce proti originálu: originál obsahuje pod označením čísla účtu identifikátor GoPay a uvádí platbu kartou. Identifikátor nemá formát bankovního účtu; označení „nezveřejněný účet“ proto zaměňuje nemožnost porovnání za negativní výsledek ověření.
 - SOAP odpovědi byly získány nově lokálně z veřejného registru. Dokládají současný stav a umožňují replay bez sítě, nikoli rekonstrukci historického stavu registru. Nejde o end-to-end ověření rozhraní.
-- Soukromé originály, payloady a opakovatelný diagnostický příkaz jsou mimo Git v `~/.config/ivat/qa-v6-bank-debug/evidence.md`. Příkaz byl opakovaně spuštěn s očekávaným neúspěchem: `Expected 0 false unpublished-account warnings; actual 18/18`. Oprava aplikace dosud nebyla provedena.
-- Registry findings se ukládají do neměnných Extraction Versions a čtení je automaticky neověřuje znovu. Současná obnova probíhá při uložení nové verze; u schváleného dokladu vyžaduje návrat do revize, u zamčeného období také odemčení. Samotná oprava porovnávání proto historická varování automaticky neodstraní.
+- Soukromé originály, payloady a opakovatelný diagnostický příkaz jsou mimo Git v `~/.config/ivat/qa-v6-bank-debug/evidence.md`. Příkaz byl opakovaně spuštěn s očekávaným neúspěchem: `Expected 0 false unpublished-account warnings; actual 18/18`. V okamžiku diagnostiky oprava aplikace ještě nebyla provedena; následnou implementaci zachycuje záznam výše.
+- Při diagnostice se registry findings ukládaly do neměnných Extraction Versions a čtení je automaticky neověřovalo znovu. Tehdejší obnova probíhala při uložení nové verze; u schváleného dokladu vyžadovala návrat do revize, u zamčeného období také odemčení. Samotná oprava porovnávání historická varování automaticky neodstraňuje; nová ruční akce nyní ukládá samostatný datovaný Bank Account Check bez změny těchto neměnných verzí.
 - Při současném vyplnění odlišného IBAN a domácího čísla účtu má dnes IBAN bez vysvětlení přednost a druhý účet se nekontroluje.
 
 ### c. Neúspěšné úlohy — vyřešení a rozsah
@@ -185,7 +185,7 @@ Tento oddíl je schváleným výstupem uzavřeného rozhovoru: zahrnuje souhlas 
 - Při nedostupnosti interní gateway oznámit dočasnou nedostupnost bez automatického přechodu serverových požadavků na veřejnou Supabase adresu. Samotný výpadek nesmí způsobit hromadné odhlášení ani být vykázán jako nesprávné heslo.
 - Rozlišovat běh webu od schopnosti webového prostředí spojit se s Auth. Kontrola závislosti je pouze pro čtení, samostatná od kontroly běhu webu; při selhání hlásí omezenou dostupnost. Porucha Auth sama nespouští automatické restarty jinak zdravého webu.
 - Ověření musí pokrýt přihlášení, obnovování session, odhlášení, MFA, obnovu hesla a Invitations při simulovaném selhání veřejného DNS/TLS a dostupné interní gateway; dále nedostupnou gateway bez veřejného fallbacku, zachování cookies a session, veřejné OAuth/e-mailové/souborové URL a odlišení kontroly webu od kontroly Auth. Úplné přihlašovací scénáře se ověřují lokálně, nikoli opakovaným automatickým přihlašováním produkčních uživatelů.
-- Návaznost na klasifikaci chyb v PR #184 zůstává součástí přípravy implementace. Podklady pro šetření resolveru Roští lze připravit nezávisle; tato session neobjednává odeslání zprávy podpoře.
+- Implementace navazuje na klasifikaci chyb již sloučenou v PR #184. Podklady pro šetření resolveru Roští lze připravit nezávisle; tato session neobjednává odeslání zprávy podpoře.
 
 ## Implementační tickety Bugs / Improvements
 
