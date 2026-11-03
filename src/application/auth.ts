@@ -42,12 +42,15 @@ export async function googleSignInAvailable(
   }
 }
 
-async function applicationAccessAllowed(client: AppClient): Promise<boolean> {
-  const { data, error } = await client.rpc("current_user_can_use_application");
-  if (error) throw error;
-  if (data) return true;
+async function applicationAccessAllowed(client: AppClient): Promise<Result<null, "organization_blocked" | "auth_unavailable">> {
+  const { data, error, status } = await client.rpc("current_user_can_use_application");
+  if (error) {
+    if (status === 0 || status >= 500 || status === 429) return { ok: false, error: "auth_unavailable" };
+    throw error;
+  }
+  if (data) return { ok: true, value: null };
   await client.auth.signOut();
-  return false;
+  return { ok: false, error: "organization_blocked" };
 }
 
 export async function logIn(
@@ -64,10 +67,9 @@ export async function logIn(
       error: error.status === 429 ? "login_rate_limited" : "login_unavailable",
     };
   }
-  if (!(await applicationAccessAllowed(client))) {
-    return { ok: false, error: "organization_blocked" };
-  }
-  return { ok: true, value: null };
+  const access = await applicationAccessAllowed(client);
+  if (!access.ok) return { ok: false, error: access.error === "auth_unavailable" ? "login_unavailable" : access.error };
+  return access;
 }
 
 export async function startGoogleSignIn(
@@ -90,27 +92,27 @@ export async function startGoogleSignIn(
 export async function completeGoogleSignIn(
   client: AppClient,
   code: string,
-): Promise<Result<null, "google_sign_in_failed" | "organization_blocked">> {
+): Promise<Result<null, "google_sign_in_failed" | "organization_blocked" | "auth_unavailable">> {
   const { error } = await client.auth.exchangeCodeForSession(code);
-  if (error) return { ok: false, error: "google_sign_in_failed" };
-  if (!(await applicationAccessAllowed(client))) {
-    return { ok: false, error: "organization_blocked" };
-  }
-  return { ok: true, value: null };
+  if (error) return { ok: false, error: authUnavailable(error) ? "auth_unavailable" : "google_sign_in_failed" };
+  return applicationAccessAllowed(client);
 }
 
-/** The id of the signed-in user, or null. */
+/** The verified signed-in User id, or null for an absent/revoked session.
+ * Dependency unavailability is thrown, never presented as anonymous access. */
 export async function currentUserId(client: AppClient): Promise<string | null> {
   return (await currentUser(client))?.id ?? null;
 }
 
-/** Identity fields safe to render in the signed-in User's account menu. */
+/** Verified identity fields safe for the signed-in User's account menu. */
 export async function currentUser(client: AppClient): Promise<{ id: string; email: string } | null> {
   const { data, error } = await client.auth.getUser();
   if (authUnavailable(error)) throw new Error("auth_unavailable");
   return data.user ? { id: data.user.id, email: data.user.email ?? "" } : null;
 }
 
+/** Revoke the current User's native sessions. A dependency refusal must not
+ * be presented as successful logout; request cookies remain recoverable. */
 export async function logOut(client: AppClient): Promise<Result<null, "auth_unavailable">> {
   const { error } = await client.auth.signOut();
   return error ? { ok: false, error: "auth_unavailable" } : { ok: true, value: null };
@@ -121,11 +123,10 @@ export async function verifyEmailOtp(
   client: AppClient,
   tokenHash: string,
   type: EmailOtpType,
-): Promise<Result<null, "email_otp_failed" | "organization_blocked">> {
+): Promise<Result<null, "email_otp_failed" | "organization_blocked" | "auth_unavailable">> {
   const { error } = await client.auth.verifyOtp({ token_hash: tokenHash, type });
-  if (error) return { ok: false, error: "email_otp_failed" };
-  if (!(await applicationAccessAllowed(client))) return { ok: false, error: "organization_blocked" };
-  return { ok: true, value: null };
+  if (error) return { ok: false, error: authUnavailable(error) ? "auth_unavailable" : "email_otp_failed" };
+  return applicationAccessAllowed(client);
 }
 
 /** Establishes the temporary session needed for a new invitee to set a password. */

@@ -6,10 +6,11 @@ import { once } from "node:events";
 export async function supabaseHttpGateway(target: string) {
   let unavailable = false;
   let refusalsRemaining = 0;
+  let failedPathPrefix = "/";
   const paths: string[] = [];
   const server = createServer(async (request, response) => {
     paths.push(request.url ?? "/");
-    if (unavailable || refusalsRemaining > 0) {
+    if ((unavailable && request.url?.startsWith(failedPathPrefix)) || refusalsRemaining > 0) {
       refusalsRemaining = Math.max(0, refusalsRemaining - 1);
       response.writeHead(503, { "content-type": "application/json" });
       response.end(JSON.stringify({ message: "Dependency unavailable" }));
@@ -40,7 +41,7 @@ export async function supabaseHttpGateway(target: string) {
     url: `http://127.0.0.1:${address.port}`,
     paths,
     refuseNext: (count: number) => { refusalsRemaining = count; },
-    unavailable: (value: boolean) => { unavailable = value; },
+    unavailable: (value: boolean, pathPrefix = "/") => { unavailable = value; failedPathPrefix = pathPrefix; },
     close: () => { server.closeAllConnections(); server.close(); },
   };
 }

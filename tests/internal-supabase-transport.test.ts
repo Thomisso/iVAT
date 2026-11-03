@@ -231,3 +231,23 @@ it("commits a recovered native refresh and a subsequent successful logout after 
     proxy.close();
   }
 });
+
+it("reports temporary login unavailability if native sign-in succeeds but the authoritative access check is unavailable", async () => {
+  const user = await provisionedUser("Access check outage");
+  const proxy = await supabaseHttpGateway(inject("supabaseUrl"));
+  try {
+    const cookies = cookieJar();
+    const publicUrl = inject("supabaseUrl").replace("http:", "https:");
+    const requestClient = () => asUserClient(createSessionClient(publicUrl, inject("supabaseAnonKey"), {
+      cookies, fetch: createSupabaseTransport({ publicUrl, internalUrl: proxy.url }),
+    }));
+    proxy.unavailable(true, "/rest/v1/");
+    expect(await logIn(requestClient(), { email: user.email, password: "correct-horse-battery" })).toEqual({ ok: false, error: "login_unavailable" });
+    expect(cookies.getAll().length).toBeGreaterThan(0);
+    proxy.unavailable(false);
+    expect(await currentUserId(requestClient())).toBe(user.userId);
+    expect((await requestClient().rpc("current_user_can_use_application")).data).toBe(true);
+  } finally {
+    proxy.close();
+  }
+});
