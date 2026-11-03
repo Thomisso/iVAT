@@ -143,12 +143,14 @@ it("uses membership-free AAL2 SuperAdmin context for blocked tenants while prese
   const platform = await promotedSuperAdministrator("Platform operator");
   expect(await setPlatformOrganizationBlocked(platform.client, { organizationId: owner.organizationId, blocked: true })).toEqual({ ok: true, value: null });
   expect(await listAccessManagement(owner.client, { organizationId: owner.organizationId, companyId: null })).toEqual({ ok: false, error: "forbidden" });
+  let directMembershipId = "";
   for (const companyId of [null, owner.companyId]) {
     const access = await listAccessManagement(platform.client, { organizationId: owner.organizationId, companyId });
     if (!access.ok) throw new Error(access.error);
     expect(access.value.blocked).toBe(true);
     expect(access.value.users.map(user => user.userId).sort()).toEqual([owner.userId, member.userId].sort());
     const membership = access.value.users.find(user => user.userId === member.userId)!.memberships[0];
+    directMembershipId = membership.id;
     expect(await changeMembershipRole(platform.client, { membershipId: membership.id, role: "administrator" })).toEqual({ ok: true, value: null });
   }
   const unverified = await provisionedUser("AAL1 operator");
@@ -168,7 +170,5 @@ it("uses membership-free AAL2 SuperAdmin context for blocked tenants while prese
   expect(remaining.value.scopes).toHaveLength(1);
   expect(remaining.value.users.map(user => user.userId)).toEqual([owner.userId]);
   // Exact direct target remains immutable even through the Organization filter.
-  const retained = await platform.client.from("membership").select("id").eq("user_id", member.userId).eq("company_id", owner.companyId).single();
-  if (retained.error) throw retained.error;
-  expect(await removeMembership(platform.client, retained.data.id)).toEqual({ ok: false, error: "forbidden" });
+  expect(await removeMembership(platform.client, directMembershipId)).toEqual({ ok: false, error: "forbidden" });
 });
