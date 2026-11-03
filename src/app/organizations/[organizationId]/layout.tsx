@@ -5,7 +5,7 @@ import { resolveCompanyContext } from "@/application/company-context";
 import { OrganizationShell } from "@/components/organization-shell";
 import { loadAdministrationAccess } from "@/lib/administration-access";
 import { companyContextCookie, parseCompanyContext } from "@/lib/company-context";
-import { requireUserClient } from "@/lib/supabase/server";
+import { availableAuthValue, requireUserClient } from "@/lib/supabase/server";
 
 export default async function OrganizationLayout({ children, params }: LayoutProps<"/organizations/[organizationId]">) {
   const { organizationId } = await params;
@@ -13,7 +13,7 @@ export default async function OrganizationLayout({ children, params }: LayoutPro
   const remembered = parseCompanyContext((await cookies()).get(companyContextCookie)?.value);
   const [{ organizations, superAdmin }, auth, companyContext] = await Promise.all([
     loadAdministrationAccess(),
-    currentUser(client),
+    currentUser(client).then(availableAuthValue),
     resolveCompanyContext(client, remembered),
   ]);
   const authorizedOrganizations = organizations.filter((organization) => organization.role === "administrator");

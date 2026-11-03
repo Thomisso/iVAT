@@ -1,3 +1,4 @@
+import { succeeded } from "./support/results";
 import { listAuditEvents } from "@/application/audit";
 import { totp } from "./support/totp";
 import { beginTotpEnrollment, completeTotpEnrollment, mfaPolicy, mfaStatus, setOrganizationMfaRequired, verifyTotp } from "@/application/mfa";
@@ -281,7 +282,7 @@ describe("persistent Invitations", () => {
     const visitor = anonymousClient();
     expect(await completeInvitationOnboarding(visitor, { token: offer.token, password: "mfa-invitation-password-166" }, invitationAuthenticationFixture()))
       .toEqual({ ok: true, value: { companyId: offer.administrator.companyId } });
-    expect(await mfaPolicy(visitor)).toEqual({ required: false, enrolled: true, satisfied: false });
+    expect(succeeded(await mfaPolicy(visitor))).toEqual({ required: false, enrolled: true, satisfied: false });
     expect(await listMyCompanies(visitor)).toEqual([]);
     expect(await verifyTotp(visitor, { factorId: enrollment.value.factorId, code: totp(enrollment.value.secret) })).toEqual({ ok: true, value: null });
     expect(await listMyCompanies(visitor)).toHaveLength(1);
@@ -291,7 +292,7 @@ describe("persistent Invitations", () => {
     expect(await completeInvitationOnboarding(visitor, { token: again.value.token, password: "" }, invitationAuthenticationFixture()))
       .toEqual({ ok: true, value: { companyId: offer.administrator.companyId } });
     expect((await visitor.auth.getSession()).data.session?.access_token).toBe(before);
-    expect((await mfaStatus(visitor)).currentLevel).toBe("aal2");
+    expect((succeeded(await mfaStatus(visitor))).currentLevel).toBe("aal2");
   });
 
   it("never removes a preexisting identity or its other Organization when a late acceptance is cancelled", async () => {
@@ -322,7 +323,7 @@ describe("persistent Invitations", () => {
     const visitor = anonymousClient();
     expect(await completeInvitationOnboarding(visitor, { token: generated.value.token, password: "mandatory-mfa-166" }, invitationAuthenticationFixture()))
       .toEqual({ ok: true, value: { companyId: null } });
-    expect(await mfaPolicy(visitor)).toEqual({ required: true, enrolled: false, satisfied: false });
+    expect(succeeded(await mfaPolicy(visitor))).toEqual({ required: true, enrolled: false, satisfied: false });
     expect(await listMyCompanies(visitor)).toEqual([]);
     expect(await setOrganizationMfaRequired(visitor, { organizationId: administrator.organizationId, required: false })).toEqual({ ok: false, error: "forbidden" });
     const enrollment = await beginTotpEnrollment(visitor);
