@@ -67,3 +67,44 @@ export function companyPageContext(companyId: string, path: string, search: Reco
   const query = new URLSearchParams(Object.entries(search).flatMap(([key, value]) => typeof value === "string" ? [[key, value]] : []));
   return safeCompanyReturnTo(companyId, `${path}${query.size ? `?${query}` : ""}${hash}`) ?? `/companies/${companyId}/documents`;
 }
+
+/** Syntax-only Security origin allowlist. The server must revalidate access before displaying a return. */
+export function safeSecurityReturnTo(requested: unknown): string | null {
+  if (typeof requested !== "string" || requested.length > 16000 || !requested.startsWith("/") || requested.startsWith("//")
+    || /[\\\u0000-\u001f\u007f]/.test(requested)) return null;
+  let url: URL;
+  try { url = new URL(requested, INTERNAL_ORIGIN); } catch { return null; }
+  if (url.origin !== INTERNAL_ORIGIN || /%|\/\.{1,2}(?:\/|$)/.test(requested.split(/[?#]/)[0])) return null;
+  const company = new RegExp(`^/companies/(${UUID_PATH})(?:/|$)`).exec(url.pathname);
+  if (company) {
+    const work = safeCompanyReturnTo(company[1], requested);
+    if (work) return work;
+  }
+  let path = url.pathname;
+  let allowed: string[];
+  if (new RegExp(`^/companies/${UUID_PATH}/(?:settings(?:/(?:company|vat|users|data))?|setup(?:/(?:filing-frequency|ai-processing))?|members|documents/new)$`).test(path)) {
+    path = path.replace(/\/members$/, "/settings/users");
+    allowed = path.endsWith("/users") ? ["scope"] : path.endsWith("/settings/vat") ? ["generateYear"] : [];
+  } else if (new RegExp(`^/organizations/${UUID_PATH}/(?:users|members|audit-log)$`).test(path)) {
+    path = path.replace(/\/members$/, "/users");
+    allowed = path.endsWith("/users") ? ["scope"] : ["companyId", "actorUserId", "action", "from", "to", "page"];
+  } else if (new RegExp(`^/platform/companies/${UUID_PATH}/(?:history|members)$`).test(path)) {
+    allowed = path.endsWith("/members") ? ["scope"] : [];
+  } else if (["/platform", "/platform/settings", "/platform/administration", "/platform/ai-settings", "/platform/ai-usage"].includes(path)) {
+    allowed = path === "/platform/ai-usage" ? ["from", "to", "organizationId", "companyId", "configurationId", "model", "operation", "groupBy"] : [];
+  } else return null;
+  const query = new URLSearchParams();
+  for (const key of allowed) {
+    const value = url.searchParams.get(key);
+    if (value === null || url.searchParams.getAll(key).length !== 1) continue;
+    if ((key === "scope" && value !== "organization" || key.endsWith("Id")) && !isUuid(value)) continue;
+    if (key === "page" && (!Number.isSafeInteger(Number(value)) || Number(value) < 1)) continue;
+    if (key === "generateYear" && !/^20\d{2}$/.test(value)) continue;
+    query.set(key, value);
+  }
+  const hash = path === "/platform/administration" && /^#(?:operational-problems-title|failed-jobs)$/.test(url.hash)
+    || path === "/platform/ai-settings" && new RegExp(`^#(?:configuration|company)-${UUID_PATH}$`).test(url.hash)
+    || /\/settings(?:\/vat)?$/.test(path) && /^#(?:reporting-years|filing-defaults|settings-destinations-title|setup-checklist-title)$/.test(url.hash)
+    ? url.hash : "";
+  return `${path}${query.size ? `?${query}` : ""}${hash}`;
+}
