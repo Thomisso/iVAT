@@ -25,7 +25,7 @@ test("Document detail separates approval from current inclusion and preserves pr
     await expect(live).toContainText(locale === "en" ? "A valid counterparty VAT ID is required for reporting." : "Pro zahrnutí je nutné platné DIČ protistrany.");
     await expect(live).toContainText(locale === "en" ? "Proposed mapping — not counted" : "Navržené zařazení — nezapočteno");
     await expect(live).toContainText("40");
-    await expect(live).toContainText("B.3");
+    await expect(live).toContainText("B.2");
     await expect(page.getByText("Approved. The document counts towards VAT reports.", { exact: true })).toHaveCount(0);
     for (const width of [360, 1440]) {
       await page.setViewportSize({ width, height: 900 });
@@ -52,11 +52,11 @@ test("Document detail separates approval from current inclusion and preserves pr
     if (locale === "en") {
       expect(included).toContainEqual(expect.objectContaining({ "Document ID": fixture.includedId, "Live inclusion": "included" }));
       expect(attention).toContainEqual(expect.objectContaining({ "Document ID": fixture.includedId, "Live inclusion": "included" }));
-      expect(attention).toContainEqual(expect.objectContaining({ "Document ID": fixture.excludedId, "Live inclusion": "excluded", "Exclusion detail": "A valid counterparty VAT ID is required for reporting.", "VAT Return line": "40", "Control Statement section": "B.3", "Mapping status": "proposed" }));
+      expect(attention).toContainEqual(expect.objectContaining({ "Document ID": fixture.excludedId, "Live inclusion": "excluded", "Exclusion detail": "A valid counterparty VAT ID is required for reporting.", "VAT Return line": "40", "Control Statement section": "B.2", "Mapping status": "proposed" }));
     } else {
       expect(included).toContainEqual(expect.objectContaining({ "ID dokladu": fixture.includedId, "Živé zahrnutí": "zahrnuto" }));
       expect(attention).toContainEqual(expect.objectContaining({ "ID dokladu": fixture.includedId, "Živé zahrnutí": "zahrnuto" }));
-      expect(attention).toContainEqual(expect.objectContaining({ "ID dokladu": fixture.excludedId, "Živé zahrnutí": "nezahrnuto", "Podrobnost vyloučení": "Pro zahrnutí je nutné platné DIČ protistrany.", "Řádek přiznání k DPH": "40", "Oddíl kontrolního hlášení": "B.3", "Stav zařazení": "navrženo" }));
+      expect(attention).toContainEqual(expect.objectContaining({ "ID dokladu": fixture.excludedId, "Živé zahrnutí": "nezahrnuto", "Podrobnost vyloučení": "Pro zahrnutí je nutné platné DIČ protistrany.", "Řádek přiznání k DPH": "40", "Oddíl kontrolního hlášení": "B.2", "Stav zařazení": "navrženo" }));
     }
   }
 });

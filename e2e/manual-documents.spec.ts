@@ -45,14 +45,31 @@ test("a manual Document survives partial saves and approval without a file or AI
   await page.getByRole("combobox", { name: "Direction", exact: true }).selectOption("incoming");
   await page.getByRole("combobox", { name: "VAT regime", exact: true }).selectOption("domestic");
   await page.getByLabel("Currency", { exact: true }).fill("CZK");
-  await page.getByRole("group", { name: "Supplier", exact: true }).getByLabel("VAT ID", { exact: true }).fill("CZ27082440");
-  await rates.getByRole("textbox", { name: "VAT", exact: true }).fill("21.00");
-  await page.getByLabel("Total net", { exact: true }).fill("100.00");
-  await page.getByLabel("Total VAT", { exact: true }).fill("21.00");
-  await page.getByLabel("Total incl. VAT", { exact: true }).fill("121.00");
+  await rates.getByRole("textbox", { name: "Net", exact: true }).fill("8264.47");
+  await rates.getByRole("textbox", { name: "VAT", exact: true }).fill("1735.54");
+  await page.getByLabel("Total net", { exact: true }).fill("8264.47");
+  await page.getByLabel("Total VAT", { exact: true }).fill("1735.54");
+  await page.getByLabel("Total incl. VAT", { exact: true }).fill("10000.01");
   await page.getByRole("button", { name: "Save corrections", exact: true }).click();
   await expect(page.getByRole("button", { name: "Approve version 3", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Approve version 3", exact: true }).click();
+  await expect(page.getByText("Enter the counterparty VAT ID required for this VAT Regime before approval.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Approve version 3", exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Approve version 3", exact: true })).toBeVisible();
+  await rates.getByRole("textbox", { name: "Net", exact: true }).fill("8264.46");
+  await page.getByLabel("Total net", { exact: true }).fill("8264.46");
+  await page.getByLabel("Total incl. VAT", { exact: true }).fill("10000.00");
+  await page.getByRole("button", { name: "Save corrections", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Approve version 4", exact: true })).toBeVisible();
+  for (const locale of ["cs", "en"] as const) {
+    await context.addCookies([{ name: "NEXT_LOCALE", value: locale, url: baseURL }]);
+    await page.reload();
+    await expect(page.getByText(locale === "en"
+      ? "No supplier VAT ID is entered in iVAT. This ordinary domestic Document is at or below CZK 10,000 including VAT and can be approved. Check the original document; approval does not confirm that it meets its legal requirements."
+      : "V iVAT není vyplněno DIČ dodavatele. Tento běžný tuzemský doklad nepřesahuje 10 000 Kč včetně DPH a lze jej schválit. Zkontrolujte původní doklad; schválení nepotvrzuje splnění jeho zákonných náležitostí.", { exact: true })).toBeVisible();
+  }
+  await page.getByRole("button", { name: "Approve version 4", exact: true }).click();
   await expect(page).toHaveURL(/\/documents(?:\?.*)?$/);
   await page.goto(reviewUrl);
   await expect(page.getByRole("button", { name: "Return to review", exact: true })).toBeVisible();
@@ -61,5 +78,5 @@ test("a manual Document survives partial saves and approval without a file or AI
   await page.goto(`/companies/${companyId}/vat-reports?period=2026-10`);
   await page.getByRole("button", { name: "Generate draft", exact: true }).click();
   await page.getByRole("navigation", { name: "Reporting Period destinations", exact: true }).getByRole("link", { name: "VAT Return", exact: true }).click();
-  await expect(page.getByRole("table", { name: "VAT Return", exact: true })).toContainText("21.00");
+  await expect(page.getByRole("table", { name: "VAT Return", exact: true })).toContainText("1,735.54");
 });
