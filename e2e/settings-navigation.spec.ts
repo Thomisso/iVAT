@@ -1,7 +1,8 @@
 import { provisionAndLogIn } from "./support/accounts";
 import { createHmac } from "node:crypto";
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { addBrowserCompanyMemberFixture, promoteBrowserSuperAdminFixture } from "../tests/support/e2e";
+import { closeFailedExportAttempt } from "@/application/processing-administration";
+import { addBrowserCompanyMemberFixture, addBrowserFailedExportAttemptFixture, browserUserClient, promoteBrowserSuperAdminFixture } from "../tests/support/e2e";
 
 const password = "Playwright-password-148";
 
@@ -124,107 +125,115 @@ test("Settings navigation follows actual scoped Roles and a membership-free Supe
   await page.getByLabel("Authenticator code").fill(authenticatorCode(secret));
   await page.getByRole("button", { name: "Verify and enable", exact: true }).click();
   await page.getByRole("link", { name: "I saved the codes", exact: true }).click();
-  await context.storageState({ path: "test-results/191-browser-state.json" });
-  await page.goto(`/companies/${companyId}/settings`);
-  await expect(organizationArea.getByRole("link", { name: /^Organization users/ })).toBeVisible();
-  await page.setViewportSize({ width: 1440, height: 900 });
-  const companySections = page.getByRole("navigation", { name: "Company settings sections", exact: true });
-  const companyMenuBounds = await companySections.boundingBox();
-  await testInfo.attach("company-settings-desktop", { body: await page.screenshot({ path: testInfo.outputPath("company-settings-desktop.png") }), contentType: "image/png" });
-  await organizationArea.getByRole("link", { name: /^Organization users/ }).click();
-  await expect(page.getByRole("heading", { name: `Users of ${organization}`, exact: true })).toBeVisible();
-  await page.goto(`/companies/${companyId}`);
-  const toSuperAdmin = page.getByRole("link", { name: "Switch to SuperAdmin", exact: true });
-  await expect(toSuperAdmin).toBeVisible();
-  await toSuperAdmin.click();
-  await expect(page).toHaveURL(/\/platform\/administration$/);
-  await expect(page.getByRole("navigation", { name: "Administration", exact: true })).toHaveCount(0);
-  const platformNavigation = page.getByRole("navigation", { name: "Platform navigation", exact: true });
-  await expect(platformNavigation.getByRole("link", { name: "Settings", exact: true })).toHaveCount(1);
-  await expect(platformNavigation.getByRole("link")).toHaveCount(1);
-  const platformSections = page.getByRole("navigation", { name: "Platform settings sections", exact: true });
-  const platformMenuBounds = await platformSections.boundingBox();
-  expect(companyMenuBounds).not.toBeNull();
-  expect(platformMenuBounds?.x).toBe(companyMenuBounds!.x);
-  expect(platformMenuBounds?.width).toBe(companyMenuBounds!.width);
-  await testInfo.attach("platform-settings-desktop", { body: await page.screenshot({ path: testInfo.outputPath("platform-settings-desktop.png") }), contentType: "image/png" });
-  await platformNavigation.getByRole("link", { name: "Settings", exact: true }).focus();
-  await page.keyboard.press("Enter");
-  await expect(page).toHaveURL(/\/platform\/settings$/);
-  await expect(page.getByRole("heading", { name: "SuperAdmin settings", exact: true })).toBeVisible();
-  const sections = page.getByRole("navigation", { name: "Platform settings sections", exact: true });
-  await sections.getByRole("link", { name: "Platform AI settings", exact: true }).focus();
-  await page.keyboard.press("Enter");
-  await expect(page).toHaveURL(/\/platform\/ai-settings$/);
-  await expect(sections.getByRole("link", { name: "Platform AI settings", exact: true })).toHaveAttribute("aria-current", "page");
-  await sections.getByRole("link", { name: "Platform AI usage", exact: true }).click();
-  await expect(page).toHaveURL(/\/platform\/ai-usage$/);
-  await expect(sections.getByRole("link", { name: "Platform AI usage", exact: true })).toHaveAttribute("aria-current", "page");
-  await page.getByRole("link", { name: "Return to Company work", exact: true }).click();
-  await expect(page).toHaveURL(`/companies/${companyId}`);
-  for (const width of [360, 720, 1024, 1440]) {
-    await page.setViewportSize({ width, height: 900 });
-    if (width === 360) {
-      await page.goto(`/companies/${companyId}/settings/data`);
-      await page.reload();
-      await expectCurrentSectionVisible(companySections);
-    }
+  const client = await browserUserClient(await context.cookies());
+  // An active alert exercises navigation whose accessible name includes its badge.
+  const failure = await addBrowserFailedExportAttemptFixture(companyId);
+  try {
     await page.goto(`/companies/${companyId}/settings`);
-    const companyAppearance = await settingsAppearance(companySections);
-    if (width === 360 || width === 1440) await page.screenshot({ path: testInfo.outputPath(`company-settings-${width}.png`) });
+    await expect(organizationArea.getByRole("link", { name: /^Organization users/ })).toBeVisible();
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const companySections = page.getByRole("navigation", { name: "Company settings sections", exact: true });
+    const companyMenuBounds = await companySections.boundingBox();
+    await testInfo.attach("company-settings-desktop", { body: await page.screenshot({ path: testInfo.outputPath("company-settings-desktop.png") }), contentType: "image/png" });
+    await organizationArea.getByRole("link", { name: /^Organization users/ }).click();
+    await expect(page.getByRole("heading", { name: `Users of ${organization}`, exact: true })).toBeVisible();
+    await page.goto(`/companies/${companyId}`);
+    const toSuperAdmin = page.getByRole("link", { name: "Switch to SuperAdmin", exact: true });
     await expect(toSuperAdmin).toBeVisible();
-    await toSuperAdmin.focus();
-    await page.keyboard.press("Enter");
+    await toSuperAdmin.click();
     await expect(page).toHaveURL(/\/platform\/administration$/);
-    await expect(page.getByRole("group", { name: "Platform context", exact: true }).filter({ visible: true }).getByText("Platform", { exact: true })).toBeVisible();
-    expect(await settingsAppearance(sections)).toEqual(companyAppearance);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
-    const accountMenu = page.getByRole("button", { name: "Open account menu" });
-    await accountMenu.focus();
-    await page.keyboard.press("ArrowDown");
-    await expect(page.getByRole("menu", { name: "Open account menu" }).getByRole("menuitem").first()).toBeFocused();
-    await page.keyboard.press("End");
-    await expect(page.getByRole("menuitem", { name: "Log out", exact: true })).toBeFocused();
-    await page.keyboard.press("Escape");
-    await expect(accountMenu).toBeFocused();
-    await expect(page.getByRole("menu", { name: "Open account menu" })).toHaveCount(0);
-    if (width === 360) {
-      const usageLink = sections.getByRole("link", { name: "Platform AI usage", exact: true });
-      await usageLink.focus();
-      await page.keyboard.press("Enter");
-      await expect(page).toHaveURL(/\/platform\/ai-usage$/);
-      await page.reload();
-      await expect(usageLink).toHaveAttribute("aria-current", "page");
-      await expectCurrentSectionVisible(sections);
-      await sections.getByRole("link", { name: "Platform overview", exact: true }).click();
-      await expect(page).toHaveURL(/\/platform\/administration$/);
-    }
-    if (width === 360 || width === 1440) await page.screenshot({ path: testInfo.outputPath(`platform-settings-${width}.png`) });
+    await expect(page.getByRole("navigation", { name: "Administration", exact: true })).toHaveCount(0);
+    const platformNavigation = page.getByRole("navigation", { name: "Platform navigation", exact: true });
+    await expect(platformNavigation.getByRole("link", { name: "Settings", exact: true })).toHaveCount(1);
+    await expect(platformNavigation.getByRole("link")).toHaveCount(1);
+    const platformSections = page.getByRole("navigation", { name: "Platform settings sections", exact: true });
+    const platformMenuBounds = await platformSections.boundingBox();
+    expect(companyMenuBounds).not.toBeNull();
+    expect(platformMenuBounds?.x).toBe(companyMenuBounds!.x);
+    expect(platformMenuBounds?.width).toBe(companyMenuBounds!.width);
+    await testInfo.attach("platform-settings-desktop", { body: await page.screenshot({ path: testInfo.outputPath("platform-settings-desktop.png") }), contentType: "image/png" });
+    await platformNavigation.getByRole("link", { name: "Settings", exact: true }).focus();
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(/\/platform\/settings$/);
+    await expect(page.getByRole("heading", { name: "SuperAdmin settings", exact: true })).toBeVisible();
+    const sections = page.getByRole("navigation", { name: "Platform settings sections", exact: true });
+    await sections.getByRole("link", { name: "Platform AI settings", exact: true }).focus();
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(/\/platform\/ai-settings$/);
+    await expect(sections.getByRole("link", { name: "Platform AI settings", exact: true })).toHaveAttribute("aria-current", "page");
+    await sections.getByRole("link", { name: "Platform AI usage", exact: true }).click();
+    await expect(page).toHaveURL(/\/platform\/ai-usage$/);
+    await expect(sections.getByRole("link", { name: "Platform AI usage", exact: true })).toHaveAttribute("aria-current", "page");
     await page.getByRole("link", { name: "Return to Company work", exact: true }).click();
     await expect(page).toHaveURL(`/companies/${companyId}`);
+    for (const width of [360, 720, 1024, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      if (width === 360) {
+        await page.goto(`/companies/${companyId}/settings/data`);
+        await page.reload();
+        await expectCurrentSectionVisible(companySections);
+      }
+      await page.goto(`/companies/${companyId}/settings`);
+      const companyAppearance = await settingsAppearance(companySections);
+      if (width === 360 || width === 1440) await page.screenshot({ path: testInfo.outputPath(`company-settings-${width}.png`) });
+      await expect(toSuperAdmin).toBeVisible();
+      await toSuperAdmin.focus();
+      await page.keyboard.press("Enter");
+      await expect(page).toHaveURL(/\/platform\/administration$/);
+      await expect(page.getByRole("group", { name: "Platform context", exact: true }).filter({ visible: true }).getByText("Platform", { exact: true })).toBeVisible();
+      expect(await settingsAppearance(sections)).toEqual(companyAppearance);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+      const accountMenu = page.getByRole("button", { name: "Open account menu" });
+      await accountMenu.focus();
+      await page.keyboard.press("ArrowDown");
+      await expect(page.getByRole("menu", { name: "Open account menu" }).getByRole("menuitem").first()).toBeFocused();
+      await page.keyboard.press("End");
+      await expect(page.getByRole("menuitem", { name: "Log out", exact: true })).toBeFocused();
+      await page.keyboard.press("Escape");
+      await expect(accountMenu).toBeFocused();
+      await expect(page.getByRole("menu", { name: "Open account menu" })).toHaveCount(0);
+      if (width === 360) {
+        const usageLink = sections.getByRole("link", { name: "Platform AI usage", exact: true });
+        await usageLink.focus();
+        await page.keyboard.press("Enter");
+        await expect(page).toHaveURL(/\/platform\/ai-usage$/);
+        await page.reload();
+        await expect(usageLink).toHaveAttribute("aria-current", "page");
+        await expectCurrentSectionVisible(sections);
+        const overview = sections.getByRole("link", { name: /^Platform overview(?: |$)/ });
+        await expect(overview).toHaveAttribute("href", "/platform/administration");
+        await expect(overview).toHaveAccessibleName(/^Platform overview [1-9]\d* unresolved operational alerts$/);
+        await overview.click();
+        await expect(page).toHaveURL(/\/platform\/administration$/);
+      }
+      if (width === 360 || width === 1440) await page.screenshot({ path: testInfo.outputPath(`platform-settings-${width}.png`) });
+      await page.getByRole("link", { name: "Return to Company work", exact: true }).click();
+      await expect(page).toHaveURL(`/companies/${companyId}`);
+    }
+    await context.addCookies([{ name: "NEXT_LOCALE", value: "cs", url: baseURL }]);
+    await page.reload();
+    await expect(page.getByRole("navigation", { name: "Navigace firmy", exact: true }).getByRole("link", { name: "Nastavení", exact: true })).toHaveCount(1);
+    await expect(page.getByRole("link", { name: "Přepnout do sekce SuperAdmin", exact: true })).toBeVisible();
+    await page.getByRole("navigation", { name: "Navigace firmy", exact: true }).getByRole("link", { name: "Nastavení", exact: true }).click();
+    const czechOrganizationArea = page.getByRole("region", { name: `Nastavení organizace: ${organization}`, exact: true });
+    await expect(czechOrganizationArea.getByRole("link", { name: /^Uživatelé organizace/ })).toBeVisible();
+    await expect(czechOrganizationArea.getByRole("link", { name: /^Auditní záznamy organizace/ })).toBeVisible();
+    const czechSwitch = page.getByRole("link", { name: "Přepnout do sekce SuperAdmin", exact: true });
+    await czechSwitch.focus();
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(/\/platform\/administration$/);
+    const czechSections = page.getByRole("navigation", { name: "Oblasti nastavení platformy", exact: true });
+    await expect(czechSections.getByRole("link", { name: "Nastavení AI platformy", exact: true })).toBeVisible();
+    await expect(czechSections.getByRole("link", { name: "Využití AI platformy", exact: true })).toBeVisible();
+    for (const width of [360, 720, 1024, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expect(czechSections).toBeVisible();
+      if (width === 360 || width === 1440) await page.screenshot({ path: testInfo.outputPath(`platform-settings-cs-${width}.png`) });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    }
+    await page.getByRole("link", { name: "Vrátit se k práci ve firmě", exact: true }).click();
+    await expect(page).toHaveURL(`/companies/${companyId}`);
+  } finally {
+    expect(await closeFailedExportAttempt(client, failure.jobId, 0)).toEqual({ ok: true, value: null });
   }
-  await context.storageState({ path: "test-results/191-browser-state.json" });
-  await context.addCookies([{ name: "NEXT_LOCALE", value: "cs", url: baseURL }]);
-  await page.reload();
-  await expect(page.getByRole("navigation", { name: "Navigace firmy", exact: true }).getByRole("link", { name: "Nastavení", exact: true })).toHaveCount(1);
-  await expect(page.getByRole("link", { name: "Přepnout do sekce SuperAdmin", exact: true })).toBeVisible();
-  await page.getByRole("navigation", { name: "Navigace firmy", exact: true }).getByRole("link", { name: "Nastavení", exact: true }).click();
-  const czechOrganizationArea = page.getByRole("region", { name: `Nastavení organizace: ${organization}`, exact: true });
-  await expect(czechOrganizationArea.getByRole("link", { name: /^Uživatelé organizace/ })).toBeVisible();
-  await expect(czechOrganizationArea.getByRole("link", { name: /^Auditní záznamy organizace/ })).toBeVisible();
-  const czechSwitch = page.getByRole("link", { name: "Přepnout do sekce SuperAdmin", exact: true });
-  await czechSwitch.focus();
-  await page.keyboard.press("Enter");
-  await expect(page).toHaveURL(/\/platform\/administration$/);
-  const czechSections = page.getByRole("navigation", { name: "Oblasti nastavení platformy", exact: true });
-  await expect(czechSections.getByRole("link", { name: "Nastavení AI platformy", exact: true })).toBeVisible();
-  await expect(czechSections.getByRole("link", { name: "Využití AI platformy", exact: true })).toBeVisible();
-  for (const width of [360, 720, 1024, 1440]) {
-    await page.setViewportSize({ width, height: 900 });
-    await expect(czechSections).toBeVisible();
-    if (width === 360 || width === 1440) await page.screenshot({ path: testInfo.outputPath(`platform-settings-cs-${width}.png`) });
-    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
-  }
-  await page.getByRole("link", { name: "Vrátit se k práci ve firmě", exact: true }).click();
-  await expect(page).toHaveURL(`/companies/${companyId}`);
 });
