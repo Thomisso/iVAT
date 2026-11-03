@@ -56,6 +56,7 @@ export default async function PlatformAdministrationPage() {
     provider_response_invalid: t("problemProviderResponseInvalid"),
     processing_failed: t("problemProcessingFailed"),
     terminal_processing_job: t("problemTerminalJob"),
+    failed_company_export: t("problemFailedExport"),
   };
 
   return (
@@ -93,7 +94,7 @@ export default async function PlatformAdministrationPage() {
                     </div>
                     <dl className="operational-problem-facts">
                       <div>
-                        <dt>{t("affectedDocuments")}</dt>
+                        <dt>{t(problem.kind === "failed_company_export" ? "affectedExports" : "affectedDocuments")}</dt>
                         <dd>{problem.affectedDocumentCount}</dd>
                       </div>
                       {problem.configuration && (
@@ -113,7 +114,7 @@ export default async function PlatformAdministrationPage() {
                         {problem.companies.map((company) => (
                           <li key={company.id}>
                             <span>{company.name}</span>
-                            <span>{t("companyDocumentCount", { count: company.affectedDocumentCount })}</span>
+                            <span>{t(problem.kind === "failed_company_export" ? "companyExportCount" : "companyDocumentCount", { count: company.affectedDocumentCount })}</span>
                           </li>
                         ))}
                       </ul>

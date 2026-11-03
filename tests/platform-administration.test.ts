@@ -1089,6 +1089,7 @@ describe("failed Company export attempts", () => {
       const stillActive = replacement === "other author";
       expect(rows.value.some((row) => row.id === job.id)).toBe(stillActive);
       expect(problems.value.filter((problem) => problem.targetIds.includes(exported.value.exportId)).map((problem) => problem.affectedDocumentCount)).toEqual(stillActive ? [1] : []);
+      if (stillActive) expect(problems.value.find((problem) => problem.targetIds.includes(exported.value.exportId))).toEqual(expect.objectContaining({ kind: "failed_company_export", configuration: null }));
       if (!stillActive) {
         expect(await closeFailedExportAttempt(operator.client, job.id, 0)).toEqual({ ok: false, error: "not_closable" });
         expect(await retryFailedProcessingJob(operator.client, job.id)).toEqual({ ok: false, error: "not_retryable" });

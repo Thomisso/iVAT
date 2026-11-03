@@ -274,6 +274,8 @@ test("SuperAdmin closes a failed Company export attempt and sees a later indepen
   await page.goto("/platform/administration");
   const problem = page.locator(".operational-problem").filter({ hasText: first.exportId });
   await expect(problem).toBeVisible();
+  await expect(problem.getByRole("heading", { name: "Failed Company export", exact: true })).toBeVisible();
+  await expect(problem.getByText("Affected exports", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Platform alerts, 1 unresolved" })).toBeVisible();
   await expect(page.locator("#failed-jobs").getByRole("row").filter({ hasText: first.exportId }).getByRole("button", { name: "Close failed export attempt", exact: true })).toBeVisible();
   await problem.getByRole("button", { name: "Close failed export attempt", exact: true }).click();

@@ -85,7 +85,7 @@ export function OperationalProblemRemediation({
     );
   }
 
-  if (problem.kind === "terminal_processing_job") {
+  if (problem.kind === "terminal_processing_job" || problem.kind === "failed_company_export") {
     const retryable = failedJobs.filter((job) => problem.targetIds.includes(job.targetId));
     return (
       <div className="operational-remediation">
