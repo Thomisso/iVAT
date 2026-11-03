@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { retryFailedProcessingJobAction, takeOverFailedProcessingJobAction } from "@/app/actions";
+import { closeFailedExportAttemptAction, retryFailedProcessingJobAction, takeOverFailedProcessingJobAction } from "@/app/actions";
 import type { AiConfigurationSummary } from "@/application/ai-configurations";
 import type { PlatformAiProcessingAllowance } from "@/application/ai-processing-allowance";
 import type { OperationalProblem, OperationalProblemKind } from "@/application/operational-problems";
@@ -100,7 +100,11 @@ export function OperationalProblemRemediation({
             >
               {t("retry")}
             </CommandButton>
-            {job.name !== "complete-company-export" && (
+            {job.name === "complete-company-export" ? (
+              <CommandButton action={closeFailedExportAttemptAction} fields={{ jobId: job.id, retryCount: String(job.retryCount) }} size="sm">
+                {t("closeExportAttempt")}
+              </CommandButton>
+            ) : (
               <CommandButton action={takeOverFailedProcessingJobAction} fields={{ jobId: job.id }} size="sm">
                 {t("manualTakeover")}
               </CommandButton>

@@ -917,6 +917,9 @@ isOneToOne: false
 "clear_default_ai_configuration":
 { Args: Record<PropertyKey, never>; Returns: undefined
                            },
+"close_failed_export_attempt":
+{ Args: { "expected_retry_count": number,"target_failed_job_id": string }; Returns: undefined
+                           },
 "company_ai_processing_allowance":
 { Args: { "target_company_id": string }; Returns: {
               "allowance": number,"used": number,"waiting_documents": number
@@ -1063,7 +1066,7 @@ isOneToOne: false
                            },
 "list_failed_processing_jobs":
 { Args: Record<PropertyKey, never>; Returns: {
-              "error": string,"failed_at": string,"id": string,"name": string,"target_id": string
+              "error": string,"failed_at": string,"id": string,"name": string,"retry_count": number,"target_id": string
             }[]
                            },
 "list_failed_processing_jobs_complete":

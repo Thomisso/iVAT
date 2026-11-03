@@ -565,3 +565,44 @@ export async function addBrowserLaterSplitFailureFixture(sourceFileId: string) {
     await database.query("rollback"); throw error;
   } finally { await database.end(); }
 }
+
+/** A real immutable export snapshot and terminal queue attempt for remediation. */
+export async function addBrowserFailedExportAttemptFixture(companyId: string) {
+  const environment = await browserFixtureEnvironment();
+  const database = new DatabaseClient({ connectionString: environment.DATABASE_URL });
+  await database.connect();
+  try {
+    await database.query("begin");
+    const author = await database.query<{ created_by: string }>("select created_by from public.company where id = $1", [companyId]);
+    await database.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ sub: author.rows[0].created_by, role: "authenticated", aal: "aal2" })]);
+    const created = await database.query<{ receipt: { exportId: string } }>("select public.create_company_data_export($1) as receipt", [companyId]);
+    const exportId = created.rows[0].receipt.exportId;
+    await database.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ role: "service_role" })]);
+    await database.query("select public.fail_company_data_export($1)", [exportId]);
+    const inserted = await database.query<{ id: string }>(`insert into pgboss.job
+      (name, data, state, retry_limit, started_on, completed_on, output)
+      values ('complete-company-export', jsonb_build_object('exportId', $1::uuid),
+        'failed', 0, now(), now(), '{"message":"archive storage unavailable"}'::jsonb) returning id`, [exportId]);
+    await database.query("commit");
+    return { exportId, jobId: inserted.rows[0].id };
+  } catch (error) {
+    await database.query("rollback");
+    throw error;
+  } finally { await database.end(); }
+}
+
+/** Durable archive/queue state, independent of a refreshed or cleared alert. */
+export async function browserExportAttemptState(exportId: string, jobId: string) {
+  const environment = await browserFixtureEnvironment();
+  const database = new DatabaseClient({ connectionString: environment.DATABASE_URL });
+  await database.connect();
+  try {
+    const result = await database.query<{
+      status: string; snapshot: unknown; completed_at: Date | null;
+      byte_size: string | null; sha256: string | null; state: string; closed_retry_count: number | null;
+    }>(`select export.status, export.snapshot, export.completed_at, export.byte_size, export.sha256,
+      job.state::text, (job.data ->> 'closedExportRetryCount')::integer as closed_retry_count
+      from public.company_data_export export join pgboss.job job on job.id = $2 where export.id = $1`, [exportId, jobId]);
+    return result.rows[0];
+  } finally { await database.end(); }
+}

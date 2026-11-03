@@ -6,6 +6,7 @@ export type FailedProcessingJob = {
   name: ProcessingJob["name"];
   targetId: string;
   failedAt: string;
+  retryCount: number;
   error: string;
 };
 
@@ -15,12 +16,13 @@ export async function listFailedProcessingJobs(
   const { data, error } = await client.rpc("list_failed_processing_jobs_complete");
   if (error?.code === "42501") return { ok: false, error: "forbidden" };
   if (error) throw error;
-  const jobs = data as unknown as { id: string; name: string; target_id: string; failed_at: string; error: string }[];
+  const jobs = data as unknown as { id: string; name: string; target_id: string; failed_at: string; retry_count: number; error: string }[];
   return { ok: true, value: jobs.map((job) => ({
     id: job.id,
     name: job.name as ProcessingJob["name"],
     targetId: job.target_id,
     failedAt: job.failed_at,
+    retryCount: job.retry_count,
     error: job.error,
   })) };
 }
@@ -60,5 +62,19 @@ export async function takeOverFailedProcessingJob(
     }
     throw error;
   }
+  return { ok: true, value: null };
+}
+
+/** Stops intervention for one failed export queue attempt, retaining its failure. */
+export async function closeFailedExportAttempt(
+  client: AppClient,
+  jobId: string,
+  retryCount: number,
+): Promise<Result<null, "forbidden" | "not_closable">> {
+  if (!isUuid(jobId) || !Number.isInteger(retryCount) || retryCount < 0) return { ok: false, error: "not_closable" };
+  const { error } = await client.rpc("close_failed_export_attempt", { target_failed_job_id: jobId, expected_retry_count: retryCount });
+  if (error?.code === "42501") return { ok: false, error: "forbidden" };
+  if (error?.hint === "not_closable") return { ok: false, error: "not_closable" };
+  if (error) throw error;
   return { ok: true, value: null };
 }
