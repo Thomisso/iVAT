@@ -3,6 +3,7 @@ import { listAccessManagement } from "@/application/memberships";
 import { requireUserClient } from "@/lib/supabase/server";
 import { configuredInvitationUrls } from "@/lib/invitations";
 import { MemberManagement } from "./member-management";
+import { PageHeader } from "./app-shell";
 import { Button } from "./button";
 import { Notice } from "./notice";
 
@@ -21,11 +22,11 @@ export async function ScopedMemberManagement({ organizationId, initialCompanyId,
   if (!result.ok) return <Notice tone="warning">{t("scopeForbidden")}</Notice>;
   const { scope, scopes, users, pendingInvitations, blocked } = result.value;
   const urls = configuredInvitationUrls();
-  const Heading = headingLevel === 1 ? "h1" : "h2";
-  return <section className="company-settings-section company-settings-users">
-    <header><Heading>{t(scope.companyId === null ? "organizationTitle" : "companyTitle", {
-      organization: scope.name, company: scope.name,
-    })}</Heading></header>
+  const title = t(scope.companyId === null ? "organizationTitle" : "companyTitle", {
+    organization: scope.name, company: scope.name,
+  });
+  return <section className={headingLevel === 1 ? "scoped-member-management" : "company-settings-section company-settings-users"}>
+    {headingLevel === 1 ? <PageHeader title={title} /> : <header><h2>{title}</h2></header>}
     {blocked && <Notice tone="warning">{(await getTranslations("platformHistory"))("blockedNotice")}</Notice>}
     <form method="get" className="form-row form-row-action member-scope-filter">
       <div className="iv-field-label">

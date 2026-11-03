@@ -123,9 +123,12 @@ test("Company context, final navigation and account return stay explicit", async
   const membersHeading = page.getByRole("heading", { name: `Users of Alpha ${run}` });
   await expect(membersHeading).toBeVisible();
   expect((await page.getByRole("heading", { name: "Company settings", level: 1 }).boundingBox())?.x).toBe(companyGridX);
-  const inheritedAccess = page.getByRole("listitem").filter({ hasText: email });
+  const inheritedAccess = page.locator(".member-access-row").filter({ hasText: email })
+    .getByRole("group", { name: `Organization Membership: Shell Organization ${run}`, exact: true });
   await expect(inheritedAccess.getByText("Inherited from Organization", { exact: true })).toBeVisible();
-  await expect(inheritedAccess.getByRole("button", { name: /Remove Membership/ })).toHaveCount(0);
+  await expect(inheritedAccess.getByRole("button", {
+    name: `Remove Membership — Organization Membership: Shell Organization ${run}`, exact: true,
+  })).toBeVisible();
 
   const invitedEmail = `shell-invited-${run}@example.test`;
   await page.getByLabel("Email").fill(invitedEmail);
