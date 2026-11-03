@@ -96,7 +96,8 @@ test("Settings navigation follows actual scoped Roles and a membership-free Supe
   await page.getByRole("button", { name: "Open account menu" }).focus();
   await page.keyboard.press("ArrowDown");
   await page.getByRole("menuitem", { name: "Security", exact: true }).click();
-  await expect(page).toHaveURL(/\/settings\/security$/);
+  await expect(page).toHaveURL(/\/settings\/security\?returnTo=/);
+  await expect(page.getByRole("link", { name: "Return to work", exact: true })).toHaveAttribute("href", `/companies/${companyId}`);
   await expect(page.getByRole("link", { name: "Enable authenticator", exact: true })).toBeVisible();
   await page.goto(`/companies/${companyId}/settings`);
   await expect(page).toHaveURL(`/companies/${companyId}`);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { documentDecisionHref } from "@/application/document-queue";
-import { safeCompanyReturnTo, withCompanyReturnTo } from "@/application/return-context";
+import { safeCompanyReturnTo, safeSecurityReturnTo, withCompanyReturnTo } from "@/application/return-context";
 
 const companyId = "00000000-0000-4000-8000-000000000145";
 
@@ -44,4 +44,23 @@ it("continues a filtered queue without losing its explicit list origin", () => {
   const href = new URL(documentDecisionHref(companyId, { documentId, nextDocumentId: documentId, queueQuery: "view=review&reportingPeriod=2026-10", returnTo }), "https://ivat.test");
   expect(href.searchParams.get("returnTo")).toBe(returnTo);
   expect(href.searchParams.get("reportingPeriod")).toBe("2026-10");
+});
+
+it("retains supported Security origins for Platform remediation and Company VAT settings", () => {
+  expect(safeSecurityReturnTo("/platform/administration#operational-problems-title")).toBe("/platform/administration#operational-problems-title");
+  expect(safeSecurityReturnTo(`/companies/${companyId}/settings/vat?generateYear=2027#reporting-years`)).toBe(`/companies/${companyId}/settings/vat?generateYear=2027#reporting-years`);
+});
+
+it.each([
+  "https://evil.test/platform/settings", "//evil.test/platform/settings", "/\\evil.test/platform/settings",
+  "/%2f%2fevil.test/platform/settings", "/platform/administration\n", "/platform/../platform/settings",
+  "/platform/settings/delete", "/platform", "/settings/security", "/mfa/enroll",
+])("refuses unsafe or non-work Security origins %s", (origin) => {
+  expect(safeSecurityReturnTo(origin)).toBeNull();
+});
+it("canonicalizes legacy management origins and removes unsupported redirect parameters", () => {
+  expect(safeSecurityReturnTo(`/organizations/${companyId}/members?scope=organization&next=https://evil.test`))
+    .toBe(`/organizations/${companyId}/users?scope=organization`);
+  expect(safeSecurityReturnTo(`/companies/${companyId}/members?scope=organization`))
+    .toBe(`/companies/${companyId}/settings/users?scope=organization`);
 });
