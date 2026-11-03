@@ -138,14 +138,33 @@ function add(
   if (!target.documentIds.includes(id)) target.documentIds.push(id);
 }
 
-/** The Rules Engine's mandatory counterparty identity, independently of amount. */
+/** The stored CZK gross amount used by both domestic identity and classification. */
+function reportingGrossAmountCzk(p: ExtractionPayload): string | null {
+  const converted = p.currency === "CZK" ? p : p.czkConversion
+    && p.czkConversion.originalCurrency === p.currency && p.taxPointDate
+    && p.czkConversion.rateDate <= p.taxPointDate ? p.czkConversion : null;
+  const gross = converted?.totals.grossAmount;
+  return gross && /^-?\d+\.\d{2}$/.test(gross) ? gross : null;
+}
+
+/** Ordinary domestic Documents at or below the absolute CZK 10,000 gross limit. */
+export function domesticCounterpartyVatIdOptional(p: ExtractionPayload): boolean {
+  const gross = reportingGrossAmountCzk(p);
+  if (p.proposedVatRegime !== "domestic" || gross === null) return false;
+  const cents = halers(gross);
+  return (cents < BigInt(0) ? -cents : cents) <= BigInt(1000000);
+}
+
+/** Mandatory counterparty identity, using the same domestic threshold as review. */
 export function missingRequiredReportingVatId(p: ExtractionPayload): boolean {
   if (!p.direction) return false;
   const counterparty = p.direction === "incoming" ? p.supplier : p.customer;
   return (p.proposedVatRegime === "domestic_reverse_charge" && !/^CZ[0-9]{8,10}$/.test(counterparty.vatId ?? ""))
     || (p.direction === "incoming" && (p.proposedVatRegime === "eu_acquisition_of_goods" || p.proposedVatRegime === "eu_received_service")
       && !/^[A-Z]{2}[A-Z0-9+*.]{2,12}$/.test(p.supplier.vatId ?? ""))
-    || (p.proposedVatRegime === "domestic" && p.direction === "incoming" && !/^CZ[0-9]{8,10}$/.test(p.supplier.vatId ?? ""));
+    || (p.proposedVatRegime === "domestic" && (
+      (!counterparty.vatId && !domesticCounterpartyVatIdOptional(p))
+      || (p.direction === "incoming" && !!p.supplier.vatId && !/^CZ[0-9]{8,10}$/.test(p.supplier.vatId))));
 }
 
 export function vatReportDocumentExclusion(document: ReportDocument): ExclusionReason | null {
@@ -255,9 +274,8 @@ export function deriveDocumentVatMapping(payload: ExtractionPayload | null): Doc
     else if (!converted) controlStatementUnknownReason = "currency_conversion_required";
     else if (!grossAmount || !/^-?\d+\.\d{2}$/.test(grossAmount)) controlStatementUnknownReason = "missing_gross_amount";
     else {
-      const gross = halers(grossAmount);
       const vatId = (p.direction === "incoming" ? p.supplier : p.customer).vatId;
-      const individual = (gross < BigInt(0) ? -gross : gross) > BigInt(1000000)
+      const individual = !domesticCounterpartyVatIdOptional(p)
         && (p.direction === "incoming" || /^CZ[0-9]{8,10}$/.test(vatId ?? ""));
       section = p.direction === "outgoing" ? individual ? "A.4" : "A.5" : individual ? "B.2" : "B.3";
     }

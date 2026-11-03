@@ -187,7 +187,7 @@ describe("Document validation", () => {
     });
   });
 
-  it("requires the incoming supplier VAT ID independently of the domestic Control Statement threshold", () => {
+  it("allows a missing supplier VAT ID below the domestic threshold with an advisory", () => {
     expect(
       validateDocument(
         {
@@ -196,7 +196,29 @@ describe("Document validation", () => {
         },
         CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA,
       ),
-    ).toContainEqual({ field: "supplier.vatId", severity: "error", code: "counterparty_vat_id_required" });
+    ).toEqual([{ field: "supplier.vatId", severity: "warning", code: "missing_supplier_vat_id" }]);
+  });
+
+  it.each([
+    ["10000.00", "CZK", null, "warning", "missing_supplier_vat_id"],
+    ["10000.01", "CZK", null, "error", "counterparty_vat_id_required"],
+    ["-10000.00", "CZK", null, "warning", "missing_supplier_vat_id"],
+    ["-10000.01", "CZK", null, "error", "counterparty_vat_id_required"],
+    ["400.00", "EUR", "10000.00", "warning", "missing_supplier_vat_id"],
+    ["400.01", "EUR", "10000.25", "error", "counterparty_vat_id_required"],
+  ] as const)("uses absolute CZK gross for missing supplier identity: %s %s", (grossAmount, currency, convertedGross, severity, code) => {
+    const payload = {
+      ...SAMPLE_EXTRACTION, currency,
+      supplier: { ...SAMPLE_EXTRACTION.supplier, vatId: null },
+      totals: { ...SAMPLE_EXTRACTION.totals, grossAmount },
+      ...(convertedGross ? { czkConversion: {
+        originalCurrency: "EUR", rate: "25.00", unit: 1, rateDate: "2026-10-01", source: "CNB" as const,
+        rateBreakdown: [{ rate: 21, netAmount: "8264.46", vatAmount: "1735.54" }],
+        totals: { netAmount: "8264.46", vatAmount: "1735.54", grossAmount: convertedGross },
+      } } : {}),
+    };
+    expect(validateDocument(payload, CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA).filter(finding => finding.field === "supplier.vatId"))
+      .toEqual([{ field: "supplier.vatId", severity, code }]);
   });
 
   it("accepts an EU supplier VAT ID for an EU acquisition", () => {

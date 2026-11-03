@@ -1079,6 +1079,7 @@
       "own_vat_registry_check_not_performed": "Registr plátců DPH nebyl dostupný, proto se kontrola vaší společnosti a jejího vlastního účtu pro příjem plateb neprovedla.",
       "unreliable_own_vat_payer": "Vaše společnost je vedena jako nespolehlivý plátce DPH.",
       "unpublished_bank_account": "Platební účet není u tohoto dodavatele zveřejněn v registru plátců DPH.",
+      "missing_supplier_vat_id": "V iVAT není vyplněno DIČ dodavatele. Tento běžný tuzemský doklad nepřesahuje 10 000 Kč včetně DPH a lze jej schválit. Zkontrolujte původní doklad; schválení nepotvrzuje splnění jeho zákonných náležitostí.",
       "missing_bank_account": "Není vyplněn platební účet. Zkontrolujte platební údaje; doklad lze i tak schválit.",
       "bank_account_not_verified": "Dodavatel nebyl nalezen v registru plátců DPH, proto nebylo možné platební účet ověřit. Zkontrolujte jej ručně.",
       "vat_registry_check_not_performed": "Registr plátců DPH nebyl dostupný, proto nebyla provedena kontrola dodavatele a platebního účtu.",
