@@ -1564,6 +1564,7 @@ select:disabled {
   background: var(--surface);
 }
 .operational-remediation-company > .ai-configuration-assignment-actions { flex: 1 1 auto; }
+.operational-remediation-job { flex-wrap: wrap; }
 .operational-remediation-job code { overflow-wrap: anywhere; }
 .processing-job-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 @media (max-width: 640px) {
