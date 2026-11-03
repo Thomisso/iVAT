@@ -7,9 +7,12 @@ export async function supabaseHttpGateway(target: string) {
   let unavailable = false;
   let refusalsRemaining = 0;
   let failedPathPrefix = "/";
+  let stalled = false;
   const paths: string[] = [];
   const server = createServer(async (request, response) => {
     paths.push(request.url ?? "/");
+    // Hold the actual socket open without headers to exercise client deadlines.
+    if (stalled) return;
     if ((unavailable && request.url?.startsWith(failedPathPrefix)) || refusalsRemaining > 0) {
       refusalsRemaining = Math.max(0, refusalsRemaining - 1);
       response.writeHead(503, { "content-type": "application/json" });
@@ -42,6 +45,7 @@ export async function supabaseHttpGateway(target: string) {
     paths,
     refuseNext: (count: number) => { refusalsRemaining = count; },
     unavailable: (value: boolean, pathPrefix = "/") => { unavailable = value; failedPathPrefix = pathPrefix; },
+    stall: (value: boolean) => { stalled = value; },
     close: () => { server.closeAllConnections(); server.close(); },
   };
 }

@@ -44,6 +44,39 @@ dev process in the same checkout first):
 `AUTH_TRANSPORT_E2E=1 SUPABASE_SLOT=<own slot> PLAYWRIGHT_BASE_URL=http://127.0.0.1:3103 npx playwright test e2e/internal-auth-transport.spec.ts`.
 These commands exercise a local stack only.
 
+## Web liveness and Auth dependency availability
+
+`GET /health/live` returns HTTP 200 with `{"status":"ok"}` when the web process
+can serve requests. It bypasses session refresh, recovery-state and MFA policy
+queries, including when a caller sends existing session cookies. The web
+container's healthcheck uses only this endpoint. Auth degradation must not be
+used to restart an otherwise live web process. The proxy's `/healthz` checks
+only the proxy process; it does not establish web or Auth availability.
+
+`GET /health/auth` separately returns HTTP 200 with `{"status":"available"}` or
+HTTP 503 with `{"status":"degraded"}`. Every request performs an uncached,
+read-only Auth settings GET through `serverSupabaseFetch`, using the same public
+identity and configured internal gateway as server Auth operations, with a
+three-second deadline and no public fallback or redirect following. The body is
+discarded. The probe uses only the publishable key, never a User's credentials,
+cookies or session, and does not sign in, refresh, log out, send mail or write
+Auth data. Both endpoints send `Cache-Control: no-store`; their machine statuses
+are language-independent and expose no URLs, settings, identities or failure
+details. Existing User-facing outage messages remain translated in CS and EN.
+
+An available dependency result establishes read-only gateway-to-Auth reachability
+at that instant. It does not prove password login, mail delivery, public browser
+access, database/MFA policy availability or a complete authentication workflow.
+Those workflows remain covered by the Auth, Invitation and recovery tests. Query
+the dependency endpoint separately for diagnostics; do not use it as a liveness
+or automatic-restart condition. There is no new polling/monitoring service.
+
+Local regression (own stack running, no other Next process in this checkout):
+`AUTH_TRANSPORT_E2E=1 SUPABASE_SLOT=<own slot> PLAYWRIGHT_BASE_URL=http://127.0.0.1:3103 npx playwright test e2e/auth-availability.spec.ts`.
+This exercises real local Auth behind the forwarding gateway with broken public
+TLS, HTTP refusal, a stalled socket and a closed listener, and verifies liveness
+and preserved cookies independently of dependency degradation.
+
 ## Prepare the release
 
 Use an isolated git worktree, leaving the main checkout's database and server
