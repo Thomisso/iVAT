@@ -69,13 +69,39 @@ test("native bootstrap SuperAdmin manages real tenant users without appearing in
   await expect(page.getByRole("heading", { name: "Save your recovery codes" })).toBeVisible();
   await page.getByRole("link", { name: "I saved the codes" }).click();
 
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const origin of [
+      "/platform/administration#operational-problems-title",
+      "/platform/ai-usage?from=2026-10-01&to=2026-10-31&groupBy=company",
+      `/platform/companies/${companyId}/members?scope=organization`,
+      `/platform/companies/${companyId}/history`,
+    ]) {
+      await page.goto(origin);
+      await page.getByRole("button", { name: "Open account menu" }).click();
+      await page.getByRole("menuitem", { name: "Security", exact: true }).click();
+      const back = page.getByRole("link", { name: "Return to work", exact: true });
+      await expect(back).toHaveAttribute("href", origin);
+      await page.reload();
+      await back.click();
+      await expect(page).toHaveURL(`${baseURL}${origin}`);
+      await expect(page.getByRole("navigation", { name: "Platform navigation" })).toBeVisible();
+    }
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+
   for (const locale of ["en", "cs"] as const) {
     await context.addCookies([{ name: "NEXT_LOCALE", value: locale, url: baseURL }]);
     await page.goto(`/organizations/${organization.id}/members`);
     const organizationRows = page.locator(".member-access-row");
-    await expect(organizationRows).toHaveCount(1);
-    await expect(organizationRows).toContainText(owner.email);
-    await expect(page.getByText(locale === "en" ? "1 active user" : "1 aktivní uživatel", { exact: true })).toBeVisible();
+    await expect(organizationRows).toHaveCount(2);
+    await expect(organizationRows.filter({ hasText: historical.email })).toHaveCount(0);
+    await expect(page.getByLabel(locale === "en" ? "Management scope" : "Rozsah správy", { exact: true })).toHaveValue("organization");
+    await expect(organizationRows.filter({ hasText: owner.email })).toHaveCount(1);
+    await expect(page.getByText(locale === "en" ? "2 active users" : "2 aktivní uživatelé", { exact: true })).toBeVisible();
+    await page.goto(`/platform/companies/${companyId}/members`);
+    await expect(page.getByLabel(locale === "en" ? "Management scope" : "Rozsah správy", { exact: true })).toHaveValue(companyId);
+    await expect(page.locator(".member-access-row")).toHaveCount(2);
     await page.goto(`/companies/${companyId}/settings/users`);
     await expect(page.locator(".member-access-row")).toHaveCount(2);
     await expect(page.locator(".member-access-row").filter({ hasText: historical.email })).toHaveCount(0);

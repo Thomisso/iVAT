@@ -1,5 +1,6 @@
 import type { EmailOtpType } from "@supabase/supabase-js";
 import type { AppClient, Result } from "./client";
+import { authUnavailable } from "./auth-availability";
 import { invitationUrls } from "./invitation-urls";
 
 export type SignUpInput = { email: string; password: string; organizationName: string };
@@ -41,12 +42,15 @@ export async function googleSignInAvailable(
   }
 }
 
-async function applicationAccessAllowed(client: AppClient): Promise<boolean> {
-  const { data, error } = await client.rpc("current_user_can_use_application");
-  if (error) throw error;
-  if (data) return true;
+async function applicationAccessAllowed(client: AppClient): Promise<Result<null, "organization_blocked" | "auth_unavailable">> {
+  const { data, error, status } = await client.rpc("current_user_can_use_application");
+  if (error) {
+    if (status === 0 || status >= 500 || status === 429) return { ok: false, error: "auth_unavailable" };
+    throw error;
+  }
+  if (data) return { ok: true, value: null };
   await client.auth.signOut();
-  return false;
+  return { ok: false, error: "organization_blocked" };
 }
 
 export async function logIn(
@@ -63,10 +67,9 @@ export async function logIn(
       error: error.status === 429 ? "login_rate_limited" : "login_unavailable",
     };
   }
-  if (!(await applicationAccessAllowed(client))) {
-    return { ok: false, error: "organization_blocked" };
-  }
-  return { ok: true, value: null };
+  const access = await applicationAccessAllowed(client);
+  if (!access.ok) return { ok: false, error: access.error === "auth_unavailable" ? "login_unavailable" : access.error };
+  return access;
 }
 
 export async function startGoogleSignIn(
@@ -89,29 +92,31 @@ export async function startGoogleSignIn(
 export async function completeGoogleSignIn(
   client: AppClient,
   code: string,
-): Promise<Result<null, "google_sign_in_failed" | "organization_blocked">> {
+): Promise<Result<null, "google_sign_in_failed" | "organization_blocked" | "auth_unavailable">> {
   const { error } = await client.auth.exchangeCodeForSession(code);
-  if (error) return { ok: false, error: "google_sign_in_failed" };
-  if (!(await applicationAccessAllowed(client))) {
-    return { ok: false, error: "organization_blocked" };
-  }
-  return { ok: true, value: null };
+  if (error) return { ok: false, error: authUnavailable(error) ? "auth_unavailable" : "google_sign_in_failed" };
+  return applicationAccessAllowed(client);
 }
 
-/** The id of the signed-in user, or null. */
-export async function currentUserId(client: AppClient): Promise<string | null> {
-  const { data } = await client.auth.getUser();
-  return data.user?.id ?? null;
+/** The verified signed-in User id, or null for an absent/revoked session.
+ * Dependency unavailability is a refusal, never anonymous access. */
+export async function currentUserId(client: AppClient): Promise<Result<string | null, "auth_unavailable">> {
+  const user = await currentUser(client);
+  return user.ok ? { ok: true, value: user.value?.id ?? null } : user;
 }
 
-/** Identity fields safe to render in the signed-in User's account menu. */
-export async function currentUser(client: AppClient): Promise<{ id: string; email: string } | null> {
-  const { data } = await client.auth.getUser();
-  return data.user ? { id: data.user.id, email: data.user.email ?? "" } : null;
+/** Verified identity fields safe for the signed-in User's account menu. */
+export async function currentUser(client: AppClient): Promise<Result<{ id: string; email: string } | null, "auth_unavailable">> {
+  const { data, error } = await client.auth.getUser();
+  if (authUnavailable(error)) return { ok: false, error: "auth_unavailable" };
+  return { ok: true, value: data.user ? { id: data.user.id, email: data.user.email ?? "" } : null };
 }
 
-export async function logOut(client: AppClient): Promise<void> {
-  await client.auth.signOut();
+/** Revoke the current User's native sessions. A dependency refusal must not
+ * be presented as successful logout; request cookies remain recoverable. */
+export async function logOut(client: AppClient, scope: "global" | "local" = "global"): Promise<Result<null, "auth_unavailable">> {
+  const { error } = await client.auth.signOut({ scope });
+  return error ? { ok: false, error: "auth_unavailable" } : { ok: true, value: null };
 }
 
 /** Establishes a session from a cross-browser email link token. */
@@ -119,11 +124,10 @@ export async function verifyEmailOtp(
   client: AppClient,
   tokenHash: string,
   type: EmailOtpType,
-): Promise<Result<null, "email_otp_failed" | "organization_blocked">> {
+): Promise<Result<null, "email_otp_failed" | "organization_blocked" | "auth_unavailable">> {
   const { error } = await client.auth.verifyOtp({ token_hash: tokenHash, type });
-  if (error) return { ok: false, error: "email_otp_failed" };
-  if (!(await applicationAccessAllowed(client))) return { ok: false, error: "organization_blocked" };
-  return { ok: true, value: null };
+  if (error) return { ok: false, error: authUnavailable(error) ? "auth_unavailable" : "email_otp_failed" };
+  return applicationAccessAllowed(client);
 }
 
 /** Establishes the temporary session needed for a new invitee to set a password. */

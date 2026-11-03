@@ -172,7 +172,7 @@ it("enforces tenant isolation for manual creation, correction and direct reads w
     .toEqual({ kind: "user", userId: operator.userId });
 });
 
-it("requires report-critical counterparty identity even when a small domestic draft has only advisory findings", async () => {
+it("allows a small domestic draft to be approved with the missing supplier VAT ID advisory", async () => {
   const administrator = await administratorWithCompany();
   const created = await createManualDocument(administrator.client, {
     companyId: administrator.companyId,
@@ -180,7 +180,7 @@ it("requires report-critical counterparty identity even when a small domestic dr
   });
   if (!created.ok) throw new Error(created.error);
   expect(await approveDocument(administrator.client, { companyId: administrator.companyId, documentId: created.value.id, version: 1 }))
-    .toEqual({ ok: false, error: "counterparty_vat_id_required" });
+    .toEqual({ ok: true, value: null });
 });
 
 it("reports complete source-independent data in its DUZP period and preserves an incoming Deferred Claim", async () => {

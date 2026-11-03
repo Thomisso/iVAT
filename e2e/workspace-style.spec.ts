@@ -3,7 +3,8 @@ import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { workspaceBrowserFixture } from "../tests/support/workspace-browser";
 import { listCompanyDocuments } from "../src/application/documents";
-import { promoteBrowserSuperAdminFixture } from "../tests/support/e2e";
+import { closeFailedExportAttempt } from "../src/application/processing-administration";
+import { addBrowserFailedExportAttemptFixture, browserUserClient, promoteBrowserSuperAdminFixture } from "../tests/support/e2e";
 import { totp } from "../tests/support/totp";
 
 test("shared workspaces preserve readable CS/EN layouts and actual human review", async ({ baseURL, context, page }) => {
@@ -62,15 +63,22 @@ test("shared workspaces preserve readable CS/EN layouts and actual human review"
   await page.getByLabel("Authenticator code").fill(totp(secret));
   await page.getByRole("button", { name: "Verify and enable" }).click();
   await expect(page.getByRole("heading", { name: "Save your recovery codes" })).toBeVisible();
-  for (const locale of ["en", "cs"] as const) {
-    await context.addCookies([{ name: "NEXT_LOCALE", value: locale, url: new URL(baseURL).origin }]);
-    await page.goto("/platform/administration");
-    for (const width of [360, 720, 1024, 1440]) {
-      await page.setViewportSize({ width, height: 900 });
-      await expect(page.getByRole("main")).toHaveCount(1);
-      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
-      await page.screenshot({ path: `test-results/workspace-platform-${locale}-${width}.png`, fullPage: true });
+  const client = await browserUserClient(await context.cookies());
+  const failure = await addBrowserFailedExportAttemptFixture(fixture.companyId);
+  try {
+    for (const locale of ["en", "cs"] as const) {
+      await context.addCookies([{ name: "NEXT_LOCALE", value: locale, url: new URL(baseURL).origin }]);
+      await page.goto("/platform/administration");
+      await expect(page.locator(".operational-problem").filter({ hasText: failure.exportId })).toBeVisible();
+      for (const width of [360, 720, 1024, 1440]) {
+        await page.setViewportSize({ width, height: 900 });
+        await expect(page.getByRole("main")).toHaveCount(1);
+        expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+        await page.screenshot({ path: `test-results/workspace-platform-${locale}-${width}.png`, fullPage: true });
+      }
     }
+  } finally {
+    expect(await closeFailedExportAttempt(client, failure.jobId, 0)).toEqual({ ok: true, value: null });
   }
 });
 

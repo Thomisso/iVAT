@@ -15,7 +15,8 @@ export type OperationalProblemKind =
   | "allowance_high"
   | "waiting_documents"
   | AiProcessingIssueClassification
-  | "terminal_processing_job";
+  | "terminal_processing_job"
+  | "failed_company_export";
 
 export type OperationalProblemCompany = {
   id: string;
@@ -127,7 +128,7 @@ function addProblem(
       name: input.companyName,
       affectedDocumentCount: input.affectedDocumentCount,
     }]]),
-    detailHref: input.kind === "terminal_processing_job"
+    detailHref: (input.kind === "terminal_processing_job" || input.kind === "failed_company_export")
       ? "/platform/administration#failed-jobs"
       : configuration
         ? `/platform/ai-settings#configuration-${configuration.id}`
@@ -195,11 +196,12 @@ export function groupOperationalProblems(input: {
 
   for (const job of input.context.failedJobs) {
     const allowance = allowanceByCompany.get(job.companyId);
+    const exportFailure = job.name === "complete-company-export";
     addProblem(groups, {
-      kind: "terminal_processing_job",
+      kind: exportFailure ? "failed_company_export" : "terminal_processing_job",
       severity: "critical",
       firstDetectedAt: job.firstFailedAt,
-      configurationId: allowance?.configurationId ?? null,
+      configurationId: exportFailure ? null : allowance?.configurationId ?? null,
       companyId: job.companyId,
       companyName: job.companyName,
       affectedDocumentCount: job.affectedCount,

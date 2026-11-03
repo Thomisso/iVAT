@@ -1,11 +1,12 @@
+import { authDependencyUnavailable, authUnavailable } from "./auth-availability";
 import type { AppClient, Result } from "./client";
 import type { Session } from "@supabase/supabase-js";
 
-export type RecoveryLinkError = "recovery_link_invalid" | "recovery_link_expired" | "recovery_link_used";
+export type RecoveryLinkError = "auth_unavailable" | "recovery_link_invalid" | "recovery_link_expired" | "recovery_link_used";
 export type RecoveryError = RecoveryLinkError | "password_recovery_failed" | "mfa_verification_required" | "mfa_recovery_required" | "weak_password" | "same_password" | "password_confirmation_mismatch";
 
 export interface PasswordRecoveryAuthentication {
-  request(email: string): Promise<void>;
+  request(email: string): Promise<Result<null, "auth_unavailable">>;
   verify(input: { requestToken: string; tokenHash: string }): Promise<Result<{ client: AppClient; session: Session }, RecoveryLinkError | "password_recovery_failed">>;
 }
 
@@ -14,22 +15,25 @@ export async function requestPasswordRecovery(
   _client: AppClient,
   authentication: PasswordRecoveryAuthentication,
   email: string,
-): Promise<Result<null, never>> {
-  await authentication.request(email.trim().toLowerCase());
-  return { ok: true, value: null };
+): Promise<Result<null, "auth_unavailable">> {
+  return authentication.request(email.trim().toLowerCase());
 }
 
-export async function recoveryLinkStatus(client: AppClient, requestToken: string): Promise<"valid" | "invalid" | "used" | "expired"> {
-  const { data, error } = await client.rpc("password_recovery_link_status", { request_token: requestToken });
-  if (error) throw error;
-  return data as "valid" | "invalid" | "used" | "expired";
+export async function recoveryLinkStatus(client: AppClient, requestToken: string): Promise<Result<"valid" | "invalid" | "used" | "expired", "auth_unavailable">> {
+  const response = await client.rpc("password_recovery_link_status", { request_token: requestToken });
+  if (authDependencyUnavailable(response)) return { ok: false, error: "auth_unavailable" };
+  if (response.error) throw response.error;
+  return { ok: true, value: response.data as "valid" | "invalid" | "used" | "expired" };
 }
 
-export async function recoveryStatus(client: AppClient): Promise<"ready" | "complete" | "invalid" | "used" | "expired"> {
-  if (!(await client.auth.getUser()).data.user) return "invalid";
-  const { data, error } = await client.rpc("password_recovery_status");
-  if (error) throw error;
-  return data as "ready" | "complete" | "invalid" | "used" | "expired";
+export async function recoveryStatus(client: AppClient): Promise<Result<"ready" | "complete" | "invalid" | "used" | "expired", "auth_unavailable">> {
+  const user = await client.auth.getUser();
+  if (authUnavailable(user.error)) return { ok: false, error: "auth_unavailable" };
+  if (!user.data.user) return { ok: true, value: "invalid" };
+  const response = await client.rpc("password_recovery_status");
+  if (authDependencyUnavailable(response)) return { ok: false, error: "auth_unavailable" };
+  if (response.error) throw response.error;
+  return { ok: true, value: response.data as "ready" | "complete" | "invalid" | "used" | "expired" };
 }
 
 export async function verifyPasswordRecovery(
@@ -41,6 +45,7 @@ export async function verifyPasswordRecovery(
   if (!verified.ok) return verified;
   const { session } = verified.value;
   const published = await client.auth.setSession({ access_token: session.access_token, refresh_token: session.refresh_token });
+  if (authUnavailable(published.error)) return { ok: false, error: "auth_unavailable" };
   if (published.error) {
     await verified.value.client.auth.signOut({ scope: "local" });
     return { ok: false, error: "password_recovery_failed" };
@@ -61,6 +66,7 @@ export async function recoverPassword(
   if (input.newPassword !== input.confirmation) return { ok: false, error: "password_confirmation_mismatch" };
   if ([...input.newPassword].length < 8) return { ok: false, error: "weak_password" };
   const claimed = await client.rpc("claim_password_recovery");
+  if (authDependencyUnavailable(claimed)) return { ok: false, error: "auth_unavailable" };
   if (claimed.error) {
     const refusal = recoveryRefusal(claimed.error);
     if (refusal) return { ok: false, error: refusal };
@@ -71,7 +77,9 @@ export async function recoverPassword(
   // session and revokes the account's other refresh sessions atomically.
   const updated = await client.auth.updateUser({ password: input.newPassword });
   const finished = await client.rpc("finish_password_recovery", { recovery_attempt_id: claimed.data, succeeded: !updated.error });
+  if (authDependencyUnavailable(finished)) return { ok: false, error: "auth_unavailable" };
   if (finished.error) throw finished.error;
+  if (authUnavailable(updated.error)) return { ok: false, error: "auth_unavailable" };
   if (updated.error) {
     if (updated.error.code === "weak_password") return { ok: false, error: "weak_password" };
     if (updated.error.code === "same_password") return { ok: false, error: "same_password" };

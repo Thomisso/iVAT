@@ -12,7 +12,7 @@ import { AccountMenu, Menu, ShellIcon } from "@/components/shell-controls";
 type Destination = "users" | "auditLog";
 
 const destinations: Array<{ key: Destination; icon: string; suffix: string }> = [
-  { key: "users", icon: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2m7-10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm13 10v-2a4 4 0 0 0-3-3.87m-3-10a4 4 0 0 1 0 7.75", suffix: "/members" },
+  { key: "users", icon: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2m7-10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm13 10v-2a4 4 0 0 0-3-3.87m-3-10a4 4 0 0 1 0 7.75", suffix: "/users" },
   { key: "auditLog", icon: "M5 3h14v18H5zM9 7h6M9 11h6M9 15h4", suffix: "/audit-log" },
 ];
 
@@ -38,7 +38,7 @@ function OrganizationMenu({ current, organizations }: {
     <p className="company-shell-menu-label">{t("organizations")}</p>
     {organizations.map((organization) => <Link
       aria-current={organization.id === current.id ? "page" : undefined}
-      href={`/organizations/${organization.id}/members`}
+      href={`/organizations/${organization.id}/users`}
       key={organization.id}
       role="menuitem"
     >{organization.name}</Link>)}

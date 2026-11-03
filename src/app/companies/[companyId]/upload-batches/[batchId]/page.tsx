@@ -13,7 +13,7 @@ import { RefreshWhile } from "@/components/refresh-while";
 import { StatusBadge } from "@/components/status-badge";
 import { statusBadgeState } from "@/components/status-badge-state";
 import { PageLayout } from "@/components/app-shell";
-import { requireUserClient } from "@/lib/supabase/server";
+import { availableAuthValue, requireUserClient } from "@/lib/supabase/server";
 import { formatDateTime } from "@/lib/format-date";
 import { BatchDeletionForm } from "./batch-deletion-form";
 import { MarkBatchNotificationRead } from "./mark-batch-notification-read";
@@ -29,7 +29,7 @@ export default async function UploadBatchPage({
   const [company, role, userId, batch, t] = await Promise.all([
     getCompany(client, companyId),
     getMyCompanyRole(client, companyId),
-    currentUserId(client),
+    currentUserId(client).then(availableAuthValue),
     getUploadBatch(client, companyId, batchId),
     getTranslations("uploadWorkspace"),
   ]);

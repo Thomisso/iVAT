@@ -21,8 +21,12 @@ The number under which a Company is registered as a Czech VAT payer (DIČ): "CZ"
 _Avoid_: DIČ (in code), tax ID
 
 **Membership**:
-A User's access to an Organization or a Company, carrying a Role.
+A User's access to an Organization or a Company, carrying a Role in that scope. A User may hold several Memberships with different Roles.
 _Avoid_: Assignment, access grant
+
+**Effective Access**:
+A User's resulting access to a Company through Company or Organization Memberships, or the SuperAdmin Role. Removing one Membership does not remove access supplied by another Membership or by that platform Role.
+_Avoid_: Global membership, global Company role
 
 **Invitation**:
 A single-use offer for the holder of a specified email address to join an Organization or Company with a specified Role. It expires and may be delivered by email or shared as a link.
@@ -61,6 +65,14 @@ _Avoid_: Type, side, AP/AR
 **Counterparty**:
 The other party of a Document: its supplier when the Document is incoming, its customer when outgoing.
 _Avoid_: Partner, contact, vendor
+
+**Payment Account**:
+The bank account designated for payment on a Document. A Czech domestic account number and its equivalent Czech IBAN are two representations of the same Payment Account.
+_Avoid_: IBAN account, separate domestic account
+
+**Bank Account Check**:
+A dated observation of whether a Document's Payment Account is published for its supplier in the VAT payer register. It describes the registry at the time of the check, independently of the Document's approval and historical checks.
+_Avoid_: Account approval, historical publication proof
 
 **Split**:
 Identifying the boundaries of the Documents contained in a Source File.

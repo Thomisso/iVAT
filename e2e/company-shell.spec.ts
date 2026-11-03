@@ -123,9 +123,12 @@ test("Company context, final navigation and account return stay explicit", async
   const membersHeading = page.getByRole("heading", { name: `Users of Alpha ${run}` });
   await expect(membersHeading).toBeVisible();
   expect((await page.getByRole("heading", { name: "Company settings", level: 1 }).boundingBox())?.x).toBe(companyGridX);
-  const inheritedAccess = page.getByRole("listitem").filter({ hasText: email });
+  const inheritedAccess = page.locator(".member-access-row").filter({ hasText: email })
+    .getByRole("group", { name: `Organization Membership: Shell Organization ${run}`, exact: true });
   await expect(inheritedAccess.getByText("Inherited from Organization", { exact: true })).toBeVisible();
-  await expect(inheritedAccess.getByRole("button", { name: "Remove access" })).toHaveCount(0);
+  await expect(inheritedAccess.getByRole("button", {
+    name: `Remove Membership — Organization Membership: Shell Organization ${run}`, exact: true,
+  })).toBeVisible();
 
   const invitedEmail = `shell-invited-${run}@example.test`;
   await page.getByLabel("Email").fill(invitedEmail);
@@ -236,11 +239,11 @@ test("mobile shell menus return focus and role-dependent administration stays pr
   await userPage.goto(`/companies/${companyId}`);
   await expect(userPage).toHaveURL(new RegExp(`/companies/${companyId}$`));
   await adminPage.goto(`/companies/${companyId}/members`);
-  const directAccess = adminPage.getByRole("listitem").filter({ hasText: userEmail });
+  const directAccess = adminPage.locator(".member-access-row").filter({ hasText: userEmail });
   await expect(directAccess.getByText("Direct Company access", { exact: true })).toBeVisible();
-  await expect(directAccess.getByRole("button", { name: "Remove access" })).toBeVisible();
+  await expect(directAccess.getByRole("button", { name: /Remove Membership/ })).toBeVisible();
   const roleForm = directAccess.locator("form").filter({
-    has: adminPage.getByRole("button", { name: "Change Role" }),
+    has: adminPage.getByRole("button", { name: /Change Role/ }),
   });
   const role = roleForm.getByLabel("Role");
   await role.selectOption("administrator");
@@ -252,7 +255,7 @@ test("mobile shell menus return focus and role-dependent administration stays pr
       );
     }, { once: true });
   });
-  await roleForm.getByRole("button", { name: "Change Role" }).click();
+  await roleForm.getByRole("button", { name: /Change Role/ }).click();
   await expect(directAccess.getByText("You are not allowed to do this.")).toBeVisible();
   await expect(role).toHaveValue("user");
   await userPage.goto(`/companies/${companyId}/members`);
@@ -349,5 +352,5 @@ test("nested Company routes keep one aligned shell at desktop and mobile widths"
   await expect(settingsNavigation).toBeVisible();
   await settingsNavigation.getByRole("link", { name: "Company details" }).click();
   await expect(page).toHaveURL(new RegExp(`/companies/${companyId}/settings/company$`));
-  await expect(settingsNavigation.getByRole("link", { name: "Company details" })).toHaveAttribute("aria-current", "true");
+  await expect(settingsNavigation.getByRole("link", { name: "Company details" })).toHaveAttribute("aria-current", "page");
 });

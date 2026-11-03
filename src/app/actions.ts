@@ -2,6 +2,7 @@
 
 import { defineSourceDocuments, startManualSourceReview, excludeSourceFile, restoreSourceFile } from "@/application/source-files";
 
+import { refreshBankAccountCheck } from "@/application/bank-account-checks";
 import { refresh } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -69,7 +70,7 @@ import {
   setPlatformOrganizationBlocked,
   setPlatformUploadLimits,
 } from "@/application/platform-administration";
-import { retryFailedProcessingJob } from "@/application/processing-administration";
+import { closeFailedExportAttempt, retryFailedProcessingJob, takeOverFailedProcessingJob } from "@/application/processing-administration";
 import {
   deleteUploadBatch,
   dismissCompanyUploadNotifications,
@@ -82,7 +83,8 @@ import { configuredAresRegistry } from "@/ares";
 import { configuredExchangeRates } from "@/cnb";
 import { configuredVatPayerRegistry } from "@/vat-registry";
 import { jobQueue } from "@/lib/jobs";
-import { createRequestClient, requireUserClient } from "@/lib/supabase/server";
+import { serverSupabaseFetch } from "@/lib/supabase/server-transport";
+import { availableAuthValue, createRequestClient, requireUserClient } from "@/lib/supabase/server";
 import { isLocale, localeCookie } from "@/i18n/locales";
 import { companyContextCookie, serializeCompanyContext } from "@/lib/company-context";
 import { documentDecisionHref } from "@/application/document-queue";
@@ -101,7 +103,7 @@ const field = (formData: FormData, name: string) => String(formData.get(name) ??
 async function storeCompanyContext(companyId: string): Promise<boolean> {
   const client = await requireUserClient();
   const [user, company] = await Promise.all([
-    currentUser(client),
+    currentUser(client).then(availableAuthValue),
     getCompany(client, companyId),
   ]);
   if (!user || !company) return false;
@@ -159,7 +161,7 @@ export async function logInAction(_state: FormState, formData: FormData): Promis
     password: field(formData, "password"),
   });
   if (!result.ok) return refused(result.error, formData, ["email"]);
-  const destination = mfaRedirectPath("/", await mfaPolicy(client));
+  const destination = mfaRedirectPath("/", await mfaPolicy(client).then(availableAuthValue));
   if (destination) redirect(destination);
   redirect("/");
 }
@@ -170,13 +172,14 @@ export async function googleSignInAction(): Promise<void> {
     authRedirectAllowlist: process.env.AUTH_REDIRECT_ALLOWLIST,
     supabaseUrl,
     publishableKey: supabasePublishableKey,
-  });
+  }, serverSupabaseFetch);
   if (!result.ok) redirect("/login?error=google_sign_in_failed");
   redirect(result.value.url);
 }
 
 export async function logOutAction(): Promise<void> {
-  await logOut(await createRequestClient());
+  const result = await logOut(await createRequestClient());
+  if (!result.ok) redirect("/auth/unavailable");
   redirect("/login");
 }
 
@@ -210,7 +213,7 @@ export async function completeTotpEnrollmentAction(
 
 export async function verifyTotpAction(_state: FormState, formData: FormData): Promise<FormState> {
   const client = await requireUserClient();
-  const status = await mfaStatus(client);
+  const status = await mfaStatus(client).then(availableAuthValue);
   if (!status.factorId) redirect("/mfa/enroll");
   const result = await verifyTotp(client, {
     factorId: status.factorId,
@@ -228,12 +231,12 @@ export async function verifyRecoveryCodeAction(_state: FormState, formData: Form
 
 export async function disenrollMfaAction(): Promise<FormState> {
   const client = await requireUserClient();
-  const status = await mfaStatus(client);
+  const status = await mfaStatus(client).then(availableAuthValue);
   if (status.factorId) {
     const result = await disenrollMfa(client, status.factorId);
     if (!result.ok) return { error: result.error, values: {} };
   }
-  redirect(mfaRedirectPath("/settings/security", await mfaPolicy(client)) ?? "/settings/security");
+  redirect(mfaRedirectPath("/settings/security", await mfaPolicy(client).then(availableAuthValue)) ?? "/settings/security");
 }
 
 export async function setOrganizationMfaRequiredAction(_state: FormState, formData: FormData): Promise<FormState> {
@@ -804,9 +807,12 @@ export async function replaceInvitationAction(_state: FormState, formData: FormD
 
 export async function loadInvitationAction(formData: FormData) {
   const client = await createRequestClient();
-  const onboarding = await getInvitationOnboarding(client, field(formData, "token"));
-  const user = await currentUser(client);
+  const result = await getInvitationOnboarding(client, field(formData, "token"));
+  if (!result.ok) return result;
+  const onboarding = result.value;
+  const user = await currentUser(client).then(availableAuthValue);
   return {
+    ok: true as const,
     onboarding,
     authenticated: Boolean(user && onboarding.status === "valid" && user.email.toLowerCase() === onboarding.email),
     wrongAccount: Boolean(user && onboarding.status === "valid" && user.email.toLowerCase() !== onboarding.email),
@@ -814,7 +820,7 @@ export async function loadInvitationAction(formData: FormData) {
 }
 
 export async function signOutInvitationAction() {
-  await (await createRequestClient()).auth.signOut({ scope: "local" });
+  return logOut(await createRequestClient(), "local");
 }
 
 export async function acceptInvitationAction(_state: FormState, formData: FormData): Promise<FormState> {
@@ -975,6 +981,20 @@ export async function setPlatformUploadLimitsAction(
   return { error: null, values: {} };
 }
 
+export async function closeFailedExportAttemptAction(
+  _state: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  return settled(await closeFailedExportAttempt(await requireUserClient(), field(formData, "jobId"), Number(field(formData, "retryCount"))));
+}
+
+export async function takeOverFailedProcessingJobAction(
+  _state: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  return settled(await takeOverFailedProcessingJob(await requireUserClient(), field(formData, "jobId")));
+}
+
 export async function retryFailedProcessingJobAction(
   _state: FormState,
   formData: FormData,
@@ -1016,4 +1036,14 @@ export async function excludeSourceFileAction(_state: FormState, data: FormData)
 
 export async function restoreSourceFileAction(_state: FormState, data: FormData): Promise<FormState> {
   return settled(await restoreSourceFile(await requireUserClient(), { companyId: field(data, "companyId"), sourceFileId: field(data, "sourceFileId") }));
+}
+
+
+export async function refreshBankAccountCheckAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const result = await refreshBankAccountCheck(await requireUserClient(), {
+    companyId: field(formData, "companyId"), documentId: field(formData, "documentId"),
+  }, configuredVatPayerRegistry());
+  if (!result.ok) return { error: result.error, values: {} };
+  refresh();
+  return { error: null, values: {} };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { SettingsSectionNavigation } from "@/components/settings-section-navigation";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 
@@ -24,11 +24,7 @@ export function SettingsNavigation({ companyId, administrator }: {
   ];
   const current = destinations.find((destination) => destination.href === pathname)?.href ?? base;
 
-  return <nav aria-label={t("settingsNavigation")} className="company-settings-nav">
-    {destinations.map((destination) => <Link
-      aria-current={destination.href === current ? "true" : undefined}
-      href={destination.href}
-      key={destination.href}
-    >{destination.label}</Link>)}
-  </nav>;
+  return <SettingsSectionNavigation label={t("settingsNavigation")}
+    items={destinations.map((destination) => ({ ...destination, current: destination.href === current }))}
+  />;
 }

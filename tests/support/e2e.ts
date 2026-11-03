@@ -7,6 +7,7 @@ import { uploadSourceFile, getSourceFile } from "@/application/source-files";
 import { listDocuments } from "@/application/documents";
 import { fixtureFile, heicFixture, multiSheetWorkbookFile, selectFixtureFiles } from "./files";
 import { createClient } from "@supabase/supabase-js";
+import { createServerClient } from "@supabase/ssr";
 import { Client as DatabaseClient } from "pg";
 import type { Database } from "@/lib/database.types";
 import { addLegacyRateBreakdownVersionFixture } from "./rate-breakdown-history";
@@ -25,6 +26,16 @@ async function browserFixtureClient() {
   return createClient<Database>(environment.NEXT_PUBLIC_SUPABASE_URL, environment.SUPABASE_SECRET_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
+}
+
+/** Observes application queries under the browser's real Auth/MFA session. */
+export async function browserUserClient(cookies: { name: string; value: string }[]) {
+  const environment = await browserFixtureEnvironment();
+  return asUserClient(createServerClient<Database>(
+    environment.NEXT_PUBLIC_SUPABASE_URL,
+    environment.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    { cookies: { getAll: () => cookies, setAll: () => {} } },
+  ));
 }
 
 /** Runs in Playwright's Node process; privileged credentials never enter the browser. */
@@ -261,7 +272,7 @@ export async function promoteBrowserSuperAdminFixture(email: string) {
 }
 
 /** Creates one failed pg-boss split job whose target can be safely retried. */
-export async function addBrowserTerminalProcessingJobFixture(companyId: string) {
+export async function addBrowserTerminalProcessingJobFixture(companyId: string, sourceStatus: "failed" | "uploaded" | "split" = "failed") {
   const environment = await browserFixtureEnvironment();
   const database = new DatabaseClient({ connectionString: environment.DATABASE_URL });
   const service = await browserFixtureClient();
@@ -293,11 +304,15 @@ export async function addBrowserTerminalProcessingJobFixture(companyId: string) 
        )
        select
          $2, organization_id, company_id, file_name, format,
-         byte_size, sha256, page_count, uploaded_by, 'failed'
+         byte_size, sha256, page_count, uploaded_by, $3::public.source_file_status
        from public.source_file
        where id = $1`,
-      [source.rows[0].id, retrySourceFileId],
+      [source.rows[0].id, retrySourceFileId, sourceStatus],
     );
+    if (sourceStatus === "split") {
+      await database.query(`insert into public.document (organization_id, company_id, source_file_id, first_page, last_page)
+        select organization_id, company_id, id, 1, 1 from public.source_file where id = $1`, [retrySourceFileId]);
+    }
     const inserted = await database.query<{ id: string }>(
       `insert into pgboss.job (
          name, data, state, retry_limit, started_on, completed_on, output
@@ -540,5 +555,49 @@ export async function makeBrowserAiProviderUnavailableFixture(companyId: string)
   try {
     await database.query(`update public.ai_configuration set provider = 'openai'
       where id = (select configuration_id from public.company_ai_configuration where company_id = $1)`, [companyId]);
+  } finally { await database.end(); }
+}
+
+/** A distinct later failed request for a manually recovered Source File. */
+export async function addBrowserLaterSplitFailureFixture(sourceFileId: string) {
+  const environment = await browserFixtureEnvironment();
+  const database = new DatabaseClient({ connectionString: environment.DATABASE_URL });
+  await database.connect();
+  try {
+    await database.query("begin");
+    await database.query("update public.source_file set status = 'failed', split_request_id = gen_random_uuid() where id = $1", [sourceFileId]);
+    const inserted = await database.query<{ id: string }>(`insert into pgboss.job (
+      name, data, state, retry_limit, started_on, completed_on, output
+    ) values ('split-source-file', jsonb_build_object('sourceFileId', $1::uuid), 'failed', 0,
+      clock_timestamp(), clock_timestamp(), '{"message":"later browser request failed"}'::jsonb) returning id`, [sourceFileId]);
+    await database.query("commit");
+    return { jobId: inserted.rows[0].id, sourceFileId };
+  } catch (error) {
+    await database.query("rollback"); throw error;
+  } finally { await database.end(); }
+}
+
+/** A real immutable export snapshot and terminal queue attempt for remediation. */
+export async function addBrowserFailedExportAttemptFixture(companyId: string) {
+  const environment = await browserFixtureEnvironment();
+  const database = new DatabaseClient({ connectionString: environment.DATABASE_URL });
+  await database.connect();
+  try {
+    await database.query("begin");
+    const author = await database.query<{ created_by: string }>("select created_by from public.company where id = $1", [companyId]);
+    await database.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ sub: author.rows[0].created_by, role: "authenticated", aal: "aal2" })]);
+    const created = await database.query<{ receipt: { exportId: string } }>("select public.create_company_data_export($1) as receipt", [companyId]);
+    const exportId = created.rows[0].receipt.exportId;
+    await database.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ role: "service_role" })]);
+    await database.query("select public.fail_company_data_export($1)", [exportId]);
+    const inserted = await database.query<{ id: string }>(`insert into pgboss.job
+      (name, data, state, retry_limit, started_on, completed_on, output)
+      values ('complete-company-export', jsonb_build_object('exportId', $1::uuid),
+        'failed', 0, now(), now(), '{"message":"archive storage unavailable"}'::jsonb) returning id`, [exportId]);
+    await database.query("commit");
+    return { exportId, jobId: inserted.rows[0].id };
+  } catch (error) {
+    await database.query("rollback");
+    throw error;
   } finally { await database.end(); }
 }

@@ -134,6 +134,10 @@
     "requestAgain": "Vyžádat nový e-mail pro obnovu",
     "loading": "Kontroluji odkaz pro obnovu…"
   },
+  "availability": {
+    "title": "Dočasně nedostupné",
+    "retry": "Zkusit znovu"
+  },
   "auth": {
     "email": "E-mail",
     "password": "Heslo",
@@ -278,6 +282,13 @@
     "saved": "Výchozí údaje podání byly uloženy."
   },
   "members": {
+    "managementScope": "Rozsah správy",
+    "applyScope": "Použít rozsah",
+    "organizationScope": "Organizace: {name}",
+    "companyScope": "Společnost: {name}",
+    "scopeForbidden": "Tento rozsah nemůžete spravovat.",
+    "organizationAccess": "Členství v této organizaci: {scopes}. Každé členství si zachovává vlastní roli. Přístup administrátora organizace platí i pro její společnosti.",
+    "invitationScopeHint": "Pozvánky se vztahují k vybranému rozsahu. Pro správu pozvánek jiného rozsahu jej vyberte.",
     "nav": "Uživatelé",
     "organizationNav": "Spravovat {organization}",
     "companyTitle": "Uživatelé firmy {company}",
@@ -292,6 +303,13 @@
     "activeCount": "{count, plural, one {# aktivní uživatel} few {# aktivní uživatelé} other {# aktivních uživatelů}}",
     "activeIntro": "Odebrání přístupu platí jen pro tuto oblast. Přihlašovací účet uživatele se nesmaže.",
     "none": "V této oblasti nemá aktivní přístup žádný uživatel.",
+    "companyMembership": "Členství ve společnosti: {scope}",
+    "organizationMembership": "Členství v organizaci: {scope}",
+    "changeScopeRole": "Změnit roli — {scope}",
+    "removeScope": "Odebrat členství — {scope}",
+    "inheritedManagementHint": "Toto zděděné členství může spravovat pouze administrátor organizace nebo SuperAdmin.",
+    "effectiveAccess": "Výsledný přístup zůstává: {role} přes {scopes}.",
+    "scopedAccessIntro": "Každá akce mění pouze uvedené členství. Jiná členství mohou zachovat výsledný přístup. Odebráním členství se přihlašovací účet nesmaže.",
     "changeRole": "Změnit roli",
     "remove": "Odebrat přístup",
     "pendingTitle": "Čekající pozvánky",
@@ -572,6 +590,7 @@
     "invalid_workbook_ranges": "Zadejte vzestupné, nepřekrývající se rozsahy řádků ve skutečném listu.",
     "invalid_source_ranges": "Zadejte vzestupné nepřekrývající se rozsahy v rámci skutečných stran zdroje.",
     "exclusion_reason_required": "Zadejte důvod vyloučení o délce 1–500 znaků.",
+    "not_closable": "Tento neúspěšný pokus exportu již není aktivní.",
     "not_recoverable": "Tento doklad nelze převzít k ručnímu doplnění.",
     "not_rejected": "Vrátit lze pouze vyloučený doklad.",
     "recovery_link_invalid": "Odkaz pro obnovu je neplatný, vypršel nebo už byl použit. Vyžádejte si nový e-mail pro obnovu.",
@@ -596,6 +615,8 @@
     "google_sign_in_failed": "Přihlášení přes Google se nezdařilo. Zkuste to prosím znovu.",
     "invalid_credentials": "Nesprávný e-mail nebo heslo.",
     "login_rate_limited": "Příliš mnoho pokusů o přihlášení. Chvíli počkejte a zkuste to znovu.",
+    "mfa_status_failed": "Stav dvoufázového ověření se nyní nepodařilo ověřit. Zkuste to prosím za chvíli znovu.",
+    "auth_unavailable": "Ověření přihlášení je dočasně nedostupné. Zkuste to prosím za chvíli znovu.",
     "login_unavailable": "Přihlášení se nyní nepodařilo ověřit. Zkuste to prosím za chvíli znovu.",
     "organization_blocked": "Tato organizace je zablokovaná. Obraťte se na podporu platformy.",
     "invalid_upload_limits": "Limity nahrávání musí být kladná celá čísla; zdrojový soubor může mít nejvýše 50 MiB.",
@@ -711,7 +732,8 @@
     "invalid_source_range": "Vyberte skutečný rozsah stran v originálu.",
     "ai_configuration_unavailable": "AI není zapnuté nebo nemá použitelnou konfiguraci. Aktuální hodnoty a schválení zůstaly beze změny.",
     "processing_dispatch_failed": "AI se nepodařilo zařadit ke zpracování. Hodnoty a historie jsou zachované; před opakováním ověřte aktuální stav kontroly.",
-    "allowance_exhausted": "Po započtení čekajícího a probíhajícího zpracování nezbývá volný limit úspěšného AI zpracování. Hodnoty a schválení zůstaly beze změny."
+    "allowance_exhausted": "Po započtení čekajícího a probíhajícího zpracování nezbývá volný limit úspěšného AI zpracování. Hodnoty a schválení zůstaly beze změny.",
+    "not_extracted": "Doklad zatím nemá verzi vytěžení, kterou lze ověřit."
   },
   "aiUsage": {
     "platformNav": "Využití AI na platformě",
@@ -833,7 +855,7 @@
     "resolveConfiguration": "Vyřešit AI konfiguraci",
     "repairConfiguration": "Opravit {label}",
     "createConfiguration": "Vytvořit AI konfiguraci",
-    "retryTerminalJobs": "Zopakovat trvale neúspěšné úlohy",
+    "retryTerminalJobs": "Vyřešit neúspěšné zpracování",
     "viewFailedJobs": "Zobrazit neúspěšné úlohy",
     "problemAllowanceExhausted": "Limit zpracování je vyčerpán",
     "problemAllowanceHigh": "Limit zpracování je využit alespoň z 80 %",
@@ -845,6 +867,9 @@
     "problemProviderUnavailable": "Poskytovatel AI je opakovaně nedostupný",
     "problemProviderResponseInvalid": "Neplatná odpověď poskytovatele AI",
     "problemProcessingFailed": "Zpracování pomocí AI selhalo",
+    "problemFailedExport": "Neúspěšný export Společnosti",
+    "affectedExports": "Dotčené exporty",
+    "companyExportCount": "{count, plural, one {# export} few {# exporty} other {# exportů}}",
     "problemTerminalJob": "Trvale neúspěšná úloha zpracování",
     "organizations": "Organizace a firmy",
     "organization": "Organizace",
@@ -855,8 +880,10 @@
     "action": "Akce",
     "block": "Zablokovat",
     "unblock": "Odblokovat",
+    "closeExportAttempt": "Uzavřít neúspěšný pokus exportu",
+    "manualTakeover": "Převzít k ruční kontrole",
     "failedJobs": "Neúspěšné úlohy zpracování",
-    "failedJobsIntro": "Trvale neúspěšné úlohy pg-boss zde zůstávají do opakování. Opakování bezpečně obnoví zaseknutý cíl a znovu zařadí uloženou úlohu.",
+    "failedJobsIntro": "Zobrazují se jen neúspěšné pokusy, které stále vyžadují zásah. Vyřešené a nahrazené pokusy zůstávají uložené.",
     "noFailedJobs": "Žádné trvale neúspěšné úlohy zpracování.",
     "job": "Úloha",
     "target": "ID cíle",
@@ -882,6 +909,7 @@
     "success": "Heslo bylo změněno. Zde zůstáváte přihlášeni."
   },
   "mfa": {
+    "returnToWork": "Zpět k práci",
     "securityTitle": "Zabezpečení",
     "authenticatorTitle": "Autentizační aplikace",
     "authenticatorEnabled": "Dvoufázové ověření je zapnuté.",
@@ -1072,7 +1100,14 @@
       "invalid_vat_id_checksum": "Kontrolní součet DIČ není platný.",
       "counterparty_vat_id_required": "Pro tento režim DPH je DIČ protistrany povinné.",
       "unreliable_vat_payer": "Dodavatel je v registru veden jako nespolehlivý plátce DPH.",
+      "inconsistent_payment_account": "Tuzemské číslo účtu a IBAN označují různé platební účty. Opravte platební údaje; zveřejnění účtu zůstává neurčené. Doklad můžete přesto schválit.",
+      "unrecognized_payment_account": "Platební identifikátor není rozpoznaný bankovní účet, proto nebylo možné ověřit jeho zveřejnění. Zkontrolujte platební údaje ručně; doklad můžete přesto schválit.",
+      "unpublished_own_bank_account": "Vlastní účet vaší společnosti pro příjem plateb není u vaší společnosti zveřejněn v registru plátců DPH.",
+      "own_bank_account_not_verified": "Vaše společnost nebyla nalezena v registru plátců DPH, proto nebylo možné ověřit její vlastní účet pro příjem plateb. Zkontrolujte jej ručně.",
+      "own_vat_registry_check_not_performed": "Registr plátců DPH nebyl dostupný, proto se kontrola vaší společnosti a jejího vlastního účtu pro příjem plateb neprovedla.",
+      "unreliable_own_vat_payer": "Vaše společnost je vedena jako nespolehlivý plátce DPH.",
       "unpublished_bank_account": "Platební účet není u tohoto dodavatele zveřejněn v registru plátců DPH.",
+      "missing_supplier_vat_id": "V iVAT není vyplněno DIČ dodavatele. Tento běžný tuzemský doklad nepřesahuje 10 000 Kč včetně DPH a lze jej schválit. Zkontrolujte původní doklad; schválení nepotvrzuje splnění jeho zákonných náležitostí.",
       "missing_bank_account": "Není vyplněn platební účet. Zkontrolujte platební údaje; doklad lze i tak schválit.",
       "bank_account_not_verified": "Dodavatel nebyl nalezen v registru plátců DPH, proto nebylo možné platební účet ověřit. Zkontrolujte jej ručně.",
       "vat_registry_check_not_performed": "Registr plátců DPH nebyl dostupný, proto nebyla provedena kontrola dodavatele a platebního účtu.",
@@ -1612,6 +1647,36 @@
       "intro": "Otevřete jednorázový odkaz a poté výslovně ověřte svůj e-mail pro nastavení nového hesla. Odkaz platí jednu hodinu. Dvoufaktorová ochrana zůstává povinná: použijte svůj autentizátor, nebo jej obnovte pomocí připraveného záložního kódu.",
       "action": "Otevřít obnovu hesla",
       "ignore": "Pokud jste o obnovu nežádali, můžete tento e-mail ignorovat."
+    }
+  },
+  "bankAccountCheck": {
+    "title": "Ověření bankovního účtu",
+    "refresh": "Znovu ověřit platební účet",
+    "currentInformation": "Ověření popisuje aktuální údaje registru. Neprokazuje zveřejnění v době vystavení dokladu. U vydaného dokladu jde o příjmový účet vaší společnosti.",
+    "notRefreshed": "Pro aktuální údaje dokladu ještě nebylo provedeno ruční ověření. Dosavadní zjištění zůstávají zobrazena.",
+    "checkedAt": "Ověřeno: {time}",
+    "history": "Historie ověření bankovního účtu",
+    "inputs": "DIČ dodavatele: {supplier}; platební účet: {account}",
+    "version": "Verze vytěžení {version}",
+    "olderData": "Dřívější údaje dokladu; neověřuje aktuální platební účet",
+    "viewingRecordedVersion": "Prohlížíte zaznamenaná zjištění verze vytěžení {version}. Datovaná ověření bankovního účtu najdete v aktuálním zobrazení.",
+    "outcomes": {
+      "published": "Platební účet je zveřejněn pro dodavatele.",
+      "unpublished": "Platební účet byl ověřen a není zveřejněn pro dodavatele.",
+      "unavailable": "Registr nebyl dostupný. Toto ověření nepotvrdilo zveřejnění účtu.",
+      "unverified": "Zveřejnění účtu pro tohoto dodavatele se nepodařilo ověřit.",
+      "missing": "Platební účet není zadán; zveřejnění se nepodařilo ověřit.",
+      "inconsistent": "Tuzemské číslo účtu a IBAN si odporují; zveřejnění zůstává neurčené.",
+      "unrecognized": "Platební údaj není rozpoznaným bankovním účtem; zveřejnění zůstává neurčené."
+    },
+    "ownOutcomes": {
+      "published": "Příjmový účet vaší společnosti je zveřejněn v registru.",
+      "unpublished": "Příjmový účet vaší společnosti byl ověřen a není zveřejněn v registru.",
+      "unavailable": "Registr nebyl dostupný. Toto ověření nepotvrdilo zveřejnění účtu.",
+      "unverified": "Zveřejnění příjmového účtu vaší společnosti se nepodařilo ověřit.",
+      "missing": "Platební účet není zadán; zveřejnění se nepodařilo ověřit.",
+      "inconsistent": "Tuzemské číslo účtu a IBAN si odporují; zveřejnění zůstává neurčené.",
+      "unrecognized": "Platební údaj není rozpoznaným bankovním účtem; zveřejnění zůstává neurčené."
     }
   }
 }

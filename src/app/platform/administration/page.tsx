@@ -2,7 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import {
+  closeFailedExportAttemptAction,
   retryFailedProcessingJobAction,
+  takeOverFailedProcessingJobAction,
   setPlatformOrganizationBlockedAction,
 } from "@/app/actions";
 import {
@@ -22,6 +24,7 @@ import { requireUserClient } from "@/lib/supabase/server";
 import { UploadLimitsForm } from "./upload-limits-form";
 import { OperationalProblemRemediation } from "./operational-problem-remediation";
 import { currentPlatformOperationalProblems } from "../current-operational-problems";
+import { PlatformPageLayout } from "../platform-page-layout";
 
 export default async function PlatformAdministrationPage() {
   const client = await requireUserClient();
@@ -53,15 +56,12 @@ export default async function PlatformAdministrationPage() {
     provider_response_invalid: t("problemProviderResponseInvalid"),
     processing_failed: t("problemProcessingFailed"),
     terminal_processing_job: t("problemTerminalJob"),
+    failed_company_export: t("problemFailedExport"),
   };
 
   return (
     <>
-      <main className="dashboard platform-page">
-        <header>
-          <h1>{t("title")}</h1>
-          <p className="iv-muted">{t("intro")}</p>
-        </header>
+      <PlatformPageLayout title={t("title")} description={t("intro")}>
 
         <section className="panel operational-problems" aria-labelledby="operational-problems-title">
           <header className="operational-problems-header">
@@ -94,7 +94,7 @@ export default async function PlatformAdministrationPage() {
                     </div>
                     <dl className="operational-problem-facts">
                       <div>
-                        <dt>{t("affectedDocuments")}</dt>
+                        <dt>{t(problem.kind === "failed_company_export" ? "affectedExports" : "affectedDocuments")}</dt>
                         <dd>{problem.affectedDocumentCount}</dd>
                       </div>
                       {problem.configuration && (
@@ -114,7 +114,7 @@ export default async function PlatformAdministrationPage() {
                         {problem.companies.map((company) => (
                           <li key={company.id}>
                             <span>{company.name}</span>
-                            <span>{t("companyDocumentCount", { count: company.affectedDocumentCount })}</span>
+                            <span>{t(problem.kind === "failed_company_export" ? "companyExportCount" : "companyDocumentCount", { count: company.affectedDocumentCount })}</span>
                           </li>
                         ))}
                       </ul>
@@ -144,7 +144,7 @@ export default async function PlatformAdministrationPage() {
             columns={[
               {
                 key: "name", header: t("organization"),
-                render: (organization) => <Link href={`/organizations/${organization.id}/members`}>{organization.name}</Link>,
+                render: (organization) => <Link href={`/organizations/${organization.id}/users`}>{organization.name}</Link>,
               },
               {
                 key: "companies", header: t("companies"),
@@ -196,13 +196,20 @@ export default async function PlatformAdministrationPage() {
                   key: "action",
                   header: t("action"),
                   render: (job) => (
-                    <CommandButton
-                      action={retryFailedProcessingJobAction}
-                      fields={{ jobId: job.id }}
-                      size="sm"
-                    >
-                      {t("retry")}
-                    </CommandButton>
+                    <div className="processing-job-actions">
+                      <CommandButton action={retryFailedProcessingJobAction} fields={{ jobId: job.id }} size="sm">
+                        {t("retry")}
+                      </CommandButton>
+                      {job.name === "complete-company-export" ? (
+                        <CommandButton action={closeFailedExportAttemptAction} fields={{ jobId: job.id, retryCount: String(job.retryCount) }} size="sm">
+                          {t("closeExportAttempt")}
+                        </CommandButton>
+                      ) : (
+                        <CommandButton action={takeOverFailedProcessingJobAction} fields={{ jobId: job.id }} size="sm">
+                          {t("manualTakeover")}
+                        </CommandButton>
+                      )}
+                    </div>
                   ),
                 },
               ]}
@@ -215,7 +222,7 @@ export default async function PlatformAdministrationPage() {
           <p className="iv-muted">{t("uploadLimitsIntro")}</p>
           <UploadLimitsForm limits={limits.value} />
         </section>
-      </main>
+      </PlatformPageLayout>
     </>
   );
 }

@@ -48,9 +48,9 @@ test("Organization Administrator navigates the shared Organization shell and ret
   await expect(page.getByRole("button", { name: "Choose Company" })).toContainText(companyName);
 
   await page.getByRole("navigation", { name: "Company navigation" }).getByRole("link", { name: "Settings", exact: true }).click();
-  const organizationMembersLink = page.locator('a[href^="/organizations/"][href$="/members"]');
+  const organizationMembersLink = page.locator('a[href^="/organizations/"][href$="/users"]');
   const membersHref = await organizationMembersLink.getAttribute("href");
-  expect(membersHref).toMatch(/^\/organizations\/[0-9a-f-]+\/members$/);
+  expect(membersHref).toMatch(/^\/organizations\/[0-9a-f-]+\/users$/);
   await organizationMembersLink.click();
 
   const organizationNavigation = page.getByRole("navigation", { name: "Organization navigation" });
@@ -65,16 +65,15 @@ test("Organization Administrator navigates the shared Organization shell and ret
 
   const heading = page.getByRole("heading", { name: `Users of ${organizationName}`, level: 1 });
   await expect(heading).toBeVisible();
-  const main = page.getByRole("main");
-  const inviteSection = page.getByRole("heading", { name: "Invite user" }).locator("xpath=ancestor::section");
+  const inviteSection = page.getByRole("heading", { name: "Invite user" }).locator("xpath=ancestor::section[1]");
   const alignedEdges = await Promise.all([
-    main.locator(":scope > header").evaluate((node) => node.getBoundingClientRect().x),
+    heading.evaluate((node) => node.getBoundingClientRect().x),
     inviteSection.evaluate((node) => node.getBoundingClientRect().x),
   ]);
   expect(alignedEdges[0]).toBe(alignedEdges[1]);
 
   await organizationNavigation.getByRole("link", { name: "Audit log", exact: true }).click();
-  await expect(page).toHaveURL(new RegExp(`${membersHref!.replace(/\/members$/, "/audit-log")}$`));
+  await expect(page).toHaveURL(new RegExp(`${membersHref!.replace(/\/users$/, "/audit-log")}$`));
   await expect(organizationNavigation.getByRole("link", { name: "Audit log", exact: true })).toHaveAttribute("aria-current", "page");
 
   await page.setViewportSize({ width: 360, height: 800 });

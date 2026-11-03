@@ -1,5 +1,6 @@
 import { reportingWorkbookCopy } from "./support/reporting-workbook-copy";
-import { expect, it } from "vitest";
+import { expect, inject, it } from "vitest";
+import { Client as DatabaseClient } from "pg";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import {
   approveDocument,
@@ -30,6 +31,15 @@ import { fixtureFile } from "./support/files";
 import { testWorker } from "./support/worker";
 import { exportReportingPeriodWorkbook } from "@/application/reporting-period-excel";
 import * as XLSX from "xlsx";
+
+/** Keeps unassigned work in the synthetic October Reporting Period. */
+async function setOctoberImportDateFixture(sourceFileId: string) {
+  const database = new DatabaseClient({ connectionString: inject("databaseUrl") });
+  await database.connect();
+  try {
+    await database.query("update public.source_file set uploaded_at = '2026-10-15T10:00:00Z' where id = $1", [sourceFileId]);
+  } finally { await database.end(); }
+}
 
 it("lists the generated Reporting Periods and advances the oldest unfinished period", async () => {
   const company = await administratorWithCompany();
@@ -105,6 +115,7 @@ async function companyWithReadinessStates() {
       bytes: fixtureFile("two-invoices.pdf"),
     });
     if (!uploaded.ok) throw new Error(uploaded.error);
+    await setOctoberImportDateFixture(uploaded.value.id);
     sourceFileIds.push(uploaded.value.id);
   }
   expect(await worker.runJobs()).toHaveLength(1);
@@ -132,6 +143,7 @@ async function companyWithReadinessStates() {
     bytes: fixtureFile("two-invoices.pdf"),
   });
   if (!waiting.ok) throw new Error(waiting.error);
+  await setOctoberImportDateFixture(waiting.value.id);
   await worker.runNextJob();
   return company;
 }
@@ -228,6 +240,7 @@ it("reports a saved source snapshot as current, then stale after a relevant unas
     bytes: fixtureFile("two-invoices.pdf"),
   });
   if (!uploaded.ok) throw new Error(uploaded.error);
+  await setOctoberImportDateFixture(uploaded.value.id);
   expect(await worker.runJobs()).toEqual([]);
   const documents = await listDocuments(company.client, company.companyId, uploaded.value.id);
   expect(await approveDocument(company.client, {
@@ -256,6 +269,7 @@ it("reports a saved source snapshot as current, then stale after a relevant unas
     bytes: fixtureFile("two-invoices.pdf"),
   });
   if (!laterUpload.ok) throw new Error(laterUpload.error);
+  await setOctoberImportDateFixture(laterUpload.value.id);
   await worker.runNextJob();
   const stale = await getReportingPeriodReadiness(company.client, {
     companyId: company.companyId,
@@ -286,6 +300,7 @@ it("keeps a new snapshot current when unassigned rejected Documents are resolved
     bytes: fixtureFile("two-invoices.pdf"),
   });
   if (!uploaded.ok) throw new Error(uploaded.error);
+  await setOctoberImportDateFixture(uploaded.value.id);
   expect(await worker.runJobs()).toEqual([]);
   const documents = await listDocuments(company.client, company.companyId, uploaded.value.id);
   for (const document of documents) {

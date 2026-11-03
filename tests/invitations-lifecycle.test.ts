@@ -1,3 +1,4 @@
+import { succeeded } from "./support/results";
 import { listAuditEvents } from "@/application/audit";
 import { totp } from "./support/totp";
 import { beginTotpEnrollment, completeTotpEnrollment, mfaPolicy, mfaStatus, setOrganizationMfaRequired, verifyTotp } from "@/application/mfa";
@@ -50,7 +51,7 @@ describe("persistent Invitations", () => {
       organizationId: administrator.organizationId, companyId: administrator.companyId,
     });
     expect(await cancelInvitation(administrator.client, invitation.id)).toEqual({ ok: true, value: null });
-    expect(await getInvitationOnboarding(administrator.client, generated.value.token)).toEqual({ status: "cancelled" });
+    expect(succeeded(await getInvitationOnboarding(administrator.client, generated.value.token))).toEqual({ status: "cancelled" });
     const [cancelled] = await listPendingInvitations(administrator.client, {
       organizationId: administrator.organizationId, companyId: administrator.companyId,
     });
@@ -66,7 +67,7 @@ describe("persistent Invitations", () => {
     const replacement = await replaceInvitationLink(administrator.client, { invitationId: original.id, acceptUrl });
     if (!replacement.ok) throw new Error(replacement.error);
     expect(replacement.value.token).not.toBe(first.value.token);
-    expect(await getInvitationOnboarding(administrator.client, first.value.token)).toEqual({ status: "replaced" });
+    expect(succeeded(await getInvitationOnboarding(administrator.client, first.value.token))).toEqual({ status: "replaced" });
     const invitations = await listPendingInvitations(administrator.client, scope);
     expect(invitations.find(item => item.id === original.id)).toMatchObject({ status: "replaced", token: null });
     const renewed = invitations.find(item => item.token === replacement.value.token)!;
@@ -130,7 +131,7 @@ describe("persistent Invitations", () => {
   it("treats an existing Auth identity without Membership as existing and preserves its password", async () => {
     const offer = await offerFixture();
     const existing = await provisionedAccount({ email: offer.email, password: "original-password-166" });
-    expect(await getInvitationOnboarding(anonymousClient(), offer.token)).toMatchObject({ status: "valid", existingUser: true });
+    expect(succeeded(await getInvitationOnboarding(anonymousClient(), offer.token))).toMatchObject({ status: "valid", existingUser: true });
     const visitor = anonymousClient();
     expect(await completeInvitationOnboarding(visitor, { token: offer.token, password: "different-password-166" }, invitationAuthenticationFixture()))
       .toEqual({ ok: false, error: "invalid_credentials" });
@@ -143,7 +144,7 @@ describe("persistent Invitations", () => {
     const offer = await offerFixture();
     const identity = await passwordlessIdentityFixture(offer.email);
     const visitor = anonymousClient();
-    expect(await getInvitationOnboarding(visitor, offer.token)).toMatchObject({ status: "valid", existingUser: true });
+    expect(succeeded(await getInvitationOnboarding(visitor, offer.token))).toMatchObject({ status: "valid", existingUser: true });
     expect(await completeInvitationOnboarding(visitor, { token: offer.token, password: "not-a-new-password-166" }, invitationAuthenticationFixture()))
       .toEqual({ ok: false, error: "invalid_credentials" });
     expect((await visitor.auth.getUser()).data.user).toBeNull();
@@ -182,7 +183,7 @@ describe("persistent Invitations", () => {
     expect((await visitor.auth.getUser()).data.user).toBeNull();
     const fresh = await generateInvitationLink(offer.administrator.client, { ...offer.scope, email: offer.email, role: "user", acceptUrl });
     if (!fresh.ok) throw new Error(fresh.error);
-    expect(await getInvitationOnboarding(visitor, fresh.value.token)).toMatchObject({ status: "valid", existingUser: false });
+    expect(succeeded(await getInvitationOnboarding(visitor, fresh.value.token))).toMatchObject({ status: "valid", existingUser: false });
   });
 
   it("cleans up only its newly provisioned orphan when cancellation wins before Membership acceptance", async () => {
@@ -203,7 +204,7 @@ describe("persistent Invitations", () => {
     expect((await visitor.auth.getUser()).data.user).toBeNull();
     const fresh = await generateInvitationLink(offer.administrator.client, { ...offer.scope, email: offer.email, role: "user", acceptUrl });
     if (!fresh.ok) throw new Error(fresh.error);
-    expect(await getInvitationOnboarding(visitor, fresh.value.token)).toMatchObject({ status: "valid", existingUser: false });
+    expect(succeeded(await getInvitationOnboarding(visitor, fresh.value.token))).toMatchObject({ status: "valid", existingUser: false });
   });
 
   it("does not overwrite an identity created concurrently after the new-user claim", async () => {
@@ -266,7 +267,7 @@ describe("persistent Invitations", () => {
       expect(await cancelInvitation(offer.administrator.client, offer.invitation.id)).toEqual({ ok: true, value: null });
       const fresh = await generateInvitationLink(offer.administrator.client, { ...offer.scope, email: offer.email, role: "user", acceptUrl });
       if (!fresh.ok) throw new Error(fresh.error);
-      expect(await getInvitationOnboarding(visitor, fresh.value.token)).toMatchObject({ status: "valid", existingUser: false });
+      expect(succeeded(await getInvitationOnboarding(visitor, fresh.value.token))).toMatchObject({ status: "valid", existingUser: false });
     } finally { await authentication.abort(claimed.data); }
   });
 
@@ -281,7 +282,7 @@ describe("persistent Invitations", () => {
     const visitor = anonymousClient();
     expect(await completeInvitationOnboarding(visitor, { token: offer.token, password: "mfa-invitation-password-166" }, invitationAuthenticationFixture()))
       .toEqual({ ok: true, value: { companyId: offer.administrator.companyId } });
-    expect(await mfaPolicy(visitor)).toEqual({ required: false, enrolled: true, satisfied: false });
+    expect(succeeded(await mfaPolicy(visitor))).toEqual({ required: false, enrolled: true, satisfied: false });
     expect(await listMyCompanies(visitor)).toEqual([]);
     expect(await verifyTotp(visitor, { factorId: enrollment.value.factorId, code: totp(enrollment.value.secret) })).toEqual({ ok: true, value: null });
     expect(await listMyCompanies(visitor)).toHaveLength(1);
@@ -291,7 +292,7 @@ describe("persistent Invitations", () => {
     expect(await completeInvitationOnboarding(visitor, { token: again.value.token, password: "" }, invitationAuthenticationFixture()))
       .toEqual({ ok: true, value: { companyId: offer.administrator.companyId } });
     expect((await visitor.auth.getSession()).data.session?.access_token).toBe(before);
-    expect((await mfaStatus(visitor)).currentLevel).toBe("aal2");
+    expect((succeeded(await mfaStatus(visitor))).currentLevel).toBe("aal2");
   });
 
   it("never removes a preexisting identity or its other Organization when a late acceptance is cancelled", async () => {
@@ -322,7 +323,7 @@ describe("persistent Invitations", () => {
     const visitor = anonymousClient();
     expect(await completeInvitationOnboarding(visitor, { token: generated.value.token, password: "mandatory-mfa-166" }, invitationAuthenticationFixture()))
       .toEqual({ ok: true, value: { companyId: null } });
-    expect(await mfaPolicy(visitor)).toEqual({ required: true, enrolled: false, satisfied: false });
+    expect(succeeded(await mfaPolicy(visitor))).toEqual({ required: true, enrolled: false, satisfied: false });
     expect(await listMyCompanies(visitor)).toEqual([]);
     expect(await setOrganizationMfaRequired(visitor, { organizationId: administrator.organizationId, required: false })).toEqual({ ok: false, error: "forbidden" });
     const enrollment = await beginTotpEnrollment(visitor);

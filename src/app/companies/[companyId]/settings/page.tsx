@@ -51,9 +51,9 @@ export default async function CompanySettingsPage({ params }: PageProps<"/compan
     >
       <header><h2>{t("organizationSettingsTitle", { organization: organization.name })}</h2><p>{t("organizationSettingsIntro")}</p></header>
       <div>
-        <Link href={`/organizations/${organization.id}/members`}><strong>{t("organizationUsers")}</strong><span>{t("organizationUsersIntro")}</span></Link>
+        <Link href={`/organizations/${organization.id}/users`}><strong>{t("organizationUsers")}</strong><span>{t("organizationUsersIntro")}</span></Link>
         <Link href={`/organizations/${organization.id}/audit-log`}><strong>{t("organizationAudit")}</strong><span>{t("organizationAuditIntro")}</span></Link>
-        <Link href={`/settings/security#organization-${organization.id}`}><strong>{t("organizationSecurity")}</strong><span>{t("organizationSecurityIntro")}</span></Link>
+        <Link href={`/settings/security?${new URLSearchParams({ returnTo: `/companies/${companyId}/settings` })}#organization-${organization.id}`}><strong>{t("organizationSecurity")}</strong><span>{t("organizationSecurityIntro")}</span></Link>
       </div>
     </section>}
     <section aria-labelledby="setup-checklist-title" className="company-setup-checklist">

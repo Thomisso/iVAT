@@ -1,3 +1,4 @@
+import { succeeded } from "./support/results";
 import { describe, expect, it } from "vitest";
 import { recoverPassword, recoveryLinkStatus, recoveryStatus, requestPasswordRecovery, verifyPasswordRecovery } from "@/application/password-recovery";
 import { anonymousClient, provisionedUser, uniqueEmail } from "./support/clients";
@@ -34,30 +35,30 @@ describe("password recovery", () => {
     await requestPasswordRecovery(anonymousClient(), authentication, user.email);
     const email = await recoveryEmailFixture(user.email);
     const visitor = anonymousClient();
-    expect(await recoveryLinkStatus(visitor, email.requestToken)).toBe("valid");
-    expect(await recoveryLinkStatus(visitor, email.requestToken)).toBe("valid");
+    expect(succeeded(await recoveryLinkStatus(visitor, email.requestToken))).toBe("valid");
+    expect(succeeded(await recoveryLinkStatus(visitor, email.requestToken))).toBe("valid");
     expect((await visitor.auth.getUser()).data.user).toBeNull();
     expect(await verifyPasswordRecovery(visitor, authentication, email)).toEqual({ ok: true, value: null });
     expect((await anonymousClient().auth.verifyOtp({ token_hash: email.tokenHash, type: "recovery" })).error?.code).toBe("otp_expired");
     const before = (await visitor.auth.getClaims()).data?.claims.session_id;
-    expect(await recoveryStatus(visitor)).toBe("ready");
+    expect(succeeded(await recoveryStatus(visitor))).toBe("ready");
     expect(await recoverPassword(visitor, { newPassword: "recovered-password-167", confirmation: "different" }))
       .toEqual({ ok: false, error: "password_confirmation_mismatch" });
     expect(await recoverPassword(visitor, { newPassword: "short", confirmation: "short" }))
       .toEqual({ ok: false, error: "weak_password" });
     expect(await recoverPassword(visitor, { newPassword: "correct-horse-battery", confirmation: "correct-horse-battery" }))
       .toEqual({ ok: false, error: "same_password" });
-    expect(await recoveryStatus(visitor)).toBe("ready");
+    expect(succeeded(await recoveryStatus(visitor))).toBe("ready");
     expect(await recoverPassword(visitor, { newPassword: "recovered-password-167", confirmation: "recovered-password-167" }))
       .toEqual({ ok: true, value: null });
-    expect(await recoveryStatus(visitor)).toBe("complete");
+    expect(succeeded(await recoveryStatus(visitor))).toBe("complete");
     expect((await visitor.auth.refreshSession()).error).toBeNull();
     expect((await visitor.auth.getClaims()).data?.claims.session_id).toBe(before);
     expect((await other.auth.refreshSession()).error).not.toBeNull();
     expect((await user.client.auth.refreshSession()).error).not.toBeNull();
     expect((await anonymousClient().auth.signInWithPassword({ email: user.email, password: "correct-horse-battery" })).error).not.toBeNull();
     expect((await anonymousClient().auth.signInWithPassword({ email: user.email, password: "recovered-password-167" })).error).toBeNull();
-    expect(await recoveryLinkStatus(visitor, email.requestToken)).toBe("used");
+    expect(succeeded(await recoveryLinkStatus(visitor, email.requestToken))).toBe("used");
     expect(await verifyPasswordRecovery(anonymousClient(), authentication, email)).toEqual({ ok: false, error: "recovery_link_used" });
     expect(await recoverPassword(visitor, { newPassword: "repeat-password-167", confirmation: "repeat-password-167" }))
       .toEqual({ ok: false, error: "recovery_link_used" });
@@ -82,7 +83,7 @@ describe("password recovery", () => {
     expect(await recoverPassword(visitor, password)).toEqual({ ok: false, error: "mfa_verification_required" });
     expect(await verifyTotp(visitor, { factorId: enrollment.value.factorId, code: totp(enrollment.value.secret) })).toEqual({ ok: true, value: null });
     expect(await recoverPassword(visitor, password)).toEqual({ ok: true, value: null });
-    expect(await mfaStatus(visitor)).toMatchObject({ enrolled: true, currentLevel: "aal2", factorId: enrollment.value.factorId });
+    expect(succeeded(await mfaStatus(visitor))).toMatchObject({ enrolled: true, currentLevel: "aal2", factorId: enrollment.value.factorId });
     expect(await listMyOrganizations(visitor)).toHaveLength(1);
   });
 
@@ -106,7 +107,7 @@ describe("password recovery", () => {
     const email = await recoveryEmailFixture(user.email);
     await ageNativeRecoveryFixture(user.email, 61);
     const visitor = anonymousClient();
-    expect(await recoveryLinkStatus(visitor, email.requestToken)).toBe("valid");
+    expect(succeeded(await recoveryLinkStatus(visitor, email.requestToken))).toBe("valid");
     expect(await verifyPasswordRecovery(visitor, authentication, email)).toEqual({ ok: false, error: "recovery_link_invalid" });
     expect((await visitor.auth.getUser()).data.user).toBeNull();
   });
@@ -118,7 +119,7 @@ describe("password recovery", () => {
     const email = await recoveryEmailFixture(user.email);
     await expireRecoveryRequestFixture(email.requestToken);
     const visitor = anonymousClient();
-    expect(await recoveryLinkStatus(visitor, email.requestToken)).toBe("expired");
+    expect(succeeded(await recoveryLinkStatus(visitor, email.requestToken))).toBe("expired");
     expect(await verifyPasswordRecovery(visitor, authentication, email)).toEqual({ ok: false, error: "recovery_link_expired" });
     expect(await verifyPasswordRecovery(visitor, authentication, { ...email, requestToken: "invalid" }))
       .toEqual({ ok: false, error: "recovery_link_invalid" });
@@ -135,7 +136,7 @@ describe("password recovery", () => {
     expect(results.filter(result => result.ok)).toHaveLength(1);
     const winner = results[0].ok ? 0 : 1;
     expect((await browsers[1 - winner].auth.getUser()).data.user).toBeNull();
-    expect(await recoveryStatus(browsers[winner])).toBe("ready");
+    expect(succeeded(await recoveryStatus(browsers[winner]))).toBe("ready");
   });
 
   it("refuses pairing another User's native email token with a recovery request", async () => {
@@ -149,7 +150,7 @@ describe("password recovery", () => {
     expect(await verifyPasswordRecovery(visitor, authentication, { requestToken: second.requestToken, tokenHash: first.tokenHash }))
       .toEqual({ ok: false, error: "recovery_link_invalid" });
     expect((await visitor.auth.getUser()).data.user).toBeNull();
-    expect(await recoveryLinkStatus(visitor, second.requestToken)).toBe("valid");
+    expect(succeeded(await recoveryLinkStatus(visitor, second.requestToken))).toBe("valid");
     expect(await verifyPasswordRecovery(visitor, authentication, second)).toEqual({ ok: true, value: null });
     expect((await visitor.auth.getUser()).data.user?.id).toBe(b.userId);
   });
