@@ -931,7 +931,9 @@ it.each(["needs_review", "approved", "uploaded"] as const)("a migrated Split wit
       expect(await retryFailedProcessingJob(operator.client, oldId)).toEqual({ ok: false, error: "period_locked" });
     } else {
       expect(initial.value.map((job) => job.id)).not.toContain(oldId);
-      expect(await reprocessDocument(company.client, pgBossJobQueue(boss), {
+      expect(await reprocessDocument(company.client, { async send(job) {
+        await boss.send(job.name, job.data, { retryLimit: 0 });
+      } }, {
         companyId: company.companyId, documentId: document.id, confirmed: true,
       })).toEqual({ ok: true, value: null });
       expect((await getDocument(company.client, company.companyId, document.id))?.status).toBe("uploaded");
