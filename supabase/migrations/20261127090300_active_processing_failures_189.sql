@@ -1,7 +1,7 @@
 -- Existing requests have an unknown start boundary: preserve their genuine
 -- failures until a new authoritative generation establishes one. New requests
 -- are dated only by PostgreSQL, never by worker or browser clocks.
-alter table public.source_file add column split_requested_at timestamptz;
+alter table public.source_file add column split_requested_at timestamptz, add column split_dispatch_request_id uuid;
 alter table public.document add column extraction_requested_at timestamptz;
 alter table public.source_file alter column split_requested_at set default now();
 alter table public.document alter column extraction_requested_at set default now();
@@ -22,6 +22,43 @@ create trigger source_file_date_processing_request before update on public.sourc
   for each row execute function private.date_processing_request();
 create trigger document_date_processing_request before update on public.document
   for each row execute function private.date_processing_request();
+
+-- A recorded Split still owns dispatching its uploaded Documents. Record that
+-- generation's successful handoff independently of later Document requests.
+create function public.complete_source_processing_dispatch(target_source_file_id uuid, target_split_request_id uuid)
+returns void language plpgsql security definer set search_path = '' as $$
+declare target_company_id uuid;
+begin
+  if auth.role() <> 'service_role' then raise exception 'forbidden' using errcode = '42501'; end if;
+  select company_id into target_company_id from public.source_file where id = target_source_file_id;
+  perform 1 from public.company where id = target_company_id for update;
+  update public.source_file set split_dispatch_request_id = target_split_request_id
+  where id = target_source_file_id and split_request_id = target_split_request_id
+    and status = 'split' and split_dispatch_request_id is distinct from target_split_request_id;
+end;
+$$;
+revoke all on function public.complete_source_processing_dispatch(uuid, uuid) from public, anon, authenticated;
+grant execute on function public.complete_source_processing_dispatch(uuid, uuid) to service_role;
+
+-- Child progress proves there is no remaining dispatch work once none of the
+-- current Documents is uploaded. In particular, ordinary manual takeover must
+-- resolve the Source incident durably before a later Document reprocess.
+-- Processing and human transitions already hold Company before their Document.
+create function private.resolve_source_dispatch_after_document_progress()
+returns trigger language plpgsql security definer set search_path = '' as $$
+begin
+  if new.source_file_id is null or (new.status = 'uploaded' and new.superseded_at is null) then return new; end if;
+  update public.source_file source set split_dispatch_request_id = source.split_request_id
+  where source.id = new.source_file_id and source.status = 'split'
+    and source.split_dispatch_request_id is distinct from source.split_request_id
+    and not exists (select 1 from public.document document where document.source_file_id = source.id
+      and document.superseded_at is null and document.status = 'uploaded');
+  return new;
+end;
+$$;
+revoke all on function private.resolve_source_dispatch_after_document_progress() from public, anon, authenticated, service_role;
+create trigger document_resolve_source_dispatch after update of status, superseded_at on public.document
+  for each row execute function private.resolve_source_dispatch_after_document_progress();
 
 -- Bind the generation actually read by the handler, rather than guessing it
 -- from pg-boss.started_on (which precedes that read). Only ID metadata is stored;
@@ -51,7 +88,11 @@ returns boolean language sql stable security definer set search_path = '' as $$
       select 1 from public.source_file source
       join public.company company on company.id = source.company_id
       where source.id = private.processing_job_target_id(job_name, job_data)
-        and source.status in ('processing', 'failed') and company.deleted_at is null
+        and (source.status in ('uploaded', 'processing', 'failed') or (
+          source.status = 'split' and source.split_dispatch_request_id is distinct from source.split_request_id
+          and exists (select 1 from public.document pending where pending.source_file_id = source.id
+            and pending.superseded_at is null and pending.status = 'uploaded')
+        )) and company.deleted_at is null
         and case when job_data ? 'processingRequestId'
           then job_data ->> 'processingRequestId' = source.split_request_id::text
           else source.split_requested_at is null or attempt_started_at >= source.split_requested_at end
@@ -60,7 +101,7 @@ returns boolean language sql stable security definer set search_path = '' as $$
       select 1 from public.document document
       join public.company company on company.id = document.company_id
       where document.id = private.processing_job_target_id(job_name, job_data)
-        and document.superseded_at is null and document.status in ('processing', 'failed')
+        and document.superseded_at is null and document.status in ('uploaded', 'processing', 'failed')
         and company.deleted_at is null
         and case when job_data ? 'processingRequestId'
           then job_data ->> 'processingRequestId' = document.extraction_request_id::text
@@ -238,8 +279,13 @@ begin
     if not private.is_active_processing_failure(job_name, job_data, attempt_started_at) then
       raise exception 'obsolete processing failure' using errcode = 'P0001', hint = 'not_retryable';
     end if;
-    update public.source_file set status = 'uploaded', split_request_id = gen_random_uuid()
-    where id = target_id and status in ('processing', 'failed')
+    -- Retrying the stored Split job resumes dispatch when Documents already exist.
+    -- The handler observes split and enqueues their Extraction without new AI boundaries.
+    update public.source_file set status = case
+      when exists (select 1 from public.document where source_file_id = target_id)
+        then 'split'::public.source_file_status else 'uploaded'::public.source_file_status end,
+      split_request_id = gen_random_uuid()
+    where id = target_id and status in ('uploaded', 'processing', 'failed', 'split')
     returning organization_id, company_id into target_organization_id, target_company_id;
   elsif job_name = 'extract-document' then
     select company_id into target_company_id from public.document where id = target_id;
@@ -250,7 +296,7 @@ begin
     perform 1 from public.document where id = target_id for update;
     delete from public.ai_processing_reservation where document_id = target_id;
     update public.document set status = 'uploaded', extraction_request_id = gen_random_uuid()
-    where id = target_id and superseded_at is null and status in ('processing', 'failed')
+    where id = target_id and superseded_at is null and status in ('uploaded', 'processing', 'failed')
     returning organization_id, company_id into target_organization_id, target_company_id;
   else
     update public.company_data_export

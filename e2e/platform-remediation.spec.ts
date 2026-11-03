@@ -156,7 +156,7 @@ test("SuperAdmin resolves live Platform alerts in place without mixing Company n
   ).toBe("split");
   await waitForHealthyDashboard(page);
 
-  const manual = await addBrowserTerminalProcessingJobFixture(companyId);
+  const manual = await addBrowserTerminalProcessingJobFixture(companyId, "uploaded");
   await page.reload();
   await expect(terminalProblem).toBeVisible();
   await expect(page.getByRole("link", { name: "Platform alerts, 1 unresolved" })).toBeVisible();
@@ -180,6 +180,18 @@ test("SuperAdmin resolves live Platform alerts in place without mixing Company n
   await expect.poll(() => browserSourceFileStatus(later.sourceFileId)).toBe("needs_review");
   await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseURL }]);
   await page.reload();
+  await waitForHealthyDashboard(page);
+
+  const postSplit = await addBrowserTerminalProcessingJobFixture(companyId, "split");
+  await page.reload();
+  await expect(terminalProblem).toBeVisible();
+  await terminalProblem.getByRole("button", { name: "Take over for manual review", exact: true }).click();
+  await expect(terminalProblem).toHaveCount(0);
+  await page.goto(`/companies/${companyId}/source-files/${postSplit.sourceFileId}`);
+  const continuedDocuments = page.getByRole("table", { name: "Documents", exact: true });
+  await expect(continuedDocuments.getByText("Needs review", { exact: true })).toHaveCount(1);
+  await expect.poll(() => browserSourceFileStatus(postSplit.sourceFileId)).toBe("split");
+  await page.goto("/platform/administration");
   await waitForHealthyDashboard(page);
 
   await expect.poll(async () => browserRemediationAuditActions([companyId, terminal.jobId, manual.sourceFileId])).toEqual(

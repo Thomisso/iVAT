@@ -261,7 +261,7 @@ export async function promoteBrowserSuperAdminFixture(email: string) {
 }
 
 /** Creates one failed pg-boss split job whose target can be safely retried. */
-export async function addBrowserTerminalProcessingJobFixture(companyId: string) {
+export async function addBrowserTerminalProcessingJobFixture(companyId: string, sourceStatus: "failed" | "uploaded" | "split" = "failed") {
   const environment = await browserFixtureEnvironment();
   const database = new DatabaseClient({ connectionString: environment.DATABASE_URL });
   const service = await browserFixtureClient();
@@ -293,11 +293,15 @@ export async function addBrowserTerminalProcessingJobFixture(companyId: string) 
        )
        select
          $2, organization_id, company_id, file_name, format,
-         byte_size, sha256, page_count, uploaded_by, 'failed'
+         byte_size, sha256, page_count, uploaded_by, $3::public.source_file_status
        from public.source_file
        where id = $1`,
-      [source.rows[0].id, retrySourceFileId],
+      [source.rows[0].id, retrySourceFileId, sourceStatus],
     );
+    if (sourceStatus === "split") {
+      await database.query(`insert into public.document (organization_id, company_id, source_file_id, first_page, last_page)
+        select organization_id, company_id, id, 1, 1 from public.source_file where id = $1`, [retrySourceFileId]);
+    }
     const inserted = await database.query<{ id: string }>(
       `insert into pgboss.job (
          name, data, state, retry_limit, started_on, completed_on, output

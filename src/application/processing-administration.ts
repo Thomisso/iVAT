@@ -25,17 +25,18 @@ export async function listFailedProcessingJobs(
   })) };
 }
 
-/** Resets the failed job's target before asking pg-boss to retry the same stored job. */
+/** Retries current failed work as an MFA-verified SuperAdmin. A recorded Split resumes
+ * dispatch to its existing Documents; pending AI targets get a new request generation. */
 export async function retryFailedProcessingJob(
   client: AppClient,
   jobId: string,
-): Promise<Result<null, "forbidden" | "not_retryable">> {
+): Promise<Result<null, "forbidden" | "not_retryable" | "period_locked">> {
   const { error } = await client.rpc("retry_failed_processing_job", {
     target_failed_job_id: jobId,
   });
   if (error) {
     if (error.code === "42501") return { ok: false, error: "forbidden" };
-    if (error.hint === "not_retryable") return { ok: false, error: "not_retryable" };
+    if (error.hint === "not_retryable" || error.hint === "period_locked") return { ok: false, error: error.hint };
     throw error;
   }
   return { ok: true, value: null };

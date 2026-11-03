@@ -375,6 +375,10 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
     .order("first_page");
   if (listError) throw listError;
   for (const document of documents) await jobs.send(extractJob(document.id));
+  const dispatched = await system.rpc("complete_source_processing_dispatch", {
+    target_source_file_id: file.id, target_split_request_id: file.split_request_id,
+  });
+  if (dispatched.error) throw dispatched.error;
 }
 
 async function extractDocument(

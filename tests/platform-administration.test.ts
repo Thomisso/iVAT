@@ -6,12 +6,15 @@ import { generateVatReport } from "@/application/vat-reports";
 import { createHmac } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { inject, describe, expect, it } from "vitest";
+import { runJob, splitJob } from "@/application/processing";
+import { fakeVatPayerRegistry } from "@/vat-registry/fake";
+import { fakeExchangeRates } from "@/cnb/fake";
 import { fakeAiProvider } from "@/ai/fake";
 import { asUserClient } from "@/application/client";
 import { logIn } from "@/application/auth";
 import { listAuditEvents } from "@/application/audit";
 import { exportCompanyData, getCompanyDataExportStatus } from "@/application/company-deletion";
-import { listDocuments, listExtractionVersions, getDocument, reprocessDocument } from "@/application/documents";
+import { listDocuments, listExtractionVersions, getDocument, reprocessDocument, startManualDocumentReview } from "@/application/documents";
 import {
   listPlatformOrganizationCompanies,
   getPlatformUploadLimits,
@@ -29,6 +32,7 @@ import { beginUploadBatch } from "@/application/upload-batches";
 import {
   createBoss,
   createProcessingQueues,
+  pgBossJobQueue,
 } from "@/lib/jobs";
 import {
   administratorWithCompany,
@@ -592,8 +596,6 @@ it("a legacy Split failure stays active when a locked Source refuses Platform ta
     companyId: company.companyId, fileName: "locked.png", bytes: fixtureFile("receipt.png"),
   });
   if (!source.ok) throw new Error(source.error);
-  const failed = await systemClient().from("source_file").update({ status: "failed" }).eq("id", source.value.id);
-  if (failed.error) throw failed.error;
   const [file] = await listSourceFiles(company.client, company.companyId);
   const period = pragueDate(file.uploadedAt).slice(0, 7);
   await setCurrentReportingYear(company.client, { companyId: company.companyId, year: Number(period.slice(0, 4)), filingFrequency: "monthly" });
@@ -616,6 +618,7 @@ it("a legacy Split failure stays active when a locked Source refuses Platform ta
     if (!before.ok) throw new Error(before.error);
     expect(before.value.map((job) => job.id)).toContain(id);
     expect(await takeOverFailedProcessingJob(operator.client, id)).toEqual({ ok: false, error: "period_locked" });
+    expect(await retryFailedProcessingJob(operator.client, id)).toEqual({ ok: false, error: "period_locked" });
     expect((await operator.client.rpc("take_over_failed_processing_job", { target_failed_job_id: id })).error?.hint).toBe("period_locked");
     const after = await listFailedProcessingJobs(operator.client);
     if (!after.ok) throw new Error(after.error);
@@ -623,7 +626,7 @@ it("a legacy Split failure stays active when a locked Source refuses Platform ta
     const problems = await listPlatformOperationalProblems(operator.client);
     if (!problems.ok) throw new Error(problems.error);
     expect(problems.value).toContainEqual(expect.objectContaining({ kind: "terminal_processing_job", targetIds: [source.value.id], affectedDocumentCount: 1 }));
-    expect(await listSourceFiles(company.client, company.companyId)).toContainEqual(expect.objectContaining({ id: source.value.id, status: "failed" }));
+    expect(await listSourceFiles(company.client, company.companyId)).toContainEqual(expect.objectContaining({ id: source.value.id, status: "uploaded" }));
     expect(await boss.getJobById("split-source-file", id)).toMatchObject({ state: "failed" });
     const audit = await listAuditEvents(operator.client, company.organizationId);
     expect(audit.some((event) => event.action === "source_file.manual_review_started")).toBe(false);
@@ -740,4 +743,140 @@ it("Extraction takeover invalidates a late worker and serializes with retry with
     await oldAttempt?.catch(() => undefined);
     await boss.stop();
   }
+});
+
+it.each([
+  ["split-source-file", "manual"], ["extract-document", "manual"],
+  ["split-source-file", "retry"], ["extract-document", "retry"],
+] as const)("a current %s queue failure before its first status change remains actionable for %s recovery", async (name, recovery) => {
+  const company = await administratorWithCompany("Pre-status queue expiry");
+  const operator = await superAdministrator();
+  const worker = testWorker();
+  await enableAiProcessing(company.client, worker.jobs, { companyId: company.companyId, provider: worker.ai });
+  const source = await uploadSourceFile(company.client, worker.jobs, {
+    companyId: company.companyId, fileName: "expired-before-start.png", bytes: fixtureFile("receipt.png"),
+  });
+  if (!source.ok) throw new Error(source.error);
+  if (name === "extract-document") await worker.runNextJob();
+  const [document] = await listDocuments(company.client, company.companyId, source.value.id);
+  const targetId = name === "split-source-file" ? source.value.id : document.id;
+  process.loadEnvFile(".env.local");
+  const boss = createBoss({ supervise: false }); await boss.start(); await createProcessingQueues(boss);
+  try {
+    await boss.deleteAllJobs(name);
+    const id = await boss.send(name, name === "split-source-file" ? { sourceFileId: targetId } : { documentId: targetId }, { retryLimit: 0 });
+    if (!id) throw new Error("fixture enqueue refused");
+    const [claimed] = await boss.fetch(name, { includeMetadata: true });
+    // Queue expiry/process death before the handler performs any target write.
+    await boss.fail(name, claimed, { message: "worker expired before its first CAS" });
+    const active = await listFailedProcessingJobs(operator.client);
+    if (!active.ok) throw new Error(active.error);
+    expect(active.value.map((job) => job.id)).toContain(id);
+    const problems = await listPlatformOperationalProblems(operator.client);
+    if (!problems.ok) throw new Error(problems.error);
+    expect(problems.value).toContainEqual(expect.objectContaining({ kind: "terminal_processing_job", targetIds: [targetId], affectedDocumentCount: 1 }));
+    if (recovery === "manual") {
+      expect(await takeOverFailedProcessingJob(operator.client, id)).toEqual({ ok: true, value: null });
+      if (name === "split-source-file") {
+        expect(await listSourceFiles(company.client, company.companyId)).toContainEqual(expect.objectContaining({ id: targetId, status: "needs_review" }));
+      } else {
+        expect((await getDocument(company.client, company.companyId, targetId))?.status).toBe("needs_review");
+      }
+      expect(await boss.getJobById(name, id)).toMatchObject({ state: "failed" });
+    } else {
+      expect(await retryFailedProcessingJob(operator.client, id)).toEqual({ ok: true, value: null });
+      const [retry] = await boss.fetch(name, { includeMetadata: true });
+      await worker.runNextJob({ queueJobId: id, queueRetryCount: retry.retryCount });
+      expect(await worker.runJobs()).toEqual([]);
+      await boss.complete(name, retry);
+      expect(await listDocuments(company.client, company.companyId, source.value.id)).toEqual([
+        expect.objectContaining({ status: "needs_review" }),
+      ]);
+    }
+    const resolved = await listFailedProcessingJobs(operator.client);
+    if (!resolved.ok) throw new Error(resolved.error);
+    expect(resolved.value.map((job) => job.id)).not.toContain(id);
+  } finally { await boss.stop(); }
+});
+
+it.each(["manual", "document_manual", "retry", "later_worker"] as const)("a post-Split queue dispatch failure continues existing Documents through %s without another AI Split", async (recovery) => {
+  const company = await administratorWithCompany("Split dispatch recovery");
+  const operator = await superAdministrator();
+  let splitCalls = 0;
+  const ai = fakeAiProvider({ split: () => {
+    if (++splitCalls > 1) throw new Error("the completed Split must not run again");
+    return [{ firstPage: 1, lastPage: 1 }];
+  } });
+  await enableAiProcessing(company.client, { async send() {} }, { companyId: company.companyId, provider: ai });
+  const source = await uploadSourceFile(company.client, { async send() {} }, {
+    companyId: company.companyId, fileName: "split-dispatch.png", bytes: fixtureFile("receipt.png"),
+  });
+  if (!source.ok) throw new Error(source.error);
+  process.loadEnvFile(".env.local");
+  const boss = createBoss({ supervise: false }); await boss.start(); await createProcessingQueues(boss);
+  const disconnectedSender = createBoss({ supervise: false }); await disconnectedSender.start();
+  const worker = {
+    system: systemClient(), providers: { get: () => ai },
+    jobs: pgBossJobQueue(boss), vatRegistry: fakeVatPayerRegistry(), exchangeRates: fakeExchangeRates(),
+  };
+  try {
+    await boss.deleteAllJobs("split-source-file"); await boss.deleteAllJobs("extract-document");
+    const id = await boss.send("split-source-file", { sourceFileId: source.value.id }, { retryLimit: 0 });
+    if (!id) throw new Error("fixture enqueue refused");
+    const [claimed] = await boss.fetch("split-source-file", { includeMetadata: true });
+    // The actual pg-boss sender becomes unavailable while database HTTP stays up.
+    await disconnectedSender.stop();
+    await expect(runJob({ ...worker, jobs: pgBossJobQueue(disconnectedSender) }, splitJob(source.value.id), {
+      final: true, queueJobId: id, queueRetryCount: claimed.retryCount,
+    })).rejects.toThrow();
+    await boss.fail("split-source-file", claimed, { message: "Extraction dispatch connection unavailable" });
+    expect(await listSourceFiles(company.client, company.companyId)).toContainEqual(expect.objectContaining({ id: source.value.id, status: "split" }));
+    const [document] = await listDocuments(company.client, company.companyId, source.value.id);
+    expect(document.status).toBe("uploaded");
+    const active = await listFailedProcessingJobs(operator.client);
+    if (!active.ok) throw new Error(active.error);
+    expect(active.value.map((job) => job.id)).toContain(id);
+    const problems = await listPlatformOperationalProblems(operator.client);
+    if (!problems.ok) throw new Error(problems.error);
+    expect(problems.value).toContainEqual(expect.objectContaining({ kind: "terminal_processing_job", targetIds: [source.value.id] }));
+    if (recovery === "manual" || recovery === "document_manual") {
+      expect(recovery === "manual"
+        ? await takeOverFailedProcessingJob(operator.client, id)
+        : await startManualDocumentReview(company.client, { companyId: company.companyId, documentId: document.id })
+      ).toEqual({ ok: true, value: null });
+      expect((await getDocument(company.client, company.companyId, document.id))?.status).toBe("needs_review");
+      const audit = await listAuditEvents(operator.client, company.organizationId);
+      expect(audit).toContainEqual(expect.objectContaining({ action: "document.manual_review_started", targetId: document.id, actorUserId: recovery === "manual" ? operator.userId : company.userId }));
+      if (recovery === "document_manual") {
+        expect(await reprocessDocument(company.client, { async send() {} }, { companyId: company.companyId, documentId: document.id, confirmed: true })).toEqual({ ok: true, value: null });
+        expect((await getDocument(company.client, company.companyId, document.id))?.status).toBe("uploaded");
+      }
+    } else {
+      let resumeId = id;
+      if (recovery === "retry") {
+        expect(await retryFailedProcessingJob(operator.client, id)).toEqual({ ok: true, value: null });
+      } else {
+        resumeId = (await boss.send("split-source-file", { sourceFileId: source.value.id }, { retryLimit: 0 }))!;
+      }
+      const [resumed] = await boss.fetch("split-source-file", { includeMetadata: true });
+      await runJob(worker, splitJob(source.value.id), { final: true, queueJobId: resumeId, queueRetryCount: resumed.retryCount });
+      await boss.complete("split-source-file", resumed);
+      const dispatched = await listFailedProcessingJobs(operator.client);
+      if (!dispatched.ok) throw new Error(dispatched.error);
+      expect(dispatched.value.map((job) => job.id)).not.toContain(id);
+      // Even with the Extraction still queued, successful dispatch supersedes the incident.
+      expect((await getDocument(company.client, company.companyId, document.id))?.status).toBe("uploaded");
+      const [extraction] = await boss.fetch("extract-document", { includeMetadata: true });
+      await runJob(worker, { name: "extract-document", data: { documentId: document.id } }, {
+        final: true, queueJobId: extraction.id, queueRetryCount: extraction.retryCount,
+      });
+      await boss.complete("extract-document", extraction);
+      expect((await getDocument(company.client, company.companyId, document.id))?.status).toBe("needs_review");
+    }
+    expect((await listDocuments(company.client, company.companyId, source.value.id)).map((entry) => entry.id)).toEqual([document.id]);
+    const resolved = await listFailedProcessingJobs(operator.client);
+    if (!resolved.ok) throw new Error(resolved.error);
+    expect(resolved.value.map((job) => job.id)).not.toContain(id);
+    if (recovery !== "retry") expect(await boss.getJobById("split-source-file", id)).toMatchObject({ state: "failed" });
+  } finally { await disconnectedSender.stop(); await boss.stop(); }
 });

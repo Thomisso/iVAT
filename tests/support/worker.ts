@@ -54,9 +54,9 @@ export function testWorker(
       queued.push(...delayed.splice(0));
     },
     /** Runs just the next queued job, leaving follow-up jobs queued. */
-    async runNextJob({ final = true, queueJobId }: { final?: boolean; queueJobId?: string } = {}): Promise<void> {
+    async runNextJob({ final = true, queueJobId, queueRetryCount }: { final?: boolean; queueJobId?: string; queueRetryCount?: number } = {}): Promise<void> {
       const job = queued.shift();
-      if (job) await runJob(worker, job, { final, queueJobId });
+      if (job) await runJob(worker, job, { final, queueJobId, queueRetryCount });
     },
     /** Runs every queued job; `final: false` runs them as attempts that pg-boss will retry. */
     async runJobs({ final = true } = {}): Promise<unknown[]> {
