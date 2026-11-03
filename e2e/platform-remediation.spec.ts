@@ -1,9 +1,13 @@
 import { provisionAndLogIn } from "./support/accounts";
 import { createHmac } from "node:crypto";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { listAuditEvents } from "@/application/audit";
+import { getCompany } from "@/application/companies";
+import { getCompanyDataExportStatus } from "@/application/company-deletion";
+import { listFailedProcessingJobs } from "@/application/processing-administration";
 import {
   addBrowserFailedExportAttemptFixture,
-  browserExportAttemptState,
+  browserUserClient,
   addBrowserMissingConfigurationIssueFixture,
   addBrowserTerminalProcessingJobFixture,
   addBrowserLaterSplitFailureFixture,
@@ -269,8 +273,35 @@ test("SuperAdmin closes a failed Company export attempt and sees a later indepen
   const run = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const { companyId, email } = await provisionCompanyAdministrator(page, run);
   await enrollSuperAdmin(page, email);
+  const client = await browserUserClient(await context.cookies());
+  const company = await getCompany(client, companyId);
+  const { data: { user }, error } = await client.auth.getUser();
+  if (!company || !user || error) throw new Error("Browser's authenticated Company context is missing");
+  const attemptState = async (attempt: { exportId: string; jobId: string }) => {
+    const receipt = await getCompanyDataExportStatus(client, { companyId, exportId: attempt.exportId });
+    const failures = await listFailedProcessingJobs(client);
+    if (!failures.ok) throw new Error(failures.error);
+    const audit = await listAuditEvents(client, company.organizationId);
+    return {
+      receipt,
+      activeFailures: failures.value.filter((failure) => failure.id === attempt.jobId),
+      closure: audit.filter((event) => event.targetId === attempt.exportId && event.action === "company.export_attempt_closed"),
+    };
+  };
+  const closedAttempt = (attempt: { exportId: string; jobId: string }) => ({
+    receipt: { ok: true, value: "failed" },
+    activeFailures: [],
+    closure: [expect.objectContaining({
+      actorUserId: user.id, targetId: attempt.exportId,
+      payload: { job_id: attempt.jobId, retry_count: 0 },
+    })],
+  });
   const first = await addBrowserFailedExportAttemptFixture(companyId);
-  const before = await browserExportAttemptState(first.exportId, first.jobId);
+  expect(await attemptState(first)).toEqual({
+    receipt: { ok: true, value: "failed" },
+    activeFailures: [expect.objectContaining({ id: first.jobId, targetId: first.exportId, retryCount: 0 })],
+    closure: [],
+  });
   await page.goto("/platform/administration");
   const problem = page.locator(".operational-problem").filter({ hasText: first.exportId });
   await expect(problem).toBeVisible();
@@ -279,11 +310,16 @@ test("SuperAdmin closes a failed Company export attempt and sees a later indepen
   await expect(page.getByRole("link", { name: "Platform alerts, 1 unresolved" })).toBeVisible();
   await expect(page.locator("#failed-jobs").getByRole("row").filter({ hasText: first.exportId }).getByRole("button", { name: "Close failed export attempt", exact: true })).toBeVisible();
   await problem.getByRole("button", { name: "Close failed export attempt", exact: true }).click();
-  await expect.poll(() => browserExportAttemptState(first.exportId, first.jobId)).toEqual({ ...before, closed_retry_count: 0 });
+  await expect.poll(() => attemptState(first)).toEqual(closedAttempt(first));
   await waitForHealthyDashboard(page);
   await expect(page.locator("#failed-jobs").getByRole("row").filter({ hasText: first.exportId })).toHaveCount(0);
 
   const later = await addBrowserFailedExportAttemptFixture(companyId);
+  expect(await attemptState(later)).toEqual({
+    receipt: { ok: true, value: "failed" },
+    activeFailures: [expect.objectContaining({ id: later.jobId, targetId: later.exportId, retryCount: 0 })],
+    closure: [],
+  });
   await page.reload();
   await expect(page.getByRole("link", { name: "Platform alerts, 1 unresolved" })).toBeVisible();
   await expect(page.locator("#failed-jobs").getByRole("row").filter({ hasText: later.exportId })).toHaveCount(1);
@@ -292,11 +328,8 @@ test("SuperAdmin closes a failed Company export attempt and sees a later indepen
   await page.reload();
   const row = page.locator("#failed-jobs").getByRole("row").filter({ hasText: later.exportId });
   await row.getByRole("button", { name: "Uzavřít neúspěšný pokus exportu", exact: true }).click();
-  await expect.poll(async () => (await browserExportAttemptState(later.exportId, later.jobId)).closed_retry_count).toBe(0);
-  await expect.poll(() => browserRemediationAuditActions([first.exportId, later.exportId])).toEqual([
-    "company.export_attempt_closed", "company.export_attempt_closed",
-  ]);
-  expect(await browserExportAttemptState(first.exportId, first.jobId)).toEqual({ ...before, closed_retry_count: 0 });
+  await expect.poll(() => attemptState(later)).toEqual(closedAttempt(later));
+  expect(await attemptState(first)).toEqual(closedAttempt(first));
   await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseURL }]);
   await page.reload();
   await waitForHealthyDashboard(page);

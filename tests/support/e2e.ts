@@ -7,6 +7,7 @@ import { uploadSourceFile, getSourceFile } from "@/application/source-files";
 import { listDocuments } from "@/application/documents";
 import { fixtureFile, heicFixture, multiSheetWorkbookFile, selectFixtureFiles } from "./files";
 import { createClient } from "@supabase/supabase-js";
+import { createServerClient } from "@supabase/ssr";
 import { Client as DatabaseClient } from "pg";
 import type { Database } from "@/lib/database.types";
 import { addLegacyRateBreakdownVersionFixture } from "./rate-breakdown-history";
@@ -25,6 +26,16 @@ async function browserFixtureClient() {
   return createClient<Database>(environment.NEXT_PUBLIC_SUPABASE_URL, environment.SUPABASE_SECRET_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
+}
+
+/** Observes application queries under the browser's real Auth/MFA session. */
+export async function browserUserClient(cookies: { name: string; value: string }[]) {
+  const environment = await browserFixtureEnvironment();
+  return asUserClient(createServerClient<Database>(
+    environment.NEXT_PUBLIC_SUPABASE_URL,
+    environment.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    { cookies: { getAll: () => cookies, setAll: () => {} } },
+  ));
 }
 
 /** Runs in Playwright's Node process; privileged credentials never enter the browser. */
@@ -588,21 +599,5 @@ export async function addBrowserFailedExportAttemptFixture(companyId: string) {
   } catch (error) {
     await database.query("rollback");
     throw error;
-  } finally { await database.end(); }
-}
-
-/** Durable archive/queue state, independent of a refreshed or cleared alert. */
-export async function browserExportAttemptState(exportId: string, jobId: string) {
-  const environment = await browserFixtureEnvironment();
-  const database = new DatabaseClient({ connectionString: environment.DATABASE_URL });
-  await database.connect();
-  try {
-    const result = await database.query<{
-      status: string; snapshot: unknown; completed_at: Date | null;
-      byte_size: string | null; sha256: string | null; state: string; closed_retry_count: number | null;
-    }>(`select export.status, export.snapshot, export.completed_at, export.byte_size, export.sha256,
-      job.state::text, (job.data ->> 'closedExportRetryCount')::integer as closed_retry_count
-      from public.company_data_export export join pgboss.job job on job.id = $2 where export.id = $1`, [exportId, jobId]);
-    return result.rows[0];
   } finally { await database.end(); }
 }
