@@ -717,7 +717,8 @@
     "invalid_source_range": "Vyberte skutečný rozsah stran v originálu.",
     "ai_configuration_unavailable": "AI není zapnuté nebo nemá použitelnou konfiguraci. Aktuální hodnoty a schválení zůstaly beze změny.",
     "processing_dispatch_failed": "AI se nepodařilo zařadit ke zpracování. Hodnoty a historie jsou zachované; před opakováním ověřte aktuální stav kontroly.",
-    "allowance_exhausted": "Po započtení čekajícího a probíhajícího zpracování nezbývá volný limit úspěšného AI zpracování. Hodnoty a schválení zůstaly beze změny."
+    "allowance_exhausted": "Po započtení čekajícího a probíhajícího zpracování nezbývá volný limit úspěšného AI zpracování. Hodnoty a schválení zůstaly beze změny.",
+    "not_extracted": "Doklad zatím nemá verzi vytěžení, kterou lze ověřit."
   },
   "aiUsage": {
     "platformNav": "Využití AI na platformě",
@@ -1625,6 +1626,36 @@
       "intro": "Otevřete jednorázový odkaz a poté výslovně ověřte svůj e-mail pro nastavení nového hesla. Odkaz platí jednu hodinu. Dvoufaktorová ochrana zůstává povinná: použijte svůj autentizátor, nebo jej obnovte pomocí připraveného záložního kódu.",
       "action": "Otevřít obnovu hesla",
       "ignore": "Pokud jste o obnovu nežádali, můžete tento e-mail ignorovat."
+    }
+  },
+  "bankAccountCheck": {
+    "title": "Ověření bankovního účtu",
+    "refresh": "Znovu ověřit platební účet",
+    "currentInformation": "Ověření popisuje aktuální údaje registru. Neprokazuje zveřejnění v době vystavení dokladu. U vydaného dokladu jde o příjmový účet vaší společnosti.",
+    "notRefreshed": "Pro aktuální údaje dokladu ještě nebylo provedeno ruční ověření. Dosavadní zjištění zůstávají zobrazena.",
+    "checkedAt": "Ověřeno: {time}",
+    "history": "Historie ověření bankovního účtu",
+    "inputs": "DIČ dodavatele: {supplier}; platební účet: {account}",
+    "version": "Verze vytěžení {version}",
+    "olderData": "Dřívější údaje dokladu; neověřuje aktuální platební účet",
+    "viewingRecordedVersion": "Prohlížíte zaznamenaná zjištění verze vytěžení {version}. Datovaná ověření bankovního účtu najdete v aktuálním zobrazení.",
+    "outcomes": {
+      "published": "Platební účet je zveřejněn pro dodavatele.",
+      "unpublished": "Platební účet byl ověřen a není zveřejněn pro dodavatele.",
+      "unavailable": "Registr nebyl dostupný. Toto ověření nepotvrdilo zveřejnění účtu.",
+      "unverified": "Zveřejnění účtu pro tohoto dodavatele se nepodařilo ověřit.",
+      "missing": "Platební účet není zadán; zveřejnění se nepodařilo ověřit.",
+      "inconsistent": "Tuzemské číslo účtu a IBAN si odporují; zveřejnění zůstává neurčené.",
+      "unrecognized": "Platební údaj není rozpoznaným bankovním účtem; zveřejnění zůstává neurčené."
+    },
+    "ownOutcomes": {
+      "published": "Příjmový účet vaší společnosti je zveřejněn v registru.",
+      "unpublished": "Příjmový účet vaší společnosti byl ověřen a není zveřejněn v registru.",
+      "unavailable": "Registr nebyl dostupný. Toto ověření nepotvrdilo zveřejnění účtu.",
+      "unverified": "Zveřejnění příjmového účtu vaší společnosti se nepodařilo ověřit.",
+      "missing": "Platební účet není zadán; zveřejnění se nepodařilo ověřit.",
+      "inconsistent": "Tuzemské číslo účtu a IBAN si odporují; zveřejnění zůstává neurčené.",
+      "unrecognized": "Platební údaj není rozpoznaným bankovním účtem; zveřejnění zůstává neurčené."
     }
   }
 }

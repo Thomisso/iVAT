@@ -717,7 +717,8 @@
     "invalid_source_range": "Select an actual page range within the original.",
     "ai_configuration_unavailable": "AI is not enabled or has no usable configuration. Your current values and approval are unchanged.",
     "processing_dispatch_failed": "AI could not be queued. Your values and history are preserved; check the current review status before trying again.",
-    "allowance_exhausted": "No successful AI allowance remains after queued and running work. Your values and approval are unchanged."
+    "allowance_exhausted": "No successful AI allowance remains after queued and running work. Your values and approval are unchanged.",
+    "not_extracted": "The Document has no Extraction Version to check yet."
   },
   "aiUsage": {
     "platformNav": "Platform AI usage",
@@ -1625,6 +1626,36 @@
       "intro": "Open this single-use link, then explicitly verify your email to choose a new password. The link expires after one hour. MFA protection remains required: use your authenticator or restore it with a prepared backup code.",
       "action": "Open password recovery",
       "ignore": "If you did not request this, you can ignore this email."
+    }
+  },
+  "bankAccountCheck": {
+    "title": "Bank Account Check",
+    "refresh": "Check payment account again",
+    "currentInformation": "This check describes current registry information. It does not prove publication when the Document was issued. For an outgoing Document, this is your Company’s receiving account.",
+    "notRefreshed": "No manual refresh for the current Document data. Existing findings remain visible.",
+    "checkedAt": "Checked: {time}",
+    "history": "Bank Account Check history",
+    "inputs": "Supplier VAT ID: {supplier}; payment account: {account}",
+    "version": "Extraction Version {version}",
+    "olderData": "Earlier Document data; does not verify the current payment account",
+    "viewingRecordedVersion": "You are viewing the recorded findings of Extraction Version {version}. Open the current view for dated Bank Account Checks.",
+    "outcomes": {
+      "published": "The payment account is published for the supplier.",
+      "unpublished": "The payment account was checked and is not published for the supplier.",
+      "unavailable": "The registry was unavailable. This check did not verify publication.",
+      "unverified": "Publication could not be verified for this supplier.",
+      "missing": "No payment account is entered; publication could not be verified.",
+      "inconsistent": "The domestic account number and IBAN conflict; publication remains undetermined.",
+      "unrecognized": "The payment identifier is not a recognized bank account; publication remains undetermined."
+    },
+    "ownOutcomes": {
+      "published": "Your Company’s receiving account is published in the registry.",
+      "unpublished": "Your Company’s receiving account was checked and is not published in the registry.",
+      "unavailable": "The registry was unavailable. This check did not verify publication.",
+      "unverified": "Publication of your Company’s receiving account could not be verified.",
+      "missing": "No payment account is entered; publication could not be verified.",
+      "inconsistent": "The domestic account number and IBAN conflict; publication remains undetermined.",
+      "unrecognized": "The payment identifier is not a recognized bank account; publication remains undetermined."
     }
   }
 }
