@@ -855,6 +855,7 @@
     "action": "Action",
     "block": "Block",
     "unblock": "Unblock",
+    "manualTakeover": "Take over for manual review",
     "failedJobs": "Failed processing jobs",
     "failedJobsIntro": "Terminal pg-boss failures remain here until retried. Retry safely resets a stuck target and re-enqueues its stored job.",
     "noFailedJobs": "No terminal processing failures.",

@@ -49,7 +49,7 @@ async function main() {
   await createProcessingQueues(boss);
   for (const name of PROCESSING_JOB_NAMES) {
     await boss.work(name, { includeMetadata: true }, async ([job]: JobWithMetadata<ProcessingJob["data"]>[]) => {
-      const attempt = { final: job.retryCount >= job.retryLimit };
+      const attempt = { final: job.retryCount >= job.retryLimit, queueJobId: job.id };
       await runJob(worker, { name, data: job.data } as ProcessingJob, attempt);
     });
   }

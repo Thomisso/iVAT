@@ -542,3 +542,22 @@ export async function makeBrowserAiProviderUnavailableFixture(companyId: string)
       where id = (select configuration_id from public.company_ai_configuration where company_id = $1)`, [companyId]);
   } finally { await database.end(); }
 }
+
+/** A distinct later failed request for a manually recovered Source File. */
+export async function addBrowserLaterSplitFailureFixture(sourceFileId: string) {
+  const environment = await browserFixtureEnvironment();
+  const database = new DatabaseClient({ connectionString: environment.DATABASE_URL });
+  await database.connect();
+  try {
+    await database.query("begin");
+    await database.query("update public.source_file set status = 'failed', split_request_id = gen_random_uuid() where id = $1", [sourceFileId]);
+    const inserted = await database.query<{ id: string }>(`insert into pgboss.job (
+      name, data, state, retry_limit, started_on, completed_on, output
+    ) values ('split-source-file', jsonb_build_object('sourceFileId', $1::uuid), 'failed', 0,
+      clock_timestamp(), clock_timestamp(), '{"message":"later browser request failed"}'::jsonb) returning id`, [sourceFileId]);
+    await database.query("commit");
+    return { jobId: inserted.rows[0].id, sourceFileId };
+  } catch (error) {
+    await database.query("rollback"); throw error;
+  } finally { await database.end(); }
+}

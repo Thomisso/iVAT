@@ -855,6 +855,7 @@
     "action": "Akce",
     "block": "Zablokovat",
     "unblock": "Odblokovat",
+    "manualTakeover": "Převzít k ruční kontrole",
     "failedJobs": "Neúspěšné úlohy zpracování",
     "failedJobsIntro": "Trvale neúspěšné úlohy pg-boss zde zůstávají do opakování. Opakování bezpečně obnoví zaseknutý cíl a znovu zařadí uloženou úlohu.",
     "noFailedJobs": "Žádné trvale neúspěšné úlohy zpracování.",

@@ -4,6 +4,7 @@ import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import {
   addBrowserMissingConfigurationIssueFixture,
   addBrowserTerminalProcessingJobFixture,
+  addBrowserLaterSplitFailureFixture,
   browserRemediationAuditActions,
   browserSourceFileStatus,
   promoteBrowserSuperAdminFixture,
@@ -155,11 +156,38 @@ test("SuperAdmin resolves live Platform alerts in place without mixing Company n
   ).toBe("split");
   await waitForHealthyDashboard(page);
 
-  await expect.poll(async () => browserRemediationAuditActions([companyId, terminal.jobId])).toEqual(
+  const manual = await addBrowserTerminalProcessingJobFixture(companyId);
+  await page.reload();
+  await expect(terminalProblem).toBeVisible();
+  await expect(page.getByRole("link", { name: "Platform alerts, 1 unresolved" })).toBeVisible();
+  await terminalProblem.getByRole("button", { name: "Take over for manual review", exact: true }).click();
+  await expect.poll(() => browserSourceFileStatus(manual.sourceFileId)).toBe("needs_review");
+  await waitForHealthyDashboard(page);
+  await expect(page.locator("#failed-jobs").getByRole("row").filter({ hasText: manual.sourceFileId })).toHaveCount(0);
+  await page.goto(`/companies/${companyId}/source-files/${manual.sourceFileId}`);
+  await expect(page.getByRole("button", { name: "Create one Document manually", exact: true })).toBeVisible();
+
+  const later = await addBrowserLaterSplitFailureFixture(manual.sourceFileId);
+  await page.goto("/platform/administration");
+  await expect(terminalProblem).toBeVisible();
+  await expect(page.getByRole("link", { name: "Platform alerts, 1 unresolved" })).toBeVisible();
+  await expect(page.locator("#failed-jobs").getByRole("row").filter({ hasText: manual.sourceFileId })).toHaveCount(1);
+  if (!baseURL) throw new Error("Playwright baseURL is required");
+  await context.addCookies([{ name: "NEXT_LOCALE", value: "cs", url: baseURL }]);
+  await page.reload();
+  const czechProblem = page.locator(".operational-problem").filter({ hasText: manual.sourceFileId });
+  await czechProblem.getByRole("button", { name: "Převzít k ruční kontrole", exact: true }).click();
+  await expect.poll(() => browserSourceFileStatus(later.sourceFileId)).toBe("needs_review");
+  await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseURL }]);
+  await page.reload();
+  await waitForHealthyDashboard(page);
+
+  await expect.poll(async () => browserRemediationAuditActions([companyId, terminal.jobId, manual.sourceFileId])).toEqual(
     expect.arrayContaining([
       "company.ai_configuration_assigned",
       "company.ai_processing_allowance_changed",
       "processing.job_retried",
+      "source_file.manual_review_started",
     ]),
   );
 });

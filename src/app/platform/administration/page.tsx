@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import {
   retryFailedProcessingJobAction,
+  takeOverFailedProcessingJobAction,
   setPlatformOrganizationBlockedAction,
 } from "@/app/actions";
 import {
@@ -196,13 +197,16 @@ export default async function PlatformAdministrationPage() {
                   key: "action",
                   header: t("action"),
                   render: (job) => (
-                    <CommandButton
-                      action={retryFailedProcessingJobAction}
-                      fields={{ jobId: job.id }}
-                      size="sm"
-                    >
-                      {t("retry")}
-                    </CommandButton>
+                    <div className="processing-job-actions">
+                      <CommandButton action={retryFailedProcessingJobAction} fields={{ jobId: job.id }} size="sm">
+                        {t("retry")}
+                      </CommandButton>
+                      {job.name !== "complete-company-export" && (
+                        <CommandButton action={takeOverFailedProcessingJobAction} fields={{ jobId: job.id }} size="sm">
+                          {t("manualTakeover")}
+                        </CommandButton>
+                      )}
+                    </div>
                   ),
                 },
               ]}
