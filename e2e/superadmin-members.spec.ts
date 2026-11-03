@@ -69,6 +69,27 @@ test("native bootstrap SuperAdmin manages real tenant users without appearing in
   await expect(page.getByRole("heading", { name: "Save your recovery codes" })).toBeVisible();
   await page.getByRole("link", { name: "I saved the codes" }).click();
 
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const origin of [
+      "/platform/administration#operational-problems-title",
+      "/platform/ai-usage?from=2026-10-01&to=2026-10-31&groupBy=company",
+      `/platform/companies/${companyId}/members?scope=organization`,
+      `/platform/companies/${companyId}/history`,
+    ]) {
+      await page.goto(origin);
+      await page.getByRole("button", { name: "Open account menu" }).click();
+      await page.getByRole("menuitem", { name: "Security", exact: true }).click();
+      const back = page.getByRole("link", { name: "Return to work", exact: true });
+      await expect(back).toHaveAttribute("href", origin);
+      await page.reload();
+      await back.click();
+      await expect(page).toHaveURL(`${baseURL}${origin}`);
+      await expect(page.getByRole("navigation", { name: "Platform navigation" })).toBeVisible();
+    }
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+
   for (const locale of ["en", "cs"] as const) {
     await context.addCookies([{ name: "NEXT_LOCALE", value: locale, url: baseURL }]);
     await page.goto(`/organizations/${organization.id}/members`);

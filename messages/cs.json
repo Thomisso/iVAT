@@ -909,6 +909,7 @@
     "success": "Heslo bylo změněno. Zde zůstáváte přihlášeni."
   },
   "mfa": {
+    "returnToWork": "Zpět k práci",
     "securityTitle": "Zabezpečení",
     "authenticatorTitle": "Autentizační aplikace",
     "authenticatorEnabled": "Dvoufázové ověření je zapnuté.",
