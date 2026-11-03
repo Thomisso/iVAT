@@ -2,6 +2,7 @@
 
 import { defineSourceDocuments, startManualSourceReview, excludeSourceFile, restoreSourceFile } from "@/application/source-files";
 
+import { refreshBankAccountCheck } from "@/application/bank-account-checks";
 import { refresh } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -1023,4 +1024,14 @@ export async function excludeSourceFileAction(_state: FormState, data: FormData)
 
 export async function restoreSourceFileAction(_state: FormState, data: FormData): Promise<FormState> {
   return settled(await restoreSourceFile(await requireUserClient(), { companyId: field(data, "companyId"), sourceFileId: field(data, "sourceFileId") }));
+}
+
+
+export async function refreshBankAccountCheckAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const result = await refreshBankAccountCheck(await requireUserClient(), {
+    companyId: field(formData, "companyId"), documentId: field(formData, "documentId"),
+  }, configuredVatPayerRegistry());
+  if (!result.ok) return { error: result.error, values: {} };
+  refresh();
+  return { error: null, values: {} };
 }

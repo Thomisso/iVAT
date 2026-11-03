@@ -191,6 +191,74 @@ isOneToOne: false
                   Relationships: [
 
                   ]
+                },"bank_account_check": {
+                  Row: {
+                    "checked_at": string,"checked_by": string | null,"company_id": string,"document_id": string,"extraction_version_id": string,"id": string,"organization_id": string,"outcome": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "checked_at"?: string,"checked_by"?: string | null,"company_id": string,"document_id": string,"extraction_version_id": string,"id"?: string,"organization_id": string,"outcome": string
+                  }
+                  Update: {
+                    "checked_at"?: string,"checked_by"?: string | null,"company_id"?: string,"document_id"?: string,"extraction_version_id"?: string,"id"?: string,"organization_id"?: string,"outcome"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "bank_account_check_company_id_fkey"
+      columns: ["company_id"]
+isOneToOne: false
+      referencedRelation: "company"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "bank_account_check_document_id_fkey"
+      columns: ["document_id"]
+isOneToOne: false
+      referencedRelation: "document"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "bank_account_check_document_id_fkey"
+      columns: ["document_id"]
+isOneToOne: false
+      referencedRelation: "document_duplicate_warning"
+      referencedColumns: ["document_id"]
+    },{
+      foreignKeyName: "bank_account_check_document_id_fkey"
+      columns: ["document_id"]
+isOneToOne: false
+      referencedRelation: "document_overview"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "bank_account_check_document_id_fkey"
+      columns: ["document_id"]
+isOneToOne: false
+      referencedRelation: "vat_report_document"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "bank_account_check_extraction_version_id_fkey"
+      columns: ["extraction_version_id"]
+isOneToOne: false
+      referencedRelation: "document_overview"
+      referencedColumns: ["extraction_version_id"]
+    },{
+      foreignKeyName: "bank_account_check_extraction_version_id_fkey"
+      columns: ["extraction_version_id"]
+isOneToOne: false
+      referencedRelation: "extraction_version"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "bank_account_check_extraction_version_id_fkey"
+      columns: ["extraction_version_id"]
+isOneToOne: false
+      referencedRelation: "vat_report_document"
+      referencedColumns: ["extraction_version_id"]
+    },{
+      foreignKeyName: "bank_account_check_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organization"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"company": {
                   Row: {
                     "ai_processing_allowance": number | null,"ai_processing_enabled": boolean,"ai_provider": string | null,"ai_region": string | null,"city": string,"created_at": string,"created_by": string | null,"data_revision": number,"deleted_at": string | null,"deleted_by": string | null,"first_name": string | null,"house_number": string | null,"ico": string,"id": string,"last_name": string | null,"name": string,"organization_id": string,"orientation_number": string | null,"person_type": Database["public"]['Enums']["person_type"],"postal_code": string,"street": string,"street_name": string | null,"vat_id": string
@@ -1086,6 +1154,9 @@ isOneToOne: false
                            },
 "record_ai_usage":
 { Args: { "target_company_id": string,"target_configuration_id": string,"target_input_tokens": number,"target_job_id": string,"target_job_name": string,"target_model": string,"target_operation": string,"target_organization_id": string,"target_output_tokens": number,"target_provider": string,"target_provider_cost_usd"?: number }; Returns: undefined
+                           },
+"record_bank_account_check":
+{ Args: { "check_outcome": string,"checked_version_id": string,"target_document_id": string }; Returns: string
                            },
 "record_split":
 { Args: { "source_ranges": Json,"target_source_file_id": string,"target_split_request_id": string }; Returns: undefined
