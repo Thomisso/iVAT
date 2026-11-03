@@ -881,7 +881,10 @@ it.each(["manual", "document_manual", "retry", "later_worker"] as const)("a post
   } finally { await disconnectedSender.stop(); await boss.stop(); }
 });
 
-it.each(["needs_review", "approved", "uploaded"] as const)("a migrated Split with a legacy %s Document preserves dispatch resolution across child reprocessing", async (status) => {
+it.each([
+  ["needs_review", "complete"], ["approved", "complete"],
+  ["needs_review", "fail"], ["approved", "fail"], ["uploaded", "pending"],
+] as const)("a migrated Split with a legacy %s Document permits %s child recovery without changing Source history", async (status, outcome) => {
   const company = await administratorWithCompany("Legacy Split dispatch");
   const operator = await superAdministrator();
   const worker = testWorker();
@@ -943,20 +946,46 @@ it.each(["needs_review", "approved", "uploaded"] as const)("a migrated Split wit
       expect(await retryFailedProcessingJob(operator.client, oldId)).toEqual({ ok: false, error: "not_retryable" });
       expect(await takeOverFailedProcessingJob(operator.client, oldId)).toEqual({ ok: false, error: "not_recoverable" });
       const [current] = await boss.fetch("extract-document", { includeMetadata: true });
-      await boss.fail("extract-document", current, { message: "new Extraction request expired" });
-      const failed = await listFailedProcessingJobs(operator.client);
-      if (!failed.ok) throw new Error(failed.error);
-      expect(failed.value.map((job) => job.id)).toContain(current.id);
-      expect(failed.value.map((job) => job.id)).not.toContain(oldId);
-      const problems = await listPlatformOperationalProblems(operator.client);
-      if (!problems.ok) throw new Error(problems.error);
-      expect(problems.value.flatMap((problem) => problem.targetIds)).not.toContain(source.value.id);
-      expect(problems.value.flatMap((problem) => problem.targetIds)).toContain(document.id);
+      const provider = outcome === "fail" ? fakeAiProvider({ extract: () => {
+        throw new Error("new legacy Extraction failed");
+      } }) : worker.ai;
+      const execute = () => runJob({
+        system: systemClient(), providers: { get: () => provider }, jobs: pgBossJobQueue(boss),
+        vatRegistry: fakeVatPayerRegistry(), exchangeRates: fakeExchangeRates(),
+      }, { name: "extract-document", data: { documentId: document.id } }, {
+        final: true, queueJobId: current.id, queueRetryCount: current.retryCount,
+      });
+      if (outcome === "complete") {
+        await execute();
+        await boss.complete("extract-document", current);
+        expect((await getDocument(company.client, company.companyId, document.id))?.status).toBe("needs_review");
+        const settled = await listFailedProcessingJobs(operator.client);
+        if (!settled.ok) throw new Error(settled.error);
+        expect(settled.value.map((job) => job.id)).not.toContain(oldId);
+        expect(settled.value.map((job) => job.id)).not.toContain(current.id);
+      } else {
+        await expect(execute()).rejects.toThrow("new legacy Extraction failed");
+        await boss.fail("extract-document", current, { message: "new legacy Extraction failed" });
+        expect((await getDocument(company.client, company.companyId, document.id))?.status).toBe("failed");
+        const failed = await listFailedProcessingJobs(operator.client);
+        if (!failed.ok) throw new Error(failed.error);
+        expect(failed.value.map((job) => job.id)).toContain(current.id);
+        expect(failed.value.map((job) => job.id)).not.toContain(oldId);
+        const problems = await listPlatformOperationalProblems(operator.client);
+        if (!problems.ok) throw new Error(problems.error);
+        expect(problems.value.flatMap((problem) => problem.targetIds)).not.toContain(source.value.id);
+        expect(problems.value.flatMap((problem) => problem.targetIds)).toContain(document.id);
+      }
     }
     expect(await getSourceFile(company.client, company.companyId, source.value.id)).toEqual(before.source);
     expect(await getVatReport(company.client, company.companyId, period)).toEqual(before.report);
     expect(await getPeriodLock(company.client, company.companyId, period)).toEqual(before.lock);
-    expect(await listExtractionVersions(company.client, company.companyId, document.id)).toEqual(before.versions);
+    const versions = await listExtractionVersions(company.client, company.companyId, document.id);
+    if (outcome === "complete") {
+      expect(versions.map((version) => version.version)).toEqual([1, 2]);
+      expect(versions[0]).toEqual(before.versions[0]);
+      expect(versions[1].author).toEqual({ kind: "ai" });
+    } else expect(versions).toEqual(before.versions);
     expect(await boss.getJobById("split-source-file", oldId)).toMatchObject({ state: "failed" });
   } finally { await database.end(); await boss.stop(); }
 });

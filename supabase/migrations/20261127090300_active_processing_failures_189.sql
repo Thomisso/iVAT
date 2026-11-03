@@ -50,6 +50,9 @@ begin
   if new.source_file_id is null or (new.status = 'uploaded' and new.superseded_at is null) then return new; end if;
   update public.source_file source set split_dispatch_request_id = source.split_request_id
   where source.id = new.source_file_id and source.status = 'split'
+    -- Legacy completion is projected from child generations without touching a
+    -- retained Source snapshot. Its unrelated children may still progress.
+    and source.split_requested_at is not null
     and source.split_dispatch_request_id is distinct from source.split_request_id
     and not exists (select 1 from public.document document where document.source_file_id = source.id
       and document.superseded_at is null and document.status = 'uploaded');
