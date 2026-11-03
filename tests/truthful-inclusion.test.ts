@@ -32,7 +32,7 @@ it("does not label a historical Approved purchase as included when the live Rule
     exclusionReason: "incomplete_data",
     exclusionDetail: "counterparty_vat_id_required",
     mapping: {
-      vatReturnLines: ["40"], controlStatementSection: "B.3",
+      vatReturnLines: ["40"], controlStatementSection: "B.2",
       vatReturnUnknownReason: null, controlStatementUnknownReason: null,
     },
   }));
@@ -45,7 +45,7 @@ it("does not label a historical Approved purchase as included when the live Rule
   const [row] = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets.Attention, { defval: "" });
   expect(row).toEqual(expect.objectContaining({
     "Live inclusion": "excluded", "Exclusion reason": "Required reporting data is incomplete.", "Exclusion detail": "A valid counterparty VAT ID is required for reporting.",
-    "Mapping status": "proposed", "VAT Return line": "40", "Control Statement section": "B.3",
+    "Mapping status": "proposed", "VAT Return line": "40", "Control Statement section": "B.2",
   }));
 });
 
@@ -85,7 +85,7 @@ it("keeps an Approved Document with only a bank advisory included even when it a
     const [row] = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[sheet], { defval: "" });
     expect(row).toEqual(expect.objectContaining({
       "Live inclusion": "included", "Exclusion reason": "", "Mapping status": "included",
-      "VAT Return line": "40", "Control Statement section": "B.3", "Blocking findings": "",
+      "VAT Return line": "40", "Control Statement section": "B.2", "Blocking findings": "",
       "Advisory findings": "warning: missing_bank_account (payment.bankAccount)",
     }));
   }
