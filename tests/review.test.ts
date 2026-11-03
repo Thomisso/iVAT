@@ -5,6 +5,7 @@ import { describe, expect, inject, it } from "vitest";
 import { listAuditEvents } from "@/application/audit";
 import {
   approveDocument,
+  createManualDocument,
   listDeferredClaimPeriods,
   correctDocument,
   getDocument,
@@ -481,6 +482,132 @@ describe("assigning an incoming Document to a Reporting Period", () => {
 });
 
 describe("approving and rejecting a Document", () => {
+  it("approves a domestic Document at exactly CZK 10,000 without a supplier VAT ID and includes it in a ready VAT Report", async () => {
+    const administrator = await administratorWithCompany();
+    const user = await companyMember(administrator);
+    const payload: ExtractionPayload = {
+      ...SAMPLE_EXTRACTION,
+      supplier: { ...SAMPLE_EXTRACTION.supplier, vatId: null },
+      rateBreakdown: [{ rate: 21, netAmount: "8264.46", vatAmount: "1735.54" }],
+      totals: { netAmount: "8264.46", vatAmount: "1735.54", grossAmount: "10000.00" },
+    };
+    const created = await createManualDocument(user.client, { companyId: administrator.companyId, payload });
+    if (!created.ok) throw new Error(created.error);
+    const input = { companyId: administrator.companyId, documentId: created.value.id };
+    expect((await listExtractionVersions(user.client, input.companyId, input.documentId))[0].findings)
+      .toEqual([{ field: "supplier.vatId", severity: "warning", code: "missing_supplier_vat_id" }]);
+    expect(await approveDocument(user.client, { ...input, version: 1 })).toEqual({ ok: true, value: null });
+    expect((await getDocument(user.client, input.companyId, input.documentId))?.status).toBe("approved");
+    expect((await listCompanyDocuments(user.client, input.companyId))[0].reporting.included).toBe(true);
+    const period = { companyId: input.companyId, period: "2026-10" };
+    const readiness = await getReportingPeriodReadiness(user.client, period);
+    expect(readiness.ok && readiness.value.ready).toBe(true);
+    expect((await generateVatReport(user.client, period)).ok).toBe(true);
+    const report = await getVatReport(user.client, input.companyId, period.period);
+    expect(report?.result.excludedDocuments).toEqual([]);
+    expect(report?.result.controlStatement).toMatchObject([{ section: "B.3", counterpartyVatId: null, documentIds: [input.documentId] }]);
+    expect(await finalizeVatReport(administrator.client, { ...period, confirmed: true })).toEqual({ ok: true, value: null });
+  });
+
+  it("projects an obsolete domestic VAT ID error as the current advisory without rewriting its Extraction Version", async () => {
+    const document = await documentInReview();
+    const historical = [{ field: "supplier.vatId", severity: "error", code: "counterparty_vat_id_required" }];
+    const saved = await document.client.rpc("correct_document", {
+      target_document_id: document.documentId, based_on_version: 1,
+      payload: { ...SAMPLE_EXTRACTION, supplier: { ...SAMPLE_EXTRACTION.supplier, vatId: null } },
+      findings: historical,
+    });
+    expect(saved.error).toBeNull();
+    expect((await listExtractionVersions(document.client, document.companyId, document.documentId))[1].findings)
+      .toEqual([{ field: "supplier.vatId", severity: "warning", code: "missing_supplier_vat_id" }]);
+    expect(await approveDocument(document.client, { ...document, version: 2 })).toEqual({ ok: true, value: null });
+    const period = { companyId: document.companyId, period: "2026-10" };
+    const readiness = await getReportingPeriodReadiness(document.client, period);
+    expect(readiness.ok && readiness.value.ready).toBe(true);
+    expect((await generateVatReport(document.client, period)).ok).toBe(true);
+    expect(await finalizeVatReport(document.client, { ...period, confirmed: true })).toEqual({ ok: true, value: null });
+    expect(await listExtractionVersions(document.client, document.companyId, document.documentId)).toHaveLength(2);
+  });
+
+  describe.each(["incoming", "outgoing"] as const)("%s domestic VAT ID boundary", (direction) => {
+    it.each([
+      ["CZK", "8264.46", "1735.54", "10000.00", false, true],
+      ["CZK", "8264.47", "1735.54", "10000.01", false, false],
+      ["CZK", "-8264.46", "-1735.54", "-10000.00", true, true],
+      ["CZK", "-8264.47", "-1735.54", "-10000.01", true, false],
+      ["EUR", "330.58", "69.42", "400.00", false, true],
+      ["EUR", "330.59", "69.42", "400.01", false, false],
+    ] as const)("uses %s gross %s + %s = %s (Credit Note %s) consistently through approval", async (currency, netAmount, vatAmount, grossAmount, creditNote, allowed) => {
+      const administrator = await administratorWithCompany();
+      const user = await companyMember(administrator);
+      const payload: ExtractionPayload = {
+        ...SAMPLE_EXTRACTION, direction, currency,
+        documentType: creditNote ? "credit_note" : "invoice",
+        originalDocumentNumber: creditNote ? "ORIGINAL-186" : null,
+        supplier: direction === "incoming" ? { ...SAMPLE_EXTRACTION.supplier, vatId: null } : SAMPLE_EXTRACTION.customer,
+        customer: direction === "outgoing" ? { ...SAMPLE_EXTRACTION.supplier, vatId: null } : SAMPLE_EXTRACTION.customer,
+        rateBreakdown: [{ rate: 21, netAmount, vatAmount }],
+        totals: { netAmount, vatAmount, grossAmount },
+      };
+      const created = await createManualDocument(user.client, { companyId: administrator.companyId, payload }, fakeExchangeRates("25.00"));
+      if (!created.ok) throw new Error(created.error);
+      const input = { companyId: administrator.companyId, documentId: created.value.id };
+      const [version] = await listExtractionVersions(user.client, input.companyId, input.documentId);
+      expect(version.findings.some(finding => finding.code === "counterparty_vat_id_required")).toBe(!allowed);
+      if (currency === "EUR") expect(version.payload.czkConversion?.totals.grossAmount).toBe(allowed ? "10000.00" : "10000.25");
+      expect(await approveDocument(user.client, { ...input, version: 1 })).toEqual(allowed
+        ? { ok: true, value: null } : { ok: false, error: "counterparty_vat_id_required" });
+      expect((await getDocument(user.client, input.companyId, input.documentId))?.status).toBe(allowed ? "approved" : "needs_review");
+      const [overview] = await listCompanyDocuments(user.client, input.companyId);
+      expect(overview.reporting.included).toBe(allowed);
+      const readiness = await getReportingPeriodReadiness(user.client, { companyId: input.companyId, period: "2026-10" });
+      expect(readiness.ok && readiness.value.ready).toBe(allowed);
+      if (!allowed) {
+        // The transition must refuse even when a direct client omits every finding.
+        const saved = await user.client.rpc("correct_document", { target_document_id: input.documentId, based_on_version: 1, payload: version.payload, findings: [] });
+        expect(saved.error).toBeNull();
+        const bypass = await user.client.rpc("approve_document", { target_document_id: input.documentId, reviewed_version: 2 });
+        expect(bypass.error).toMatchObject({ code: "P0001", hint: "counterparty_vat_id_required" });
+        expect((await getDocument(user.client, input.companyId, input.documentId))?.status).toBe("needs_review");
+      }
+    });
+  });
+
+  it.each(["domestic_reverse_charge", "eu_acquisition_of_goods", "eu_received_service"] as const)("retains the mandatory supplier VAT ID for %s below the ordinary threshold", async proposedVatRegime => {
+    const administrator = await administratorWithCompany();
+    const payload: ExtractionPayload = { ...SAMPLE_EXTRACTION, proposedVatRegime, reverseChargeCode: "4", supplier: { ...SAMPLE_EXTRACTION.supplier, vatId: null } };
+    const created = await createManualDocument(administrator.client, { companyId: administrator.companyId, payload });
+    if (!created.ok) throw new Error(created.error);
+    expect(await approveDocument(administrator.client, { companyId: administrator.companyId, documentId: created.value.id, version: 1 }))
+      .toEqual({ ok: false, error: "counterparty_vat_id_required" });
+    const bypass = await administrator.client.rpc("correct_document", { target_document_id: created.value.id, based_on_version: 1, payload, findings: [] });
+    expect(bypass.error).toBeNull();
+    const approval = await administrator.client.rpc("approve_document", { target_document_id: created.value.id, reviewed_version: 2 });
+    expect(approval.error).toMatchObject({ code: "P0001", hint: "counterparty_vat_id_required" });
+  });
+
+  it.each([
+    ["incoming", "CZ27082441"],
+    ["outgoing", "CZ27082441"],
+    ["incoming", "bad"],
+  ] as const)("refuses a supplied-invalid %s counterparty VAT ID %s even with empty client findings", async (direction, vatId) => {
+    const administrator = await administratorWithCompany();
+    const user = await companyMember(administrator);
+    const payload: ExtractionPayload = {
+      ...SAMPLE_EXTRACTION, direction,
+      supplier: direction === "incoming" ? { ...SAMPLE_EXTRACTION.supplier, vatId } : SAMPLE_EXTRACTION.customer,
+      customer: direction === "outgoing" ? { ...SAMPLE_EXTRACTION.supplier, vatId } : SAMPLE_EXTRACTION.customer,
+    };
+    const saved = await user.client.rpc("create_manual_document", {
+      target_company_id: administrator.companyId, payload, findings: [],
+    });
+    expect(saved.error).toBeNull();
+    const documentId = saved.data!;
+    const approval = await user.client.rpc("approve_document", { target_document_id: documentId, reviewed_version: 1 });
+    expect(approval.error).toMatchObject({ code: "P0001" });
+    expect((await getDocument(user.client, administrator.companyId, documentId))?.status).toBe("needs_review");
+  });
+
   it("refuses a predecessor draft whose cached blocker count predates the VAT Regime requirement", async () => {
     const document = await documentInReview();
     const period = { companyId: document.companyId, period: "2026-10" };

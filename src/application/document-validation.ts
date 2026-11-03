@@ -1,5 +1,5 @@
 import type { ExtractionPayload } from "./extraction-payload";
-import { missingRequiredReportingVatId } from "./vat-rules";
+import { domesticCounterpartyVatIdOptional, missingRequiredReportingVatId } from "./vat-rules";
 
 export type ValidationFindingSeverity = "error" | "warning";
 
@@ -139,14 +139,6 @@ function identifierFindings(payload: ExtractionPayload): ValidationFinding[] {
 
 function requiredFieldFindings(payload: ExtractionPayload): ValidationFinding[] {
   const findings: ValidationFinding[] = [];
-  const grossCents = amountCents(payload.totals.grossAmount);
-  const requiresCounterpartyVatId =
-    payload.proposedVatRegime === "domestic_reverse_charge" ||
-    payload.proposedVatRegime === "eu_acquisition_of_goods" ||
-    payload.proposedVatRegime === "eu_received_service" ||
-    (payload.proposedVatRegime === "domestic" &&
-      grossCents !== null &&
-      Math.abs(grossCents) > 1_000_000);
   const counterpartyName =
     payload.direction === "incoming"
       ? "supplier"
@@ -155,7 +147,8 @@ function requiredFieldFindings(payload: ExtractionPayload): ValidationFinding[] 
         : null;
   if (
     counterpartyName &&
-    ((requiresCounterpartyVatId && !payload[counterpartyName].vatId) || missingRequiredReportingVatId(payload))
+    (missingRequiredReportingVatId(payload)
+      || ((payload.proposedVatRegime === "eu_acquisition_of_goods" || payload.proposedVatRegime === "eu_received_service") && !payload[counterpartyName].vatId))
   ) {
     findings.push(
       error(
@@ -163,6 +156,9 @@ function requiredFieldFindings(payload: ExtractionPayload): ValidationFinding[] 
         "counterparty_vat_id_required",
       ),
     );
+  }
+  if (payload.direction === "incoming" && !payload.supplier.vatId && domesticCounterpartyVatIdOptional(payload)) {
+    findings.push(warning("supplier.vatId", "missing_supplier_vat_id"));
   }
   if (
     payload.proposedVatRegime === "domestic_reverse_charge" &&
@@ -303,7 +299,9 @@ export function currentValidationFindings(
     ? validateDocument(payload, CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA)
       .find((finding) => finding.code === "total_gross_amount_mismatch")
     : undefined;
-  const current = findings.map<ValidationFinding>((finding) => historicalGrossError && finding.code === "total_gross_amount_mismatch"
+  const current = findings
+    .filter((finding) => finding.code !== "counterparty_vat_id_required" && finding.code !== "missing_supplier_vat_id")
+    .map<ValidationFinding>((finding) => historicalGrossError && finding.code === "total_gross_amount_mismatch"
     ? grossWarning ?? { ...finding, severity: "warning" } : finding)
     .map(finding => requiredFields.find(required => required.code === finding.code && required.field === finding.field) ?? finding);
   const requiredRegime = !payload.proposedVatRegime
