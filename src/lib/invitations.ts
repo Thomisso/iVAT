@@ -1,4 +1,5 @@
 import "server-only";
+import { serverSupabaseFetch } from "./supabase/server-transport";
 import { getTranslations } from "next-intl/server";
 import { supabaseInvitationAuthentication } from "@/auth/supabase-invitation-authentication";
 import { smtpInvitationMailer } from "@/mail/smtp-invitation-mailer";
@@ -12,7 +13,7 @@ export function configuredInvitationUrls() {
 export function invitationAuthentication() {
   const secretKey = process.env.SUPABASE_SECRET_KEY;
   if (!secretKey) throw new Error("Missing server Auth administration key");
-  return supabaseInvitationAuthentication({ url: supabaseUrl, publishableKey: supabasePublishableKey, secretKey });
+  return supabaseInvitationAuthentication({ url: supabaseUrl, publishableKey: supabasePublishableKey, fetch: serverSupabaseFetch, secretKey });
 }
 
 export async function invitationMailer() {

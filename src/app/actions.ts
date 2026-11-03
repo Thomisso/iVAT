@@ -807,9 +807,12 @@ export async function replaceInvitationAction(_state: FormState, formData: FormD
 
 export async function loadInvitationAction(formData: FormData) {
   const client = await createRequestClient();
-  const onboarding = await getInvitationOnboarding(client, field(formData, "token"));
+  const result = await getInvitationOnboarding(client, field(formData, "token"));
+  if (!result.ok) return result;
+  const onboarding = result.value;
   const user = await currentUser(client).then(availableAuthValue);
   return {
+    ok: true as const,
     onboarding,
     authenticated: Boolean(user && onboarding.status === "valid" && user.email.toLowerCase() === onboarding.email),
     wrongAccount: Boolean(user && onboarding.status === "valid" && user.email.toLowerCase() !== onboarding.email),
@@ -817,7 +820,7 @@ export async function loadInvitationAction(formData: FormData) {
 }
 
 export async function signOutInvitationAction() {
-  await (await createRequestClient()).auth.signOut({ scope: "local" });
+  return logOut(await createRequestClient(), "local");
 }
 
 export async function acceptInvitationAction(_state: FormState, formData: FormData): Promise<FormState> {

@@ -1,12 +1,9 @@
 import { createHash } from "node:crypto";
-import { spawn, type ChildProcess } from "node:child_process";
-import { readFileSync, openSync, closeSync } from "node:fs";
-import { setTimeout as delay } from "node:timers/promises";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { expect, test } from "@playwright/test";
 import { provisionBrowserAccountFixture } from "../tests/support/e2e";
 import { totp } from "../tests/support/totp";
-import { supabaseHttpGateway } from "../tests/support/supabase-http-gateway";
+import { startInternalAuthTransportWeb } from "./support/internal-auth-transport";
 
 // This focused harness owns a Next dev process. Run separately from the ordinary
 // acceptance runner: AUTH_TRANSPORT_E2E=1 SUPABASE_SLOT=<own slot> npx playwright
@@ -14,37 +11,16 @@ import { supabaseHttpGateway } from "../tests/support/supabase-http-gateway";
 test.skip(process.env.AUTH_TRANSPORT_E2E !== "1", "Requires the isolated real-Auth transport harness");
 const baseURL = "http://127.0.0.1:3103";
 test.use({ baseURL });
-let web: ChildProcess;
-let gateway: Awaited<ReturnType<typeof supabaseHttpGateway>>;
+let harness: Awaited<ReturnType<typeof startInternalAuthTransportWeb>>;
+let gateway: Awaited<ReturnType<typeof startInternalAuthTransportWeb>>["gateway"];
 let environment: Record<string, string>;
-let log: number;
 
 test.beforeAll(async () => {
-  environment = Object.fromEntries(readFileSync(".env.local", "utf8").split("\n").filter(Boolean).map(line => {
-    const separator = line.indexOf("=");
-    return [line.slice(0, separator), line.slice(separator + 1)];
-  }));
-  gateway = await supabaseHttpGateway(environment.NEXT_PUBLIC_SUPABASE_URL);
-  const brokenPublicUrl = environment.NEXT_PUBLIC_SUPABASE_URL.replace("http:", "https:");
-  await expect(fetch(`${brokenPublicUrl}/auth/v1/settings`)).rejects.toThrow();
-  log = openSync("/tmp/ivat-195-transport-next.log", "w");
-  web = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev", "-p", "3103"], {
-    env: { ...process.env, ...environment, NEXT_PUBLIC_SUPABASE_URL: brokenPublicUrl, SUPABASE_INTERNAL_URL: gateway.url,
-      APP_ORIGIN: baseURL, AUTH_REDIRECT_ALLOWLIST: `${baseURL}/auth/callback`, NEXT_TELEMETRY_DISABLED: "1" },
-    stdio: ["ignore", log, log],
-  });
-  await expect.poll(async () => {
-    if (web.exitCode !== null) throw new Error("Transport Next server exited; see /tmp/ivat-195-transport-next.log");
-    return fetch(`${baseURL}/login`).then(response => response.status).catch(() => 0);
-  }, { timeout: 60_000 }).toBe(200);
+  harness = await startInternalAuthTransportWeb(195, baseURL);
+  ({ gateway, environment } = harness);
 });
 
-test.afterAll(async () => {
-  web?.kill("SIGTERM");
-  if (web && web.exitCode === null) await Promise.race([new Promise(resolve => web.once("exit", resolve)), delay(5_000)]);
-  gateway?.close();
-  if (log !== undefined) closeSync(log);
-});
+test.afterAll(async () => { await harness?.close(); });
 
 test("the old public cookie refreshes through private transport, survives an outage and supports browser password/login/logout", async ({ context, page }) => {
   const email = `transport-browser-${crypto.randomUUID()}@example.test`;

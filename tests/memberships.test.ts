@@ -1,3 +1,4 @@
+import { succeeded } from "./support/results";
 import { invitationAuthenticationFixture } from "./support/invitations";
 import { withPostgrestRowLimit } from "./support/postgrest";
 import { createHash } from "node:crypto";
@@ -122,7 +123,7 @@ describe("Membership invitations", () => {
     })).toEqual({ ok: true, value: null });
     const token = new URLSearchParams(new URL(mail.sent[0].acceptUrl).hash.slice(1)).get("token")!;
 
-    expect(await getInvitationOnboarding(anonymousClient(), token)).toEqual({
+    expect(succeeded(await getInvitationOnboarding(anonymousClient(), token))).toEqual({
       status: "valid",
       email,
       existingUser: false,
@@ -162,7 +163,7 @@ describe("Membership invitations", () => {
     const token = new URLSearchParams(new URL(mail.sent[0].acceptUrl).hash.slice(1)).get("token")!;
     const invitee = anonymousClient();
 
-    expect(await getInvitationOnboarding(invitee, token)).toEqual({
+    expect(succeeded(await getInvitationOnboarding(invitee, token))).toEqual({
       status: "valid",
       email,
       existingUser: true,
@@ -191,7 +192,7 @@ describe("Membership invitations", () => {
     const firstToken = new URLSearchParams(new URL(firstMail.sent[0].acceptUrl).hash.slice(1)).get("token")!;
 
     await expireInvitation(firstToken);
-    expect(await getInvitationOnboarding(anonymousClient(), firstToken)).toEqual({ status: "expired" });
+    expect(succeeded(await getInvitationOnboarding(anonymousClient(), firstToken))).toEqual({ status: "expired" });
 
     const secondMail = capturingMailer();
     expect(await inviteMember(administrator.client, secondMail.mailer, {
@@ -202,7 +203,7 @@ describe("Membership invitations", () => {
       acceptUrl: "http://127.0.0.1:3100/invitations/accept",
     })).toEqual({ ok: true, value: null });
     const token = new URLSearchParams(new URL(secondMail.sent[0].acceptUrl).hash.slice(1)).get("token")!;
-    expect(await getInvitationOnboarding(anonymousClient(), token)).toEqual({
+    expect(succeeded(await getInvitationOnboarding(anonymousClient(), token))).toEqual({
       status: "valid",
       email,
       existingUser: false,
@@ -217,7 +218,7 @@ describe("Membership invitations", () => {
   });
 
   it("reports invalid, used and expired invitation links through the onboarding interface", async () => {
-    expect(await getInvitationOnboarding(anonymousClient(), "not-an-invitation"))
+    expect(succeeded(await getInvitationOnboarding(anonymousClient(), "not-an-invitation")))
       .toEqual({ status: "invalid" });
 
     const administrator = await administratorWithCompany();
@@ -233,7 +234,7 @@ describe("Membership invitations", () => {
     const usedToken = new URLSearchParams(new URL(usedMail.sent[0].acceptUrl).hash.slice(1)).get("token")!;
     const usedUser = await invitedUser(usedEmail);
     expect(await acceptInvitation(usedUser.client, usedToken)).toEqual({ ok: true, value: null });
-    expect(await getInvitationOnboarding(anonymousClient(), usedToken)).toEqual({ status: "used" });
+    expect(succeeded(await getInvitationOnboarding(anonymousClient(), usedToken))).toEqual({ status: "used" });
 
     const expiredEmail = uniqueEmail();
     const expiredMail = capturingMailer();
@@ -246,7 +247,7 @@ describe("Membership invitations", () => {
     })).toEqual({ ok: true, value: null });
     const expiredToken = new URLSearchParams(new URL(expiredMail.sent[0].acceptUrl).hash.slice(1)).get("token")!;
     await expireInvitation(expiredToken);
-    expect(await getInvitationOnboarding(anonymousClient(), expiredToken)).toEqual({ status: "expired" });
+    expect(succeeded(await getInvitationOnboarding(anonymousClient(), expiredToken))).toEqual({ status: "expired" });
   });
 
   it("targets one Membership, refuses a Company Administrator's inherited-scope writes and preserves remaining Effective Access", async () => {
