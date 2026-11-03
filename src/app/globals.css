@@ -2351,6 +2351,7 @@ select:disabled {
   gap: var(--space-3);
   margin: 0;
 }
+.scoped-member-management > .member-scope-filter { margin-bottom: var(--space-5); }
 .member-management { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-6); }
 .member-management > section { min-width: 0; }
 .member-access-identity > strong, .member-invitation-row > strong { min-width: 0; overflow-wrap: anywhere; }
