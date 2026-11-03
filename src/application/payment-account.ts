@@ -46,4 +46,3 @@ export function paymentAccountIdentity(payment: ExtractionPayload["payment"]): P
   if (new Set(accounts).size > 1) return { outcome: "inconsistent", field: "payment.bankAccount" };
   return { outcome: "recognized", account: accounts[0]!, field: supplied.at(-1)!.field };
 }
-
