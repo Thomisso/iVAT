@@ -147,7 +147,7 @@ test("real Auth, Company, Organization and Platform surfaces share one accessibl
       href: "/platform/administration",
       navigation: "Platform navigation",
       heading: "Platform administration",
-      content: "main > section",
+      content: ".settings-section-nav a",
       menu: "Open account menu",
     },
   ] as const;
@@ -203,7 +203,7 @@ test("real Auth, Company, Organization and Platform surfaces share one accessibl
       expect(bounds.x).toBeGreaterThanOrEqual(assignmentBox.x);
       expect(bounds.x + bounds.width).toBeLessThanOrEqual(assignmentBox.x + assignmentBox.width);
     }
-    if (width === 1440) expect((await configurationCard.boundingBox())!.width).toBeGreaterThan(800);
+    if (width === 1440) expect((await configurationCard.boundingBox())!.width).toBeGreaterThan(700);
     await testInfo.attach(`platform-ai-${width}`, { body: await configurationCard.screenshot({ path: testInfo.outputPath(`platform-ai-${width}.png`) }), contentType: "image/png" });
   }
   await unlimited.check();

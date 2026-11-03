@@ -10,6 +10,7 @@ import { AiConfigurationForm } from "./ai-configuration-form";
 import { AiConfigurationAssignmentForm } from "./ai-configuration-assignment-form";
 import { AiModelPricesForm } from "./ai-model-prices-form";
 import { AiProcessingAllowanceForm } from "./ai-processing-allowance-form";
+import { PlatformPageLayout } from "../platform-page-layout";
 
 export default async function PlatformAiSettingsPage() {
   const client = await requireUserClient();
@@ -31,11 +32,7 @@ export default async function PlatformAiSettingsPage() {
 
   return (
     <>
-      <main className="dashboard platform-page">
-        <header>
-          <h1>{t("title")}</h1>
-          <p className="iv-muted">{t("intro")}</p>
-        </header>
+      <PlatformPageLayout title={t("title")} description={t("intro")}>
         <section className="panel platform-provider">
           <h2>{t("configurations")}</h2>
           <p className="iv-muted">{t("configurationsIntro")}</p>
@@ -116,7 +113,7 @@ export default async function PlatformAiSettingsPage() {
             </div>
           )}
         </section>
-      </main>
+      </PlatformPageLayout>
     </>
   );
 }

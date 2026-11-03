@@ -24,7 +24,7 @@ import type { UploadNotification } from "@/application/upload-batches";
 import { WorkSectionSwitch } from "@/components/work-section-switch";
 import { AccountActions, AppShell, ContextNavigation } from "@/components/app-shell";
 import { CommandButton } from "@/components/command-button";
-import { AccountMenu, Menu, ShellIcon } from "@/components/shell-controls";
+import { AccountMenu, Menu, ShellIcon, settingsIconPath } from "@/components/shell-controls";
 
 type Destination = "overview" | "upload" | "documents" | "vat" | "settings";
 
@@ -33,7 +33,7 @@ const destinations: Array<{ key: Destination; icon: string; suffix: string }> = 
   { key: "upload", icon: "M12 16V4m-5 5 5-5 5 5M4 15v6h16v-6", suffix: "/upload" },
   { key: "documents", icon: "M6 3h8l4 4v14H6V3Zm8 0v5h5M9 12h6M9 16h6", suffix: "/documents" },
   { key: "vat", icon: "M5 4h14v16H5V4Zm3 4h8M8 12h3m2 0h3m-8 4h3m2 0h3", suffix: "/vat" },
-  { key: "settings", icon: "M9.5 3h5l.6 2.4 2 .8 2.1-1.2 2.5 4.3-1.8 1.6.2 2.2 1.8 1.6-2.5 4.3-2.1-1.2-2 .8-.6 2.4h-5l-.6-2.4-2-.8-2.1 1.2-2.5-4.3 1.8-1.6-.2-2.2-1.8-1.6L4.8 5l2.1 1.2 2-.8L9.5 3Zm2.5 6a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z", suffix: "/settings" },
+  { key: "settings", icon: settingsIconPath, suffix: "/settings" },
 ];
 
 function activeDestination(pathname: string, companyId: string): Destination {
