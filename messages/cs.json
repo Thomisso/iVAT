@@ -134,6 +134,10 @@
     "requestAgain": "Vyžádat nový e-mail pro obnovu",
     "loading": "Kontroluji odkaz pro obnovu…"
   },
+  "availability": {
+    "title": "Dočasně nedostupné",
+    "retry": "Zkusit znovu"
+  },
   "auth": {
     "email": "E-mail",
     "password": "Heslo",
@@ -596,6 +600,8 @@
     "google_sign_in_failed": "Přihlášení přes Google se nezdařilo. Zkuste to prosím znovu.",
     "invalid_credentials": "Nesprávný e-mail nebo heslo.",
     "login_rate_limited": "Příliš mnoho pokusů o přihlášení. Chvíli počkejte a zkuste to znovu.",
+    "mfa_status_failed": "Stav dvoufázového ověření se nyní nepodařilo ověřit. Zkuste to prosím za chvíli znovu.",
+    "auth_unavailable": "Ověření přihlášení je dočasně nedostupné. Zkuste to prosím za chvíli znovu.",
     "login_unavailable": "Přihlášení se nyní nepodařilo ověřit. Zkuste to prosím za chvíli znovu.",
     "organization_blocked": "Tato organizace je zablokovaná. Obraťte se na podporu platformy.",
     "invalid_upload_limits": "Limity nahrávání musí být kladná celá čísla; zdrojový soubor může mít nejvýše 50 MiB.",

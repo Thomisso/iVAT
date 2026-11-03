@@ -2,11 +2,12 @@ import type { NextRequest } from "next/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const auth = vi.hoisted(() => ({
-  verifyEmailOtp: vi.fn(async () => ({ ok: true as const, value: null })),
+  verifyEmailOtp: vi.fn<(...args: unknown[]) => Promise<{ ok: boolean; value?: null; error?: string }>>(async () => ({ ok: true, value: null })),
+  completeGoogleSignIn: vi.fn<(...args: unknown[]) => Promise<{ ok: boolean; value?: null; error?: string }>>(),
 }));
 
 vi.mock("@/application/auth", () => ({
-  completeGoogleSignIn: vi.fn(),
+  completeGoogleSignIn: auth.completeGoogleSignIn,
   verifyEmailOtp: auth.verifyEmailOtp,
   verifyInvitationEmailOtp: vi.fn(),
 }));
@@ -25,7 +26,8 @@ afterEach(() => {
   else process.env.APP_ORIGIN = originalAppOrigin;
   if (originalAllowlist === undefined) delete process.env.AUTH_REDIRECT_ALLOWLIST;
   else process.env.AUTH_REDIRECT_ALLOWLIST = originalAllowlist;
-  vi.clearAllMocks();
+  vi.resetAllMocks();
+  auth.verifyEmailOtp.mockResolvedValue({ ok: true, value: null });
 });
 
 describe("Auth callback route", () => {
@@ -65,6 +67,16 @@ describe("Auth callback route", () => {
     expect(response.status).toBe(503);
     expect(response.headers.get("location")).toBeNull();
     expect(auth.verifyEmailOtp).not.toHaveBeenCalled();
+  });
+
+  it.each(["oauth", "email"])("preserves temporary unavailability for a %s callback on the trusted public origin", async kind => {
+    process.env.APP_ORIGIN = "https://app.example.test";
+    process.env.AUTH_REDIRECT_ALLOWLIST = "https://app.example.test/auth/callback";
+    auth.verifyEmailOtp.mockResolvedValueOnce({ ok: false, error: "auth_unavailable" });
+    auth.completeGoogleSignIn.mockResolvedValueOnce({ ok: false, error: "auth_unavailable" });
+    const nextUrl = new URL(`http://gateway/auth/callback?${kind === "oauth" ? "code=code" : "token_hash=token&type=signup"}`);
+    const response = await GET({ url: nextUrl.toString(), nextUrl } as NextRequest);
+    expect(response.headers.get("location")).toBe("https://app.example.test/auth/unavailable");
   });
 
 });
