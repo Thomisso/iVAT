@@ -586,6 +586,39 @@ describe("approving and rejecting a Document", () => {
     expect(approval.error).toMatchObject({ code: "P0001", hint: "counterparty_vat_id_required" });
   });
 
+  it.each(["eu_acquisition_of_goods", "eu_received_service"] as const)("retains the outgoing %s customer VAT ID requirement without adding reporting support", async proposedVatRegime => {
+    const administrator = await administratorWithCompany();
+    const user = await companyMember(administrator);
+    const payload: ExtractionPayload = {
+      ...SAMPLE_EXTRACTION, direction: "outgoing", proposedVatRegime,
+      supplier: SAMPLE_EXTRACTION.customer,
+      customer: { ...SAMPLE_EXTRACTION.supplier, vatId: null },
+    };
+    const created = await createManualDocument(user.client, { companyId: administrator.companyId, payload });
+    if (!created.ok) throw new Error(created.error);
+    const input = { companyId: administrator.companyId, documentId: created.value.id };
+    expect((await listExtractionVersions(user.client, input.companyId, input.documentId))[0].findings)
+      .toContainEqual({ field: "customer.vatId", severity: "error", code: "counterparty_vat_id_required" });
+    expect(await approveDocument(user.client, { ...input, version: 1 }))
+      .toEqual({ ok: false, error: "counterparty_vat_id_required" });
+    expect((await getDocument(user.client, input.companyId, input.documentId))?.status).toBe("needs_review");
+
+    const saved = await user.client.rpc("correct_document", {
+      target_document_id: input.documentId, based_on_version: 1, payload, findings: [],
+    });
+    expect(saved.error).toBeNull();
+    const bypass = await user.client.rpc("approve_document", { target_document_id: input.documentId, reviewed_version: 2 });
+    expect(bypass.error).toMatchObject({ code: "P0001", hint: "counterparty_vat_id_required" });
+    expect((await getDocument(user.client, input.companyId, input.documentId))?.status).toBe("needs_review");
+
+    expect(await correctDocument(user.client, { ...input, basedOnVersion: 2, payload: {
+      ...payload, customer: { ...payload.customer, vatId: "DE123456789" },
+    } })).toEqual({ ok: true, value: { version: 3 } });
+    expect(await approveDocument(user.client, { ...input, version: 3 })).toEqual({ ok: true, value: null });
+    const [overview] = await listCompanyDocuments(user.client, input.companyId);
+    expect(overview.reporting).toMatchObject({ included: false, exclusionReason: "manual_classification_required" });
+  });
+
   it.each([
     ["incoming", "CZ27082441"],
     ["outgoing", "CZ27082441"],

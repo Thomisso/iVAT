@@ -24,9 +24,12 @@ returns boolean language sql stable security definer set search_path = '' as $$
   select coalesce((payload ->> 'direction') in ('incoming', 'outgoing') and (
     (payload ->> 'proposedVatRegime') = 'domestic_reverse_charge'
       and coalesce(case payload ->> 'direction' when 'incoming' then payload #>> '{supplier,vatId}' else payload #>> '{customer,vatId}' end, '') !~ '^CZ[0-9]{8,10}$'
-    or (payload ->> 'direction') = 'incoming'
-      and (payload ->> 'proposedVatRegime') in ('eu_acquisition_of_goods', 'eu_received_service')
-      and coalesce(payload #>> '{supplier,vatId}', '') !~ '^[A-Z]{2}[A-Z0-9+*.]{2,12}$'
+    or (payload ->> 'proposedVatRegime') in ('eu_acquisition_of_goods', 'eu_received_service') and (
+      ((payload ->> 'direction') = 'incoming'
+        and coalesce(payload #>> '{supplier,vatId}', '') !~ '^[A-Z]{2}[A-Z0-9+*.]{2,12}$')
+      or ((payload ->> 'direction') = 'outgoing'
+        and nullif(payload #>> '{customer,vatId}', '') is null)
+    )
     or (payload ->> 'proposedVatRegime') = 'domestic' and (
       (nullif(case payload ->> 'direction' when 'incoming' then payload #>> '{supplier,vatId}' else payload #>> '{customer,vatId}' end, '') is null
         and not private.domestic_counterparty_vat_id_optional(payload))
