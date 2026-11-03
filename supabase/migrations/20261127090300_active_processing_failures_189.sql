@@ -91,7 +91,11 @@ returns boolean language sql stable security definer set search_path = '' as $$
         and (source.status in ('uploaded', 'processing', 'failed') or (
           source.status = 'split' and source.split_dispatch_request_id is distinct from source.split_request_id
           and exists (select 1 from public.document pending where pending.source_file_id = source.id
-            and pending.superseded_at is null and pending.status = 'uploaded')
+            and pending.superseded_at is null and pending.status = 'uploaded'
+            -- A dated child request cannot belong to an unknown pre-migration
+            -- Split dispatch. It is later Extraction work, even on a locked
+            -- Source whose completion metadata must remain untouched.
+            and (source.split_requested_at is not null or pending.extraction_requested_at is null))
         )) and company.deleted_at is null
         and case when job_data ? 'processingRequestId'
           then job_data ->> 'processingRequestId' = source.split_request_id::text

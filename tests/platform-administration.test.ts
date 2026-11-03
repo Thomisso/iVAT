@@ -2,7 +2,7 @@ import { withPostgrestRowLimit } from "./support/postgrest";
 import { Client as DatabaseClient } from "pg";
 import { pragueDate } from "@/application/reporting-periods";
 import { setCurrentReportingYear } from "@/application/companies";
-import { generateVatReport } from "@/application/vat-reports";
+import { generateVatReport, getVatReport, getPeriodLock } from "@/application/vat-reports";
 import { createHmac } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { inject, describe, expect, it } from "vitest";
@@ -14,7 +14,7 @@ import { asUserClient } from "@/application/client";
 import { logIn } from "@/application/auth";
 import { listAuditEvents } from "@/application/audit";
 import { exportCompanyData, getCompanyDataExportStatus } from "@/application/company-deletion";
-import { listDocuments, listExtractionVersions, getDocument, reprocessDocument, startManualDocumentReview } from "@/application/documents";
+import { listDocuments, listExtractionVersions, getDocument, reprocessDocument, startManualDocumentReview, approveDocument } from "@/application/documents";
 import {
   listPlatformOrganizationCompanies,
   getPlatformUploadLimits,
@@ -27,7 +27,7 @@ import {
   retryFailedProcessingJob,
 } from "@/application/processing-administration";
 import { listPlatformOperationalProblems } from "@/application/operational-problems";
-import { listSourceFiles, uploadSourceFile, retrySplit } from "@/application/source-files";
+import { listSourceFiles, uploadSourceFile, retrySplit, getSourceFile } from "@/application/source-files";
 import { beginUploadBatch } from "@/application/upload-batches";
 import {
   createBoss,
@@ -879,4 +879,82 @@ it.each(["manual", "document_manual", "retry", "later_worker"] as const)("a post
     expect(resolved.value.map((job) => job.id)).not.toContain(id);
     if (recovery !== "retry") expect(await boss.getJobById("split-source-file", id)).toMatchObject({ state: "failed" });
   } finally { await disconnectedSender.stop(); await boss.stop(); }
+});
+
+it.each(["needs_review", "approved", "uploaded"] as const)("a migrated Split with a legacy %s Document preserves dispatch resolution across child reprocessing", async (status) => {
+  const company = await administratorWithCompany("Legacy Split dispatch");
+  const operator = await superAdministrator();
+  const worker = testWorker();
+  await enableAiProcessing(company.client, worker.jobs, { companyId: company.companyId, provider: worker.ai });
+  const source = await uploadSourceFile(company.client, worker.jobs, {
+    companyId: company.companyId, fileName: "legacy-dispatch.png", bytes: fixtureFile("receipt.png"),
+  });
+  if (!source.ok) throw new Error(source.error);
+  if (status === "uploaded") await worker.runNextJob();
+  else expect(await worker.runJobs()).toEqual([]);
+  const [document] = await listDocuments(company.client, company.companyId, source.value.id);
+  if (status === "approved") {
+    expect(await approveDocument(company.client, { companyId: company.companyId, documentId: document.id, version: 1 })).toEqual({ ok: true, value: null });
+  }
+  const period = "2026-09";
+  expect((await generateVatReport(company.client, { companyId: company.companyId, period })).ok).toBe(true);
+  process.loadEnvFile(".env.local");
+  const boss = createBoss({ supervise: false }); await boss.start(); await createProcessingQueues(boss);
+  const database = new DatabaseClient({ connectionString: inject("databaseUrl") }); await database.connect();
+  try {
+    await boss.deleteAllJobs("extract-document");
+    // Simulate the actual migration: both Source markers and the existing child
+    // request boundary are unknown; no new trigger has observed its past progress.
+    await database.query("update public.source_file set split_requested_at = null, split_dispatch_request_id = null where id = $1", [source.value.id]);
+    await database.query("update public.document set extraction_requested_at = null where id = $1", [document.id]);
+    const inserted = await database.query<{ id: string }>(`insert into pgboss.job (name, data, state, started_on, completed_on)
+      values ('split-source-file', jsonb_build_object('sourceFileId', $1::uuid), 'failed', '2000-01-01', '2000-01-01') returning id`, [source.value.id]);
+    const oldId = inserted.rows[0].id;
+    // A retained Source snapshot is protected independently of this Document's
+    // October accounting work. Recovery must not backfill that locked Source.
+    await database.query(`update public.vat_report set result = jsonb_set(result, '{sourceFilesReadinessSource}',
+      jsonb_build_array(jsonb_build_object('sourceFileId', $3::uuid))) where company_id = $1 and period = $2`, [company.companyId, period, source.value.id]);
+    await database.query(`insert into public.period_lock (company_id, organization_id, period, vat_report_id, locked_by)
+      select company_id, organization_id, period, id, $3 from public.vat_report where company_id = $1 and period = $2`, [company.companyId, period, company.userId]);
+    const before = {
+      source: await getSourceFile(company.client, company.companyId, source.value.id),
+      report: await getVatReport(company.client, company.companyId, period),
+      lock: await getPeriodLock(company.client, company.companyId, period),
+      versions: await listExtractionVersions(company.client, company.companyId, document.id),
+    };
+    const initial = await listFailedProcessingJobs(operator.client);
+    if (!initial.ok) throw new Error(initial.error);
+    if (status === "uploaded") {
+      // A still-legacy uploaded child is genuinely incomplete dispatch work.
+      expect(initial.value.map((job) => job.id)).toContain(oldId);
+      expect(await takeOverFailedProcessingJob(operator.client, oldId)).toEqual({ ok: false, error: "period_locked" });
+      expect(await retryFailedProcessingJob(operator.client, oldId)).toEqual({ ok: false, error: "period_locked" });
+    } else {
+      expect(initial.value.map((job) => job.id)).not.toContain(oldId);
+      expect(await reprocessDocument(company.client, pgBossJobQueue(boss), {
+        companyId: company.companyId, documentId: document.id, confirmed: true,
+      })).toEqual({ ok: true, value: null });
+      expect((await getDocument(company.client, company.companyId, document.id))?.status).toBe("uploaded");
+      const reprocessed = await listFailedProcessingJobs(operator.client);
+      if (!reprocessed.ok) throw new Error(reprocessed.error);
+      expect(reprocessed.value.map((job) => job.id)).not.toContain(oldId);
+      expect(await retryFailedProcessingJob(operator.client, oldId)).toEqual({ ok: false, error: "not_retryable" });
+      expect(await takeOverFailedProcessingJob(operator.client, oldId)).toEqual({ ok: false, error: "not_recoverable" });
+      const [current] = await boss.fetch("extract-document", { includeMetadata: true });
+      await boss.fail("extract-document", current, { message: "new Extraction request expired" });
+      const failed = await listFailedProcessingJobs(operator.client);
+      if (!failed.ok) throw new Error(failed.error);
+      expect(failed.value.map((job) => job.id)).toContain(current.id);
+      expect(failed.value.map((job) => job.id)).not.toContain(oldId);
+      const problems = await listPlatformOperationalProblems(operator.client);
+      if (!problems.ok) throw new Error(problems.error);
+      expect(problems.value.flatMap((problem) => problem.targetIds)).not.toContain(source.value.id);
+      expect(problems.value.flatMap((problem) => problem.targetIds)).toContain(document.id);
+    }
+    expect(await getSourceFile(company.client, company.companyId, source.value.id)).toEqual(before.source);
+    expect(await getVatReport(company.client, company.companyId, period)).toEqual(before.report);
+    expect(await getPeriodLock(company.client, company.companyId, period)).toEqual(before.lock);
+    expect(await listExtractionVersions(company.client, company.companyId, document.id)).toEqual(before.versions);
+    expect(await boss.getJobById("split-source-file", oldId)).toMatchObject({ state: "failed" });
+  } finally { await database.end(); await boss.stop(); }
 });
