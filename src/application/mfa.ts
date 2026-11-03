@@ -1,6 +1,8 @@
+import { authUnavailable } from "./auth-availability";
 import type { AppClient, Result } from "./client";
 
 export type MfaError =
+  | "auth_unavailable"
   | "mfa_enrollment_failed"
   | "invalid_mfa_code"
   | "recovery_codes_failed"
@@ -21,10 +23,12 @@ export async function beginTotpEnrollment(
   if (authorized.error?.code === "42501" || authorized.error?.code === "P0001" && authorized.error.hint === "mfa_recovery_required") return { ok: false, error: "mfa_enrollment_failed" };
   if (authorized.error) throw authorized.error;
   const factors = await client.auth.mfa.listFactors();
+  if (authUnavailable(factors.error)) return { ok: false, error: "auth_unavailable" };
   if (factors.error) return { ok: false, error: "mfa_enrollment_failed" };
   for (const factor of factors.data.all) {
     if (factor.factor_type === "totp" && factor.status === "unverified") {
       const stale = await client.auth.mfa.unenroll({ factorId: factor.id });
+      if (authUnavailable(stale.error)) return { ok: false, error: "auth_unavailable" };
       if (stale.error) return { ok: false, error: "mfa_enrollment_failed" };
     }
   }
@@ -32,6 +36,7 @@ export async function beginTotpEnrollment(
     factorType: "totp",
     friendlyName: "Authenticator app",
   });
+  if (authUnavailable(error)) return { ok: false, error: "auth_unavailable" };
   if (error) return { ok: false, error: "mfa_enrollment_failed" };
   return {
     ok: true,
@@ -56,6 +61,7 @@ export async function completeTotpEnrollment(
     factorId: input.factorId,
     code: input.code.trim(),
   });
+  if (authUnavailable(verified.error)) return { ok: false, error: "auth_unavailable" };
   if (verified.error) return { ok: false, error: "invalid_mfa_code" };
 
   const generated = await client.rpc("finish_mfa_enrollment");
@@ -109,11 +115,12 @@ export async function verifyRecoveryCode(
 export async function verifyTotp(
   client: AppClient,
   input: { factorId: string; code: string },
-): Promise<Result<null, "invalid_mfa_code">> {
+): Promise<Result<null, "invalid_mfa_code" | "auth_unavailable">> {
   const { error } = await client.auth.mfa.challengeAndVerify({
     factorId: input.factorId,
     code: input.code.trim(),
   });
+  if (authUnavailable(error)) return { ok: false, error: "auth_unavailable" };
   if (error) return { ok: false, error: "invalid_mfa_code" };
   return { ok: true, value: null };
 }
@@ -121,7 +128,7 @@ export async function verifyTotp(
 export async function disenrollMfa(
   client: AppClient,
   factorId: string,
-): Promise<Result<null, "mfa_disenrollment_failed">> {
+): Promise<Result<null, "mfa_disenrollment_failed" | "auth_unavailable">> {
   const authorized = await client.rpc("authorize_mfa_maintenance", { operation: "remove" });
   if (authorized.error?.code === "42501" || authorized.error?.code === "P0001" && authorized.error.hint === "mfa_recovery_required") return { ok: false, error: "mfa_disenrollment_failed" };
   if (authorized.error) throw authorized.error;
@@ -129,6 +136,7 @@ export async function disenrollMfa(
   if (claim.error?.code === "42501" || claim.error?.code === "P0001" && claim.error.hint === "mfa_setup_expired") return { ok: false, error: "mfa_disenrollment_failed" };
   if (claim.error) throw claim.error;
   const removed = await client.auth.mfa.unenroll({ factorId });
+  if (authUnavailable(removed.error)) return { ok: false, error: "auth_unavailable" };
   if (removed.error) return { ok: false, error: "mfa_disenrollment_failed" };
   const cleanup = await client.rpc("finish_mfa_disenrollment");
   if (cleanup.error?.code === "42501") return { ok: false, error: "mfa_disenrollment_failed" };

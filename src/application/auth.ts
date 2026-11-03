@@ -1,5 +1,6 @@
 import type { EmailOtpType } from "@supabase/supabase-js";
 import type { AppClient, Result } from "./client";
+import { authUnavailable } from "./auth-availability";
 import { invitationUrls } from "./invitation-urls";
 
 export type SignUpInput = { email: string; password: string; organizationName: string };
@@ -100,18 +101,19 @@ export async function completeGoogleSignIn(
 
 /** The id of the signed-in user, or null. */
 export async function currentUserId(client: AppClient): Promise<string | null> {
-  const { data } = await client.auth.getUser();
-  return data.user?.id ?? null;
+  return (await currentUser(client))?.id ?? null;
 }
 
 /** Identity fields safe to render in the signed-in User's account menu. */
 export async function currentUser(client: AppClient): Promise<{ id: string; email: string } | null> {
-  const { data } = await client.auth.getUser();
+  const { data, error } = await client.auth.getUser();
+  if (authUnavailable(error)) throw new Error("auth_unavailable");
   return data.user ? { id: data.user.id, email: data.user.email ?? "" } : null;
 }
 
-export async function logOut(client: AppClient): Promise<void> {
-  await client.auth.signOut();
+export async function logOut(client: AppClient): Promise<Result<null, "auth_unavailable">> {
+  const { error } = await client.auth.signOut();
+  return error ? { ok: false, error: "auth_unavailable" } : { ok: true, value: null };
 }
 
 /** Establishes a session from a cross-browser email link token. */

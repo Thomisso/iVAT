@@ -14,6 +14,32 @@ Supabase versions, backups and recovery. Medium (4 GB RAM, 25 GB disk) is an
 initial trial profile, conditional on measured memory, disk, PID limits and
 upload behavior. See [upstream versions and adaptations](../deploy/UPSTREAM.md).
 
+## Server Supabase transport
+
+`SUPABASE_INTERNAL_URL` selects the private HTTP gateway for web request clients,
+session verification/refresh, ordinary Auth and their database/Storage requests.
+`NEXT_PUBLIC_SUPABASE_URL` remains the SDK's public identity: cookie names and
+settings, PKCE, OAuth authorization URLs and generated signed Storage URLs retain
+that identity. Browser access continues to use the public address. The fetch
+boundary does not route WebSocket/Realtime connections.
+
+The configured server fetch rewrites only the exact public origin and base path,
+preserves the request path/query and refuses redirects out of the private hop.
+An unavailable gateway never triggers a retry through the public URL. The session
+proxy refuses protected content with a translated, uncached 503; failed native
+logout and refresh preserve the existing browser cookies so the same session can
+be verified after recovery. No successful dependency check substitutes for MFA or
+database authorization. Worker-only SystemClient privileges remain unchanged.
+
+For host-run development, omit `SUPABASE_INTERNAL_URL` and use the CLI-generated
+local URL. The focused local transport regression uses real Auth/Storage plus an
+HTTP gateway with injected failures, including unusable public DNS/TLS paths:
+`SUPABASE_SLOT=<own slot> npm test -- tests/internal-supabase-transport.test.ts`.
+The isolated browser harness owns port 3103 and a Next dev process (stop another
+dev process in the same checkout first):
+`AUTH_TRANSPORT_E2E=1 SUPABASE_SLOT=<own slot> PLAYWRIGHT_BASE_URL=http://127.0.0.1:3103 npx playwright test e2e/internal-auth-transport.spec.ts`.
+These commands exercise a local stack only.
+
 ## Prepare the release
 
 Use an isolated git worktree, leaving the main checkout's database and server

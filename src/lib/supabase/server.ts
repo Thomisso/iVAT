@@ -1,14 +1,16 @@
-import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { asUserClient, type AppClient } from "@/application/client";
-import type { Database } from "@/lib/database.types";
 import { supabasePublishableKey, supabaseUrl } from "@/lib/env";
+import { authUnavailable } from "@/application/auth-availability";
+import { createSessionClient } from "./session-client";
+import { serverSupabaseFetch } from "./server-transport";
 
 /** A Supabase client acting as the user of the current request. */
 export async function createRequestClient(): Promise<AppClient> {
   const cookieStore = await cookies();
-  const client = createServerClient<Database>(supabaseUrl, supabasePublishableKey, {
+  const client = createSessionClient(supabaseUrl, supabasePublishableKey, {
+    fetch: serverSupabaseFetch,
     cookies: {
       getAll: () => cookieStore.getAll(),
       setAll: (cookiesToSet) => {
@@ -26,7 +28,8 @@ export async function createRequestClient(): Promise<AppClient> {
 /** The current request's client, redirecting to login when nobody is signed in. */
 export async function requireUserClient(): Promise<AppClient> {
   const client = await createRequestClient();
-  const { data } = await client.auth.getUser();
+  const { data, error } = await client.auth.getUser();
+  if (authUnavailable(error)) redirect("/login?error=auth_unavailable");
   if (!data.user) redirect("/login");
   return client;
 }

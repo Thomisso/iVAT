@@ -82,6 +82,7 @@ import { configuredAresRegistry } from "@/ares";
 import { configuredExchangeRates } from "@/cnb";
 import { configuredVatPayerRegistry } from "@/vat-registry";
 import { jobQueue } from "@/lib/jobs";
+import { serverSupabaseFetch } from "@/lib/supabase/server-transport";
 import { createRequestClient, requireUserClient } from "@/lib/supabase/server";
 import { isLocale, localeCookie } from "@/i18n/locales";
 import { companyContextCookie, serializeCompanyContext } from "@/lib/company-context";
@@ -170,13 +171,14 @@ export async function googleSignInAction(): Promise<void> {
     authRedirectAllowlist: process.env.AUTH_REDIRECT_ALLOWLIST,
     supabaseUrl,
     publishableKey: supabasePublishableKey,
-  });
+  }, serverSupabaseFetch);
   if (!result.ok) redirect("/login?error=google_sign_in_failed");
   redirect(result.value.url);
 }
 
 export async function logOutAction(): Promise<void> {
-  await logOut(await createRequestClient());
+  const result = await logOut(await createRequestClient());
+  if (!result.ok) redirect("/login?error=auth_unavailable");
   redirect("/login");
 }
 
