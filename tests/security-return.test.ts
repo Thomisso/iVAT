@@ -1,4 +1,4 @@
-import { expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { SAMPLE_EXTRACTION } from "@/ai/fake";
 import { createManualDocument } from "@/application/documents";
 import { resolveSecurityReturnTo } from "@/application/security-return";
@@ -58,17 +58,45 @@ it("does not mistake Company administration for Organization authority or an aut
   expect(await resolveSecurityReturnTo(member.client, `/organizations/${owner.organizationId}/users?scope=${owner.companyId}`, null)).toBe(`/companies/${owner.companyId}`);
 });
 
-it("uses the same User's last accessible Company for direct, foreign and unsafe origins, otherwise the selector", async () => {
-  const user = await administratorWithCompany();
-  const other = await administratorWithCompany();
-  const second = await createCompany(user.client, { organizationId: user.organizationId, ...companyDetails() });
-  if (!second.ok) throw new Error(second.error);
-  const remembered = { userId: user.userId, companyId: second.value.id };
-  for (const target of [undefined, ["/platform"], "https://evil.test", "//evil.test", "/\\evil.test", "/%2f%2fevil.test", `/companies/${other.companyId}/documents`, `/companies/${user.companyId}/documents\n`, "/settings/security", `/companies/${user.companyId}/unknown`]) {
-    expect(await resolveSecurityReturnTo(user.client, target, remembered)).toBe(`/companies/${second.value.id}`);
-  }
-  expect(await resolveSecurityReturnTo(user.client, undefined, { userId: other.userId, companyId: user.companyId })).toBe("/");
-  expect(await resolveSecurityReturnTo(user.client, undefined, { userId: user.userId, companyId: other.companyId })).toBe("/");
+describe("Security return fallback", () => {
+  let user: Awaited<ReturnType<typeof administratorWithCompany>>;
+  let other: typeof user;
+  let secondCompanyId: string;
+
+  beforeAll(async () => {
+    user = await administratorWithCompany();
+    other = await administratorWithCompany();
+    const second = await createCompany(user.client, { organizationId: user.organizationId, ...companyDetails() });
+    if (!second.ok) throw new Error(second.error);
+    secondCompanyId = second.value.id;
+  });
+
+  // These read-only cases share setup, but each has its own timeout and verdict.
+  // A serial loop gave twelve database-backed resolutions a single 20s budget.
+  const targets: [string, () => unknown][] = [
+    ["direct entry", () => undefined],
+    ["array input", () => ["/platform"]],
+    ["external URL", () => "https://evil.test"],
+    ["protocol-relative URL", () => "//evil.test"],
+    ["backslash", () => "/\\evil.test"],
+    ["encoded slashes", () => "/%2f%2fevil.test"],
+    ["foreign Company", () => `/companies/${other.companyId}/documents`],
+    ["newline", () => `/companies/${user.companyId}/documents\n`],
+    ["Security itself", () => "/settings/security"],
+    ["unknown Company page", () => `/companies/${user.companyId}/unknown`],
+  ];
+  it.each(targets)("uses the same User's last accessible Company for %s", async (_name, target) => {
+    expect(await resolveSecurityReturnTo(user.client, target(), { userId: user.userId, companyId: secondCompanyId }))
+      .toBe(`/companies/${secondCompanyId}`);
+  });
+
+  it("ignores another User's remembered Company", async () => {
+    expect(await resolveSecurityReturnTo(user.client, undefined, { userId: other.userId, companyId: user.companyId })).toBe("/");
+  });
+
+  it("ignores an inaccessible remembered Company", async () => {
+    expect(await resolveSecurityReturnTo(user.client, undefined, { userId: user.userId, companyId: other.companyId })).toBe("/");
+  });
 });
 
 it("restores MFA-verified Platform origins and scopes without adding tenant Memberships", async () => {

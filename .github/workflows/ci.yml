@@ -57,10 +57,18 @@ jobs:
         if: steps.profile.outputs.profile == 'draft'
 
   full:
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     needs: profile
     if: needs.profile.outputs.profile == 'full'
     runs-on: ubuntu-latest
     steps:
+      - name: Reserve Supabase ports before network setup
+        run: |
+          reserved=$(sysctl -n net.ipv4.ip_local_reserved_ports)
+          sudo sysctl -w "net.ipv4.ip_local_reserved_ports=${reserved:+$reserved,}54320-54329"
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
@@ -86,7 +94,14 @@ jobs:
         run: node --test scripts/tests/release-identity.test.mjs deploy/tests/release-prepare.test.mjs deploy/tests/release-host.test.mjs deploy/tests/release-connect.test.mjs deploy/tests/release-runtime.test.mjs
 
       - name: Start local Supabase
+        id: supabase
         run: npm run db:start -- --profile=e2e
+
+      - name: Diagnose Supabase startup port conflicts
+        if: failure() && steps.supabase.outcome == 'failure'
+        run: |
+          sudo ss -tanp '( sport >= :54320 and sport <= :54329 )'
+          docker ps -a --format '{{.Names}} {{.Status}} {{.Ports}}'
 
       - name: Generated database types match the migrations
         run: |
@@ -95,20 +110,29 @@ jobs:
 
       - run: npm run typecheck
       - run: npm run lint
-      - run: npm run test:serial
+      # Each shard owns its runner/database; files within it remain serial.
+      - run: npm run test:serial -- --shard=${{ matrix.shard }}/3
       - run: npm run build
       - name: Stop the disposable database
         if: always()
         run: npm run db:stop -- --no-backup
 
   acceptance:
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     needs: profile
     if: needs.profile.outputs.profile == 'full'
     runs-on: ubuntu-latest
-    # Installing Chromium and starting the complete Supabase/Next.js/Postman
-    # acceptance stack consume several minutes before the serial suite begins.
+    # Every shard builds its own production app and starts an isolated stack.
+    # Playwright still uses one worker within each shard.
     timeout-minutes: 30
     steps:
+      - name: Reserve Supabase ports before network setup
+        run: |
+          reserved=$(sysctl -n net.ipv4.ip_local_reserved_ports)
+          sudo sysctl -w "net.ipv4.ip_local_reserved_ports=${reserved:+$reserved,}54320-54329"
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
@@ -120,12 +144,12 @@ jobs:
           npm install --global postman-cli@1.73.0
           postman --version
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
+      - run: npm run test:e2e -- --shard=${{ matrix.shard }}/3
       - name: Upload Playwright traces
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-traces
+          name: playwright-traces-${{ matrix.shard }}
           path: test-results
           if-no-files-found: ignore
       - name: Stop the acceptance database
