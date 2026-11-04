@@ -119,6 +119,36 @@ The CPU restriction was removed after the experiment. This is fixture isolation,
 not an optimization of the full workspace projection; that query can still
 require separate performance work for large Companies.
 
+### Supabase startup port collision
+
+The ready-for-review rerun at the same `d42218d` revision,
+[CI 41807140100](https://github.com/Thomisso/iVAT/actions/runs/41807140100),
+passed both other application shards, all browser shards and the separate
+Deployment verification. `full (1)` failed before any application test ran:
+Docker could not publish Mailpit on host port `54324` (`address already in use`).
+The failed run did not capture the owning socket, so its process cannot be
+identified retrospectively.
+
+Supabase's `54320–54329` host ports overlap Linux's default automatic port range.
+Every Supabase CI shard now adds that range to
+`net.ipv4.ip_local_reserved_ports` before checkout, downloads or test listeners,
+preserving any reservations already present on the disposable runner. The
+[kernel documentation](https://docs.kernel.org/networking/ip-sysctl.html#ip-variables)
+explains that reserved ports are excluded from automatic allocation while
+explicit service binds still work. This prevents ephemeral connections and
+`listen(0)` helpers from taking the fixed Supabase ports; it does not evict an
+explicit listener. A failed startup also captures sockets and container port
+bindings before the workflow cleanup.
+
+A deterministic reproduction in a separate Docker network namespace exhausted
+an automatic range containing `54324`, then asserted that an explicit Mailpit
+bind could succeed. It failed with `EADDRINUSE` without a reservation and passed
+with `54320–54329` reserved, including with an additional pre-existing reserved
+port. No host kernel setting or human development stack was changed locally.
+CI policy tests check that all configured Supabase host ports are covered and
+that reservation precedes network setup. A reservation is a startup safeguard,
+not a test retry or a relaxed check.
+
 The three-way split is an elapsed-time optimization, with a provisional target
 of roughly 10–12 minutes based on the observed test time plus independent setup.
 File durations and runner contention can make shards uneven. The new workflow

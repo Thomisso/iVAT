@@ -74,10 +74,23 @@ test("all application and browser shards keep independent stacks and aggregate i
     assert.match(job, /--shard=\$\{\{ matrix.shard \}\}\/3/);
     assert.match(job, /if: always\(\)/);
     assert.match(job, /npm run db:stop -- --no-backup/);
+    // Supabase's fixed ports overlap Linux's automatic port allocation range.
+    // Reserve them before downloads or ephemeral test listeners can take them.
+    assert.ok(job.indexOf("Reserve Supabase ports before network setup") < job.indexOf("actions/checkout@"));
+    assert.match(job, /reserved=\$\(sysctl -n net\.ipv4\.ip_local_reserved_ports\)/);
+    const reservation = job.match(/net\.ipv4\.ip_local_reserved_ports=\$\{reserved:\+\$reserved,\}(\d+)-(\d+)/);
+    assert.ok(reservation, "keep existing reservations when adding the Supabase range");
+    const config = readFileSync(new URL("../../supabase/config.toml", import.meta.url), "utf8");
+    const ports = [...config.matchAll(/^(?:port|shadow_port|smtp_port|pop3_port) = (\d+)/gm)].map(match => Number(match[1]));
+    for (const port of ports) {
+      assert.ok(port >= Number(reservation[1]) && port <= Number(reservation[2]), `Supabase port ${port} must be reserved`);
+    }
   }
   assert.match(ci, /needs: \[profile, full\]/);
   assert.match(ci, /FULL_RESULT: \$\{\{ needs.full.result \}\}/);
   assert.match(ci, /needs: \[profile, acceptance\]/);
   assert.match(ci, /FULL_RESULT: \$\{\{ needs.acceptance.result \}\}/);
   assert.match(ci, /name: playwright-traces-\$\{\{ matrix.shard \}\}/);
+  assert.match(ci, /if: failure\(\) && steps\.supabase\.outcome == 'failure'/);
+  assert.match(ci, /sudo ss -tanp/);
 });
