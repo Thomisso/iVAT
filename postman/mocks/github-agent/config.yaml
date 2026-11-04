@@ -1,0 +1,11 @@
+version: 1
+name: GitHub agent tracking API
+slug: github-agent
+protocol: http
+port: 4981
+interceptRequests: true
+origin: api.github.com
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true

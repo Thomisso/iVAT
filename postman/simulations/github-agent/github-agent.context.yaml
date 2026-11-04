@@ -1,0 +1,62 @@
+purpose:
+  stands_in_for: The consumed GitHub REST and Projects GraphQL storage/transport paths used by the real agent-tracker controller and serialized worker.
+  unblocks: Exercise real gh HTTP/TLS serialization, permission refusal, provider rejection, ambiguous create responses and retry of partial Project publication without a real GitHub credential or modifying live issues.
+assumptions:
+  - id: provider-contract-subset
+    status: supported
+    claim: The modelled calls use the provider's documented issue-comment, workflow-dispatch and Projects field/item request and response shapes.
+    reason: The fixture implements only the paths and GraphQL operations consumed by the caller; unknown paths return 501 rather than inventing successful behavior. It is locally authored from provider documentation, not an owner-published Postman resource.
+    verification: Read the official Projects GraphQL, issue-comment and workflow-dispatch contracts on 2026-11-04. Signed-in owner discovery was skipped because Postman whoami reports no account; postman status is unavailable in CLI 1.73.0. A simulation pass does not prove every provider constraint or live permission.
+    source: https://docs.github.com/en/graphql/reference/projects; https://docs.github.com/en/rest/issues/comments#update-an-issue-comment; https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event; postman/mocks/github-agent/default.js
+    updated_at: "2026-11-04"
+  - id: real-gh-is-intercepted
+    status: supported
+    claim: The transport verifier runs the real gh executable through the local Postman HTTPS proxy with an isolated fake credential and per-process CA trust.
+    reason: The verifier overrides GH_TOKEN, isolates GH_CONFIG_DIR, and sets proxy and SSL_CERT_FILE only for child commands. Its initial user request returns the synthetic fixture identity and the proxy log records api.github.com traffic.
+    verification: On the agent-tracking-201-development fingerprint, the initial wire probe and the complete twelve-case verification passed. No insecure TLS switch or real GitHub token was used. Proxy mode in CLI 1.73.0 required UUID id fields for both simulation and mock, resolved mock paths relative to the simulation file, and emitted a human request log despite the earlier --output ndjson attempt.
+    source: scripts/verify-agent-tracker-transport.mjs; postman/simulations/github-agent/github-agent.sim.yaml
+    updated_at: "2026-11-04"
+  - id: controller-and-worker-publication-retry
+    status: supported
+    claim: Against this HTTP stand-in, the real controller persists a pending dispatch and the real worker retries partial publication without duplicating the issue item or maintained status comment.
+    reason: The mock records dispatch intent and stores provider objects only; the verifier invokes the actual worker as a separate process to apply the event. A synthetic field-write failure occurs after canonical intent and Project item creation, leaving publication unacknowledged until a successful retry.
+    verification: The complete verifier passed on 2026-11-04. It observed controller publication_pending, actual worker start, duplicate receipt handling, claim publication failing before field effects, publishedRevision remaining behind revision, then successful retry/sync with one item and one ticket comment. The original state timestamp remained 2026-11-04T12:01:00.000Z. These are caller outcomes under the model, not real Actions concurrency evidence.
+    source: scripts/verify-agent-tracker-transport.mjs; postman/mocks/github-agent/default.js
+    updated_at: "2026-11-04"
+  - id: ambiguous-comment-create
+    status: supported
+    claim: Against this stand-in, setup discovers an already-created registry comment after a failed create response instead of blindly creating a duplicate.
+    reason: The fixture saves the comment before returning an injected HTML 502 response. The caller first reports failure, then on retry reads the saved marker and completes setup with one registry comment.
+    verification: The seven-case setup probe and later complete twelve-case verifier both passed on 2026-11-04. A prior internal mock error caused by unawaited pm.state was fixed before any passing claim; pm.state access is asynchronous and namespaced as github-agent:snapshot. This test covers a persisted comment-create effect, not every possible ambiguous GitHub mutation.
+    source: scripts/verify-agent-tracker-transport.mjs; postman/mocks/github-agent/default.js
+    updated_at: "2026-11-04"
+  - id: provider-errors-are-distinguished
+    status: supported
+    claim: Under the modelled failures, the actual caller distinguishes HTTP 403 permission failure, GraphQL UNPROCESSABLE rejection and HTML 502 transport failure without printing the injected private response body.
+    reason: The verifier invokes the actual setup/doctor paths and checks their public error codes, while retaining the injected raw marker only inside the local stand-in.
+    verification: The complete verifier passed on 2026-11-04 with github_permission_denied, github_request_rejected and github_connection_failed in the corresponding cases. The orchestrator's live setup separately observed GitHub reject the custom field name Reviewer as reserved; the model includes that observed case, while the caller now uses Review agent. Other names are not assumed reserved from that one observation.
+    source: scripts/verify-agent-tracker-transport.mjs; postman/mocks/github-agent/default.js; live setup evidence from the #201 implementation session on 2026-11-04
+    updated_at: "2026-11-04"
+  - id: proxy-negative-serial-compatibility
+    status: supported
+    claim: A test-only Go compatibility setting permits Postman proxy certificates with negative serial numbers while retaining CA and hostname verification.
+    reason: A later real-gh verifier run encountered x509 negative serial number from the freshly generated Postman certificate. Go 1.23 documents GODEBUG=x509negativeserial=1 as a parser compatibility option; it does not disable certificate-chain or hostname validation. The verifier scopes it to its synthetic child environment with a fake token, isolated gh configuration and per-run proxy CA, never production or the user's shell profile.
+    verification: The initial negative-serial failure was reported during ticket 201 verification on 2026-11-04. After adding the documented compatibility option, the complete thirteen-case verifier passed once against the current real controller/worker. Its untrusted-CA negative control failed certificate validation as expected before the same caller succeeded using the per-run proxy CA. This is a scoped fixture workaround, not a production TLS change or a certificate-randomness retry.
+    source: https://go.dev/doc/godebug; https://pkg.go.dev/crypto/x509#ParseCertificate; scripts/verify-agent-tracker-transport.mjs
+    updated_at: "2026-11-04"
+  - id: live-actions-and-project-permissions
+    status: unknown
+    claim: The configured real repository workflow serializes all authority/publication attempts and can mutate the intended user-owned GitHub Project with its stored credential.
+    reason: This simulation does not run GitHub Actions and cannot establish upstream scheduling, concurrency, live credential scopes or real Project field/view behavior. Its worker process receives an isolated synthetic Actions context only to exercise actual worker code.
+    verification: The local verifier passed its controller/worker HTTP scenarios; real private acceptance-repository Actions runs and live Project inspection must establish this separate condition. No live Actions or permission pass is claimed by this record.
+    source: https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency; https://docs.github.com/en/issues/planning-and-tracking-with-projects/automating-your-project/automating-projects-using-actions
+    updated_at: "2026-11-04"
+fingerprints:
+  - id: agent-tracking-201-development
+    date: "2026-11-04"
+    commit: 21b66bb with dirty ticket 201 controller/worker implementation and externally prepared simulation artifacts
+    cli: Postman CLI 1.73.0; gh 2.101.0; Node 22.22.3
+  - id: agent-tracking-201-go-proxy-compatibility
+    date: "2026-11-04"
+    commit: 21b66bb with dirty ticket 201 implementation, branch-attested claim fixture and test-only Go proxy compatibility
+    cli: Postman CLI 1.73.0; gh 2.101.0; Node 22.22.3
