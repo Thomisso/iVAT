@@ -57,7 +57,20 @@
 
 ### 9. Průběžné sledování práce agentů nad issues v GitHubu
 
-**Doplněno:** 3. 11. 2026. Nový požadavek s doporučeným řešením k rozpracování; není součástí schválené specifikace #185 ani jejích implementačních ticketů.
+**Doplněno:** 3. 11. 2026. Rozpracování potvrzeno a specifikace publikována 4. 11. 2026 jako [#200](https://github.com/Thomisso/iVAT/issues/200) s labelem `ready-for-agent`. Není součástí specifikace #185 ani jejích implementačních ticketů. Pro navazující rozpad a implementaci je výsledným zadáním #200; níže jsou podklady a dohodnutá rozhodnutí.
+
+**Rozsah a provozní rozhodnutí (dohodnuto 4. 11. 2026)**
+
+- Tracking pokryje samostatné běhy `implement` i více-ticketové běhy `implement-spec` společným rozhraním pro hlášení stavu.
+- První verze dovolí nejvýše jeden řídicí běh pro celý repozitář; uvnitř něj může paralelně pracovat více implementerů a reviewerů.
+- Nezávislá kontrola v GitHub Actions bude označovat zastaralé potvrzení aktivity i po ukončení řídicího běhu. Hranice 15 minut je orientační, protože plánované Actions mohou mít zpoždění nebo vynechat běh; původní čas potvrzení zůstane viditelný. Viz [omezení plánovaných běhů](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule).
+- Potvrzení aktivity vychází ze zprávy konkrétního implementera či reviewera nebo z ověření jeho běhu. Samotný časovač aktivitu nepotvrzuje. Fáze práce, potvrzená aktivita a poslední výsledek jsou samostatné údaje.
+- Úplná obnova je v první verzi zaručena na stejném počítači z trvalého místního záznamu včetně dosud nepublikovaných aktualizací. Převzetí na jiném počítači vyžaduje výslovný obnovovací postup a ověření dostupných issues, větví, commitů a review; chybějící důkazy zůstanou neověřené.
+- Práci řídí společné příkazy; GitHub Project je publikovaný přehled. Ruční přesun karty nepotvrzuje dokončení ani nespouští práci. Synchronizace rozpor oznámí a opraví podle doloženého výsledku. Zastavení a převzetí běhu mají vlastní výslovné příkazy.
+- Výslovně zrušená implementace má stav Zrušeno a povinný důvod. Přerušení agenta zachová dosaženou fázi a změní údaj o aktivitě; samo práci neruší.
+- Již převzatý běh může při výpadku GitHubu pokračovat lokálně a trvale ukládat nepublikované události. Před označením výsledného PR jako připraveného k review musí synchronizace doběhnout. Bez ověření vlastnictví práce nelze zahájit ani převzít jiný řídicí běh.
+- Počáteční naplnění zahrne otevřené implementační issues s labelem `ready-for-agent` a jejich nadřazené specifikace. Nové schválené tickety se přidávají automaticky; již sledované tickety v projektu zůstávají i po změně triage labelu. Historie uzavřených issues se zpětně nedoplňuje.
+- Společné porozumění i hranice testování jsou potvrzené a úplná specifikace je publikovaná jako #200. Schválený rozpad je publikovaný v šesti nativních sub-issues #201–#206 s labelem `ready-for-agent` a nativními blokujícími vazbami. Implementace trackingu zatím nebyla zahájena.
 
 **Problém a cíl**
 
@@ -67,6 +80,7 @@
 **Doporučené řešení: jeden GitHub Project pro repozitář**
 
 - Do projektu přidávat existující issues; nevytvářet jejich kopie. Nabídnout board podle stavu a tabulku s filtrem podle nadřazené specifikace. [GitHub Projects podporuje různé pohledy, vlastní pole a automatizace](https://docs.github.com/en/issues/planning-and-tracking-with-projects/learning-about-projects/about-projects).
+- Nadřazenou specifikaci zobrazovat a filtrovat přes nativní `Parent issue`, pokud je vztah uložen jako sub-issue; nevést vedle něj duplicitní textové pole. Viz [pole Parent issue](https://docs.github.com/en/issues/planning-and-tracking-with-projects/understanding-fields/about-parent-issue-and-sub-issue-progress-fields).
 - Použít samostatné projektové pole `Status`. Stávající [triage labely](agents/triage-labels.md) nadále vyjadřují připravenost zadání, nikoli průběh implementace.
 
 | Status | Význam a okamžik aktualizace |
@@ -77,29 +91,48 @@
 | V integrační větvi | Review prošlo a změna je sloučená do integrační větve; issue zůstává otevřené. |
 | Hotovo | Výsledné PR je po společných kontrolách a review sloučené do cílové větve a issue uzavřené. Nasazení do produkce je samostatný krok. |
 | Blokováno | Nelze pokračovat kvůli závislosti, chybějícím podkladům nebo jiné překážce; uvést důvod a podmínku návratu do předchozí fáze. |
+| Zrušeno | Výslovně rozhodnuto, že se ticket nebude implementovat; uvést důvod. Uzavření bez implementace není Hotovo. |
 
 **Informace u každého ticketu**
 
-- Číslo a název issue, nadřazená specifikace, Status, jméno implementujícího agenta a případně reviewera, pracovní větev, související PR a čas posledního potvrzeného stavu v UTC. Čas s hodinami ukládat jako text v ISO 8601.
+- Číslo a název issue, nadřazená specifikace, Status, jméno implementujícího agenta a případně reviewera, pracovní větev, související PR a čas posledního potvrzeného stavu v UTC. Samostatně uchovat čas skutečného ověření aktivity agenta; pozdější doručení starého potvrzení jeho čas neobnoví. Časy s hodinami ukládat jako text v ISO 8601.
+- Aktivitu zobrazovat odděleně od Status: potvrzená, neověřená nebo neaktivní. Čekající, integrované, dokončené a zrušené tickety bez pracujícího agenta jsou neaktivní; stáří jejich záznamu samo nevytváří podezření na přerušený běh. Potvrzená aktivita neprokazuje správnost ani pokrok implementace.
 - Nativní GitHub assignee označuje odpovědný účet; samostatné pole Agent rozlišuje souběžné agenty běžící pod týmž účtem. Při čekání musí být zřejmé, že agent už aktivně nepracuje.
 - U integrace uchovat odkaz na merge commit a výsledek review; u blokace důvod a odkaz na blokující issue. Podrobné důkazy kontrol mohou být v jednom průběžně aktualizovaném stavovém komentáři issue, aby nevznikal komentář při každém kroku.
 - V pohledu specifikace ukázat počty ticketů podle stavů a zvlášť stav společných testů, celkového review a integračního PR. Součet ticketů „V integrační větvi“ sám o sobě neznamená připravenost celého PR. Odkaz na projekt má být snadno dostupný z dokumentace repozitáře a přehledu specifikace.
 
 **Jak aktualizace implementovat**
 
-- Doplnit do orchestrace implementace malý společný adaptér pro publikování stavu přes `gh project` a podle potřeby `gh api`. Projektová pole lze měnit přes [`gh project item-edit`](https://cli.github.com/manual/gh_project_item-edit). Identifikátory projektu, polí a hodnot spravovat v jedné konfiguraci; přihlašovací údaje do ní nepatří.
-- Orchestrátor je jediným zapisovatelem průběžného stavu. Aktualizuje jej při převzetí ticketu, předání na review, vrácení připomínek, integraci, blokaci, obnovení a finálním merge. Pracující agenti hlásí výsledky orchestrátoru; nezapisují si navzájem konkurenční stavy.
+- Doplnit do orchestrace implementace společný příkazový adaptér pro publikování stavu přes `gh project` a podle potřeby `gh api`. Projektová pole lze měnit přes [`gh project item-edit`](https://cli.github.com/manual/gh_project_item-edit). Identifikátory projektu, polí a hodnot spravovat v jedné konfiguraci; přihlašovací údaje do ní nepatří.
+- Orchestrátor je jediným původcem změn implementační fáze. Publikuje je při převzetí ticketu, předání na review, vrácení připomínek, integraci, blokaci, obnovení, zrušení a finálním merge. Pracující agenti mu hlásí výsledky. Nezávislá kontrola v Actions vyhodnocuje čerstvost potvrzené aktivity; nepotvrzuje review, integraci ani Hotovo a nepřebírá práci.
+- Publikování implementačních událostí a vyhodnocení aktivity musí respektovat stejné vlastnictví běhu a pořadí aktualizací. Identita běhu a revize odliší opakování od opožděné zprávy předchozího běhu. Starší událost ani starší vyhodnocení aktivity nesmí přepsat novější údaj.
 - Při zahájení a obnovení běhu doplnit chybějící položky projektu a porovnat uložený stav se skutečnými větvemi, commity, review a PR. Publikování musí být opakovatelné bez duplicit a odolné vůči opožděné zprávě ze staršího běhu agenta. Obnovitelný stav synchronizace nesmí být uložen jen v dočasném `/tmp` souboru.
-- Při delší práci posílat nejvýše jednou za pět minut potvrzení aktivity. Bez potvrzení déle než 15 minut zobrazit stav jako neověřený; přerušeného agenta nevydávat za právě pracujícího. Zmeškané potvrzení samo neopravňuje jiného agenta převzít stejný ticket.
+- Při delší práci publikovat skutečně ověřenou aktivitu nejvýše jednou za pět minut. Nezávislá kontrola v Actions vyhodnotí potvrzení starší než 15 minut jako neověřené, se zohledněním omezení plánovaných běhů uvedeného výše. Zachovat dosaženou fázi i původní čas potvrzení. Zmeškané potvrzení samo neopravňuje jiného agenta převzít stejný ticket.
 - Selhání zápisu do GitHubu nesmí být vydáno za úspěšnou aktualizaci. Uchovat požadovanou změnu pro opakování, oznámit chybu v konverzaci a po obnově spojení stav dorovnat. Uživatel musí podle času aktualizace poznat zastaralý údaj.
 - Zachovat [review a testovací brány integračního workflow](agents/implementation-workflow.md). Závislost ticketu uvnitř jedné specifikace může být implementačně splněna po čistém review a merge do integrační větve, přestože blokující issue zůstává otevřené. Rozlišit tuto situaci od externí závislosti čekající na finální merge; nepoužívat jen počet otevřených blockerů a neuzavírat issues předčasně.
-- Nativní automatizace projektu využít pro jednoznačné události, například finální uzavření issue. Přiřazení agenta, průběh review a začlenění do integrační větve musí publikovat orchestrátor; samotný stav PR je nevyjadřuje. Znovuotevření nebo revert musí stav vrátit podle skutečného výsledku, nikoli ponechat Hotovo.
+- Nativní automatizace používat pouze tam, kde zachovají uvedený význam stavů. Samotné uzavření issue nebo PR nepotvrzuje Hotovo; musí být doložený merge výsledného PR a příslušné kontroly. Výslovné ukončení bez implementace patří do Zrušeno. Znovuotevření nebo revert vyžaduje nové vyhodnocení skutečného výsledku; nesmí ponechat neplatné Hotovo ani samo spustit implementera.
 - Při realizaci sjednotit pravidla v dokumentaci issue trackeru, integračního workflow a instrukcích pro implementaci. Tracking je vývojářský workflow v GitHubu; nevyžaduje dashboard v aplikaci iVAT ani automatizaci produkčního releasu.
+
+**Doporučený postup realizace**
+
+1. Propojit jeden skutečný ticket se společným příkazovým rozhraním, trvalým místním záznamem a GitHub Projectem. Ověřit opakované publikování bez duplicit a sdílení řídicího stavu napříč worktrees. Konfigurace projektu a polí je verzovaná, běhová data se necommitují a zůstávají zachovaná i po odstranění ticketového worktree.
+2. Zapojit rozhraní do samostatného `implement` i orchestrace `implement-spec`. Na více závislých ticketech ověřit převzetí, nezávislé review, návrat k opravám, integraci a oddělené společné kontroly specifikace.
+3. Přidat nezávislou kontrolu aktivity v Actions a ověřit přerušení, obnovu, výpadky, opožděné události i ruční rozpory. Celá cesta musí splnit akceptaci níže, včetně podmínky synchronizace před předáním finálního PR k review.
+
+Toto rámcové pořadí rozpracovává šest schválených ticketů: [#201](https://github.com/Thomisso/iVAT/issues/201) první řízený ticket, [#202](https://github.com/Thomisso/iVAT/issues/202) backlog a pohledy, [#203](https://github.com/Thomisso/iVAT/issues/203) review a integrace, [#204](https://github.com/Thomisso/iVAT/issues/204) obnova a synchronizace, [#205](https://github.com/Thomisso/iVAT/issues/205) nezávislá kontrola aktivity a [#206](https://github.com/Thomisso/iVAT/issues/206) souhrnné brány a dokončení. Výsledné zadání zachycuje specifikace #200; konkrétní závislosti jsou nativně uložené u ticketů. První dostupný ticket je #201.
+
+**Podmínky nastavení GitHubu (ověřeno 4. 11. 2026)**
+
+- Aktivní účet `gh` je `Thomisso`, vlastník repozitáře je uživatelský účet `Thomisso`. Současné přihlášení má scopes `gist`, `read:org`, `repo`, `workflow`; chybí oprávnění Projects. Dotaz na seznam projektů skončil chybou chybějícího `read:project`, takže existence použitelného projektu zatím není ověřena.
+- Pro zápis přes místní CLI je potřeba doplnit scope `project`. GitHub Actions potřebují samostatně vhodné přihlašovací údaje s přístupem k projektu; běžný repository `GITHUB_TOKEN` přístup k Projects neposkytuje. Viz [CLI Projects](https://cli.github.com/manual/gh_project) a [Projects v Actions](https://docs.github.com/en/issues/planning-and-tracking-with-projects/automating-your-project/automating-projects-using-actions).
+- Rozšíření přihlášení a nastavení CI přístupu jsou součástí navazující realizace. Přihlašovací údaje patří do úložiště credentials nebo GitHub secrets, nikoli do konfigurace projektu či stavových komentářů. V rámci tohoto rozpracování nebyla oprávnění ani nastavení GitHubu změněna.
 
 **Akceptační ověření**
 
 - U specifikace s několika souběžnými tickety lze bez čtení konverzace určit aktivní agenty, čekající práci, review, blokace i již integrované změny, včetně odkazu na odpovídající větev nebo PR.
 - Ověřit návrat z review k opravám, odblokování po integraci stále otevřeného issue, přerušení a obnovení běhu, opakované doručení stejné události, výpadek GitHubu a obnovu synchronizace bez duplicit či přepsání novějšího stavu.
+- Ověřit odmítnutí druhého řídicího běhu, opravu ručně neplatného Status, zrušení bez falešného Hotovo a zachování sledování po změně triage labelu. Neověřená aktivita zachová fázi; neaktivní čekající ticket není vydáván za přerušeného agenta.
+- V řízených testech simulovat čas, restarty a selhání transportu na hranici společných příkazů; na skutečném GitHubu ověřit konfiguraci, výsledná pole a oprávnění. Testovací běh nesmí ovládat aktivní lidský nebo implementační běh.
 - Po integraci všech ticketů zůstává viditelné čekání na společné kontroly a finální merge. Teprve merge výsledného PR uzavře příslušná issues a nastaví Hotovo; tím se nespouští produkční nasazení.
 - Publikované údaje obsahují pouze technický průběh práce a potřebné odkazy, bez tokenů, session, soukromých dokladů a obsahu lokálních debug podkladů.
 
