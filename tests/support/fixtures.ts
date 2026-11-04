@@ -271,12 +271,13 @@ export async function companyWithManyReportDocuments(
   // HTTP round trips for each of 1001 rows in a completeness fixture. One
   // transaction also avoids racing on the same Company's allowance row.
   const database = new DatabaseClient({ connectionString: inject("databaseUrl") });
+  let documentIds: string[] = [];
   await database.connect();
   try {
     await database.query("begin");
     await database.query("set local role service_role");
     await database.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ role: "service_role" })]);
-    const recorded = await database.query(`
+    const recorded = await database.query<{ id: string }>(`
       with requests as materialized (
         select id, extraction_request_id, gen_random_uuid() as reservation_id
         from public.document where company_id = $1
@@ -284,10 +285,11 @@ export async function companyWithManyReportDocuments(
         select *, public.reserve_ai_processing(id, extraction_request_id, reservation_id) as state
         from requests
       )
-      select public.record_ai_extraction(id, extraction_request_id, reservation_id, 'fake', 'fake-extract', $2::jsonb, '[]'::jsonb)
+      select id, public.record_ai_extraction(id, extraction_request_id, reservation_id, 'fake', 'fake-extract', $2::jsonb, '[]'::jsonb)
       from reserved where state = 'reserved'
     `, [admin.companyId, JSON.stringify(SAMPLE_EXTRACTION)]);
     if (recorded.rowCount !== count) throw new Error("Report fixture did not record every Extraction");
+    documentIds = recorded.rows.map(row => row.id);
     await database.query("commit");
   } catch (error) {
     await database.query("rollback");
@@ -295,7 +297,7 @@ export async function companyWithManyReportDocuments(
   } finally {
     await database.end();
   }
-  return admin;
+  return { ...admin, documentIds };
 }
 
 /** A Company with more than one PostgREST page of uploaded Documents waiting for Extraction. */

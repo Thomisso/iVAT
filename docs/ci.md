@@ -103,6 +103,22 @@ and timeout budgets. This preserves every assertion without raising the global
 timeout. Sharding also limits unrelated fixture accumulation on each stack;
 these observations do not establish a production query performance fix.
 
+The first sharded trial,
+[PR CI 41794647749](https://github.com/Thomisso/iVAT/actions/runs/41794647749),
+completed in 678 seconds including its two-second initial queue. All three
+browser shards and two application shards passed; the remaining application
+shard exposed a statement timeout during setup of the 1,001-Document lock test.
+Its setup loaded the full workspace reporting projection just to obtain IDs.
+The large fixture now returns the IDs produced by its existing worker recording
+transaction. The test still queries every lock under the User's identity,
+checks all 1,001 results and verifies approval refusals and the saved snapshot.
+With the isolated database restricted to 0.15 CPU, the original setup reproduced
+the statement timeout in 16.72 seconds; the revised test passed in 20.38 seconds
+under the same restriction without changing any timeout or reducing the data.
+The CPU restriction was removed after the experiment. This is fixture isolation,
+not an optimization of the full workspace projection; that query can still
+require separate performance work for large Companies.
+
 The three-way split is an elapsed-time optimization, with a provisional target
 of roughly 10–12 minutes based on the observed test time plus independent setup.
 File durations and runner contention can make shards uneven. The new workflow
