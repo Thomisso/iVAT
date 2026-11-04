@@ -1,0 +1,50 @@
+name: Daily Roští backup
+
+# The provider-managed crond in system-mgm-1 never ran the host crontab entry,
+# so GitHub schedules the same cold backup through the pinned release SSH.
+on:
+  schedule:
+    - cron: "15 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    if: github.repository == 'Thomisso/iVAT' && vars.ROSTI_DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # Never overlap a GitHub-driven deployment; the host flock also guards
+    # against manual operations.
+    concurrency:
+      group: rosti-production
+      cancel-in-progress: false
+    steps:
+      - name: Run the host daily backup through pinned SSH
+        env:
+          ROSTI_SSH_KEY: ${{ secrets.ROSTI_SSH_KEY }}
+          ROSTI_SSH_KNOWN_HOSTS: ${{ secrets.ROSTI_SSH_KNOWN_HOSTS }}
+          ROSTI_SSH_HOST: ${{ vars.ROSTI_SSH_HOST }}
+          ROSTI_SSH_PORT: ${{ vars.ROSTI_SSH_PORT }}
+          ROSTI_SSH_USER: ${{ vars.ROSTI_SSH_USER }}
+        run: |
+          set -eu
+          umask 077
+          [[ -n $ROSTI_SSH_KEY && -n $ROSTI_SSH_KNOWN_HOSTS && $ROSTI_SSH_HOST =~ ^[a-zA-Z0-9.-]+$ && $ROSTI_SSH_PORT =~ ^[0-9]+$ && $ROSTI_SSH_USER =~ ^[a-zA-Z0-9_][a-zA-Z0-9_-]*$ ]] || { echo 'Invalid reviewed SSH configuration.' >&2; exit 1; }
+          ssh_dir=$(mktemp -d)
+          trap 'rm -rf "$ssh_dir"' EXIT
+          printf '%s\n' "$ROSTI_SSH_KEY" > "$ssh_dir/key"
+          printf '%s\n' "$ROSTI_SSH_KNOWN_HOSTS" > "$ssh_dir/known_hosts"
+          # Host output stays in the private daily.log, as with the former cron
+          # entry. Wait for a release or manual backup holding the lock.
+          ssh -T -p "$ROSTI_SSH_PORT" -i "$ssh_dir/key" \
+            -o UserKnownHostsFile="$ssh_dir/known_hosts" -o GlobalKnownHostsFile=/dev/null \
+            -o StrictHostKeyChecking=yes -o BatchMode=yes -o IdentitiesOnly=yes \
+            -o PasswordAuthentication=no -o KbdInteractiveAuthentication=no \
+            -o ConnectTimeout=15 -o ServerAliveInterval=10 -o ServerAliveCountMax=3 \
+            "$ROSTI_SSH_USER@$ROSTI_SSH_HOST" \
+            "sh -c 'flock -w 900 /tmp/ivat-backup.lock sh /srv/stack/deploy/scripts/backup-daily.sh >> /srv/stack/deploy/backups/daily.log 2>&1'" \
+            || { echo 'Daily backup failed or its outcome is unknown. Inspect /srv/stack/deploy/backups/daily.log on the Stack; releases refuse backups older than 26 hours.' >&2; exit 1; }
+          echo 'Daily backup completed.'
+          printf 'Daily backup completed on the Stack. Details: `/srv/stack/deploy/backups/daily.log`.\n' >> "$GITHUB_STEP_SUMMARY"

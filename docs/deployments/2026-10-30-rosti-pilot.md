@@ -206,7 +206,7 @@ pomalém spojení; výše uvedený 50MiB test byl Storage API, nikoli tento scé
 
 ## Zálohy a soukromé provozní soubory
 
-Denní cold backup je v hostitelském crontabu v **03:15 UTC**. Zastaví služby,
+Denní cold backup spouští GitHub workflow `Daily Roští backup` v **03:15 UTC** přes stejné SSH jako nasazení (původní hostitelský crontab v `mgm` se nikdy nespustil, viz `docs/deployment.md`). Zastaví služby,
 pořídí konzistentní archiv PostgreSQL, databázových klíčů, Storage včetně xattrs,
 `.env` a Compose a služby znovu spustí. Je to krátké servisní okno.
 `backup-daily.sh` po úspěšné záloze odstraňuje archivy starší než sedm dní.
@@ -231,7 +231,7 @@ materiál, chrání je práva souborů; formát archivu sám o sobě není šifr
 Automatický přenos mimo server, samostatné šifrování archivů a upozornění na
 selhání nebyly při nasazení nakonfigurované. První off-server kopie jsou ruční.
 
-Po znovuvytvoření `mgm` ověřit zachování crontabu a běžícího `crond`. Při obnově
+Při obnově
 jsou nutné odpovídající image, data i celá složka `db-keys`; samotný inventář
 image jejich binární obsah neobsahuje. Postup obnovy do prázdného samostatného
 Stacku a kontrolu po obnově popisuje [provozní návod](../deployment.md#backups-and-recovery).
