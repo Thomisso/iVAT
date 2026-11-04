@@ -75,6 +75,27 @@ export class AiProviderError extends Error {
   }
 }
 
+const PROVIDER_RESPONSE = Symbol("providerResponse");
+
+/**
+ * Keeps the raw body a provider returned on a failed call with the error, so
+ * the worker can store it for SuperAdmin diagnosis. The error itself is
+ * returned unchanged in class, message and retry semantics.
+ */
+export function withProviderResponse<E>(error: E, body: string): E {
+  if (error instanceof Error && !(PROVIDER_RESPONSE in error)) {
+    Object.defineProperty(error, PROVIDER_RESPONSE, { value: body, enumerable: false });
+  }
+  return error;
+}
+
+/** The raw provider body attached by `withProviderResponse`, if any. */
+export function providerResponseOf(error: unknown): string | null {
+  if (!(error instanceof Error) || !(PROVIDER_RESPONSE in error)) return null;
+  const body = (error as Error & { [PROVIDER_RESPONSE]: unknown })[PROVIDER_RESPONSE];
+  return typeof body === "string" ? body : null;
+}
+
 /**
  * An AI provider adapter (ADR-0004). Implementations send PDFs and images
  * natively and throw on technical failures; the job retries and finally marks
