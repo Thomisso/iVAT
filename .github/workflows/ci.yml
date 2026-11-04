@@ -57,6 +57,10 @@ jobs:
         if: steps.profile.outputs.profile == 'draft'
 
   full:
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     needs: profile
     if: needs.profile.outputs.profile == 'full'
     runs-on: ubuntu-latest
@@ -95,18 +99,23 @@ jobs:
 
       - run: npm run typecheck
       - run: npm run lint
-      - run: npm run test:serial
+      # Each shard owns its runner/database; files within it remain serial.
+      - run: npm run test:serial -- --shard=${{ matrix.shard }}/3
       - run: npm run build
       - name: Stop the disposable database
         if: always()
         run: npm run db:stop -- --no-backup
 
   acceptance:
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     needs: profile
     if: needs.profile.outputs.profile == 'full'
     runs-on: ubuntu-latest
-    # Installing Chromium and starting the complete Supabase/Next.js/Postman
-    # acceptance stack consume several minutes before the serial suite begins.
+    # Every shard builds its own production app and starts an isolated stack.
+    # Playwright still uses one worker within each shard.
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
@@ -120,12 +129,12 @@ jobs:
           npm install --global postman-cli@1.73.0
           postman --version
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
+      - run: npm run test:e2e -- --shard=${{ matrix.shard }}/3
       - name: Upload Playwright traces
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-traces
+          name: playwright-traces-${{ matrix.shard }}
           path: test-results
           if-no-files-found: ignore
       - name: Stop the acceptance database

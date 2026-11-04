@@ -54,6 +54,60 @@ functions in a single PostgreSQL transaction instead of making 2,002 HTTP calls;
 real user queries, approval, report generation and Finalization remain unchanged.
 No database files run concurrently over a shared mutable stack.
 
+## Isolated test shards
+
+The `full` and `acceptance` jobs each run three shards on separate GitHub
+runners. Vitest splits files with `--shard=N/3` and keeps `test:serial`;
+Playwright splits files with the same flag and keeps one worker. Each shard
+starts its own Supabase stack. No mutable database, production build or test
+result is shared between runners. All files still run once; opt-in live-provider
+contract tests remain opt-in.
+
+Both matrices use `fail-fast: false`, so one failed shard does not cancel its
+siblings or discard their diagnostics. The existing `check` and `e2e` gates
+consume the aggregate matrix results and fail if any shard fails or is
+cancelled. Browser trace artifacts include the shard number to avoid artifact
+name collisions. Every shard retains its `always()` database cleanup. The docs,
+draft, exact-main release evidence and PR cancellation policies are unchanged.
+
+This trades additional runner setup for shorter elapsed time: dependency
+installation, database startup and production build happen independently for
+each shard. Do not interpret a shorter workflow as fewer runner minutes.
+
+### Failure at `21b66bb`
+
+[Main CI 41686777759](https://github.com/Thomisso/iVAT/actions/runs/41686777759)
+took 26:06 from creation to the last required gate. Its application test step
+took 1,256.95 seconds; one of 1,028 tests failed. The browser suite ran 93 tests
+with one worker and reported 87 passed, one failed and five skipped in 18.7
+minutes. Database startup took 98.4 seconds and its production build 57.9
+seconds. The preceding application revision passed in
+[CI 41685633691](https://github.com/Thomisso/iVAT/actions/runs/41685633691), with
+a 981-second application test step. `21b66bb` itself changed documentation only.
+
+The browser trace showed two injected 503 upload responses, followed by a real
+500 and a successful retry. The Next.js log identified PostgreSQL deadlock
+`40P01`. Source File insertion locked Upload Batch before Company, while the
+processing worker locked Company before Upload Batch. Migration
+`20261128090000_upload_company_before_batch.sql` puts the upload on the same
+lock order. `tests/source-upload-concurrency.test.ts` coordinates a real upload
+with the worker's database transition: it reproduced `40P01` before the fix in
+1.74 seconds and passed after it. The browser's exact transfer-count assertion
+is retained.
+
+The Security return test bundled twelve database-backed resolutions into one
+20-second test. Its entire nine-test file passed in 2.56 seconds on a clean
+local stack, compared with 60.67 seconds and one timeout in the failed CI run.
+The read-only fallback cases now share fixture setup but have separate verdicts
+and timeout budgets. This preserves every assertion without raising the global
+timeout. Sharding also limits unrelated fixture accumulation on each stack;
+these observations do not establish a production query performance fix.
+
+The three-way split is an elapsed-time optimization, with a provisional target
+of roughly 10–12 minutes based on the observed test time plus independent setup.
+File durations and runner contention can make shards uneven. The new workflow
+must be measured on GitHub before claiming that target as an achieved result.
+
 The existing npm download cache remains enabled. Cache misses still install from
 the lockfile. No binary/test-result reuse, Docker cache, browser cache, or Next.js
 artifact reuse is claimed: baseline measurements do not establish enough benefit

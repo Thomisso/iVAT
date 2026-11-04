@@ -61,3 +61,23 @@ test("explicit full verification on a draft supplies complete review evidence", 
   assert.equal(classifyChanges({ event: "pull_request", draft: true, fullVerification: true, files: ["README.md"] }), "full");
   assert.equal(classifyChanges({ event: "pull_request", draft: true, fullVerification: false, files: ["src/app/page.tsx"] }), "draft");
 });
+
+
+test("all application and browser shards keep independent stacks and aggregate into required gates", async () => {
+  const { readFileSync } = await import("node:fs");
+  const ci = readFileSync(new URL("../../.github/workflows/ci.yml", import.meta.url), "utf8");
+  for (const name of ["full", "acceptance"]) {
+    const job = ci.split(`\n  ${name}:\n`)[1].split(/\n  [a-z-]+:\n/)[0];
+    assert.match(job, /fail-fast: false/);
+    assert.match(job, /shard: \[1, 2, 3\]/);
+    assert.match(job, /runs-on: ubuntu-latest/);
+    assert.match(job, /--shard=\$\{\{ matrix.shard \}\}\/3/);
+    assert.match(job, /if: always\(\)/);
+    assert.match(job, /npm run db:stop -- --no-backup/);
+  }
+  assert.match(ci, /needs: \[profile, full\]/);
+  assert.match(ci, /FULL_RESULT: \$\{\{ needs.full.result \}\}/);
+  assert.match(ci, /needs: \[profile, acceptance\]/);
+  assert.match(ci, /FULL_RESULT: \$\{\{ needs.acceptance.result \}\}/);
+  assert.match(ci, /name: playwright-traces-\$\{\{ matrix.shard \}\}/);
+});
