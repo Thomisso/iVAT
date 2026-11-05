@@ -5,7 +5,7 @@
   "ownerType": "User",
   "project": {
     "id": "PVT_kwHOAeJo_s4BqJy-",
-    "title": "iVAT — Agent implementation",
+    "title": "iVAT \u2014 Agent implementation",
     "url": "https://github.com/users/Thomisso/projects/1",
     "number": 1
   },
@@ -71,5 +71,20 @@
       "id": "PVTF_lAHOAeJo_s4BqJy-zhoiM_I",
       "name": "Revision"
     }
+  },
+  "finalChecks": {
+    "specification": [
+      "test:serial",
+      "typecheck",
+      "lint",
+      "build",
+      "runtime"
+    ],
+    "standalone": [
+      "focused",
+      "typecheck",
+      "lint",
+      "runtime"
+    ]
   }
 }

@@ -1,3 +1,4 @@
+import { renderFinal, finishFinalHandoffs, reconcileFinalFacts, updateSummary } from "./finalization.mjs";
 import { prunePublishedDiscoveryReceipts } from "./discovery.mjs";
 import { reconcileViews } from "./views.mjs";
 import { TrackerError } from "./github.mjs";
@@ -23,17 +24,28 @@ function setFields(github, config, itemId, record) {
   github.graph(`mutation TrackerSetFields(${definitions.join(",")}){${operations.join(" ")}}`, variables);
 }
 
-export function publishTicket(github, config, record, state = { tickets: {} }) {
+export function publishTicket(github, config, record, state = { tickets: {} }, detectManual = false) {
   const itemId = github.graph(`mutation TrackerAddItem($input:AddProjectV2ItemByIdInput!){addProjectV2ItemById(input:$input){item{id}}}`, { input: { projectId: config.project.id, contentId: record.nodeId } }).addProjectV2ItemById.item.id;
   if (record.account) github.request(`repos/${record.repository ?? config.repository}/issues/${record.number}/assignees`, { method: "POST", body: { assignees: [record.account] } });
+  const desired = Object.fromEntries(Object.entries(config.fields).map(([key, field]) => [field.id, record[key] == null || record[key] === "" ? null : field.options ? { singleSelectOptionId: field.options[record[key]] } : { text: String(record[key]) }]));
+  if (detectManual && record.projectionHash) {
+    const actual = github.graph(`query TrackerItemFields($id:ID!){node(id:$id){... on ProjectV2Item{fieldValues(first:100){nodes{... on ProjectV2ItemFieldTextValue{text field{... on ProjectV2Field{id}}} ... on ProjectV2ItemFieldSingleSelectValue{optionId field{... on ProjectV2SingleSelectField{id}}}} pageInfo{hasNextPage}}}}}`, { id: itemId }).node.fieldValues;
+    if (actual.pageInfo.hasNextPage) throw new TrackerError("project_item_fields_exceed_limit");
+    const observed = Object.fromEntries(Object.values(config.fields).map(field => [field.id, null]));
+    for (const value of actual.nodes) if (Object.hasOwn(observed, value.field?.id)) observed[value.field.id] = value.optionId ? { singleSelectOptionId: value.optionId } : { text: value.text };
+    const hash = createHash("sha256").update(JSON.stringify(observed)).digest("hex");
+    if (hash !== record.projectionHash) record.manualConflict = { at: new Date().toISOString(), fields: Object.entries(config.fields).filter(([, field]) => JSON.stringify(observed[field.id]) !== JSON.stringify(desired[field.id])).map(([key]) => key), result: "Unsupported Project field edit; restoring verified tracker evidence. Use explicit control commands to change implementation." };
+  }
   setFields(github, config, itemId, record);
+  record.projectionHash = createHash("sha256").update(JSON.stringify(desired)).digest("hex");
   const marker = `<!-- ivat-agent-tracker:ticket:${config.project.id} -->`;
   const comments = github.pages(`repos/${record.repository ?? config.repository}/issues/${record.number}/comments`).filter(comment => comment.body.startsWith(marker));
   if (comments.length > 1) throw new TrackerError("ticket_comment_ambiguous");
+  const conflict = record.manualConflict ? `- Unsupported Project field edit: ${JSON.stringify(record.manualConflict)}\n` : "";
   const recovery = record.recoveryEvidence ? `- Recovery evidence (${record.recoveryEvidence.source}, ${record.recoveryEvidence.observedAt}): ${record.recoveryEvidence.unverified.join(", ") || "referenced facts available; worker activity remains separate"}\n` : "";
   const fallbackChildren = Object.values(state.tickets).filter(child => child.parentSource === "fallback" && child.parent === record.number && (child.parentRepository ?? config.repository).toLowerCase() === (record.repository ?? config.repository).toLowerCase());
   const fallbackOverview = fallbackChildren.length ? `\nThe native Parent issue filter excludes text-only fallback relationships. These tracked issues remain accessible below and in the table with its filter cleared:\n${fallbackChildren.map(child => `- Tracker fallback (opening Part of declaration): [${child.repository ?? config.repository}#${child.number}](${child.url})`).join("\n")}\n` : "";
-  const body = record.role === "specification" ? `${marker}\n\nAgent tracking: [Project](${config.project.url})\n\nSpecification context. Inspect the Agent specification table with native Parent issue filter \`parent-issue:"${record.repository ?? config.repository}#${record.number}"\`.\n${fallbackOverview}` : `${marker}\n\nAgent tracking: [Project](${config.project.url})\n\n- Run: ${record.runId}; generation ${record.generation}; revision ${record.revision}\n- Agent: ${record.agent}\n- Branch: ${record.branch} (${record.workingRevision})\n- Phase: ${record.status}\n- Activity: ${record.activity}\n- State observed (UTC): ${record.stateAt}\n- Activity observed (UTC): ${record.activityAt ?? "not verified"}\n- Latest result: ${record.result}\n${recovery}${record.review ? `- Review evidence: ${JSON.stringify(record.review)}\n` : ""}${record.integration ? `- Integration evidence: ${JSON.stringify(record.integration)}\n` : ""}${record.blockage ? `- Blockage: ${JSON.stringify(record.blockage)}\n` : ""}${record.dependencies ? `- Dependencies: ${JSON.stringify(record.dependencies)}\n` : ""}`;
+  const body = record.role === "specification" ? `${marker}\n\nAgent tracking: [Project](${config.project.url})\n\nSpecification context. Inspect the Agent specification table with native Parent issue filter \`parent-issue:"${record.repository ?? config.repository}#${record.number}"\`.\n${fallbackOverview}${conflict}${renderFinal(record)}` : `${marker}\n\nAgent tracking: [Project](${config.project.url})\n\n- Run: ${record.runId}; generation ${record.generation}; revision ${record.revision}\n- Agent: ${record.agent}\n- Branch: ${record.branch} (${record.workingRevision})\n- Phase: ${record.status}\n- Activity: ${record.activity}\n- State observed (UTC): ${record.stateAt}\n- Activity observed (UTC): ${record.activityAt ?? "not verified"}\n- Latest result: ${record.result}\n${recovery}${conflict}${record.cancellation ? `- Cancellation evidence: ${JSON.stringify(record.cancellation)}\n` : ""}${record.review ? `- Review evidence: ${JSON.stringify(record.review)}\n` : ""}${record.integration ? `- Integration evidence: ${JSON.stringify(record.integration)}\n` : ""}${record.blockage ? `- Blockage: ${JSON.stringify(record.blockage)}\n` : ""}${record.dependencies ? `- Dependencies: ${JSON.stringify(record.dependencies)}\n` : ""}${renderFinal(record)}${record.delivery && !record.summary ? `- Delivery evidence: ${JSON.stringify(record.delivery)}\n` : ""}`;
   if (comments.length) github.request(`repos/${record.repository ?? config.repository}/issues/comments/${comments[0].id}`, { method: "PATCH", body: { body } });
   else github.request(`repos/${record.repository ?? config.repository}/issues/${record.number}/comments`, { method: "POST", body: { body } });
 
@@ -45,6 +57,7 @@ export function processWorker(github, config, event, environment = process.env) 
   validateEvent(event);
   validateConfig(github, config);
   const { commentId, state } = readRegistry(github, config);
+  const detectManual = projectionSynchronized(state);
   const previous = state.receipts[event.id];
   const fingerprint = createHash("sha256").update(JSON.stringify(event)).digest("hex");
   if (previous?.fingerprint && previous.fingerprint !== fingerprint) throw new TrackerError("event_identity_conflict");
@@ -62,15 +75,23 @@ export function processWorker(github, config, event, environment = process.env) 
       return { ok: false, error: error.code };
     }
     state.receipts[event.id].fingerprint = fingerprint;
-    if (event.type === "discover" && ["issues", "schedule"].includes(environment.GITHUB_EVENT_NAME) && event.id === `discovery-${environment.GITHUB_RUN_ID}`) state.receipts[event.id].automaticDiscovery = true;
+    if (["discover", "reconcile"].includes(event.type) && ["issues", "schedule", "pull_request_target", "push"].includes(environment.GITHUB_EVENT_NAME) && event.id === `discovery-${environment.GITHUB_RUN_ID}`) state.receipts[event.id].automaticDiscovery = true;
     prunePublishedDiscoveryReceipts(state);
     compactReceipts(state);
+    for (const record of Object.values(state.tickets).filter(record => record.role === "specification")) updateSummary(state, record, github, config);
     // Canonical intent is durable before any multi-effect Project projection.
     writeRegistry(github, config, commentId, state);
   } else if (previous.state === "rejected") return { ok: false, error: previous.error };
+  if (previous && event.type === "reconcile") {
+    reconcileFinalFacts(state, github, config, new Date().toISOString());
+    state.revision++;
+    state.receipts[event.id] = { ...previous, state: "pending", revision: state.revision };
+    writeRegistry(github, config, commentId, state);
+  }
   if (!projectionSynchronized(state)) {
-    for (const record of Object.values(state.tickets)) publishTicket(github, config, record, state);
+    for (const record of Object.values(state.tickets)) publishTicket(github, config, record, state, detectManual);
     if (state.membershipDiscovered) reconcileViews(github, config, state);
+    if (finishFinalHandoffs(state, github, config)) for (const record of Object.values(state.tickets)) publishTicket(github, config, record, state);
     state.publishedRevision = state.revision;
     for (const receipt of Object.values(state.receipts)) if (receipt.state === "pending" && receipt.revision <= state.publishedRevision) receipt.state = "published";
     compactReceipts(state);

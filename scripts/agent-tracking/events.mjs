@@ -1,3 +1,4 @@
+import { finalCommands, validateFinal, applyFinal, reconcileFinalFacts } from "./finalization.mjs";
 import { discoverTickets } from "./discovery.mjs";
 import { currentParent, dependencyReadiness } from "./evidence.mjs";
 import { lifecycleCommands, validateLifecycle, applyLifecycle } from "./lifecycle.mjs";
@@ -10,7 +11,7 @@ export function text(value, limit = 1000) {
 }
 
 export function validateEvent(event) {
-  if (event?.type === "repair") {
+  if (["repair", "reconcile"].includes(event?.type)) {
     if (Object.keys(event).some(key => !["id", "type", "at", "payload"].includes(key)) || !event.payload || typeof event.payload !== "object" || Object.keys(event.payload).length || !Number.isFinite(Date.parse(event.at)) || new Date(event.at).toISOString() !== event.at) throw new TrackerError("event_invalid");
     text(event.id, 100);
     if (!/^[\w-]+$/.test(event.id)) throw new TrackerError("event_invalid");
@@ -36,7 +37,8 @@ export function validateEvent(event) {
       text(context.branch, 200);
     }
     text(event.payload.agent, 100); text(event.payload.branch, 200); text(event.payload.result);
-  } else if (lifecycleCommands.includes(event.type)) validateLifecycle(event, text);
+  } else if (finalCommands.includes(event.type)) validateFinal(event, text);
+  else if (lifecycleCommands.includes(event.type)) validateLifecycle(event, text);
   else throw new TrackerError("event_type_unknown");
   return event;
 }
@@ -47,7 +49,11 @@ export function applyEvent(state, event, { github, config, actor }) {
     state.receipts[event.id] = { state: "pending", type: event.type, revision: state.revision };
     return state;
   }
-  if (event.type === "discover") {
+  if (event.type === "reconcile") {
+    discoverTickets(state, { github, config, at: event.at });
+    state.membershipDiscovered = true;
+    reconcileFinalFacts(state, github, config, new Date().toISOString());
+  } else if (event.type === "discover") {
     if (event.payload.parent && event.payload.expectedSelectionRevision !== (state.selectionRevision ?? 0)) throw new TrackerError("selection_superseded");
     discoverTickets(state, { github, config, at: event.at });
     state.membershipDiscovered = true;
@@ -67,8 +73,9 @@ export function applyEvent(state, event, { github, config, actor }) {
       state.owner.sequence = event.sequence;
       state.owner.lastEventId = event.id;
       applyRecoveryEvent(state, event, { github, config, actor });
-    } else if (lifecycleCommands.includes(event.type)) {
-      applyLifecycle(state, event, { github, config });
+    } else if ([...lifecycleCommands, ...finalCommands].includes(event.type)) {
+      if (finalCommands.includes(event.type)) applyFinal(state, event, { github, config });
+      else applyLifecycle(state, event, { github, config });
       state.owner.sequence = event.sequence;
       state.owner.lastEventId = event.id;
     } else {

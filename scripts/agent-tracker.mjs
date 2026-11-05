@@ -26,9 +26,9 @@ try {
       result = { ok: true, project: checked.project.url };
     } else if (command === "worker") {
       let event = process.env.TRACKER_EVENT ? JSON.parse(process.env.TRACKER_EVENT) : null;
-      if (!event && ["issues", "schedule"].includes(process.env.GITHUB_EVENT_NAME) && /^\d+$/.test(process.env.GITHUB_RUN_ID ?? "")) {
+      if (!event && ["issues", "schedule", "pull_request_target", "push"].includes(process.env.GITHUB_EVENT_NAME) && /^\d+$/.test(process.env.GITHUB_RUN_ID ?? "")) {
         const run = github.request(`repos/${config.repository}/actions/runs/${process.env.GITHUB_RUN_ID}`);
-        event = { id: `discovery-${process.env.GITHUB_RUN_ID}`, type: "discover", at: new Date(run.created_at).toISOString(), payload: {} };
+        event = { id: `discovery-${process.env.GITHUB_RUN_ID}`, type: "reconcile", at: new Date(run.created_at).toISOString(), payload: {} };
       }
       result = processWorker(github, config, event);
     }
