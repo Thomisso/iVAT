@@ -58,6 +58,13 @@ assumptions:
     verification: On 2026-11-05 the new assertion first failed because the old mock did not model TrackerItemFields. After adding its documented ProjectV2Item fieldValues response shape, all thirteen existing transport scenarios plus the additional repair readback assertion passed on agent-tracking-206-composition. This does not exercise final PR merge/ready/reversal operations over HTTP or prove live provider permissions/atomicity; their CLI-boundary tests and root-owned isolated GitHub acceptance remain separate.
     source: https://docs.github.com/en/graphql/reference/projects#projectv2item; scripts/verify-agent-tracker-transport.mjs; postman/mocks/github-agent/default.js
     updated_at: "2026-11-05"
+  - id: merged-result-without-legacy-rest-field
+    status: supported
+    claim: The actual public final-pr path binds the corroborated GraphQL merged result when the current REST PR response omits merge_commit_sha.
+    reason: REST API 2026-03-10 removed that field. The stand-in supplies distinct head, merge-result and later default-tip identities; the real controller/worker reads both API representations and records only the corroborated result.
+    verification: On 2026-11-05 all thirteen existing wire scenarios plus a fourteenth merged-result scenario passed, including the existing Project repair readback assertion. Public CLI process tests also reject inconsistent GraphQL identity and verify completion on the actual result tree. This transport model does not prove actual provider completion or permissions; root-owned live acceptance remains separate.
+    source: https://docs.github.com/en/rest/about-the-rest-api/breaking-changes?apiVersion=2026-03-10; scripts/verify-agent-tracker-transport.mjs; scripts/tests/agent-tracker-final.test.mjs; postman/mocks/github-agent/default.js
+    updated_at: "2026-11-05"
 fingerprints:
   - id: agent-tracking-201-development
     date: "2026-11-04"
@@ -89,4 +96,8 @@ fingerprints:
   - id: agent-tracking-206-composition
     date: "2026-11-05"
     commit: 92ce99c with dirty ticket 206 qualified-child/reversal review fixes and real-gh repair-readback assertion/model
+    cli: Postman CLI 1.73.0; gh 2.101.0; Node 22.22.3
+  - id: agent-tracking-200-current-merge-api
+    date: "2026-11-05"
+    commit: eb271e135e6e6a7b8013ad8f3738ed3bbe55343d with isolated current-API merged-result fix and fourteenth real-gh scenario
     cli: Postman CLI 1.73.0; gh 2.101.0; Node 22.22.3

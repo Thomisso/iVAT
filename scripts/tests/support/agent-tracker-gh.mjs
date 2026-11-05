@@ -49,6 +49,11 @@ if (endpoint === "graphql") {
       const pr = Object.values(remote.pulls).find(pr => pr.node_id === value.pullRequestId); pr.draft = true;
       response = { convertPullRequestToDraft: { pullRequest: { id: pr.node_id, isDraft: true } } }; break;
     }
+    case "TrackerMergedPullRequest": {
+      const pr = remote.pulls?.[variables.number];
+      const facts = remote.pullRequestFacts?.[variables.number] ?? (pr ? { id: pr.node_id, number: pr.number, repository: { nameWithOwner: "example/project" }, headRefOid: pr.head.sha, headRefName: pr.head.ref, baseRefName: pr.base.ref, state: pr.merged ? "MERGED" : "OPEN", merged: pr.merged, mergedAt: pr.merged_at, mergeCommit: pr.merge_commit_sha ? { oid: pr.merge_commit_sha } : null } : null);
+      response = { repository: { nameWithOwner: "example/project", pullRequest: facts } }; break;
+    }
     case "TrackerFinalMerge": response = { repository: { issue: remote.finalMerges?.[variables.number] ?? { state: "OPEN", stateReason: null, closedByPullRequestsReferences: { nodes: [], pageInfo: { hasNextPage: false } }, timelineItems: { nodes: [] } } } }; break;
     case "TrackerDiscovery": {
       const all = Object.values(remote.issues ?? {}).filter(issue => issue.state === "OPEN" && issue.labels.includes("ready-for-agent"));
@@ -141,6 +146,8 @@ if (endpoint === "graphql") {
     delete remote.pushOnPullRead;
   }
   if (!response) { console.error("HTTP 404 Not Found"); process.exit(1); }
+  // REST2026-03-10 removed this field; GraphQL remains a separate proof.
+  response = Object.fromEntries(Object.entries(response).filter(([key]) => key !== "merge_commit_sha"));
 } else if (/^repos\/example\/project\/issues\/\d+\/sub_issues$/.test(endpoint)) {
   response = (remote.subIssues?.[endpoint.split("/")[4]] ?? []).slice((page - 1) * 100, page * 100).map(child => typeof child === "object" ? child : { number: child });
 } else if (/^repos\/example\/project\/issues\/\d+\/dependencies\/blocked_by$/.test(endpoint)) {

@@ -144,6 +144,25 @@ try {
   assert.equal((await command("sync", ["--wait-seconds", "0"])).code, 0);
   assert.ok((await api("__state")).requests.some(request => request.operation === "TrackerItemFields"), "real gh exercised field readback");
 
+  const headRevision = (await execute("git", ["rev-parse", "feature/http-fixture"], environment)).stdout.trim();
+  const treeRevision = (await execute("git", ["show", "-s", "--format=%T", headRevision], environment)).stdout.trim();
+  const actualResult = "1".repeat(40);
+  const laterTarget = "2".repeat(40);
+  await api("__control", { mergeFacts: { head: headRevision, result: actualResult, target: laterTarget, tree: treeRevision, at: "2026-11-05T19:09:13Z" } });
+  assert.equal(Object.hasOwn(await api("repos/simulation-owner/agent-tracking/pulls/42"), "merge_commit_sha"), false);
+  result = await command("final-pr", ["--issue", "7", "--pr", "42", "--result", "Actual GraphQL merged result corroborated", "--wait-seconds", "0"]);
+  assert.equal(result.code, 1);
+  event = (await api("__state")).dispatches.at(-1).event;
+  result = await worker(event);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal((await command("sync", ["--wait-seconds", "0"])).code, 0);
+  const bound = JSON.parse((await command("show")).stdout).remote.tickets[7];
+  assert.equal(bound.final.revision, actualResult);
+  assert.notEqual(bound.final.revision, headRevision);
+  assert.notEqual(bound.final.revision, laterTarget);
+  assert.equal(bound.status, "implementing", "a merged binding alone does not satisfy final gates");
+  assert.ok((await api("__state")).requests.some(request => request.operation === "TrackerMergedPullRequest"));
+
   await api("__control", { reset: true, failure: { match: "TrackerCreateField", phase: "before", mode: "graphql-validation", remaining: 1 } });
   result = await setup();
   assert.equal(result.code, 1);
@@ -161,7 +180,7 @@ try {
   assert.ok(state.requests.some(request => request.operation === "TrackerCreateField"));
   assert.ok(state.requests.some(request => request.path.endsWith("/issues/9001/comments") && request.method === "POST"));
   assert.match(proxyLog, /api\.github\.com/);
-  console.log(JSON.stringify({ ok: true, transport: "real gh and tracker CLI/worker over Postman HTTPS proxy", cases: ["untrusted CA refusal", "setup", "repeat setup", "doctor", "native workflow refusal and explicit removal", "permission refusal", "HTML failure sanitation", "durable dispatch and real worker", "partial projection retry", "duplicate worker receipt", "GraphQL rejection classification", "create persisted before failed response", "retry without duplicate registry"], fields: state.fields.length, requests: state.requests.length }));
+  console.log(JSON.stringify({ ok: true, transport: "real gh and tracker CLI/worker over Postman HTTPS proxy", cases: ["untrusted CA refusal", "setup", "repeat setup", "doctor", "native workflow refusal and explicit removal", "permission refusal", "HTML failure sanitation", "durable dispatch and real worker", "partial projection retry", "duplicate worker receipt", "GraphQL rejection classification", "create persisted before failed response", "retry without duplicate registry", "GraphQL merged result after REST field removal"], fields: state.fields.length, requests: state.requests.length }));
 } finally {
   try { process.kill(-proxy.pid, "SIGINT"); } catch { /* Already stopped. */ }
   await new Promise(resolve => { const timeout = setTimeout(resolve, 3000); proxy.once("exit", () => { clearTimeout(timeout); resolve(); }); });
