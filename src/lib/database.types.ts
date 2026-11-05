@@ -43,6 +43,56 @@ isOneToOne: false
       referencedColumns: ["provider"]
     }
                   ]
+                },"ai_failed_response": {
+                  Row: {
+                    "company_id": string,"document_id": string | null,"error": string,"id": number,"model": string | null,"organization_id": string,"provider": string,"recorded_at": string,"request_id": string,"response": string,"source_file_id": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "company_id": string,"document_id"?: string | null,"error": string,"id"?: never,"model"?: string | null,"organization_id": string,"provider": string,"recorded_at"?: string,"request_id": string,"response": string,"source_file_id"?: string | null
+                  }
+                  Update: {
+                    "company_id"?: string,"document_id"?: string | null,"error"?: string,"id"?: never,"model"?: string | null,"organization_id"?: string,"provider"?: string,"recorded_at"?: string,"request_id"?: string,"response"?: string,"source_file_id"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "ai_failed_response_company_id_organization_id_fkey"
+      columns: ["company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "company"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "ai_failed_response_document_id_fkey"
+      columns: ["document_id"]
+isOneToOne: false
+      referencedRelation: "document"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "ai_failed_response_document_id_fkey"
+      columns: ["document_id"]
+isOneToOne: false
+      referencedRelation: "document_duplicate_warning"
+      referencedColumns: ["document_id"]
+    },{
+      foreignKeyName: "ai_failed_response_document_id_fkey"
+      columns: ["document_id"]
+isOneToOne: false
+      referencedRelation: "document_overview"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "ai_failed_response_document_id_fkey"
+      columns: ["document_id"]
+isOneToOne: false
+      referencedRelation: "vat_report_document"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "ai_failed_response_source_file_id_fkey"
+      columns: ["source_file_id"]
+isOneToOne: false
+      referencedRelation: "source_file"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"ai_model_price": {
                   Row: {
                     "configuration_id": string,"input_price_per_million_usd": number,"model": string,"output_price_per_million_usd": number,"updated_at": string,"updated_by": string | null
@@ -1055,6 +1105,11 @@ isOneToOne: false
 "list_ai_configurations":
 { Args: Record<PropertyKey, never>; Returns: Json
                            },
+"list_ai_failed_responses":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "error": string,"model": string,"provider": string,"recorded_at": string,"response": string,"target_id": string,"target_kind": Database["public"]['Enums']["ai_processing_target_kind"]
+            }[]
+                           },
 "list_ai_model_prices":
 { Args: Record<PropertyKey, never>; Returns: Json
                            },
@@ -1157,6 +1212,9 @@ isOneToOne: false
                            },
 "record_ai_extraction":
 { Args: { "findings": Json,"model": string,"payload": Json,"provider": string,"target_document_id": string,"target_extraction_request_id": string,"target_reservation_id": string }; Returns: undefined
+                           },
+"record_ai_failed_response":
+{ Args: { "target_error": string,"target_id": string,"target_kind": Database["public"]['Enums']["ai_processing_target_kind"],"target_model"?: string,"target_provider": string,"target_request_id": string,"target_response": string }; Returns: undefined
                            },
 "record_ai_processing_issue":
 { Args: { "target_classification": Database["public"]['Enums']["ai_processing_issue_classification"],"target_configuration_id"?: string,"target_extraction_request_id"?: string,"target_id": string,"target_kind": Database["public"]['Enums']["ai_processing_target_kind"],"target_provider"?: string,"target_split_request_id"?: string,"target_state": Database["public"]['Enums']["ai_processing_issue_state"] }; Returns: undefined

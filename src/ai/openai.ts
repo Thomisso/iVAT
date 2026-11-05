@@ -1,5 +1,6 @@
 import {
   AiProviderError,
+  withProviderResponse,
   type AiCallContext,
   type AiInput,
   type AiProvider,
@@ -10,7 +11,9 @@ import {
   EXTRACTION_PROMPT,
   EXTRACTION_SCHEMA,
   extractionPayload,
+  interpreted,
   pageRanges,
+  parsedOrNull,
   rowRanges,
   SPREADSHEET_SPLIT_SCHEMA,
   SPLIT_SCHEMA,
@@ -68,7 +71,7 @@ async function structuredResponse(
   prompt: string,
   schemaName: string,
   schema: object,
-): Promise<{ model: string; value: unknown; usage?: AiUsage }> {
+): Promise<{ model: string; value: unknown; usage?: AiUsage; raw: string }> {
   let response: Response;
   try {
     response = await fetch(`${options.baseUrl ?? "https://api.openai.com/v1"}/responses`, {
@@ -90,8 +93,10 @@ async function structuredResponse(
   } catch (cause) {
     throw new OpenAiProviderError("OpenAI could not be reached", { transient: true, cause });
   }
+  const raw = await response.text().catch(() => "");
+  const fail = (error: unknown) => withProviderResponse(error, raw);
   if (!response.ok) {
-    const body = await response.json().catch(() => null) as { error?: { code?: unknown } } | null;
+    const body = parsedOrNull(raw) as { error?: { code?: unknown } } | null;
     const errorCode = body?.error?.code;
     const creditsExhausted = errorCode === "insufficient_quota" || errorCode === "billing_hard_limit_reached";
     const classification = response.status === 401
@@ -102,32 +107,44 @@ async function structuredResponse(
     const platformIntervention = classification !== undefined;
     const transient = !platformIntervention
       && (response.status === 408 || response.status === 409 || response.status === 429 || response.status >= 500);
-    throw new OpenAiProviderError(`OpenAI request failed (${response.status})`, {
+    throw fail(new OpenAiProviderError(`OpenAI request failed (${response.status})`, {
       transient,
       status: response.status,
       classification,
       platformIntervention,
-    });
+    }));
   }
-  const result = await response.json() as {
+  let result: {
     model?: unknown;
     status?: unknown;
     output?: { type?: unknown; content?: { type?: unknown; text?: unknown; refusal?: unknown }[] }[];
     usage?: { input_tokens?: unknown; output_tokens?: unknown };
   };
+  try {
+    result = JSON.parse(raw);
+  } catch (error) {
+    throw fail(error);
+  }
   if (result.status !== undefined && result.status !== "completed") {
-    throw new OpenAiProviderError(`OpenAI response did not complete (${String(result.status)})`, { transient: true });
+    throw fail(new OpenAiProviderError(`OpenAI response did not complete (${String(result.status)})`, { transient: true }));
   }
   const text = result.output
     ?.find((item) => item.type === "message")
     ?.content?.find((content) => content.type === "output_text")?.text;
   if (typeof text !== "string") {
-    throw new OpenAiProviderError("OpenAI returned no structured output", { transient: false });
+    throw fail(new OpenAiProviderError("OpenAI returned no structured output", { transient: false }));
+  }
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch (error) {
+    throw fail(error);
   }
   const usage = result.usage;
   return {
+    raw,
     model: typeof result.model === "string" ? result.model : model,
-    value: JSON.parse(text),
+    value,
     ...(typeof usage?.input_tokens === "number" && typeof usage.output_tokens === "number"
       ? { usage: { inputTokens: usage.input_tokens, outputTokens: usage.output_tokens } }
       : {}),
@@ -152,7 +169,7 @@ export function openAiProvider(options: OpenAiProviderOptions): AiProvider {
       );
       return {
         model: result.model,
-        documents: spreadsheet ? rowRanges("OpenAI", result.value) : pageRanges("OpenAI", result.value),
+        documents: interpreted(result.raw, () => spreadsheet ? rowRanges("OpenAI", result.value) : pageRanges("OpenAI", result.value)),
         ...(result.usage ? { usage: result.usage } : {}),
       };
     },
@@ -167,7 +184,7 @@ export function openAiProvider(options: OpenAiProviderOptions): AiProvider {
       );
       return {
         model: result.model,
-        payload: extractionPayload("OpenAI", result.value),
+        payload: interpreted(result.raw, () => extractionPayload("OpenAI", result.value)),
         ...(result.usage ? { usage: result.usage } : {}),
       };
     },

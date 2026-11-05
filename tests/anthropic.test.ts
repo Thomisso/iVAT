@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { afterEach, describe, expect, it } from "vitest";
 import { AnthropicProviderError, anthropicAiProvider } from "@/ai/anthropic";
 import { SAMPLE_EXTRACTION } from "@/ai/fake";
+import { providerResponseOf } from "@/application/ai-provider";
 
 const servers: ReturnType<typeof createServer>[] = [];
 
@@ -203,6 +204,26 @@ describe("Anthropic AI provider", () => {
 
     expect(error).toBeInstanceOf(AnthropicProviderError);
     expect(error).toMatchObject({ status, transient });
+  });
+
+  it("names the failed check and keeps the raw body of an invalid Extraction payload", async () => {
+    const extraction = { ...SAMPLE_EXTRACTION, issueDate: "30.10.2026" };
+    const raw = JSON.stringify({ model: "claude-sonnet-extract", content: [{ type: "text", text: JSON.stringify(extraction) }] });
+    const baseUrl = await anthropicStandIn((_request, _body, response) => {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(raw);
+    });
+    const provider = anthropicAiProvider({
+      apiKey: "test-secret",
+      splitModel: "claude-sonnet-split",
+      extractModel: "claude-sonnet-extract",
+      baseUrl,
+    });
+    const error = await provider.extract({ format: "png", mediaType: "image/png", bytes: new Uint8Array([137, 80, 78, 71]), pageCount: 1 })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toEqual(new Error("Anthropic returned an invalid Extraction payload (invalid_date)"));
+    expect(providerResponseOf(error)).toBe(raw);
   });
 
   it.each([

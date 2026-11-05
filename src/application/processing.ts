@@ -5,6 +5,7 @@ import {
   type AiProviderConfiguration,
   type PageRange,
   type RowRange,
+  providerResponseOf,
 } from "./ai-provider";
 import type { SystemClient } from "./client";
 import {
@@ -287,6 +288,36 @@ async function recordPlatformIntervention(
   if (recorded.error) throw recorded.error;
 }
 
+/**
+ * Stores the body a provider returned on a failed call so a SuperAdmin can see
+ * why it failed. Best effort: a storage problem never replaces the failure.
+ */
+async function recordFailedAiResponse(
+  system: SystemClient,
+  target: { kind: "source_file" | "document"; id: string; requestId: string },
+  error: unknown,
+  availability: ProviderAvailability | undefined,
+) {
+  const response = providerResponseOf(error);
+  const provider = availability?.provider?.name ?? (error instanceof AiProviderError ? error.provider : null);
+  if (response === null || !provider) return;
+  const configuration = availability?.configuration;
+  try {
+    const { error: recordError } = await system.rpc("record_ai_failed_response", {
+      target_kind: target.kind,
+      target_id: target.id,
+      target_request_id: target.requestId,
+      target_provider: provider,
+      target_model: (target.kind === "source_file" ? configuration?.splitModel : configuration?.extractModel) ?? undefined,
+      target_error: error instanceof Error ? error.message : String(error),
+      target_response: response,
+    });
+    if (recordError) throw recordError;
+  } catch (recordError) {
+    console.error(`[worker] could not record the failed AI response of ${target.kind} ${target.id}`, recordError);
+  }
+}
+
 async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId: string, attempt: Attempt) {
   const { data: file, error } = await system
     .from("source_file")
@@ -348,6 +379,7 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
       if (error) throw error;
       });
     } catch (error) {
+      await recordFailedAiResponse(system, { kind: "source_file", id: file.id, requestId: file.split_request_id }, error, availability);
       if (error instanceof AiProviderError && error.platformIntervention) {
         await recordPlatformIntervention(system, { kind: "source_file", id: file.id, splitRequestId: file.split_request_id }, error, availability);
         return;
@@ -516,6 +548,7 @@ async function extractDocument(
     }
     });
   } catch (error) {
+    await recordFailedAiResponse(system, { kind: "document", id: document.id, requestId: document.extraction_request_id }, error, availability);
     if (error instanceof AiProviderError && error.platformIntervention) {
       await recordPlatformIntervention(system, { kind: "document", id: document.id, extractionRequestId: document.extraction_request_id }, error, availability);
       return;

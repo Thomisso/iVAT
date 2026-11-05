@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { afterEach, describe, expect, it } from "vitest";
 import { OpenAiProviderError, openAiProvider } from "@/ai/openai";
 import { SAMPLE_EXTRACTION } from "@/ai/fake";
+import { providerResponseOf } from "@/application/ai-provider";
 
 const servers: ReturnType<typeof createServer>[] = [];
 
@@ -39,6 +40,39 @@ describe("OpenAI provider", () => {
     const provider = openAiProvider({ apiKey: "test-secret", splitModel: "gpt-split", extractModel: "gpt-extract", baseUrl });
     await expect(provider.extract({ format: "png", mediaType: "image/png", bytes: new Uint8Array([137, 80, 78, 71]), pageCount: 1 }))
       .rejects.toThrow("invalid Extraction payload");
+  });
+
+  it("names the failed check and keeps the raw body of an invalid Extraction payload", async () => {
+    const extraction = { ...SAMPLE_EXTRACTION, supplier: { ...SAMPLE_EXTRACTION.supplier, country: "Czech Republic" } };
+    const raw = JSON.stringify({
+      model: "gpt-extract", status: "completed",
+      output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify(extraction) }] }],
+    });
+    const baseUrl = await openAiStandIn((_request, _body, response) => {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(raw);
+    });
+    const provider = openAiProvider({ apiKey: "test-secret", splitModel: "gpt-split", extractModel: "gpt-extract", baseUrl });
+    const error = await provider.extract({ format: "png", mediaType: "image/png", bytes: new Uint8Array([137, 80, 78, 71]), pageCount: 1 })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toEqual(new Error("OpenAI returned an invalid Extraction payload (invalid_country)"));
+    expect(providerResponseOf(error)).toBe(raw);
+  });
+
+  it("keeps the raw body of a refused request", async () => {
+    const raw = JSON.stringify({ error: { message: "Invalid file data", code: "invalid_value" } });
+    const baseUrl = await openAiStandIn((_request, _body, response) => {
+      response.writeHead(400, { "content-type": "application/json" });
+      response.end(raw);
+    });
+    const provider = openAiProvider({ apiKey: "test-secret", splitModel: "gpt-split", extractModel: "gpt-extract", baseUrl });
+    const error = await provider.extract({ format: "png", mediaType: "image/png", bytes: new Uint8Array([137, 80, 78, 71]), pageCount: 1 })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(OpenAiProviderError);
+    expect(error).toMatchObject({ status: 400, transient: false });
+    expect(providerResponseOf(error)).toBe(raw);
   });
 
   it("sends a PDF natively and returns the schema-constrained Split", async () => {
