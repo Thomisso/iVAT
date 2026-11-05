@@ -33,6 +33,10 @@ When set to `yes`, PRs run through the same labels and states as issues, using t
 
 GitHub shares one number space across issues and PRs, so a bare `#42` may be either: resolve with `gh pr view 42` and fall back to `gh issue view 42`.
 
+## Implementation visibility
+
+The [iVAT Agent implementation Project](https://github.com/users/Thomisso/projects/1) references original approved implementation issues and parent specifications. Issue events and an hourly serialized reconciliation add open `ready-for-agent` work, then retain it when labels change or issues close. This does not change the labels' readiness meaning. Use [shared tracker guidance](agent-tracking.md) for discovery, native Parent filtering and the explicit links for text-only parent fallbacks.
+
 ## Implementation closure
 
 Code issues stay open while their branch is under review. Put `Closes #<number>` in the pull request body so GitHub closes them when the pull request merges. A multi-ticket integration pull request names the spec and every completed child ticket. Research, triage and other work without a code merge is resolved by commenting and closing the issue directly.

@@ -17,6 +17,28 @@ if (endpoint === "graphql") {
   const variables = input.variables ?? {};
   const value = variables.input ?? {};
   switch (operation) {
+    case "TrackerDiscovery": {
+      const all = Object.values(remote.issues ?? {}).filter(issue => issue.state === "OPEN" && issue.labels.includes("ready-for-agent"));
+      const start = Number(variables.after ?? 0);
+      const size = remote.discoveryPageSize ?? 100;
+      const nodes = all.slice(start, start + size);
+      response = { repository: { issues: { nodes, pageInfo: { hasNextPage: start + size < all.length, endCursor: String(start + size) } } } };
+      break;
+    }
+    case "TrackerDiscoveryIssue": response = { repository: { issue: remote.issues?.[variables.number] ?? null } }; break;
+    case "TrackerViews": response = { node: { views: { nodes: remote.views ?? [], pageInfo: { hasNextPage: false } } } }; break;
+    case "TrackerCreateView": {
+      remote.views ??= [];
+      const view = { id: `view-${remote.views.length}`, ...value, filter: "", configuration: { visibleFields: { nodes: value.configuration.visibleFieldIds.map(id => ({ id })) } }, groupByFields: { nodes: [] }, verticalGroupByFields: { nodes: value.layout === "BOARD_LAYOUT" ? [{ id: "status" }] : [] } };
+      remote.views.push(view);
+      if (remote.failNextViewCreate) { delete remote.failNextViewCreate; fs.writeFileSync(file, JSON.stringify(remote)); console.error("network unavailable after create"); process.exit(1); }
+      response = { createProjectV2View: { view } }; break;
+    }
+    case "TrackerUpdateView": {
+      const view = remote.views.find(view => view.id === value.viewId);
+      Object.assign(view, value, { configuration: { visibleFields: { nodes: value.configuration.visibleFieldIds.map(id => ({ id })) } } });
+      response = { updateProjectV2View: { view } }; break;
+    }
     case "TrackerProject": response = { user: { projectV2: remote.project } }; break;
     case "TrackerFields": response = { node: { fields: { nodes: remote.fields, pageInfo: { hasNextPage: false } } } }; break;
     case "TrackerWorkflows": response = { node: { workflows: { nodes: remote.workflows ?? [], pageInfo: { hasNextPage: false } } } }; break;
@@ -52,6 +74,8 @@ if (endpoint === "graphql") {
     default: throw new Error(`Unmodelled GraphQL operation ${operation}`);
   }
   response = { data: response };
+} else if (/^repos\/example\/project\/actions\/runs\/\d+$/.test(endpoint)) {
+  response = { created_at: "2026-11-05T12:00:00Z" };
 } else if (endpoint === "user") {
   response = { login: "maintainer" };
 } else if (endpoint === "repos/example/project") {
@@ -64,10 +88,28 @@ if (endpoint === "graphql") {
 } else if (endpoint === "repos/example/project/issues/comments/900" && method === "PATCH") {
   remote.registry = input.body;
   response = { id: 900, body: input.body };
+} else if (/^repos\/example\/project\/issues\/\d+\/dependencies\/blocked_by$/.test(endpoint)) {
+  const number = endpoint.split("/")[4];
+  if (remote.issues?.[number]?.dependenciesUnavailable) { console.error("404 Not Found"); process.exit(1); }
+  response = remote.issues?.[number]?.blockers ?? [];
+} else if (/^repos\/example\/project\/issues\/\d+\/comments$/.test(endpoint) && !endpoint.includes("/201/") && !endpoint.includes("/99/")) {
+  const number = endpoint.split("/")[4];
+  remote.comments ??= {};
+  remote.comments[number] ??= [];
+  if (method === "POST") remote.comments[number].push({ id: 1000 + Number(number), body: input.body });
+  response = method === "GET" ? remote.comments[number] : remote.comments[number].at(-1);
+} else if (/^repos\/example\/project\/issues\/comments\/1\d{3}$/.test(endpoint) && method === "PATCH") {
+  const number = Number(endpoint.split("/").at(-1)) - 1000;
+  remote.comments[number][0].body = input.body;
+  response = remote.comments[number][0];
+} else if (/^repos\/example\/project\/issues\/\d+$/.test(endpoint) && remote.issues?.[endpoint.split("/")[4]]) {
+  const issue = remote.issues[endpoint.split("/")[4]];
+  response = { ...issue, node_id: issue.id, html_url: issue.url, state: issue.state.toLowerCase() };
 } else if (endpoint === "repos/example/project/issues/201") {
   response = { number: 201, node_id: "I_201", title: "A real issue", html_url: "https://github.com/example/project/issues/201", state: "open" };
 } else if (endpoint === "repos/example/project/issues/201/parent") {
-  response = { number: 200 };
+  if (remote.issues?.[201] && !remote.issues[201].parent) { console.error("404 Not Found"); process.exit(1); }
+  response = remote.issues?.[201]?.parent ?? { number: 200 };
 } else if (endpoint === "repos/example/project/issues/201/assignees") {
   remote.assignees = input.assignees;
   response = {};
