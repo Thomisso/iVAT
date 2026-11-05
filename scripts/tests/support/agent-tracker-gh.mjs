@@ -11,8 +11,8 @@ const page = Number(new URLSearchParams(rawEndpoint.split("?")[1]).get("page") ?
 const input = args.includes("--input") ? JSON.parse(fs.readFileSync(0, "utf8")) : {};
 let response;
 const parent = number => {
-  if (remote.parents?.[number] === null) { console.error("HTTP 404: Not Found"); process.exit(1); }
-  return { number: remote.parents?.[number] ?? 200 };
+  if ((remote.issues?.[number] && !remote.issues[number].parent && !Object.hasOwn(remote.parents ?? {}, number)) || remote.parents?.[number] === null) { console.error("HTTP 404: Not Found"); process.exit(1); }
+  return remote.issues?.[number]?.parent ?? { number: remote.parents?.[number] ?? 200 };
 };
 if (remote.fail) {
   console.error(remote.fail);
@@ -24,6 +24,28 @@ if (endpoint === "graphql") {
   const value = variables.input ?? {};
   switch (operation) {
     case "TrackerFinalMerge": response = { repository: { issue: remote.finalMerges?.[variables.number] ?? { state: "OPEN", stateReason: null, closedByPullRequestsReferences: { nodes: [], pageInfo: { hasNextPage: false } }, timelineItems: { nodes: [] } } } }; break;
+    case "TrackerDiscovery": {
+      const all = Object.values(remote.issues ?? {}).filter(issue => issue.state === "OPEN" && issue.labels.includes("ready-for-agent"));
+      const start = Number(variables.after ?? 0);
+      const size = remote.discoveryPageSize ?? 100;
+      const nodes = all.slice(start, start + size);
+      response = { repository: { issues: { nodes, pageInfo: { hasNextPage: start + size < all.length, endCursor: String(start + size) } } } };
+      break;
+    }
+    case "TrackerDiscoveryIssue": response = { repository: { issue: remote.issues?.[variables.number] ?? null } }; break;
+    case "TrackerViews": response = { node: { views: { nodes: remote.views ?? [], pageInfo: { hasNextPage: false } } } }; break;
+    case "TrackerCreateView": {
+      remote.views ??= [];
+      const view = { id: `view-${remote.views.length}`, ...value, filter: "", configuration: { visibleFields: { nodes: value.configuration.visibleFieldIds.map(id => ({ id })) } }, groupByFields: { nodes: [] }, verticalGroupByFields: { nodes: value.layout === "BOARD_LAYOUT" ? [{ id: "status" }] : [] } };
+      remote.views.push(view);
+      if (remote.failNextViewCreate) { delete remote.failNextViewCreate; fs.writeFileSync(file, JSON.stringify(remote)); console.error("network unavailable after create"); process.exit(1); }
+      response = { createProjectV2View: { view } }; break;
+    }
+    case "TrackerUpdateView": {
+      const view = remote.views.find(view => view.id === value.viewId);
+      Object.assign(view, value, { configuration: { visibleFields: { nodes: value.configuration.visibleFieldIds.map(id => ({ id })) } } });
+      response = { updateProjectV2View: { view } }; break;
+    }
     case "TrackerProject": response = { user: { projectV2: remote.project } }; break;
     case "TrackerFields": response = { node: { fields: { nodes: remote.fields, pageInfo: { hasNextPage: false } } } }; break;
     case "TrackerWorkflows": response = { node: { workflows: { nodes: remote.workflows ?? [], pageInfo: { hasNextPage: false } } } }; break;
@@ -59,6 +81,8 @@ if (endpoint === "graphql") {
     default: throw new Error(`Unmodelled GraphQL operation ${operation}`);
   }
   response = { data: response };
+} else if (/^repos\/example\/project\/actions\/runs\/\d+$/.test(endpoint)) {
+  response = { created_at: "2026-11-05T12:00:00Z" };
 } else if (endpoint === "user") {
   response = { login: "maintainer" };
 } else if (endpoint === "repos/example/project") {
@@ -84,7 +108,11 @@ if (endpoint === "graphql") {
   response = { status: base === head ? "identical" : ancestor.status === 0 ? "ahead" : "diverged", merge_base_commit: { sha: execFileSync("git", ["merge-base", base, head], { encoding: "utf8" }).trim() } };
 } else if (/^repos\/example\/project\/issues\/\d+\/dependencies\/blocked_by$/.test(endpoint)) {
   const number = endpoint.split("/")[4];
-  response = (remote.dependencies?.[number] ?? []).slice((page - 1) * 100, page * 100);
+  if (remote.issues?.[number]?.dependenciesUnavailable) { console.error("404 Not Found"); process.exit(1); }
+  response = (remote.dependencies?.[number] ?? remote.issues?.[number]?.blockers ?? []).slice((page - 1) * 100, page * 100);
+} else if (/^repos\/example\/project\/issues\/\d+$/.test(endpoint) && remote.issues?.[endpoint.split("/")[4]]) {
+  const issue = remote.issues[endpoint.split("/")[4]];
+  response = { ...issue, node_id: issue.id, html_url: issue.url, state: issue.state.toLowerCase() };
 } else if (endpoint === "repos/example/project/issues/201") {
   response = { number: 201, node_id: "I_201", title: "A real issue", html_url: "https://github.com/example/project/issues/201", state: "open" };
 } else if (endpoint === "repos/example/project/issues/201/parent") {
@@ -120,12 +148,12 @@ if (endpoint === "graphql") {
   remote.extraAssignees ??= {}; remote.extraAssignees[endpoint.split("/")[4]] = input.assignees; response = {};
 } else if (/^repos\/example\/project\/issues\/\d+\/comments$/.test(endpoint)) {
   const number = endpoint.split("/")[4];
-  remote.extraComments ??= {};
-  remote.extraComments[number] ??= [];
-  if (method === "POST") remote.extraComments[number].push({ id: 1000 + Number(number), body: input.body });
-  response = method === "POST" ? remote.extraComments[number].at(-1) : remote.extraComments[number];
+  remote.comments ??= {};
+  remote.comments[number] ??= [];
+  if (method === "POST") remote.comments[number].push({ id: 1000 + Number(number), body: input.body });
+  response = method === "POST" ? remote.comments[number].at(-1) : remote.comments[number];
 } else if (/^repos\/example\/project\/issues\/comments\/\d+$/.test(endpoint) && method === "PATCH") {
-  const comment = Object.values(remote.extraComments).flat().find(comment => comment.id === Number(endpoint.split("/").at(-1)));
+  const comment = Object.values(remote.comments).flat().find(comment => comment.id === Number(endpoint.split("/").at(-1)));
   comment.body = input.body; response = comment;
 } else throw new Error(`Unmodelled REST operation ${method} ${endpoint}`);
 fs.writeFileSync(file, JSON.stringify(remote));

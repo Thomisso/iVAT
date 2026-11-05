@@ -20,7 +20,7 @@ assumptions:
     status: supported
     claim: Against this HTTP stand-in, the real controller persists a pending dispatch and the real worker retries partial publication without duplicating the issue item or maintained status comment.
     reason: The mock records dispatch intent and stores provider objects only; the verifier invokes the actual worker as a separate process to apply the event. A synthetic field-write failure occurs after canonical intent and Project item creation, leaving publication unacknowledged until a successful retry.
-    verification: Repeated successfully on 2026-11-05 against the agent-tracking-203-development fingerprint (13 scenarios, 27 captured requests). This revalidates the existing publication paths only; the new review/dependency GitHub operations are covered by CLI-boundary controlled transport tests and still require isolated live acceptance. The complete verifier passed on 2026-11-04. It observed controller publication_pending, actual worker start, duplicate receipt handling, claim publication failing before field effects, publishedRevision remaining behind revision, then successful retry/sync with one item and one ticket comment. The original state timestamp remained 2026-11-04T12:01:00.000Z. These are caller outcomes under the model, not real Actions concurrency evidence.
+    verification: Repeated successfully on 2026-11-05 against the agent-tracking-203-development fingerprint (13 scenarios, 27 captured requests). This revalidates the existing publication paths only; the new review/dependency GitHub operations are covered by CLI-boundary controlled transport tests and still require isolated live acceptance. The complete verifier passed on 2026-11-04. It observed controller publication_pending, actual worker start, duplicate receipt handling, claim publication failing before field effects, publishedRevision remaining behind revision, then successful retry/sync with one item and one ticket comment. The original state timestamp remained 2026-11-04T12:01:00.000Z. These are caller outcomes under the model, not real Actions concurrency evidence. The unchanged transport suite also passed on 2026-11-05 against the agent-tracking-202-development and agent-tracking-202-readiness-review fingerprints; these runs do not exercise discovery or view APIs. The same 13 foundation scenarios and 27 captured requests passed again for the agent-tracking-202-203-merge fingerprint, without claiming HTTP coverage for new lifecycle or discovery operations.
     source: scripts/verify-agent-tracker-transport.mjs; postman/mocks/github-agent/default.js
     updated_at: "2026-11-05"
   - id: ambiguous-comment-create
@@ -63,4 +63,19 @@ fingerprints:
   - id: agent-tracking-203-development
     date: "2026-11-05"
     commit: 44c362aecf1d472f2ab06e25c691de7da4563ab0 with dirty ticket 203 lifecycle/evidence changes and strict literal-branch validation
+    cli: Postman CLI 1.73.0; gh 2.101.0; Node 22.22.3
+
+  - id: agent-tracking-202-development
+    date: "2026-11-05"
+    commit: 44c362a with dirty ticket 202 passive discovery, context publication and view reconciliation
+    cli: Postman CLI 1.73.0; gh 2.101.0; Node 22.22.3
+
+  - id: agent-tracking-202-readiness-review
+    date: "2026-11-05"
+    commit: c7e19a9 with dirty ticket 202 conservative dependency-delivery gate and native-first fallback review fix
+    cli: Postman CLI 1.73.0; gh 2.101.0; Node 22.22.3
+
+  - id: agent-tracking-202-203-merge
+    date: "2026-11-05"
+    commit: 5240f75 with dirty merge resolution of reviewed integration b1f6444 and explicit discovered dependency blockage
     cli: Postman CLI 1.73.0; gh 2.101.0; Node 22.22.3

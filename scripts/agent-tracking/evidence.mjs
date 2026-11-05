@@ -112,8 +112,11 @@ export function dependencyReadiness(state, record, { github, config }) {
   catch (error) {
     if (error.code !== "github_not_found") throw error;
     const issue = github.request(`repos/${config.repository}/issues/${record.number}`);
-    const line = (issue.body ?? "").split("\n").slice(0, 5).find(line => /^Blocked by:/i.test(line));
-    dependencies = line ? [...line.matchAll(/#(\d+)/g)].map(match => ({ number: Number(match[1]) })) : [];
+    const opening = (issue.body ?? "").split(/^##\s+/m)[0];
+    const fallback = opening.match(/^Blocked by:\s*(.*)$/im)?.[1];
+    if (fallback === undefined) throw new TrackerError("dependency_evidence_missing");
+    dependencies = [...fallback.matchAll(/#(\d+)/g)].map(match => ({ number: Number(match[1]) }));
+    if (!dependencies.length && !/^\s*(?:none|no blockers|n\/a)[.\s]*$/i.test(fallback)) throw new TrackerError("dependency_evidence_missing");
   }
   const blockers = dependencies.map(dependency => {
     const repository = blockerRepository(dependency, config.repository);

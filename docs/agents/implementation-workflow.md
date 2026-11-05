@@ -10,6 +10,8 @@ At every handoff, preserve the exact reviewed revision, focused-check results, d
 
 A still-open internal blocker can unblock a dependent only after clean review and integration into this specification's same integration context. All blockers must be satisfied. External blockers retain the actual final-merge requirement; closing an issue without delivery or integration into another effort is insufficient. Keep native dependency edges and implementation issues open until the final PR merges. Readiness does not start workers or replace the following review gates. Record concrete obstacles with reason, reference, resumption condition and phase; resume from observed resolution. Missing activity alone is not blockage or cancellation.
 
+Follow the [iVAT Agent implementation Project](https://github.com/users/Thomisso/projects/1) and the [shared tracker commands](agent-tracking.md). Approved backlog membership is automatic; use `npm run agent:track -- discover --parent <spec>` for immediate reconciliation and the native Parent table filter. Discovery is passive: the controller must still acquire ownership and explicitly claim implementation work. Text-only parent fallbacks remain linked from the specification's maintained tracking overview.
+
 ## Integration loop
 
 1. Create an integration branch from the target branch. After its first ticket merge, push it and open a draft pull request with closing references for the spec and child tickets.

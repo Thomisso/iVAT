@@ -18,7 +18,7 @@ function repository(t) {
   copyFileSync(new URL("support/agent-tracker-gh.mjs", import.meta.url), path.join(bin, "gh"));
   chmodSync(path.join(bin, "gh"), 0o755);
   const remote = path.join(directory, "github.json");
-  writeFileSync(remote, JSON.stringify({ project: { id: "PVT_test", title: "Agent work", url: "https://github.com/users/example/projects/1" }, fields: [{ id: "status", name: "Status", dataType: "SINGLE_SELECT", options: [] }] }));
+  writeFileSync(remote, JSON.stringify({ project: { id: "PVT_test", title: "Agent work", url: "https://github.com/users/example/projects/1" }, fields: [{ id: "status", name: "Status", dataType: "SINGLE_SELECT", options: [] }, { id: "parent", name: "Parent issue", dataType: "PARENT_ISSUE" }, { id: "title", name: "Title", dataType: "TITLE" }] }));
   return {
     directory,
     remote: () => JSON.parse(readFileSync(remote, "utf8")),
@@ -303,4 +303,34 @@ test("claim rechecks readiness dependencies and refuses changing an unowned tick
   assert.equal(ticket.status, "blocked");
   assert.equal(ticket.runId, null);
   assert.equal(ticket.integrationContext.branch, "integration/spec");
+});
+
+test("a discovered dependency-blocked ticket becomes claimable after same-spec integration evidence", t => {
+  const repo = begin(t, ["--spec", "200", "--integration-branch", "integration/spec"]);
+  commitWork(repo); handoff(repo); assert.equal(reviewResult(repo).status, 0);
+  execute(repo, "integrate", "--issue", "201", "--integration-commit", integration(repo), "--result", "Reviewed blocker integrated");
+  const issue = (number, extra = {}) => ({ id: `I_${number}`, number, title: `Issue ${number}`, url: `https://github.com/example/project/issues/${number}`, body: "", state: "OPEN", repository: { nameWithOwner: "example/project" }, subIssues: { totalCount: 0 }, labels: ["ready-for-agent"], ...extra });
+  const parent = issue(200, { subIssues: { totalCount: 2 } });
+  repo.updateRemote(remote => { remote.issues = { 200: parent, 201: issue(201, { parent }), 202: issue(202, { parent, blockers: [{ number: 201, state: "open", repository_url: "https://api.github.com/repos/example/project" }] }) }; });
+  execute(repo, "discover", "--parent", "200", "--wait-seconds", "0");
+  assert.equal(execute(repo, "show").remote.tickets[202].status, "blocked");
+  execute(repo, "readiness", "--issue", "202", "--spec", "200", "--integration-branch", "integration/spec");
+  assert.equal(execute(repo, "show").remote.tickets[202].status, "ready");
+  execute(repo, "claim", "--issue", "202", "--agent", "next-worker", "--branch", "feat/ticket", "--wait-seconds", "0");
+  const state = execute(repo, "show").remote;
+  assert.equal(state.tickets[202].status, "implementing");
+  assert.equal(state.tickets[201].status, "integrated");
+  assert.equal(state.tickets[200].role, "specification");
+  assert.equal(state.tickets[200].status, null);
+  assert.equal(state.views.board.groupingVerified, true);
+});
+
+test("unavailable dependency evidence cannot clear a discovered blocked ticket", t => {
+  const repo = begin(t);
+  repo.updateRemote(remote => { remote.issues = { 202: { id: "I_202", number: 202, title: "Waiting for dependencies", url: "https://github.com/example/project/issues/202", body: "", state: "OPEN", subIssues: { totalCount: 0 }, labels: ["ready-for-agent"], dependenciesUnavailable: true } }; });
+  execute(repo, "discover", "--wait-seconds", "0");
+  assert.equal(execute(repo, "show").remote.tickets[202].status, "blocked");
+  const result = repo.run("readiness", "--issue", "202", "--wait-seconds", "0");
+  assert.equal(JSON.parse(result.stderr).error, "dependency_evidence_missing");
+  assert.equal(execute(repo, "show").remote.tickets[202].status, "blocked");
 });

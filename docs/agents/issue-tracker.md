@@ -39,6 +39,10 @@ Both standalone `implement` and multi-ticket `implement-spec` use [agent-trackin
 
 Within one specification and integration context, clean independent review plus verified integration can satisfy a blocker while its implementation issue remains open. Every other unsatisfied blocker remains effective. External dependencies require actual final delivery by the current closing PR merged into its final target; the open-blocker count alone is insufficient. Preserve dependency edges, issue closure rules and the final combined-check/review gates in [implementation-workflow.md](implementation-workflow.md). A readiness projection never launches work.
 
+## Implementation visibility
+
+The [iVAT Agent implementation Project](https://github.com/users/Thomisso/projects/1) references original approved implementation issues and parent specifications. Issue events and an hourly serialized reconciliation add open `ready-for-agent` work, then retain it when labels change or issues close. This does not change the labels' readiness meaning. Use [shared tracker guidance](agent-tracking.md) for discovery, native Parent filtering and the explicit links for text-only parent fallbacks.
+
 ## Implementation closure
 
 Code issues stay open while their branch is under review. Put `Closes #<number>` in the pull request body so GitHub closes them when the pull request merges. A multi-ticket integration pull request names the spec and every completed child ticket. Research, triage and other work without a code merge is resolved by commenting and closing the issue directly.

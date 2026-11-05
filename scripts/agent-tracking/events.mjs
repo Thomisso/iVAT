@@ -1,3 +1,4 @@
+import { discoverTickets } from "./discovery.mjs";
 import { currentParent, dependencyReadiness } from "./evidence.mjs";
 import { lifecycleCommands, validateLifecycle, applyLifecycle } from "./lifecycle.mjs";
 import { TrackerError } from "./github.mjs";
@@ -10,7 +11,12 @@ export function text(value, limit = 1000) {
 export function validateEvent(event) {
   const allowed = ["id", "type", "runId", "generation", "sequence", "at", "payload"];
   if (!event || Object.keys(event).some(key => !allowed.includes(key)) || Buffer.byteLength(JSON.stringify(event)) > 8 * 1024) throw new TrackerError("event_invalid");
-  text(event.id, 100); text(event.runId, 100);
+  text(event.id, 100);
+  if (event.type === "discover") {
+    if (!/^[\w-]+$/.test(event.id) || Object.keys(event).some(key => !["id", "type", "at", "payload"].includes(key)) || !Number.isFinite(Date.parse(event.at)) || new Date(event.at).toISOString() !== event.at || !event.payload || typeof event.payload !== "object" || Array.isArray(event.payload) || Object.keys(event.payload).some(key => key !== "parent") || (event.payload.parent !== undefined && (!Number.isInteger(event.payload.parent) || event.payload.parent <= 0))) throw new TrackerError("event_invalid");
+    return event;
+  }
+  text(event.runId, 100);
   if (!/^[\w-]+$/.test(event.id) || !/^[\w-]+$/.test(event.runId) || !Number.isInteger(event.generation) || event.generation < 0 || !Number.isInteger(event.sequence) || event.sequence < 0 || !Number.isFinite(Date.parse(event.at)) || new Date(event.at).toISOString() !== event.at || !event.payload || typeof event.payload !== "object" || Array.isArray(event.payload)) throw new TrackerError("event_invalid");
   if (event.type === "start") {
     if (Object.keys(event.payload).length || event.sequence !== 0) throw new TrackerError("event_invalid");
@@ -29,7 +35,11 @@ export function validateEvent(event) {
 
 export function applyEvent(state, event, { github, config, actor }) {
   validateEvent(event);
-  if (event.type === "start") {
+  if (event.type === "discover") {
+    discoverTickets(state, { github, config, at: event.at });
+    state.membershipDiscovered = true;
+    if (event.payload.parent) state.selectedParent = event.payload.parent;
+  } else if (event.type === "start") {
     if (state.owner) throw new TrackerError("run_already_owned");
     if (event.generation !== state.generation) throw new TrackerError("run_superseded");
     state.generation++;
@@ -59,7 +69,7 @@ export function applyEvent(state, event, { github, config, actor }) {
     if (dependencies && !dependencies.ready) throw new TrackerError("implementation_dependencies_unsatisfied");
     state.tickets[issue.number] = {
       ...existing, ...(dependencies ? { dependencies } : {}),
-      number: issue.number, nodeId: issue.node_id, title: issue.title, url: issue.html_url, parent,
+      role: "implementation", repository: config.repository, number: issue.number, nodeId: issue.node_id, title: issue.title, url: issue.html_url, parent,
       account: state.owner.account, agent: event.payload.agent, reviewer: null, branch: event.payload.branch, workingRevision: event.payload.branchRevision,
       integrationContext, pullRequest: null, status: "implementing", activity: "unverified", stateAt: event.at, activityAt: null,
       result: event.payload.result, runId: event.runId, generation: event.generation, revision: state.revision + 1,
