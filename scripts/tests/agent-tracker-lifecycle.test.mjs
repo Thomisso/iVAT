@@ -334,3 +334,33 @@ test("unavailable dependency evidence cannot clear a discovered blocked ticket",
   assert.equal(JSON.parse(result.stderr).error, "dependency_evidence_missing");
   assert.equal(execute(repo, "show").remote.tickets[202].status, "blocked");
 });
+
+test("a later Parent fallback survives discovery, contextual readiness and claim", t => {
+  const repo = begin(t);
+  const issue = (number, extra = {}) => ({ id: `I_${number}`, number, title: `Issue ${number}`, url: `https://github.com/example/project/issues/${number}`, body: "", state: "OPEN", repository: { nameWithOwner: "example/project" }, subIssues: { totalCount: 0 }, labels: ["ready-for-agent"], ...extra });
+  repo.updateRemote(remote => { remote.issues = { 200: issue(200, { subIssues: { totalCount: 1 } }), 202: issue(202, { body: "Opening context\n\nOne\nTwo\nThree\n\n## Parent\n\nPart of #200\n\n## Implementation\nDetails" }) }; });
+  execute(repo, "discover", "--parent", "200", "--wait-seconds", "0");
+  assert.equal(execute(repo, "show").remote.tickets[202].parent, 200);
+  execute(repo, "readiness", "--issue", "202", "--spec", "200", "--integration-branch", "integration/spec", "--wait-seconds", "0");
+  execute(repo, "claim", "--issue", "202", "--agent", "next-worker", "--branch", "feat/ticket", "--wait-seconds", "0");
+  const ticket = execute(repo, "show").remote.tickets[202];
+  assert.equal(ticket.status, "implementing");
+  assert.equal(ticket.parentSource, "fallback");
+  assert.equal(ticket.integrationContext.specification, 200);
+});
+
+test("discovery and lifecycle refuse malformed, conflicting and self-referential parent fallbacks", t => {
+  for (const body of ["Part of #200 trailing words", "Part of #200\n\n## Parent\nPart of #300", "## Parent\nPart of #200\n\n## Details\nContext\n\n## Parent\nPart of #300", "Part of #202"]) {
+    const repo = begin(t);
+    const issue = (number, extra = {}) => ({ id: `I_${number}`, number, title: `Issue ${number}`, url: `https://github.com/example/project/issues/${number}`, body: "", state: "OPEN", repository: { nameWithOwner: "example/project" }, subIssues: { totalCount: 0 }, labels: ["ready-for-agent"], ...extra });
+    repo.updateRemote(remote => { remote.issues = { 200: issue(200, { subIssues: { totalCount: 1 }, labels: [] }), 202: issue(202, { body }) }; });
+    const invalid = repo.run("readiness", "--issue", "202", "--spec", "200", "--integration-branch", "integration/spec", "--wait-seconds", "0");
+    assert.equal(JSON.parse(invalid.stderr).error, "parent_declaration_unresolved", body);
+    execute(repo, "discover", "--wait-seconds", "0");
+    const ticket = execute(repo, "show").remote.tickets[202];
+    assert.equal(ticket.status, "blocked", body);
+    assert.equal(ticket.parent, null, body);
+    const claim = repo.run("claim", "--issue", "202", "--agent", "next-worker", "--branch", "feat/ticket", "--wait-seconds", "0");
+    assert.equal(JSON.parse(claim.stderr).error, "ticket_not_ready", body);
+  }
+});

@@ -1,3 +1,4 @@
+import { parentDeclaration } from "./relationships.mjs";
 import { spawnSync } from "node:child_process";
 import { TrackerError } from "./github.mjs";
 
@@ -33,8 +34,9 @@ export function currentParent(github, config, number) {
   } catch (error) {
     if (error.code !== "github_not_found") throw error;
     const issue = github.request(`repos/${config.repository}/issues/${number}`);
-    const match = (issue.body ?? "").split("\n").slice(0, 5).map(line => line.match(/^Part of #(\d+)(?:\s|$)/i)).find(Boolean);
-    return { number: match ? Number(match[1]) : null, repository: config.repository };
+    const declaration = parentDeclaration(issue.body ?? "", number);
+    if (declaration.unresolved) throw new TrackerError("parent_declaration_unresolved");
+    return { number: declaration.number, repository: config.repository };
   }
 }
 export function verifyContext(github, config, ticket) {
