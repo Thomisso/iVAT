@@ -38,6 +38,10 @@ if (endpoint === "graphql") {
       const pr = Object.values(remote.pulls).find(pr => pr.node_id === value.pullRequestId);
       if (pr.draft) remote.readyTransitions = (remote.readyTransitions ?? 0) + 1;
       pr.draft = false;
+      if (remote.advanceTargetDuringReady) {
+        execFileSync("git", ["branch", "-f", "main", remote.advanceTargetDuringReady], { stdio: "pipe" });
+        delete remote.advanceTargetDuringReady;
+      }
       if (remote.pushDuringReady) { pr.head.sha = remote.pushDuringReady; delete remote.pushDuringReady; }
       response = { markPullRequestReadyForReview: { pullRequest: { id: pr.node_id, isDraft: false, headRefOid: pr.head.sha, baseRefName: pr.base.ref } } }; break;
     }

@@ -447,3 +447,35 @@ test("an agent of an unrelated foreign parent may independently review a same-nu
   assert.equal(state.tickets[202].parentRepository, "other/repository");
   assert.equal(state.tickets["other/repository#200"].summary.scope, "context_only");
 });
+
+test("target content absent from the checked head refuses fresh and already-ready handoff and compensates a race", t => {
+  const outcomes = [];
+  for (const mode of ["before", "during", "already_ready"]) {
+    const repo = prepare(t, false);
+    evidenceComplete(repo);
+    repo.git("checkout", "-b", "advanced-target", "main");
+    writeFileSync(path.join(repo.directory, "target.txt"), "New target content absent from the checked head\n");
+    repo.git("add", "target.txt");
+    repo.git("-c", "user.name=Final test", "-c", "user.email=final@example.test", "commit", "-m", "Advance final target");
+    const target = repo.git("rev-parse", "HEAD");
+    let result;
+    if (mode === "before") {
+      repo.git("branch", "-f", "main", target);
+      result = repo.run("final-handoff", "--issue", "201", "--result", "Checked head omits new target content");
+    } else if (mode === "during") {
+      repo.updateRemote(remote => { remote.advanceTargetDuringReady = target; });
+      result = repo.run("final-handoff", "--issue", "201", "--result", "Target races with the authorized ready effect");
+    } else {
+      repo.updateRemote(remote => { remote.failure = { match: "TrackerReady", phase: "after", remaining: 1 }; });
+      assert.equal(resultJson(repo.run("final-handoff", "--issue", "201", "--result", "Ready response lost before target advance")).error, "publication_pending");
+      repo.git("branch", "-f", "main", target);
+      result = repo.run("sync");
+    }
+    outcomes.push({ mode, error: resultJson(result).error, draft: repo.remote().pulls[300].draft, handoff: execute(repo, "show").remote.tickets[201].final.handoff.state });
+  }
+  assert.deepEqual(outcomes, [
+    { mode: "before", error: "final_target_changed", draft: true, handoff: "refused" },
+    { mode: "during", error: "final_target_changed", draft: true, handoff: "refused" },
+    { mode: "already_ready", error: "final_target_changed", draft: true, handoff: "refused" },
+  ]);
+});

@@ -179,6 +179,14 @@ export function renderFinal(record) {
 function sameHandoffPr(pr, handoff) {
   return pr.nodeId === handoff.nodeId && pr.number === handoff.pullRequest && pr.branch === handoff.branch && pr.target === handoff.target && pr.revision === handoff.revision;
 }
+function verifyHandoffTarget(github, config, handoff) {
+  handoff.targetRevision = remoteCommit(github, config, handoff.target).sha;
+  try { remoteAncestor(github, config, handoff.targetRevision, handoff.revision); }
+  catch (error) {
+    if (error.code === "revision_not_in_history") throw new TrackerError("final_target_changed");
+    throw error;
+  }
+}
 function restoreDraft(github, config, pr) {
   github.graph(`mutation TrackerRestoreDraft($input:ConvertPullRequestToDraftInput!){convertPullRequestToDraft(input:$input){pullRequest{id isDraft}}}`, { input: { pullRequestId: pr.nodeId } });
   const restored = readPr(github, config, pr.number, { allowChangedTarget: true });
@@ -203,6 +211,7 @@ export function finishFinalHandoffs(state, github, config, persist) {
       if (!sameHandoffPr(pr, handoff)) throw new TrackerError("final_revision_changed");
       if (!["draft", "ready"].includes(pr.state)) throw new TrackerError("final_pr_open_required");
       requireFinalGate(state, record, github, config);
+      verifyHandoffTarget(github, config, handoff);
       if (pr.state === "draft") {
         // Persist the possible effect before calling GitHub. Failed/lost
         // compensation can then be retried without approving obsolete gates.
@@ -218,6 +227,7 @@ export function finishFinalHandoffs(state, github, config, persist) {
       const actual = readPr(github, config, handoff.pullRequest);
       if (!sameHandoffPr(actual, handoff)) throw new TrackerError("final_revision_changed");
       if (actual.state !== "ready") throw new TrackerError("final_ready_unverified");
+      verifyHandoffTarget(github, config, handoff);
       handoff.state = "ready";
       f.pullRequest = actual;
     } catch (error) {
