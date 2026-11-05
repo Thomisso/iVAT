@@ -33,6 +33,12 @@ When set to `yes`, PRs run through the same labels and states as issues, using t
 
 GitHub shares one number space across issues and PRs, so a bare `#42` may be either: resolve with `gh pr view 42` and fall back to `gh issue view 42`.
 
+## Implementation reporting
+
+Both standalone `implement` and multi-ticket `implement-spec` use [agent-tracking.md](agent-tracking.md#implementation-reporting-checkpoints). The owning controller reports claim, completed implementation/focused checks, exact-revision independent review, findings/fixes, actual integration and explicit blockage/resumption through the shared command boundary. Workers supply evidence to the controller. Native assignee identifies the responsible GitHub account; implementing/reviewer agent identities remain separate.
+
+Within one specification and integration context, clean independent review plus verified integration can satisfy a blocker while its implementation issue remains open. Every other unsatisfied blocker remains effective. External dependencies require actual final delivery by the current closing PR merged into its final target; the open-blocker count alone is insufficient. Preserve dependency edges, issue closure rules and the final combined-check/review gates in [implementation-workflow.md](implementation-workflow.md). A readiness projection never launches work.
+
 ## Implementation closure
 
 Code issues stay open while their branch is under review. Put `Closes #<number>` in the pull request body so GitHub closes them when the pull request merges. A multi-ticket integration pull request names the spec and every completed child ticket. Research, triage and other work without a code merge is resolved by commenting and closing the issue directly.
@@ -51,7 +57,7 @@ Used by `/wayfinder`. The **map** is a single issue with **child** issues as tic
 
 - **Map**: a single issue labelled `wayfinder:map`, holding the Notes / Decisions-so-far / Fog body. `gh issue create --label wayfinder:map`.
 - **Child ticket**: an issue linked to the map as a GitHub sub-issue (see **Make an issue a sub-issue of a parent**). Where sub-issues aren't enabled, add the child to a task list in the map body and put `Part of #<map>` at the top of the child body. Labels: `wayfinder:<type>` (`research`/`prototype`/`grilling`/`task`). Once claimed, the ticket is assigned to the driving dev.
-- **Blocking**: GitHub's **native issue dependencies**, the canonical, UI-visible representation. Add an edge with `gh api --method POST repos/<owner>/<repo>/issues/<child>/dependencies/blocked_by -F issue_id=<blocker-db-id>`, where `<blocker-db-id>` is the blocker's numeric **database id** (`gh api repos/<owner>/<repo>/issues/<n> --jq .id`, _not_ the `#number` or `node_id`). GitHub reports `issue_dependencies_summary.blocked_by` (open blockers only, the live gate). Where dependencies aren't available, fall back to a `Blocked by: #<n>, #<n>` line at the top of the child body. A ticket is unblocked when every blocker is closed.
+- **Blocking**: GitHub's **native issue dependencies**, the canonical, UI-visible representation. Add an edge with `gh api --method POST repos/<owner>/<repo>/issues/<child>/dependencies/blocked_by -F issue_id=<blocker-db-id>`, where `<blocker-db-id>` is the blocker's numeric **database id** (`gh api repos/<owner>/<repo>/issues/<n> --jq .id`, _not_ the `#number` or `node_id`). GitHub reports `issue_dependencies_summary.blocked_by` (open blockers only, the live gate). Where dependencies aren't available, fall back to a `Blocked by: #<n>, #<n>` line at the top of the child body. For triage/frontier work, a ticket is unblocked when every blocker is closed. Implementation readiness uses the evidence-backed internal-versus-external rule above; issue closure by itself does not prove final delivery.
 - **Frontier query**: list the map's open children (`gh issue list --state open`, scoped to the map's sub-issues / task list), drop any with an open blocker (`issue_dependencies_summary.blocked_by > 0`, or an open issue in the `Blocked by` line) or an assignee; first in map order wins.
 - **Claim**: `gh issue edit <n> --add-assignee @me`, the session's first write.
 - **Resolve**: `gh issue comment <n> --body "<answer>"`, then `gh issue close <n>`, then append a context pointer (gist + link) to the map's Decisions-so-far.

@@ -21,12 +21,12 @@ function setFields(github, config, itemId, record) {
 
 export function publishTicket(github, config, record) {
   const itemId = github.graph(`mutation TrackerAddItem($input:AddProjectV2ItemByIdInput!){addProjectV2ItemById(input:$input){item{id}}}`, { input: { projectId: config.project.id, contentId: record.nodeId } }).addProjectV2ItemById.item.id;
-  github.request(`repos/${config.repository}/issues/${record.number}/assignees`, { method: "POST", body: { assignees: [record.account] } });
+  if (record.account) github.request(`repos/${config.repository}/issues/${record.number}/assignees`, { method: "POST", body: { assignees: [record.account] } });
   setFields(github, config, itemId, record);
   const marker = `<!-- ivat-agent-tracker:ticket:${config.project.id} -->`;
   const comments = github.pages(`repos/${config.repository}/issues/${record.number}/comments`).filter(comment => comment.body.startsWith(marker));
   if (comments.length > 1) throw new TrackerError("ticket_comment_ambiguous");
-  const body = `${marker}\n\nAgent tracking: [Project](${config.project.url})\n\n- Run: ${record.runId}; generation ${record.generation}; revision ${record.revision}\n- Agent: ${record.agent}\n- Branch: ${record.branch} (${record.workingRevision})\n- Phase: ${record.status}\n- Activity: ${record.activity}\n- State observed (UTC): ${record.stateAt}\n- Activity observed (UTC): ${record.activityAt ?? "not verified"}\n- Latest result: ${record.result}\n`;
+  const body = `${marker}\n\nAgent tracking: [Project](${config.project.url})\n\n- Run: ${record.runId}; generation ${record.generation}; revision ${record.revision}\n- Agent: ${record.agent}\n- Branch: ${record.branch} (${record.workingRevision})\n- Phase: ${record.status}\n- Activity: ${record.activity}\n- State observed (UTC): ${record.stateAt}\n- Activity observed (UTC): ${record.activityAt ?? "not verified"}\n- Latest result: ${record.result}\n${record.review ? `- Review evidence: ${JSON.stringify(record.review)}\n` : ""}${record.integration ? `- Integration evidence: ${JSON.stringify(record.integration)}\n` : ""}${record.blockage ? `- Blockage: ${JSON.stringify(record.blockage)}\n` : ""}${record.dependencies ? `- Dependencies: ${JSON.stringify(record.dependencies)}\n` : ""}`;
   if (comments.length) github.request(`repos/${config.repository}/issues/comments/${comments[0].id}`, { method: "PATCH", body: { body } });
   else github.request(`repos/${config.repository}/issues/${record.number}/comments`, { method: "POST", body: { body } });
 }

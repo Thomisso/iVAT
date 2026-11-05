@@ -1,3 +1,5 @@
+import { currentParent } from "./evidence.mjs";
+import { lifecycleCommands, validateLifecycle, applyLifecycle } from "./lifecycle.mjs";
 import { TrackerError } from "./github.mjs";
 
 export function text(value, limit = 1000) {
@@ -13,9 +15,15 @@ export function validateEvent(event) {
   if (event.type === "start") {
     if (Object.keys(event.payload).length || event.sequence !== 0) throw new TrackerError("event_invalid");
   } else if (event.type === "claim") {
-    if (Object.keys(event.payload).some(key => !["issue", "agent", "branch", "branchRevision", "result"].includes(key)) || !Number.isInteger(event.payload.issue) || event.payload.issue <= 0 || !/^[a-f0-9]{40}$/.test(event.payload.branchRevision ?? "")) throw new TrackerError("event_invalid");
+    if (Object.keys(event.payload).some(key => !["issue", "agent", "branch", "branchRevision", "integrationContext", "result"].includes(key)) || !Number.isInteger(event.payload.issue) || event.payload.issue <= 0 || !/^[a-f0-9]{40}$/.test(event.payload.branchRevision ?? "")) throw new TrackerError("event_invalid");
+    if (event.payload.integrationContext) {
+      const context = event.payload.integrationContext;
+      if (Object.keys(context).some(key => !["specification", "branch"].includes(key)) || !Number.isInteger(context.specification) || context.specification <= 0) throw new TrackerError("event_invalid");
+      text(context.branch, 200);
+    }
     text(event.payload.agent, 100); text(event.payload.branch, 200); text(event.payload.result);
-  } else throw new TrackerError("event_type_unknown");
+  } else if (lifecycleCommands.includes(event.type)) validateLifecycle(event, text);
+  else throw new TrackerError("event_type_unknown");
   return event;
 }
 
@@ -30,18 +38,25 @@ export function applyEvent(state, event, { github, config, actor }) {
     if (!state.owner || state.owner.runId !== event.runId || state.owner.generation !== event.generation) throw new TrackerError("run_superseded");
     if (state.owner.account !== actor) throw new TrackerError("run_actor_mismatch");
     if (event.sequence !== state.owner.sequence + 1) throw new TrackerError("event_out_of_order");
+    if (event.type !== "claim") {
+      applyLifecycle(state, event, { github, config });
+      state.owner.sequence = event.sequence;
+    } else {
     if (state.tickets[event.payload.issue]) throw new TrackerError("ticket_already_claimed");
     const issue = github.request(`repos/${config.repository}/issues/${event.payload.issue}`);
     if (issue.pull_request || issue.state !== "open") throw new TrackerError("implementation_issue_required");
-    let parent = null;
-    try { parent = github.request(`repos/${config.repository}/issues/${issue.number}/parent`)?.number ?? null; } catch (error) { if (error.code !== "github_not_found") throw error; }
+    const observedParent = currentParent(github, config, issue.number);
+    const parent = observedParent.number;
+    if (event.payload.integrationContext && observedParent.repository !== config.repository) throw new TrackerError("parent_repository_unsupported");
+    if (event.payload.integrationContext && parent !== event.payload.integrationContext.specification) throw new TrackerError("specification_mismatch");
     state.tickets[issue.number] = {
       number: issue.number, nodeId: issue.node_id, title: issue.title, url: issue.html_url, parent,
       account: state.owner.account, agent: event.payload.agent, reviewer: null, branch: event.payload.branch, workingRevision: event.payload.branchRevision,
-      pullRequest: null, status: "implementing", activity: "unverified", stateAt: event.at, activityAt: null,
+      integrationContext: event.payload.integrationContext ?? null, pullRequest: null, status: "implementing", activity: "unverified", stateAt: event.at, activityAt: null,
       result: event.payload.result, runId: event.runId, generation: event.generation, revision: state.revision + 1,
     };
     state.owner.sequence = event.sequence;
+    }
   }
   state.revision++;
   state.receipts[event.id] = { state: "pending", runId: event.runId, generation: state.generation, sequence: event.sequence, revision: state.revision };

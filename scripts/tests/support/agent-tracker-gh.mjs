@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 import fs from "node:fs";
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 const file = process.env.TRACKER_FAKE_GITHUB;
 const remote = JSON.parse(fs.readFileSync(file, "utf8"));
 const args = process.argv.slice(2);
 const method = args.includes("--method") ? args[args.indexOf("--method") + 1] : "GET";
-const endpoint = args[args.indexOf("api") + 1].split("?")[0];
+const rawEndpoint = args[args.indexOf("api") + 1];
+const endpoint = rawEndpoint.split("?")[0];
+const page = Number(new URLSearchParams(rawEndpoint.split("?")[1]).get("page") ?? 1);
 const input = args.includes("--input") ? JSON.parse(fs.readFileSync(0, "utf8")) : {};
 let response;
 if (remote.fail) {
@@ -17,6 +19,7 @@ if (endpoint === "graphql") {
   const variables = input.variables ?? {};
   const value = variables.input ?? {};
   switch (operation) {
+    case "TrackerFinalMerge": response = { repository: { issue: remote.finalMerges?.[variables.number] ?? { state: "OPEN", stateReason: null, closedByPullRequestsReferences: { nodes: [], pageInfo: { hasNextPage: false } }, timelineItems: { nodes: [] } } } }; break;
     case "TrackerProject": response = { user: { projectV2: remote.project } }; break;
     case "TrackerFields": response = { node: { fields: { nodes: remote.fields, pageInfo: { hasNextPage: false } } } }; break;
     case "TrackerWorkflows": response = { node: { workflows: { nodes: remote.workflows ?? [], pageInfo: { hasNextPage: false } } } }; break;
@@ -64,10 +67,24 @@ if (endpoint === "graphql") {
 } else if (endpoint === "repos/example/project/issues/comments/900" && method === "PATCH") {
   remote.registry = input.body;
   response = { id: 900, body: input.body };
+} else if (endpoint.startsWith("repos/example/project/commits/")) {
+  const revision = decodeURIComponent(endpoint.slice("repos/example/project/commits/".length));
+  if (remote.unavailableRevisions?.includes(revision)) { console.error("HTTP 404: Not Found"); process.exit(1); }
+  const sha = execFileSync("git", ["rev-parse", "--verify", "--end-of-options", `${revision}^{commit}`], { encoding: "utf8" }).trim();
+  const parents = execFileSync("git", ["show", "-s", "--format=%P", sha], { encoding: "utf8" }).trim().split(" ").filter(Boolean).map(sha => ({ sha }));
+  const tree = execFileSync("git", ["show", "-s", "--format=%T", sha], { encoding: "utf8" }).trim();
+  response = { sha, parents, commit: { tree: { sha: tree } } };
+} else if (endpoint.startsWith("repos/example/project/compare/")) {
+  const [base, head] = endpoint.slice("repos/example/project/compare/".length).split("...");
+  const ancestor = spawnSync("git", ["merge-base", "--is-ancestor", base, head]);
+  response = { status: base === head ? "identical" : ancestor.status === 0 ? "ahead" : "diverged", merge_base_commit: { sha: execFileSync("git", ["merge-base", base, head], { encoding: "utf8" }).trim() } };
+} else if (/^repos\/example\/project\/issues\/\d+\/dependencies\/blocked_by$/.test(endpoint)) {
+  const number = endpoint.split("/")[4];
+  response = (remote.dependencies?.[number] ?? []).slice((page - 1) * 100, page * 100);
 } else if (endpoint === "repos/example/project/issues/201") {
   response = { number: 201, node_id: "I_201", title: "A real issue", html_url: "https://github.com/example/project/issues/201", state: "open" };
 } else if (endpoint === "repos/example/project/issues/201/parent") {
-  response = { number: 200 };
+  response = { number: remote.parents?.[endpoint.split("/")[4]] ?? 200 };
 } else if (endpoint === "repos/example/project/issues/201/assignees") {
   remote.assignees = input.assignees;
   response = {};
@@ -90,6 +107,22 @@ if (endpoint === "graphql") {
   if (worker.status !== 0) console.error(worker.stderr);
   console.log(JSON.stringify({ workflow_run_id: 123, run_url: "https://api.github.com/repos/example/project/actions/runs/123", html_url: "https://github.com/example/project/actions/runs/123" }));
   process.exit(0);
+} else if (/^repos\/example\/project\/issues\/\d+$/.test(endpoint)) {
+  const number = Number(endpoint.split("/")[4]);
+  response = { number, node_id: `I_${number}`, title: `Ticket ${number}`, html_url: `https://github.com/example/project/issues/${number}`, state: "open" };
+} else if (/^repos\/example\/project\/issues\/\d+\/parent$/.test(endpoint)) {
+  response = { number: remote.parents?.[endpoint.split("/")[4]] ?? 200 };
+} else if (/^repos\/example\/project\/issues\/\d+\/assignees$/.test(endpoint)) {
+  remote.extraAssignees ??= {}; remote.extraAssignees[endpoint.split("/")[4]] = input.assignees; response = {};
+} else if (/^repos\/example\/project\/issues\/\d+\/comments$/.test(endpoint)) {
+  const number = endpoint.split("/")[4];
+  remote.extraComments ??= {};
+  remote.extraComments[number] ??= [];
+  if (method === "POST") remote.extraComments[number].push({ id: 1000 + Number(number), body: input.body });
+  response = method === "POST" ? remote.extraComments[number].at(-1) : remote.extraComments[number];
+} else if (/^repos\/example\/project\/issues\/comments\/\d+$/.test(endpoint) && method === "PATCH") {
+  const comment = Object.values(remote.extraComments).flat().find(comment => comment.id === Number(endpoint.split("/").at(-1)));
+  comment.body = input.body; response = comment;
 } else throw new Error(`Unmodelled REST operation ${method} ${endpoint}`);
 fs.writeFileSync(file, JSON.stringify(remote));
 console.log(JSON.stringify(response));

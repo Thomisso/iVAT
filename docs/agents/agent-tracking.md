@@ -2,7 +2,7 @@
 
 Use `npm run agent:track -- <command>` when reporting implementation work. The tracker separates reached implementation phase, verified agent activity and the latest result. The triage labels retain their existing issue-readiness meaning.
 
-The first path supports an explicitly selected ticket. The remaining #200 tickets add automatic backlog membership, review/integration, comprehensive recovery, independent freshness checks and final completion gates. Do not represent those later capabilities as already verified by this first slice.
+The first path supports an explicitly selected ticket. The #200 slices add automatic backlog membership, ticket review/integration, comprehensive recovery, independent freshness checks and final completion gates. Do not represent those later capabilities as already verified by this first slice.
 
 ## Setup
 
@@ -38,6 +38,36 @@ The worker reads current registry state when execution starts, validates ownersh
 The local journal also retains the last confirmed remote snapshot, including selected tickets and their published state. `show --local` reads this snapshot and pending intents without contacting GitHub; it does not claim the remote state is still current.
 
 Starting a second controlling run is refused, including from another linked worktree. No heartbeat timeout releases ownership. Full explicit stop/resume/takeover is supplied by the recovery ticket, not by deleting a lock or changing a Project field. Keep review, integration, test-budget and eventual final-handoff rules in the existing implementation workflow.
+
+## Implementation reporting checkpoints
+
+The controller uses these commands for both standalone `implement` and multi-ticket `implement-spec`. Workers report their identity, observations, exact revision and results to that controller; they do not become competing Project writers. Commands attest observed work, not merely a worker's unsupported completion claim. Keep focused tests in each ticket worktree and the independent review and later combined-check gates in [implementation-workflow.md](implementation-workflow.md).
+
+For standalone work, claim with the first-ticket command above and omit integration context. For multi-ticket work, bind the ticket to its actual parent and the specification's intended integration branch:
+
+```sh
+npm run agent:track -- claim --issue TICKET --agent IMPLEMENTER --branch WORK_BRANCH --spec SPEC --integration-branch INTEGRATION_BRANCH --result 'Implementation started'
+npm run agent:track -- review --issue TICKET --base BASE_SHA --revision REVIEWED_SHA --checks 'Focused tests, typecheck and lint passed on this revision' --result 'Implementation and focused checks complete'
+npm run agent:track -- review-start --issue TICKET --reviewer REVIEWER --result 'Reviewer reports inspecting the ticket and diff'
+npm run agent:track -- review-result --issue TICKET --reviewer REVIEWER --revision REVIEWED_SHA --standards pass --spec pass --findings '[]' --independence 'Reviewer received ticket, base and diff without implementation context' --result 'No remaining hard findings'
+npm run agent:track -- integrate --issue TICKET --integration-commit MERGE_SHA --result 'Reviewed ticket incorporated into the specification integration branch'
+```
+
+`review` is the controller's attestation that implementation and the named focused checks completed successfully on the identified revision. Supply genuine check results. Handoff makes activity inactive while waiting; only `review-start`, reporting a specific reviewer's actual observation, confirms a working reviewer. `review-result` records that reviewer's Standards and Spec outcomes and independence attestation. Use `fail` and a JSON array of meaningful hard findings to return to Implementace. Fixes require another handoff and applicable review. A result for an old reviewed ancestor cannot approve later code. A clean standalone review stays in Review; it does not manufacture an integration branch or final completion.
+
+Push the relevant working branch before review publication and the intended integration branch before integration publication so Actions can corroborate their actual commit facts. Local Git validates exact tips, ancestry and an automatic merge's tree; the authority also verifies remote branch history, commit parents and tree. A conflict resolution or changed merge tree requires renewed applicable review. Unpublished evidence stays durably pending until it can be corroborated. Dispatch acceptance alone never proves publication.
+
+After integrating a blocker, recompute each known dependent through the same controller:
+
+```sh
+npm run agent:track -- readiness --issue DEPENDENT --spec SPEC --integration-branch INTEGRATION_BRANCH
+npm run agent:track -- block --issue TICKET --reason 'Concrete missing input or obstacle' --reference 'https://github.com/OWNER/REPO/issues/BLOCKER' --condition 'Observable condition for continuing' --result 'Waiting for the identified input'
+npm run agent:track -- resume-phase --issue TICKET --resolution 'Observed evidence that the condition is met' --result 'Work can continue'
+```
+
+Readiness checks all [native blocker pages](https://docs.github.com/en/rest/issues/issue-dependencies), including closed issues. A still-open internal blocker is satisfied by independent clean review plus actual integration into the same parent's same integration context. External evidence uses [closedByPullRequestsReferences and the actual ClosedEvent](https://docs.github.com/en/graphql/reference/issues), including closed PR references and pagination. Every external blocker requires the current closure to reference an actually merged PR into its repository's final target (normally the default branch), with the merge commit in that target's history. An arbitrary historical closing reference or merge into an unrelated integration branch is insufficient. Keep the native dependency edges and implementation issues open until final delivery. The documented opening `Blocked by:` fallback applies only when native dependencies are unavailable; access failures do not mean zero blockers.
+
+Readiness projects only waiting/dependency-blocked work and never launches workers, rewinds active phases or clears explicit obstacles. Explicit blockage preserves its reason, reference, condition and justified resumption phase; resumption records observed resolution and rechecks revision evidence. Missing heartbeats do not create blockage. Ticket integration does not establish whole-specification completion or bypass final combined checks/review and PR handoff.
 
 ## Verification
 
