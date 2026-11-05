@@ -398,3 +398,16 @@ test("already-ready retry checks its final observed head before acknowledging ol
   assert.equal(repo.remote().pulls[300].draft, true);
   assert.equal(execute(repo, "show").remote.tickets[201].final.handoff.state, "refused");
 });
+
+test("verified current delivery cannot be relabelled as undelivered cancellation", t => {
+  const repo = prepare(t, false);
+  evidenceComplete(repo); mergeDelivery(repo); execute(repo, "reconcile");
+  const before = execute(repo, "show").remote.tickets[201];
+  const cancellation = repo.run("cancel", "--issue", "201", "--reason", "Attempt to cancel already delivered implementation", "--result", "Cannot undo delivery by cancelling tracking");
+  assert.equal(resultJson(cancellation).error, "implementation_already_delivered");
+  const after = execute(repo, "show").remote.tickets[201];
+  assert.equal(after.status, "done");
+  assert.equal(after.delivery.current, true);
+  assert.deepEqual(after.delivery, before.delivery);
+  assert.equal(after.cancellation, undefined);
+});

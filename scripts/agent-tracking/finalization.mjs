@@ -108,6 +108,7 @@ export function applyFinal(state, event, { github, config }) {
   const record = state.tickets[p.issue];
   if (!record || (!["cancel", "reverse"].includes(event.type) && record.role !== "specification" && (record.runId !== event.runId || record.generation !== event.generation))) throw new TrackerError("ticket_not_claimed");
   if (event.type === "cancel") {
+    if (record.delivery?.current) throw new TrackerError("implementation_already_delivered");
     invalidateDelivery(record, "Explicit cancellation", event.at);
     record.cancellation = { reason: p.reason, at: event.at, previousStatus: record.status, runId: event.runId, generation: event.generation };
     record.status = "cancelled"; record.activity = "inactive";

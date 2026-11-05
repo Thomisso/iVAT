@@ -193,7 +193,7 @@ npm run agent:track -- reconcile
 npm run agent:track -- reverse --issue ISSUE_OR_SPEC --delivery-pr ORIGINAL_PR --reversal-pr REVERSAL_PR --reason 'What delivered behavior is being undone' --evidence 'Concrete reversal review reference' --result 'Operator/reviewer attests this PR reverses the identified delivery'
 ```
 
-Cancellation requires a reason, records Zrušeno/inactive and remains separate from successful delivery. `stop`/agent interruption preserves the reached phase and evidence and makes activity inactive; it does not cancel tickets. Cancellation does not silently cancel other children or stop an owner: use explicit run controls and communicate the scope decision to workers.
+Cancellation requires a reason, records Zrušeno/inactive and remains separate from successful delivery. A currently verified delivery refuses cancellation with `implementation_already_delivered` and preserves Hotovo/evidence. Reconcile stale facts first; reopening or a registered reversal are separate controls for invalidating delivered work. `stop`/agent interruption preserves the reached phase and evidence and makes activity inactive; it does not cancel tickets. Cancellation does not silently cancel other children or stop an owner: use explicit run controls and communicate the scope decision to workers.
 
 Manual Project fields are display edits. The publisher reads back its last acknowledged projection, reports unsupported differences in the maintained comment, then restores evidence-backed values. Moving a card to Hotovo cannot satisfy the final gates or start/stop/take over agents. Enabled native Project workflows are rejected by doctor/worker; use the explicit setup option to remove competing closure-driven workflows.
 
