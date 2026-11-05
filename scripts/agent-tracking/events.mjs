@@ -1,3 +1,4 @@
+import { discoverTickets } from "./discovery.mjs";
 import { TrackerError } from "./github.mjs";
 import { applyRecoveryEvent, isHistoricalTicket, recoveryTypes, validateRecoveryPayload } from "./recovery.mjs";
 
@@ -15,7 +16,12 @@ export function validateEvent(event) {
   }
   const allowed = ["id", "type", "runId", "generation", "sequence", "at", "payload"];
   if (!event || Object.keys(event).some(key => !allowed.includes(key)) || Buffer.byteLength(JSON.stringify(event)) > 8 * 1024) throw new TrackerError("event_invalid");
-  text(event.id, 100); text(event.runId, 100);
+  text(event.id, 100);
+  if (event.type === "discover") {
+    if (!/^[\w-]+$/.test(event.id) || Object.keys(event).some(key => !["id", "type", "at", "payload"].includes(key)) || !Number.isFinite(Date.parse(event.at)) || new Date(event.at).toISOString() !== event.at || !event.payload || typeof event.payload !== "object" || Array.isArray(event.payload) || Object.keys(event.payload).some(key => key !== "parent") || (event.payload.parent !== undefined && (!Number.isInteger(event.payload.parent) || event.payload.parent <= 0))) throw new TrackerError("event_invalid");
+    return event;
+  }
+  text(event.runId, 100);
   if (!/^[\w-]+$/.test(event.id) || !/^[\w-]+$/.test(event.runId) || !Number.isInteger(event.generation) || event.generation < 0 || !Number.isInteger(event.sequence) || event.sequence < 0 || !Number.isFinite(Date.parse(event.at)) || new Date(event.at).toISOString() !== event.at || !event.payload || typeof event.payload !== "object" || Array.isArray(event.payload)) throw new TrackerError("event_invalid");
   if (recoveryTypes.has(event.type)) validateRecoveryPayload(event, text);
   else if (event.type === "start") {
@@ -33,7 +39,11 @@ export function applyEvent(state, event, { github, config, actor }) {
     state.receipts[event.id] = { state: "pending", type: event.type, revision: state.revision };
     return state;
   }
-  if (event.type === "start") {
+  if (event.type === "discover") {
+    discoverTickets(state, { github, config, at: event.at });
+    state.membershipDiscovered = true;
+    if (event.payload.parent) state.selectedParent = event.payload.parent;
+  } else if (event.type === "start") {
     if (state.owner) throw new TrackerError("run_already_owned");
     if (event.generation !== state.generation) throw new TrackerError("run_superseded");
     state.generation++;
@@ -49,17 +59,18 @@ export function applyEvent(state, event, { github, config, actor }) {
       state.owner.lastEventId = event.id;
       applyRecoveryEvent(state, event, { github, config, actor });
     } else {
-    const previous = state.tickets[event.payload.issue];
-    if (previous && !isHistoricalTicket(state, previous)) throw new TrackerError("ticket_already_claimed");
+    const existing = state.tickets[event.payload.issue];
+    const historical = existing?.runId && isHistoricalTicket(state, existing);
+    if ((existing?.runId || existing?.agent) && !historical) throw new TrackerError("ticket_already_claimed");
+    if (existing?.role === "specification") throw new TrackerError("implementation_issue_required");
     const issue = github.request(`repos/${config.repository}/issues/${event.payload.issue}`);
     if (issue.pull_request || issue.state !== "open") throw new TrackerError("implementation_issue_required");
-    let parent = null;
-    try { parent = github.request(`repos/${config.repository}/issues/${issue.number}/parent`)?.number ?? null; } catch (error) { if (error.code !== "github_not_found") throw error; }
+    let parent = existing?.parent ?? null;
+    try { parent = github.request(`repos/${config.repository}/issues/${issue.number}/parent`)?.number ?? parent; } catch (error) { if (error.code !== "github_not_found") throw error; }
     state.tickets[issue.number] = {
-      ...(previous ?? {}),
-      number: issue.number, nodeId: issue.node_id, title: issue.title, url: issue.html_url, parent,
-      account: state.owner.account, agent: event.payload.agent, reviewer: previous?.reviewer ?? null, branch: event.payload.branch, workingRevision: event.payload.branchRevision,
-      pullRequest: previous?.pullRequest ?? null, status: previous?.status ?? "implementing", activity: "unverified", stateAt: event.at, activityAt: null,
+      ...existing, role: "implementation", number: issue.number, nodeId: issue.node_id, title: issue.title, url: issue.html_url, parent,
+      account: state.owner.account, agent: event.payload.agent, reviewer: historical ? existing.reviewer ?? null : null, branch: event.payload.branch, workingRevision: event.payload.branchRevision,
+      pullRequest: historical ? existing.pullRequest ?? null : null, status: historical ? existing.status : "implementing", activity: "unverified", stateAt: event.at, activityAt: null,
       result: event.payload.result, runId: event.runId, generation: event.generation, revision: state.revision + 1,
     };
     state.owner.sequence = event.sequence;

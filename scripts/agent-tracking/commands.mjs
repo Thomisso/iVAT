@@ -14,7 +14,9 @@ export function runCommand(command, github, config, options) {
     if (command === "sync") return sync(github, config, journal, save, options);
     const at = options.at ?? new Date().toISOString();
     let event;
-    if (command === "start") {
+    if (command === "discover") {
+      event = { id: randomUUID(), type: "discover", at, payload: options.parent ? { parent: Number(options.parent) } : {} };
+    } else if (command === "start") {
       if (journal.pending.length) throw new TrackerError("pending_events_require_sync");
       if (journal.run) throw new TrackerError("run_already_owned");
       validateConfig(github, config);
@@ -69,7 +71,7 @@ export function runCommand(command, github, config, options) {
     }
     journal.pending.push(event);
     if (event.type === "stop") journal.stopRequested = event.id;
-    if (!["start", "restart", "takeover", "repair"].includes(event.type)) journal.nextSequence++;
+    if (!["start", "restart", "takeover", "repair", "discover"].includes(event.type)) journal.nextSequence++;
     save();
     return sync(github, config, journal, save, options);
   });
