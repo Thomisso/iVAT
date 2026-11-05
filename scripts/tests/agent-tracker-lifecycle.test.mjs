@@ -252,3 +252,55 @@ test("one controller preserves parallel worker identities while independently re
   assert.equal(tickets[202].status, "implementing");
   assert.equal(tickets[201].runId, tickets[202].runId);
 });
+
+test("a readiness-created ticket can be claimed while preserving its bound integration context", t => {
+  const repo = begin(t);
+  execute(repo, "readiness", "--issue", "202", "--spec", "200", "--integration-branch", "integration/spec");
+  execute(repo, "claim", "--issue", "202", "--agent", "next-worker", "--branch", "feat/ticket", "--wait-seconds", "0");
+  const ticket = execute(repo, "show").remote.tickets[202];
+  assert.equal(ticket.status, "implementing");
+  assert.equal(ticket.agent, "next-worker");
+  assert.deepEqual(ticket.integrationContext, { specification: 200, branch: "integration/spec" });
+  assert.equal(ticket.dependencies.ready, true);
+  const repeated = repo.run("claim", "--issue", "202", "--agent", "competing-worker", "--branch", "feat/ticket", "--wait-seconds", "0");
+  assert.equal(JSON.parse(repeated.stderr).error, "ticket_already_claimed");
+});
+
+test("an external blocker cannot reuse another repository's same-number closing PR", t => {
+  const repo = begin(t);
+  const facts = finalMergeFacts(repo);
+  facts.timelineItems.nodes[0].closer.repository = { nameWithOwner: "another/repository", defaultBranchRef: { name: "main" } };
+  repo.updateRemote(remote => { remote.dependencies = { 202: [{ number: 203, state: "closed", repository_url: "https://api.github.com/repos/example/project" }] }; remote.finalMerges = { 203: facts }; });
+  execute(repo, "readiness", "--issue", "202");
+  const ticket = execute(repo, "show").remote.tickets[202];
+  assert.equal(ticket.status, "blocked");
+  assert.equal(ticket.dependencies.blockers[0].satisfied, false);
+});
+
+test("readiness resolves the documented parent fallback before binding the specification", t => {
+  const repo = begin(t);
+  repo.updateRemote(remote => { remote.parents = { 202: null }; remote.issueBodies = { 202: "Part of #200\n\nImplementation ticket" }; });
+  execute(repo, "readiness", "--issue", "202", "--spec", "200", "--integration-branch", "integration/spec");
+  const ticket = execute(repo, "show").remote.tickets[202];
+  assert.equal(ticket.parent, 200);
+  assert.equal(ticket.status, "ready");
+  assert.equal(ticket.integrationContext.specification, 200);
+});
+
+test("claim rechecks readiness dependencies and refuses changing an unowned ticket's integration context", t => {
+  const repo = begin(t);
+  execute(repo, "readiness", "--issue", "202", "--spec", "200", "--integration-branch", "integration/spec");
+  const claim = ["claim", "--issue", "202", "--agent", "next-worker", "--branch", "feat/ticket", "--wait-seconds", "0"];
+  const changedContext = repo.run(...claim, "--spec", "200", "--integration-branch", "integration/another-spec");
+  assert.equal(JSON.parse(changedContext.stderr).error, "integration_context_mismatch");
+  repo.updateRemote(remote => { remote.dependencies = { 202: [{ number: 203, state: "open", repository_url: "https://api.github.com/repos/example/project" }] }; });
+  const changedDependencies = repo.run(...claim);
+  assert.equal(JSON.parse(changedDependencies.stderr).error, "implementation_dependencies_unsatisfied");
+  execute(repo, "readiness", "--issue", "202");
+  const blocked = repo.run(...claim);
+  assert.equal(JSON.parse(blocked.stderr).error, "ticket_not_ready");
+  const ticket = execute(repo, "show").remote.tickets[202];
+  assert.equal(ticket.status, "blocked");
+  assert.equal(ticket.runId, null);
+  assert.equal(ticket.integrationContext.branch, "integration/spec");
+});

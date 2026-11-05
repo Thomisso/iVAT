@@ -10,6 +10,10 @@ const endpoint = rawEndpoint.split("?")[0];
 const page = Number(new URLSearchParams(rawEndpoint.split("?")[1]).get("page") ?? 1);
 const input = args.includes("--input") ? JSON.parse(fs.readFileSync(0, "utf8")) : {};
 let response;
+const parent = number => {
+  if (remote.parents?.[number] === null) { console.error("HTTP 404: Not Found"); process.exit(1); }
+  return { number: remote.parents?.[number] ?? 200 };
+};
 if (remote.fail) {
   console.error(remote.fail);
   process.exit(1);
@@ -84,7 +88,7 @@ if (endpoint === "graphql") {
 } else if (endpoint === "repos/example/project/issues/201") {
   response = { number: 201, node_id: "I_201", title: "A real issue", html_url: "https://github.com/example/project/issues/201", state: "open" };
 } else if (endpoint === "repos/example/project/issues/201/parent") {
-  response = { number: remote.parents?.[endpoint.split("/")[4]] ?? 200 };
+  response = parent(endpoint.split("/")[4]);
 } else if (endpoint === "repos/example/project/issues/201/assignees") {
   remote.assignees = input.assignees;
   response = {};
@@ -109,9 +113,9 @@ if (endpoint === "graphql") {
   process.exit(0);
 } else if (/^repos\/example\/project\/issues\/\d+$/.test(endpoint)) {
   const number = Number(endpoint.split("/")[4]);
-  response = { number, node_id: `I_${number}`, title: `Ticket ${number}`, html_url: `https://github.com/example/project/issues/${number}`, state: "open" };
+  response = { number, node_id: `I_${number}`, title: `Ticket ${number}`, body: remote.issueBodies?.[number] ?? "", html_url: `https://github.com/example/project/issues/${number}`, state: "open" };
 } else if (/^repos\/example\/project\/issues\/\d+\/parent$/.test(endpoint)) {
-  response = { number: remote.parents?.[endpoint.split("/")[4]] ?? 200 };
+  response = parent(endpoint.split("/")[4]);
 } else if (/^repos\/example\/project\/issues\/\d+\/assignees$/.test(endpoint)) {
   remote.extraAssignees ??= {}; remote.extraAssignees[endpoint.split("/")[4]] = input.assignees; response = {};
 } else if (/^repos\/example\/project\/issues\/\d+\/comments$/.test(endpoint)) {

@@ -1,5 +1,5 @@
 import { TrackerError } from "./github.mjs";
-import { localCommit, localAncestor, verifyReviewedTip, remoteAncestor, localIntegration, verifyIntegration, dependencyReadiness } from "./evidence.mjs";
+import { localCommit, localAncestor, verifyReviewedTip, remoteAncestor, localIntegration, verifyIntegration, dependencyReadiness, currentParent } from "./evidence.mjs";
 
 export const lifecycleCommands = ["review", "review-start", "review-result", "integrate", "block", "resume-phase", "readiness"];
 export function buildLifecyclePayload(command, options, state) {
@@ -129,9 +129,9 @@ function applyReadiness(state, event, { github, config }) {
   if (!record) {
     const issue = github.request(`repos/${config.repository}/issues/${p.issue}`);
     if (issue.pull_request || issue.state !== "open") throw new TrackerError("implementation_issue_required");
-    let parent = null;
-    try { parent = github.request(`repos/${config.repository}/issues/${p.issue}/parent`)?.number ?? null; }
-    catch (error) { if (error.code !== "github_not_found") throw error; }
+    const observedParent = currentParent(github, config, p.issue);
+    if (p.integrationContext && observedParent.repository !== config.repository) throw new TrackerError("parent_repository_unsupported");
+    const parent = observedParent.number;
     record = { number: issue.number, nodeId: issue.node_id, title: issue.title, url: issue.html_url, parent, role: "implementation", status: "ready", activity: "inactive", runId: null, generation: null, stateAt: event.at, activityAt: null, integrationContext: p.integrationContext };
   }
   if (record.role === "specification") throw new TrackerError("implementation_issue_required");

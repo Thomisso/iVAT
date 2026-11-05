@@ -98,7 +98,7 @@ function finalMerge(github, repository, number) {
   if (issue.state !== "CLOSED" || issue.stateReason !== "COMPLETED") return null;
   const closure = issue.timelineItems.nodes.at(-1);
   const closer = closure?.__typename === "ClosedEvent" ? closure.closer : null;
-  if (closer?.__typename !== "PullRequest") return null;
+  if (closer?.__typename !== "PullRequest" || closer.repository?.nameWithOwner !== repository) return null;
   const pr = prs.find(pr => pr.number === closer.number && pr.repository.nameWithOwner === repository);
   if (!pr?.merged || !pr.mergedAt || !pr.mergeCommit?.oid || !closer.merged || closer.mergeCommit?.oid !== pr.mergeCommit.oid || pr.baseRefName !== pr.repository.defaultBranchRef?.name || closer.baseRefName !== pr.baseRefName) return null;
   const target = remoteCommit(github, { repository }, pr.baseRefName).sha;

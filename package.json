@@ -5,7 +5,7 @@
   "scripts": {
     "brand:assets": "tsx scripts/generate-brand-assets.ts",
     "agent:track": "node scripts/agent-tracker.mjs",
-    "test:agent-tracker": "node --test scripts/tests/agent-tracker.test.mjs",
+    "test:agent-tracker": "node --test scripts/tests/agent-tracker*.test.mjs",
     "db:start": "node scripts/supabase.mjs start",
     "db:stop": "node scripts/supabase.mjs stop",
     "db:migrate": "node scripts/supabase.mjs migration up",

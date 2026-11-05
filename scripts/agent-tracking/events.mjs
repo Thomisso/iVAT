@@ -1,4 +1,4 @@
-import { currentParent } from "./evidence.mjs";
+import { currentParent, dependencyReadiness } from "./evidence.mjs";
 import { lifecycleCommands, validateLifecycle, applyLifecycle } from "./lifecycle.mjs";
 import { TrackerError } from "./github.mjs";
 
@@ -42,17 +42,26 @@ export function applyEvent(state, event, { github, config, actor }) {
       applyLifecycle(state, event, { github, config });
       state.owner.sequence = event.sequence;
     } else {
-    if (state.tickets[event.payload.issue]) throw new TrackerError("ticket_already_claimed");
+    const existing = state.tickets[event.payload.issue];
+    if (existing?.runId != null) throw new TrackerError("ticket_already_claimed");
+    if (existing?.role === "specification") throw new TrackerError("implementation_issue_required");
+    if (existing && existing.status !== "ready") throw new TrackerError("ticket_not_ready");
+    const requestedContext = event.payload.integrationContext;
+    if (existing?.integrationContext && requestedContext && (existing.integrationContext.specification !== requestedContext.specification || existing.integrationContext.branch !== requestedContext.branch)) throw new TrackerError("integration_context_mismatch");
+    const integrationContext = existing?.integrationContext ?? requestedContext ?? null;
     const issue = github.request(`repos/${config.repository}/issues/${event.payload.issue}`);
     if (issue.pull_request || issue.state !== "open") throw new TrackerError("implementation_issue_required");
     const observedParent = currentParent(github, config, issue.number);
     const parent = observedParent.number;
-    if (event.payload.integrationContext && observedParent.repository !== config.repository) throw new TrackerError("parent_repository_unsupported");
-    if (event.payload.integrationContext && parent !== event.payload.integrationContext.specification) throw new TrackerError("specification_mismatch");
+    if (integrationContext && observedParent.repository !== config.repository) throw new TrackerError("parent_repository_unsupported");
+    if (integrationContext && parent !== integrationContext.specification) throw new TrackerError("specification_mismatch");
+    const dependencies = existing ? dependencyReadiness(state, { ...existing, parent, integrationContext }, { github, config }) : null;
+    if (dependencies && !dependencies.ready) throw new TrackerError("implementation_dependencies_unsatisfied");
     state.tickets[issue.number] = {
+      ...existing, ...(dependencies ? { dependencies } : {}),
       number: issue.number, nodeId: issue.node_id, title: issue.title, url: issue.html_url, parent,
       account: state.owner.account, agent: event.payload.agent, reviewer: null, branch: event.payload.branch, workingRevision: event.payload.branchRevision,
-      integrationContext: event.payload.integrationContext ?? null, pullRequest: null, status: "implementing", activity: "unverified", stateAt: event.at, activityAt: null,
+      integrationContext, pullRequest: null, status: "implementing", activity: "unverified", stateAt: event.at, activityAt: null,
       result: event.payload.result, runId: event.runId, generation: event.generation, revision: state.revision + 1,
     };
     state.owner.sequence = event.sequence;
