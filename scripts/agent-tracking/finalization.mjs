@@ -38,10 +38,10 @@ export function validateFinal(event, text) {
     if ((p.standards === "fail" || p.spec === "fail") && !p.findings.length) throw new TrackerError("review_findings_required");
   }
 }
-function readPr(github, config, number) {
+function readPr(github, config, number, { allowChangedTarget = false } = {}) {
   const pr = github.request(`repos/${config.repository}/pulls/${number}`);
   const repository = github.request(`repos/${config.repository}`);
-  if (pr.base.repo.full_name !== config.repository || pr.head.repo?.full_name !== config.repository || pr.base.ref !== repository.default_branch) throw new TrackerError("final_pr_target_invalid");
+  if (pr.base.repo.full_name !== config.repository || pr.head.repo?.full_name !== config.repository || (!allowChangedTarget && pr.base.ref !== repository.default_branch)) throw new TrackerError("final_pr_target_invalid");
   const head = remoteCommit(github, config, pr.head.sha);
   return { number, url: pr.html_url, nodeId: pr.node_id, branch: pr.head.ref, revision: pr.head.sha, tree: head.commit.tree.sha, target: pr.base.ref, state: pr.merged ? "merged" : pr.state === "closed" ? "closed" : pr.draft ? "draft" : "ready", mergedAt: pr.merged_at, mergeCommit: pr.merged ? pr.merge_commit_sha : null };
 }
@@ -152,7 +152,7 @@ export function applyFinal(state, event, { github, config }) {
       if (pr.revision !== f.revision || pr.branch !== f.branch) throw new TrackerError("final_revision_changed");
       if (!["draft", "ready"].includes(pr.state)) throw new TrackerError("final_pr_open_required");
       requireFinalGate(state, record, github, config);
-      f.handoff = { eventId: event.id, runId: event.runId, generation: event.generation, revision: f.revision, state: "pending", at: event.at };
+      f.handoff = { eventId: event.id, runId: event.runId, generation: event.generation, revision: f.revision, nodeId: pr.nodeId, pullRequest: pr.number, branch: pr.branch, target: pr.target, state: "pending", at: event.at };
     }
   }
   record.stateAt = event.at; record.result = p.result; record.revision = state.revision + 1;
@@ -163,34 +163,58 @@ export function renderFinal(record) {
   return `\n- Child phases: ${JSON.stringify(s.counts)}\n- Shared checks: ${s.checks}\n- Combined review: ${s.review}\n- Resulting revision: ${s.revision ?? "not bound"}\n- Final PR: ${s.pullRequest ? `[${s.pullRequest.state}](${s.pullRequest.url})` : "outstanding"}\n${record.cancellation ? `- Cancellation evidence: ${JSON.stringify(record.cancellation)}\n` : ""}${record.reversal ? `- Explicit reversal evidence: ${JSON.stringify(record.reversal)}\n` : ""}${record.final?.gate ? `- Final gate: ${JSON.stringify(record.final.gate)}\n` : ""}${record.delivery ? `- Delivery evidence: ${JSON.stringify(record.delivery)}\n` : ""}${record.final?.handoff ? `- Final handoff: ${JSON.stringify(record.final.handoff)}\n` : ""}${record.final?.checks ? `- Shared check evidence: ${JSON.stringify(record.final.checks)}\n` : ""}${record.final?.review ? `- Combined review evidence: ${JSON.stringify(record.final.review)}\n` : ""}`;
 }
 
+function sameHandoffPr(pr, handoff) {
+  return pr.nodeId === handoff.nodeId && pr.number === handoff.pullRequest && pr.branch === handoff.branch && pr.target === handoff.target && pr.revision === handoff.revision;
+}
+function restoreDraft(github, config, pr) {
+  github.graph(`mutation TrackerRestoreDraft($input:ConvertPullRequestToDraftInput!){convertPullRequestToDraft(input:$input){pullRequest{id isDraft}}}`, { input: { pullRequestId: pr.nodeId } });
+  const restored = readPr(github, config, pr.number, { allowChangedTarget: true });
+  if (restored.nodeId !== pr.nodeId || restored.state !== "draft") throw new TrackerError("github_draft_restore_unverified");
+  return restored;
+}
 // Runs only after the durable intent and all ordinary required projections.
 // GitHub has no expected-head input for this mutation; read back and fail closed.
-export function finishFinalHandoffs(state, github, config) {
+export function finishFinalHandoffs(state, github, config, persist) {
   let changed = false;
   for (const record of Object.values(state.tickets)) {
     const f = record.final;
     const handoff = f?.handoff;
     if (handoff?.state !== "pending") continue;
     changed = true;
+    const owned = () => state.owner?.runId === handoff.runId && state.owner.generation === handoff.generation;
+    const bound = () => f.pullRequest.number === handoff.pullRequest && f.pullRequest.nodeId === handoff.nodeId && f.branch === handoff.branch;
     try {
-      if (state.owner?.runId !== handoff.runId || state.owner.generation !== handoff.generation) throw new TrackerError("run_superseded");
-      const pr = readPr(github, config, f.pullRequest.number);
-      if (pr.revision !== handoff.revision || pr.branch !== f.branch) throw new TrackerError("final_revision_changed");
+      if (!owned()) throw new TrackerError("run_superseded");
+      if (!bound()) throw new TrackerError("final_handoff_superseded");
+      const pr = readPr(github, config, handoff.pullRequest);
+      if (!sameHandoffPr(pr, handoff)) throw new TrackerError("final_revision_changed");
       if (!["draft", "ready"].includes(pr.state)) throw new TrackerError("final_pr_open_required");
       requireFinalGate(state, record, github, config);
       if (pr.state === "draft") {
+        // Persist the possible effect before calling GitHub. Failed/lost
+        // compensation can then be retried without approving obsolete gates.
+        handoff.effectAttempted = true;
+        persist();
         const returned = github.graph(`mutation TrackerReady($input:MarkPullRequestReadyForReviewInput!){markPullRequestReadyForReview(input:$input){pullRequest{id isDraft headRefOid baseRefName}}}`, { input: { pullRequestId: pr.nodeId, clientMutationId: handoff.eventId } }).markPullRequestReadyForReview.pullRequest;
-        const actual = readPr(github, config, pr.number);
-        if (returned.headRefOid !== handoff.revision || actual.revision !== handoff.revision || returned.baseRefName !== pr.target || actual.target !== pr.target) {
-          github.graph(`mutation TrackerRestoreDraft($input:ConvertPullRequestToDraftInput!){convertPullRequestToDraft(input:$input){pullRequest{id isDraft}}}`, { input: { pullRequestId: pr.nodeId } });
-          throw new TrackerError("final_revision_changed");
-        }
-        if (returned.isDraft || actual.state !== "ready") throw new TrackerError("final_ready_unverified");
+        if (returned.id !== handoff.nodeId) throw new TrackerError("github_ready_identity_unverified");
+        if (returned.headRefOid !== handoff.revision || returned.baseRefName !== handoff.target) throw new TrackerError("final_revision_changed");
+        if (returned.isDraft) throw new TrackerError("final_ready_unverified");
       }
+      // This read is checked for both a fresh mutation and an already-ready
+      // retry. Never assign an unchecked final read to an acknowledged handoff.
+      const actual = readPr(github, config, handoff.pullRequest);
+      if (!sameHandoffPr(actual, handoff)) throw new TrackerError("final_revision_changed");
+      if (actual.state !== "ready") throw new TrackerError("final_ready_unverified");
       handoff.state = "ready";
-      f.pullRequest = readPr(github, config, pr.number);
+      f.pullRequest = actual;
     } catch (error) {
       if (!(error instanceof TrackerError) || error.code.startsWith("github_")) throw error;
+      if (handoff.effectAttempted && owned() && bound()) {
+        let actual = readPr(github, config, handoff.pullRequest, { allowChangedTarget: true });
+        if (actual.nodeId !== handoff.nodeId) throw new TrackerError("github_ready_identity_unverified");
+        if (actual.state === "ready") actual = restoreDraft(github, config, actual);
+        refreshPr(f, actual, github, config);
+      }
       handoff.state = "refused"; handoff.error = error.code;
       const receipt = state.receipts[handoff.eventId];
       if (receipt) { receipt.state = "rejected"; receipt.error = error.code; }
@@ -199,7 +223,6 @@ export function finishFinalHandoffs(state, github, config) {
   }
   return changed;
 }
-
 function refreshPr(f, pr, github, config) {
   f.pullRequest = pr;
   f.revision = pr.mergeCommit ?? pr.revision;

@@ -119,7 +119,7 @@ export function processWorker(github, config, event, environment = process.env) 
     }
     for (const record of Object.values(state.tickets)) publishTicket(github, config, record, state);
     if (state.membershipDiscovered) reconcileViews(github, config, state);
-    if (finishFinalHandoffs(state, github, config)) for (const record of Object.values(state.tickets)) publishTicket(github, config, record, state);
+    if (finishFinalHandoffs(state, github, config, () => writeRegistry(github, config, commentId, state))) for (const record of Object.values(state.tickets)) publishTicket(github, config, record, state);
     // The cadence begins only after every required external effect succeeds.
     for (const record of Object.values(state.tickets).filter(record => record.activityPublicationPending)) {
       record.activityPublishedAt = new Date().toISOString();

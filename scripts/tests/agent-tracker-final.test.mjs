@@ -364,3 +364,37 @@ test("untracked native children remain outstanding when final evidence is missin
   assert.equal(parent.final.gate.error, "final_checks_required");
   assert.notEqual(parent.status, "done");
 });
+
+test("failed draft restoration after a ready-head race is completed on retry before refusing handoff", t => {
+  for (const phase of ["before", "after"]) {
+    const repo = prepare(t, false);
+    evidenceComplete(repo);
+    repo.git("checkout", "-b", "later", "feat/ticket");
+    repo.git("-c", "user.name=Final test", "-c", "user.email=final@example.test", "commit", "--allow-empty", "-m", "Concurrent head");
+    repo.updateRemote(remote => {
+      remote.pushDuringReady = repo.git("rev-parse", "HEAD");
+      remote.failure = { match: "TrackerRestoreDraft", phase, remaining: 1 };
+    });
+    const partial = repo.run("final-handoff", "--issue", "201", "--result", "Authorized final handoff", "--wait-seconds", "0");
+    assert.equal(resultJson(partial).error, "publication_pending");
+    const retried = repo.run("sync", "--wait-seconds", "0");
+    assert.equal(resultJson(retried).error, "final_revision_changed");
+    assert.equal(repo.remote().pulls[300].draft, true);
+    assert.equal(execute(repo, "show").remote.tickets[201].final.handoff.state, "refused");
+  }
+});
+
+test("already-ready retry checks its final observed head before acknowledging old gates", t => {
+  const repo = prepare(t, false);
+  evidenceComplete(repo);
+  repo.updateRemote(remote => { remote.failure = { match: "TrackerReady", phase: "after", remaining: 1 }; });
+  const lost = repo.run("final-handoff", "--issue", "201", "--result", "Authorized handoff", "--wait-seconds", "0");
+  assert.equal(resultJson(lost).error, "publication_pending");
+  repo.git("checkout", "-b", "later", "feat/ticket");
+  repo.git("-c", "user.name=Final test", "-c", "user.email=final@example.test", "commit", "--allow-empty", "-m", "Push races with ready retry");
+  repo.updateRemote(remote => { remote.pushOnPullRead = { remaining: 2, sha: repo.git("rev-parse", "HEAD") }; });
+  const retry = repo.run("sync", "--wait-seconds", "0");
+  assert.equal(resultJson(retry).error, "final_revision_changed");
+  assert.equal(repo.remote().pulls[300].draft, true);
+  assert.equal(execute(repo, "show").remote.tickets[201].final.handoff.state, "refused");
+});

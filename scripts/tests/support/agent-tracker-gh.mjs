@@ -132,6 +132,10 @@ if (endpoint === "graphql") {
   response = { status: base === head ? "identical" : ancestor.status === 0 ? "ahead" : "diverged", merge_base_commit: { sha: execFileSync("git", ["merge-base", base, head], { encoding: "utf8" }).trim() } };
 } else if (/^repos\/example\/project\/pulls\/\d+$/.test(endpoint)) {
   response = remote.pulls?.[endpoint.split("/")[4]];
+  if (remote.pushOnPullRead && --remote.pushOnPullRead.remaining === 0) {
+    response.head.sha = remote.pushOnPullRead.sha;
+    delete remote.pushOnPullRead;
+  }
   if (!response) { console.error("HTTP 404 Not Found"); process.exit(1); }
 } else if (/^repos\/example\/project\/issues\/\d+\/sub_issues$/.test(endpoint)) {
   response = (remote.subIssues?.[endpoint.split("/")[4]] ?? []).slice((page - 1) * 100, page * 100).map(child => typeof child === "object" ? child : { number: child });
