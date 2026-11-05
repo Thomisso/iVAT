@@ -1,5 +1,6 @@
 import {
   AiProviderError,
+  withProviderResponse,
   type AiCallContext,
   type AiInput,
   type AiProvider,
@@ -10,7 +11,9 @@ import {
   EXTRACTION_PROMPT,
   EXTRACTION_SCHEMA,
   extractionPayload,
+  interpreted,
   pageRanges,
+  parsedOrNull,
   rowRanges,
   SPREADSHEET_SPLIT_SCHEMA,
   SPLIT_SCHEMA,
@@ -60,7 +63,7 @@ async function structuredMessage(
   input: AiInput,
   prompt: string,
   schema: object,
-): Promise<{ model: string; value: unknown; usage?: AiUsage }> {
+): Promise<{ model: string; value: unknown; usage?: AiUsage; raw: string }> {
   let response: Response;
   try {
     response = await fetch(`${options.baseUrl ?? "https://api.anthropic.com"}/v1/messages`, {
@@ -80,8 +83,10 @@ async function structuredMessage(
   } catch (cause) {
     throw new AnthropicProviderError("Anthropic could not be reached", { transient: true, cause });
   }
+  const raw = await response.text().catch(() => "");
+  const fail = (error: unknown) => withProviderResponse(error, raw);
   if (!response.ok) {
-    const body = await response.json().catch(() => null) as {
+    const body = parsedOrNull(raw) as {
       error?: { type?: unknown; message?: unknown; details?: { error_code?: unknown } };
     } | null;
     const errorType = body?.error?.type;
@@ -105,24 +110,32 @@ async function structuredMessage(
     const platformIntervention = classification !== undefined;
     const transient = !platformIntervention
       && (response.status === 408 || response.status === 409 || response.status === 429 || response.status >= 500);
-    throw new AnthropicProviderError(`Anthropic request failed (${response.status})`, {
+    throw fail(new AnthropicProviderError(`Anthropic request failed (${response.status})`, {
       transient,
       status: response.status,
       classification,
       platformIntervention,
-    });
+    }));
   }
-  const result = await response.json() as {
+  let result: {
     model?: unknown;
     content?: { type?: unknown; text?: unknown }[];
     usage?: { input_tokens?: unknown; output_tokens?: unknown };
   };
-  const text = result.content?.find((block) => block.type === "text")?.text;
-  if (typeof text !== "string") throw new Error("Anthropic returned no structured output");
+  let value: unknown;
+  try {
+    result = JSON.parse(raw);
+    const text = result.content?.find((block) => block.type === "text")?.text;
+    if (typeof text !== "string") throw new Error("Anthropic returned no structured output");
+    value = JSON.parse(text);
+  } catch (error) {
+    throw fail(error);
+  }
   const usage = result.usage;
   return {
+    raw,
     model: typeof result.model === "string" ? result.model : model,
-    value: JSON.parse(text),
+    value,
     ...(typeof usage?.input_tokens === "number" && typeof usage.output_tokens === "number"
       ? { usage: { inputTokens: usage.input_tokens, outputTokens: usage.output_tokens } }
       : {}),
@@ -146,7 +159,7 @@ export function anthropicAiProvider(options: AnthropicAiProviderOptions): AiProv
       );
       return {
         model: result.model,
-        documents: spreadsheet ? rowRanges("Anthropic", result.value) : pageRanges("Anthropic", result.value),
+        documents: interpreted(result.raw, () => spreadsheet ? rowRanges("Anthropic", result.value) : pageRanges("Anthropic", result.value)),
         ...(result.usage ? { usage: result.usage } : {}),
       };
     },
@@ -160,7 +173,7 @@ export function anthropicAiProvider(options: AnthropicAiProviderOptions): AiProv
       );
       return {
         model: result.model,
-        payload: extractionPayload("Anthropic", result.value),
+        payload: interpreted(result.raw, () => extractionPayload("Anthropic", result.value)),
         ...(result.usage ? { usage: result.usage } : {}),
       };
     },

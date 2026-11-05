@@ -9,7 +9,8 @@ import { inject, describe, expect, it } from "vitest";
 import { runJob, splitJob } from "@/application/processing";
 import { fakeVatPayerRegistry } from "@/vat-registry/fake";
 import { fakeExchangeRates } from "@/cnb/fake";
-import { fakeAiProvider } from "@/ai/fake";
+import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
+import { withProviderResponse } from "@/application/ai-provider";
 import { asUserClient } from "@/application/client";
 import { logIn } from "@/application/auth";
 import { listAuditEvents } from "@/application/audit";
@@ -23,6 +24,7 @@ import {
 } from "@/application/platform-administration";
 import {
   closeFailedExportAttempt,
+  listFailedAiResponses,
   listFailedProcessingJobs,
   takeOverFailedProcessingJob,
   retryFailedProcessingJob,
@@ -1195,4 +1197,83 @@ describe("failed Company export attempts", () => {
     } finally { await boss.stop({ graceful: true }); }
   });
 
+});
+
+describe("failed AI responses", () => {
+  const body = JSON.stringify({
+    status: "completed",
+    output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify({ supplier: { country: "Czech Republic" } }) }] }],
+  });
+
+  async function failingExtraction(name: string) {
+    const company = await administratorWithCompany(name);
+    const outcomes: ("fail" | "succeed")[] = [];
+    const worker = testWorker(fakeAiProvider({
+      extract: () => {
+        if (outcomes.shift() === "succeed") return SAMPLE_EXTRACTION;
+        throw withProviderResponse(new Error("OpenAI returned an invalid Extraction payload (invalid_country)"), body);
+      },
+    }));
+    await enableAiProcessing(company.client, worker.jobs, { companyId: company.companyId, provider: worker.ai });
+    const source = await uploadSourceFile(company.client, worker.jobs, {
+      companyId: company.companyId, fileName: "invalid-country.png", bytes: fixtureFile("receipt.png"),
+    });
+    if (!source.ok) throw new Error(source.error);
+    await worker.runNextJob();
+    const [document] = await listDocuments(company.client, company.companyId, source.value.id);
+    const extraction = worker.queued[0];
+    /** Runs the Document's Extraction again as the next queue attempt. */
+    const attempt = async (outcome: "fail" | "succeed", final: boolean) => {
+      outcomes.push(outcome);
+      worker.queued.unshift(extraction);
+      await worker.runNextJob({ final }).catch(() => undefined);
+    };
+    return { company, document, attempt };
+  }
+
+  it("shows a final Extraction failure's provider body to SuperAdmins with its operational problem", async () => {
+    const operator = await superAdministrator();
+    const { company, document, attempt } = await failingExtraction("Failed AI response");
+    await attempt("fail", true);
+    expect((await getDocument(company.client, company.companyId, document.id))?.status).toBe("failed");
+
+    const responses = await listFailedAiResponses(operator.client);
+    if (!responses.ok) throw new Error(responses.error);
+    expect(responses.value).toContainEqual(expect.objectContaining({
+      targetKind: "document",
+      targetId: document.id,
+      provider: "fake",
+      error: "OpenAI returned an invalid Extraction payload (invalid_country)",
+      response: body,
+    }));
+    const problems = await listPlatformOperationalProblems(operator.client);
+    if (!problems.ok) throw new Error(problems.error);
+    expect(problems.value.flatMap((problem) => problem.targetIds)).toContain(document.id);
+
+    expect(await listFailedAiResponses(company.client)).toEqual({ ok: false, error: "forbidden" });
+  });
+
+  it("forgets the provider body once a later attempt extracts the Document", async () => {
+    const operator = await superAdministrator();
+    const { company, document, attempt } = await failingExtraction("Recovered AI response");
+    const failedTargets = async () => {
+      const responses = await listFailedAiResponses(operator.client);
+      if (!responses.ok) throw new Error(responses.error);
+      return responses.value.map((failure) => failure.targetId);
+    };
+    await attempt("fail", false);
+    expect(await failedTargets()).toContain(document.id);
+
+    await attempt("succeed", true);
+    expect((await getDocument(company.client, company.companyId, document.id))?.status).toBe("needs_review");
+    expect(await failedTargets()).not.toContain(document.id);
+    const database = new DatabaseClient({ connectionString: inject("databaseUrl") });
+    await database.connect();
+    try {
+      const stored = await database.query("select 1 from public.ai_failed_response where document_id = $1", [document.id]);
+      expect(stored.rowCount).toBe(0);
+    } finally {
+      await database.end();
+    }
+  });
 });

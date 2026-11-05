@@ -5,11 +5,13 @@ import {
   VAT_REGIMES,
   type ExtractionPayload,
 } from "@/application/extraction-payload";
-import type { PageRange, RowRange } from "@/application/ai-provider";
+import { withProviderResponse, type PageRange, type RowRange } from "@/application/ai-provider";
 
 export const EXTRACTION_PROMPT =
   "Extract the Document fields exactly as shown. Use null when a field is not present; never infer tax treatment beyond the proposed VAT Regime. " +
-  "For a Credit Note, represent all monetary values as negative amounts and set originalDocumentNumber to the original Document number when it is shown.";
+  "For a Credit Note, represent all monetary values as negative amounts and set originalDocumentNumber to the original Document number when it is shown. " +
+  "Write amounts with a dot and two decimals (1210.00), dates as YYYY-MM-DD, currency as an ISO 4217 code (CZK) " +
+  "and country as an ISO 3166-1 alpha-2 code (CZ), never as a name.";
 
 export const SPLIT_SCHEMA = {
   type: "object",
@@ -55,6 +57,14 @@ export const SPREADSHEET_SPLIT_SCHEMA = {
 } as const;
 
 const nullableString = { type: ["string", "null"] } as const;
+// Formats the domain validation requires (src/application/extraction-payload.ts).
+// Both providers' strict structured outputs honour these simple patterns, so a
+// response like `"country": "Czech Republic"` cannot be produced at all.
+const AMOUNT_PATTERN = "^-?\\d+\\.\\d{2}$";
+const amount = { type: "string", pattern: AMOUNT_PATTERN } as const;
+const nullableAmount = { type: ["string", "null"], pattern: AMOUNT_PATTERN } as const;
+const nullableDate = { type: ["string", "null"], pattern: "^\\d{4}-\\d{2}-\\d{2}$" } as const;
+const nullableCountry = { type: ["string", "null"], pattern: "^[A-Z]{2}$" } as const;
 const nullableChoice = (choices: readonly string[]) => ({ type: ["string", "null"], enum: [...choices, null] });
 const partySchema = {
   type: "object",
@@ -67,7 +77,7 @@ const partySchema = {
     street: nullableString,
     city: nullableString,
     postalCode: nullableString,
-    country: nullableString,
+    country: nullableCountry,
   },
 } as const;
 
@@ -83,13 +93,13 @@ export const EXTRACTION_SCHEMA = {
     schemaVersion: { type: "integer", enum: [1] },
     documentType: nullableChoice(DOCUMENT_TYPES),
     documentNumber: nullableString,
-    issueDate: nullableString,
-    taxPointDate: nullableString,
-    dueDate: nullableString,
+    issueDate: nullableDate,
+    taxPointDate: nullableDate,
+    dueDate: nullableDate,
     direction: nullableChoice(DIRECTIONS),
     supplier: partySchema,
     customer: partySchema,
-    currency: nullableString,
+    currency: { type: ["string", "null"], pattern: "^[A-Z]{3}$" },
     rateBreakdown: {
       type: "array",
       items: {
@@ -98,8 +108,8 @@ export const EXTRACTION_SCHEMA = {
         required: ["rate", "netAmount", "vatAmount"],
         properties: {
           rate: { type: "number", minimum: 0, maximum: 100 },
-          netAmount: { type: "string" },
-          vatAmount: { type: "string" },
+          netAmount: amount,
+          vatAmount: amount,
         },
       },
     },
@@ -107,7 +117,7 @@ export const EXTRACTION_SCHEMA = {
       type: "object",
       additionalProperties: false,
       required: ["netAmount", "vatAmount", "grossAmount"],
-      properties: { netAmount: nullableString, vatAmount: nullableString, grossAmount: nullableString },
+      properties: { netAmount: nullableAmount, vatAmount: nullableAmount, grossAmount: nullableAmount },
     },
     payment: {
       type: "object",
@@ -116,10 +126,28 @@ export const EXTRACTION_SCHEMA = {
       properties: { variableSymbol: nullableString, bankAccount: nullableString, iban: nullableString },
     },
     proposedVatRegime: nullableChoice(VAT_REGIMES),
-    reverseChargeCode: nullableString,
+    reverseChargeCode: { type: ["string", "null"], pattern: "^\\d{1,3}$" },
     originalDocumentNumber: nullableString,
   },
 } as const;
+
+/** A provider body parsed as JSON, or null when it is not JSON. */
+export function parsedOrNull(raw: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+/** Interprets a provider's structured output, keeping its raw body on a refusal. */
+export function interpreted<T>(raw: string, interpret: () => T): T {
+  try {
+    return interpret();
+  } catch (error) {
+    throw withProviderResponse(error, raw);
+  }
+}
 
 export function pageRanges(provider: string, value: unknown): PageRange[] {
   if (!value || typeof value !== "object" || !("documents" in value) || !Array.isArray(value.documents)) {
@@ -178,6 +206,8 @@ export function extractionPayload(provider: string, value: unknown): ExtractionP
     throw new Error(`${provider} returned an invalid Extraction payload`);
   }
   const payload = value as ExtractionPayload;
-  if (validateExtractionPayload(payload)) throw new Error(`${provider} returned an invalid Extraction payload`);
+  // The code names the failed check without echoing Document data into job logs.
+  const error = validateExtractionPayload(payload);
+  if (error) throw new Error(`${provider} returned an invalid Extraction payload (${error})`);
   return payload;
 }

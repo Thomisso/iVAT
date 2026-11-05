@@ -191,6 +191,7 @@ export function groupOperationalProblems(input: {
       companyId: issue.companyId,
       companyName: issue.companyName,
       affectedDocumentCount: 1,
+      targetIds: [issue.targetId],
     }, configurations);
   }
 

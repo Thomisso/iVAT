@@ -27,6 +27,35 @@ export async function listFailedProcessingJobs(
   })) };
 }
 
+/** The raw body an AI provider returned when the current Split or Extraction of a target failed. */
+export type FailedAiResponse = {
+  targetKind: "source_file" | "document";
+  targetId: string;
+  provider: string;
+  model: string | null;
+  error: string;
+  response: string;
+  recordedAt: string;
+};
+
+/** MFA-verified SuperAdmin only (ADR-0014): the bodies hold Document data. */
+export async function listFailedAiResponses(
+  client: AppClient,
+): Promise<Result<FailedAiResponse[], "forbidden">> {
+  const { data, error } = await client.rpc("list_ai_failed_responses");
+  if (error?.code === "42501") return { ok: false, error: "forbidden" };
+  if (error) throw error;
+  return { ok: true, value: data.map((row) => ({
+    targetKind: row.target_kind,
+    targetId: row.target_id,
+    provider: row.provider,
+    model: row.model,
+    error: row.error,
+    response: row.response,
+    recordedAt: row.recorded_at,
+  })) };
+}
+
 /** Retries current failed work as an MFA-verified SuperAdmin. A recorded Split resumes
  * dispatch to its existing Documents; pending AI targets get a new request generation. */
 export async function retryFailedProcessingJob(
