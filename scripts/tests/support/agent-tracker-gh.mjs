@@ -7,13 +7,19 @@ const args = process.argv.slice(2);
 const method = args.includes("--method") ? args[args.indexOf("--method") + 1] : "GET";
 const endpoint = args[args.indexOf("api") + 1].split("?")[0];
 const input = args.includes("--input") ? JSON.parse(fs.readFileSync(0, "utf8")) : {};
+const operation = endpoint === "graphql" ? input.query.match(/(?:query|mutation)\s+(\w+)/)?.[1] : `${method} ${endpoint}`;
+const injected = remote.failure?.remaining > 0 && operation === remote.failure.match ? { ...remote.failure } : null;
+if (injected) {
+  remote.failure.remaining--;
+  fs.writeFileSync(file, JSON.stringify(remote));
+  if (injected.phase === "before") { console.error("simulated connection failure"); process.exit(1); }
+}
 let response;
 if (remote.fail) {
   console.error(remote.fail);
   process.exit(1);
 }
 if (endpoint === "graphql") {
-  const operation = input.query.match(/(?:query|mutation)\s+(\w+)/)?.[1];
   const variables = input.variables ?? {};
   const value = variables.input ?? {};
   switch (operation) {
@@ -57,7 +63,9 @@ if (endpoint === "graphql") {
 } else if (endpoint === "repos/example/project") {
   response = { full_name: "example/project", owner: { login: "example", type: "User" }, default_branch: "main" };
 } else if (endpoint === "repos/example/project/issues/99/comments" && method === "GET") {
-  response = remote.registry ? [{ id: 900, body: remote.registry }] : [];
+  let body = remote.registry;
+  if (remote.staleRegistry?.remaining > 0) { body = remote.staleRegistry.body; remote.staleRegistry.remaining--; }
+  response = body ? [{ id: 900, body }] : [];
 } else if (endpoint === "repos/example/project/issues/99/comments" && method === "POST") {
   remote.registry = input.body;
   response = { id: 900, body: input.body };
@@ -68,6 +76,14 @@ if (endpoint === "graphql") {
   response = { number: 201, node_id: "I_201", title: "A real issue", html_url: "https://github.com/example/project/issues/201", state: "open" };
 } else if (endpoint === "repos/example/project/issues/201/parent") {
   response = { number: 200 };
+} else if (/^repos\/example\/project\/git\/commits\/[a-f0-9]{40}$/.test(endpoint)) {
+  const sha = endpoint.split("/").at(-1);
+  if (remote.missingCommits?.includes(sha)) { console.error("HTTP 404 Not Found"); process.exit(1); }
+  response = { sha };
+} else if (endpoint.startsWith("repos/example/project/git/ref/heads/")) {
+  const branch = decodeURIComponent(endpoint.slice("repos/example/project/git/ref/heads/".length));
+  if (!remote.branches?.[branch]) { console.error("HTTP 404 Not Found"); process.exit(1); }
+  response = { object: { sha: remote.branches[branch] } };
 } else if (endpoint === "repos/example/project/issues/201/assignees") {
   remote.assignees = input.assignees;
   response = {};
@@ -84,12 +100,14 @@ if (endpoint === "graphql") {
   remote.dispatches ??= [];
   remote.dispatches.push(input.inputs.event);
   fs.writeFileSync(file, JSON.stringify(remote));
-  const worker = spawnSync(process.execPath, [process.env.TRACKER_COMMAND, "worker"], {
+  const worker = remote.deferDispatch ? { status: 0 } : spawnSync(process.execPath, [process.env.TRACKER_COMMAND, "worker"], {
     cwd: process.cwd(), encoding: "utf8", env: { ...process.env, GITHUB_ACTIONS: "true", GITHUB_JOB: "publish", GITHUB_WORKFLOW_REF: "example/project/.github/workflows/agent-tracking.yml@refs/heads/main", GITHUB_ACTOR: "maintainer", TRACKER_EVENT: input.inputs.event },
   });
   if (worker.status !== 0) console.error(worker.stderr);
+  if (injected?.phase === "after") { console.error("simulated connection failure after remote effect"); process.exit(1); }
   console.log(JSON.stringify({ workflow_run_id: 123, run_url: "https://api.github.com/repos/example/project/actions/runs/123", html_url: "https://github.com/example/project/actions/runs/123" }));
   process.exit(0);
 } else throw new Error(`Unmodelled REST operation ${method} ${endpoint}`);
 fs.writeFileSync(file, JSON.stringify(remote));
+if (injected?.phase === "after") { console.error("simulated connection failure after remote effect"); process.exit(1); }
 console.log(JSON.stringify(response));
