@@ -18,7 +18,7 @@ export function validateEvent(event) {
   if (!event || Object.keys(event).some(key => !allowed.includes(key)) || Buffer.byteLength(JSON.stringify(event)) > 8 * 1024) throw new TrackerError("event_invalid");
   text(event.id, 100);
   if (event.type === "discover") {
-    if (!/^[\w-]+$/.test(event.id) || Object.keys(event).some(key => !["id", "type", "at", "payload"].includes(key)) || !Number.isFinite(Date.parse(event.at)) || new Date(event.at).toISOString() !== event.at || !event.payload || typeof event.payload !== "object" || Array.isArray(event.payload) || Object.keys(event.payload).some(key => key !== "parent") || (event.payload.parent !== undefined && (!Number.isInteger(event.payload.parent) || event.payload.parent <= 0))) throw new TrackerError("event_invalid");
+    if (!/^[\w-]+$/.test(event.id) || Object.keys(event).some(key => !["id", "type", "at", "payload"].includes(key)) || !Number.isFinite(Date.parse(event.at)) || new Date(event.at).toISOString() !== event.at || !event.payload || typeof event.payload !== "object" || Array.isArray(event.payload) || Object.keys(event.payload).some(key => !["parent", "expectedSelectionRevision"].includes(key)) || (event.payload.parent !== undefined && (!Number.isSafeInteger(event.payload.parent) || event.payload.parent <= 0 || !Number.isSafeInteger(event.payload.expectedSelectionRevision) || event.payload.expectedSelectionRevision < 0)) || (event.payload.parent === undefined && Object.hasOwn(event.payload, "expectedSelectionRevision"))) throw new TrackerError("event_invalid");
     return event;
   }
   text(event.runId, 100);
@@ -40,9 +40,10 @@ export function applyEvent(state, event, { github, config, actor }) {
     return state;
   }
   if (event.type === "discover") {
+    if (event.payload.parent && event.payload.expectedSelectionRevision !== (state.selectionRevision ?? 0)) throw new TrackerError("selection_superseded");
     discoverTickets(state, { github, config, at: event.at });
     state.membershipDiscovered = true;
-    if (event.payload.parent) state.selectedParent = event.payload.parent;
+    if (event.payload.parent) { state.selectedParent = event.payload.parent; state.selectionRevision = state.revision + 1; }
   } else if (event.type === "start") {
     if (state.owner) throw new TrackerError("run_already_owned");
     if (event.generation !== state.generation) throw new TrackerError("run_superseded");

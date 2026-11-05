@@ -13,7 +13,7 @@ export function trackerFixture(t) {
   copyFileSync(new URL("agent-tracker-gh.mjs", import.meta.url), path.join(bin, "gh"));
   chmodSync(path.join(bin, "gh"), 0o755);
   const remote = path.join(root, "github.json");
-  writeFileSync(remote, JSON.stringify({ project: { id: "PVT_test", title: "Agent work", url: "https://github.com/users/example/projects/1" }, fields: [{ id: "status", name: "Status", dataType: "SINGLE_SELECT", options: [] }] }));
+  writeFileSync(remote, JSON.stringify({ project: { id: "PVT_test", title: "Agent work", url: "https://github.com/users/example/projects/1" }, fields: [{ id: "status", name: "Status", dataType: "SINGLE_SELECT", options: [] }, { id: "parent", name: "Parent issue", dataType: "PARENT_ISSUE" }, { id: "title", name: "Title", dataType: "TITLE" }] }));
   const environment = { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, TRACKER_FAKE_GITHUB: remote, TRACKER_COMMAND: command };
   function checkout(directory) {
     mkdirSync(directory);

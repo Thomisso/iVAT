@@ -24,6 +24,7 @@ export function parseRegistry(body) {
   const counter = value => Number.isSafeInteger(value) && value >= 0;
   const identity = value => typeof value === "string" && /^[\w-]{1,100}$/.test(value);
   if (!record(state) || state.schemaVersion !== 1 || !counter(state.revision) || !counter(state.generation) || !counter(state.publishedRevision) || state.publishedRevision > state.revision || !record(state.tickets) || !record(state.receipts) || !Object.hasOwn(state, "owner")) throw new TrackerError("registry_invalid");
+  if (Object.hasOwn(state, "selectionRevision") && (!counter(state.selectionRevision) || state.selectionRevision > state.revision)) throw new TrackerError("registry_invalid");
   const owner = state.owner;
   const validOwner = value => record(value) && identity(value.runId) && identity(value.account) && counter(value.generation) && value.generation > 0 && counter(value.sequence) && typeof value.startedAt === "string" && Number.isFinite(Date.parse(value.startedAt)) && new Date(value.startedAt).toISOString() === value.startedAt;
   const history = state.runHistory ?? {};

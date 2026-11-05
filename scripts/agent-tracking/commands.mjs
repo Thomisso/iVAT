@@ -15,7 +15,8 @@ export function runCommand(command, github, config, options) {
     const at = options.at ?? new Date().toISOString();
     let event;
     if (command === "discover") {
-      event = { id: randomUUID(), type: "discover", at, payload: options.parent ? { parent: Number(options.parent) } : {} };
+      const payload = options.parent ? { parent: Number(options.parent), expectedSelectionRevision: readRegistry(github, config).state.selectionRevision ?? 0 } : {};
+      event = { id: randomUUID(), type: "discover", at, payload };
     } else if (command === "start") {
       if (journal.pending.length) throw new TrackerError("pending_events_require_sync");
       if (journal.run) throw new TrackerError("run_already_owned");

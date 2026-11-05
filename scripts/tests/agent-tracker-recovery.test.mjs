@@ -167,6 +167,57 @@ test("receipt compaction preserves the latest unacknowledged owned outcome and e
   assert.equal(repo.remote().ticketComments.length, 1);
 });
 
+test("a pruned passive discovery retry observes current facts and preserves newer owned progress", t => {
+  const repo = trackerFixture(t);
+  assert.equal(repo.setup().status, 0);
+  const issue = number => ({ id: `I_${number}`, number, title: `Issue ${number}`, url: `https://github.com/example/project/issues/${number}`, body: "", state: "OPEN", subIssues: { totalCount: 0 }, labels: [] });
+  repo.updateRemote(remote => { remote.issues = { 200: issue(200), 201: { ...issue(201), parent: issue(200), labels: ["ready-for-agent"] } }; });
+  assert.equal(repo.run("discover").status, 0);
+  const discovery = JSON.parse(repo.remote().dispatches.at(-1));
+  assert.equal(repo.run("start", "--run", "latest-progress").status, 0);
+  assert.equal(repo.run("claim", "--issue", "201", "--agent", "worker", "--branch", "feat/ticket").status, 0);
+  const owned = resultJson(repo.run("show")).remote.tickets[201];
+  repo.updateRemote(remote => {
+    const snapshot = JSON.parse(remote.registry.match(/```json\n([\s\S]+)\n```/)[1]);
+    for (let index = 0; index < 40; index++) snapshot.receipts[`later-repair-${index}`] = { state: "published", type: "repair", revision: snapshot.revision };
+    remote.registry = `<!-- ivat-agent-tracker:registry:v1 -->\n\n\`\`\`json\n${JSON.stringify(snapshot)}\n\`\`\`\n`;
+    remote.issues[201].parent = issue(300);
+    remote.issues[201].labels = [];
+    remote.issues[302] = { ...issue(302), parent: null, labels: ["ready-for-agent"] };
+  });
+  assert.equal(repo.run("repair").status, 0);
+  assert.equal(resultJson(repo.run("show")).remote.receipts[discovery.id], undefined);
+  assert.equal(repo.worker(discovery).status, 0);
+  const current = resultJson(repo.run("show")).remote;
+  assert.equal(current.receipts[discovery.id].state, "published");
+  assert.deepEqual(current.tickets[201], owned);
+  assert.equal(current.tickets[302].status, "ready");
+  assert.equal(Object.keys(repo.remote().items).length, 3);
+});
+
+test("a pruned selection retry cannot rewind a newer view selection", t => {
+  const repo = trackerFixture(t);
+  assert.equal(repo.setup().status, 0);
+  assert.equal(repo.run("discover", "--parent", "200", "--wait-seconds", "0").status, 0);
+  const oldSelection = JSON.parse(repo.remote().dispatches.at(-1));
+  repo.updateRemote(remote => {
+    const snapshot = JSON.parse(remote.registry.match(/```json\n([\s\S]+)\n```/)[1]);
+    for (let index = 0; index < 40; index++) snapshot.receipts[`newer-repair-${index}`] = { state: "published", type: "repair", revision: snapshot.revision };
+    remote.registry = `<!-- ivat-agent-tracker:registry:v1 -->\n\n\`\`\`json\n${JSON.stringify(snapshot)}\n\`\`\`\n`;
+  });
+  assert.equal(repo.run("repair", "--wait-seconds", "0").status, 0);
+  assert.equal(resultJson(repo.run("show")).remote.receipts[oldSelection.id], undefined);
+  assert.equal(repo.run("discover", "--parent", "300", "--wait-seconds", "0").status, 0);
+  const stale = repo.worker(oldSelection);
+  assert.equal(stale.status, 1);
+  assert.equal(resultJson(stale).error, "selection_superseded");
+  const latest = resultJson(repo.run("show")).remote;
+  assert.equal(latest.selectedParent, 300);
+  assert.equal(latest.views.table.filter, 'parent-issue:"example/project#300"');
+  assert.equal(repo.run("discover", "--parent", "200", "--wait-seconds", "0").status, 0);
+  assert.equal(resultJson(repo.run("show")).remote.selectedParent, 200);
+});
+
 test("unknown or live local lock ownership is refused without deleting the lock", t => {
   const repo = trackerFixture(t);
   assert.equal(repo.setup().status, 0);
