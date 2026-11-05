@@ -82,10 +82,52 @@ test("deliberate reclaim after stop preserves the reviewed phase and evidence un
   assert.equal(record.stateAt, previous.stateAt);
   assert.deepEqual(record.review, previous.review);
   assert.equal(record.generation, 2);
-  assert.equal(record.activity, "unverified");
+  assert.equal(record.activity, "inactive");
   assert.equal(repo.run("review-start", "--issue", "201", "--reviewer", "independent-reviewer", "--result", "Reading preserved review evidence").status, 0);
   assert.equal(resultJson(repo.run("sync")).synchronized, true);
 });
+
+for (const phase of ["review", "integrated"]) {
+  test(`historical ${phase} reclaim stays inactive and refuses a different revision without replacing evidence`, t => {
+    const repo = trackerFixture(t);
+    assert.equal(repo.setup().status, 0);
+    assert.equal(repo.run("start", "--run", "pinned-recovery").status, 0);
+    assert.equal(repo.run("claim", "--issue", "201", "--agent", "implementer", "--branch", "feat/ticket", "--spec", "200", "--integration-branch", "integration/spec").status, 0);
+    const revision = repo.git("rev-parse", "feat/ticket");
+    assert.equal(repo.run("review", "--issue", "201", "--base", revision, "--revision", revision, "--checks", "Focused checks passed", "--result", "Implementation complete").status, 0);
+    assert.equal(repo.run("review-result", "--issue", "201", "--revision", revision, "--reviewer", "independent-reviewer", "--standards", "pass", "--spec", "pass", "--findings", "[]", "--independence", "Reviewer received the ticket and diff without implementation context", "--result", "Clean independent review").status, 0);
+    if (phase === "integrated") {
+      repo.git("branch", "integration/spec", revision);
+      assert.equal(repo.run("integrate", "--issue", "201", "--integration-commit", revision, "--result", "Reviewed tip integrated").status, 0);
+    }
+    const previous = resultJson(repo.run("show")).remote.tickets[201];
+    assert.equal(repo.run("stop", "--reason", "Stop workers before historical transfer").status, 0);
+    assert.equal(repo.run("resume", "--run", "pinned-recovery").status, 0);
+    // A renamed branch at the same tip still carries the same code evidence.
+    repo.git("branch", "feat/recovered", revision);
+    const claimed = repo.run("claim", "--issue", "201", "--agent", "replacement-worker", "--branch", "feat/recovered");
+    assert.equal(claimed.status, 0, claimed.stderr);
+    const reclaimed = resultJson(repo.run("show")).remote.tickets[201];
+    assert.equal(reclaimed.status, phase);
+    assert.equal(reclaimed.activity, "inactive");
+    assert.equal(reclaimed.activityAt, null);
+    assert.equal(reclaimed.workingRevision, revision);
+    assert.equal(reclaimed.stateAt, previous.stateAt);
+    assert.deepEqual(reclaimed.review, previous.review);
+    assert.deepEqual(reclaimed.integration, previous.integration);
+    assert.equal(repo.run("stop", "--reason", "Stop before checking revision mismatch").status, 0);
+    repo.git("checkout", "feat/recovered");
+    repo.git("-c", "user.name=Recovery test", "-c", "user.email=recovery@example.test", "commit", "--allow-empty", "-m", "Unreviewed later work");
+    assert.equal(repo.run("resume", "--run", "pinned-recovery").status, 0);
+    const beforeRefusal = resultJson(repo.run("show")).remote.tickets[201];
+    const changed = repo.run("claim", "--issue", "201", "--agent", "later-worker", "--branch", "feat/recovered", "--wait-seconds", "0");
+    assert.equal(changed.status, 1, changed.stdout);
+    assert.equal(resultJson(changed).error, "historical_revision_mismatch");
+    assert.deepEqual(resultJson(repo.run("show")).remote.tickets[201], beforeRefusal);
+    assert.equal(resultJson(repo.run("show", "--local")).local.pending.length, 0);
+    assert.equal(resultJson(repo.run("sync")).synchronized, true);
+  });
+}
 
 test("a lost dispatch response is acknowledged from canonical state without dropping or duplicating work", t => {
   const repo = trackerFixture(t);
