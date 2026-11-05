@@ -90,6 +90,7 @@ if (endpoint === "graphql") {
   response = { id: 900, body: input.body };
 } else if (/^repos\/example\/project\/issues\/\d+\/dependencies\/blocked_by$/.test(endpoint)) {
   const number = endpoint.split("/")[4];
+  if (remote.issues?.[number]?.dependenciesUnavailable) { console.error("404 Not Found"); process.exit(1); }
   response = remote.issues?.[number]?.blockers ?? [];
 } else if (/^repos\/example\/project\/issues\/\d+\/comments$/.test(endpoint) && !endpoint.includes("/201/") && !endpoint.includes("/99/")) {
   const number = endpoint.split("/")[4];

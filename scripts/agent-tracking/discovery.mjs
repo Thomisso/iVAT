@@ -24,16 +24,16 @@ function readiness(github, config, issue) {
   let blockers;
   try { blockers = github.pages(`repos/${config.repository}/issues/${issue.number}/dependencies/blocked_by`); }
   catch (error) { if (error.code !== "github_not_found") throw error; }
-  const body = issue.body ?? "";
-  const fallback = body.match(/^Blocked by:\s*(.*)$/im)?.[1] ?? body.match(/^##\s+Blocked by\s*\n([\s\S]*?)(?=^##\s|$(?![\s\S]))/im)?.[1];
-  if (fallback !== undefined) {
-    const numbers = [...fallback.matchAll(/#(\d+)/g)].map(match => Number(match[1]));
-    if (!numbers.length && !/^\s*(?:none|no blockers|n\/a)[.\s]*$/i.test(fallback)) return { status: "blocked", result: "Implementation dependencies are unresolved" };
-    const references = numbers.map(number => github.request(`repos/${config.repository}/issues/${number}`));
-    if (references.some(blocker => blocker.pull_request || blocker.state !== "closed")) return { status: "blocked", result: "Waiting for implementation dependencies" };
-  }
-  if (blockers?.some(blocker => blocker.state !== "closed")) return { status: "blocked", result: "Waiting for implementation dependencies" };
-  if (!blockers && fallback === undefined) return { status: "blocked", result: "Implementation dependencies could not be verified" };
+  const waiting = { status: "blocked", result: "Dependency delivery has not been verified; closure alone does not establish delivery" };
+  // Native edges are canonical when available. Passive discovery has no
+  // review/integration/final-merge attestation for any referenced dependency.
+  if (blockers) return blockers.length ? waiting : { status: "ready", result: "Approved implementation is waiting to be claimed" };
+  const opening = (issue.body ?? "").split(/^##\s+/m)[0];
+  const fallback = opening.match(/^Blocked by:\s*(.*)$/im)?.[1];
+  if (fallback === undefined) return { status: "blocked", result: "Implementation dependencies could not be verified" };
+  const numbers = [...fallback.matchAll(/#(\d+)/g)].map(match => Number(match[1]));
+  if (numbers.length) return waiting;
+  if (!/^\s*(?:none|no blockers|n\/a)[.\s]*$/i.test(fallback)) return { status: "blocked", result: "Implementation dependencies are unresolved" };
   return { status: "ready", result: "Approved implementation is waiting to be claimed" };
 }
 

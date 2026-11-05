@@ -293,7 +293,7 @@ test("discovery follows every page, prefers native parent and keeps dependency a
   assert.match(tickets[211].result, /Parent declaration is unresolved/);
   assert.equal(tickets[212].parent, null);
   assert.equal(tickets[212].status, "ready");
-  assert.equal(tickets[213].status, "blocked");
+  assert.equal(tickets[213].status, "ready");
   assert.equal(tickets[214].role, "specification");
   assert.equal(tickets[215].role, "implementation");
   assert.equal(tickets[215].status, "blocked");
@@ -383,4 +383,23 @@ test("automatic discovery keeps bounded published wakeup receipts and preserves 
   assert.equal(shown.receipts["discovery-0"], undefined);
   assert.equal(repo.worker(undefined, { GITHUB_EVENT_NAME: "schedule", GITHUB_RUN_ID: "0" }).status, 0);
   assert.equal(JSON.parse(repo.run("show").stdout).remote.owner, null);
+});
+
+test("discovery requires delivery evidence for closed dependencies and treats native edges as canonical", t => {
+  const repo = repository(t);
+  assert.equal(repo.run("setup", "--repo", "example/project", "--owner", "example", "--project-number", "1", "--registry-issue", "99").status, 0);
+  const issue = (number, body = "", extra = {}) => ({ id: `I_${number}`, number, title: `Issue ${number}`, url: `https://github.com/example/project/issues/${number}`, body, state: "OPEN", subIssues: { totalCount: 0 }, labels: ["ready-for-agent"], ...extra });
+  repo.updateRemote(remote => { remote.issues = {
+    210: issue(210, "", { blockers: [{ number: 100, state: "closed", state_reason: "not_planned" }] }),
+    211: issue(211, "Blocked by: #100", { dependenciesUnavailable: true }),
+    212: issue(212, "Blocked by: #100"),
+    100: issue(100, "", { state: "CLOSED", state_reason: "not_planned", labels: [] }),
+  }; });
+  const discovery = repo.run("discover", "--wait-seconds", "0");
+  assert.equal(discovery.status, 0, discovery.stderr);
+  const tickets = JSON.parse(repo.run("show").stdout).remote.tickets;
+  assert.equal(tickets[210].status, "blocked", "native closed/not-planned issue has no final delivery proof");
+  assert.match(tickets[210].result, /delivery.*verified/i);
+  assert.equal(tickets[211].status, "blocked", "fallback closure cannot attest delivery");
+  assert.equal(tickets[212].status, "ready", "stale prose cannot override a verified empty native dependency list");
 });
