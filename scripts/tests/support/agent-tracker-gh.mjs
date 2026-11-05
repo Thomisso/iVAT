@@ -29,7 +29,7 @@ if (endpoint === "graphql") {
     case "TrackerViews": response = { node: { views: { nodes: remote.views ?? [], pageInfo: { hasNextPage: false } } } }; break;
     case "TrackerCreateView": {
       remote.views ??= [];
-      const view = { id: `view-${remote.views.length}`, ...value, filter: "", configuration: { visibleFields: { nodes: value.configuration.visibleFieldIds.map(id => ({ id })) } }, groupByFields: { nodes: value.layout === "BOARD_LAYOUT" ? [{ id: "status" }] : [] } };
+      const view = { id: `view-${remote.views.length}`, ...value, filter: "", configuration: { visibleFields: { nodes: value.configuration.visibleFieldIds.map(id => ({ id })) } }, groupByFields: { nodes: [] }, verticalGroupByFields: { nodes: value.layout === "BOARD_LAYOUT" ? [{ id: "status" }] : [] } };
       remote.views.push(view);
       if (remote.failNextViewCreate) { delete remote.failNextViewCreate; fs.writeFileSync(file, JSON.stringify(remote)); console.error("network unavailable after create"); process.exit(1); }
       response = { createProjectV2View: { view } }; break;

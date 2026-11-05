@@ -403,3 +403,18 @@ test("discovery requires delivery evidence for closed dependencies and treats na
   assert.equal(tickets[211].status, "blocked", "fallback closure cannot attest delivery");
   assert.equal(tickets[212].status, "ready", "stale prose cannot override a verified empty native dependency list");
 });
+
+test("board verification checks Status columns independently of horizontal grouping", t => {
+  const repo = repository(t);
+  assert.equal(repo.run("setup", "--repo", "example/project", "--owner", "example", "--project-number", "1", "--registry-issue", "99").status, 0);
+  const discovery = repo.run("discover", "--wait-seconds", "0");
+  assert.equal(discovery.status, 0, discovery.stderr);
+  assert.equal(JSON.parse(repo.run("show").stdout).remote.views.board.groupingVerified, true, "vertical Status columns work with empty horizontal grouping");
+  repo.updateRemote(remote => {
+    const board = remote.views.find(view => view.layout === "BOARD_LAYOUT");
+    board.groupByFields = { nodes: [{ id: "status" }] };
+    board.verticalGroupByFields = { nodes: [{ id: "parent" }] };
+  });
+  assert.equal(repo.run("discover", "--wait-seconds", "0").status, 0);
+  assert.equal(JSON.parse(repo.run("show").stdout).remote.views.board.groupingVerified, false, "horizontal Status grouping cannot stand in for Status columns");
+});
