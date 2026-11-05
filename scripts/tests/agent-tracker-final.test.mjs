@@ -352,3 +352,15 @@ test("a lost ready response remains pending and retry acknowledges the single ac
   assert.equal(repo.remote().readyTransitions, 1);
   assert.equal(execute(repo, "show").remote.tickets[201].final.handoff.state, "ready");
 });
+
+test("untracked native children remain outstanding when final evidence is missing instead of crashing reconciliation", t => {
+  const repo = prepare(t);
+  bind(repo);
+  repo.updateRemote(remote => { remote.subIssues[200].push(999); });
+  execute(repo, "reconcile");
+  const parent = execute(repo, "show").remote.tickets[200];
+  assert.equal(parent.summary.counts.untracked, 1);
+  assert.equal(parent.summary.checks, "outstanding");
+  assert.equal(parent.final.gate.error, "final_checks_required");
+  assert.notEqual(parent.status, "done");
+});

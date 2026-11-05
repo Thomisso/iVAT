@@ -212,7 +212,7 @@ function refreshPr(f, pr, github, config) {
   }
 }
 function invalidateDelivery(record, reason, at) {
-  if (!record.delivery?.current) return;
+  if (!record?.delivery?.current) return;
   record.delivery = { ...record.delivery, current: false, invalidatedAt: at, reason };
   record.status = record.cancellation ? "cancelled" : record.delivery.previousStatus;
   record.activity = "inactive";
