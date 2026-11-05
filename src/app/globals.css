@@ -1537,6 +1537,20 @@ select:disabled {
   gap: var(--space-3);
   border-top: 1px solid var(--line);
 }
+.operational-problem-ai-responses > strong { font-size: 12px; color: var(--ink-muted); }
+.operational-problem-ai-responses details { padding: var(--space-1) 0; border-top: 1px solid var(--line); }
+.operational-problem-ai-responses summary { cursor: pointer; overflow-wrap: anywhere; }
+.operational-problem-ai-responses p { margin: var(--space-1) 0; }
+.operational-problem-ai-responses pre {
+  max-height: 24rem;
+  margin: 0;
+  padding: var(--space-2);
+  overflow: auto;
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--surface-sunken);
+}
 .operational-problem-link { justify-self: start; font-weight: 600; }
 .operational-remediation {
   padding-top: var(--space-3);

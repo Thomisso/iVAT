@@ -13,7 +13,7 @@ import {
 } from "@/application/platform-administration";
 import { listAiConfigurationProviders, listAiConfigurations } from "@/application/ai-configurations";
 import { listPlatformAiProcessingAllowances } from "@/application/ai-processing-allowance";
-import { listFailedProcessingJobs } from "@/application/processing-administration";
+import { listFailedAiResponses, listFailedProcessingJobs } from "@/application/processing-administration";
 import {
   type OperationalProblemKind,
 } from "@/application/operational-problems";
@@ -26,13 +26,34 @@ import { OperationalProblemRemediation } from "./operational-problem-remediation
 import { currentPlatformOperationalProblems } from "../current-operational-problems";
 import { PlatformPageLayout } from "../platform-page-layout";
 
+/** Pretty-prints a JSON provider body, including the structured output nested in it as a string. */
+function readableAiResponse(response: string): string {
+  const expand = (value: unknown): unknown => {
+    if (typeof value === "string" && /^\s*[{[]/.test(value)) {
+      try {
+        return expand(JSON.parse(value));
+      } catch {
+        return value;
+      }
+    }
+    if (Array.isArray(value)) return value.map(expand);
+    if (value && typeof value === "object") {
+      return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, expand(item)]));
+    }
+    return value;
+  };
+  const expanded = expand(response);
+  return typeof expanded === "string" ? expanded : JSON.stringify(expanded, null, 2);
+}
+
 export default async function PlatformAdministrationPage() {
   const client = await requireUserClient();
   const organizations = await listPlatformOrganizationCompanies(client);
   if (!organizations.ok) notFound();
-  const [limits, jobs, problems, providers, configurations, allowances, t] = await Promise.all([
+  const [limits, jobs, aiResponses, problems, providers, configurations, allowances, t] = await Promise.all([
     getPlatformUploadLimits(client),
     listFailedProcessingJobs(client),
+    listFailedAiResponses(client),
     currentPlatformOperationalProblems(),
     listAiConfigurationProviders(client),
     listAiConfigurations(client),
@@ -40,7 +61,7 @@ export default async function PlatformAdministrationPage() {
     getTranslations("platformAdministration"),
   ]);
   if (
-    !limits.ok || !jobs.ok || !problems.ok || !providers.ok
+    !limits.ok || !jobs.ok || !aiResponses.ok || !problems.ok || !providers.ok
     || !configurations.ok || !allowances.ok
   ) notFound();
 
@@ -81,6 +102,7 @@ export default async function PlatformAdministrationPage() {
                   : problem.ageMinutes >= 60
                     ? t("ageHours", { count: Math.floor(problem.ageMinutes / 60) })
                     : t("ageMinutes", { count: problem.ageMinutes });
+                const problemAiResponses = aiResponses.value.filter((failure) => problem.targetIds.includes(failure.targetId));
                 return (
                   <li key={problem.id} className={`operational-problem operational-problem-${problem.severity}`}>
                     <div className="operational-problem-summary">
@@ -119,6 +141,25 @@ export default async function PlatformAdministrationPage() {
                         ))}
                       </ul>
                     </div>
+                    {problemAiResponses.length > 0 && (
+                      <div className="operational-problem-ai-responses">
+                        <strong>{t("failedAiResponses")}</strong>
+                        {problemAiResponses.map((failure) => (
+                          <details key={failure.targetId}>
+                            <summary>
+                              {t("failedAiResponseSummary", {
+                                target: t(failure.targetKind === "document" ? "failedAiResponseDocument" : "failedAiResponseSourceFile"),
+                                provider: failure.provider,
+                                model: failure.model ?? "—",
+                              })}{" "}
+                              <code>{failure.targetId}</code>
+                            </summary>
+                            <p>{failure.error}</p>
+                            <pre>{readableAiResponse(failure.response)}</pre>
+                          </details>
+                        ))}
+                      </div>
+                    )}
                     <Link className="operational-problem-link" href={problem.detailHref}>
                       {t("viewProblemDetail")}
                     </Link>
