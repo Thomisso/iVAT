@@ -132,7 +132,8 @@ test("standalone final completion needs actual merge and current PR closure and 
   assert.equal(execute(repo, "show").remote.tickets[201].status, "review");
   mergeDelivery(repo);
   execute(repo, "stop", "--reason", "Human will merge while controller is stopped");
-  execute(repo, "reconcile");
+  const passive = repo.worker(null, { GITHUB_EVENT_NAME: "pull_request_target", GITHUB_RUN_ID: "456" });
+  assert.equal(passive.status, 0, passive.stderr);
   const ticket = execute(repo, "show").remote.tickets[201];
   assert.equal(ticket.status, "done");
   assert.equal(ticket.delivery.resultCommit, repo.revision);
@@ -286,4 +287,68 @@ test("head changes during ready mutation restore draft and do not acknowledge su
   assert.equal(resultJson(handoff).error, "final_revision_changed");
   assert.equal(repo.remote().pulls[300].draft, true);
   assert.equal(execute(repo, "show").remote.tickets[201].final.handoff.state, "refused");
+});
+
+test("native child identities retain foreign-repository number collisions as outstanding work", t => {
+  const repo = prepare(t);
+  evidenceComplete(repo);
+  repo.updateRemote(remote => { remote.subIssues[200] = [...Array.from({ length: 100 }, (_, index) => ({ number: 400 + index })), { number: 201, repository_url: "https://api.github.com/repos/example/project" }, { number: 201, repository_url: "https://api.github.com/repos/other/repository" }]; });
+  execute(repo, "reconcile");
+  const parent = execute(repo, "show").remote.tickets[200];
+  assert.equal(parent.summary.counts.integrated, 1);
+  assert.equal(parent.summary.counts.untracked, 101);
+  assert.ok(parent.summary.children.includes("other/repository#201"));
+  const handoff = repo.run("final-handoff", "--issue", "200", "--result", "Cannot hide foreign implementation");
+  assert.equal(resultJson(handoff).error, "final_children_required");
+  assert.equal(repo.remote().pulls[300].draft, true);
+});
+
+test("an explicitly registered child reversal invalidates its own and the whole specification delivery", t => {
+  const repo = prepare(t);
+  evidenceComplete(repo); mergeDelivery(repo, [200, 201]); execute(repo, "reconcile");
+  repo.git("checkout", "-b", "child-reversal", "main");
+  repo.git("revert", "--no-commit", repo.revision);
+  repo.git("-c", "user.name=Final test", "-c", "user.email=final@example.test", "commit", "-m", "Undo delivered child behavior");
+  const reversal = repo.git("rev-parse", "HEAD");
+  repo.git("branch", "-f", "main", reversal);
+  repo.updateRemote(remote => { remote.pulls[301] = { ...remote.pulls[300], number: 301, node_id: "PR_301", html_url: "https://github.com/example/project/pull/301", merge_commit_sha: reversal, head: { ...remote.pulls[300].head, sha: reversal, ref: "child-reversal" } }; });
+  execute(repo, "reverse", "--issue", "201", "--delivery-pr", "300", "--reversal-pr", "301", "--reason", "The identified child implementation was reversed", "--evidence", "https://github.com/example/project/pull/301#issuecomment-456", "--result", "Independent reviewer attests the child behavior was undone");
+  execute(repo, "reconcile");
+  const state = execute(repo, "show").remote;
+  assert.equal(state.tickets[201].reversal.state, "merged");
+  assert.equal(state.tickets[201].delivery.current, false);
+  assert.equal(state.tickets[200].delivery.current, false);
+  assert.notEqual(state.tickets[201].status, "done");
+  assert.notEqual(state.tickets[200].status, "done");
+});
+
+test("manual conflict evidence survives partial restoration and excludes legitimate phase changes", t => {
+  const repo = prepare(t, false);
+  repo.updateRemote(remote => {
+    const agentField = remote.fields.find(field => field.name === "Agent").id;
+    remote.items.I_201.values[agentField] = { text: "unsupported-manual-agent" };
+    remote.items.I_201.values.status = { singleSelectOptionId: "status-4" };
+    remote.failure = { match: "TrackerSetFields", phase: "after", remaining: 1 };
+  });
+  const partial = repo.run("review-result", "--issue", "201", "--reviewer", "ticket-reviewer", "--revision", repo.revision, "--standards", "fail", "--spec", "pass", "--findings", '["Actual review requires fixes"]', "--independence", "Independent ticket review", "--result", "Reviewer returned implementation for fixes", "--wait-seconds", "0");
+  assert.equal(resultJson(partial).error, "publication_pending");
+  execute(repo, "sync", "--wait-seconds", "0");
+  const ticket = execute(repo, "show").remote.tickets[201];
+  assert.equal(ticket.status, "implementing");
+  assert.equal(ticket.agent, "implementer");
+  assert.deepEqual(ticket.manualConflict.fields.sort(), ["agent", "status"]);
+  assert.match(repo.remote().ticketComments[0].body, /Unsupported Project field edit/);
+  assert.equal(repo.remote().ticketComments.length, 1);
+});
+
+test("a lost ready response remains pending and retry acknowledges the single actual transition", t => {
+  const repo = prepare(t, false);
+  evidenceComplete(repo);
+  repo.updateRemote(remote => { remote.failure = { match: "TrackerReady", phase: "after", remaining: 1 }; });
+  const lost = repo.run("final-handoff", "--issue", "201", "--result", "Observed authorized handoff", "--wait-seconds", "0");
+  assert.equal(resultJson(lost).error, "publication_pending");
+  assert.equal(repo.remote().pulls[300].draft, false);
+  execute(repo, "sync", "--wait-seconds", "0");
+  assert.equal(repo.remote().readyTransitions, 1);
+  assert.equal(execute(repo, "show").remote.tickets[201].final.handoff.state, "ready");
 });

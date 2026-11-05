@@ -51,6 +51,13 @@ assumptions:
     verification: The local verifier passed its controller/worker HTTP scenarios; real private acceptance-repository Actions runs and live Project inspection must establish this separate condition. No live Actions or permission pass is claimed by this record.
     source: https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency; https://docs.github.com/en/issues/planning-and-tracking-with-projects/automating-your-project/automating-projects-using-actions
     updated_at: "2026-11-04"
+  - id: acknowledged-project-field-readback
+    status: supported
+    claim: The real gh/controller/worker reads acknowledged Project field values during repair and successfully republishes its evidence-backed projection against this stand-in.
+    reason: The verifier now dispatches a genuine repair after claim acknowledgment, invokes the actual worker separately, and asserts that TrackerItemFields was observed through real gh HTTP before synchronization succeeds. The mock remains storage/transport only.
+    verification: On 2026-11-05 the new assertion first failed because the old mock did not model TrackerItemFields. After adding its documented ProjectV2Item fieldValues response shape, all thirteen existing transport scenarios plus the additional repair readback assertion passed on agent-tracking-206-composition. This does not exercise final PR merge/ready/reversal operations over HTTP or prove live provider permissions/atomicity; their CLI-boundary tests and root-owned isolated GitHub acceptance remain separate.
+    source: https://docs.github.com/en/graphql/reference/projects#projectv2item; scripts/verify-agent-tracker-transport.mjs; postman/mocks/github-agent/default.js
+    updated_at: "2026-11-05"
 fingerprints:
   - id: agent-tracking-201-development
     date: "2026-11-04"
@@ -78,4 +85,8 @@ fingerprints:
   - id: agent-tracking-202-203-merge
     date: "2026-11-05"
     commit: 5240f75 with dirty merge resolution of reviewed integration b1f6444 and explicit discovered dependency blockage
+    cli: Postman CLI 1.73.0; gh 2.101.0; Node 22.22.3
+  - id: agent-tracking-206-composition
+    date: "2026-11-05"
+    commit: 92ce99c with dirty ticket 206 qualified-child/reversal review fixes and real-gh repair-readback assertion/model
     cli: Postman CLI 1.73.0; gh 2.101.0; Node 22.22.3

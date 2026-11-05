@@ -31,6 +31,7 @@ if (endpoint === "graphql") {
   switch (operation) {
     case "TrackerItemFields": {
       const item = Object.values(remote.items).find(item => item.id === variables.id);
+      if (!item) { response = { node: null }; break; }
       response = { node: { fieldValues: { nodes: Object.entries(item.values).filter(([,value]) => value !== null).map(([id, value]) => ({ field: { id }, ...(value.singleSelectOptionId ? { optionId: value.singleSelectOptionId } : { text: value.text }) })), pageInfo: { hasNextPage: false } } } }; break;
     }
     case "TrackerReady": {
@@ -133,7 +134,7 @@ if (endpoint === "graphql") {
   response = remote.pulls?.[endpoint.split("/")[4]];
   if (!response) { console.error("HTTP 404 Not Found"); process.exit(1); }
 } else if (/^repos\/example\/project\/issues\/\d+\/sub_issues$/.test(endpoint)) {
-  response = (remote.subIssues?.[endpoint.split("/")[4]] ?? []).slice((page - 1) * 100, page * 100).map(number => ({ number }));
+  response = (remote.subIssues?.[endpoint.split("/")[4]] ?? []).slice((page - 1) * 100, page * 100).map(child => typeof child === "object" ? child : { number: child });
 } else if (/^repos\/example\/project\/issues\/\d+\/dependencies\/blocked_by$/.test(endpoint)) {
   const number = endpoint.split("/")[4];
   if (remote.issues?.[number]?.dependenciesUnavailable) { console.error("404 Not Found"); process.exit(1); }

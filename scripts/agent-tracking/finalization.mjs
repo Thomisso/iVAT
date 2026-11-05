@@ -1,6 +1,6 @@
 import { projectionSynchronized } from "./state.mjs";
 import { TrackerError } from "./github.mjs";
-import { remoteCommit, remoteAncestor, finalMerge, verifyIntegration, verifyReviewedTip } from "./evidence.mjs";
+import { remoteCommit, remoteAncestor, finalMerge, verifyIntegration, verifyReviewedTip, verifyContext } from "./evidence.mjs";
 
 export const finalCommands = ["final-pr", "final-checks", "final-review", "final-handoff", "cancel", "reverse"];
 export function buildFinalPayload(command, options) {
@@ -45,12 +45,16 @@ function readPr(github, config, number) {
   const head = remoteCommit(github, config, pr.head.sha);
   return { number, url: pr.html_url, nodeId: pr.node_id, branch: pr.head.ref, revision: pr.head.sha, tree: head.commit.tree.sha, target: pr.base.ref, state: pr.merged ? "merged" : pr.state === "closed" ? "closed" : pr.draft ? "draft" : "ready", mergedAt: pr.merged_at, mergeCommit: pr.merged ? pr.merge_commit_sha : null };
 }
+function issueKey(issue, config) {
+  const repository = (typeof issue.repository === "string" ? issue.repository : issue.repository?.full_name ?? issue.repository?.nameWithOwner) ?? issue.repository_url?.match(/^https:\/\/api\.github\.com\/repos\/([^/]+\/[^/]+)$/)?.[1] ?? issue.html_url?.match(/^https:\/\/github\.com\/([^/]+\/[^/]+)\/issues\//)?.[1] ?? config.repository;
+  return repository.toLowerCase() === config.repository.toLowerCase() ? issue.number : `${repository}#${issue.number}`;
+}
 function childrenFor(state, record, github, config) {
   if (record.role !== "specification") return [];
   let native;
   try { native = github.pages(`repos/${config.repository}/issues/${record.number}/sub_issues`); }
   catch (error) { if (error.code !== "github_not_found") throw error; native = []; }
-  return [...new Set([...native.map(child => child.number), ...Object.values(state.tickets).filter(child => child.parent === record.number && (child.parentRepository ?? config.repository) === config.repository).map(child => child.number)])];
+  return [...new Set([...native.map(child => issueKey(child, config)), ...Object.values(state.tickets).filter(child => child.parent === record.number && (child.parentRepository ?? config.repository) === config.repository).map(child => issueKey(child, config))])];
 }
 function applicable(evidence, revision, pass) {
   if (!evidence) return "outstanding";
@@ -76,7 +80,10 @@ function requireImplementation(state, record, github, config) {
   if (record.role === "specification") {
     for (const number of record.summary.children) {
       const child = state.tickets[number];
+      if (child?.reversal?.state === "merged") throw new TrackerError("delivery_reversed");
+      if (child?.reversal?.state === "unverified") throw new TrackerError("reversal_unverified");
       if (!child || !["integrated", "done"].includes(child.status) || child.integrationContext?.specification !== record.number || child.integrationContext.branch !== record.final.branch) throw new TrackerError("final_children_required");
+      verifyContext(github, config, child);
       if (merged) remoteAncestor(github, config, child.integration.commit, record.final.pullRequest.revision);
       else verifyIntegration(github, config, child, child.integration);
     }
@@ -91,6 +98,7 @@ export function requireFinalGate(state, record, github, config) {
   updateSummary(state, record, github, config);
   if (record.cancellation) throw new TrackerError("implementation_cancelled");
   if (record.reversal?.state === "merged") throw new TrackerError("delivery_reversed");
+  if (record.reversal?.state === "unverified") throw new TrackerError("reversal_unverified");
   if (record.summary.checks !== "passed") throw new TrackerError("final_checks_required");
   if (record.summary.review !== "passed") throw new TrackerError("final_review_required");
   requireImplementation(state, record, github, config);
@@ -220,20 +228,31 @@ function recordDelivery(record, pr, result, at) {
 }
 export function reconcileFinalFacts(state, github, config, at) {
   const before = new Map(Object.values(state.tickets).map(record => [record, JSON.stringify(record)]));
+  // A delivered child need not have its own final PR record. Resolve every
+  // explicitly registered reversal before evaluating its specification gate.
+  for (const record of Object.values(state.tickets).filter(record => record.reversal)) {
+    try {
+      const reversal = readPr(github, config, record.reversal.pullRequest.number);
+      record.reversal.pullRequest = reversal;
+      if (reversal.state === "merged" && reversal.mergeCommit) {
+        remoteAncestor(github, config, reversal.mergeCommit, remoteCommit(github, config, reversal.target).sha);
+        record.reversal.state = "merged";
+        invalidateDelivery(record, "delivery_reversed", at);
+      }
+    } catch (error) {
+      if (!(error instanceof TrackerError) || error.code.startsWith("github_")) throw error;
+      record.reversal.state = "unverified";
+      record.reversal.error = error.code;
+      invalidateDelivery(record, "reversal_unverified", at);
+    }
+  }
+
   for (const record of Object.values(state.tickets).filter(record => record.final)) {
     const f = record.final;
     const pr = readPr(github, config, f.pullRequest.number);
     refreshPr(f, pr, github, config);
     updateSummary(state, record, github, config);
     let refusal;
-    if (record.reversal) {
-      const reversal = readPr(github, config, record.reversal.pullRequest.number);
-      record.reversal.pullRequest = reversal;
-      if (reversal.state === "merged" && reversal.mergeCommit) {
-        remoteAncestor(github, config, reversal.mergeCommit, remoteCommit(github, config, reversal.target).sha);
-        record.reversal.state = "merged";
-      }
-    }
     try {
       requireFinalGate(state, record, github, config);
       if (pr.state !== "merged" || !pr.mergedAt || !pr.mergeCommit) throw new TrackerError("final_merge_required");
@@ -259,7 +278,9 @@ export function reconcileFinalFacts(state, github, config, at) {
     if (refusal) {
       f.gate = { status: "outstanding", error: refusal, revision: f.revision };
       invalidateDelivery(record, refusal, at);
-      if (refusal !== "final_issue_closure_required") for (const number of record.summary.children) invalidateDelivery(state.tickets[number], refusal, at);
+      if (!["final_issue_closure_required", "final_children_required", "implementation_cancelled", "delivery_reversed", "reversal_unverified"].includes(refusal) || record.reversal?.state === "merged") {
+        for (const number of record.summary.children) invalidateDelivery(state.tickets[number], refusal, at);
+      }
     }
     updateSummary(state, record, github, config);
   }

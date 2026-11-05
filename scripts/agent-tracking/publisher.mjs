@@ -25,20 +25,41 @@ function setFields(github, config, itemId, record) {
   github.graph(`mutation TrackerSetFields(${definitions.join(",")}){${operations.join(" ")}}`, variables);
 }
 
-export function publishTicket(github, config, record, state = { tickets: {} }, detectManual = false) {
-  const itemId = github.graph(`mutation TrackerAddItem($input:AddProjectV2ItemByIdInput!){addProjectV2ItemById(input:$input){item{id}}}`, { input: { projectId: config.project.id, contentId: record.nodeId } }).addProjectV2ItemById.item.id;
-  if (record.account) github.request(`repos/${record.repository ?? config.repository}/issues/${record.number}/assignees`, { method: "POST", body: { assignees: [record.account] } });
-  const desired = Object.fromEntries(Object.entries(config.fields).map(([key, field]) => [field.id, record[key] == null || record[key] === "" ? null : field.options ? { singleSelectOptionId: field.options[record[key]] } : { text: String(record[key]) }]));
-  if (detectManual && record.projectionHash) {
-    const actual = github.graph(`query TrackerItemFields($id:ID!){node(id:$id){... on ProjectV2Item{fieldValues(first:100){nodes{... on ProjectV2ItemFieldTextValue{text field{... on ProjectV2Field{id}}} ... on ProjectV2ItemFieldSingleSelectValue{optionId field{... on ProjectV2SingleSelectField{id}}}} pageInfo{hasNextPage}}}}}`, { id: itemId }).node.fieldValues;
+function projectionValues(config, record) {
+  return Object.fromEntries(Object.entries(config.fields).map(([key, field]) => [field.id, record[key] == null || record[key] === "" ? null : field.options ? { singleSelectOptionId: field.options[record[key]] } : { text: String(record[key]) }]));
+}
+
+// Called against the last acknowledged canonical records, before applying a new
+// event. Its diagnostics become durable with that intent before restoration.
+function detectManualConflicts(state, github, config) {
+  let changed = false;
+  for (const record of Object.values(state.tickets).filter(record => record.projectItemId)) {
+    const node = github.graph(`query TrackerItemFields($id:ID!){node(id:$id){... on ProjectV2Item{fieldValues(first:100){nodes{... on ProjectV2ItemFieldTextValue{text field{... on ProjectV2Field{id}}} ... on ProjectV2ItemFieldSingleSelectValue{optionId field{... on ProjectV2SingleSelectField{id}}}} pageInfo{hasNextPage}}}}}`, { id: record.projectItemId }).node;
+    if (!node?.fieldValues) {
+      record.manualConflict = { at: new Date().toISOString(), fields: [], kind: "membership_missing", result: "The previously acknowledged Project item is missing; restoring membership from canonical evidence. Field values could not be observed." };
+      record.revision = state.revision + 1; changed = true;
+      continue;
+    }
+    const actual = node.fieldValues;
     if (actual.pageInfo.hasNextPage) throw new TrackerError("project_item_fields_exceed_limit");
+    const expected = projectionValues(config, record);
     const observed = Object.fromEntries(Object.values(config.fields).map(field => [field.id, null]));
     for (const value of actual.nodes) if (Object.hasOwn(observed, value.field?.id)) observed[value.field.id] = value.optionId ? { singleSelectOptionId: value.optionId } : { text: value.text };
-    const hash = createHash("sha256").update(JSON.stringify(observed)).digest("hex");
-    if (hash !== record.projectionHash) record.manualConflict = { at: new Date().toISOString(), fields: Object.entries(config.fields).filter(([, field]) => JSON.stringify(observed[field.id]) !== JSON.stringify(desired[field.id])).map(([key]) => key), result: "Unsupported Project field edit; restoring verified tracker evidence. Use explicit control commands to change implementation." };
+    const fields = Object.entries(config.fields).filter(([, field]) => JSON.stringify(observed[field.id]) !== JSON.stringify(expected[field.id])).map(([key]) => key);
+    if (fields.length) {
+      record.manualConflict = { at: new Date().toISOString(), fields, result: "Unsupported Project field edit; restoring verified tracker evidence. Use explicit control commands to change implementation." };
+      record.revision = state.revision + 1; changed = true;
+    }
   }
+  return changed;
+}
+
+export function publishTicket(github, config, record, state = { tickets: {} }) {
+  const itemId = github.graph(`mutation TrackerAddItem($input:AddProjectV2ItemByIdInput!){addProjectV2ItemById(input:$input){item{id}}}`, { input: { projectId: config.project.id, contentId: record.nodeId } }).addProjectV2ItemById.item.id;
+  record.projectItemId = itemId;
+  delete record.projectionHash;
+  if (record.account) github.request(`repos/${record.repository ?? config.repository}/issues/${record.number}/assignees`, { method: "POST", body: { assignees: [record.account] } });
   setFields(github, config, itemId, record);
-  record.projectionHash = createHash("sha256").update(JSON.stringify(desired)).digest("hex");
   const marker = `<!-- ivat-agent-tracker:ticket:${config.project.id} -->`;
   const comments = github.pages(`repos/${record.repository ?? config.repository}/issues/${record.number}/comments`).filter(comment => comment.body.startsWith(marker));
   if (comments.length > 1) throw new TrackerError("ticket_comment_ambiguous");
@@ -59,11 +80,11 @@ export function processWorker(github, config, event, environment = process.env) 
   validateEvent(event);
   validateConfig(github, config);
   const { commentId, state } = readRegistry(github, config);
-  const detectManual = projectionSynchronized(state);
   const previous = state.receipts[event.id];
   const fingerprint = createHash("sha256").update(JSON.stringify(event)).digest("hex");
   if (previous?.fingerprint && previous.fingerprint !== fingerprint) throw new TrackerError("event_identity_conflict");
   if (previous && !receiptOwnershipMatches(state, event, previous)) return { ok: false, error: "run_superseded" };
+  if (previous?.state !== "rejected" && event.type !== "observe-activity" && projectionSynchronized(state) && detectManualConflicts(state, github, config)) state.revision++;
   if (!previous) {
     try { applyEvent(state, event, { github, config, actor: environment.GITHUB_ACTOR }); }
     catch (error) {
@@ -80,7 +101,7 @@ export function processWorker(github, config, event, environment = process.env) 
     if (["discover", "reconcile"].includes(event.type) && ["issues", "schedule", "pull_request_target", "push"].includes(environment.GITHUB_EVENT_NAME) && event.id === `discovery-${environment.GITHUB_RUN_ID}`) state.receipts[event.id].automaticDiscovery = true;
     prunePublishedDiscoveryReceipts(state);
     compactReceipts(state);
-    for (const record of Object.values(state.tickets).filter(record => record.role === "specification")) updateSummary(state, record, github, config);
+    for (const record of Object.values(state.tickets).filter(record => event.type !== "observe-activity" && record.role === "specification")) updateSummary(state, record, github, config);
     // Canonical intent is durable before any multi-effect Project projection.
     writeRegistry(github, config, commentId, state);
   } else if (previous.state === "rejected") return { ok: false, error: previous.error };
@@ -96,7 +117,7 @@ export function processWorker(github, config, event, environment = process.env) 
       state.revision++;
       writeRegistry(github, config, commentId, state);
     }
-    for (const record of Object.values(state.tickets)) publishTicket(github, config, record, state, detectManual);
+    for (const record of Object.values(state.tickets)) publishTicket(github, config, record, state);
     if (state.membershipDiscovered) reconcileViews(github, config, state);
     if (finishFinalHandoffs(state, github, config)) for (const record of Object.values(state.tickets)) publishTicket(github, config, record, state);
     // The cadence begins only after every required external effect succeeds.
