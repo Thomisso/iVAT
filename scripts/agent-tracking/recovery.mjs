@@ -1,5 +1,6 @@
 import { TrackerError } from "./github.mjs";
 import { execFileSync } from "node:child_process";
+import { currentParent, localBranchRevision } from "./evidence.mjs";
 
 export const recoveryTypes = new Set(["stop", "restart", "takeover", "resume", "repair"]);
 
@@ -24,7 +25,7 @@ export function validateRecoveryPayload(event, text) {
 }
 
 function referencedRevisions(record) {
-  return [...new Set([record.workingRevision, record.review?.base, record.review?.revision, record.integration?.commit, record.integration?.reviewedRevision].filter(revision => typeof revision === "string" && /^[a-f0-9]{40}$/.test(revision)))];
+  return [...new Set([record.workingRevision, record.review?.base, record.review?.revision, record.integration?.commit, record.integration?.reviewedRevision, record.integration?.branchTip].filter(revision => typeof revision === "string" && /^[a-f0-9]{40}$/.test(revision)))];
 }
 
 export function collectLocalFacts(state, runId) {
@@ -32,7 +33,7 @@ export function collectLocalFacts(state, runId) {
   for (const record of Object.values(state.tickets).filter(record => record.runId === runId)) {
     let branchRevision = null;
     if (typeof record.branch === "string") {
-      try { branchRevision = execFileSync("git", ["show-ref", "--verify", "--hash", `refs/heads/${record.branch}`], { encoding: "utf8", stdio: "pipe" }).trim(); } catch { /* Unavailable on this computer. */ }
+      try { branchRevision = localBranchRevision(record.branch); } catch { /* Unavailable on this computer. */ }
     }
     const availableCommits = referencedRevisions(record).filter(revision => {
       try { execFileSync("git", ["cat-file", "-e", `${revision}^{commit}`], { stdio: "pipe" }); return true; } catch { return false; }
@@ -51,6 +52,10 @@ function reconcileRecords(state, event, github, config, runId) {
       record.title = issue.title; record.nodeId = issue.node_id; record.url = issue.html_url;
       evidence.issueState = issue.state;
     } catch (error) { unverified.push(`issue_unverified:${error.code ?? "unavailable"}`); }
+    try {
+      evidence.parent = currentParent(github, config, record.number);
+      if (evidence.parent.number !== record.parent || (evidence.parent.number !== null && evidence.parent.repository !== (record.parentRepository ?? config.repository))) unverified.push("parent_context_changed");
+    } catch (error) { unverified.push(`parent_unverified:${error.code ?? "unavailable"}`); }
     const local = event.payload.localFacts?.[record.number];
     if (!local?.branchRevision) unverified.push("local_branch_unavailable");
     else {

@@ -64,6 +64,29 @@ test("cross-computer recovery is explicit and fences the original generation inc
   assert.equal(resultJson(first.run("show", "--local")).local.run, null);
 });
 
+test("deliberate reclaim after stop preserves the reviewed phase and evidence under the new generation", t => {
+  const repo = trackerFixture(t);
+  assert.equal(repo.setup().status, 0);
+  assert.equal(repo.run("start", "--run", "reviewed-recovery").status, 0);
+  assert.equal(repo.run("claim", "--issue", "201", "--agent", "implementer", "--branch", "feat/ticket").status, 0);
+  const revision = repo.git("rev-parse", "feat/ticket");
+  const reviewed = repo.run("review", "--issue", "201", "--base", revision, "--revision", revision, "--checks", "Focused checks passed", "--result", "Implementation complete");
+  assert.equal(reviewed.status, 0, reviewed.stderr);
+  const previous = resultJson(repo.run("show")).remote.tickets[201];
+  assert.equal(repo.run("stop", "--reason", "Move reviewed work to another controller").status, 0);
+  assert.equal(repo.run("resume", "--run", "reviewed-recovery").status, 0);
+  const claimed = repo.run("claim", "--issue", "201", "--agent", "replacement-implementer", "--branch", "feat/ticket");
+  assert.equal(claimed.status, 0, claimed.stderr);
+  const record = resultJson(repo.run("show")).remote.tickets[201];
+  assert.equal(record.status, "review");
+  assert.equal(record.stateAt, previous.stateAt);
+  assert.deepEqual(record.review, previous.review);
+  assert.equal(record.generation, 2);
+  assert.equal(record.activity, "unverified");
+  assert.equal(repo.run("review-start", "--issue", "201", "--reviewer", "independent-reviewer", "--result", "Reading preserved review evidence").status, 0);
+  assert.equal(resultJson(repo.run("sync")).synchronized, true);
+});
+
 test("a lost dispatch response is acknowledged from canonical state without dropping or duplicating work", t => {
   const repo = trackerFixture(t);
   assert.equal(repo.setup().status, 0);
@@ -118,6 +141,7 @@ test("resume repairs missing membership and reports unavailable Git evidence wit
     remote.registry = `<!-- ivat-agent-tracker:registry:v1 -->\n\n\`\`\`json\n${JSON.stringify(state)}\n\`\`\`\n`;
     remote.items = {};
     remote.missingCommits = [review.base, review.revision];
+    remote.parents = { 201: 999 };
   });
   repo.git("branch", "-D", "feat/ticket");
   const resumed = repo.run("resume");
@@ -128,6 +152,7 @@ test("resume repairs missing membership and reports unavailable Git evidence wit
   assert.deepEqual(record.review, review);
   assert.ok(record.recoveryEvidence.unverified.includes("local_branch_unavailable"));
   assert.ok(record.recoveryEvidence.unverified.includes(`commit_unavailable:${review.revision}`));
+  assert.ok(record.recoveryEvidence.unverified.includes("parent_context_changed"));
   assert.equal(record.activity, "unverified");
   assert.equal(Object.keys(repo.remote().items).length, 1);
   assert.equal(repo.remote().ticketComments.length, 1);
