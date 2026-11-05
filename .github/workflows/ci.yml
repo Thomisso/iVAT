@@ -31,7 +31,7 @@ jobs:
           cache: npm
       - run: node --test scripts/tests/ci-policy.test.mjs
       - name: Agent tracker command behavior
-        run: node --test scripts/tests/agent-tracker.test.mjs
+        run: npm run test:agent-tracker
       - id: profile
         run: node scripts/ci-policy.mjs
 

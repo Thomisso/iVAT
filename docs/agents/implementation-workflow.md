@@ -2,6 +2,8 @@
 
 Use this workflow when one spec is implemented through parallel tickets. Its completion criterion is one reviewable integration pull request whose child diffs and combined behavior have both passed review.
 
+Follow the [iVAT Agent implementation Project](https://github.com/users/Thomisso/projects/1) and the [shared tracker commands](agent-tracking.md). Approved backlog membership is automatic; use `npm run agent:track -- discover --parent <spec>` for immediate reconciliation and the native Parent table filter. Discovery is passive: the controller must still acquire ownership and explicitly claim implementation work. Text-only parent fallbacks remain linked from the specification's maintained tracking overview.
+
 ## Integration loop
 
 1. Create an integration branch from the target branch. After its first ticket merge, push it and open a draft pull request with closing references for the spec and child tickets.

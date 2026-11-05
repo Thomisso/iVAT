@@ -18,13 +18,13 @@ function repository(t) {
   copyFileSync(new URL("support/agent-tracker-gh.mjs", import.meta.url), path.join(bin, "gh"));
   chmodSync(path.join(bin, "gh"), 0o755);
   const remote = path.join(directory, "github.json");
-  writeFileSync(remote, JSON.stringify({ project: { id: "PVT_test", title: "Agent work", url: "https://github.com/users/example/projects/1" }, fields: [{ id: "status", name: "Status", dataType: "SINGLE_SELECT", options: [] }] }));
+  writeFileSync(remote, JSON.stringify({ project: { id: "PVT_test", title: "Agent work", url: "https://github.com/users/example/projects/1" }, fields: [{ id: "status", name: "Status", dataType: "SINGLE_SELECT", options: [] }, { id: "parent", name: "Parent issue", dataType: "PARENT_ISSUE" }, { id: "title", name: "Title", dataType: "TITLE" }] }));
   return {
     directory,
     remote: () => JSON.parse(readFileSync(remote, "utf8")),
     updateRemote: update => { const state = JSON.parse(readFileSync(remote, "utf8")); update(state); writeFileSync(remote, JSON.stringify(state)); },
     run: (...args) => spawnSync(process.execPath, [command, ...args], { cwd: directory, encoding: "utf8", env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, TRACKER_FAKE_GITHUB: remote, TRACKER_COMMAND: command } }),
-    worker: event => spawnSync(process.execPath, [command, "worker"], { cwd: directory, encoding: "utf8", env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, TRACKER_FAKE_GITHUB: remote, TRACKER_COMMAND: command, GITHUB_ACTIONS: "true", GITHUB_JOB: "publish", GITHUB_WORKFLOW_REF: "example/project/.github/workflows/agent-tracking.yml@refs/heads/main", GITHUB_ACTOR: "maintainer", TRACKER_EVENT: JSON.stringify(event) } }),
+    worker: (event, environment = {}) => spawnSync(process.execPath, [command, "worker"], { cwd: directory, encoding: "utf8", env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, TRACKER_FAKE_GITHUB: remote, TRACKER_COMMAND: command, GITHUB_ACTIONS: "true", GITHUB_JOB: "publish", GITHUB_WORKFLOW_REF: "example/project/.github/workflows/agent-tracking.yml@refs/heads/main", GITHUB_ACTOR: "maintainer", TRACKER_EVENT: JSON.stringify(event), ...environment } }),
   };
 }
 
@@ -188,4 +188,199 @@ test("verified initial freedom permits unclaimed ticket and specification metada
   const checked = repo.run("doctor");
   assert.equal(checked.status, 0, checked.stderr);
   assert.equal(JSON.parse(checked.stdout).ok, true);
+});
+
+
+test("passive discovery includes approved waiting work and parent context without owning a run", t => {
+  const repo = repository(t);
+  assert.equal(repo.run("setup", "--repo", "example/project", "--owner", "example", "--project-number", "1", "--registry-issue", "99").status, 0);
+  repo.updateRemote(remote => {
+    remote.issues = {
+      210: { id: "I_210", number: 210, title: "Approved ticket", url: "https://github.com/example/project/issues/210", body: "## Parent\nPart of #200\n## What to build\nBuild it", state: "OPEN", parent: null, subIssues: { totalCount: 0 }, labels: ["ready-for-agent"] },
+      200: { id: "I_200", number: 200, title: "Specification", url: "https://github.com/example/project/issues/200", body: "## Problem Statement\nNeed work\n## Solution\nBuild\n## User Stories\nStory", state: "OPEN", parent: null, subIssues: { totalCount: 0 }, labels: ["ready-for-agent"] },
+      199: { id: "I_199", number: 199, title: "Historical ticket", state: "CLOSED", labels: ["ready-for-agent"] },
+    };
+  });
+  const discovered = repo.run("discover", "--parent", "200", "--wait-seconds", "0");
+  assert.equal(discovered.status, 0, discovered.stderr);
+  const shown = JSON.parse(repo.run("show").stdout).remote;
+  assert.equal(shown.owner, null);
+  assert.equal(shown.generation, 0);
+  assert.equal(shown.tickets[210].status, "ready");
+  assert.equal(shown.tickets[210].activity, "inactive");
+  assert.equal(shown.tickets[210].parent, 200);
+  assert.equal(shown.tickets[200].role, "specification");
+  assert.equal(shown.tickets[200].status, null);
+  assert.equal(shown.tickets[199], undefined);
+  assert.deepEqual(Object.keys(repo.remote().items).sort(), ["I_200", "I_210"]);
+  assert.equal(repo.remote().views.find(view => view.layout === "TABLE_LAYOUT").filter, 'parent-issue:"example/project#200"');
+  assert.match(repo.remote().comments[200][0].body, /fallback.*\[.*#210\].*issues\/210/i);
+  assert.match(repo.remote().comments[200][0].body, /native Parent issue filter excludes/i);
+});
+
+test("discovered waiting work can be claimed and rediscovery preserves active ownership after label removal", t => {
+  const repo = repository(t);
+  assert.equal(repo.run("setup", "--repo", "example/project", "--owner", "example", "--project-number", "1", "--registry-issue", "99").status, 0);
+  repo.updateRemote(remote => { remote.issues = { 201: { id: "I_201", number: 201, title: "Waiting work", url: "https://github.com/example/project/issues/201", body: "", state: "OPEN", parent: null, subIssues: { totalCount: 0 }, labels: ["ready-for-agent"] } }; });
+  assert.equal(repo.run("discover", "--wait-seconds", "0").status, 0);
+  assert.equal(repo.run("start", "--run", "discover-claim").status, 0);
+  const claim = repo.run("claim", "--issue", "201", "--agent", "worker", "--branch", "feat/ticket", "--wait-seconds", "0");
+  assert.equal(claim.status, 0, claim.stderr);
+  const active = JSON.parse(repo.run("show").stdout).remote.tickets[201];
+  assert.equal(repo.run("discover", "--wait-seconds", "0").status, 0);
+  assert.deepEqual(JSON.parse(repo.run("show").stdout).remote.tickets[201], active);
+  repo.updateRemote(remote => { remote.issues[201].labels = []; });
+  assert.equal(repo.run("discover", "--wait-seconds", "0").status, 0);
+  assert.deepEqual(JSON.parse(repo.run("show").stdout).remote.tickets[201], active);
+  assert.equal(repo.remote().ticketComments.length, 1);
+  assert.deepEqual(repo.remote().issues[201].labels, []);
+});
+
+
+test("issue and scheduled worker triggers discover newly approved work without a controller", t => {
+  const repo = repository(t);
+  assert.equal(repo.run("setup", "--repo", "example/project", "--owner", "example", "--project-number", "1", "--registry-issue", "99").status, 0);
+  repo.updateRemote(remote => { remote.issues = { 220: { id: "I_220", number: 220, title: "Newly approved work", url: "https://github.com/example/project/issues/220", body: "", state: "OPEN", parent: null, subIssues: { totalCount: 0 }, labels: ["ready-for-agent"] } }; });
+  const triggered = repo.worker(undefined, { GITHUB_EVENT_NAME: "issues", GITHUB_RUN_ID: "12345" });
+  assert.equal(triggered.status, 0, triggered.stderr);
+  const first = JSON.parse(repo.run("show").stdout).remote.tickets[220];
+  assert.equal(first.status, "ready");
+  repo.updateRemote(remote => { remote.issues[220].state = "CLOSED"; });
+  assert.equal(repo.worker(undefined, { GITHUB_EVENT_NAME: "schedule", GITHUB_RUN_ID: "12346" }).status, 0);
+  assert.deepEqual(JSON.parse(repo.run("show").stdout).remote.tickets[220], first);
+  assert.equal(repo.worker(undefined, { GITHUB_EVENT_NAME: "issues", GITHUB_RUN_ID: "12345" }).status, 0);
+  assert.equal(Object.keys(repo.remote().items).length, 1);
+});
+
+test("unresolved parent discovery refuses the batch without leaking partially selected membership", t => {
+  const repo = repository(t);
+  assert.equal(repo.run("setup", "--repo", "example/project", "--owner", "example", "--project-number", "1", "--registry-issue", "99").status, 0);
+  repo.updateRemote(remote => { remote.issues = {
+    210: { id: "I_210", number: 210, title: "First valid ticket", url: "https://github.com/example/project/issues/210", body: "", state: "OPEN", subIssues: { totalCount: 0 }, labels: ["ready-for-agent"] },
+    211: { id: "I_211", number: 211, title: "Missing parent", url: "https://github.com/example/project/issues/211", body: "Part of #404", state: "OPEN", subIssues: { totalCount: 0 }, labels: ["ready-for-agent"] },
+  }; });
+  const result = repo.run("discover", "--wait-seconds", "0");
+  assert.equal(result.status, 1);
+  assert.equal(JSON.parse(result.stderr).error, "discovery_parent_missing");
+  assert.deepEqual(JSON.parse(repo.run("show").stdout).remote.tickets, {});
+  assert.deepEqual(repo.remote().items ?? {}, {});
+});
+
+test("discovery follows every page, prefers native parent and keeps dependency and specification meanings", t => {
+  const repo = repository(t);
+  assert.equal(repo.run("setup", "--repo", "example/project", "--owner", "example", "--project-number", "1", "--registry-issue", "99").status, 0);
+  const issue = (number, body = "", extra = {}) => ({ id: `I_${number}`, number, title: `Issue ${number}`, url: `https://github.com/example/project/issues/${number}`, body, state: "OPEN", subIssues: { totalCount: 0 }, labels: ["ready-for-agent"], ...extra });
+  repo.updateRemote(remote => {
+    remote.discoveryPageSize = 1;
+    remote.issues = {
+      210: issue(210, "Part of #999", { parent: issue(200, "", { state: "CLOSED", labels: [] }), blockers: [{ number: 100, state: "open" }] }),
+      211: issue(211, "Part of #200, #999"),
+      212: issue(212, "## Acceptance criteria\nReferences #999 are not parent declarations"),
+      213: issue(213, "Blocked by: #210"),
+      214: issue(214, "## Problem Statement\nNeed\n## Solution\nApproach\n## User Stories\nStory"),
+      215: issue(215, "Part of #215"),
+      216: issue(216, "Part of #0"),
+    };
+  });
+  const discovery = repo.run("discover", "--wait-seconds", "0");
+  assert.equal(discovery.status, 0, discovery.stderr);
+  const tickets = JSON.parse(repo.run("show").stdout).remote.tickets;
+  assert.equal(tickets[210].parent, 200);
+  assert.equal(tickets[210].parentSource, "native");
+  assert.equal(tickets[210].status, "blocked");
+  assert.equal(tickets[200].role, "specification");
+  assert.equal(tickets[211].status, "blocked");
+  assert.match(tickets[211].result, /Parent declaration is unresolved/);
+  assert.equal(tickets[212].parent, null);
+  assert.equal(tickets[212].status, "ready");
+  assert.equal(tickets[213].status, "blocked");
+  assert.equal(tickets[214].role, "specification");
+  assert.equal(tickets[215].role, "implementation");
+  assert.equal(tickets[215].status, "blocked");
+  assert.equal(tickets[216].status, "blocked");
+  assert.equal(tickets[999], undefined);
+  assert.equal(repo.run("discover", "--wait-seconds", "0").status, 0);
+  assert.deepEqual(JSON.parse(repo.run("show").stdout).remote.tickets, tickets);
+  assert.equal(Object.keys(repo.remote().items).length, 8);
+  assert.equal(repo.remote().comments[200].length, 1);
+});
+
+test("partial discovery publication retries one event and retains terminal items without historical backfill", t => {
+  const repo = repository(t);
+  assert.equal(repo.run("setup", "--repo", "example/project", "--owner", "example", "--project-number", "1", "--registry-issue", "99").status, 0);
+  repo.updateRemote(remote => {
+    remote.failNextViewCreate = true;
+    remote.issues = { 210: { id: "I_210", number: 210, title: "Approved work", url: "https://github.com/example/project/issues/210", body: "", state: "OPEN", subIssues: { totalCount: 0 }, labels: ["ready-for-agent"] } };
+  });
+  const failed = repo.run("discover", "--wait-seconds", "0");
+  assert.equal(failed.status, 1);
+  assert.equal(JSON.parse(failed.stderr).error, "publication_pending");
+  const pending = JSON.parse(repo.run("show").stdout);
+  assert.equal(pending.local.pending.length, 1);
+  assert.equal(pending.remote.publishedRevision, 0);
+  assert.equal(pending.remote.tickets[210].status, "ready");
+  assert.equal(repo.run("sync", "--wait-seconds", "0").status, 0);
+  assert.equal(Object.keys(repo.remote().items).length, 1);
+  assert.equal(repo.remote().comments[210].length, 1);
+  assert.equal(repo.remote().views.length, 2);
+  const shown = JSON.parse(repo.run("show").stdout).remote;
+  assert.equal(shown.receipts[pending.local.pending[0].id].state, "published");
+  const terminal = { ...shown.tickets[210], status: "cancelled", result: "Explicitly cancelled by maintainer" };
+  repo.updateRemote(remote => {
+    const snapshot = { ...shown, tickets: { 210: terminal } };
+    remote.registry = `<!-- ivat-agent-tracker:registry:v1 -->\n\n\`\`\`json\n${JSON.stringify(snapshot)}\n\`\`\`\n`;
+    remote.issues[210].state = "CLOSED";
+    remote.issues[210].labels = [];
+    remote.issues[209] = { ...remote.issues[210], id: "I_209", number: 209, labels: ["ready-for-agent"] };
+  });
+  assert.equal(repo.run("discover", "--wait-seconds", "0").status, 0);
+  const retained = JSON.parse(repo.run("show").stdout).remote.tickets;
+  assert.deepEqual(retained[210], terminal);
+  assert.equal(retained[209], undefined);
+});
+
+test("changed native parents refresh active context without altering execution or review evidence", t => {
+  const repo = repository(t);
+  assert.equal(repo.run("setup", "--repo", "example/project", "--owner", "example", "--project-number", "1", "--registry-issue", "99").status, 0);
+  const issue = number => ({ id: `I_${number}`, number, title: `Issue ${number}`, url: `https://github.com/example/project/issues/${number}`, body: "", state: "OPEN", subIssues: { totalCount: 0 }, labels: [] });
+  repo.updateRemote(remote => { remote.issues = { 200: issue(200), 201: { ...issue(201), body: "Part of #200", parent: null, labels: ["ready-for-agent"] } }; });
+  assert.equal(repo.run("discover", "--wait-seconds", "0").status, 0);
+  assert.equal(repo.run("start", "--run", "parent-change").status, 0);
+  assert.equal(repo.run("claim", "--issue", "201", "--agent", "worker", "--branch", "feat/ticket", "--wait-seconds", "0").status, 0);
+  const snapshot = JSON.parse(repo.run("show").stdout).remote;
+  const active = { ...snapshot.tickets[201], reviewEvidence: { reviewedRevision: "a".repeat(40), result: "Independent review passed" }, integrationContext: { specification: 200, branch: "integration/original" } };
+  repo.updateRemote(remote => {
+    snapshot.tickets[201] = active;
+    remote.registry = `<!-- ivat-agent-tracker:registry:v1 -->\n\n\`\`\`json\n${JSON.stringify(snapshot)}\n\`\`\`\n`;
+    remote.issues[201].parent = issue(300);
+  });
+  assert.equal(repo.run("discover", "--wait-seconds", "0").status, 0);
+  const shown = JSON.parse(repo.run("show").stdout).remote;
+  assert.deepEqual(shown.tickets[201], { ...active, parent: 300, parentRepository: "example/project", parentSource: "native" });
+  assert.equal(shown.tickets[300].role, "specification");
+  assert.doesNotMatch(repo.remote().comments[200][0].body, /issues\/201/);
+});
+
+test("automatic discovery keeps bounded published wakeup receipts and preserves manual acknowledgments", t => {
+  const repo = repository(t);
+  assert.equal(repo.run("setup", "--repo", "example/project", "--owner", "example", "--project-number", "1", "--registry-issue", "99").status, 0);
+  const snapshot = JSON.parse(repo.run("show").stdout).remote;
+  snapshot.receipts = Object.fromEntries(Array.from({ length: 40 }, (_, index) => [`discovery-${index}`, { state: "published", automaticDiscovery: true, revision: index + 1 }]));
+  snapshot.receipts["manual-discovery"] = { state: "published", revision: 1 };
+  snapshot.receipts["pending-automatic"] = { state: "pending", automaticDiscovery: true, revision: 1 };
+  snapshot.revision = 40;
+  snapshot.publishedRevision = 40;
+  repo.updateRemote(remote => { remote.failNextViewCreate = true; remote.registry = `<!-- ivat-agent-tracker:registry:v1 -->\n\n\`\`\`json\n${JSON.stringify(snapshot)}\n\`\`\`\n`; });
+  const failed = repo.worker(undefined, { GITHUB_EVENT_NAME: "schedule", GITHUB_RUN_ID: "999" });
+  assert.equal(failed.status, 1);
+  assert.equal(JSON.parse(repo.run("show").stdout).remote.receipts["pending-automatic"].state, "pending");
+  const result = repo.worker(undefined, { GITHUB_EVENT_NAME: "schedule", GITHUB_RUN_ID: "999" });
+  assert.equal(result.status, 0, result.stderr);
+  const shown = JSON.parse(repo.run("show").stdout).remote;
+  assert.equal(Object.values(shown.receipts).filter(receipt => receipt.automaticDiscovery && receipt.state === "published").length, 32);
+  assert.equal(shown.receipts["manual-discovery"].state, "published");
+  assert.equal(shown.receipts["discovery-999"].state, "published");
+  assert.equal(shown.receipts["discovery-0"], undefined);
+  assert.equal(repo.worker(undefined, { GITHUB_EVENT_NAME: "schedule", GITHUB_RUN_ID: "0" }).status, 0);
+  assert.equal(JSON.parse(repo.run("show").stdout).remote.owner, null);
 });
