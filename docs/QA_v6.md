@@ -70,7 +70,7 @@
 - Výslovně zrušená implementace má stav Zrušeno a povinný důvod. Přerušení agenta zachová dosaženou fázi a změní údaj o aktivitě; samo práci neruší.
 - Již převzatý běh může při výpadku GitHubu pokračovat lokálně a trvale ukládat nepublikované události. Před označením výsledného PR jako připraveného k review musí synchronizace doběhnout. Bez ověření vlastnictví práce nelze zahájit ani převzít jiný řídicí běh.
 - Počáteční naplnění zahrne otevřené implementační issues s labelem `ready-for-agent` a jejich nadřazené specifikace. Nové schválené tickety se přidávají automaticky; již sledované tickety v projektu zůstávají i po změně triage labelu. Historie uzavřených issues se zpětně nedoplňuje.
-- Společné porozumění i hranice testování jsou potvrzené a úplná specifikace je publikovaná jako #200. Schválený rozpad je publikovaný v šesti nativních sub-issues #201–#206 s labelem `ready-for-agent` a nativními blokujícími vazbami. Implementace trackingu zatím nebyla zahájena.
+- Společné porozumění i hranice testování jsou potvrzené a úplná specifikace je publikovaná jako #200. Schválený rozpad je publikovaný v šesti nativních sub-issues #201–#206 s labelem `ready-for-agent` a nativními blokujícími vazbami. Implementace byla zahájena ticketem #201 na samostatné větvi a worktree; další tickety čekají na své implementační závislosti.
 
 **Problém a cíl**
 

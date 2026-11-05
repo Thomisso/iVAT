@@ -30,6 +30,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: node --test scripts/tests/ci-policy.test.mjs
+      - name: Agent tracker command behavior
+        run: node --test scripts/tests/agent-tracker.test.mjs
       - id: profile
         run: node scripts/ci-policy.mjs
 
@@ -92,6 +94,10 @@ jobs:
       - name: Release policy, bundle integrity, transport and host preflight
         timeout-minutes: 5
         run: node --test scripts/tests/release-identity.test.mjs deploy/tests/release-prepare.test.mjs deploy/tests/release-host.test.mjs deploy/tests/release-connect.test.mjs deploy/tests/release-runtime.test.mjs
+
+      - name: Agent tracker through real gh and controlled GitHub HTTP
+        timeout-minutes: 5
+        run: node scripts/verify-agent-tracker-transport.mjs
 
       - name: Start local Supabase
         id: supabase
