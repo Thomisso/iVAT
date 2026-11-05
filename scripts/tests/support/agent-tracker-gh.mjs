@@ -81,6 +81,8 @@ if (endpoint === "graphql") {
   remote.ticketComments[0].body = input.body;
   response = remote.ticketComments[0];
 } else if (endpoint === "repos/example/project/actions/workflows/agent-tracking.yml/dispatches") {
+  remote.dispatches ??= [];
+  remote.dispatches.push(input.inputs.event);
   fs.writeFileSync(file, JSON.stringify(remote));
   const worker = spawnSync(process.execPath, [process.env.TRACKER_COMMAND, "worker"], {
     cwd: process.cwd(), encoding: "utf8", env: { ...process.env, GITHUB_ACTIONS: "true", GITHUB_JOB: "publish", GITHUB_WORKFLOW_REF: "example/project/.github/workflows/agent-tracking.yml@refs/heads/main", GITHUB_ACTOR: "maintainer", TRACKER_EVENT: input.inputs.event },

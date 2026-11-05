@@ -24,6 +24,7 @@ function repository(t) {
     remote: () => JSON.parse(readFileSync(remote, "utf8")),
     updateRemote: update => { const state = JSON.parse(readFileSync(remote, "utf8")); update(state); writeFileSync(remote, JSON.stringify(state)); },
     run: (...args) => spawnSync(process.execPath, [command, ...args], { cwd: directory, encoding: "utf8", env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, TRACKER_FAKE_GITHUB: remote, TRACKER_COMMAND: command } }),
+    worker: event => spawnSync(process.execPath, [command, "worker"], { cwd: directory, encoding: "utf8", env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, TRACKER_FAKE_GITHUB: remote, TRACKER_COMMAND: command, GITHUB_ACTIONS: "true", GITHUB_JOB: "publish", GITHUB_WORKFLOW_REF: "example/project/.github/workflows/agent-tracking.yml@refs/heads/main", GITHUB_ACTOR: "maintainer", TRACKER_EVENT: JSON.stringify(event) } }),
   };
 }
 
@@ -144,4 +145,47 @@ test("doctor refuses incomplete field configuration instead of declaring setup v
   const refused = repo.run("doctor");
   assert.equal(refused.status, 1);
   assert.equal(JSON.parse(refused.stderr).error, "configuration_invalid");
+});
+
+test("uncertain registry ownership refuses preflight, new controllers and worker mutation", t => {
+  const repo = repository(t);
+  assert.equal(repo.run("setup", "--repo", "example/project", "--owner", "example", "--project-number", "1", "--registry-issue", "99").status, 0);
+  const priorOwner = { runId: "prior-run", generation: 1, account: "maintainer", startedAt: "2026-11-04T12:00:00.000Z", sequence: 1 };
+  const baseline = { schemaVersion: 1, revision: 2, generation: 1, publishedRevision: 2, tickets: { "201": { number: 201, status: "implementing", runId: "prior-run", generation: 1 } }, receipts: {} };
+  const malformed = [
+    { label: "missing owner", state: baseline },
+    { label: "string owner", state: { ...baseline, owner: "free" } },
+    { label: "empty owner", state: { ...baseline, owner: {} } },
+    { label: "owner generation mismatch", state: { ...baseline, owner: { ...priorOwner, generation: 2 } } },
+    { label: "missing sequence", state: { ...baseline, owner: { ...priorOwner, sequence: undefined } } },
+    { label: "string sequence", state: { ...baseline, owner: { ...priorOwner, sequence: "1" } } },
+    { label: "invalid owner account", state: { ...baseline, owner: { ...priorOwner, account: null } } },
+    { label: "invalid owner start time", state: { ...baseline, owner: { ...priorOwner, startedAt: "unknown" } } },
+    { label: "null owner with owned work", state: { ...baseline, owner: null } },
+    { label: "null owner after an unexplained generation", state: { ...baseline, owner: null, tickets: {} } },
+    { label: "owned work without a controlling generation", state: { ...baseline, owner: null, generation: 0 } },
+    { label: "ticket from a different run", state: { ...baseline, owner: { ...priorOwner, runId: "another-run" } } },
+    { label: "unsafe generation counter", state: { ...baseline, generation: Number.MAX_SAFE_INTEGER + 1, owner: { ...priorOwner, generation: Number.MAX_SAFE_INTEGER + 1 } } },
+  ];
+  const start = { id: "ownership-probe", type: "start", runId: "new-controller", generation: 1, sequence: 0, at: "2026-11-05T00:00:00.000Z", payload: {} };
+  for (const { label, state } of malformed) {
+    repo.updateRemote(remote => { remote.registry = `<!-- ivat-agent-tracker:registry:v1 -->\n\n\`\`\`json\n${JSON.stringify(state)}\n\`\`\`\n`; });
+    const before = repo.remote();
+    for (const result of [repo.run("doctor"), repo.run("start", "--run", "new-controller", "--wait-seconds", "0"), repo.worker(start)]) {
+      assert.equal(result.status, 1, label);
+      assert.equal(JSON.parse(result.stderr).error, "registry_invalid", label);
+    }
+    assert.deepEqual(repo.remote(), before, `${label}: no canonical, dispatch, Project or issue effects`);
+    assert.equal(repo.remote().dispatches?.length ?? 0, 0, label);
+  }
+});
+
+test("verified initial freedom permits unclaimed ticket and specification metadata", t => {
+  const repo = repository(t);
+  assert.equal(repo.run("setup", "--repo", "example/project", "--owner", "example", "--project-number", "1", "--registry-issue", "99").status, 0);
+  const snapshot = { schemaVersion: 1, revision: 2, generation: 0, owner: null, publishedRevision: 2, tickets: { "200": { number: 200, kind: "specification" }, "201": { number: 201, status: "ready", runId: null } }, receipts: {} };
+  repo.updateRemote(remote => { remote.registry = `<!-- ivat-agent-tracker:registry:v1 -->\n\n\`\`\`json\n${JSON.stringify(snapshot)}\n\`\`\`\n`; });
+  const checked = repo.run("doctor");
+  assert.equal(checked.status, 0, checked.stderr);
+  assert.equal(JSON.parse(checked.stdout).ok, true);
 });
