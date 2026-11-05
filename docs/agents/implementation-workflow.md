@@ -2,14 +2,22 @@
 
 Use this workflow when one spec is implemented through parallel tickets. Its completion criterion is one reviewable integration pull request whose child diffs and combined behavior have both passed review.
 
+## Reporting entry point
+
+For standalone `implement`, use the shared tracker to claim, hand off completed implementation/focused checks, record an independent review and return findings to implementation. Omit integration context when the flow has none. For `implement-spec`, the controller binds each claim to the native parent specification and intended integration branch, then records verified ticket integration and recomputes dependent readiness. Workers send results to the controller; only the common serialized tracker publishes progress. See the concrete commands and evidence requirements in [agent-tracking.md](agent-tracking.md#implementation-reporting-checkpoints).
+
+At every handoff, preserve the exact reviewed revision, focused-check results, distinct reviewer identity, Standards/Spec outcomes and independent-context attestation. Review waiting is inactive; confirm a working reviewer only from an actual reviewer observation. Hard findings return to Implementace. Clean review applies to the precise reviewed tip; later code needs applicable review. Publish integration only after actual Git incorporation into the bound integration branch, with its commit and clean review evidence.
+
+A still-open internal blocker can unblock a dependent only after clean review and integration into this specification's same integration context. All blockers must be satisfied. External blockers retain the actual final-merge requirement; closing an issue without delivery or integration into another effort is insufficient. Keep native dependency edges and implementation issues open until the final PR merges. Readiness does not start workers or replace the following review gates. Record concrete obstacles with reason, reference, resumption condition and phase; resume from observed resolution. Missing activity alone is not blockage or cancellation.
+
 Follow the [iVAT Agent implementation Project](https://github.com/users/Thomisso/projects/1) and the [shared tracker commands](agent-tracking.md). Approved backlog membership is automatic; use `npm run agent:track -- discover --parent <spec>` for immediate reconciliation and the native Parent table filter. Discovery is passive: the controller must still acquire ownership and explicitly claim implementation work. Text-only parent fallbacks remain linked from the specification's maintained tracking overview.
 
 ## Integration loop
 
 1. Create an integration branch from the target branch. After its first ticket merge, push it and open a draft pull request with closing references for the spec and child tickets.
 2. Give each ready ticket its own branch and worktree based on the current integration tip. The implementer runs the ticket's focused tests, typecheck and lint, then merges the latest integration tip into its branch.
-3. Give the ticket, its base commit and its diff to a reviewer with no implementation context. The reviewer checks both `CODING_STANDARDS.md` and the ticket. Hard standards or spec findings return to the same implementer; the ticket is mergeable only when none remain.
-4. Merge the reviewed ticket into the integration branch. Regenerate database types when migrations changed, then start the next newly unblocked ticket.
+3. Report the completed implementation and focused checks with the exact revision through `review`. Give the ticket, its base commit and its diff to a reviewer with no implementation context. The reviewer checks both `CODING_STANDARDS.md` and the ticket. Hard standards or spec findings return to the same implementer; the ticket is mergeable only when none remain.
+4. Merge the precise reviewed ticket tip into the integration branch, push the relevant branches for worker corroboration, then report `integrate` with the actual merge commit and `readiness` for newly unblocked dependents. Regenerate database types when migrations changed, then start the next newly unblocked ticket.
 
 ## Test budget
 
