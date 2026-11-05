@@ -38,6 +38,7 @@ http.createServer(async (request, response) => {
     if (request.body.repository) state.repository = request.body.repository;
     if (request.body.failure !== undefined) state.failure = request.body.failure;
     if (request.body.workflows !== undefined) state.workflows = request.body.workflows;
+    if (request.body.mergeFacts !== undefined) state.mergeFacts = request.body.mergeFacts;
     await pm.state.set(KEY, state);
     return json(response, 200, { ready: true });
   }
@@ -56,6 +57,13 @@ http.createServer(async (request, response) => {
   const base = `/repos/${state.repository}`;
   if (call === `GET ${base}`) return finish(200, { id: 1, node_id: "R_simulated", full_name: state.repository,
     name: state.repository.split("/")[1], owner: { login: state.repository.split("/")[0], type: "User" }, default_branch: "main", permissions: { push: true } });
+  if (call === `GET ${base}/pulls/42` && state.mergeFacts) return finish(200, { node_id: "PR_simulated_42", number: 42, html_url: `https://github.com/${state.repository}/pull/42`, state: "closed", draft: false, merged: true, merged_at: state.mergeFacts.at, head: { ref: "feature/http-fixture", sha: state.mergeFacts.head, repo: { full_name: state.repository } }, base: { ref: "main", repo: { full_name: state.repository } } });
+  const commit = new RegExp(`^${base}/commits/(.+)$`).exec(url.pathname);
+  if (commit && request.method === "GET" && state.mergeFacts) {
+    const ref = decodeURIComponent(commit[1]);
+    const sha = ref === "main" ? state.mergeFacts.target : ref;
+    if ([state.mergeFacts.head, state.mergeFacts.result, state.mergeFacts.target].includes(sha)) return finish(200, { sha, commit: { tree: { sha: state.mergeFacts.tree } } });
+  }
   const comments = new RegExp(`^${base}/issues/(\\d+)/comments$`).exec(url.pathname);
   if (comments && request.method === "GET") return finish(200, state.comments[comments[1]] || []);
   if (comments && request.method === "POST") {
@@ -73,6 +81,8 @@ http.createServer(async (request, response) => {
     if (request.method === "PATCH") record.body = request.body.body;
     return finish(200, record);
   }
+  const implementationFacts = new RegExp(`^${base}/issues/(\\d+)/(?:sub_issues|dependencies/blocked_by)$`).exec(url.pathname);
+  if (implementationFacts && request.method === "GET") return finish(200, []);
   const parent = new RegExp(`^${base}/issues/(\\d+)/parent$`).exec(url.pathname);
   if (parent && request.method === "GET") return Number(parent[1]) === 7 ? finish(200, issue(8, state.repository)) : finish(404, { message: "Not Found" });
   const selected = new RegExp(`^${base}/issues/(\\d+)$`).exec(url.pathname);
@@ -87,6 +97,7 @@ http.createServer(async (request, response) => {
   }
   if (call === "POST /graphql") {
     const v = request.body.variables?.input || request.body.variables || {};
+    if (operation === "TrackerMergedPullRequest" && state.mergeFacts) return finish(200, { data: { repository: { nameWithOwner: state.repository, pullRequest: { id: "PR_simulated_42", number: 42, repository: { nameWithOwner: state.repository }, headRefOid: state.mergeFacts.head, headRefName: "feature/http-fixture", baseRefName: "main", state: "MERGED", merged: true, mergedAt: state.mergeFacts.at, mergeCommit: { oid: state.mergeFacts.result } } } } });
     if (operation === "TrackerProject") return finish(200, { data: { user: { id: "U_simulation_owner", projectV2: project(), projectsV2: { nodes: [project()] } } } });
     if (operation === "TrackerWorkflows") return finish(200, { data: { node: { workflows: { nodes: state.workflows, pageInfo: { hasNextPage: false } } } } });
     if (operation === "TrackerDeleteWorkflow") {
