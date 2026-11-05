@@ -49,12 +49,15 @@ function issueKey(issue, config) {
   const repository = (typeof issue.repository === "string" ? issue.repository : issue.repository?.full_name ?? issue.repository?.nameWithOwner) ?? issue.repository_url?.match(/^https:\/\/api\.github\.com\/repos\/([^/]+\/[^/]+)$/)?.[1] ?? issue.html_url?.match(/^https:\/\/github\.com\/([^/]+\/[^/]+)\/issues\//)?.[1] ?? config.repository;
   return repository.toLowerCase() === config.repository.toLowerCase() ? issue.number : `${repository}#${issue.number}`;
 }
+function hasParent(child, parent, config) {
+  return child.parent === parent.number && (child.parentRepository ?? config.repository).toLowerCase() === (parent.repository ?? config.repository).toLowerCase();
+}
 function childrenFor(state, record, github, config) {
   if (record.role !== "specification") return [];
   let native;
   try { native = github.pages(`repos/${config.repository}/issues/${record.number}/sub_issues`); }
   catch (error) { if (error.code !== "github_not_found") throw error; native = []; }
-  return [...new Set([...native.map(child => issueKey(child, config)), ...Object.values(state.tickets).filter(child => child.parent === record.number && (child.parentRepository ?? config.repository) === config.repository).map(child => issueKey(child, config))])];
+  return [...new Set([...native.map(child => issueKey(child, config)), ...Object.values(state.tickets).filter(child => hasParent(child, record, config)).map(child => issueKey(child, config))])];
 }
 function applicable(evidence, revision, pass) {
   if (!evidence) return "outstanding";
@@ -150,7 +153,7 @@ export function applyFinal(state, event, { github, config }) {
         const status = p.checks.some(check => check.status === "failed") ? "failed" : required.every(name => p.checks.some(check => check.name === name && check.status === "passed")) ? "passed" : "outstanding";
         f.checks = { revision: p.revision, tree: f.tree, status, required, results: p.checks, at: event.at, result: p.result };
       } else {
-        const implementers = record.role === "specification" ? Object.values(state.tickets).filter(child => child.parent === record.number).flatMap(child => [child.agent, child.review?.implementer]) : [record.agent, record.review?.implementer];
+        const implementers = record.role === "specification" ? Object.values(state.tickets).filter(child => hasParent(child, record, config)).flatMap(child => [child.agent, child.review?.implementer]) : [record.agent, record.review?.implementer];
         if (implementers.includes(p.reviewer)) throw new TrackerError("reviewer_not_independent");
         f.review = { ...p, at: event.at, tree: f.tree, outcome: p.standards === "pass" && p.spec === "pass" && !p.findings.length ? "clean" : "findings" };
       }

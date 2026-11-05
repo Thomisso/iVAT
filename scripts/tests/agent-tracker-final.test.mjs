@@ -429,3 +429,21 @@ test("a foreign parent context cannot inherit a same-number local specification 
   assert.doesNotMatch(repo.remote().foreignComments[0].body, /Child phases:/);
   assert.equal(state.tickets[202].parentRepository, "other/repository");
 });
+
+test("an agent of an unrelated foreign parent may independently review a same-number local specification", t => {
+  const repo = prepare(t);
+  repo.git("branch", "feat/foreign-context");
+  repo.updateRemote(remote => {
+    remote.issues[202] = { ...remote.issues[201], id: "I_202", number: 202, title: "Work in another parent context", url: "https://github.com/example/project/issues/202", parent: { id: "I_foreign_200", number: 200, title: "Foreign specification", url: "https://github.com/other/repository/issues/200", html_url: "https://github.com/other/repository/issues/200", repository_url: "https://api.github.com/repos/other/repository", repository: { nameWithOwner: "other/repository" } } };
+  });
+  execute(repo, "discover");
+  execute(repo, "claim", "--issue", "202", "--agent", "foreign-worker", "--branch", "feat/foreign-context", "--result", "Separate parent work claimed");
+  bind(repo); finalChecks(repo);
+  const review = finalReview(repo, ["--reviewer", "foreign-worker"]);
+  assert.equal(review.status, 0, review.stderr);
+  const state = execute(repo, "show").remote;
+  assert.equal(state.tickets[200].summary.review, "passed");
+  assert.equal(state.tickets[200].summary.counts.integrated, 1);
+  assert.equal(state.tickets[202].parentRepository, "other/repository");
+  assert.equal(state.tickets["other/repository#200"].summary.scope, "context_only");
+});
