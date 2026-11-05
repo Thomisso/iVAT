@@ -112,6 +112,12 @@ http.createServer(async (request, response) => {
       state.items[content] ||= { id: `PVTI_${Object.keys(state.items).length + 1}`, content: { id: content }, fields: {} };
       return finish(200, { data: { addProjectV2ItemById: { item: state.items[content] } } });
     }
+    if (operation === "TrackerItemFields") {
+      const item = Object.values(state.items).find(item => item.id === v.id);
+      if (!item) return finish(200, { data: { node: null } });
+      const nodes = Object.entries(item.fields).map(([id, value]) => ({ field: { id }, ...(value.singleSelectOptionId ? { optionId: value.singleSelectOptionId } : { text: value.text }) }));
+      return finish(200, { data: { node: { fieldValues: { nodes, pageInfo: { hasNextPage: false } } } } });
+    }
     if (operation === "TrackerSetFields") {
       const data = {};
       for (const [key, input] of Object.entries(request.body.variables)) {

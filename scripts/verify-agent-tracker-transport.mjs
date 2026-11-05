@@ -136,6 +136,13 @@ try {
   assert.equal(published.remote.publishedRevision, 2);
   assert.equal(published.local.pending.length, 0);
   assert.equal(published.remote.tickets[7].stateAt, "2026-11-04T12:01:00.000Z");
+  result = await command("repair", ["--wait-seconds", "0"]);
+  assert.equal(result.code, 1);
+  event = (await api("__state")).dispatches.at(-1).event;
+  result = await worker(event);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal((await command("sync", ["--wait-seconds", "0"])).code, 0);
+  assert.ok((await api("__state")).requests.some(request => request.operation === "TrackerItemFields"), "real gh exercised field readback");
 
   await api("__control", { reset: true, failure: { match: "TrackerCreateField", phase: "before", mode: "graphql-validation", remaining: 1 } });
   result = await setup();
