@@ -163,7 +163,7 @@ Publish only technical progress and necessary repository references. Never pass 
 
 ## Final checks, handoff and delivery
 
-The specification's maintained overview shows native/fallback child counts separately from shared checks, combined Standards/Spec review and the actual final PR state. An untracked, cancelled or unintegrated child prevents final specification handoff. Integrated totals alone never establish whole-specification readiness. The same final commands cover standalone work without an integration branch.
+The specification's maintained overview shows native/fallback child counts separately from shared checks, combined Standards/Spec review and the actual final PR state. An untracked, cancelled or unintegrated child prevents final specification handoff. Integrated totals alone never establish whole-specification readiness. The same final commands cover standalone work without an integration branch. Foreign parent issues retain their qualified identity and original links as context only; this repository's controller does not publish child counts or final gates for another repository, and never substitutes a same-number local specification.
 
 Bind the actual final PR, then attest observed checks and independent combined review on its exact resulting revision:
 

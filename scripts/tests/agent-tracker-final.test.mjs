@@ -411,3 +411,21 @@ test("verified current delivery cannot be relabelled as undelivered cancellation
   assert.deepEqual(after.delivery, before.delivery);
   assert.equal(after.cancellation, undefined);
 });
+
+test("a foreign parent context cannot inherit a same-number local specification summary", t => {
+  const repo = prepare(t);
+  repo.updateRemote(remote => {
+    remote.issues[202] = { ...remote.issues[201], id: "I_202", number: 202, title: "Local work with foreign parent", url: "https://github.com/example/project/issues/202", parent: { id: "I_foreign_200", number: 200, title: "Foreign parent context", url: "https://github.com/other/repository/issues/200", repository: { nameWithOwner: "other/repository" } } };
+  });
+  execute(repo, "discover");
+  const state = execute(repo, "show").remote;
+  assert.equal(state.tickets[200].summary.counts.integrated, 1);
+  const foreign = state.tickets["other/repository#200"];
+  assert.equal(foreign.summary.scope, "context_only");
+  assert.equal(foreign.summary.repository, "other/repository");
+  assert.equal(foreign.summary.counts, undefined);
+  assert.equal(foreign.status, null);
+  assert.match(repo.remote().foreignComments[0].body, /Foreign specification context only/);
+  assert.doesNotMatch(repo.remote().foreignComments[0].body, /Child phases:/);
+  assert.equal(state.tickets[202].parentRepository, "other/repository");
+});

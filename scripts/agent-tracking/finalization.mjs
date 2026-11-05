@@ -69,6 +69,13 @@ function checkStatus(evidence, record, config) {
   return requiredChecks(record, config).every(name => evidence.results.some(check => check.name === name && check.status === "passed")) ? "passed" : "outstanding";
 }
 export function updateSummary(state, record, github, config) {
+  const repository = record.repository ?? config.repository;
+  if (repository.toLowerCase() !== config.repository.toLowerCase()) {
+    // Discovery retains foreign parent context, but this controller has no
+    // whole-specification evidence authority for another repository.
+    record.summary = { scope: "context_only", repository };
+    return;
+  }
   const f = record.final;
   const children = childrenFor(state, record, github, config);
   const counts = { ready: 0, implementing: 0, review: 0, integrated: 0, done: 0, blocked: 0, cancelled: 0, untracked: 0 };
@@ -96,6 +103,7 @@ function requireImplementation(state, record, github, config) {
 }
 export function requireFinalGate(state, record, github, config) {
   updateSummary(state, record, github, config);
+  if (record.summary.scope === "context_only") throw new TrackerError("specification_repository_unsupported");
   if (record.cancellation) throw new TrackerError("implementation_cancelled");
   if (record.reversal?.state === "merged") throw new TrackerError("delivery_reversed");
   if (record.reversal?.state === "unverified") throw new TrackerError("reversal_unverified");
@@ -161,6 +169,7 @@ export function applyFinal(state, event, { github, config }) {
 export function renderFinal(record) {
   if (!record.summary) return "";
   const s = record.summary;
+  if (s.scope === "context_only") return `\n- Foreign specification context only: child counts and final gates are not tracked for ${s.repository}. Inspect the [original specification](${record.url}).\n`;
   return `\n- Child phases: ${JSON.stringify(s.counts)}\n- Shared checks: ${s.checks}\n- Combined review: ${s.review}\n- Resulting revision: ${s.revision ?? "not bound"}\n- Final PR: ${s.pullRequest ? `[${s.pullRequest.state}](${s.pullRequest.url})` : "outstanding"}\n${record.cancellation ? `- Cancellation evidence: ${JSON.stringify(record.cancellation)}\n` : ""}${record.reversal ? `- Explicit reversal evidence: ${JSON.stringify(record.reversal)}\n` : ""}${record.final?.gate ? `- Final gate: ${JSON.stringify(record.final.gate)}\n` : ""}${record.delivery ? `- Delivery evidence: ${JSON.stringify(record.delivery)}\n` : ""}${record.final?.handoff ? `- Final handoff: ${JSON.stringify(record.final.handoff)}\n` : ""}${record.final?.checks ? `- Shared check evidence: ${JSON.stringify(record.final.checks)}\n` : ""}${record.final?.review ? `- Combined review evidence: ${JSON.stringify(record.final.review)}\n` : ""}`;
 }
 
