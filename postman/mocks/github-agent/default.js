@@ -81,6 +81,8 @@ http.createServer(async (request, response) => {
     if (request.method === "PATCH") record.body = request.body.body;
     return finish(200, record);
   }
+  const implementationFacts = new RegExp(`^${base}/issues/(\\d+)/(?:sub_issues|dependencies/blocked_by)$`).exec(url.pathname);
+  if (implementationFacts && request.method === "GET") return finish(200, []);
   const parent = new RegExp(`^${base}/issues/(\\d+)/parent$`).exec(url.pathname);
   if (parent && request.method === "GET") return Number(parent[1]) === 7 ? finish(200, issue(8, state.repository)) : finish(404, { message: "Not Found" });
   const selected = new RegExp(`^${base}/issues/(\\d+)$`).exec(url.pathname);

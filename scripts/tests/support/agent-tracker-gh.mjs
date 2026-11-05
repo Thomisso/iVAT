@@ -19,7 +19,8 @@ if (injected) {
 let response;
 const parent = number => {
   if ((remote.issues?.[number] && !remote.issues[number].parent && !Object.hasOwn(remote.parents ?? {}, number)) || remote.parents?.[number] === null) { console.error("HTTP 404: Not Found"); process.exit(1); }
-  return remote.issues?.[number]?.parent ?? { number: remote.parents?.[number] ?? 200 };
+  const value = remote.issues?.[number]?.parent ?? { number: remote.parents?.[number] ?? 200 };
+  return { ...value, node_id: value.node_id ?? value.id, html_url: value.html_url ?? value.url, repository_url: value.repository_url ?? `https://api.github.com/repos/${value.repository?.nameWithOwner ?? "example/project"}` };
 };
 if (remote.fail) {
   console.error(remote.fail);
@@ -192,6 +193,9 @@ if (endpoint === "graphql") {
   if (injected?.phase === "after") { console.error("simulated connection failure after remote effect"); process.exit(1); }
   console.log(JSON.stringify({ workflow_run_id: 123, run_url: "https://api.github.com/repos/example/project/actions/runs/123", html_url: "https://github.com/example/project/actions/runs/123" }));
   process.exit(0);
+} else if (/^repos\/[^/]+\/[^/]+\/issues\/\d+$/.test(endpoint) && remote.foreignIssues?.[`${endpoint.split("/").slice(1, 3).join("/")}#${endpoint.split("/")[4]}`]) {
+  const issue = remote.foreignIssues[`${endpoint.split("/").slice(1, 3).join("/")}#${endpoint.split("/")[4]}`];
+  response = { ...issue, node_id: issue.id, html_url: issue.url, state: issue.state.toLowerCase() };
 } else if (endpoint === "repos/other/repository/issues/200/comments") {
   remote.foreignComments ??= [];
   if (method === "POST") remote.foreignComments.push({ id: 9200, body: input.body });

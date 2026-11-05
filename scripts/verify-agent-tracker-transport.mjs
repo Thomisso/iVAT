@@ -144,6 +144,8 @@ try {
   assert.equal((await command("sync", ["--wait-seconds", "0"])).code, 0);
   assert.ok((await api("__state")).requests.some(request => request.operation === "TrackerItemFields"), "real gh exercised field readback");
 
+  for (const path of ["/issues/7/sub_issues", "/issues/7/dependencies/blocked_by"]) assert.ok((await api("__state")).requests.some(request => request.method === "GET" && request.path.endsWith(path)), `real gh verified first-claim facts ${path}`);
+
   const headRevision = (await execute("git", ["rev-parse", "feature/http-fixture"], environment)).stdout.trim();
   const treeRevision = (await execute("git", ["show", "-s", "--format=%T", headRevision], environment)).stdout.trim();
   const actualResult = "1".repeat(40);

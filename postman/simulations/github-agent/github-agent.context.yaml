@@ -65,6 +65,13 @@ assumptions:
     verification: On 2026-11-05 all thirteen existing wire scenarios plus a fourteenth merged-result scenario passed, including the existing Project repair readback assertion. Public CLI process tests also reject inconsistent GraphQL identity and verify completion on the actual result tree. This transport model does not prove actual provider completion or permissions; root-owned live acceptance remains separate.
     source: https://docs.github.com/en/rest/about-the-rest-api/breaking-changes?apiVersion=2026-03-10; scripts/verify-agent-tracker-transport.mjs; scripts/tests/agent-tracker-final.test.mjs; postman/mocks/github-agent/default.js
     updated_at: "2026-11-05"
+  - id: direct-entry-provider-facts
+    status: supported
+    claim: The real gh/controller/worker first-claim path reads native child existence and dependency edges before entering implementation.
+    reason: Direct entry shares specification classification and dependency gates with existing tracking paths; the stand-in models these additional GET endpoints as empty native collections for its implementation fixture.
+    verification: On 2026-11-05 all fourteen existing transport scenarios passed after extending the consumed first-entry API subset. The verifier explicitly observed GET sub_issues and dependencies/blocked_by for issue 7; public CLI regressions separately exercise nonempty blockers, body/native-child specifications and qualified retained parents. These synthetic outcomes do not establish provider scheduling or live permissions.
+    source: https://docs.github.com/en/rest/issues/sub-issues#list-sub-issues; https://docs.github.com/en/rest/issues/issue-dependencies#list-dependencies-an-issue-is-blocked-by; scripts/verify-agent-tracker-transport.mjs; scripts/tests/agent-tracker-entry.test.mjs; postman/mocks/github-agent/default.js
+    updated_at: "2026-11-05"
 fingerprints:
   - id: agent-tracking-201-development
     date: "2026-11-04"
@@ -100,4 +107,8 @@ fingerprints:
   - id: agent-tracking-200-current-merge-api
     date: "2026-11-05"
     commit: eb271e135e6e6a7b8013ad8f3738ed3bbe55343d with isolated current-API merged-result fix and fourteenth real-gh scenario
+    cli: Postman CLI 1.73.0; gh 2.101.0; Node 22.22.3
+  - id: agent-tracking-200-entry-retention
+    date: "2026-11-05"
+    commit: edb5d9936dc3c8036119cd230179e5cb55f773ee with final-review direct-entry and retained-parent fixes
     cli: Postman CLI 1.73.0; gh 2.101.0; Node 22.22.3
