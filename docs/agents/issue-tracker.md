@@ -37,6 +37,8 @@ GitHub shares one number space across issues and PRs, so a bare `#42` may be eit
 
 Both standalone `implement` and multi-ticket `implement-spec` use [agent-tracking.md](agent-tracking.md#implementation-reporting-checkpoints). The owning controller reports claim, completed implementation/focused checks, exact-revision independent review, findings/fixes, actual integration and explicit blockage/resumption through the shared command boundary. Workers supply evidence to the controller. Native assignee identifies the responsible GitHub account; implementing/reviewer agent identities remain separate.
 
+Use the [genuine activity procedure](agent-tracking.md#genuine-activity-and-independent-freshness) for worker messages/run observations, original UTC times, the five-minute confirmation cadence and known waiting/stopped states. Missing verification leaves activity unverified. The independent Actions observer retains phase and ownership after the conversation ends; ageing is never takeover or review authority.
+
 Within one specification and integration context, clean independent review plus verified integration can satisfy a blocker while its implementation issue remains open. Every other unsatisfied blocker remains effective. External dependencies require actual final delivery by the current closing PR merged into its final target; the open-blocker count alone is insufficient. Preserve dependency edges, issue closure rules and the final combined-check/review gates in [implementation-workflow.md](implementation-workflow.md). A readiness projection never launches work.
 
 ## Implementation visibility

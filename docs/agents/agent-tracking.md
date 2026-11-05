@@ -2,7 +2,7 @@
 
 Use `npm run agent:track -- <command>` when reporting implementation work. The tracker separates reached implementation phase, verified agent activity and the latest result. The triage labels retain their existing issue-readiness meaning.
 
-Use the [iVAT Agent implementation Project](https://github.com/users/Thomisso/projects/1) for approved implementation work, including waiting tickets and their specification context. Membership discovery, explicit claims, durable recovery and ticket lifecycle commands share one serialized publication path. Lifecycle evidence records independent review, verified integration and dependency readiness. The remaining #200 slices add independent freshness checks and final completion gates; each requires its own acceptance evidence.
+Use the [iVAT Agent implementation Project](https://github.com/users/Thomisso/projects/1) for approved implementation work, including waiting tickets and their specification context. Membership discovery, explicit claims, durable recovery and ticket lifecycle commands share one serialized publication path. Lifecycle evidence records independent review, verified integration and dependency readiness. Independent activity freshness uses the same writer. Final specification completion gates require their own acceptance evidence.
 
 ## Setup
 
@@ -61,6 +61,30 @@ The worker reads current registry state when execution starts, validates ownersh
 The local journal also retains the last confirmed remote snapshot, including discovered context, selected tickets and their published state. `show --local` reads this snapshot and pending intents without contacting GitHub; it does not claim the remote state is still current.
 
 Starting a second controlling run is refused, including from another linked worktree. No heartbeat timeout releases ownership. Keep review, integration, test-budget and eventual final-handoff rules in the existing implementation workflow.
+
+## Genuine activity and independent freshness
+
+Before confirming a worker, receive a message from that identified implementer/reviewer or inspect its actual run state. Record that original UTC time, then use the shared boundary:
+
+```sh
+npm run agent:track -- activity --issue TICKET --agent WORKER --role implementer --state working --source run_observation --observed-at ORIGINAL_UTC --reference 'Worker run observed running focused checks'
+npm run agent:track -- activity --issue TICKET --agent WORKER --role implementer --state waiting --source agent_message --observed-at ORIGINAL_UTC --reference 'Worker reports waiting for review input'
+npm run agent:track -- observe-activity
+```
+
+Use `agent_message` for an actual message from that worker, and `run_observation` for an actual inspection of its run. Use `reviewer` only after `review-start` identifies the current reviewer. `review-start --observed-at ORIGINAL_UTC` accepts a delayed genuine reviewer message; omitting the option attests an immediate observation at the command's original event time. Original times use canonical UTC ISO 8601 with milliseconds, such as `2026-11-05T12:00:00.000Z`. The controller attests the source honestly; a command cannot prove the observation by itself. Keep references bounded and technical, excluding session identifiers, local paths, credentials and raw tool output.
+
+During extended work, obtain a fresh worker observation at least five minutes after its last successful confirmation publication. The worker adopts at most one activity confirmation per ticket in that interval. A suppressed sample returns `outcome: throttled` and does not delay subsequent phase reports. Equal or older observations cannot replace a newer confirmation or refresh its publication clock, including a delayed delivery with a new event identity. `show` exposes `activityAt` and `activityObservation` for the original observation, `activityPublishedAt` for successful publication, and `stateAt` for phase evidence. A failed projection never establishes the successful publication clock. Retries preserve the original observation.
+
+Report observed `waiting` or `stopped` promptly with the same source/time/reference fields. These states preserve ownership and the reached phase while making activity inactive. A later genuine working observation can resume that worker within its current permitted role; it cannot revive a prior handoff, historical run, blocked or integrated phase. Claim alone is unverified. Review handoff, clean review, blockage, integration, completion/cancellation and tickets without a working agent are inactive. A confirmation proves neither useful progress nor correct implementation or successful checks.
+
+When the controller cannot genuinely verify a worker, leave its activity unverified and retain its last original confirmation time. A timer, successful GitHub write, unchanged phase or resumed conversation supplies no observation. Do not release ownership or start replacement workers because a confirmation ages.
+
+After the conversation ends, the independent Actions schedule evaluates freshness every five minutes through the existing fixed-concurrency `publish` job. `observe-activity` is also an immediate passive wakeup from a separately configured clone with no owned journal. Each wakeup recomputes from the latest canonical records at worker execution time; it contains no old snapshot to overwrite newer confirmations or superseding runs. Confirmations become unverified when strictly older than 15 minutes; exactly 15 minutes remains confirmed. The phase, latest result, evidence, original timestamp and ownership remain intact. Repeated unchanged evaluations acknowledge without rewriting ticket fields/comments. A prior incomplete projection is still repaired.
+
+Detection occurs on the next successful evaluator execution after expiry, usually with up to another five-minute cadence plus queue and Actions delay. Scheduled workflows can start late or be skipped; this is not a hard 15-minute detection guarantee. An old inactive ticket is not a stalled worker. The observer only evaluates activity: review approval, integration, Hotovo, takeover and launching workers still require their existing authorities and evidence. Membership discovery retains its separate hourly schedule.
+
+Actions use versioned repository/project/field/workflow identities from the selected configuration and the separately authorized repository secret `AGENT_TRACKER_TOKEN`, passed only as `GH_TOKEN`. The worker refuses a missing secret as `actions_credential_missing`; the ordinary `GITHUB_TOKEN` and local `gh` login do not substitute. Configure the token through repository **Settings → Secrets and variables → Actions → New repository secret**, granting the selected user-owned Project and repository/Actions/Issues access described above. Keep tokens out of configuration and progress output. Run `doctor` for local configuration/access and an isolated Actions `observe-activity` for actual Actions credential validation. `configuration_missing`/configuration identity errors, `github_permission_denied` and `github_connection_failed` distinguish setup/access from transport failure. A manual dispatch demonstrates independent execution, while observed scheduled execution is separate evidence; record which actually occurred in [agent-tracking-acceptance.md](agent-tracking-acceptance.md).
 
 ## Stop, resume and explicit recovery
 
