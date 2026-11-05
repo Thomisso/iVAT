@@ -2,7 +2,7 @@
 
 Use `npm run agent:track -- <command>` when reporting implementation work. The tracker separates reached implementation phase, verified agent activity and the latest result. The triage labels retain their existing issue-readiness meaning.
 
-Use the [iVAT Agent implementation Project](https://github.com/users/Thomisso/projects/1) for approved implementation work, including waiting tickets and their specification context. Membership discovery and explicit claims share one serialized publication path. Ticket lifecycle commands record independent review, verified integration and dependency readiness. The remaining #200 tickets add comprehensive recovery, independent freshness checks and final completion gates; membership alone does not attest those capabilities.
+Use the [iVAT Agent implementation Project](https://github.com/users/Thomisso/projects/1) for approved implementation work, including waiting tickets and their specification context. Membership discovery, explicit claims, durable recovery and ticket lifecycle commands share one serialized publication path. Lifecycle evidence records independent review, verified integration and dependency readiness. The remaining #200 slices add independent freshness checks and final completion gates; each requires its own acceptance evidence.
 
 ## Setup
 
@@ -60,7 +60,42 @@ The worker reads current registry state when execution starts, validates ownersh
 
 The local journal also retains the last confirmed remote snapshot, including discovered context, selected tickets and their published state. `show --local` reads this snapshot and pending intents without contacting GitHub; it does not claim the remote state is still current.
 
-Starting a second controlling run is refused, including from another linked worktree. No heartbeat timeout releases ownership. Full explicit stop/resume/takeover is supplied by the recovery ticket, not by deleting a lock or changing a Project field. Keep review, integration, test-budget and eventual final-handoff rules in the existing implementation workflow.
+Starting a second controlling run is refused, including from another linked worktree. No heartbeat timeout releases ownership. Keep review, integration, test-budget and eventual final-handoff rules in the existing implementation workflow.
+
+## Stop, resume and explicit recovery
+
+After stopping the run's workers through the orchestration tools, release its ownership explicitly:
+
+```sh
+npm run agent:track -- stop --reason 'Controller work stopped'
+npm run agent:track -- resume --run qa-200-controller
+```
+
+Stopping records a validated ended-owner history and leaves reached phases and review/integration evidence intact. Its tickets become inactive. Resuming a stopped run acquires a new generation; it does not silently restart its former workers. Deliberately claim a historical inactive ticket again with the intended agent and real local branch to transfer it to the new owner. Its reached phase and prior review/integration evidence remain associated with their original revisions. A claim preserving review or integration requires that exact reviewed branch tip, including when an obstacle blocks that phase; a changed tip is refused as `historical_revision_mismatch` and leaves the existing evidence intact. A renamed branch at the same tip is allowed. Reclaimed implementation becomes unverified until genuinely observed; review waiting, clean review, integration and other inactive phases stay inactive.
+
+Use the current tracker CLI when recovering a ticket whose branch predates a tracker upgrade. Run the current checkout's `scripts/agent-tracker.mjs` by absolute path from the recovery worktree if necessary, so the old branch's CLI does not try to read newer registry state.
+
+For a controller interrupted on the same computer, `resume` requires the original durable journal and matching current remote ownership. It completes pending FIFO publication, checks available issue, local Git, remote commit and PR facts, and republishes the known tickets to repair missing Project membership. Missing facts are reported as unverified evidence; they do not invent completed implementation or a new phase. A resumed conversation is not itself proof that a worker is active.
+
+Another clone/computer cannot attach itself to a live generation merely by knowing its run ID. Use the explicit recovery procedure:
+
+```sh
+npm run agent:track -- resume --recover --run qa-200-controller --reason 'Explicit recovery on replacement computer'
+```
+
+This verifies the expected remote run and account, archives its prior ownership, and increments the generation even if the logical run ID stays the same. It reconstructs published/Git facts and marks local-only unpublished history as not recovered. It cannot recover events that never left the original computer. Old-generation clients receive `run_superseded`; their pending intents are retained in the local journal's superseded record rather than being silently applied to the replacement run. They must stop acting as the controller.
+
+To deliberately replace a differently named live run, name the exact observed owner and generation:
+
+```sh
+npm run agent:track -- takeover --from-run qa-200-controller --from-generation 2 --run qa-200-replacement --reason 'Explicit controller replacement'
+```
+
+Ownership must be verifiable and the authenticated account must match the responsible account. A changed generation, unavailable registry or malformed ownership refuses takeover. Only an explicit validated stop establishes free ownership after an earlier generation; missing owner fields or old timestamps do not.
+
+`sync` rereads current canonical state, checks the caller's generation, and checks every pending projection before reporting `synchronized: true`. A failed dispatch response is ambiguous: the persisted UUID is retried or acknowledged from the registry, rather than assumed absent. Older asynchronous snapshots cannot replace a newer locally known revision. `repair` forces actual idempotent projection of the latest canonical facts through the serialized worker even when no implementation revision changes. It neither owns work nor changes phase; it is also the repair path for an incomplete projection.
+
+Local process locks are shared by linked worktrees. A lock is reclaimed only when its recorded local PID is demonstrably gone, under a separate reclaimer election; a live, foreign-host, partial or otherwise unverified owner remains refused. There is no age-based lock removal. Killing the controller and removing its disposable worktree leaves the durable outbox in the Git common directory for recovery.
 
 ## Implementation reporting checkpoints
 
@@ -96,6 +131,8 @@ Readiness projects only waiting/dependency-blocked work and never launches worke
 
 `npm run test:agent-tracker` exercises the real commands in separate processes and isolated Git worktrees, controlling only the external `gh` boundary. `node scripts/verify-agent-tracker-transport.mjs` additionally drives real `gh` HTTPS through a stateful Postman GitHub simulation with a disposable synthetic token. The simulation exercises serialization, error mapping, partial effects, retries and original observation times; it does not prove actual Actions concurrency or upstream Projects permissions.
 
-The registry uses a conservative 48 KiB application limit. Capacity failure refuses acknowledgment rather than truncating state. GitHub does not offer one atomic transaction covering Project fields, issue comments and the registry: partial publication remains unsynchronized and repairable. All supported writers use the same repository-wide Actions concurrency group with `cancel-in-progress: false`. External forced cancellation or ambiguous server-side execution must not be described as a universal atomicity guarantee.
+The registry retains a ring of 32 terminal manual receipts, plus the current owner's latest ordered outcome (or the latest explicit stop), and all pending outcomes. Automatic discovery has its separate bounded published-receipt window. FIFO clients durably consume an acknowledgment before sending the next owned sequence; passive retries whose old receipt was pruned recompute current facts instead of replaying an old snapshot. A table selection from `discover --parent N` also carries the verified selection revision: an old retry cannot replace a newer selection. `selection_superseded` requires a freshly queued selection command. An unknown old owned acknowledgment is never treated as success or reinterpreted as a new phase event.
+
+The registry uses a conservative 48 KiB application limit. Pending intents, controlling history and active evidence are not silently truncated when it fills; capacity failure refuses acknowledgment. GitHub does not offer one atomic transaction covering Project fields, issue comments and the registry: partial publication remains unsynchronized and repairable. All supported writers use the same repository-wide Actions concurrency group with `cancel-in-progress: false`. External forced cancellation or ambiguous server-side execution must not be described as a universal atomicity guarantee.
 
 Publish only technical progress and necessary repository references. Never pass credentials, sessions, private Documents or debug dumps as result text. Expected errors are structured JSON codes; raw provider error bodies are not emitted.
