@@ -54,6 +54,106 @@ functions in a single PostgreSQL transaction instead of making 2,002 HTTP calls;
 real user queries, approval, report generation and Finalization remain unchanged.
 No database files run concurrently over a shared mutable stack.
 
+## Isolated test shards
+
+The `full` and `acceptance` jobs each run three shards on separate GitHub
+runners. Vitest splits files with `--shard=N/3` and keeps `test:serial`;
+Playwright splits files with the same flag and keeps one worker. Each shard
+starts its own Supabase stack. No mutable database, production build or test
+result is shared between runners. All files still run once; opt-in live-provider
+contract tests remain opt-in.
+
+Both matrices use `fail-fast: false`, so one failed shard does not cancel its
+siblings or discard their diagnostics. The existing `check` and `e2e` gates
+consume the aggregate matrix results and fail if any shard fails or is
+cancelled. Browser trace artifacts include the shard number to avoid artifact
+name collisions. Every shard retains its `always()` database cleanup. The docs,
+draft, exact-main release evidence and PR cancellation policies are unchanged.
+
+This trades additional runner setup for shorter elapsed time: dependency
+installation, database startup and production build happen independently for
+each shard. Do not interpret a shorter workflow as fewer runner minutes.
+
+### Failure at `21b66bb`
+
+[Main CI 41686777759](https://github.com/Thomisso/iVAT/actions/runs/41686777759)
+took 26:06 from creation to the last required gate. Its application test step
+took 1,256.95 seconds; one of 1,028 tests failed. The browser suite ran 93 tests
+with one worker and reported 87 passed, one failed and five skipped in 18.7
+minutes. Database startup took 98.4 seconds and its production build 57.9
+seconds. The preceding application revision passed in
+[CI 41685633691](https://github.com/Thomisso/iVAT/actions/runs/41685633691), with
+a 981-second application test step. `21b66bb` itself changed documentation only.
+
+The browser trace showed two injected 503 upload responses, followed by a real
+500 and a successful retry. The Next.js log identified PostgreSQL deadlock
+`40P01`. Source File insertion locked Upload Batch before Company, while the
+processing worker locked Company before Upload Batch. Migration
+`20261128090000_upload_company_before_batch.sql` puts the upload on the same
+lock order. `tests/source-upload-concurrency.test.ts` coordinates a real upload
+with the worker's database transition: it reproduced `40P01` before the fix in
+1.74 seconds and passed after it. The browser's exact transfer-count assertion
+is retained.
+
+The Security return test bundled twelve database-backed resolutions into one
+20-second test. Its entire nine-test file passed in 2.56 seconds on a clean
+local stack, compared with 60.67 seconds and one timeout in the failed CI run.
+The read-only fallback cases now share fixture setup but have separate verdicts
+and timeout budgets. This preserves every assertion without raising the global
+timeout. Sharding also limits unrelated fixture accumulation on each stack;
+these observations do not establish a production query performance fix.
+
+The first sharded trial,
+[PR CI 41794647749](https://github.com/Thomisso/iVAT/actions/runs/41794647749),
+completed in 678 seconds including its two-second initial queue. All three
+browser shards and two application shards passed; the remaining application
+shard exposed a statement timeout during setup of the 1,001-Document lock test.
+Its setup loaded the full workspace reporting projection just to obtain IDs.
+The large fixture now returns the IDs produced by its existing worker recording
+transaction. The test still queries every lock under the User's identity,
+checks all 1,001 results and verifies approval refusals and the saved snapshot.
+With the isolated database restricted to 0.15 CPU, the original setup reproduced
+the statement timeout in 16.72 seconds; the revised test passed in 20.38 seconds
+under the same restriction without changing any timeout or reducing the data.
+The CPU restriction was removed after the experiment. This is fixture isolation,
+not an optimization of the full workspace projection; that query can still
+require separate performance work for large Companies.
+
+### Supabase startup port collision
+
+The ready-for-review rerun at the same `d42218d` revision,
+[CI 41807140100](https://github.com/Thomisso/iVAT/actions/runs/41807140100),
+passed both other application shards, all browser shards and the separate
+Deployment verification. `full (1)` failed before any application test ran:
+Docker could not publish Mailpit on host port `54324` (`address already in use`).
+The failed run did not capture the owning socket, so its process cannot be
+identified retrospectively.
+
+Supabase's `54320–54329` host ports overlap Linux's default automatic port range.
+Every Supabase CI shard now adds that range to
+`net.ipv4.ip_local_reserved_ports` before checkout, downloads or test listeners,
+preserving any reservations already present on the disposable runner. The
+[kernel documentation](https://docs.kernel.org/networking/ip-sysctl.html#ip-variables)
+explains that reserved ports are excluded from automatic allocation while
+explicit service binds still work. This prevents ephemeral connections and
+`listen(0)` helpers from taking the fixed Supabase ports; it does not evict an
+explicit listener. A failed startup also captures sockets and container port
+bindings before the workflow cleanup.
+
+A deterministic reproduction in a separate Docker network namespace exhausted
+an automatic range containing `54324`, then asserted that an explicit Mailpit
+bind could succeed. It failed with `EADDRINUSE` without a reservation and passed
+with `54320–54329` reserved, including with an additional pre-existing reserved
+port. No host kernel setting or human development stack was changed locally.
+CI policy tests check that all configured Supabase host ports are covered and
+that reservation precedes network setup. A reservation is a startup safeguard,
+not a test retry or a relaxed check.
+
+The three-way split is an elapsed-time optimization, with a provisional target
+of roughly 10–12 minutes based on the observed test time plus independent setup.
+File durations and runner contention can make shards uneven. The new workflow
+must be measured on GitHub before claiming that target as an achieved result.
+
 The existing npm download cache remains enabled. Cache misses still install from
 the lockfile. No binary/test-result reuse, Docker cache, browser cache, or Next.js
 artifact reuse is claimed: baseline measurements do not establish enough benefit

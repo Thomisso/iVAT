@@ -19,7 +19,7 @@ if [[ -n $override || -n ${IVAT_DEPLOY_TEST_APP_IMAGE:-} || -n ${IVAT_DEPLOY_PUB
 fi
 exec 9>"$lock"
 flock -w "$lock_wait" 9 || { echo 'Deployment lock unavailable; a backup or release is still running.' >&2; exit 1; }
-# Check again while holding the same lock as cron.
+# Check again while holding the same lock as the daily backup.
 [[ ! -e $stack/deploy/.deployment-unresolved ]] || { echo 'An unresolved deployment requires joint recovery.' >&2; exit 1; }
 if [[ ${IVAT_DEPLOY_CREDENTIALS_STDIN:-0} == 1 ]]; then
   IFS= read -r GHCR_TOKEN

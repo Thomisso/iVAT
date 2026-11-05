@@ -147,22 +147,23 @@ it("identifies locks beyond the configured PostgREST row limit", async () => {
   expect(snapshot?.documents).toEqual([]);
   // This tests lookup completeness, not 1001 approvals. New Extractions in a
   // locked period remain preserved for review under ADR-0007.
-  await companyWithManyReportDocuments(1001, company);
-  const documents = await listCompanyDocuments(company.client, company.companyId);
+  // Use the identities produced by setup: this test exercises lock lookup,
+  // without also loading every full workspace reporting projection.
+  const { documentIds } = await companyWithManyReportDocuments(1001, company);
 
   const locks = await documentPeriodLocks(
     company.client,
     company.companyId,
-    documents.map((document) => document.id),
+    documentIds,
   );
 
-  expect(documents).toHaveLength(1001);
+  expect(documentIds).toHaveLength(1001);
   expect(Object.keys(locks)).toHaveLength(1001);
   expect(new Set(Object.values(locks))).toEqual(new Set(["2026-10"]));
-  for (const document of [documents[0], documents.at(-1)!]) {
+  for (const documentId of [documentIds[0], documentIds.at(-1)!]) {
     expect(await approveDocument(company.client, {
       companyId: company.companyId,
-      documentId: document.id,
+      documentId,
       version: 1,
     })).toEqual({ ok: false, error: "period_locked" });
   }

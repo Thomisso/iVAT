@@ -387,7 +387,7 @@ Before enabling anything, review these concrete prerequisites together:
 3. Create reviewed SSH access and a Roští API key limited as the provider allows
    to the existing Stack/company. Keep private `.env` and Vault values on the
    Stack. The workflow never downloads or replaces them.
-4. Verify the existing daily cron and cron daemon, the newest completed daily
+4. Verify the latest `Daily Roští backup` workflow run, the newest completed daily
    `.tar.gz` plus matching `.images.json`, age at most 26 hours, gzip integrity,
    and seven-day retention. Confirm previous revision/image records are present
    and there is no unresolved deployment. No extra release backup, computer
@@ -521,18 +521,28 @@ inventory under the shared lock, requires age at most 26 hours and validates
 integrity. It creates no additional pre-release backup and needs no local
 computer, cloud storage or off-server copy.
 
-The existing schedule is:
+The schedule is the `Daily Roští backup` GitHub workflow
+(`.github/workflows/daily-backup.yml`) at 03:15 UTC. It uses the same pinned
+SSH secrets and variables as the deploy job, shares its `rosti-production`
+concurrency group and runs only while `ROSTI_DEPLOY_ENABLED` is `true`. On the
+host it runs:
 
-```cron
-15 3 * * * flock -n /tmp/ivat-backup.lock sh /srv/stack/deploy/scripts/backup-daily.sh >> /srv/stack/deploy/backups/daily.log 2>&1
+```bash
+flock -w 900 /tmp/ivat-backup.lock sh /srv/stack/deploy/scripts/backup-daily.sh >> /srv/stack/deploy/backups/daily.log 2>&1
 ```
 
-The pilot host timezone was UTC, so this is 03:15 UTC. During activation,
-recheck the installed cron and running daemon, especially after replacing the
-provider's `mgm` container. Inspect `daily.log` privately for failures. No new
-schedule, retention policy or automatic external alert is installed by this
-release workflow. Historical computer copies in the deployment record do
-not create a requirement for future releases.
+Host output stays in the private `daily.log`; the workflow reports only
+success or failure, and a failed scheduled run triggers GitHub's normal
+workflow-failure notification. Run it manually with **Actions → Daily Roští
+backup → Run workflow**. GitHub may start scheduled runs some minutes late.
+
+The original host crontab entry in the provider's `system-mgm-1` never ran:
+its `crond` did not pick up `/etc/crontabs/root` (`cron.update` was never
+consumed, no `daily.log` appeared) and the pilot deployment of v0.3.2 was
+refused for a backup older than 26 hours. Do not rely on a host crontab in
+`mgm`; remove that entry so a later provider fix cannot double the service
+stop. Historical computer copies in the deployment record do not create a
+requirement for future releases.
 
 For an independently requested manual backup, use the same lock; releases do
 not require this extra step:
@@ -594,7 +604,7 @@ first, Roští API key second. Do not put either secret in command arguments,
 logs or shell history. Registry credentials are kept only in a private
 per-command temporary Docker configuration and removed on exit.
 
-The command acquires the same `/tmp/ivat-backup.lock` used by the daily cron
+The command acquires the same `/tmp/ivat-backup.lock` used by the daily backup
 job. Before stopping services, it validates the bundle, the newest completed
 daily archive and its image inventory (maximum age 26 hours), gzip integrity,
 and the installation's public build settings. It creates no additional
