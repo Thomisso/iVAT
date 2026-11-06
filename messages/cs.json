@@ -1489,40 +1489,6 @@
       "manual_classification_required": "Vyžaduje ruční klasifikaci",
       "currency_conversion_required": "Vyžaduje přepočet měny",
       "incomplete_data": "Neúplné nebo neplatné údaje pro výkaz"
-    },
-    "pdfExport": {
-      "heading": "Údaje pro export",
-      "vatId": "DIČ: {value}",
-      "ico": "IČO: {value}",
-      "period": "Zdaňovací období: {value}",
-      "taxOffice": "Finanční úřad: {value}",
-      "territorialOffice": "Územní pracoviště: {value}",
-      "economicActivity": "Ekonomická činnost: {value}",
-      "preparedOn": "Datum sestavení: {value}",
-      "email": "E-mail: {value}",
-      "phone": "Telefon: {value}",
-      "signatory": "Podepisující osoba: {value}",
-      "capacity": "Postavení: {value}",
-      "address": "Adresa pro EPO: {value}",
-      "summary": "Souhrn C",
-      "fields": {
-        "c_radku": "Číslo řádku",
-        "kod_rezim_pl": "Kód režimu plnění",
-        "pomer": "Poměrný nárok",
-        "zdph_44": "Oprava daně",
-        "zakl_dane1": "Základ daně 21 %",
-        "dan1": "DPH 21 %",
-        "zakl_dane2": "Základ daně 12 %",
-        "dan2": "DPH 12 %",
-        "obrat23": "Řádek 1 – základ daně",
-        "obrat5": "Řádek 2 – základ daně",
-        "pln23": "Řádek 40 – základ daně",
-        "pln5": "Řádek 41 – základ daně",
-        "pln_rez_pren": "Řádek 25 – základ daně",
-        "rez_pren23": "Řádek 10 – základ daně",
-        "rez_pren5": "Řádek 11 – základ daně",
-        "celk_zd_a2": "Oddíl A.2 – základ daně"
-      }
     }
   },
   "epoExport": {
