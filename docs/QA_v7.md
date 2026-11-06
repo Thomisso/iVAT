@@ -3,7 +3,7 @@
 **Datum založení:** 6. 11. 2026
 **Stav:** otevřeno; převzato z uzavřeného [QA v6](QA_v6.md).
 **Rozsah:** 10 nedokončených položek Features, včetně částečně splněného bodu 5. Původní číslování z QA v6 je zachováno pro dohledatelnost; body 3 a 9 jsou dokončené a zůstávají v QA v6. Všechny Bugs / Improvements a–g z QA v6 jsou dokončené.
-**Další postup:** rozpracovat dosud otevřené požadavky; body 10–12 jsou technické návrhy k samostatnému posouzení. Přesun do QA v7 sám neschvaluje konkrétní řešení ani nezahajuje implementaci.
+**Další postup:** body 1, 2, 4, 7, 8 a 10–12 jsou rozpracované v jedné [společné specifikaci revize dokladů](document-review.md), výslovně schválené uživatelem dne 6. 11. 2026 a publikované jako [#222](https://github.com/Thomisso/iVAT/issues/222) se štítkem `ready-for-agent`. Následuje ticketizace; implementace zůstává otevřená. Body 5 a 6 pokračují samostatně.
 
 ## Features
 
@@ -11,13 +11,17 @@
 
 **Stav:** otevřeno; převzato z QA v6 dne 6. 11. 2026.
 
+**Specifikace:** [revize dokladů](document-review.md), včetně obrázků, Excelu a volitelného Inspect.
+
 - Vytěžené informace zvýraznit přímo v PDF moderním žlutým zvýrazněním.
 - Model musí spolu s vytěženými údaji vracet jejich polohu v dokumentu, tedy místo, kde je identifikoval.
-- Kliknutí do boxu má zobrazit přiblížený detail příslušného místa v PDF. Přesnou podobu boxu a interakce upřesnit při rozpracování.
+- Výběr pole nebo zvýrazněného místa propojí formulář s předlohou. Přiblížený detail se zobrazuje pouze při zapnutém režimu Inspect s lupou podle společné specifikace.
 
 ### 2. Adresář dodavatelů a odběratelů
 
 **Stav:** otevřeno; převzato z QA v6 dne 6. 11. 2026.
+
+**Specifikace:** [revize dokladů](document-review.md). Adresář je per Company; pokročilé statistiky zůstávají budoucím rozšířením.
 
 - Vytvořit adresář dodavatelů a odběratelů.
 - Vytěžené informace propojit s odpovídajícím dodavatelem nebo odběratelem v adresáři.
@@ -27,9 +31,11 @@
 
 **Stav:** otevřeno; převzato z QA v6 dne 6. 11. 2026.
 
+**Specifikace:** [revize dokladů](document-review.md). Ruční částky po sazbách pro vybraná samostatná plnění běžného tuzemského přijatého dokladu. Rozšířené daňové scénáře pokračují v [#221](https://github.com/Thomisso/iVAT/issues/221).
+
 - Umožnit ke zpracování a do přiznání zahrnout pouze část dokladu, respektive část jeho částky.
 - Příklad: faktura obsahuje několik položek, ale k uplatnění je určena pouze část faktury.
-- Konkrétní způsob výběru části dokladu a zadání částky zůstává k rozpracování.
+- Způsob zadání, neuplatněný zbytek a zachování součtových kontrol stanoví společná specifikace.
 
 ### 5. Přehlednější správa uživatelů a ochrana před odebráním vlastního přístupu
 
@@ -52,6 +58,8 @@
 
 **Stav:** otevřeno; převzato z QA v6 dne 6. 11. 2026.
 
+**Specifikace:** [společná specifikace revize dokladů](document-review.md), včetně Q1–Q42 a celého dokumentu schválená uživatelem dne 6. 11. 2026. Zahrnuje také kontextovou nápovědu klávesových zkratek vedle notifikací a opravu pravidel uplatnění.
+
 - Sekci revize dokladů upravit tak, aby byla uživatelsky přívětivější.
 - Reorganizovat tlačítka a jako hlavní akce zdůraznit „Schválit“ a „Zamítnout“.
 - Zlepšit ergonomii polí a jejich vyplňování.
@@ -61,13 +69,17 @@
 
 **Stav:** otevřeno; převzato z QA v6 dne 6. 11. 2026.
 
+**Specifikace:** [revize dokladů](document-review.md) a ADR-0019; opt-in bez AI confidence prahu.
+
 - Do nastavení firmy přidat volbu „Automaticky schválit doklady, které nevyžadují pozornost“.
 - Pokud je volba pro firmu zapnutá, doklady vyhodnocené jako bezproblémové automaticky schválit.
-- Přesná definice dokladu, který „nevyžaduje pozornost“, zůstává k rozpracování.
+- Doklad bez potřeby pozornosti splňuje všechny podmínky společné specifikace, včetně nulových chyb a upozornění, žádné nalezené duplicity a způsobilého období.
 
 ### 10. Společná příprava verzí vytěžení (Extraction Version)
 
 **Stav:** otevřeno; převzato z QA v6 dne 6. 11. 2026.
+
+**Specifikace:** [revize dokladů](document-review.md), podpůrná změna pro shodné výsledky všech vstupních cest.
 
 **Doplněno:** 6. 11. 2026 na základě architektonické revize. **Doporučení:** silné; realizovat jako první z bodů 10–12. Návrh k rozpracování, mimo specifikace #185 a #200; konkrétní rozhraní ani implementační tickety zatím nejsou navržené.
 
@@ -82,6 +94,8 @@
 
 **Stav:** otevřeno; převzato z QA v6 dne 6. 11. 2026.
 
+**Specifikace:** [revize dokladů](document-review.md), se zachováním současných provozních invariantů.
+
 **Doplněno:** 6. 11. 2026 na základě architektonické revize. **Doporučení:** stojí za rozpracování. Návrh mimo specifikace #185 a #200; konkrétní rozhraní ani implementační tickety zatím nejsou navržené.
 
 - Obsluha rozdělení zdrojového souboru (Split) a vytěžení dokladu (Extraction) opakuje rozhodování mezi technickým opakováním, čekáním na zásah platformy a konečným selháním, přestože už sdílí dílčí pomocné funkce.
@@ -94,6 +108,8 @@
 ### 12. Společné načítání podkladů pro revizi dokladu
 
 **Stav:** otevřeno; převzato z QA v6 dne 6. 11. 2026.
+
+**Specifikace:** [revize dokladů](document-review.md), včetně správných nálezů aktuální a historické verze.
 
 **Doplněno:** 6. 11. 2026 na základě architektonické revize. **Doporučení:** stojí za rozpracování; očekávaný přínos omezuje zatím jediný volající. Návrh mimo specifikace #185 a #200; konkrétní rozhraní ani implementační tickety zatím nejsou navržené.
 
