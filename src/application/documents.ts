@@ -3,8 +3,6 @@ import { reportingPeriodForDate, reportingPeriodsOf, reportingPeriodStart } from
 import type { PostgrestError } from "@supabase/supabase-js";
 import { isUuid, type AppClient, type Result } from "./client";
 import {
-  normalizeExtractionPayload,
-  validateManualDocumentPayload,
   type Direction,
   type Party,
   type ExtractionPayload,
@@ -13,15 +11,14 @@ import {
 import { extractJob, type JobQueue } from "./processing";
 import { isReportingPeriod, NO_REPORTING_PERIOD, pragueDate } from "./reporting-periods";
 import {
-  CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA,
-  validateDocument,
   currentValidationFindings,
   type ValidationFinding,
 } from "./document-validation";
 import { pdfPages, readSourceFile, SOURCE_FILE_MEDIA_TYPES, prepareSourceFile, storeSourceFileObjects, type UploadSourceFileError } from "./source-files";
 import { assertWorkbookRanges, workbookToText, workbookRowsToText, type WorkbookRowSet } from "./workbooks";
-import { applyCnbConversion, type ExchangeRateProvider } from "./exchange-rates";
-import { vatRegistryFindings, type VatPayerRegistry } from "./vat-registry";
+import type { ExchangeRateProvider } from "./exchange-rates";
+import type { VatPayerRegistry } from "./vat-registry";
+import { prepareExtractionVersion, prepareManualExtractionPayload } from "./extraction-preparation";
 import { prepareDocumentReporting, type DocumentReporting } from "./document-reporting";
 import { randomUUID } from "node:crypto";
 import type { SourceRange } from "./ai-provider";
@@ -68,20 +65,13 @@ export async function createManualDocument(
   vatRegistry: VatPayerRegistry = unavailableVatPayerRegistry,
 ): Promise<Result<{ id: string }, ManualDocumentPayloadError | "forbidden" | "period_locked">> {
   if (!isUuid(input.companyId)) return { ok: false, error: "forbidden" };
-  let payload = normalizeExtractionPayload(input.payload);
-  const invalid = validateManualDocumentPayload(payload);
-  if (invalid) return { ok: false, error: invalid };
-  delete payload.confidence;
-  const conversion = await applyCnbConversion(payload, exchangeRates);
-  payload = conversion.payload;
+  const candidate = prepareManualExtractionPayload(input.payload);
+  if (!candidate.ok) return candidate;
+  const prepared = await prepareExtractionVersion(candidate.value, exchangeRates, vatRegistry);
   const { data, error } = await client.rpc("create_manual_document", {
     target_company_id: input.companyId,
-    payload,
-    findings: [
-      ...validateDocument(payload, CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA),
-      ...(await vatRegistryFindings(vatRegistry, payload)),
-      ...conversion.findings,
-    ],
+    payload: prepared.payload,
+    findings: await prepared.findings(),
   });
   if (error) return refusal(error, ["period_locked", "tax_point_date_required", "invalid_date"]);
   return { ok: true, value: { id: data } };
@@ -489,24 +479,17 @@ export async function correctDocument(
   exchangeRates: ExchangeRateProvider = unavailableExchangeRates,
   vatRegistry: VatPayerRegistry = unavailableVatPayerRegistry,
 ): Promise<Result<{ version: number }, CorrectDocumentError>> {
-  let payload = normalizeExtractionPayload(input.payload);
-  const invalid = validateManualDocumentPayload(payload);
-  if (invalid) return { ok: false, error: invalid };
+  const candidate = prepareManualExtractionPayload(input.payload);
+  if (!candidate.ok) return candidate;
   const document = await findDocumentId(client, input.companyId, input.documentId);
   if (!document) return { ok: false, error: "forbidden" };
-  delete payload.confidence;
-  const conversion = await applyCnbConversion(payload, exchangeRates);
-  payload = conversion.payload;
+  const prepared = await prepareExtractionVersion(candidate.value, exchangeRates, vatRegistry);
 
   const { data: version, error } = await client.rpc("correct_document", {
     target_document_id: document,
     based_on_version: input.basedOnVersion,
-    payload,
-    findings: [
-      ...validateDocument(payload, CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA),
-      ...(await vatRegistryFindings(vatRegistry, payload)),
-      ...conversion.findings,
-    ],
+    payload: prepared.payload,
+    findings: await prepared.findings(),
   });
   if (error) return refusal(error, ["not_in_review", "stale_version", "period_locked", "tax_point_date_required", "invalid_date"]);
   return { ok: true, value: { version } };
