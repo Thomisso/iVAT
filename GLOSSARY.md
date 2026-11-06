@@ -66,6 +66,10 @@ _Avoid_: Type, side, AP/AR
 The other party of a Document: its supplier when the Document is incoming, its customer when outgoing.
 _Avoid_: Partner, contact, vendor
 
+**Counterparty Directory**:
+A Company's own collection of Counterparties; one entry can be both a supplier and a customer. Linking a Document to an entry does not replace the Document's recorded party details.
+_Avoid_: Shared Organization address book, supplier-only register
+
 **Payment Account**:
 The bank account designated for payment on a Document. A Czech domestic account number and its equivalent Czech IBAN are two representations of the same Payment Account.
 _Avoid_: IBAN account, separate domestic account
@@ -107,8 +111,20 @@ A flag raised when a Document matches an existing one in the same Company; it ne
 _Avoid_: Duplicate error, conflict
 
 **Approved Document**:
-A Document a human has confirmed; the only kind that counts towards VAT Reports.
+A Document confirmed by a human or under the Company's explicitly enabled automatic approval policy; the only kind that counts towards VAT Reports.
 _Avoid_: Validated, verified, final
+
+**Rejected Document**:
+A Document deliberately excluded from further processing and VAT Reports with a recorded reason, while retaining its data and history. Restoring it returns it to human review.
+_Avoid_: Deleted Document, failed Extraction
+
+**Partial Claim**:
+A User's explicit selection of amounts for eligible separate supplies on an incoming Document, by VAT rate, while preserving the Document's full amounts. It is independent of data discrepancies and distinct from statutory proportional or reduced deduction.
+_Avoid_: Rounding correction, corrected total
+
+**Unclaimed Portion**:
+The difference between a Document's full amounts and its explicitly selected Partial Claim, by VAT rate. It does not classify expenses for income tax or absorb discrepancies in extracted data.
+_Avoid_: Non-tax expense, balancing amount
 
 **Return to Review**:
 Withdrawing a Document's approval so it can be corrected and approved again; possible only outside a Period Lock.
@@ -117,7 +133,7 @@ _Avoid_: Unapprove, reject, reopen
 ## VAT
 
 **VAT Regime**:
-The VAT treatment of a Document (e.g. domestic, domestic reverse charge, EU acquisition of goods, EU received service). Selected or confirmed by a human, with an optional AI proposal.
+The VAT treatment of a Document (e.g. domestic, domestic reverse charge, EU acquisition of goods, EU received service). Selected or confirmed by a human, or accepted under the Company's explicitly enabled automatic approval policy, with an optional AI proposal.
 _Avoid_: Tax code, VAT type, classification
 
 **Rules Engine**:
@@ -129,8 +145,12 @@ The date of the taxable supply (DUZP), which determines the default Reporting Pe
 _Avoid_: VAT date, issue date (they differ)
 
 **Import Date**:
-The date a Document's Source File was uploaded into iVAT; informational only, it never decides a Reporting Period.
+The date a Document's Source File was uploaded into iVAT, not the date the Company originally received the financial document. It does not replace the Tax Point Date or establish earlier possession of the Document.
 _Avoid_: Receipt Date, received date
+
+**Earliest Claim Period**:
+The first Reporting Period in which the conditions for claiming an incoming Document's input VAT were satisfied. It is distinct from the period in which the entitlement arose and the period the User ultimately chooses to claim it.
+_Avoid_: Receipt Date, Import Period, entitlement period
 
 **Deferred Claim**:
 The choice to claim an incoming Document's input VAT in a Reporting Period later than the one of its Tax Point Date.

@@ -1,9 +1,13 @@
 # A Document's Reporting Period follows its Tax Point Date
 
-Every Document, incoming or outgoing, defaults to the Reporting Period of its Tax Point Date. iVAT no longer tracks a Receipt Date: the Import Date is shown for information only and never decides a period. An incoming Document's input VAT can be claimed later through a Deferred Claim chosen from the Company's unlocked Reporting Periods after the Tax Point Date's period, within three years.
+Every Document, incoming or outgoing, starts with the Reporting Period of its Tax Point Date as a proposed default. iVAT does not invent a Receipt Date from the Import Date. An incoming Document's input VAT may require a later unlocked Reporting Period through a Deferred Claim; ADR-0020 now defines eligibility, supported scope and the replacement for the previous general three-year limit.
 
-This trades the strict reading of §73 of the Czech VAT Act (input VAT may be claimed no earlier than the period in which the payer holds the document) for a predictable default that matches how accountants book invoices. When an invoice arrives after its Tax Point Date's period was finalized, it lands in a locked period with a Period Lock warning (ADR-0007), and the User resolves it with a Deferred Claim.
+This retains a predictable initial proposal while separating it from legal eligibility for the chosen claim period. When an invoice arrives after its Tax Point Date's period was finalized, it proceeds to review with a Period Lock warning (ADR-0007), and the User resolves it through an eligible unlocked period under ADR-0020 rather than silently assigning it to a locked period.
 
 ## Considered Options
 
 - Defaulting incoming Documents to the later of the Tax Point Date and the Receipt Date (the previous behaviour) was rejected because the Receipt Date defaulted to the upload date, which silently moved Documents uploaded late into the wrong period.
+
+## Revision accepted on 6 November 2026; implementation pending
+
+The old general three-year Deferred Claim limit and the prior trade-off allowing a default without checking the earliest eligible period are superseded by ADR-0020. The accepted target distinguishes transitional provisions, entitlement, earliest eligibility and actual exercise by filing. The existing implementation has not changed; [the shared Document review specification](../document-review.md) records the target and its implementation gates.
