@@ -1,225 +1,78 @@
-import fontkit from "@pdf-lib/fontkit";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-import { PDFDocument, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import { CONTROL_STATEMENT_DETAILS } from "./control-statement-form";
+import { PDFDocument } from "pdf-lib";
 import type { AppClient, Result } from "./client";
-import { registeredAddressLine } from "./companies";
-import {
-  controlStatementPreviewData,
-  type ControlStatementPreviewData,
-} from "./control-statement-preview";
+import { getVatReportExportHeader, resolveEpoExportDetails, todayInPrague, type VatReportExportHeader } from "./epo-export-context";
+import { prepareControlStatement, type EpoRow } from "./epo-values";
 import { getVatReport } from "./vat-reports";
-import { formatDate } from "@/lib/format-date";
+import { drawFormCell, drawFormHeader, embedFormFont, loadFormAsset } from "./pdf-form";
 
-const fontPath = path.join(
-  process.cwd(),
-  "node_modules/next/dist/compiled/@vercel/og/Geist-Regular.ttf",
-);
-const PAGE_SIZE: [number, number] = [595.28, 841.89];
-const LEFT = 42;
-const BOTTOM = 58;
+// Retained for existing callers; statutory form content is always Czech.
+export type ControlStatementPdfCopy = Record<"title" | "vatId" | "ico" | "address" | "reportingPeriod" | "document" | "counterpartyVatId" | "counterpartyCountry" | "taxPointDate" | "supplyCode" | "section" | "rate" | "taxBaseCzk" | "vatCzk" | "sectionTotals" | "noEntries" | "statementTotals" | "subject", string>;
+export type ControlStatementPdfDownload = { bytes: Uint8Array; fileName: string; mediaType: "application/pdf" };
 
-export type ControlStatementPdfCopy = {
-  title: string;
-  vatId: string;
-  ico: string;
-  address: string;
-  reportingPeriod: string;
-  document: string;
-  counterpartyVatId: string;
-  counterpartyCountry: string;
-  taxPointDate: string;
-  supplyCode: string;
-  section: string;
-  rate: string;
-  taxBaseCzk: string;
-  vatCzk: string;
-  sectionTotals: string;
-  noEntries: string;
-  statementTotals: string;
-  subject: string;
-};
-
-function text(
-  page: PDFPage,
-  font: PDFFont,
-  value: string,
-  x: number,
-  y: number,
-  size = 10,
-) {
-  page.drawText(value, { x, y, size, font, color: rgb(0.08, 0.1, 0.13) });
-}
-
-function rightAligned(
-  page: PDFPage,
-  font: PDFFont,
-  value: string,
-  right: number,
-  y: number,
-  size = 10,
-) {
-  text(page, font, value, right - font.widthOfTextAtSize(value, size), y, size);
-}
-
-function pageHeader(
-  document: PDFDocument,
-  font: PDFFont,
-  preview: ControlStatementPreviewData,
-  copy: ControlStatementPdfCopy,
-  firstPage: boolean,
-) {
-  const page = document.addPage(PAGE_SIZE);
-  const right = page.getWidth() - LEFT;
-  text(page, font, copy.title, LEFT, 798, 18);
-  if (!firstPage) {
-    text(page, font, preview.company.name, LEFT, 768, 11);
-    text(
-      page,
-      font,
-      `${copy.reportingPeriod}: ${preview.period}`,
-      LEFT,
-      748,
-      10,
-    );
-    return { page, right, y: 716 };
-  }
-  text(page, font, preview.company.name, LEFT, 767, 13);
-  text(page, font, `${copy.vatId}: ${preview.company.vatId}`, LEFT, 747);
-  text(page, font, `${copy.ico}: ${preview.company.ico}`, LEFT, 731);
-  text(
-    page,
-    font,
-    `${copy.address}: ${registeredAddressLine(preview.company)}`,
-    LEFT,
-    715,
-  );
-  text(
-    page,
-    font,
-    `${preview.company.postalCode} ${preview.company.city}`,
-    LEFT + 48,
-    699,
-  );
-  text(
-    page,
-    font,
-    `${copy.reportingPeriod}: ${preview.period}`,
-    LEFT,
-    675,
-    11,
-  );
-  return { page, right, y: 638 };
-}
-
-/** Renders a readable iVAT preview, not a replica of the official DPHKH1 form. */
-export async function createControlStatementPdf(
-  preview: ControlStatementPreviewData,
-  copy: ControlStatementPdfCopy,
-): Promise<Uint8Array> {
+/** Complete output and header-only preview reuse the exact opening artwork. */
+async function openingForm(header: VatReportExportHeader) {
+  const template = await PDFDocument.load(await loadFormAsset("control-statement.pdf"));
   const document = await PDFDocument.create();
-  document.registerFontkit(fontkit);
-  const font = await document.embedFont(await readFile(fontPath), {
-    subset: true,
-  });
-  let { page, right, y } = pageHeader(document, font, preview, copy, true);
+  const font = await embedFormFont(document);
+  const [opening] = await document.copyPages(template, [0]);
+  document.addPage(opening);
+  drawFormHeader(opening, font, header, "control-statement");
+  document.setTitle(`Kontrolní hlášení ${header.period} · ${header.company.name}`);
+  return { template, document, font };
+}
 
-  function columnHeader() {
-    page.drawRectangle({ x: LEFT, y: y - 8, width: right - LEFT, height: 23, color: rgb(0.91, 0.94, 0.97) });
-    text(page, font, copy.rate, LEFT + 6, y);
-    rightAligned(page, font, copy.taxBaseCzk, right - 114, y);
-    rightAligned(page, font, copy.vatCzk, right - 6, y);
-    y -= 23;
-  }
-  function ensureSpace(height: number, continuingTable = false) {
-    if (y - height >= BOTTOM) return;
-    ({ page, right, y } = pageHeader(document, font, preview, copy, false));
-    if (continuingTable) columnHeader();
-  }
-  function metadataOf(entry: ControlStatementPreviewData["sections"][number]["entries"][number]) {
-    return [
-      entry.documentNumber && `${copy.document}: ${entry.documentNumber}`,
-      entry.counterpartyVatId && `${copy.counterpartyVatId}: ${entry.counterpartyVatId}`,
-      entry.counterpartyCountry && `${copy.counterpartyCountry}: ${entry.counterpartyCountry}`,
-      entry.taxPointDate && `${copy.taxPointDate}: ${formatDate(entry.taxPointDate)}`,
-      entry.reverseChargeCode && `${copy.supplyCode}: ${entry.reverseChargeCode}`,
-    ].filter((value): value is string => Boolean(value));
-  }
-
-  if (!preview.sections.length) {
-    text(page, font, copy.noEntries, LEFT, y);
-    y -= 30;
-  }
-  for (const section of preview.sections) {
-    // Keep the heading/header (49pt) with the first entry's metadata and row (37pt).
-    ensureSpace(86 + metadataOf(section.entries[0]).length * 16);
-    text(page, font, `${copy.section} ${section.section}`, LEFT, y, 13);
-    y -= 26;
-    columnHeader();
-    for (const entry of section.entries) {
-      const metadata = metadataOf(entry);
-      ensureSpace(metadata.length * 16 + 37, true);
-      for (const line of metadata) {
-        ensureSpace(16, true);
-        text(page, font, line, LEFT + 6, y);
-        y -= 16;
-      }
-      for (const rate of entry.rateBreakdown) {
-        ensureSpace(23, true);
-        text(page, font, `${rate.rate}%`, LEFT + 6, y);
-        rightAligned(page, font, rate.netAmount, right - 114, y);
-        rightAligned(page, font, rate.vatAmount, right - 6, y);
-        page.drawLine({ start: { x: LEFT, y: y - 8 }, end: { x: right, y: y - 8 }, thickness: 0.5, color: rgb(0.78, 0.8, 0.83) });
-        y -= 23;
-      }
-      y -= 14;
+export async function createControlStatementPdf(header: VatReportExportHeader, rows: EpoRow[]): Promise<Uint8Array> {
+  const { template, document, font } = await openingForm(header);
+  const totalPages = 2 + CONTROL_STATEMENT_DETAILS.reduce((sum, section) => sum + Math.ceil(rows.filter(row => row.name === section.name).length / (section.rows.length - 1)), 0);
+  for (const section of CONTROL_STATEMENT_DETAILS) {
+    const entries = rows.filter(row => row.name === section.name);
+    const capacity = section.rows.length - 1;
+    for (let start = 0; start < entries.length; start += capacity) {
+      const [page] = await document.copyPages(template, [section.template]);
+      document.addPage(page);
+      const [left, top, right, bottom] = section.pageNumber;
+      const middle = (left + right) / 2;
+      if (section.name === "VetaA1") drawFormCell(page, font, "/", [middle - 6, top, middle + 6, bottom], { align: "center" });
+      drawFormCell(page, font, String(document.getPageCount()), [left, top, middle - 3, bottom], { align: "center" });
+      drawFormCell(page, font, String(totalPages), [middle + 3, top, right, bottom], { align: "center" });
+      entries.slice(start, start + capacity).forEach((entry, index) => {
+        const values: EpoRow["attributes"] = { ...entry.attributes, supplierVatId: `${entry.attributes.k_stat ?? ""}${entry.attributes.vatid_dod ?? ""}` };
+        section.fields.forEach((field, column) => {
+          if (!field) return;
+          drawFormCell(page, font, values[field], [section.columns[column], section.rows[index], section.columns[column + 1], section.rows[index + 1]], { align: /^(zakl_dane|dan)/.test(field) ? "right" : field === "c_evid_dd" ? "left" : "center", size: 8 });
+        });
+      });
     }
-    ensureSpace(35, true);
-    text(page, font, copy.sectionTotals, LEFT + 6, y, 11);
-    rightAligned(page, font, section.totals.netAmount, right - 114, y, 11);
-    rightAligned(page, font, section.totals.vatAmount, right - 6, y, 11);
-    y -= 36;
   }
-
-  if (y - 70 < BOTTOM) {
-    ({ page, right, y } = pageHeader(document, font, preview, copy, false));
+  const [summary] = await document.copyPages(template, [6]);
+  document.addPage(summary);
+  drawFormCell(summary, font, String(totalPages), [502.4, 21.3, 528.4, 38.1], { align: "center" });
+  drawFormCell(summary, font, String(totalPages), [534.4, 21.3, 560.5, 38.1], { align: "center" });
+  const aggregateColumns = [26.8, 116.5, 206.2, 295.6, 385.1, 474.1, 563.9];
+  for (const [name, top] of [["VetaA5", 140.04], ["VetaB3", 278.04]] as const) {
+    const aggregate = rows.find(row => row.name === name)?.attributes;
+    ["zakl_dane1", "dan1", "zakl_dane2", "dan2"].forEach((key, index) => drawFormCell(summary, font, aggregate?.[key], [aggregateColumns[index], top, aggregateColumns[index + 1], top + 28.29], { align: "right" }));
   }
-  text(page, font, copy.statementTotals, LEFT, y, 13);
-  y -= 25;
-  text(page, font, copy.taxBaseCzk, LEFT + 6, y);
-  rightAligned(page, font, preview.totals.netAmount, right - 6, y);
-  y -= 20;
-  text(page, font, copy.vatCzk, LEFT + 6, y);
-  rightAligned(page, font, preview.totals.vatAmount, right - 6, y);
-
-  document.setTitle(`${copy.title} ${preview.period} · ${preview.company.name}`);
-  document.setSubject(copy.subject);
+  const values = rows.find(row => row.name === "VetaC")?.attributes ?? {};
+  for (const [index, key] of ["obrat23", "obrat5", "pln23", "pln5", "pln_rez_pren", "rez_pren23", "rez_pren5", "celk_zd_a2"].entries()) {
+    const top = 376.24 + index * 20.03;
+    drawFormCell(summary, font, values[key], [445.92, top, 563.9, top + 19.5], { align: "right" });
+  }
   return document.save();
 }
 
-export type ControlStatementPdfDownload = {
-  bytes: Uint8Array;
-  fileName: string;
-  mediaType: "application/pdf";
-};
-
-/** RLS scopes the saved snapshot before any PDF bytes are produced. */
-export async function exportControlStatementPdf(
-  client: AppClient,
-  input: { companyId: string; period: string },
-  copy: ControlStatementPdfCopy,
-): Promise<Result<ControlStatementPdfDownload, "report_not_found">> {
+/** RLS scopes the saved report before any complete PDF bytes are produced. */
+export async function exportControlStatementPdf(client: AppClient, input: { companyId: string; period: string; details?: Record<string, string> }, _copy: ControlStatementPdfCopy | undefined, now: () => Date = () => new Date()): Promise<Result<ControlStatementPdfDownload, "report_not_found">> {
   const report = await getVatReport(client, input.companyId, input.period);
   if (!report) return { ok: false, error: "report_not_found" };
-  return {
-    ok: true,
-    value: {
-      bytes: await createControlStatementPdf(
-        controlStatementPreviewData(report.result),
-        copy,
-      ),
-      fileName: `DPHKH1-${input.period}.pdf`,
-      mediaType: "application/pdf",
-    },
-  };
+  const header = { company: report.result.company, period: report.period, details: await resolveEpoExportDetails(client, { companyId: input.companyId, company: report.result.company, details: input.details ?? {}, today: todayInPrague(now()) }) };
+  return { ok: true, value: { bytes: await createControlStatementPdf(header, prepareControlStatement(report.result)), fileName: `DPHKH1-${input.period}.pdf`, mediaType: "application/pdf" } };
+}
+
+/** No EPO rows, pagination or full-document exporter are involved in this path. */
+export async function exportControlStatementThumbnail(client: AppClient, input: { companyId: string; period: string; details?: Record<string, string> }, now: () => Date = () => new Date()): Promise<Result<ControlStatementPdfDownload, "report_not_found">> {
+  const header = await getVatReportExportHeader(client, input, now);
+  if (!header.ok) return header;
+  return { ok: true, value: { bytes: await (await openingForm(header.value)).document.save(), fileName: `DPHKH1-${input.period}-thumbnail.pdf`, mediaType: "application/pdf" } };
 }

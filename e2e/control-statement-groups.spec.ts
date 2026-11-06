@@ -41,8 +41,11 @@ test("saved Control Statement groups match HTML and PDF, with original Document 
     const text: string[] = [];
     for (let index = 1; index <= pdf.numPages; index++) text.push((await (await pdf.getPage(index)).getTextContent()).items.flatMap(item => "str" in item ? [item.str] : []).join(" "));
     await task.destroy();
-    expect(text.join(" ").match(new RegExp(`${label} A\\.4`, "g"))).toHaveLength(1);
-    for (const literal of [`${label} A.5`, `${label} B.3`, "GROUP-A4-ONE", "GROUP-A4-TWO", "30000.00", "6300.00", "2000.00", "420.00"]) expect(text.join(" ")).toContain(literal);
+    expect(text).toHaveLength(3);
+    expect(text[1].replace(/\s/g, "")).toContain("A.4.");
+    for (const literal of ["GROUP-A4-ONE", "GROUP-A4-TWO", "10000.00", "2100.00", "20000.00", "4200.00"]) expect(text[1]).toContain(literal);
+    for (const literal of ["200.00", "42.00", "2000.00", "420.00", "30200.00"]) expect(text[2]).toContain(literal);
+    expect(text.join(" ")).not.toContain("Section");
   }
   await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: new URL(baseURL).origin }]);
   await page.goto(output);

@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { provisionAndLogIn } from "./support/accounts";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
@@ -112,7 +113,7 @@ test("empty and draft Reporting Periods expose separate statutory destinations i
   await expect(page.locator('input[name="format"]')).toHaveValue("dphkh1");
   await expect(page.locator('select[name="format"]')).toHaveCount(0);
   const pdfDownload = page.getByRole("link", {
-    name: "Download Control Statement PDF",
+    name: "Download Control Statement PDF", exact: true,
   });
   const pdfPath = `/companies/${companyId}/vat-reports/2026-01/control-statement/pdf`;
   await expect(pdfDownload).toHaveAttribute("href", pdfPath);
@@ -126,9 +127,7 @@ test("empty and draft Reporting Periods expose separate statutory destinations i
   );
   const englishPdf = await pdfResponse.body();
   expect(englishPdf.subarray(0, 5).toString()).toBe("%PDF-");
-  expect(await pdfText(englishPdf)).toContain(
-    "iVAT · Control Statement preview",
-  );
+  expect((await pdfText(englishPdf)).replace(/\s/g, "")).toContain("KONTROLNÍHLÁŠENÍ");
 
   await page
     .getByRole("navigation", { name: "Reporting Period destinations" })
@@ -143,8 +142,8 @@ test("empty and draft Reporting Periods expose separate statutory destinations i
   );
   expect(czechPdfResponse.status()).toBe(200);
   const czechPdf = await pdfText(await czechPdfResponse.body());
-  expect(czechPdf).toContain("iVAT · Náhled kontrolního hlášení");
-  expect(czechPdf).toContain("Zdaňovací období: 2026-01");
+  expect(czechPdf.replace(/\s/g, "")).toContain("KONTROLNÍHLÁŠENÍ");
+  expect(czechPdf).toContain("2026");
   expect(czechPdf).not.toContain("Reporting Period");
   await page.reload();
   await expect(page).toHaveTitle("Historie exportů · 2026-01");
@@ -159,4 +158,57 @@ test("empty and draft Reporting Periods expose separate statutory destinations i
     "aria-current",
     "page",
   );
+});
+
+
+test("both statutory downloads use current export edits and leave Company defaults unchanged", async ({ page, context, baseURL }, testInfo) => {
+  await setLocale(context, baseURL, "en");
+  const { companyId } = await createCompany(page);
+  await page.goto(`/companies/${companyId}/settings/vat`);
+  await page.getByRole("combobox", { name: "Tax office", exact: true }).selectOption("451");
+  await page.getByLabel("Economic activity (CZ-NACE)").fill("621000");
+  await page.getByLabel("First name").fill("Jana");
+  await page.getByLabel("Last name").fill("Nováková");
+  await page.getByLabel("Capacity (e.g. director)").fill("jednatelka");
+  await page.getByLabel("Taxpayer email (optional)").fill("default@example.test");
+  await page.getByLabel("Taxpayer phone (optional)").fill("+420123456789");
+  await page.getByRole("button", { name: "Save filing defaults" }).click();
+  await expect(page.getByRole("status").getByText("Filing defaults saved.")).toBeVisible();
+  await page.goto(`/companies/${companyId}/vat-reports?period=2026-01`);
+  await page.getByRole("button", { name: "Generate draft", exact: true }).click();
+  await expect(page.getByRole("navigation", { name: "Reporting Period destinations" }).getByRole("link", { name: "VAT Return", exact: true })).toBeVisible();
+  const longEmailDomain = `${"b".repeat(63)}.${"c".repeat(63)}.${"d".repeat(60)}`;
+  for (const [destination, format, date, email, pdfLabel] of [
+    ["vat-return", "dphdp3", "04.11.2026", `${"v".repeat(64)}@${longEmailDomain}`, "Download VAT Return PDF"],
+    ["control-statement", "dphkh1", "05.11.2026", `${"c".repeat(64)}@${longEmailDomain}`, "Download Control Statement PDF"],
+  ]) {
+    await page.goto(`/companies/${companyId}/vat-reports/2026-01/${destination}`);
+    await page.getByLabel("Preparation date", { exact: true }).fill(date);
+    await page.getByRole("button", { name: "Edit for this export" }).click();
+    await page.getByLabel("Contact email (optional)").fill(email);
+    await page.getByLabel("Contact phone (optional)").fill("");
+    const pdfDownload = page.waitForEvent("download");
+    await page.getByRole("link", { name: pdfLabel, exact: true }).click();
+    const downloadedPdf = await pdfDownload;
+    await downloadedPdf.saveAs(testInfo.outputPath(`${format}.pdf`));
+    const pdfPath = await downloadedPdf.path();
+    if (!pdfPath) throw new Error("PDF did not download");
+    const pdf = await pdfText(await readFile(pdfPath));
+    expect(pdf.replace(/[\s.]/g, "")).toContain(date.replace(/\./g, ""));
+    expect(pdf.replace(/\s/g, "")).toContain(email);
+    expect(pdf).not.toContain("default@example.test");
+    expect(pdf).not.toContain("+420123456789");
+    const xmlDownload = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Download XML", exact: true }).click();
+    const xmlPath = await (await xmlDownload).path();
+    if (!xmlPath) throw new Error("XML did not download");
+    const xml = await readFile(xmlPath, "utf8");
+    expect(xml).toContain(`d_poddp="${date}"`);
+    expect(xml).toContain(`email="${email}"`);
+    expect(xml).not.toContain("c_telef=");
+    expect((await page.request.post(`/companies/${companyId}/vat-reports/2026-01/xml`, { form: { format, preparedOn: "2026-11-04", taxOffice: "" } })).status()).toBe(422);
+  }
+  await page.goto(`/companies/${companyId}/settings/vat`);
+  await expect(page.getByLabel("Taxpayer email (optional)")).toHaveValue("default@example.test");
+  await expect(page.getByLabel("Taxpayer phone (optional)")).toHaveValue("+420123456789");
 });
