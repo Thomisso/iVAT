@@ -16,6 +16,8 @@ const nextConfig: NextConfig = {
   // Keep the validator's WASM module beside its Node entry point.
   serverExternalPackages: ["libxml2-wasm"],
   outputFileTracingIncludes: {
+    "/companies/**/vat-reports/**": ["./assets/pdf/*.pdf", "./assets/pdf/fonts/*"],
+    "/pdf-worker": ["./node_modules/pdfjs-dist/build/pdf.worker.min.mjs"],
     "/companies/**/vat-reports/**/xml": [
       "./schemas/epo/*.xsd",
       "./node_modules/libxml2-wasm/lib/*.wasm",
