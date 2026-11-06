@@ -1,0 +1,130 @@
+import { parentMetadata } from "./relationships.mjs";
+import { validateActivity, applyActivity, evaluateActivity, beginActivityEpisode } from "./activity.mjs";
+import { finalCommands, validateFinal, applyFinal, reconcileFinalFacts } from "./finalization.mjs";
+import { discoverTickets, readImplementationIssue } from "./discovery.mjs";
+import { currentParent, dependencyReadiness } from "./evidence.mjs";
+import { lifecycleCommands, validateLifecycle, applyLifecycle } from "./lifecycle.mjs";
+import { TrackerError } from "./github.mjs";
+import { applyRecoveryEvent, isHistoricalTicket, recoveryTypes, validateRecoveryPayload } from "./recovery.mjs";
+
+export function text(value, limit = 1000) {
+  if (typeof value !== "string" || !value.trim() || value.length > limit || /[\u0000-\u001f]|\b(?:gh[pousr]_|github_pat_|sb_secret_)[A-Za-z0-9_]+/.test(value)) throw new TrackerError("event_invalid");
+  return value;
+}
+
+export function validateEvent(event) {
+  if (["repair", "reconcile", "observe-activity"].includes(event?.type)) {
+    if (Object.keys(event).some(key => !["id", "type", "at", "payload"].includes(key)) || !event.payload || typeof event.payload !== "object" || Array.isArray(event.payload) || Object.keys(event.payload).length || !Number.isFinite(Date.parse(event.at)) || new Date(event.at).toISOString() !== event.at) throw new TrackerError("event_invalid");
+    text(event.id, 100);
+    if (!/^[\w-]+$/.test(event.id)) throw new TrackerError("event_invalid");
+    return event;
+  }
+  const allowed = ["id", "type", "runId", "generation", "sequence", "at", "payload"];
+  if (!event || Object.keys(event).some(key => !allowed.includes(key)) || Buffer.byteLength(JSON.stringify(event)) > 8 * 1024) throw new TrackerError("event_invalid");
+  text(event.id, 100);
+  if (event.type === "discover") {
+    if (!/^[\w-]+$/.test(event.id) || Object.keys(event).some(key => !["id", "type", "at", "payload"].includes(key)) || !Number.isFinite(Date.parse(event.at)) || new Date(event.at).toISOString() !== event.at || !event.payload || typeof event.payload !== "object" || Array.isArray(event.payload) || Object.keys(event.payload).some(key => !["parent", "expectedSelectionRevision"].includes(key)) || (event.payload.parent !== undefined && (!Number.isSafeInteger(event.payload.parent) || event.payload.parent <= 0 || !Number.isSafeInteger(event.payload.expectedSelectionRevision) || event.payload.expectedSelectionRevision < 0)) || (event.payload.parent === undefined && Object.hasOwn(event.payload, "expectedSelectionRevision"))) throw new TrackerError("event_invalid");
+    return event;
+  }
+  text(event.runId, 100);
+  if (!/^[\w-]+$/.test(event.id) || !/^[\w-]+$/.test(event.runId) || !Number.isInteger(event.generation) || event.generation < 0 || !Number.isInteger(event.sequence) || event.sequence < 0 || !Number.isFinite(Date.parse(event.at)) || new Date(event.at).toISOString() !== event.at || !event.payload || typeof event.payload !== "object" || Array.isArray(event.payload)) throw new TrackerError("event_invalid");
+  if (recoveryTypes.has(event.type)) validateRecoveryPayload(event, text);
+  else if (event.type === "start") {
+    if (Object.keys(event.payload).length || event.sequence !== 0) throw new TrackerError("event_invalid");
+  } else if (event.type === "claim") {
+    if (Object.keys(event.payload).some(key => !["issue", "agent", "branch", "branchRevision", "integrationContext", "result"].includes(key)) || !Number.isInteger(event.payload.issue) || event.payload.issue <= 0 || !/^[a-f0-9]{40}$/.test(event.payload.branchRevision ?? "")) throw new TrackerError("event_invalid");
+    if (event.payload.integrationContext) {
+      const context = event.payload.integrationContext;
+      if (Object.keys(context).some(key => !["specification", "branch"].includes(key)) || !Number.isInteger(context.specification) || context.specification <= 0) throw new TrackerError("event_invalid");
+      text(context.branch, 200);
+    }
+    text(event.payload.agent, 100); text(event.payload.branch, 200); text(event.payload.result);
+  } else if (event.type === "activity") validateActivity(event, text);
+  else if (finalCommands.includes(event.type)) validateFinal(event, text);
+  else if (lifecycleCommands.includes(event.type)) validateLifecycle(event, text);
+  else throw new TrackerError("event_type_unknown");
+  return event;
+}
+
+export function applyEvent(state, event, { github, config, actor }) {
+  validateEvent(event);
+  if (event.type === "observe-activity") {
+    if (evaluateActivity(state)) state.revision++;
+    state.receipts[event.id] = { state: state.publishedRevision === state.revision ? "published" : "pending", type: event.type, revision: state.revision };
+    return state;
+  }
+  if (event.type === "repair") {
+    state.receipts[event.id] = { state: "pending", type: event.type, revision: state.revision };
+    return state;
+  }
+  if (event.type === "reconcile") {
+    discoverTickets(state, { github, config, at: event.at });
+    state.membershipDiscovered = true;
+    reconcileFinalFacts(state, github, config, new Date().toISOString());
+  } else if (event.type === "discover") {
+    if (event.payload.parent && event.payload.expectedSelectionRevision !== (state.selectionRevision ?? 0)) throw new TrackerError("selection_superseded");
+    discoverTickets(state, { github, config, at: event.at });
+    state.membershipDiscovered = true;
+    if (event.payload.parent) { state.selectedParent = event.payload.parent; state.selectionRevision = state.revision + 1; }
+  } else if (event.type === "start") {
+    if (state.owner) throw new TrackerError("run_already_owned");
+    if (event.generation !== state.generation) throw new TrackerError("run_superseded");
+    state.generation++;
+    state.owner = { runId: event.runId, generation: state.generation, account: actor, startedAt: event.at, sequence: 0, lastEventId: event.id };
+  } else if (["restart", "takeover"].includes(event.type)) applyRecoveryEvent(state, event, { github, config, actor });
+  else {
+    if (!state.owner || state.owner.runId !== event.runId || state.owner.generation !== event.generation) throw new TrackerError("run_superseded");
+    if (state.owner.account !== actor) throw new TrackerError("run_actor_mismatch");
+    if (event.sequence <= state.owner.sequence) throw new TrackerError("event_superseded");
+    if (event.sequence !== state.owner.sequence + 1) throw new TrackerError("event_out_of_order");
+    if (["stop", "resume"].includes(event.type)) {
+      state.owner.sequence = event.sequence;
+      state.owner.lastEventId = event.id;
+      applyRecoveryEvent(state, event, { github, config, actor });
+    } else if (event.type === "activity") {
+      const outcome = applyActivity(state, event);
+      state.owner.sequence = event.sequence; state.owner.lastEventId = event.id;
+      if (outcome !== "adopted") {
+        state.receipts[event.id] = { state: state.publishedRevision === state.revision ? "published" : "pending", type: event.type, runId: event.runId, generation: event.generation, sequence: event.sequence, revision: state.revision, outcome };
+        return state;
+      }
+    } else if ([...lifecycleCommands, ...finalCommands].includes(event.type)) {
+      if (finalCommands.includes(event.type)) applyFinal(state, event, { github, config });
+      else applyLifecycle(state, event, { github, config });
+      state.owner.sequence = event.sequence;
+      state.owner.lastEventId = event.id;
+    } else {
+      const existing = state.tickets[event.payload.issue];
+      const historical = existing?.runId && isHistoricalTicket(state, existing);
+      if ((existing?.runId || existing?.agent) && !historical) throw new TrackerError("ticket_already_claimed");
+      if (existing?.role === "specification") throw new TrackerError("implementation_issue_required");
+      if (existing && existing.status !== "ready" && !historical) throw new TrackerError("ticket_not_ready");
+      if (historical && ["review", "integrated"].includes(existing.blockage?.resumePhase ?? existing.status) && event.payload.branchRevision !== existing.review?.revision) throw new TrackerError("historical_revision_mismatch");
+      const requestedContext = event.payload.integrationContext;
+      if (existing?.integrationContext && requestedContext && (existing.integrationContext.specification !== requestedContext.specification || existing.integrationContext.branch !== requestedContext.branch)) throw new TrackerError("integration_context_mismatch");
+      const integrationContext = existing?.integrationContext ?? requestedContext ?? null;
+      const issue = readImplementationIssue(github, config, event.payload.issue);
+      const observedParent = currentParent(github, config, issue.number);
+      const parent = observedParent.number;
+      const relationship = parentMetadata(observedParent);
+      if (integrationContext && observedParent.repository !== config.repository) throw new TrackerError("parent_repository_unsupported");
+      if (integrationContext && parent !== integrationContext.specification) throw new TrackerError("specification_mismatch");
+      const dependencies = dependencyReadiness(state, { ...existing, number: issue.number, ...relationship, integrationContext }, { github, config });
+      if (!dependencies.ready) throw new TrackerError("implementation_dependencies_unsatisfied");
+      state.tickets[issue.number] = {
+        ...existing, dependencies,
+        role: "implementation", repository: config.repository, number: issue.number, nodeId: issue.node_id, title: issue.title, url: issue.html_url, ...relationship,
+        account: state.owner.account, agent: event.payload.agent, reviewer: historical ? existing.reviewer ?? null : null, branch: event.payload.branch, workingRevision: event.payload.branchRevision,
+        integrationContext, pullRequest: historical ? existing.pullRequest ?? null : null, status: historical ? existing.status : "implementing", activity: historical && existing.status !== "implementing" ? "inactive" : "unverified", stateAt: historical ? existing.stateAt : event.at, activityAt: null,
+        result: event.payload.result, runId: event.runId, generation: event.generation, revision: state.revision + 1,
+      };
+      beginActivityEpisode(state.tickets[issue.number], event.at, "implementer", historical && existing.status !== "implementing" ? "waiting" : "working");
+      state.owner.sequence = event.sequence;
+      state.owner.lastEventId = event.id;
+    }
+  }
+  if (["restart", "takeover"].includes(event.type)) state.owner.lastEventId = event.id;
+  state.revision++;
+  state.receipts[event.id] = { state: "pending", type: event.type, runId: event.runId, generation: state.generation, sequence: event.sequence, revision: state.revision };
+  return state;
+}
