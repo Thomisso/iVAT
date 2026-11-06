@@ -51,6 +51,12 @@ test("VAT Return card independently previews current Czech headers and both cont
     for (const width of [360, 720, 1024, 1440]) {
       await page.setViewportSize({ width, height: 1000 });
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+      const thumbnailWidth = await page.locator(".vat-export-card").first().evaluate(card => {
+        const style = getComputedStyle(card);
+        const available = card.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+        return { available, actual: card.querySelector(".vat-pdf-thumbnail-link")!.getBoundingClientRect().width };
+      });
+      expect(thumbnailWidth.actual).toBeCloseTo(thumbnailWidth.available, 0);
     }
     const dateLabel = locale === "en" ? "Preparation date" : "Datum vyhotovení";
     await page.getByLabel(dateLabel, { exact: true }).fill("04.11.2026");
