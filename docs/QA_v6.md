@@ -2,7 +2,7 @@
 
 **Datum zápisu:** 31. 10. 2026
 **Stav:** `grill-with-docs`, `to-spec` i `to-tickets` dokončeny pro Bugs / Improvements a–g. Uživatel potvrdil společné porozumění v Q22, testovací hranice specifikace i rozdělení ticketů. Specifikace [#185](https://github.com/Thomisso/iVAT/issues/185) má 12 podřízených issues #186–#197 s označením `ready-for-agent` a ověřenými nativními závislostmi. Sekce Features nebyla součástí tohoto rozpracování.
-**Features 3:** samostatné `grill-with-docs`, `to-spec` i `to-tickets` dokončeny 6. 11. 2026; rozhodnutí Q1–Q8, závěrečné společné porozumění Q9, hranice testování i rozdělení ticketů jsou potvrzené. Specifikace [#211](https://github.com/Thomisso/iVAT/issues/211) má tři nativní sub-issues [#212](https://github.com/Thomisso/iVAT/issues/212), [#213](https://github.com/Thomisso/iVAT/issues/213) a [#214](https://github.com/Thomisso/iVAT/issues/214), všechny s labelem `ready-for-agent` a ověřenými nativními závislostmi. První dostupný ticket je #212; #213 a #214 závisejí pouze na něm. Implementace tohoto bodu zatím nezačala.
+**Features 3:** samostatné `grill-with-docs`, `to-spec` i `to-tickets` dokončeny 6. 11. 2026; rozhodnutí Q1–Q8, závěrečné společné porozumění Q9, hranice testování i rozdělení ticketů jsou potvrzené. Specifikace [#211](https://github.com/Thomisso/iVAT/issues/211) má tři nativní sub-issues [#212](https://github.com/Thomisso/iVAT/issues/212), [#213](https://github.com/Thomisso/iVAT/issues/213) a [#214](https://github.com/Thomisso/iVAT/issues/214), všechny s labelem `ready-for-agent` a ověřenými nativními závislostmi. #212 prošel nezávislým review a byl začleněn do větve `integration/pdf-forms-211`; #213 a #214 navazují na tento společný základ. Implementace probíhá podle integračního workflow.
 **Rozsah:** 9 funkcí a 7 chyb nebo zlepšení. Identifikátory zachovávají původní číslování a označení nálezů.
 **Další postup:** implementace připravených ticketů pomocí `mattpocock-skills:implement-spec` podle nativních závislostí a [integračního workflow](agents/implementation-workflow.md). Implementace zatím nebyla zahájena. Samostatně povolená lokální diagnostika bodu b je dokončena a její výsledky jsou níže; opravy aplikace ani změny produkce provedeny nebyly.
 
@@ -22,7 +22,7 @@
 
 ### 3. PDF náhled přiznání podle reálného formuláře
 
-**Rozpracování:** `grill-with-docs` dokončeno 6. 11. 2026. Uživatel potvrdil rozhodnutí Q1–Q8 a závěrečné společné porozumění v Q9 odpovědí „Ano souhlasím.“ Při rozporu s původními požadavky platí potvrzená rozhodnutí a souhrn níže. Implementace tohoto bodu nebyla zahájena.
+**Rozpracování:** `grill-with-docs` dokončeno 6. 11. 2026. Uživatel potvrdil rozhodnutí Q1–Q8 a závěrečné společné porozumění v Q9 odpovědí „Ano souhlasím.“ Při rozporu s původními požadavky platí potvrzená rozhodnutí a souhrn níže. Implementace tohoto bodu probíhá podle specifikace #211 a integračního workflow.
 
 **Specifikace:** `to-spec` dokončeno 6. 11. 2026 po výslovném potvrzení hranic testování. Publikováno jako [#211 — QA v6: PDF náhled přiznání a kontrolního hlášení podle reálných formulářů](https://github.com/Thomisso/iVAT/issues/211) s labelem `ready-for-agent`; obsah issue i label byly po publikaci ověřeny. Nejde o součást specifikace #185 ani #200. Pro navazující práci je výsledným zadáním #211; níže zůstávají schválené podklady a rozhodnutí.
 

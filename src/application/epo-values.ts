@@ -148,4 +148,3 @@ export function prepareControlStatement(report: ComputedVatReport): EpoRow[] {
   );
   return result;
 }
-
