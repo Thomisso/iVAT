@@ -19,6 +19,7 @@ import { FilingDefaultsForm } from "../settings/filing-defaults-form";
 import { downloadVatReportXml } from "@/lib/vat-report-download";
 import { exportTiming } from "@/application/epo-export-timing";
 import { pragueDate } from "@/application/reporting-periods";
+import { useCurrentExportContext } from "./export-context";
 import { formatDate } from "@/lib/format-date";
 
 function subscribeToClock(changed: () => void) {
@@ -53,6 +54,7 @@ export function ExportForm({
   disabled?: boolean;
   canEditFilingDefaults?: boolean;
 }) {
+  const currentExport = useCurrentExportContext();
   const t = useTranslations("epoExport");
   const wizardCopy = useTranslations("vatReports.wizard");
   const wizard = presentation === "wizard";
@@ -87,6 +89,7 @@ export function ExportForm({
       return;
     }
     const form = new FormData(event.currentTarget);
+    Object.entries(currentExport?.details ?? {}).forEach(([key, value]) => form.set(key, value));
     const controller = new AbortController();
     request.current = controller;
     setPending(true);
@@ -131,7 +134,13 @@ export function ExportForm({
       {timing.warnings.length > 0 && <div aria-label={t("timingWarnings")} aria-live="polite" className="iv-notice iv-notice-warning vat-export-timing" role="note">
         <ul>{timing.warnings.map((warning) => <li key={warning}>{t(`timing.${warning}`, { deadline: timing.deadline ? formatDate(timing.deadline) : "" })}</li>)}</ul>
       </div>}
-      <form className="form" onSubmit={download}>
+      <form className="form" onSubmit={download} onChange={event => {
+        const target = event.target;
+        if (target instanceof HTMLInputElement || target instanceof HTMLSelectElement) {
+          if (!target.name || target.name === "preparedOn") return;
+          currentExport?.update({ [target.name]: target.value, ...(target.name === "taxOffice" ? { territorialOffice: "" } : {}) });
+        }
+      }}>
         <input type="hidden" name="format" value={format} />
         <input type="hidden" name="kind" value={finalized ? "final" : "draft"} />
         {!showFields && <input type="hidden" name="preparedOn" value={exportPreparedOn} />}
@@ -142,7 +151,7 @@ export function ExportForm({
             name="preparedOn"
             required
             defaultValue={exportPreparedOn}
-            onValueChange={setExportPreparedOn}
+            onValueChange={value => { setExportPreparedOn(value); currentExport?.update({ preparedOn: value }); }}
           />
         </div>
         <p>{t("personType")}: {t(personType === "legal" ? "legalPerson" : "naturalPerson")}</p>
@@ -176,7 +185,7 @@ export function ExportForm({
             <TextField label={t("email")} name="email" type="email" maxLength={255} defaultValue={defaults?.email ?? ""} />
             <TextField label={t("phone")} name="phone" type="tel" maxLength={14} defaultValue={defaults?.phone ?? ""} />
           </div>
-          {filingDetailsComplete && <Button type="button" variant="secondary" onClick={() => { setEditing(false); if (wizard) setOpened(false); }}>{t("useSaved")}</Button>}
+          {filingDetailsComplete && <Button type="button" variant="secondary" onClick={() => { currentExport?.reset(); setEditing(false); if (wizard) setOpened(false); }}>{t("useSaved")}</Button>}
         </> : <Button type="button" variant="secondary" onClick={() => setEditing(true)}>{t("editForExport")}</Button>}
         </>}
         <FormError error={error} />

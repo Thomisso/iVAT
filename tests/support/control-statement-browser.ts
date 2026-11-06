@@ -7,14 +7,15 @@ import { asUserClient } from "@/application/client";
 import { createCompany } from "@/application/companies";
 import { listMyOrganizations } from "@/application/organizations";
 import { uploadSourceFile } from "@/application/source-files";
-import { approveDocument } from "@/application/documents";
+import { createManualDocument, approveDocument } from "@/application/documents";
+import { saveCompanyFilingDefaults } from "@/application/company-filing-defaults";
 import { generateVatReport } from "@/application/vat-reports";
 import { SAMPLE_EXTRACTION } from "@/ai/fake";
 import { provisionAccountFixture } from "./accounts";
 import { assignBrowserAiConfigurationFixture } from "./e2e";
 
 /** Real approved Documents and Rules Engine snapshot; no report rows are mocked. */
-export async function controlStatementBrowserFixture() {
+export async function controlStatementBrowserFixture(continuationEntries = 0) {
   const environment = Object.fromEntries((await fs.readFile(".env.local", "utf8")).split("\n").filter(Boolean).map(line => {
     const separator = line.indexOf("=");
     return [line.slice(0, separator), line.slice(separator + 1)];
@@ -63,6 +64,21 @@ export async function controlStatementBrowserFixture() {
     if (recorded.error) throw recorded.error;
     const approved = await approveDocument(client, { companyId, documentId: document.id, version: 1 });
     if (!approved.ok) throw new Error(approved.error);
+  }
+  for (let index = 1; index <= continuationEntries; index++) {
+    const created = await createManualDocument(client, { companyId, payload: {
+      ...SAMPLE_EXTRACTION, direction: "outgoing", documentNumber: `CONTINUE-${String(index).padStart(3, "0")}`,
+      taxPointDate: "2026-10-10", supplier: SAMPLE_EXTRACTION.customer, customer: SAMPLE_EXTRACTION.supplier,
+      rateBreakdown: [{ rate: 21, netAmount: "12000.00", vatAmount: "2520.00" }],
+      totals: { netAmount: "12000.00", vatAmount: "2520.00", grossAmount: "14520.00" },
+    } });
+    if (!created.ok) throw new Error(created.error);
+    const approved = await approveDocument(client, { companyId, documentId: created.value.id, version: 1 });
+    if (!approved.ok) throw new Error(approved.error);
+  }
+  if (continuationEntries) {
+    const defaults = await saveCompanyFilingDefaults(client, { companyId, taxOffice: "451", territorialOffice: "2003", economicActivity: "621000", signatoryFirstName: "Jana", signatoryLastName: "Nováková", signatoryCapacity: "jednatelka", email: "default@example.test", phone: "+420123456789", epoAddressOverride: null });
+    if (!defaults.ok) throw new Error(defaults.error);
   }
   const generated = await generateVatReport(client, { companyId, period: "2026-10" });
   if (!generated.ok) throw new Error(generated.error);

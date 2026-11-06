@@ -156,6 +156,10 @@ _Avoid_: VAT declaration
 The Czech VAT control statement (kontrolní hlášení, form DPHKH1).
 _Avoid_: KH (in code), VAT ledger
 
+**PDF Preview**:
+A Czech form representation of a VAT Return or Control Statement whose filing data agrees with the corresponding XML export. It can be reviewed with incomplete filing details.
+_Avoid_: Submission confirmation, separate calculation
+
 **Draft XML**:
 An XML representation of a VAT Return or Control Statement prepared for review before Finalization.
 _Avoid_: Final XML, submission

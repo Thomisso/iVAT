@@ -2,6 +2,7 @@
 
 **Datum zápisu:** 31. 10. 2026
 **Stav:** `grill-with-docs`, `to-spec` i `to-tickets` dokončeny pro Bugs / Improvements a–g. Uživatel potvrdil společné porozumění v Q22, testovací hranice specifikace i rozdělení ticketů. Specifikace [#185](https://github.com/Thomisso/iVAT/issues/185) má 12 podřízených issues #186–#197 s označením `ready-for-agent` a ověřenými nativními závislostmi. Sekce Features nebyla součástí tohoto rozpracování.
+**Features 3:** samostatné `grill-with-docs`, `to-spec` i `to-tickets` dokončeny 6. 11. 2026; rozhodnutí Q1–Q8, závěrečné společné porozumění Q9, hranice testování i rozdělení ticketů jsou potvrzené. Specifikace [#211](https://github.com/Thomisso/iVAT/issues/211) má tři nativní sub-issues [#212](https://github.com/Thomisso/iVAT/issues/212), [#213](https://github.com/Thomisso/iVAT/issues/213) a [#214](https://github.com/Thomisso/iVAT/issues/214), všechny s labelem `ready-for-agent` a ověřenými nativními závislostmi. Všechny tři tickety prošly nezávislým review a jsou začleněné do větve `integration/pdf-forms-211`. Výsledný PR [#215](https://github.com/Thomisso/iVAT/pull/215) obsahuje aktuální důkazy společných kontrol a celkového review; issues se uzavírají při jeho finálním merge.
 **Rozsah:** 9 funkcí a 7 chyb nebo zlepšení. Identifikátory zachovávají původní číslování a označení nálezů.
 **Další postup:** implementace připravených ticketů pomocí `mattpocock-skills:implement-spec` podle nativních závislostí a [integračního workflow](agents/implementation-workflow.md). Implementace zatím nebyla zahájena. Samostatně povolená lokální diagnostika bodu b je dokončena a její výsledky jsou níže; opravy aplikace ani změny produkce provedeny nebyly.
 
@@ -21,9 +22,65 @@
 
 ### 3. PDF náhled přiznání podle reálného formuláře
 
+**Rozpracování:** `grill-with-docs` dokončeno 6. 11. 2026. Uživatel potvrdil rozhodnutí Q1–Q8 a závěrečné společné porozumění v Q9 odpovědí „Ano souhlasím.“ Při rozporu s původními požadavky platí potvrzená rozhodnutí a souhrn níže. Implementace tohoto bodu probíhá podle specifikace #211 a integračního workflow.
+
+**Specifikace:** `to-spec` dokončeno 6. 11. 2026 po výslovném potvrzení hranic testování. Publikováno jako [#211 — QA v6: PDF náhled přiznání a kontrolního hlášení podle reálných formulářů](https://github.com/Thomisso/iVAT/issues/211) s labelem `ready-for-agent`; obsah issue i label byly po publikaci ověřeny. Nejde o součást specifikace #185 ani #200. Pro navazující práci je výsledným zadáním #211; níže zůstávají schválené podklady a rozhodnutí.
+
+**Implementace:** všechny tři tickety jsou po čistém nezávislém review začleněné do větve `integration/pdf-forms-211`, výsledný PR [#215](https://github.com/Thomisso/iVAT/pull/215). #212 sjednotil údaje PDF/XML; #213 dodal zelené přiznání a samostatnou miniaturu; #214 dodal zelené kontrolní hlášení bez „VZOR“, pokračovací stránky, souhrn C a samostatnou miniaturu. Náhledy vyplňují obsahovou šířku původních karet a zachovávají jejich design. Aktuální výsledky sdílených kontrol, celkového review a předání jsou v PR a kanonickém trackeru specifikace; tento záznam sám neprokazuje finální merge ani uzavření issues.
+
+**Schválené rozdělení `to-tickets` — publikováno 6. 11. 2026**
+
+Uživatel schválil velikost tří ticketů a jejich závislosti odpovědí „Vyhovuje to. OK.“ Každý ticket byl publikován jako nativní sub-issue #211 s labelem `ready-for-agent`. Obsah, labely, nativní rodič i blokující vazby byly po publikaci ověřeny.
+
+| Ticket | Co dodá | Blokováno |
+| --- | --- | --- |
+| [#212 — Shodná data a aktuální exportní nastavení PDF a XML](https://github.com/Thomisso/iVAT/issues/212) (T1) | Ze současných stránek lze stáhnout oba PDF výstupy se stejnými hodnotami a aktuálními údaji jako odpovídající XML, i s neúplnou PDF hlavičkou. Nejprve sjednotí přípravu EPO dat a exportní kontext; vzhled může dočasně zůstat tabulkový. | Nic |
+| [#213 — Zelený formulář VAT Return s miniaturou první stránky](https://github.com/Thomisso/iVAT/issues/213) (T2) | Úplný průchod přiznáním: skutečná zelená česká předloha, samostatná věrná miniatura s dostupnými údaji firmy, kliknutí i původní stažení celého PDF a vizuální ověření. | #212 |
+| [#214 — Zelený formulář Control Statement s miniaturou a stránkováním](https://github.com/Thomisso/iVAT/issues/214) (T3) | Úplný průchod kontrolním hlášením: zelené předlohy bez „VZOR“, samostatná miniatura, všechny naplněné podporované oddíly, pokračování a souhrn C, stažení i vizuální ověření. | #212 |
+
+#213 a #214 na sobě navzájem nezávisí; po splnění #212 mohou běžet souběžně podle [implementačního workflow](agents/implementation-workflow.md). Každý ticket má vlastní cílené integrační, prohlížečové a odpovídající vizuální kontroly; společné finální kontroly a review celé specifikace zůstávají branou existujícího implementačního workflow. Výsledným zadáním zůstává specifikace #211 a její tři podřízené tickety. Po implementaci jsou všechny tři začleněné v integrační větvi; finální doručení potvrzuje až merge výsledného PR a ověření trackerem.
+
 - PDF náhled přiznání zpracovat podle reálných PDF formulářů.
 - V náhledu zobrazit také miniaturu s možností kliknutím stáhnout PDF.
 - Miniatura má již obsahovat vyplněné údaje první stránky, zejména údaje firmy.
+- Rozsah zahrnuje přiznání k DPH (VAT Return) i kontrolní hlášení (Control Statement).
+- Dodané podklady jsou v `docs/PDF/`: `DPHDP3-XXXXXXXXXX-20261106-104851.pdf` pro přiznání a `DPHKH1-XXXXXXXXXX-20261106-104935.pdf` spolu s `Vzorovy-formular-kontrolniho-hlaseni-DPH.pdf` pro kontrolní hlášení. Podle zadání je jedna varianta kontrolního hlášení bez pozadí a druhá s pozadím a vodoznakem „VZOR“.
+- Výsledný náhled ani stažené PDF nemají obsahovat vodoznak „VZOR“.
+- Původní požadavek na vyplnění karty byl upřesněn odpovědí Q3 níže: zachovat současný design karty a pouze doplnit miniaturu první stránky PDF.
+
+**Potvrzená rozhodnutí — Q1–Q8 (6. 11. 2026)**
+
+- **Q1 — vzhled:** zachovat zelenou podobu formulářů. U kontrolního hlášení nepřecházet na bílou předlohu pouze kvůli dostupnosti varianty bez vodoznaku; výsledná zelená podoba bude bez „VZOR“.
+- **Q2 — data:** PDF obsahuje stejná data jako odpovídající XML, včetně zaokrouhlení a údajů hlavičky. Nejde o samostatně počítanou alternativu XML výstupu.
+- **Q3 — miniatura:** zachovat stávající design karet a pouze přidat miniaturu první stránky PDF. Zobrazí dostupné údaje firmy; její příprava nevyžaduje výpočet ani vygenerování celého výstupu.
+- **Q4 — jazyk:** formuláře jsou vždy česky, také při anglickém rozhraní aplikace.
+- **Q5 — věrnost miniatury:** zobrazit skutečnou zelenou předlohu první stránky s věrným rozvržením, poměrem stran, popisky a písmem. Vyplnit pouze dostupné údaje hlavičky a firmy; daňové tabulky mohou zůstat prázdné. Nejde o obecnou ilustraci formuláře ani o nutnost vyrenderovat celý vyplněný výkaz. Stažené PDF obsahuje celý výkaz.
+- **Q6 — konkrétní XML kontext:** PDF používá data uloženého výkazu a údaje právě nastavené ve formuláři exportu XML, včetně změn kontaktů, podepisující osoby a data sestavení. Shoda se vztahuje k XML, které by vzniklo ze stejného výkazu a stejných exportních údajů. Tento bod nepřidává vazbu PDF na konkrétní historický XML artefakt ani novou historii PDF exportů.
+- **Q7 — neúplná hlavička:** náhledové PDF lze stáhnout i při chybějících povinných údajích pro XML, například finančním úřadu. Dostupné údaje se zobrazí a chybějící pole zůstanou prázdná. Podmínky pro stažení XML se nemění.
+- **Q8 — stránkování kontrolního hlášení:** celý výstup obsahuje úvodní stránku, pouze naplněné detailní oddíly a souhrnnou stránku. Při větším počtu dokladů se stránky příslušného oddílu opakují; žádné řádky se neztratí. Souhrn C se zobrazí vždy včetně nulových hodnot odpovídajících XML. Prázdné detailní oddíly se neexportují.
+
+**Schválený souhrn — závěrečné potvrzení Q9 (6. 11. 2026)**
+
+- Přiznání k DPH i kontrolní hlášení budou věrně zobrazovat české zelené formuláře bez „VZOR“; vyplnění a částky odpovídají stejným údajům jako XML export. Vzhled předloh nemění rozsah podporovaných údajů a oddílů XML.
+- Na současných stránkách výstupů zůstávají dosavadní karty a ovládání stažení; přibude klikací miniatura první stránky. Její dostupné údaje firmy vycházejí ze stejné identity jako XML a doplňující hlavička ze stejného exportního nastavení. Miniatura používá reálnou předlohu, ale nemusí obsahovat daňové částky ani vyžadovat sestavení celého PDF.
+- Celé PDF se připraví při stažení, může obsahovat neúplnou hlavičku a u kontrolního hlášení se délka přizpůsobí naplněným oddílům. Součástí změny není nová historie PDF exportů ani změna požadavků na XML export.
+
+**Potvrzené hranice testování pro `to-spec` (6. 11. 2026)**
+
+- Hlavní hranice: existující stránky výstupů a autentizované stažení. Pro oba formuláře ověřit skutečnou miniaturu, kliknutí i dosavadní ovládání stažení, promítnutí změn exportní hlavičky, české formuláře při českém i anglickém rozhraní a zachování rozložení karet. Miniatura nesmí záviset na stažení celého PDF ani novém výpočtu výkazu.
+- Doplňující existující hranice: aplikační exporty nad uloženým výkazem se skutečnými databázovými oprávněními. Porovnat významově odpovídající hodnoty PDF a XML pro stejné exportní nastavení; pokrýt zaokrouhlení, souhrn C, neúplnou hlavičku, fyzickou i právnickou osobu, diakritiku, záporné a nulové hodnoty, pokračování naplněného oddílu a izolaci Company/Organization. Jednorázové změny exportu nesmějí měnit výchozí nastavení firmy.
+- Vizuálně ověřit vyrenderované reprezentativní stránky PDF a miniatury: zelené předlohy bez „VZOR“, věrné rozvržení a písmo, čitelná pole, poměr stran a žádné překryvy či ořezy. Samotné textové porovnání PDF není dostatečné; nepřidávat testovací rozhraní pro interní kreslicí funkce ani vyžadovat shodu bajtů PDF.
+- Vycházet z dosavadního pokrytí PDF výstupů, XML exportů, navigace výstupů a jednorázových změn exportní hlavičky; upravit očekávání původních tabulek a anglických popisků podle schváleného zadání. Jde o plán pro implementaci, nikoli o již provedené testy.
+
+**Zjištění při přípravě rozhovoru (6. 11. 2026; nejde o schválená rozhodnutí)**
+
+- Současné generátory PDF vytvářejí vlastní tabulky bez formulářových předloh; karty stažení zatím miniaturu neobsahují.
+- PDF čerpá z uloženého VAT Report včetně tehdejší identity a adresy Company. XML navíc řeší údaje finančního úřadu, kontakty a podepisující osobu z nastavení a vstupu exportu, případně potvrzenou adresu pro EPO. Existující XML artefakty uchovávají vyřešené údaje exportu; PDF je nepoužívá.
+- U přiznání XML zaokrouhluje řádky na celé Kč a součty odvozuje ze zaokrouhlených řádků; současné PDF zobrazuje desetinné hodnoty uloženého výkazu. U kontrolního hlášení současné PDF nenahrazuje obecné součty oficiálním oddílem C.
+- Dodané přiznání má 2 strany, kontrolní hlášení bez pozadí 2 strany a zelený vzor kontrolního hlášení 8 stran včetně detailních oddílů. Zelený vzor není pouhou barevnou variantou dodaného dvoustránkového exportu. Jeho vodoznak je samostatný vektorový prvek, který je technicky možné oddělit od podkladu; odstranění zatím nebylo provedeno.
+- Finanční správa publikuje také [úplný formulář kontrolního hlášení 25 5564, vzor č. 2](https://financnisprava.gov.cz/assets/tiskopisy/5564_2.pdf); [databáze daňových tiskopisů](https://financnisprava.gov.cz/cs/dane/danove-tiskopisy) jej uvádí jako vzor 2. Přechod na jeho bílou podobu nebyl v Q1 zvolen; platí zelený vzhled podle potvrzených rozhodnutí.
+- Obě současné stránky výstupů vyžadují uložený VAT Report; bez něj nejsou karty dostupné. Miniatura přidaná do existujících karet sama nevyžaduje nové napočítání výkazu ani generování celého PDF.
+- Formulář exportu XML umožňuje změny pouze pro daný export. Finalizace sama XML artefakt nevytváří a jedno období může mít více historických XML exportů s různými údaji; nelze tedy bez dalšího ztotožnit aktuální PDF s jedním historickým XML. Význam shody určuje Q6.
 
 ### 4. Uplatnění pouze části dokladu
 
