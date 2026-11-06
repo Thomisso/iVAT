@@ -1,34 +1,38 @@
 # QA v6: vytěžování, revize dokladů a správa přístupů
 
 **Datum zápisu:** 31. 10. 2026
-**Stav:** `grill-with-docs`, `to-spec` i `to-tickets` dokončeny pro Bugs / Improvements a–g. Uživatel potvrdil společné porozumění v Q22, testovací hranice specifikace i rozdělení ticketů. Specifikace [#185](https://github.com/Thomisso/iVAT/issues/185) má 12 podřízených issues #186–#197 s označením `ready-for-agent` a ověřenými nativními závislostmi. Sekce Features nebyla součástí tohoto rozpracování.
-**Features 3:** samostatné `grill-with-docs`, `to-spec` i `to-tickets` dokončeny 6. 11. 2026; rozhodnutí Q1–Q8, závěrečné společné porozumění Q9, hranice testování i rozdělení ticketů jsou potvrzené. Specifikace [#211](https://github.com/Thomisso/iVAT/issues/211) má tři nativní sub-issues [#212](https://github.com/Thomisso/iVAT/issues/212), [#213](https://github.com/Thomisso/iVAT/issues/213) a [#214](https://github.com/Thomisso/iVAT/issues/214), všechny s labelem `ready-for-agent` a ověřenými nativními závislostmi. Všechny tři tickety prošly nezávislým review a jsou začleněné do větve `integration/pdf-forms-211`. Výsledný PR [#215](https://github.com/Thomisso/iVAT/pull/215) obsahuje aktuální důkazy společných kontrol a celkového review; issues se uzavírají při jeho finálním merge.
-**Rozsah:** 9 funkcí a 7 chyb nebo zlepšení. Identifikátory zachovávají původní číslování a označení nálezů.
-**Další postup:** implementace připravených ticketů pomocí `mattpocock-skills:implement-spec` podle nativních závislostí a [integračního workflow](agents/implementation-workflow.md). Implementace zatím nebyla zahájena. Samostatně povolená lokální diagnostika bodu b je dokončena a její výsledky jsou níže; opravy aplikace ani změny produkce provedeny nebyly.
+**Datum uzavření:** 6. 11. 2026
+**Stav:** uzavřeno. Hotové jsou Features 3 a 9 a všechny Bugs / Improvements a–g. Nedokončené Features 1, 2, 4–8 a 10–12 jsou přesunuty do [QA v7](QA_v7.md); u částečně hotového bodu 5 tam zůstává pouze zbývající práce.
+**Podklad uzavření:** ověřené merge do `main` a aktuální stav GitHub issues k 6. 11. 2026. Dokončení implementace neznamená potvrzení produkčního nasazení; tato uzávěrka nepřidává nové runtime ani produkční testy.
+
+| Rozsah | Stav | Doklad dokončení |
+| --- | --- | --- |
+| Feature 3 — PDF formuláře a miniatury | Hotovo 6. 11. 2026 | [#211](https://github.com/Thomisso/iVAT/issues/211), tickety #212–#214; [PR #215](https://github.com/Thomisso/iVAT/pull/215) sloučeno do `main` |
+| Feature 9 — sledování práce agentů | Hotovo 6. 11. 2026 | [#200](https://github.com/Thomisso/iVAT/issues/200), tickety #201–#206; [PR #210](https://github.com/Thomisso/iVAT/pull/210) sloučeno do `main` |
+| Bugs / Improvements a–g | Hotovo 3. 11. 2026 | [#185](https://github.com/Thomisso/iVAT/issues/185), tickety #186–#197; [PR #198](https://github.com/Thomisso/iVAT/pull/198) sloučeno do `main`; [lokální ověření](QA_v6_implementation.md) |
+| Features 1, 2, 4–8, 10–12 | Přesunuto; bod 5 částečně hotov | [Otevřený rozsah QA v7](QA_v7.md) |
 
 ## Features
 
 ### 1. Zvýraznění vytěžených informací přímo v PDF
 
-- Vytěžené informace zvýraznit přímo v PDF moderním žlutým zvýrazněním.
-- Model musí spolu s vytěženými údaji vracet jejich polohu v dokumentu, tedy místo, kde je identifikoval.
-- Kliknutí do boxu má zobrazit přiblížený detail příslušného místa v PDF. Přesnou podobu boxu a interakce upřesnit při rozpracování.
+**Stav:** Přesunuto do [QA v7 — bod 1](QA_v7.md#1-zvýraznění-vytěžených-informací-přímo-v-pdf).
 
 ### 2. Adresář dodavatelů a odběratelů
 
-- Vytvořit adresář dodavatelů a odběratelů.
-- Vytěžené informace propojit s odpovídajícím dodavatelem nebo odběratelem v adresáři.
-- Do budoucna nad adresářem umožnit statistiky, přehledy a filtry; jejich konkrétní rozsah zatím není určen.
+**Stav:** Přesunuto do [QA v7 — bod 2](QA_v7.md#2-adresář-dodavatelů-a-odběratelů).
 
 ### 3. PDF náhled přiznání podle reálného formuláře
 
-**Rozpracování:** `grill-with-docs` dokončeno 6. 11. 2026. Uživatel potvrdil rozhodnutí Q1–Q8 a závěrečné společné porozumění v Q9 odpovědí „Ano souhlasím.“ Při rozporu s původními požadavky platí potvrzená rozhodnutí a souhrn níže. Implementace tohoto bodu probíhá podle specifikace #211 a integračního workflow.
+**Stav:** hotovo. [PR #215](https://github.com/Thomisso/iVAT/pull/215) dodal zelené české PDF formuláře bez „VZOR“, klikací miniatury první stránky a shodu PDF/XML pro aktuální exportní údaje. Kontrolní hlášení stránkuje naplněné oddíly a vždy obsahuje souhrn C. Podle záznamu PR prošlo 1 059 aplikačních testů, 14 relevantních prohlížečových scénářů, vizuální kontrola a nezávislé Standards/Spec review.
 
-**Specifikace:** `to-spec` dokončeno 6. 11. 2026 po výslovném potvrzení hranic testování. Publikováno jako [#211 — QA v6: PDF náhled přiznání a kontrolního hlášení podle reálných formulářů](https://github.com/Thomisso/iVAT/issues/211) s labelem `ready-for-agent`; obsah issue i label byly po publikaci ověřeny. Nejde o součást specifikace #185 ani #200. Pro navazující práci je výsledným zadáním #211; níže zůstávají schválené podklady a rozhodnutí.
+Následují zachované schválené podklady a historie přípravy.
 
-**Implementace:** všechny tři tickety jsou po čistém nezávislém review začleněné do větve `integration/pdf-forms-211`, výsledný PR [#215](https://github.com/Thomisso/iVAT/pull/215). #212 sjednotil údaje PDF/XML; #213 dodal zelené přiznání a samostatnou miniaturu; #214 dodal zelené kontrolní hlášení bez „VZOR“, pokračovací stránky, souhrn C a samostatnou miniaturu. Náhledy vyplňují obsahovou šířku původních karet a zachovávají jejich design. Aktuální výsledky sdílených kontrol, celkového review a předání jsou v PR a kanonickém trackeru specifikace; tento záznam sám neprokazuje finální merge ani uzavření issues.
+**Rozpracování:** `grill-with-docs` dokončeno 6. 11. 2026. Uživatel potvrdil rozhodnutí Q1–Q8 a závěrečné společné porozumění v Q9 odpovědí „Ano souhlasím.“ Při rozporu s původními požadavky platí potvrzená rozhodnutí a souhrn níže. Implementace byla dokončena a sloučena 6. 11. 2026 v [PR #215](https://github.com/Thomisso/iVAT/pull/215); specifikace #211 i tickety #212–#214 jsou uzavřené.
 
-**Schválené rozdělení `to-tickets` — publikováno 6. 11. 2026**
+**Specifikace:** `to-spec` dokončeno 6. 11. 2026 po výslovném potvrzení hranic testování. Publikováno jako [#211 — QA v6: PDF náhled přiznání a kontrolního hlášení podle reálných formulářů](https://github.com/Thomisso/iVAT/issues/211) s labelem `ready-for-agent`; obsah issue i label byly po publikaci ověřeny. Nejde o součást specifikace #185 ani #200. Výsledným zadáním implementace bylo #211; níže zůstávají schválené podklady a rozhodnutí.
+
+**Schválené rozdělení `to-tickets` — publikováno a dokončeno 6. 11. 2026**
 
 Uživatel schválil velikost tří ticketů a jejich závislosti odpovědí „Vyhovuje to. OK.“ Každý ticket byl publikován jako nativní sub-issue #211 s labelem `ready-for-agent`. Obsah, labely, nativní rodič i blokující vazby byly po publikaci ověřeny.
 
@@ -38,7 +42,7 @@ Uživatel schválil velikost tří ticketů a jejich závislosti odpovědí „V
 | [#213 — Zelený formulář VAT Return s miniaturou první stránky](https://github.com/Thomisso/iVAT/issues/213) (T2) | Úplný průchod přiznáním: skutečná zelená česká předloha, samostatná věrná miniatura s dostupnými údaji firmy, kliknutí i původní stažení celého PDF a vizuální ověření. | #212 |
 | [#214 — Zelený formulář Control Statement s miniaturou a stránkováním](https://github.com/Thomisso/iVAT/issues/214) (T3) | Úplný průchod kontrolním hlášením: zelené předlohy bez „VZOR“, samostatná miniatura, všechny naplněné podporované oddíly, pokračování a souhrn C, stažení i vizuální ověření. | #212 |
 
-#213 a #214 na sobě navzájem nezávisí; po splnění #212 mohou běžet souběžně podle [implementačního workflow](agents/implementation-workflow.md). Každý ticket má vlastní cílené integrační, prohlížečové a odpovídající vizuální kontroly; společné finální kontroly a review celé specifikace zůstávají branou existujícího implementačního workflow. Výsledným zadáním zůstává specifikace #211 a její tři podřízené tickety. Po implementaci jsou všechny tři začleněné v integrační větvi; finální doručení potvrzuje až merge výsledného PR a ověření trackerem.
+#213 a #214 na sobě navzájem nezávisí; po splnění #212 mohou běžet souběžně podle [implementačního workflow](agents/implementation-workflow.md). Každý ticket má vlastní cílené integrační, prohlížečové a odpovídající vizuální kontroly; společné finální kontroly a review celé specifikace zůstávají branou existujícího implementačního workflow. Všechny tři tickety byly dokončeny a dodány společně v PR #215.
 
 - PDF náhled přiznání zpracovat podle reálných PDF formulářů.
 - V náhledu zobrazit také miniaturu s možností kliknutím stáhnout PDF.
@@ -70,9 +74,9 @@ Uživatel schválil velikost tří ticketů a jejich závislosti odpovědí „V
 - Hlavní hranice: existující stránky výstupů a autentizované stažení. Pro oba formuláře ověřit skutečnou miniaturu, kliknutí i dosavadní ovládání stažení, promítnutí změn exportní hlavičky, české formuláře při českém i anglickém rozhraní a zachování rozložení karet. Miniatura nesmí záviset na stažení celého PDF ani novém výpočtu výkazu.
 - Doplňující existující hranice: aplikační exporty nad uloženým výkazem se skutečnými databázovými oprávněními. Porovnat významově odpovídající hodnoty PDF a XML pro stejné exportní nastavení; pokrýt zaokrouhlení, souhrn C, neúplnou hlavičku, fyzickou i právnickou osobu, diakritiku, záporné a nulové hodnoty, pokračování naplněného oddílu a izolaci Company/Organization. Jednorázové změny exportu nesmějí měnit výchozí nastavení firmy.
 - Vizuálně ověřit vyrenderované reprezentativní stránky PDF a miniatury: zelené předlohy bez „VZOR“, věrné rozvržení a písmo, čitelná pole, poměr stran a žádné překryvy či ořezy. Samotné textové porovnání PDF není dostatečné; nepřidávat testovací rozhraní pro interní kreslicí funkce ani vyžadovat shodu bajtů PDF.
-- Vycházet z dosavadního pokrytí PDF výstupů, XML exportů, navigace výstupů a jednorázových změn exportní hlavičky; upravit očekávání původních tabulek a anglických popisků podle schváleného zadání. Jde o plán pro implementaci, nikoli o již provedené testy.
+- Vycházet z dosavadního pokrytí PDF výstupů, XML exportů, navigace výstupů a jednorázových změn exportní hlavičky; upravit očekávání původních tabulek a anglických popisků podle schváleného zadání. Jde o schválený plán; výsledky provedených kontrol zaznamenává PR #215.
 
-**Zjištění při přípravě rozhovoru (6. 11. 2026; nejde o schválená rozhodnutí)**
+**Historická zjištění před implementací (6. 11. 2026; nejde o současný stav)**
 
 - Současné generátory PDF vytvářejí vlastní tabulky bez formulářových předloh; karty stažení zatím miniaturu neobsahují.
 - PDF čerpá z uloženého VAT Report včetně tehdejší identity a adresy Company. XML navíc řeší údaje finančního úřadu, kontakty a podepisující osobu z nastavení a vstupu exportu, případně potvrzenou adresu pro EPO. Existující XML artefakty uchovávají vyřešené údaje exportu; PDF je nepoužívá.
@@ -84,37 +88,29 @@ Uživatel schválil velikost tří ticketů a jejich závislosti odpovědí „V
 
 ### 4. Uplatnění pouze části dokladu
 
-- Umožnit ke zpracování a do přiznání zahrnout pouze část dokladu, respektive část jeho částky.
-- Příklad: faktura obsahuje několik položek, ale k uplatnění je určena pouze část faktury.
-- Konkrétní způsob výběru části dokladu a zadání částky zůstává k rozpracování.
+**Stav:** Přesunuto do [QA v7 — bod 4](QA_v7.md#4-uplatnění-pouze-části-dokladu).
 
 ### 5. Přehlednější správa uživatelů a ochrana před odebráním vlastního přístupu
 
-- V sekci „Uživatelé a přístupy“ nesmí být možné odebrat přístup sám sobě.
-- Seznam uživatelů zobrazit v přehledném gridu.
-- Akce „Změnit roli“ a „Odebrat přístup“ začlenit přímo do gridu.
+**Stav:** Částečně hotovo; zbývající požadavky přesunuty do [QA v7 — bod 5](QA_v7.md#5-přehlednější-správa-uživatelů-a-ochrana-před-odebráním-vlastního-přístupu).
 
 ### 6. Dashboard s důležitými informacemi
 
-- Na dashboardu zobrazovat dlaždice s důležitými informacemi.
-- Obsah, výběr informací a konkrétní podoba dlaždic: **TBD**.
+**Stav:** Přesunuto do [QA v7 — bod 6](QA_v7.md#6-dashboard-s-důležitými-informacemi).
 
 ### 7. Ergonomičtější revize dokladů
 
-- Sekci revize dokladů upravit tak, aby byla uživatelsky přívětivější.
-- Reorganizovat tlačítka a jako hlavní akce zdůraznit „Schválit“ a „Zamítnout“.
-- Zlepšit ergonomii polí a jejich vyplňování.
-- Zachovat split view pro souběžné zobrazení dokumentu a jeho údajů.
+**Stav:** Přesunuto do [QA v7 — bod 7](QA_v7.md#7-ergonomičtější-revize-dokladů).
 
 ### 8. Volitelné automatické schvalování bezproblémových dokladů
 
-- Do nastavení firmy přidat volbu „Automaticky schválit doklady, které nevyžadují pozornost“.
-- Pokud je volba pro firmu zapnutá, doklady vyhodnocené jako bezproblémové automaticky schválit.
-- Přesná definice dokladu, který „nevyžaduje pozornost“, zůstává k rozpracování.
+**Stav:** Přesunuto do [QA v7 — bod 8](QA_v7.md#8-volitelné-automatické-schvalování-bezproblémových-dokladů).
 
 ### 9. Průběžné sledování práce agentů nad issues v GitHubu
 
-**Doplněno:** 3. 11. 2026. Rozpracování potvrzeno a specifikace publikována 4. 11. 2026 jako [#200](https://github.com/Thomisso/iVAT/issues/200) s labelem `ready-for-agent`. Není součástí specifikace #185 ani jejích implementačních ticketů. Pro navazující rozpad a implementaci je výsledným zadáním #200; níže jsou podklady a dohodnutá rozhodnutí.
+**Stav:** hotovo v [PR #210](https://github.com/Thomisso/iVAT/pull/210). Společné příkazy a GitHub Project zobrazují fázi implementace, ověřenou aktivitu, review, integraci a doložené dokončení. Dodána je obnova běhu, synchronizace, nezávislé sledování aktivity a kontrola finálních bran. Výsledky a hranice ověření jsou v [akceptačním záznamu](agents/agent-tracking-acceptance.md), provozní postup v [agent-tracking.md](agents/agent-tracking.md).
+
+**Doplněno:** 3. 11. 2026. Rozpracování potvrzeno a specifikace publikována 4. 11. 2026 jako [#200](https://github.com/Thomisso/iVAT/issues/200) s labelem `ready-for-agent`. Není součástí specifikace #185 ani jejích implementačních ticketů. Specifikace #200 i všech šest ticketů #201–#206 jsou po merge PR #210 uzavřené; níže jsou zachované podklady a dohodnutá rozhodnutí.
 
 **Rozsah a provozní rozhodnutí (dohodnuto 4. 11. 2026)**
 
@@ -127,7 +123,7 @@ Uživatel schválil velikost tří ticketů a jejich závislosti odpovědí „V
 - Výslovně zrušená implementace má stav Zrušeno a povinný důvod. Přerušení agenta zachová dosaženou fázi a změní údaj o aktivitě; samo práci neruší.
 - Již převzatý běh může při výpadku GitHubu pokračovat lokálně a trvale ukládat nepublikované události. Před označením výsledného PR jako připraveného k review musí synchronizace doběhnout. Bez ověření vlastnictví práce nelze zahájit ani převzít jiný řídicí běh.
 - Počáteční naplnění zahrne otevřené implementační issues s labelem `ready-for-agent` a jejich nadřazené specifikace. Nové schválené tickety se přidávají automaticky; již sledované tickety v projektu zůstávají i po změně triage labelu. Historie uzavřených issues se zpětně nedoplňuje.
-- Společné porozumění i hranice testování jsou potvrzené a úplná specifikace je publikovaná jako #200. Schválený rozpad je publikovaný v šesti nativních sub-issues #201–#206 s labelem `ready-for-agent` a nativními blokujícími vazbami. Implementace byla zahájena ticketem #201 na samostatné větvi a worktree; další tickety čekají na své implementační závislosti.
+- Společné porozumění i hranice testování jsou potvrzené a úplná specifikace je publikovaná jako #200. Schválený rozpad je publikovaný v šesti nativních sub-issues #201–#206 s labelem `ready-for-agent` a nativními blokujícími vazbami. Implementace všech šesti ticketů byla dokončena a sloučena do `main` v PR #210.
 
 **Problém a cíl**
 
@@ -176,9 +172,11 @@ Uživatel schválil velikost tří ticketů a jejich závislosti odpovědí „V
 2. Zapojit rozhraní do samostatného `implement` i orchestrace `implement-spec`. Na více závislých ticketech ověřit převzetí, nezávislé review, návrat k opravám, integraci a oddělené společné kontroly specifikace.
 3. Přidat nezávislou kontrolu aktivity v Actions a ověřit přerušení, obnovu, výpadky, opožděné události i ruční rozpory. Celá cesta musí splnit akceptaci níže, včetně podmínky synchronizace před předáním finálního PR k review.
 
-Toto rámcové pořadí rozpracovává šest schválených ticketů: [#201](https://github.com/Thomisso/iVAT/issues/201) první řízený ticket, [#202](https://github.com/Thomisso/iVAT/issues/202) backlog a pohledy, [#203](https://github.com/Thomisso/iVAT/issues/203) review a integrace, [#204](https://github.com/Thomisso/iVAT/issues/204) obnova a synchronizace, [#205](https://github.com/Thomisso/iVAT/issues/205) nezávislá kontrola aktivity a [#206](https://github.com/Thomisso/iVAT/issues/206) souhrnné brány a dokončení. Výsledné zadání zachycuje specifikace #200; konkrétní závislosti jsou nativně uložené u ticketů. První dostupný ticket je #201.
+Toto rámcové pořadí rozpracovává šest schválených ticketů: [#201](https://github.com/Thomisso/iVAT/issues/201) první řízený ticket, [#202](https://github.com/Thomisso/iVAT/issues/202) backlog a pohledy, [#203](https://github.com/Thomisso/iVAT/issues/203) review a integrace, [#204](https://github.com/Thomisso/iVAT/issues/204) obnova a synchronizace, [#205](https://github.com/Thomisso/iVAT/issues/205) nezávislá kontrola aktivity a [#206](https://github.com/Thomisso/iVAT/issues/206) souhrnné brány a dokončení. Výsledné zadání zachycuje specifikace #200; konkrétní závislosti jsou nativně uložené u ticketů. Pořadí bylo zahájeno ticketem #201; nyní jsou všechny tickety dokončené.
 
-**Podmínky nastavení GitHubu (ověřeno 4. 11. 2026)**
+**Historické podmínky nastavení GitHubu před implementací (ověřeno 4. 11. 2026)**
+
+Následující stav zachycuje přípravu před PR #210. Výsledné nastavení a jeho ověření popisuje [akceptační záznam](agents/agent-tracking-acceptance.md).
 
 - Aktivní účet `gh` je `Thomisso`, vlastník repozitáře je uživatelský účet `Thomisso`. Současné přihlášení má scopes `gist`, `read:org`, `repo`, `workflow`; chybí oprávnění Projects. Dotaz na seznam projektů skončil chybou chybějícího `read:project`, takže existence použitelného projektu zatím není ověřena.
 - Pro zápis přes místní CLI je potřeba doplnit scope `project`. GitHub Actions potřebují samostatně vhodné přihlašovací údaje s přístupem k projektu; běžný repository `GITHUB_TOKEN` přístup k Projects neposkytuje. Viz [CLI Projects](https://cli.github.com/manual/gh_project) a [Projects v Actions](https://docs.github.com/en/issues/planning-and-tracking-with-projects/automating-your-project/automating-projects-using-actions).
@@ -193,19 +191,45 @@ Toto rámcové pořadí rozpracovává šest schválených ticketů: [#201](http
 - Po integraci všech ticketů zůstává viditelné čekání na společné kontroly a finální merge. Teprve merge výsledného PR uzavře příslušná issues a nastaví Hotovo; tím se nespouští produkční nasazení.
 - Publikované údaje obsahují pouze technický průběh práce a potřebné odkazy, bez tokenů, session, soukromých dokladů a obsahu lokálních debug podkladů.
 
+### 10. Společná příprava verzí vytěžení (Extraction Version)
+
+**Stav:** Přesunuto do [QA v7 — bod 10](QA_v7.md#10-společná-příprava-verzí-vytěžení-extraction-version).
+
+### 11. Společná pravidla selhání rozdělení zdroje a AI vytěžení
+
+**Stav:** Přesunuto do [QA v7 — bod 11](QA_v7.md#11-společná-pravidla-selhání-rozdělení-zdroje-a-ai-vytěžení).
+
+### 12. Společné načítání podkladů pro revizi dokladu
+
+**Stav:** Přesunuto do [QA v7 — bod 12](QA_v7.md#12-společné-načítání-podkladů-pro-revizi-dokladu).
+
 ## Bugs / Improvements
 
+Všechny následující položky jsou dokončené. Původní nálezy a schválená rozhodnutí zůstávají jako historie zadání; výsledky kontrol obsahuje [ověření implementace](QA_v6_implementation.md).
+
 ### a. Povinnost DIČ podle částky dokladu
+
+**Stav:** hotovo v [PR #198](https://github.com/Thomisso/iVAT/pull/198). DIČ respektuje hranici 10 000 Kč včetně DPH napříč validací, schválením a reporty; zvláštní režimy jsou zachovány. Ticket [#186](https://github.com/Thomisso/iVAT/issues/186).
+
+**Původní nález (historie):**
 
 - Požadavek: DIČ vyžadovat pouze u dokladů s částkou **nad 10 000 Kč včetně DPH**.
 
 ### b. Podezření na nesprávné ověřování zveřejněného platebního účtu
+
+**Stav:** hotovo v [PR #198](https://github.com/Thomisso/iVAT/pull/198). Opraveno porovnání českého IBAN, domácího zápisu a nulového předčíslí; neověřitelný a rozporný údaj mají samostatný výsledek. Datované ověření lze zopakovat bez otevření schváleného dokladu či období. Tickety [#187](https://github.com/Thomisso/iVAT/issues/187) a [#188](https://github.com/Thomisso/iVAT/issues/188).
+
+**Původní nález (historie):**
 
 - Prověřit hlášení „Platební účet není u tohoto dodavatele zveřejněn v registru plátců DPH“.
 - Existuje podezření, že kontrola nefunguje správně; příčina ani chyba zatím nejsou potvrzené.
 - Při navazující práci provést debug session této kontroly.
 
 ### c. Vyřešené a neúspěšné úlohy v Přehledu platformy
+
+**Stav:** hotovo v [PR #198](https://github.com/Thomisso/iVAT/pull/198). Aktivní přehled zohledňuje aktuální stav a ruční převzetí; neúspěšný exportní pokus lze ukončit nebo je automaticky překonán podle schválených pravidel. Historie a audit zůstávají. Tickety [#189](https://github.com/Thomisso/iVAT/issues/189) a [#190](https://github.com/Thomisso/iVAT/issues/190).
+
+**Původní nález (historie):**
 
 - V Přehledu platformy umožnit zrušit nebo smazat neúspěšné úlohy.
 - Pokud byl problém neúspěšné úlohy vyřešen, nemá se úloha nadále zobrazovat SuperAdminovi jako položka k vyřešení.
@@ -214,10 +238,18 @@ Toto rámcové pořadí rozpracovává šest schválených ticketů: [#201](http
 
 ### d. Odlišné rozložení menu SuperAdmina
 
+**Stav:** hotovo v [PR #198](https://github.com/Thomisso/iVAT/pull/198). Platforma sdílí rámec Nastavení a menu s firemním kontextem. Ticket [#191](https://github.com/Thomisso/iVAT/issues/191).
+
+**Původní nález (historie):**
+
 - Menu SuperAdmina má jiné rozložení než ostatní části aplikace.
 - Sjednotit rozložení; konkrétní rozdíly a cílovou podobu upřesnit při navazující revizi.
 
 ### e. Duplicitní a nefunkční cesta ke správě uživatelů
+
+**Stav:** hotovo v [PR #198](https://github.com/Thomisso/iVAT/pull/198). Dodána jednotná správa uživatelů, konkrétních Memberships a Invitations s oprávněnými firemními a organizačními filtry; původní vstupy zachovávají kontext. Tickety [#192](https://github.com/Thomisso/iVAT/issues/192) a [#193](https://github.com/Thomisso/iVAT/issues/193). Samostatné zbývající požadavky Feature 5 pokračují v QA v7.
+
+**Původní nález (historie):**
 
 - V Nastavení je odkaz na uživatele organizace, který vede do sekce SuperAdmina a nezobrazuje žádné uživatele.
 - Vedle toho existuje sekce „Uživatelé a přístupy“, kde se uživatelé zobrazují správně.
@@ -225,11 +257,19 @@ Toto rámcové pořadí rozpracovává šest schválených ticketů: [#201](http
 
 ### f. Návrat ze Zabezpečení do firmy
 
+**Stav:** hotovo v [PR #198](https://github.com/Thomisso/iVAT/pull/198). Zabezpečení vrací uživatele do původního stále oprávněného kontextu včetně Platformy a bezpečného náhradního cíle. Ticket [#194](https://github.com/Thomisso/iVAT/issues/194).
+
+**Původní nález (historie):**
+
 - Ze sekce Zabezpečení umožnit návrat zpět do firmy.
 
 ### g. Výpadky přihlášení při chybném veřejném DNS překladu z produkce
 
-- **Stav:** potvrzený produkční nález; opravu rozpracovat a implementovat společně s ostatními položkami QA v6. Při diagnostice nebyla měněna produkční konfigurace ani aplikace.
+**Stav:** hotovo v [PR #198](https://github.com/Thomisso/iVAT/pull/198). Serverový Supabase transport používá interní gateway se zachováním veřejných cookies a odkazů, bez veřejného fallbacku a s oddělenými health kontrolami webu a Auth. Tickety [#195](https://github.com/Thomisso/iVAT/issues/195), [#196](https://github.com/Thomisso/iVAT/issues/196) a [#197](https://github.com/Thomisso/iVAT/issues/197). Šetření resolveru Roští zůstává historickou provozní návazností; jeho výsledek tato uzávěrka nepotvrzuje.
+
+**Původní nález (historie):**
+
+- **Stav při zápisu:** potvrzený produkční nález. Při původní diagnostice nebyla měněna produkční konfigurace ani aplikace; implementace nápravy následovala v PR #198.
 - **Incident:** 31. 10. 2026 v **15:16:23 SEČ** (14:16:23 UTC), opakovaně v 15:17:29 a 15:17:33. Web zaznamenal `[auth:login-failed]` s `AuthRetryableFetchError`, bez kódu a se statusem `0`. V kontrolovaném intervalu chyběl odpovídající požadavek v logu Auth služby.
 - **Ověřená příčina selhání spojení:** resolver Roští `10.3.0.1`, používaný přes Docker DNS `127.0.0.11`, vracel pro `api.ivat.cz` IPv4 `185.8.237.22`. Tento endpoint předkládal self-signed certifikát WEDOS Global s `CN=invalid`; požadavky z produkčního webového kontejneru opakovaně selhaly s `DEPTH_ZERO_SELF_SIGNED_CERT`.
 - **Srovnávací ověření:** veřejné resolvery 1.1.1.1 a 8.8.8.8 vracely přes `lb.rosti.cz` IPv4 `185.58.41.93`. Po použití této adresy pro diagnostický požadavek ze stejného kontejneru vrátilo `/auth/v1/settings` HTTP 200 s platným ověřením TLS. Interní cesta `http://gateway:8000/auth/v1/settings` také opakovaně vracela HTTP 200. Proč resolver Roští vracel chybnou odpověď, zůstává neobjasněné.
@@ -271,7 +311,7 @@ Tento oddíl je schváleným výstupem uzavřeného rozhovoru: zahrnuje souhlas 
 - Nové ověření nemění údaje dokladu, stav schválení, Period Lock ani VAT Report. Historické výsledky se zachovají; tato etapa nezavádí automatickou hromadnou obnovu. Oddělení kontrol od neměnných verzí zachycuje [ADR-0018](adr/0018-bank-account-checks-are-dated-observations.md).
 - Původní doporučení Q20 samostatně ověřovat dva odlišné účty neplatí: obě pole mají popisovat jeden Payment Account. Pokud IBAN po převodu neodpovídá současně vyplněnému domácímu číslu, zobrazit neblokující upozornění „IBAN a domácí číslo účtu si neodpovídají“. Do opravy netvrdit, že je účet zveřejněný či nezveřejněný, a žádný zápis automaticky neupřednostnit (Q21).
 
-#### Výsledek lokální diagnostiky
+#### Výsledek lokální diagnostiky před opravou
 
 - Produkce sloužila pouze ke čtení v SQL transakci READ ONLY a stažení originálů. Nebyly měněny doklady, nálezy, konfigurace ani spouštěno zpracování.
 - Staženo 19 relevantních originálů a jejich uložené Extraction Versions/nálezy, z toho 12 přijatých a 7 vydaných. Originály byly ověřeny proti uloženým SHA-256; oba relevantní produkční zdrojové soubory odpovídaly lokálnímu checkoutu.
@@ -280,7 +320,7 @@ Tento oddíl je schváleným výstupem uzavřeného rozhovoru: zahrnuje souhlas 
 - Sedm vydaných dokladů kontroluje DIČ a příjmový účet vlastní Company; všechny patří do skupiny IBAN/domácí účet. Jedenáct falešných varování se týká přijatých dokladů.
 - Devatenáctý případ není chybou extrakce proti originálu: originál obsahuje pod označením čísla účtu identifikátor GoPay a uvádí platbu kartou. Identifikátor nemá formát bankovního účtu; označení „nezveřejněný účet“ proto zaměňuje nemožnost porovnání za negativní výsledek ověření.
 - SOAP odpovědi byly získány nově lokálně z veřejného registru. Dokládají současný stav a umožňují replay bez sítě, nikoli rekonstrukci historického stavu registru. Nejde o end-to-end ověření rozhraní.
-- Soukromé originály, payloady a opakovatelný diagnostický příkaz jsou mimo Git v `~/.config/ivat/qa-v6-bank-debug/evidence.md`. Příkaz byl opakovaně spuštěn s očekávaným neúspěchem: `Expected 0 false unpublished-account warnings; actual 18/18`. Oprava aplikace dosud nebyla provedena.
+- Soukromé originály, payloady a opakovatelný diagnostický příkaz jsou mimo Git v `~/.config/ivat/qa-v6-bank-debug/evidence.md`. Příkaz byl opakovaně spuštěn s očekávaným neúspěchem: `Expected 0 false unpublished-account warnings; actual 18/18`. V době diagnostiky oprava aplikace ještě nebyla provedena; následně ji dodal PR #198.
 - Registry findings se ukládají do neměnných Extraction Versions a čtení je automaticky neověřuje znovu. Současná obnova probíhá při uložení nové verze; u schváleného dokladu vyžaduje návrat do revize, u zamčeného období také odemčení. Samotná oprava porovnávání proto historická varování automaticky neodstraní.
 - Při současném vyplnění odlišného IBAN a domácího čísla účtu má dnes IBAN bez vysvětlení přednost a druhý účet se nekontroluje.
 
@@ -327,7 +367,7 @@ Tento oddíl je schváleným výstupem uzavřeného rozhovoru: zahrnuje souhlas 
 
 ## Implementační tickety Bugs / Improvements
 
-Schválené rozdělení specifikace [#185](https://github.com/Thomisso/iVAT/issues/185). Každý ticket obsahuje vlastní akceptační kritéria a testování; všechny byly založeny s `ready-for-agent`. Závislosti jsou vedené nativně v GitHubu. Obsah ani stav rodičovské specifikace nebyly při rozdělení měněny.
+Dokončené rozdělení specifikace [#185](https://github.com/Thomisso/iVAT/issues/185). Každý ticket obsahuje vlastní akceptační kritéria a testování; všechny byly založeny s `ready-for-agent`. Závislosti jsou vedené nativně v GitHubu. Specifikace #185 i všechny tickety #186–#197 jsou od merge PR #198 dne 3. 11. 2026 uzavřené. Tabulka zachovává původní rozdělení a závislosti; všechny řádky jsou hotové.
 
 | Ticket | Co dodá | Závisí na |
 | --- | --- | --- |
