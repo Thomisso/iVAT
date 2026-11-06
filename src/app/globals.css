@@ -2385,6 +2385,6 @@ select:disabled {
 .invitation-link-field { flex-basis: 100%; min-width: 0; }
 .invitation-link-field input { width: 100%; min-width: 0; }
 
-.vat-pdf-thumbnail-link { display: block; width: min(100%, 280px); margin: 0 0 16px; border: 1px solid #c2d0c8; background: #fff; }
+.vat-pdf-thumbnail-link { display: block; width: 100%; margin: 0 0 16px; border: 1px solid #c2d0c8; background: #fff; }
 .vat-pdf-thumbnail-link:focus-visible { outline: 3px solid var(--shell-navy); outline-offset: 3px; }
 .vat-pdf-thumbnail { display: block; width: 100%; height: auto; aspect-ratio: 595 / 842; }
