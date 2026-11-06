@@ -66,7 +66,7 @@ test("VAT Return card independently previews current Czech headers and both cont
     if (locale === "en") {
       await page.locator(".vat-export-card").first().screenshot({ path: testInfo.outputPath("vat-card-desktop.png") });
       await page.setViewportSize({ width: 360, height: 1000 });
-      await page.locator(".vat-export-card").first().evaluate(element => element.scrollIntoView({ block: "start" }));
+      await page.locator(".vat-export-card").first().evaluate(element => { element.scrollIntoView({ block: "start" }); window.scrollBy(0, -100); });
       await page.locator(".vat-export-card").first().screenshot({ path: testInfo.outputPath("vat-card-narrow.png") });
       await page.setViewportSize({ width: 1440, height: 1000 });
     }
