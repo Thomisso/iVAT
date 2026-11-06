@@ -4,6 +4,9 @@ import {
   createControlStatementPdf,
   exportControlStatementPdf,
 } from "@/application/control-statement-pdf";
+import { SAMPLE_EXTRACTION } from "@/ai/fake";
+import { createManualDocument } from "@/application/documents";
+import { exportVatReport } from "@/application/epo-export";
 import { controlStatementPreviewData } from "@/application/control-statement-preview";
 import {
   approveDocument,
@@ -314,4 +317,78 @@ it("does not expose another Organization's Control Statement PDF", async () => {
     ok: false,
     error: "report_not_found",
   });
+});
+
+
+it("exports mandatory summary C zeros without fabricating optional values for an empty report", async () => {
+  const company = await administratorWithCompany();
+  const input = { companyId: company.companyId, period: "2026-10", details: {
+    preparedOn: "2026-11-03", taxOffice: "451", economicActivity: "621000", email: "one-off@example.test",
+    signatoryFirstName: "Jana", signatoryLastName: "Nováková", signatoryCapacity: "jednatelka",
+  } };
+  await generateVatReport(company.client, input);
+  const pdf = await exportControlStatementPdf(company.client, input, czechMessages.vatReports.controlStatementPdf);
+  const xml = await exportVatReport(company.client, { ...input, format: "dphkh1" });
+  if (!pdf.ok || !xml.ok) throw new Error("Export refused");
+  const text = await pdfText(pdf.value.bytes);
+  expect(text).toMatch(/Souhrn C\s+Řádek 1 – základ daně\s+0.00\s+Řádek 2 – základ daně\s+0.00\s+Řádek 40 – základ daně\s+0.00\s+Řádek 41 – základ daně\s+0.00/);
+  expect(text).toContain("03.11.2026");
+  expect(text).toContain("one-off@example.test");
+  expect(text).not.toContain("Řádek 25 – základ daně");
+  expect(xml.value.xml).toContain('<VetaC obrat23="0.00" obrat5="0.00" pln23="0.00" pln5="0.00"/>');
+});
+
+
+it("preserves all XML sections, aggregate rates, negative amounts and nonzero bases with zero VAT in the downloaded PDF", async () => {
+  const company = await administratorWithCompany();
+  const input = { companyId: company.companyId, period: "2026-10", details: {
+    preparedOn: "2026-11-04", taxOffice: "451", economicActivity: "621000",
+    signatoryFirstName: "Jana", signatoryLastName: "Nováková", signatoryCapacity: "jednatelka",
+  } };
+  const cases = [
+    ["A1", "outgoing", "domestic_reverse_charge", 21, "1000.00", "0.00", "1000.00"],
+    ["A2", "incoming", "eu_received_service", 21, "300.00", "0.00", "300.00"],
+    ["A4", "outgoing", "domestic", 21, "12000.00", "2520.00", "14520.00"],
+    ["A5-one", "outgoing", "domestic", 21, "1000.00", "210.00", "1210.00"],
+    ["A5-credit", "outgoing", "domestic", 21, "-100.00", "-21.00", "-121.00"],
+    ["A5-zero", "outgoing", "domestic", 12, "0.05", "0.00", "0.05"],
+    ["B1", "incoming", "domestic_reverse_charge", 12, "500.00", "0.00", "500.00"],
+    ["B2-credit", "incoming", "domestic", 21, "-20000.00", "-4200.00", "-24200.00"],
+    ["B3", "incoming", "domestic", 21, "500.00", "105.00", "605.00"],
+  ] as const;
+  for (const [documentNumber, direction, proposedVatRegime, rate, netAmount, vatAmount, grossAmount] of cases) {
+    const created = await createManualDocument(company.client, { companyId: company.companyId, payload: {
+      ...SAMPLE_EXTRACTION, documentNumber, direction, proposedVatRegime,
+      documentType: netAmount.startsWith("-") ? "credit_note" : "invoice",
+      reverseChargeCode: proposedVatRegime === "domestic_reverse_charge" ? "4" : null,
+      supplier: direction === "outgoing" ? SAMPLE_EXTRACTION.customer : {
+        ...SAMPLE_EXTRACTION.supplier,
+        ...(documentNumber === "A2" ? { vatId: "DE123456789", country: "DE" } : {}),
+      },
+      customer: direction === "outgoing" ? SAMPLE_EXTRACTION.supplier : SAMPLE_EXTRACTION.customer,
+      rateBreakdown: [{ rate, netAmount, vatAmount }], totals: { netAmount, vatAmount, grossAmount },
+    } });
+    if (!created.ok) throw new Error(created.error);
+    expect(await approveDocument(company.client, { companyId: company.companyId, documentId: created.value.id, version: 1 })).toEqual({ ok: true, value: null });
+  }
+  await generateVatReport(company.client, input);
+  const pdf = await exportControlStatementPdf(company.client, input, czechMessages.vatReports.controlStatementPdf);
+  const xml = await exportVatReport(company.client, { ...input, format: "dphkh1" });
+  if (!pdf.ok || !xml.ok) throw new Error("Export refused");
+  const text = await pdfText(pdf.value.bytes);
+  const detailText = text.split("Souhrn C")[0];
+  expect(detailText.match(/Oddíl [AB]\.\d(?=\s)/g)).toEqual(["Oddíl A.1", "Oddíl A.2", "Oddíl A.4", "Oddíl A.5", "Oddíl B.1", "Oddíl B.2", "Oddíl B.3"]);
+  const sections = detailText.split(/Oddíl [AB]\.\d(?=\s)/).slice(1);
+  expect(sections[0]).toMatch(/Základ daně \(Kč\)\s+1000.00/);
+  expect(sections[0]).not.toContain("DPH 21 %");
+  expect(sections[1]).toMatch(/Základ daně 21 %\s+300.00\s+DPH 21 %\s+63.00/);
+  expect(sections[2]).toMatch(/Základ daně 21 %\s+12000.00\s+DPH 21 %\s+2520.00/);
+  expect(sections[3]).toMatch(/Základ daně 21 %\s+900.00\s+DPH 21 %\s+189.00\s+Základ daně 12 %\s+0.05\s+DPH 12 %\s+0.00/);
+  expect(sections[4]).toMatch(/Základ daně 12 %\s+500.00\s+DPH 12 %\s+60.00/);
+  expect(sections[5]).toMatch(/Základ daně 21 %\s+-20000.00\s+DPH 21 %\s+-4200.00/);
+  expect(sections[6]).toMatch(/Základ daně 21 %\s+500.00\s+DPH 21 %\s+105.00/);
+  expect(text).toMatch(/Souhrn C\s+Řádek 1 – základ daně\s+12900.00\s+Řádek 2 – základ daně\s+0.05/);
+  expect(xml.value.xml).toContain('<VetaA5 zakl_dane1="900.00" dan1="189.00" zakl_dane2="0.05" dan2="0.00"/>');
+  expect(xml.value.xml).toMatch(/<VetaB2 [^>]*zakl_dane1="-20000.00" dan1="-4200.00"/);
+  expect(xml.value.xml).toContain('<VetaC obrat23="12900.00" obrat5="0.05" pln23="-19500.00" pln5="0.00" pln_rez_pren="1000.00" rez_pren5="500.00" celk_zd_a2="300.00"/>');
 });

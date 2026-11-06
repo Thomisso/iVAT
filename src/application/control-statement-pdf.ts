@@ -8,6 +8,9 @@ import {
   controlStatementPreviewData,
   type ControlStatementPreviewData,
 } from "./control-statement-preview";
+import { appendPdfExportHeader, pdfExportCompany, pdfFormText } from "./pdf-export-header";
+import { resolveEpoExportDetails, todayInPrague, type VatReportExportHeader } from "./epo-export-context";
+import { prepareControlStatement, type EpoRow } from "./epo-values";
 import { getVatReport } from "./vat-reports";
 import { formatDate } from "@/lib/format-date";
 
@@ -116,12 +119,42 @@ function pageHeader(
 export async function createControlStatementPdf(
   preview: ControlStatementPreviewData,
   copy: ControlStatementPdfCopy,
+  filing?: { header: VatReportExportHeader; rows: EpoRow[] },
 ): Promise<Uint8Array> {
+  if (filing) preview = { ...preview, company: pdfExportCompany(filing.header) };
   const document = await PDFDocument.create();
   document.registerFontkit(fontkit);
   const font = await document.embedFont(await readFile(fontPath), {
     subset: true,
   });
+  if (filing) {
+    let { page, right, y } = pageHeader(document, font, preview, copy, true);
+    const labels: Record<string, string> = {
+      dic_odb: copy.counterpartyVatId, dic_dod: copy.counterpartyVatId,
+      c_evid_dd: copy.document, duzp: copy.taxPointDate, dppd: copy.taxPointDate,
+      k_stat: copy.counterpartyCountry, vatid_dod: copy.counterpartyVatId,
+      kod_pred_pl: copy.supplyCode,
+      ...Object.fromEntries((["c_radku", "kod_rezim_pl", "pomer", "zdph_44", "zakl_dane1", "dan1", "zakl_dane2", "dan2", "obrat23", "obrat5", "pln23", "pln5", "pln_rez_pren", "rez_pren23", "rez_pren5", "celk_zd_a2"] as const).map(key => [key, pdfFormText(`fields.${key}`)])),
+    };
+    for (const row of filing.rows) {
+      const fields = Object.entries(row.attributes).filter((entry): entry is [string, string] => entry[1] !== undefined);
+      const heading = row.name === "VetaC" ? pdfFormText("summary") : `${copy.section} ${row.name.slice(4, 5)}.${row.name.slice(5)}`;
+      if (y - 48 < BOTTOM) ({ page, right, y } = pageHeader(document, font, preview, copy, false));
+      text(page, font, heading, LEFT, y, 13);
+      y -= 26;
+      for (const [field, value] of fields) {
+        if (y - 24 < BOTTOM) ({ page, right, y } = pageHeader(document, font, preview, copy, false));
+        text(page, font, row.name === "VetaA1" && field === "zakl_dane1" ? copy.taxBaseCzk : labels[field], LEFT + 6, y);
+        rightAligned(page, font, value, right - 6, y);
+        y -= 24;
+      }
+      y -= 16;
+    }
+    appendPdfExportHeader(document, font, filing.header);
+    document.setTitle(`${copy.title} ${preview.period} · ${preview.company.name}`);
+    document.setSubject(copy.subject);
+    return document.save();
+  }
   let { page, right, y } = pageHeader(document, font, preview, copy, true);
 
   function columnHeader() {
@@ -206,8 +239,9 @@ export type ControlStatementPdfDownload = {
 /** RLS scopes the saved snapshot before any PDF bytes are produced. */
 export async function exportControlStatementPdf(
   client: AppClient,
-  input: { companyId: string; period: string },
+  input: { companyId: string; period: string; details?: Record<string, string> },
   copy: ControlStatementPdfCopy,
+  now: () => Date = () => new Date(),
 ): Promise<Result<ControlStatementPdfDownload, "report_not_found">> {
   const report = await getVatReport(client, input.companyId, input.period);
   if (!report) return { ok: false, error: "report_not_found" };
@@ -217,6 +251,10 @@ export async function exportControlStatementPdf(
       bytes: await createControlStatementPdf(
         controlStatementPreviewData(report.result),
         copy,
+        { rows: prepareControlStatement(report.result), header: {
+          company: report.result.company, period: report.period,
+          details: await resolveEpoExportDetails(client, { companyId: input.companyId, company: report.result.company, details: input.details ?? {}, today: todayInPrague(now()) }),
+        } },
       ),
       fileName: `DPHKH1-${input.period}.pdf`,
       mediaType: "application/pdf",

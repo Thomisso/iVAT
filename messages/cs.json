@@ -84,7 +84,11 @@
       "filing_defaults": "Export a finanční úřad",
       "ai_processing": "AI zpracování"
     },
-    "setupState": { "completed": "Hotovo", "skipped": "Prozatím přeskočeno", "blocking": "Povinné" },
+    "setupState": {
+      "completed": "Hotovo",
+      "skipped": "Prozatím přeskočeno",
+      "blocking": "Povinné"
+    },
     "uploadTitle": "Nahrání",
     "uploadDescription": "Přidejte zdrojové soubory a sledujte jejich zpracování.",
     "documentsTitle": "Doklady",
@@ -432,17 +436,17 @@
     "chooseFile": "Vybrat soubor"
   },
   "returnContext": {
-      "company": "← Zpět na firmu",
-      "documents": "← Zpět na doklady",
-      "document": "← Zpět na doklad",
-      "processing": "← Zpět na Zpracování",
-      "vatReturn": "← Zpět na přiznání k DPH",
-      "controlStatement": "← Zpět na kontrolní hlášení",
-      "exportHistory": "← Zpět na historii exportů",
-      "periods": "← Zpět na zdaňovací období",
-      "upload": "← Zpět na Nahrání",
-      "batch": "← Zpět na dávku",
-      "sourceFile": "← Zpět na zdrojový soubor"
+    "company": "← Zpět na firmu",
+    "documents": "← Zpět na doklady",
+    "document": "← Zpět na doklad",
+    "processing": "← Zpět na Zpracování",
+    "vatReturn": "← Zpět na přiznání k DPH",
+    "controlStatement": "← Zpět na kontrolní hlášení",
+    "exportHistory": "← Zpět na historii exportů",
+    "periods": "← Zpět na zdaňovací období",
+    "upload": "← Zpět na Nahrání",
+    "batch": "← Zpět na dávku",
+    "sourceFile": "← Zpět na zdrojový soubor"
   },
   "periodFilter": {
     "label": "Zdaňovací období",
@@ -761,7 +765,10 @@
     "total": "Celkem",
     "noConfiguration": "Bez konfigurace AI",
     "invalidPeriod": "Konec období nesmí být před jeho začátkem.",
-    "operations": { "split": "Rozdělení", "extract": "Vytěžení" },
+    "operations": {
+      "split": "Rozdělení",
+      "extract": "Vytěžení"
+    },
     "groupings": {
       "organization": "Organizace",
       "company": "Firma",
@@ -1277,8 +1284,15 @@
     "periodsListTitle": "Časová osa podání společnosti",
     "periodsListHint": "Nejstarší období, které ještě nebylo finalizováno, je zvýrazněné.",
     "periodCount": "{count, plural, one {# období} few {# období} other {# období}}",
-    "frequency": { "monthly": "Měsíční", "quarterly": "Čtvrtletní" },
-    "periodState": { "unfinished": "Nedokončeno", "draft": "Návrh uložen", "finalized": "Finalizováno" },
+    "frequency": {
+      "monthly": "Měsíční",
+      "quarterly": "Čtvrtletní"
+    },
+    "periodState": {
+      "unfinished": "Nedokončeno",
+      "draft": "Návrh uložen",
+      "finalized": "Finalizováno"
+    },
     "oldestUnfinished": "Nejstarší nedokončené",
     "finalizedAt": "Finalizováno {date}",
     "generatedAt": "Návrh vygenerován {date}",
@@ -1288,7 +1302,12 @@
     "processingTitle": "Zpracování · {period}",
     "processingDescription": "Zkontrolujte problémy v živých datech a sešit a udržujte je oddělené od uloženého snímku přiznání k DPH.",
     "periodNavigation": "Části zdaňovacího období",
-    "destinations": { "processing": "Zpracování", "vatReturn": "Přiznání k DPH", "controlStatement": "Kontrolní hlášení", "exportHistory": "Historie exportů" },
+    "destinations": {
+      "processing": "Zpracování",
+      "vatReturn": "Přiznání k DPH",
+      "controlStatement": "Kontrolní hlášení",
+      "exportHistory": "Historie exportů"
+    },
     "vatReturnTitle": "Přiznání k DPH · {period}",
     "vatReturnDescription": "Projděte zákonné přiznání k DPH z tohoto uloženého snímku a dohledávejte jeho zdroje.",
     "controlStatementTitle": "Kontrolní hlášení · {period}",
@@ -1306,13 +1325,25 @@
     "blockerCount": "{count, plural, one {# blokující doklad} few {# blokující doklady} other {# blokujících dokladů}}",
     "warningCount": "{count, plural, one {# doklad s upozorněním} few {# doklady s upozorněním} other {# dokladů s upozorněním}}",
     "openRejectedDocuments": "Otevřít {count, plural, one {# zamítnutý doklad} few {# zamítnuté doklady} other {# zamítnutých dokladů}}",
-    "groups": { "processing": "Zpracovává se", "failed": "Selhalo", "needsReview": "Ke kontrole", "approved": "Schváleno", "rejected": "Zamítnuto · vyřešeno" },
+    "groups": {
+      "processing": "Zpracovává se",
+      "failed": "Selhalo",
+      "needsReview": "Ke kontrole",
+      "approved": "Schváleno",
+      "rejected": "Zamítnuto · vyřešeno"
+    },
     "liveWorkbook": "Aktuální kontrolní sešit",
     "savedSnapshot": "ULOŽENÝ SNÍMEK",
     "snapshotGenerated": "Vygenerováno {date}",
-    "snapshotFreshness": { "current": "Tento snímek odpovídá relevantním živým dokladům.", "stale": "Relevantní živé doklady se po uložení tohoto snímku změnily." },
+    "snapshotFreshness": {
+      "current": "Tento snímek odpovídá relevantním živým dokladům.",
+      "stale": "Relevantní živé doklady se po uložení tohoto snímku změnily."
+    },
     "freshness": "Aktuálnost",
-    "freshnessState": { "current": "Aktuální", "stale": "Neaktuální" },
+    "freshnessState": {
+      "current": "Aktuální",
+      "stale": "Neaktuální"
+    },
     "snapshotDocuments": "Doklady ve snímku",
     "snapshotFrom": "Snímek z {date}",
     "noSnapshot": "Bez uloženého přiznání k DPH",
@@ -1429,7 +1460,10 @@
     "artifactActions": "Akce",
     "artifactChecksum": "Kontrolní součet SHA-256",
     "artifactKind": "Stav",
-    "artifactKinds": { "draft": "Pracovní", "final": "Finální" },
+    "artifactKinds": {
+      "draft": "Pracovní",
+      "final": "Finální"
+    },
     "artifactFormat": "Výstup",
     "artifactCreatedAt": "Vytvořeno",
     "artifactAuthor": "Autor",
@@ -1455,6 +1489,40 @@
       "manual_classification_required": "Vyžaduje ruční klasifikaci",
       "currency_conversion_required": "Vyžaduje přepočet měny",
       "incomplete_data": "Neúplné nebo neplatné údaje pro výkaz"
+    },
+    "pdfExport": {
+      "heading": "Údaje pro export",
+      "vatId": "DIČ: {value}",
+      "ico": "IČO: {value}",
+      "period": "Zdaňovací období: {value}",
+      "taxOffice": "Finanční úřad: {value}",
+      "territorialOffice": "Územní pracoviště: {value}",
+      "economicActivity": "Ekonomická činnost: {value}",
+      "preparedOn": "Datum sestavení: {value}",
+      "email": "E-mail: {value}",
+      "phone": "Telefon: {value}",
+      "signatory": "Podepisující osoba: {value}",
+      "capacity": "Postavení: {value}",
+      "address": "Adresa pro EPO: {value}",
+      "summary": "Souhrn C",
+      "fields": {
+        "c_radku": "Číslo řádku",
+        "kod_rezim_pl": "Kód režimu plnění",
+        "pomer": "Poměrný nárok",
+        "zdph_44": "Oprava daně",
+        "zakl_dane1": "Základ daně 21 %",
+        "dan1": "DPH 21 %",
+        "zakl_dane2": "Základ daně 12 %",
+        "dan2": "DPH 12 %",
+        "obrat23": "Řádek 1 – základ daně",
+        "obrat5": "Řádek 2 – základ daně",
+        "pln23": "Řádek 40 – základ daně",
+        "pln5": "Řádek 41 – základ daně",
+        "pln_rez_pren": "Řádek 25 – základ daně",
+        "rez_pren23": "Řádek 10 – základ daně",
+        "rez_pren5": "Řádek 11 – základ daně",
+        "celk_zd_a2": "Oddíl A.2 – základ daně"
+      }
     }
   },
   "epoExport": {
