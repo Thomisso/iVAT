@@ -2,7 +2,9 @@
 
 Ověřeno lokálně 3. 11. 2026.
 
-Rozsah: schválená specifikace [#185](https://github.com/Thomisso/iVAT/issues/185), všech 12 ticketů #186–#197. Integrační PR: [#198](https://github.com/Thomisso/iVAT/pull/198). Features 1–8 nejsou součástí. Produkční release, změny produkčních dat ani konfigurace nebyly provedeny; sloučení PR a pozdější release jsou samostatné kroky.
+**Aktualizace uzávěrky 6. 11. 2026:** [PR #198](https://github.com/Thomisso/iVAT/pull/198) byl 3. 11. 2026 sloučen do `main`; specifikace #185 a všechny tickety #186–#197 jsou uzavřené. [QA v6](QA_v6.md) je uzavřeno, otevřené funkce pokračují v [QA v7](QA_v7.md). Níže zůstává původní záznam lokálního ověření a jeho hranice.
+
+Rozsah: schválená specifikace [#185](https://github.com/Thomisso/iVAT/issues/185), všech 12 ticketů #186–#197. Integrační PR: [#198](https://github.com/Thomisso/iVAT/pull/198). Features 1–8 nejsou součástí. Produkční release, změny produkčních dat ani konfigurace nebyly provedeny; pozdější produkční release není doložen tímto záznamem lokálního ověření.
 
 ## Výsledné chování
 
