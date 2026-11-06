@@ -1,5 +1,6 @@
 import { refreshBankAccountCheck, getDocumentBankAccountChecks } from "@/application/bank-account-checks";
 import { expect, it } from "vitest";
+import { getDocumentReview } from "@/application/document-review";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { approveDocument, correctDocument, documentPeriodLocks, listDocuments, listExtractionVersions } from "@/application/documents";
 import { getReportingPeriodReadiness } from "@/application/reporting-period-readiness";
@@ -183,6 +184,19 @@ it("refreshes a legacy false warning in a locked Approved Document without chang
   expect(checks.current).toMatchObject({ outcome: "published", checkedAt: expect.any(String) });
   expect(checks.findings).toEqual([{ field: "supplier.vatId", severity: "warning", code: "unreliable_vat_payer" }]);
   expect(checks.checks).toHaveLength(1);
+  expect(await getDocumentReview(company.client, target)).toMatchObject({
+    current: { version: 2 }, shown: { version: 2 }, viewingRecorded: false,
+    shownFindings: [{ field: "supplier.vatId", severity: "warning", code: "unreliable_vat_payer" }],
+    bankChecks: { current: { version: 2, outcome: "published", checkedAt: expect.any(String) } },
+    file: { fileName: "receipt.png" }, sourceRows: null, lockedPeriod: "2026-10", reviewing: false,
+  });
+  expect(await getDocumentReview(company.client, { ...target, requestedVersion: "2" })).toMatchObject({
+    shown: { version: 2 }, viewingRecorded: true,
+    shownFindings: [
+      { field: "payment.bankAccount", severity: "warning", code: "unpublished_bank_account" },
+      { field: "supplier.vatId", severity: "warning", code: "unreliable_vat_payer" },
+    ],
+  });
   expect(await listExtractionVersions(company.client, target.companyId, target.documentId)).toEqual(before);
   expect((await listDocuments(company.client, company.companyId, document.sourceFileId!))[0]).toEqual(approved);
   expect(await getVatReport(company.client, company.companyId, period.period)).toEqual(report);
@@ -223,6 +237,15 @@ it("keeps a delayed check for the earlier supplier/account as history after corr
   expect(view.current).toBeNull();
   expect(view.checks).toHaveLength(1);
   expect(view.findings).toEqual([{ field: "payment.bankAccount", severity: "warning", code: "unpublished_bank_account" }]);
+  expect(await getDocumentReview(company.client, target)).toMatchObject({
+    current: { version: 2 }, shown: { version: 2 }, viewingRecorded: false,
+    shownFindings: [{ field: "payment.bankAccount", severity: "warning", code: "unpublished_bank_account" }],
+    bankChecks: { current: null, checks: [{ version: 1, outcome: "published", checkedAt: expect.any(String) }] },
+  });
+  expect(await getDocumentReview(company.client, { ...target, requestedVersion: "1" })).toMatchObject({
+    shown: { version: 1, payload: { supplier: { vatId: "CZ27082440" } } },
+    viewingRecorded: true, shownFindings: [],
+  });
   expect(await refreshBankAccountCheck(company.client, target, fakeVatPayerRegistry())).toMatchObject({ ok: true, value: { outcome: "unpublished", version: 2, supplierVatId: "CZ45274649" } });
 });
 
@@ -238,6 +261,12 @@ it("allows an ordinary Company User to refresh but isolates foreign Organization
   expect(await refreshBankAccountCheck(foreign.client, target, { check: async () => { throw new Error("must not contact registry"); } }))
     .toEqual({ ok: false, error: "forbidden" });
   expect(await getDocumentBankAccountChecks(foreign.client, target)).toMatchObject({ checks: [], current: null });
+  expect(await getDocumentReview(foreign.client, target)).toBeNull();
+  expect(await getDocumentReview(company.client, { ...target, companyId: foreign.companyId })).toBeNull();
+  expect(await getDocumentReview(member.client, { ...target, requestedVersion: "1" })).toMatchObject({
+    document: { id: document.id }, shown: { version: 1 }, viewingRecorded: true,
+    bankChecks: { current: { outcome: "published" } },
+  });
   expect((await foreign.client.from("bank_account_check").select("id").eq("document_id", document.id)).data).toEqual([]);
   expect((await foreign.client.rpc("record_bank_account_check", input)).error?.code).toBe("42501");
   expect((await foreign.client.from("bank_account_check").insert({
