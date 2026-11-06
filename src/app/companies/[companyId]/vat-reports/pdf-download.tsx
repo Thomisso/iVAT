@@ -1,18 +1,18 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode, type MouseEvent } from "react";
 import { useCurrentExportContext } from "./export-context";
+import { PdfThumbnail } from "./pdf-thumbnail";
 import { FormError } from "@/components/form-error";
 
 /** Retains the existing download link, posting only the current export details. */
-export function PdfDownload({ href, fileName, children }: { href: string; fileName: string; children: ReactNode }) {
+export function PdfDownload({ href, fileName, thumbnailHref, children }: { href: string; fileName: string; thumbnailHref?: string; children: ReactNode }) {
   const context = useCurrentExportContext();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const activeRequest = useRef<AbortController | null>(null);
   useEffect(() => () => activeRequest.current?.abort(), []);
-  return <>
-    <a className="iv-btn iv-btn-secondary iv-btn-md" href={href} download={fileName} aria-disabled={pending} onClick={async event => {
+  async function download(event: MouseEvent<HTMLAnchorElement>) {
       if (!context) return;
       event.preventDefault();
       if (pending) return;
@@ -46,7 +46,12 @@ export function PdfDownload({ href, fileName, children }: { href: string; fileNa
         activeRequest.current = null;
         setPending(false);
       }
-    }}>{children}</a>
+  }
+  return <>
+    {thumbnailHref && <a className="vat-pdf-thumbnail-link" href={href} download={fileName} aria-label={typeof children === "string" ? `${children} · PDF` : undefined} aria-disabled={pending} onClick={download}>
+      <PdfThumbnail href={thumbnailHref} label={typeof children === "string" ? children : "PDF"} />
+    </a>}
+    <a className="iv-btn iv-btn-secondary iv-btn-md" href={href} download={fileName} aria-disabled={pending} onClick={download}>{children}</a>
     <FormError error={error} />
   </>;
 }
