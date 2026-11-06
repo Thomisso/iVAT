@@ -93,6 +93,17 @@ test("green Control Statement card independently previews current headers and do
       });
       expect(size.thumbnail).toBeCloseTo(size.content, 0);
     }
+    const thumbnailLink = page.locator(".vat-pdf-thumbnail-link");
+    const originalControl = page.getByRole("link", { name: downloadLabel, exact: true });
+    await originalControl.focus();
+    await page.keyboard.press("Shift+Tab");
+    await expect(thumbnailLink).toBeFocused();
+    expect(await thumbnailLink.evaluate(link => {
+      const style = getComputedStyle(link);
+      return { color: style.outlineColor, width: style.outlineWidth, offset: style.outlineOffset, style: style.outlineStyle };
+    })).toEqual({ color: "rgb(31, 95, 139)", width: "3px", offset: "3px", style: "solid" });
+    await page.keyboard.press("Tab");
+    await expect(originalControl).toBeFocused();
     for (const [pathName, selector] of [["thumbnail", page.locator(".vat-pdf-thumbnail-link")], ["control", page.getByRole("link", { name: downloadLabel, exact: true })]] as const) {
       const download = page.waitForEvent("download");
       await selector.click();
