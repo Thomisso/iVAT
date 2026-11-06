@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { renderRegistry } from "../agent-tracking/state.mjs";
 import { trackerFixture, resultJson } from "./support/agent-tracker-fixture.mjs";
 
 const limit = 60 * 1024;
@@ -47,7 +48,7 @@ function pendingPublication(t, bytes) {
   }
   assert.equal(excess, 0);
   assert.equal(Buffer.byteLength(envelope(state)), bytes);
-  repo.updateRemote(remote => { remote.registry = envelope(state); });
+  repo.updateRemote(remote => { remote.registry = renderRegistry(state); });
   return { repo, event, before: structuredClone(state), original };
 }
 
@@ -71,19 +72,54 @@ test("a retained pending registry above 48 KiB publishes and acknowledges withou
   assert.ok(Buffer.byteLength(repo.remote().registry) <= limit);
 });
 
-test("the UTF-8 full-wrapper byte bound refuses an oversized acknowledgment without truncation or false synchronization", t => {
+test("an acknowledgment crossing the full-wrapper UTF-8 bound compresses without changing retained evidence", t => {
   const { repo, event, before } = pendingPublication(t, limit);
   const literal = repo.remote().registry;
   assert.ok(literal.length < 48 * 1024, "multibyte evidence distinguishes bytes from characters");
-  assert.ok(Buffer.byteLength(JSON.stringify(before)) < limit - 2, "JSON alone has room for pending to published; the complete wrapper does not");
   const retried = repo.worker(event);
-  assert.equal(retried.status, 1);
-  assert.equal(resultJson(retried).error, "registry_capacity_exceeded");
-  assert.equal(repo.remote().registry, literal);
-  assert.equal(resultJson(repo.run("sync")).error, "publication_pending");
+  assert.equal(retried.status, 0, retried.stderr);
+  assert.equal(execute(repo, "sync").synchronized, true);
   const shown = execute(repo, "show");
-  assert.deepEqual(shown.remote, before);
-  assert.equal(shown.remote.receipts[event.id].state, "pending");
-  assert.equal(shown.remote.publishedRevision, before.publishedRevision);
-  assert.equal(shown.local.pending.length, 1);
+  assert.deepEqual(shown.remote, { ...before, receipts: { ...before.receipts, [event.id]: { ...before.receipts[event.id], state: "published" } } });
+  assert.equal(shown.local.pending.length, 0);
+  assert.match(repo.remote().registry, /"registryEncoding":"gzip-base64-v1"/);
+  assert.ok(Buffer.byteLength(repo.remote().registry) <= limit);
+});
+
+test("a compressed pending snapshot survives a lost acknowledgment response and replays the same durable event", t => {
+  const { repo, event, before } = pendingPublication(t, 80 * 1024);
+  assert.match(repo.remote().registry, /"registryEncoding":"gzip-base64-v1"/);
+  repo.updateRemote(remote => { remote.failure = { match: "PATCH repos/example/project/issues/comments/900", phase: "after", remaining: 1 }; });
+  assert.equal(repo.worker(event).status, 1);
+  const interrupted = execute(repo, "show");
+  assert.equal(interrupted.local.pending.length, 1);
+  assert.equal(interrupted.remote.receipts[event.id].state, "published");
+  assert.equal(repo.worker(event).status, 0);
+  assert.equal(execute(repo, "sync").synchronized, true);
+  const shown = execute(repo, "show");
+  assert.deepEqual(shown.remote, { ...before, receipts: { ...before.receipts, [event.id]: { ...before.receipts[event.id], state: "published" } } });
+  assert.equal(shown.local.pending.length, 0);
+  assert.equal(repo.remote().ticketComments.length, 1, "replay does not create another maintained comment");
+});
+
+test("corrupt compressed canonical state refuses acknowledgment and preserves durable work until repaired", t => {
+  const { repo, event } = pendingPublication(t, 80 * 1024);
+  const valid = repo.remote().registry;
+  const comments = repo.remote().ticketComments;
+  for (const [pattern, replacement, error] of [
+    [/"sha256":"[a-f0-9]{64}"/, '"sha256":"' + "0".repeat(64) + '"', "registry_invalid"],
+    [/"decodedBytes":\d+/, '"decodedBytes":4194305', "registry_capacity_exceeded"],
+  ]) {
+    const corrupt = valid.replace(pattern, replacement);
+    repo.updateRemote(remote => { remote.registry = corrupt; });
+    const refused = repo.worker(event);
+    assert.equal(refused.status, 1);
+    assert.equal(resultJson(refused).error, error);
+    assert.equal(repo.remote().registry, corrupt);
+    assert.deepEqual(repo.remote().ticketComments, comments);
+    assert.equal(execute(repo, "show", "--local").local.pending.length, 1);
+  }
+  repo.updateRemote(remote => { remote.registry = valid; });
+  assert.equal(repo.worker(event).status, 0);
+  assert.equal(execute(repo, "sync").synchronized, true);
 });

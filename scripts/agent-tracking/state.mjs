@@ -1,4 +1,10 @@
+import { createHash } from "node:crypto";
+import { gzipSync, gunzipSync } from "node:zlib";
 import { TrackerError } from "./github.mjs";
+
+const registryBodyLimit = 60 * 1024;
+const registryDecodedLimit = 4 * 1024 * 1024;
+const registryEncoding = "gzip-base64-v1";
 
 export const registryMarker = "<!-- ivat-agent-tracker:registry:v1 -->";
 export const statuses = { ready: "Připraveno", implementing: "Implementace", review: "Review", integrated: "V integrační větvi", done: "Hotovo", blocked: "Blokováno", cancelled: "Zrušeno" };
@@ -10,16 +16,38 @@ export function initialState() {
 }
 
 export function renderRegistry(state) {
-  const body = `${registryMarker}\n\n\`\`\`json\n${JSON.stringify(state)}\n\`\`\`\n`;
-  if (Buffer.byteLength(body) > 60 * 1024) throw new TrackerError("registry_capacity_exceeded");
+  const json = JSON.stringify(state);
+  const decodedBytes = Buffer.byteLength(json);
+  if (decodedBytes > registryDecodedLimit) throw new TrackerError("registry_capacity_exceeded");
+  const wrap = value => `${registryMarker}\n\n\`\`\`json\n${value}\n\`\`\`\n`;
+  let body = wrap(json);
+  if (Buffer.byteLength(body) > registryBodyLimit) {
+    body = wrap(JSON.stringify({ registryEncoding, decodedBytes, sha256: createHash("sha256").update(json).digest("hex"), data: gzipSync(json).toString("base64") }));
+  }
+  if (Buffer.byteLength(body) > registryBodyLimit) throw new TrackerError("registry_capacity_exceeded");
   return body;
 }
 
 export function parseRegistry(body) {
+  if (typeof body === "string" && Buffer.byteLength(body) > registryBodyLimit) throw new TrackerError("registry_capacity_exceeded");
   const match = typeof body === "string" && body.match(/^<!-- ivat-agent-tracker:registry:v1 -->\s*```json\n([\s\S]+)\n```\s*$/);
   if (!match) throw new TrackerError("registry_invalid");
   let state;
-  try { state = JSON.parse(match[1]); } catch { throw new TrackerError("registry_invalid"); }
+  try {
+    state = JSON.parse(match[1]);
+    if (state && !Object.hasOwn(state, "schemaVersion") && Object.hasOwn(state, "registryEncoding")) {
+      if (state.registryEncoding !== registryEncoding || !Number.isSafeInteger(state.decodedBytes) || state.decodedBytes <= 0 || typeof state.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(state.sha256) || typeof state.data !== "string") throw new TrackerError("registry_invalid");
+      if (state.decodedBytes > registryDecodedLimit) throw new TrackerError("registry_capacity_exceeded");
+      const compressed = Buffer.from(state.data, "base64");
+      if (compressed.toString("base64") !== state.data) throw new TrackerError("registry_invalid");
+      const decoded = gunzipSync(compressed, { maxOutputLength: registryDecodedLimit });
+      if (decoded.length !== state.decodedBytes || createHash("sha256").update(decoded).digest("hex") !== state.sha256) throw new TrackerError("registry_invalid");
+      state = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(decoded));
+    }
+  } catch (error) {
+    if (error instanceof TrackerError) throw error;
+    throw new TrackerError("registry_invalid");
+  }
   const record = value => value !== null && typeof value === "object" && !Array.isArray(value);
   const counter = value => Number.isSafeInteger(value) && value >= 0;
   const timestamp = value => typeof value === "string" && Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value;
