@@ -1489,40 +1489,6 @@
       "manual_classification_required": "Manual Classification Required",
       "currency_conversion_required": "Currency conversion required",
       "incomplete_data": "Incomplete or invalid reporting data"
-    },
-    "pdfExport": {
-      "heading": "Export details",
-      "vatId": "VAT ID: {value}",
-      "ico": "IČO: {value}",
-      "period": "Reporting Period: {value}",
-      "taxOffice": "Tax office: {value}",
-      "territorialOffice": "Territorial office: {value}",
-      "economicActivity": "Economic activity: {value}",
-      "preparedOn": "Preparation date: {value}",
-      "email": "Email: {value}",
-      "phone": "Phone: {value}",
-      "signatory": "Authorized signatory: {value}",
-      "capacity": "Capacity: {value}",
-      "address": "EPO address: {value}",
-      "summary": "Summary C",
-      "fields": {
-        "c_radku": "Row number",
-        "kod_rezim_pl": "Supply regime code",
-        "pomer": "Proportional deduction",
-        "zdph_44": "VAT correction",
-        "zakl_dane1": "Tax base 21 %",
-        "dan1": "VAT 21 %",
-        "zakl_dane2": "Tax base 12 %",
-        "dan2": "VAT 12 %",
-        "obrat23": "Line 1 – tax base",
-        "obrat5": "Line 2 – tax base",
-        "pln23": "Line 40 – tax base",
-        "pln5": "Line 41 – tax base",
-        "pln_rez_pren": "Line 25 – tax base",
-        "rez_pren23": "Line 10 – tax base",
-        "rez_pren5": "Line 11 – tax base",
-        "celk_zd_a2": "Section A.2 – tax base"
-      }
     }
   },
   "epoExport": {
