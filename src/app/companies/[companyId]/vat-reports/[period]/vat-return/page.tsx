@@ -159,6 +159,7 @@ export default async function VatReturnPage({
             <PdfDownload
               href={`/companies/${companyId}/vat-reports/${period}/pdf`}
               fileName={`DPHDP3-${period}.pdf`}
+              thumbnailHref={`/companies/${companyId}/vat-reports/${period}/vat-return/thumbnail`}
             >
               {t("downloadPdf")}
             </PdfDownload>
