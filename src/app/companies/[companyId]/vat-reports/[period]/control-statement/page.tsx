@@ -139,6 +139,7 @@ export default async function ControlStatementPage({
             <p>{t("pdfPreviewHint")}</p>
             <PdfDownload
               href={`/companies/${companyId}/vat-reports/${period}/control-statement/pdf`}
+              thumbnailHref={`/companies/${companyId}/vat-reports/${period}/control-statement/thumbnail`}
               fileName={`DPHKH1-${period}.pdf`}
             >
               {t("downloadControlStatementPdf")}

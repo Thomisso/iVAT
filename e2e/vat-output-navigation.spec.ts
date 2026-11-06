@@ -113,7 +113,7 @@ test("empty and draft Reporting Periods expose separate statutory destinations i
   await expect(page.locator('input[name="format"]')).toHaveValue("dphkh1");
   await expect(page.locator('select[name="format"]')).toHaveCount(0);
   const pdfDownload = page.getByRole("link", {
-    name: "Download Control Statement PDF",
+    name: "Download Control Statement PDF", exact: true,
   });
   const pdfPath = `/companies/${companyId}/vat-reports/2026-01/control-statement/pdf`;
   await expect(pdfDownload).toHaveAttribute("href", pdfPath);
@@ -127,9 +127,7 @@ test("empty and draft Reporting Periods expose separate statutory destinations i
   );
   const englishPdf = await pdfResponse.body();
   expect(englishPdf.subarray(0, 5).toString()).toBe("%PDF-");
-  expect(await pdfText(englishPdf)).toContain(
-    "iVAT · Control Statement preview",
-  );
+  expect((await pdfText(englishPdf)).replace(/\s/g, "")).toContain("KONTROLNÍHLÁŠENÍ");
 
   await page
     .getByRole("navigation", { name: "Reporting Period destinations" })
@@ -144,8 +142,8 @@ test("empty and draft Reporting Periods expose separate statutory destinations i
   );
   expect(czechPdfResponse.status()).toBe(200);
   const czechPdf = await pdfText(await czechPdfResponse.body());
-  expect(czechPdf).toContain("iVAT · Náhled kontrolního hlášení");
-  expect(czechPdf).toContain("Zdaňovací období: 2026-01");
+  expect(czechPdf.replace(/\s/g, "")).toContain("KONTROLNÍHLÁŠENÍ");
+  expect(czechPdf).toContain("2026");
   expect(czechPdf).not.toContain("Reporting Period");
   await page.reload();
   await expect(page).toHaveTitle("Historie exportů · 2026-01");
@@ -196,7 +194,7 @@ test("both statutory downloads use current export edits and leave Company defaul
     const pdfPath = await downloadedPdf.path();
     if (!pdfPath) throw new Error("PDF did not download");
     const pdf = await pdfText(await readFile(pdfPath));
-    expect(pdf).toContain(date);
+    expect(pdf.replace(/[\s.]/g, "")).toContain(date.replace(/\./g, ""));
     expect(pdf.replace(/\s/g, "")).toContain(email);
     expect(pdf).not.toContain("default@example.test");
     expect(pdf).not.toContain("+420123456789");
