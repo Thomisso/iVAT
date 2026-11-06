@@ -26,6 +26,8 @@
 
 **Specifikace:** `to-spec` dokončeno 6. 11. 2026 po výslovném potvrzení hranic testování. Publikováno jako [#211 — QA v6: PDF náhled přiznání a kontrolního hlášení podle reálných formulářů](https://github.com/Thomisso/iVAT/issues/211) s labelem `ready-for-agent`; obsah issue i label byly po publikaci ověřeny. Nejde o součást specifikace #185 ani #200. Pro navazující práci je výsledným zadáním #211; níže zůstávají schválené podklady a rozhodnutí.
 
+**Implementace:** probíhá v integrační větvi `integration/pdf-forms-211`, draft PR [#215](https://github.com/Thomisso/iVAT/pull/215). #212 prošel nezávislým review a integrací; #213 a #214 se implementují souběžně ve vlastních pracovních kopiích. Sdílené závěrečné kontroly a review celé specifikace zatím čekají.
+
 **Schválené rozdělení `to-tickets` — publikováno 6. 11. 2026**
 
 Uživatel schválil velikost tří ticketů a jejich závislosti odpovědí „Vyhovuje to. OK.“ Každý ticket byl publikován jako nativní sub-issue #211 s labelem `ready-for-agent`. Obsah, labely, nativní rodič i blokující vazby byly po publikaci ověřeny.
