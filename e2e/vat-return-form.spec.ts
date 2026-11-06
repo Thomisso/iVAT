@@ -58,6 +58,16 @@ test("VAT Return card independently previews current Czech headers and both cont
       });
       expect(thumbnailWidth.actual).toBeCloseTo(thumbnailWidth.available, 0);
     }
+    const thumbnailLink = page.locator(".vat-pdf-thumbnail-link");
+    await thumbnailLink.focus();
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Shift+Tab");
+    await expect(thumbnailLink).toBeFocused();
+    await expect(thumbnailLink).toHaveCSS("outline-width", "3px");
+    await expect(thumbnailLink).toHaveCSS("outline-offset", "3px");
+    await expect(thumbnailLink).toHaveCSS("outline-color", "rgb(31, 95, 139)");
+    await expect(thumbnailLink).toHaveCSS("border-top-color", "rgb(140, 140, 132)");
+    if (locale === "en") await page.locator(".vat-export-card").first().screenshot({ path: testInfo.outputPath("vat-card-keyboard-focus.png") });
     const dateLabel = locale === "en" ? "Preparation date" : "Datum vyhotovení";
     await page.getByLabel(dateLabel, { exact: true }).fill("04.11.2026");
     await page.getByRole("button", { name: locale === "en" ? "Edit for this export" : "Upravit pro tento export" }).click();
