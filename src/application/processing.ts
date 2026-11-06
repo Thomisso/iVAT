@@ -8,12 +8,7 @@ import {
   providerResponseOf,
 } from "./ai-provider";
 import type { SystemClient } from "./client";
-import {
-  CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA,
-  validateDocument,
-} from "./document-validation";
 import type { DocumentStatus } from "./documents";
-import { omitZeroRateBreakdownRows } from "./extraction-payload";
 import {
   pdfPages,
   SOURCE_FILE_BUCKET,
@@ -24,12 +19,10 @@ import {
   type SourceFileStatus,
 } from "./source-files";
 import { assertWorkbookRanges, workbookRowsToText, workbookToText } from "./workbooks";
-import {
-  vatRegistryFindings,
-  type VatPayerRegistry,
-} from "./vat-registry";
+import type { VatPayerRegistry } from "./vat-registry";
 import { detectDocumentDirection } from "./direction-detection";
-import { applyCnbConversion, type ExchangeRateProvider } from "./exchange-rates";
+import type { ExchangeRateProvider } from "./exchange-rates";
+import { prepareExtractionVersion } from "./extraction-preparation";
 import { createHash } from "node:crypto";
 import { buildCompanyDataArchive, type CompanyExportSnapshot } from "./company-data-export";
 import type { CompanyDataExportStatus } from "@/lib/company-data-export-status";
@@ -496,15 +489,13 @@ async function extractDocument(
         .eq("id", document.company_id)
         .single();
       if (companyError) throw companyError;
-      const directedPayload = omitZeroRateBreakdownRows({
+      const prepared = await prepareExtractionVersion({
         ...extractedPayload,
         direction: detectDocumentDirection(
           extractedPayload,
           { ico: company.ico, vatId: company.vat_id },
         ),
-      });
-      const conversion = await applyCnbConversion(directedPayload, exchangeRates);
-      const payload = conversion.payload;
+      }, exchangeRates, vatRegistry);
       const metered = await system.rpc("record_ai_usage", {
         target_organization_id: document.organization_id,
         target_company_id: document.company_id,
@@ -519,22 +510,14 @@ async function extractDocument(
         target_job_id: document.id,
       });
       if (metered.error) throw metered.error;
-      const findings = [
-        ...validateDocument(
-          payload,
-          CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA,
-        ),
-        ...(await vatRegistryFindings(vatRegistry, payload)),
-        ...conversion.findings,
-      ];
       const { error } = await system.rpc("record_ai_extraction", {
         target_document_id: document.id,
         target_extraction_request_id: document.extraction_request_id,
         target_reservation_id: reservationId,
         provider: ai.name,
         model,
-        payload,
-        findings,
+        payload: prepared.payload,
+        findings: await prepared.findings(),
       });
       if (error) throw error;
       completed = true;
