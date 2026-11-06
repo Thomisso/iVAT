@@ -17,7 +17,7 @@ export default async function CounterpartiesPage({ params, searchParams }: {
   const t = await getTranslations("counterparties");
   const base = `/companies/${companyId}/counterparties`;
   const pageHref = (number: number) => `${base}?${new URLSearchParams({ search: search.search ?? "", role: role ?? "", page: String(number) })}`;
-  return <PageLayout className="documents-workspace" measure="wide">
+  return <PageLayout className="documents-workspace counterparty-directory" measure="wide">
     <PageHeader title={t("title")} description={t("description")} actions={<Link className="iv-btn iv-btn-primary" href={`${base}/new`}>{t("create")}</Link>} />
     <PageContent measure="wide">
       <form action={base} className="document-queue-filters" aria-label={t("filters")}>
