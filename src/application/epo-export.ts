@@ -1,5 +1,5 @@
 import { isUuid, type AppClient, type Result } from "./client";
-import { getCompanyFilingDefaults, resolveEpoAddress } from "./company-filing-defaults";
+import { resolveEpoExportDetails, todayInPrague } from "./epo-export-context";
 import {
   isEpoFormat,
   parseExportDetails,
@@ -59,48 +59,6 @@ export type VatReportArtifact = {
   createdAt: string;
 };
 
-function todayInPrague(now: Date): string {
-  return new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Prague" }).format(now);
-}
-
-async function resolveExportDetails(
-  client: AppClient,
-  input: {
-    companyId: string;
-    details: Record<string, string>;
-    format: EpoFormat;
-    personType: "legal" | "natural";
-    registeredAddress: NonNullable<ExportDetails["address"]>;
-    today: string;
-  },
-): Promise<Result<ExportDetails, "invalid_export_details" | "epo_address_required">> {
-  const defaults = await getCompanyFilingDefaults(client, input.companyId);
-  const resolvedAddress = resolveEpoAddress(input.registeredAddress, defaults);
-  if (!resolvedAddress.ok) return resolvedAddress;
-  const supplied = (key: string, fallback: string | null | undefined) =>
-    Object.hasOwn(input.details, key) ? input.details[key] : (fallback ?? "");
-  const parsed = parseExportDetails({
-    taxOffice: supplied("taxOffice", defaults?.taxOffice),
-    territorialOffice: supplied("territorialOffice", defaults?.territorialOffice),
-    economicActivity: supplied("economicActivity", defaults?.economicActivity),
-    preparedOn: input.details.preparedOn?.trim() || input.today,
-    email: supplied("email", defaults?.email),
-    phone: supplied("phone", defaults?.phone),
-    personType: input.personType === "natural" ? "F" : "P",
-    signatoryFirstName: supplied("signatoryFirstName", defaults?.signatoryFirstName),
-    signatoryLastName: supplied("signatoryLastName", defaults?.signatoryLastName),
-    signatoryCapacity: supplied("signatoryCapacity", defaults?.signatoryCapacity),
-  }, input.format);
-  if (!parsed.ok) return parsed;
-  return {
-    ok: true,
-    value: {
-      ...parsed.value,
-      address: resolvedAddress.value.address,
-    },
-  };
-}
-
 async function exportVatReportArtifact(
   client: AppClient,
   input: {
@@ -117,21 +75,14 @@ async function exportVatReportArtifact(
   if (!isEpoFormat(input.format))
     return { ok: false, error: "invalid_export_format" };
   const today = todayInPrague(now());
-  const details = await resolveExportDetails(client, {
-    companyId: input.companyId,
-    details: input.details,
-    format: input.format,
-    today,
-    personType: report.result.company.personType,
-    registeredAddress: {
-      streetName: report.result.company.streetName,
-      houseNumber: report.result.company.houseNumber,
-      orientationNumber: report.result.company.orientationNumber,
-      city: report.result.company.city,
-      postalCode: report.result.company.postalCode,
-    },
+  const resolvedDetails = await resolveEpoExportDetails(client, {
+    companyId: input.companyId, company: report.result.company, details: input.details, today,
   });
+  if (!resolvedDetails.address) return { ok: false, error: "epo_address_required" };
+  const { address, ...fields } = resolvedDetails;
+  const details = parseExportDetails(fields, input.format);
   if (!details.ok) return details;
+  details.value.address = address;
   const result = await createEpoXml(report.result, input.format, details.value);
   if (!result.ok) return result;
   const bytes = new TextEncoder().encode(result.value);

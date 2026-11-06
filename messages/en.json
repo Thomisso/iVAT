@@ -84,7 +84,11 @@
       "filing_defaults": "Export and tax office",
       "ai_processing": "AI processing"
     },
-    "setupState": { "completed": "Completed", "skipped": "Skipped for now", "blocking": "Required" },
+    "setupState": {
+      "completed": "Completed",
+      "skipped": "Skipped for now",
+      "blocking": "Required"
+    },
     "uploadTitle": "Upload",
     "uploadDescription": "Add Source Files and follow their processing.",
     "documentsTitle": "Documents",
@@ -432,17 +436,17 @@
     "chooseFile": "Choose a file"
   },
   "returnContext": {
-      "company": "← Back to Company",
-      "documents": "← Back to Documents",
-      "document": "← Back to Document",
-      "processing": "← Back to Processing",
-      "vatReturn": "← Back to VAT Return",
-      "controlStatement": "← Back to Control Statement",
-      "exportHistory": "← Back to Export history",
-      "periods": "← Back to Reporting Periods",
-      "upload": "← Back to Upload",
-      "batch": "← Back to batch",
-      "sourceFile": "← Back to Source File"
+    "company": "← Back to Company",
+    "documents": "← Back to Documents",
+    "document": "← Back to Document",
+    "processing": "← Back to Processing",
+    "vatReturn": "← Back to VAT Return",
+    "controlStatement": "← Back to Control Statement",
+    "exportHistory": "← Back to Export history",
+    "periods": "← Back to Reporting Periods",
+    "upload": "← Back to Upload",
+    "batch": "← Back to batch",
+    "sourceFile": "← Back to Source File"
   },
   "periodFilter": {
     "label": "Reporting Period",
@@ -761,7 +765,10 @@
     "total": "Total",
     "noConfiguration": "No AI Configuration",
     "invalidPeriod": "The end of the period must not be before its start.",
-    "operations": { "split": "Split", "extract": "Extraction" },
+    "operations": {
+      "split": "Split",
+      "extract": "Extraction"
+    },
     "groupings": {
       "organization": "Organization",
       "company": "Company",
@@ -1277,8 +1284,15 @@
     "periodsListTitle": "Company filing timeline",
     "periodsListHint": "The oldest period that has not been finalized is highlighted.",
     "periodCount": "{count, plural, one {# period} other {# periods}}",
-    "frequency": { "monthly": "Monthly", "quarterly": "Quarterly" },
-    "periodState": { "unfinished": "Unfinished", "draft": "Draft saved", "finalized": "Finalized" },
+    "frequency": {
+      "monthly": "Monthly",
+      "quarterly": "Quarterly"
+    },
+    "periodState": {
+      "unfinished": "Unfinished",
+      "draft": "Draft saved",
+      "finalized": "Finalized"
+    },
     "oldestUnfinished": "Oldest unfinished",
     "finalizedAt": "Finalized {date}",
     "generatedAt": "Draft generated {date}",
@@ -1288,7 +1302,12 @@
     "processingTitle": "Processing · {period}",
     "processingDescription": "Review live-data blockers, check the workbook, and keep the saved VAT Report snapshot distinct.",
     "periodNavigation": "Reporting Period destinations",
-    "destinations": { "processing": "Processing", "vatReturn": "VAT Return", "controlStatement": "Control Statement", "exportHistory": "Export history" },
+    "destinations": {
+      "processing": "Processing",
+      "vatReturn": "VAT Return",
+      "controlStatement": "Control Statement",
+      "exportHistory": "Export history"
+    },
     "vatReturnTitle": "VAT Return · {period}",
     "vatReturnDescription": "Read and trace the statutory VAT Return from this saved snapshot.",
     "controlStatementTitle": "Control Statement · {period}",
@@ -1306,13 +1325,25 @@
     "blockerCount": "{count, plural, one {# blocker Document} other {# blocker Documents}}",
     "warningCount": "{count, plural, one {# Document with warnings} other {# Documents with warnings}}",
     "openRejectedDocuments": "Open {count, plural, one {# rejected Document} other {# rejected Documents}}",
-    "groups": { "processing": "Processing", "failed": "Failed", "needsReview": "Needs review", "approved": "Approved", "rejected": "Rejected · resolved" },
+    "groups": {
+      "processing": "Processing",
+      "failed": "Failed",
+      "needsReview": "Needs review",
+      "approved": "Approved",
+      "rejected": "Rejected · resolved"
+    },
     "liveWorkbook": "Current checking workbook",
     "savedSnapshot": "SAVED SNAPSHOT",
     "snapshotGenerated": "Generated {date}",
-    "snapshotFreshness": { "current": "This snapshot matches the relevant live Documents.", "stale": "Relevant live Documents changed after this snapshot was saved." },
+    "snapshotFreshness": {
+      "current": "This snapshot matches the relevant live Documents.",
+      "stale": "Relevant live Documents changed after this snapshot was saved."
+    },
     "freshness": "Freshness",
-    "freshnessState": { "current": "Current", "stale": "Stale" },
+    "freshnessState": {
+      "current": "Current",
+      "stale": "Stale"
+    },
     "snapshotDocuments": "Snapshot Documents",
     "snapshotFrom": "Snapshot from {date}",
     "noSnapshot": "No saved VAT Report",
@@ -1429,7 +1460,10 @@
     "artifactActions": "Actions",
     "artifactChecksum": "SHA-256 checksum",
     "artifactKind": "State",
-    "artifactKinds": { "draft": "Working", "final": "Final" },
+    "artifactKinds": {
+      "draft": "Working",
+      "final": "Final"
+    },
     "artifactFormat": "Output",
     "artifactCreatedAt": "Created",
     "artifactAuthor": "Author",
@@ -1455,6 +1489,40 @@
       "manual_classification_required": "Manual Classification Required",
       "currency_conversion_required": "Currency conversion required",
       "incomplete_data": "Incomplete or invalid reporting data"
+    },
+    "pdfExport": {
+      "heading": "Export details",
+      "vatId": "VAT ID: {value}",
+      "ico": "IČO: {value}",
+      "period": "Reporting Period: {value}",
+      "taxOffice": "Tax office: {value}",
+      "territorialOffice": "Territorial office: {value}",
+      "economicActivity": "Economic activity: {value}",
+      "preparedOn": "Preparation date: {value}",
+      "email": "Email: {value}",
+      "phone": "Phone: {value}",
+      "signatory": "Authorized signatory: {value}",
+      "capacity": "Capacity: {value}",
+      "address": "EPO address: {value}",
+      "summary": "Summary C",
+      "fields": {
+        "c_radku": "Row number",
+        "kod_rezim_pl": "Supply regime code",
+        "pomer": "Proportional deduction",
+        "zdph_44": "VAT correction",
+        "zakl_dane1": "Tax base 21 %",
+        "dan1": "VAT 21 %",
+        "zakl_dane2": "Tax base 12 %",
+        "dan2": "VAT 12 %",
+        "obrat23": "Line 1 – tax base",
+        "obrat5": "Line 2 – tax base",
+        "pln23": "Line 40 – tax base",
+        "pln5": "Line 41 – tax base",
+        "pln_rez_pren": "Line 25 – tax base",
+        "rez_pren23": "Line 10 – tax base",
+        "rez_pren5": "Line 11 – tax base",
+        "celk_zd_a2": "Section A.2 – tax base"
+      }
     }
   },
   "epoExport": {

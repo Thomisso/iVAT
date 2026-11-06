@@ -8,13 +8,21 @@ import { requireUserClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
-export async function GET(
-  _request: Request,
+async function download(
+  request: Request,
   context: RouteContext<
     "/companies/[companyId]/vat-reports/[period]/control-statement/pdf"
   >,
 ) {
   const { companyId, period } = await context.params;
+  let details: Record<string, string> = {};
+  if (request.method === "POST") {
+    try {
+      details = Object.fromEntries([...(await request.formData())].filter((entry): entry is [string, string] => typeof entry[1] === "string"));
+    } catch {
+      return refusalResponse("invalid_export_details", { status: 400 });
+    }
+  }
   const [client, t] = await Promise.all([
     requireUserClient(),
     getTranslations("vatReports.controlStatementPdf"),
@@ -41,7 +49,7 @@ export async function GET(
   } satisfies ControlStatementPdfCopy;
   const result = await exportControlStatementPdf(
     client,
-    { companyId, period },
+    { companyId, period, details },
     copy,
   );
   if (!result.ok) {
@@ -53,3 +61,6 @@ export async function GET(
   }
   return downloadResponse(result.value);
 }
+
+export const GET = download;
+export const POST = download;

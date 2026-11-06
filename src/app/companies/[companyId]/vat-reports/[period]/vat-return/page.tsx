@@ -13,6 +13,8 @@ import { DataTable } from "@/components/data-table";
 import { StatusBadge } from "@/components/status-badge";
 import { PageLayout } from "@/components/app-shell";
 import { formatDateTime } from "@/lib/format-date";
+import { ExportContextProvider } from "../../export-context";
+import { PdfDownload } from "../../pdf-download";
 import { ExportForm } from "../../export-form";
 import { PeriodNavigation } from "../../period-navigation";
 import { ReportAmount, ReportIssues } from "../../report-output";
@@ -44,6 +46,7 @@ export default async function VatReturnPage({
   if (!company || !report || !readinessResult.ok) notFound();
   const preview = vatReturnPreviewData(report.result);
   const readiness = readinessResult.value;
+  const preparedOn = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Prague" }).format(new Date());
   const epoAddress = resolveEpoAddress(report.result.company, filingDefaults);
   return (
     <PageLayout className="company-workspace vat-reports vat-output-page" measure="wide">
@@ -147,32 +150,31 @@ export default async function VatReturnPage({
       <ReportIssues companyId={companyId} readiness={readiness} report={report} returnTo={`${context}#vat-output-issues`} />
       <section className="vat-output-actions">
         <h2>{t("vatReturnActions")}</h2>
+        <ExportContextProvider preparedOn={preparedOn}>
         <div className="vat-output-action-grid">
           <article className="vat-export-card">
             <span className="vat-section-label">{t("pdfFormat")}</span>
             <h3>{t("pdfPreview")}</h3>
             <p>{t("pdfPreviewHint")}</p>
-            <a
-              className="iv-btn iv-btn-secondary iv-btn-md"
+            <PdfDownload
               href={`/companies/${companyId}/vat-reports/${period}/pdf`}
-              download={`DPHDP3-${period}.pdf`}
+              fileName={`DPHDP3-${period}.pdf`}
             >
               {t("downloadPdf")}
-            </a>
+            </PdfDownload>
           </article>
           <ExportForm
             companyId={companyId}
             format="dphdp3"
             period={period}
-            preparedOn={new Intl.DateTimeFormat("sv-SE", {
-              timeZone: "Europe/Prague",
-            }).format(new Date())}
+            preparedOn={preparedOn}
             personType={report.result.company.personType}
             defaults={filingDefaults}
             epoAddress={epoAddress.ok ? epoAddress.value : null}
             finalized={Boolean(periodLock)}
           />
         </div>
+        </ExportContextProvider>
       </section>
     </PageLayout>
   );
