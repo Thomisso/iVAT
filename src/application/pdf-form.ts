@@ -73,7 +73,16 @@ export function drawFormHeader(page: PDFPage, font: PDFFont, header: VatReportEx
     cell("X", [136.3, 300.8, 164.6, 317.6], { align: "center", size: 12 });
   }
   if (details.personType === "P") {
-    cell(company.name, [42.8, 349, 566.7, 365.5]);
+    let nameSize = 10;
+    let nameLines = wrap(company.name, font, nameSize, 517.9);
+    // The second printed line is shorter; fit the remainder there at the same
+    // size instead of making a long legal name tiny in the first field.
+    while (font.widthOfTextAtSize(nameLines.slice(1).join(""), nameSize) > 347.9 && nameSize > 1) {
+      nameSize -= .25;
+      nameLines = wrap(company.name, font, nameSize, 517.9);
+    }
+    cell(nameLines[0], [42.8, 349, 566.7, 365.5], { size: nameSize });
+    cell(nameLines.slice(1).join(""), [42.7, 368.9, 396.6, 385.4], { size: nameSize });
     cell([details.signatoryFirstName, details.signatoryLastName, details.signatoryCapacity].filter(Boolean).join(" "), [49.9, vat ? 683.1 : 705.4, 559.6, vat ? 699.6 : 721.9]);
   } else {
     cell(company.lastName, [42.7, 400, 339.9, 416.5]);
