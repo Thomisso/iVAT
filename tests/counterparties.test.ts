@@ -84,7 +84,7 @@ it("searches normalized identifiers and names, combines both roles, and pages th
     if (!created.ok) throw new Error(created.error);
   }
   expect((await listCounterparties(company.client, company.companyId, { search: "ALP" })).entries.map(entry => entry.name)).toEqual(["Alpha"]);
-  expect((await listCounterparties(company.client, company.companyId, { search: "2708 2440" })).entries.map(entry => entry.name)).toEqual(["Alpha"]);
+  expect((await listCounterparties(company.client, company.companyId, { search: "2708\u00a02440" })).entries.map(entry => entry.name)).toEqual(["Alpha"]);
   expect((await listCounterparties(company.client, company.companyId, { search: "sk 1234567890" })).entries.map(entry => entry.name)).toEqual(["Beta"]);
   expect((await listCounterparties(company.client, company.companyId, { role: "supplier" })).entries.map(entry => entry.name)).toEqual(["Alpha", "Both"]);
   expect((await listCounterparties(company.client, company.companyId, { role: "customer" })).entries.map(entry => entry.name)).toEqual(["Beta", "Both"]);
