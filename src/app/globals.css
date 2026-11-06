@@ -1618,6 +1618,7 @@ select:disabled {
 .app-page-content-narrow { max-width: 760px; }
 .app-page .panel { width: 100%; max-width: none; margin: 0; }
 .company-shell-content .app-page-header a { color: var(--shell-blue); }
+.counterparty-directory .app-page-header .iv-btn-primary { color: var(--on-accent); }
 .company-workspace { min-height: 100dvh; padding: var(--workspace-gutter, 32px); }
 .company-page-header { max-width: 760px; margin-bottom: 28px; }
 .company-page-header h1 { overflow-wrap: anywhere; margin: 0; color: var(--ink); font-size: clamp(24px, 2vw, 28px); letter-spacing: -0.02em; }
