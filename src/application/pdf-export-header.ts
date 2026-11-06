@@ -7,10 +7,28 @@ import { formatDate } from "@/lib/format-date";
 // Czech form content is independent of the surrounding application locale.
 export const pdfFormText = createTranslator({ locale: "cs", messages, namespace: "vatReports.pdfExport" });
 
+/** Break text at spaces where possible, and split unbroken values such as email
+ * addresses by measured glyph width. No portion may extend beyond the margin. */
+function wrapHeaderField(value: string, font: PDFFont, size: number, width: number): string[] {
+  const lines: string[] = [];
+  let remaining = Array.from(value);
+  while (font.widthOfTextAtSize(remaining.join(""), size) > width) {
+    let end = 1;
+    while (end < remaining.length && font.widthOfTextAtSize(remaining.slice(0, end + 1).join(""), size) <= width) end++;
+    const lastSpace = remaining.slice(0, end + 1).lastIndexOf(" ");
+    const split = lastSpace > 0 ? lastSpace : end;
+    lines.push(remaining.slice(0, split).join(""));
+    remaining = remaining.slice(split);
+    while (remaining[0] === " ") remaining.shift();
+  }
+  lines.push(remaining.join(""));
+  return lines;
+}
+
 /** Temporary readable header page shared by both exports until form artwork fills
  * the same resolved fields. Missing filing details remain visibly blank. */
 export function appendPdfExportHeader(document: PDFDocument, font: PDFFont, header: VatReportExportHeader) {
-  const page = document.addPage([595.28, 841.89]);
+  let page = document.addPage([595.28, 841.89]);
   const details = header.details;
   const address = details.address;
   const t = pdfFormText;
@@ -30,7 +48,20 @@ export function appendPdfExportHeader(document: PDFDocument, font: PDFFont, head
     t("address", { value: address ? `${address.streetName} ${address.houseNumber}${address.orientationNumber ? `/${address.orientationNumber}` : ""}` : "" }),
     address ? `${address.postalCode} ${address.city}` : "",
   ];
-  lines.forEach((line, index) => page.drawText(line, { x: 42, y: 790 - index * 28, size: index === 0 ? 16 : 10, font }));
+  let y = 790;
+  lines.forEach((line, index) => {
+    const size = index === 0 ? 16 : 10;
+    const lineHeight = index === 0 ? 22 : 14;
+    for (const wrapped of wrapHeaderField(line, font, size, page.getWidth() - 84)) {
+      if (y - size < 42) {
+        page = document.addPage([595.28, 841.89]);
+        y = 790;
+      }
+      page.drawText(wrapped, { x: 42, y, size, font });
+      y -= lineHeight;
+    }
+    y -= index === 0 ? 6 : 14;
+  });
 }
 
 

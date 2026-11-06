@@ -179,9 +179,10 @@ test("both statutory downloads use current export edits and leave Company defaul
   await page.goto(`/companies/${companyId}/vat-reports?period=2026-01`);
   await page.getByRole("button", { name: "Generate draft", exact: true }).click();
   await expect(page.getByRole("navigation", { name: "Reporting Period destinations" }).getByRole("link", { name: "VAT Return", exact: true })).toBeVisible();
+  const longEmailDomain = `${"b".repeat(63)}.${"c".repeat(63)}.${"d".repeat(60)}`;
   for (const [destination, format, date, email, pdfLabel] of [
-    ["vat-return", "dphdp3", "04.11.2026", "vat-return@example.test", "Download VAT Return PDF"],
-    ["control-statement", "dphkh1", "05.11.2026", "control@example.test", "Download Control Statement PDF"],
+    ["vat-return", "dphdp3", "04.11.2026", `${"v".repeat(64)}@${longEmailDomain}`, "Download VAT Return PDF"],
+    ["control-statement", "dphkh1", "05.11.2026", `${"c".repeat(64)}@${longEmailDomain}`, "Download Control Statement PDF"],
   ]) {
     await page.goto(`/companies/${companyId}/vat-reports/2026-01/${destination}`);
     await page.getByLabel("Preparation date", { exact: true }).fill(date);
@@ -196,7 +197,7 @@ test("both statutory downloads use current export edits and leave Company defaul
     if (!pdfPath) throw new Error("PDF did not download");
     const pdf = await pdfText(await readFile(pdfPath));
     expect(pdf).toContain(date);
-    expect(pdf).toContain(email);
+    expect(pdf.replace(/\s/g, "")).toContain(email);
     expect(pdf).not.toContain("default@example.test");
     expect(pdf).not.toContain("+420123456789");
     const xmlDownload = page.waitForEvent("download");

@@ -257,3 +257,39 @@ it.each(["dphdp3", "dphkh1"] as const)("allows an incomplete %s PDF/header on a 
   expect(await getVatReportExportHeader(other.client, input)).toEqual({ ok: false, error: "report_not_found" });
   expect(format === "dphdp3" ? await exportVatReturnPdf(other.client, input) : await exportControlStatementPdf(other.client, input, czechMessages.vatReports.controlStatementPdf)).toEqual({ ok: false, error: "report_not_found" });
 });
+
+it.each(["dphdp3", "dphkh1"] as const)("keeps a complete long contact email inside the downloaded %s PDF and moves following fields", async format => {
+  const company = await administratorWithCompany();
+  const email = `${"a".repeat(64)}@${"b".repeat(63)}.${"c".repeat(63)}.${"d".repeat(60)}`;
+  const input = { companyId: company.companyId, period: "2026-10", details: {
+    preparedOn: "2026-11-04", taxOffice: "13", territorialOffice: "", economicActivity: "621000",
+    email, phone: "+420123456789", signatoryFirstName: "Jana", signatoryLastName: "Nováková", signatoryCapacity: "jednatelka",
+  } };
+  await generateVatReport(company.client, input);
+  const xml = await exportVatReport(company.client, { ...input, format });
+  expect(xml.ok).toBe(true);
+  if (!xml.ok) throw new Error(xml.error);
+  expect(xml.value.xml).toContain(`email="${email}"`);
+  const pdf = format === "dphdp3" ? await exportVatReturnPdf(company.client, input) : await exportControlStatementPdf(company.client, input, czechMessages.vatReports.controlStatementPdf);
+  if (!pdf.ok) throw new Error(pdf.error);
+  const task = getDocument({ data: pdf.value.bytes });
+  try {
+    const document = await task.promise;
+    const page = await document.getPage(document.numPages);
+    const content = await page.getTextContent();
+    const fields = content.items.flatMap(item => "str" in item ? [item] : []);
+    expect(fields.map(item => item.str).join("").replace(/\s/g, "")).toContain(email);
+    expect(fields.map(item => item.str).join(" ")).toContain("Územní pracoviště: 4000");
+    for (const field of fields.filter(item => item.str.trim())) {
+      expect(field.transform[4]).toBeGreaterThanOrEqual(42 - 0.5);
+      expect(field.transform[4] + field.width).toBeLessThanOrEqual(page.view[2] - 42 + 0.5);
+    }
+    const emailField = fields.find(item => item.str.startsWith("E-mail:"));
+    const phoneField = fields.find(item => item.str.startsWith("Telefon:"));
+    expect(emailField).toBeDefined();
+    expect(phoneField).toBeDefined();
+    expect(phoneField!.transform[5]).toBeLessThan(emailField!.transform[5] - 28);
+  } finally {
+    await task.destroy();
+  }
+});

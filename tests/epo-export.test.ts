@@ -492,3 +492,22 @@ it.each(["dphdp3", "dphkh1"])(
     });
   },
 );
+
+it.each(["dphdp3", "dphkh1"] as const)(
+  "rejects mismatched specialized-office details before normalizing %s XML",
+  async format => {
+    const company = await administratorWithCompany();
+    const input = { companyId: company.companyId, period: "2026-10", format };
+    await generateVatReport(company.client, input);
+    const invalid = await exportVatReport(company.client, {
+      ...input, details: { ...details, taxOffice: "13", territorialOffice: "2003" },
+    });
+    expect(invalid.ok ? "exported" : invalid.error).toBe("invalid_export_details");
+    const valid = await exportVatReport(company.client, {
+      ...input, details: { ...details, taxOffice: "13", territorialOffice: "" },
+    });
+    expect(valid.ok).toBe(true);
+    if (!valid.ok) throw new Error(valid.error);
+    expect(valid.value.xml).toContain('c_ufo="13" c_pracufo="4000"');
+  },
+);

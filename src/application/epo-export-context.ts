@@ -30,9 +30,12 @@ export async function resolveEpoExportDetails(
   const supplied = (key: string, fallback: string | null | undefined) =>
     (Object.hasOwn(input.details, key) ? input.details[key] : (fallback ?? "")).trim();
   const taxOffice = supplied("taxOffice", defaults?.taxOffice);
+  const territorialOffice = supplied("territorialOffice", defaults?.territorialOffice);
   const common = {
     taxOffice,
-    territorialOffice: taxOffice === "13" ? "4000" : supplied("territorialOffice", defaults?.territorialOffice),
+    // Preserve nonempty mismatches for strict XML validation. The specialized
+    // office supplies 4000 only when no territorial office was selected.
+    territorialOffice: taxOffice === "13" && !territorialOffice ? "4000" : territorialOffice,
     economicActivity: supplied("economicActivity", defaults?.economicActivity),
     preparedOn: input.details.preparedOn?.trim() || input.today,
     email: supplied("email", defaults?.email),
