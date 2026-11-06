@@ -415,6 +415,32 @@ isOneToOne: false
       referencedColumns: ["id","organization_id"]
     }
                   ]
+                },"counterparty": {
+                  Row: {
+                    "archived_at": string | null,"city": string,"company_id": string,"country_code": string,"created_at": string,"customer": boolean,"ico": string | null,"id": string,"name": string,"organization_id": string,"postal_code": string,"street": string,"supplier": boolean,"vat_id": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "archived_at"?: string | null,"city"?: string,"company_id": string,"country_code"?: string,"created_at"?: string,"customer"?: boolean,"ico"?: string | null,"id"?: string,"name": string,"organization_id": string,"postal_code"?: string,"street"?: string,"supplier"?: boolean,"vat_id"?: string | null
+                  }
+                  Update: {
+                    "archived_at"?: string | null,"city"?: string,"company_id"?: string,"country_code"?: string,"created_at"?: string,"customer"?: boolean,"ico"?: string | null,"id"?: string,"name"?: string,"organization_id"?: string,"postal_code"?: string,"street"?: string,"supplier"?: boolean,"vat_id"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "counterparty_company_id_organization_id_fkey"
+      columns: ["company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "company"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "counterparty_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organization"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"document": {
                   Row: {
                     "claimed_reporting_period": string | null,"company_id": string,"created_at": string,"excluded_at": string | null,"excluded_by": string | null,"exclusion_reason": string | null,"extraction_request_id": string,"extraction_requested_at": string | null,"first_page": number | null,"first_row": number | null,"has_document_image": boolean,"id": string,"last_page": number | null,"last_row": number | null,"organization_id": string,"source_file_id": string | null,"source_sheet": string | null,"status": Database["public"]['Enums']["document_status"],"superseded_at": string | null
@@ -1014,6 +1040,9 @@ isOneToOne: false
 "create_company_identity":
 { Args: { "company_city": string,"company_first_name": string,"company_house_number": string,"company_ico": string,"company_last_name": string,"company_name": string,"company_orientation_number": string,"company_person_type": Database["public"]['Enums']["person_type"],"company_postal_code": string,"company_street_name": string,"company_vat_id": string,"target_organization_id": string }; Returns: string
                            },
+"create_counterparty":
+{ Args: { "counterparty_city": string,"counterparty_country_code": string,"counterparty_customer": boolean,"counterparty_ico": string,"counterparty_name": string,"counterparty_postal_code": string,"counterparty_street": string,"counterparty_supplier": boolean,"counterparty_vat_id": string,"target_company_id": string }; Returns: string
+                           },
 "create_draft_vat_report_artifact":
 { Args: { "target_company_id": string,"target_file_name": string,"target_format": string,"target_report_generated_at": string,"target_resolved_details": Json,"target_schema_version": string,"target_serializer_version": string,"target_vat_report_id": string,"target_xml_base64": string }; Returns: string
                            },
@@ -1289,6 +1318,29 @@ isOneToOne: false
 "save_vat_report":
 { Args: { "computed_result": Json,"expected_documents": Json,"target_company_id": string,"target_period": string }; Returns: string
                            },
+"search_counterparties":
+{ Args: { "directory_role"?: string,"search_text"?: string,"target_company_id": string }; Returns: {
+              "archived_at": string | null,
+"city": string,
+"company_id": string,
+"country_code": string,
+"created_at": string,
+"customer": boolean,
+"ico": string | null,
+"id": string,
+"name": string,
+"organization_id": string,
+"postal_code": string,
+"street": string,
+"supplier": boolean,
+"vat_id": string | null
+            }[]
+                          SetofOptions: {
+        from: "*"
+        to: "counterparty"
+        isOneToOne: false
+        isSetofReturn: true
+      } },
 "set_ai_model_prices":
 { Args: { "prices": Json,"target_configuration_id": string }; Returns: undefined
                            },
