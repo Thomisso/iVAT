@@ -16,6 +16,10 @@ Single-context: `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents
 
 Specs implemented through parallel tickets use the review gates and test-budget workflow in `docs/agents/implementation-workflow.md`.
 
+### Agent progress reporting
+
+When starting or reporting implementation work, use the shared tracker commands and setup/activation rules in `docs/agents/agent-tracking.md`.
+
 ## Working copy
 
 Build a ticket in its own git worktree (`git worktree add ../iVAT-<ticket> -b <branch>`, then `npm ci` and `npm run db:start`). The main checkout's database, dev server and branch belong to the human working there; a worktree gets its own Supabase stack, so `db:reset` and tests touch only yours. See "Git worktrees" in `README.md`. Run its dev server on a free port (`npm run dev -- -p 3100`).

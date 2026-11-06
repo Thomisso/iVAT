@@ -1,0 +1,10 @@
+id: 91a18a65-b414-4c7e-8745-77b61a20f201
+simulation: github-agent
+routing: path
+mocks:
+  - id: 91a18a65-b414-4c7e-8745-77b61a20f202
+    name: github-agent
+    routeKey: github
+    origin:
+      - api.github.com
+    path: ../../mocks/github-agent/config.yaml
