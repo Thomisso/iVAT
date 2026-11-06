@@ -5,9 +5,9 @@ import {
   type AiProviderConfiguration,
   type PageRange,
   type RowRange,
-  providerResponseOf,
 } from "./ai-provider";
 import type { SystemClient } from "./client";
+import { runAiProcessingAttempt, type AiProcessingProviderContext } from "./ai-processing-failures";
 import type { DocumentStatus } from "./documents";
 import {
   pdfPages,
@@ -131,12 +131,7 @@ async function completeCompanyExport(
   });
 }
 
-type ProviderAvailability = {
-  blocked: boolean;
-  provider: AiProvider | null;
-  configuration: AiProviderConfiguration | null;
-  configurationId: string | null;
-};
+type ProviderAvailability = AiProcessingProviderContext & { blocked: boolean };
 
 async function resolveAssignedAiConfiguration(
   system: SystemClient,
@@ -261,56 +256,6 @@ async function failOnFinalAttempt(attempt: Attempt, markFailed: () => Promise<vo
   }
 }
 
-async function recordPlatformIntervention(
-  system: SystemClient,
-  target: { kind: "source_file"; id: string; splitRequestId: string } | { kind: "document"; id: string; extractionRequestId: string },
-  error: AiProviderError,
-  availability: ProviderAvailability | undefined,
-  state: "waiting_for_platform" | "terminal" = "waiting_for_platform",
-) {
-  const recorded = await system.rpc("record_ai_processing_issue", {
-    target_split_request_id: target.kind === "source_file" ? target.splitRequestId : undefined,
-    target_kind: target.kind,
-    target_id: target.id,
-    target_extraction_request_id: target.kind === "document" ? target.extractionRequestId : undefined,
-    target_classification: error.classification,
-    target_state: state,
-    target_configuration_id: availability?.configurationId ?? error.configurationId ?? undefined,
-    target_provider: availability?.provider?.name ?? error.provider ?? undefined,
-  });
-  if (recorded.error) throw recorded.error;
-}
-
-/**
- * Stores the body a provider returned on a failed call so a SuperAdmin can see
- * why it failed. Best effort: a storage problem never replaces the failure.
- */
-async function recordFailedAiResponse(
-  system: SystemClient,
-  target: { kind: "source_file" | "document"; id: string; requestId: string },
-  error: unknown,
-  availability: ProviderAvailability | undefined,
-) {
-  const response = providerResponseOf(error);
-  const provider = availability?.provider?.name ?? (error instanceof AiProviderError ? error.provider : null);
-  if (response === null || !provider) return;
-  const configuration = availability?.configuration;
-  try {
-    const { error: recordError } = await system.rpc("record_ai_failed_response", {
-      target_kind: target.kind,
-      target_id: target.id,
-      target_request_id: target.requestId,
-      target_provider: provider,
-      target_model: (target.kind === "source_file" ? configuration?.splitModel : configuration?.extractModel) ?? undefined,
-      target_error: error instanceof Error ? error.message : String(error),
-      target_response: response,
-    });
-    if (recordError) throw recordError;
-  } catch (recordError) {
-    console.error(`[worker] could not record the failed AI response of ${target.kind} ${target.id}`, recordError);
-  }
-}
-
 async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId: string, attempt: Attempt) {
   const { data: file, error } = await system
     .from("source_file")
@@ -332,8 +277,12 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
       return data;
     };
     let availability: ProviderAvailability | undefined;
-    try {
-      await failOnFinalAttempt(attempt, () => moveStatus("failed", ["uploaded", "processing"]).then(() => undefined), async () => {
+    const continueDispatch = await runAiProcessingAttempt(system, {
+      target: { kind: "source_file", id: file.id, requestId: file.split_request_id },
+      attempt,
+      availability: () => availability,
+      markFailed: () => moveStatus("failed", ["uploaded", "processing"]).then(() => undefined),
+    }, async () => {
       availability = await providerAvailability(system, file.company_id, providers);
       if (availability.blocked) {
         await jobs.send(splitJob(file.id), { startAfterSeconds: BLOCKED_JOB_RECHECK_SECONDS });
@@ -370,24 +319,8 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
       if (metered.error) throw metered.error;
       const { error } = await system.rpc("record_split", { target_source_file_id: file.id, target_split_request_id: file.split_request_id, source_ranges: documents });
       if (error) throw error;
-      });
-    } catch (error) {
-      await recordFailedAiResponse(system, { kind: "source_file", id: file.id, requestId: file.split_request_id }, error, availability);
-      if (error instanceof AiProviderError && error.platformIntervention) {
-        await recordPlatformIntervention(system, { kind: "source_file", id: file.id, splitRequestId: file.split_request_id }, error, availability);
-        return;
-      }
-      if (error instanceof AiProviderError && (attempt.final || !error.transient)) {
-        await recordPlatformIntervention(system, { kind: "source_file", id: file.id, splitRequestId: file.split_request_id }, error, availability, "terminal");
-      } else if (attempt.final) {
-        await recordPlatformIntervention(system, { kind: "source_file", id: file.id, splitRequestId: file.split_request_id }, new AiProviderError(
-          "processing_failed",
-          "Source File processing failed",
-          { transient: false, classification: "processing_failed" },
-        ), availability, "terminal");
-      }
-      throw error;
-    }
+    });
+    if (!continueDispatch) return;
   }
 
   // Enqueues the Documents of the recorded Split, including when an earlier attempt recorded it.
@@ -441,8 +374,12 @@ async function extractDocument(
   };
 
   let availability: ProviderAvailability | undefined;
-  try {
-    await failOnFinalAttempt(attempt, () => moveStatus("failed", ["uploaded", "processing"]).then(() => undefined), async () => {
+  await runAiProcessingAttempt(system, {
+    target: { kind: "document", id: document.id, requestId: document.extraction_request_id },
+    attempt,
+    availability: () => availability,
+    markFailed: () => moveStatus("failed", ["uploaded", "processing"]).then(() => undefined),
+  }, async () => {
     if (
       document.status === "waiting_for_platform"
       && !(await moveStatus("uploaded", ["waiting_for_platform"]))
@@ -529,24 +466,7 @@ async function extractDocument(
         if (released.error) throw released.error;
       }
     }
-    });
-  } catch (error) {
-    await recordFailedAiResponse(system, { kind: "document", id: document.id, requestId: document.extraction_request_id }, error, availability);
-    if (error instanceof AiProviderError && error.platformIntervention) {
-      await recordPlatformIntervention(system, { kind: "document", id: document.id, extractionRequestId: document.extraction_request_id }, error, availability);
-      return;
-    }
-    if (error instanceof AiProviderError && (attempt.final || !error.transient)) {
-      await recordPlatformIntervention(system, { kind: "document", id: document.id, extractionRequestId: document.extraction_request_id }, error, availability, "terminal");
-    } else if (attempt.final) {
-      await recordPlatformIntervention(system, { kind: "document", id: document.id, extractionRequestId: document.extraction_request_id }, new AiProviderError(
-        "processing_failed",
-        "Document processing failed",
-        { transient: false, classification: "processing_failed" },
-      ), availability, "terminal");
-    }
-    throw error;
-  }
+  });
 }
 
 function binaryAiInput(format: SourceFileFormat, bytes: Uint8Array, pageCount: number): AiInput {
