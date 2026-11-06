@@ -27,7 +27,7 @@ function exactSum(values: string[]): string {
   const absolute = minor < BigInt(0) ? -minor : minor;
   return `${minor < BigInt(0) ? "-" : ""}${absolute / BigInt(100)}.${String(absolute % BigInt(100)).padStart(2, "0")}`;
 }
-export function prepareVatReturn(report: ComputedVatReport) {
+export function prepareVatReturn(report: Pick<ComputedVatReport, "vatReturn">) {
   const lines = report.vatReturn.map(line => ({ ...line,
     netAmount: String(wholeCzk(line.netAmount)), vatAmount: String(wholeCzk(line.vatAmount)),
   }));
