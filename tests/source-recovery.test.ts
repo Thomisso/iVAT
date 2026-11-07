@@ -16,16 +16,20 @@ import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { defineSourceDocuments, excludeSourceFile, restoreSourceFile, startManualSourceReview, retrySplit, getSourceFile, readSourceFile, uploadSourceFile } from "@/application/source-files";
 import { approveDocument, correctDocument, listDocuments, listExtractionVersions } from "@/application/documents";
 import { getCompanyAiProcessingAllowance } from "@/application/ai-processing-allowance";
-import { administratorWithCompany, companyMember, assignAiConfigurationFixture } from "./support/fixtures";
+import { knownSupplierFixture, administratorWithCompany, companyMember, assignAiConfigurationFixture } from "./support/fixtures";
 import { fixtureFile, selectFixtureFiles } from "./support/files";
 import { testWorker, systemClient } from "./support/worker";
 import { splitJob } from "@/application/processing";
+
+// Explicit human confirmation belongs only to the manual corrections below, never the fake AI.
+const REVIEWED_EXTRACTION = { ...SAMPLE_EXTRACTION, claimEligibility: { period: "2026-10", origin: "user" as const, confirmed: true } };
 
 it.each([
   ["two-invoices.pdf", [{ firstPage: 1, lastPage: 1 }, { firstPage: 2, lastPage: 2 }]],
   ["receipt.png", [{ firstPage: 1, lastPage: 1 }]],
 ] as const)("a User manually defines %s from its real source without AI or fabricated structured data", async (name, ranges) => {
   const administrator = await administratorWithCompany();
+  await knownSupplierFixture(administrator);
   const user = await companyMember(administrator);
   const worker = testWorker();
   const uploaded = await uploadSourceFile(user.client, worker.jobs, { companyId: administrator.companyId, fileName: name, bytes: fixtureFile(name) });
@@ -42,8 +46,8 @@ it.each([
   for (const document of documents) {
     const target = { companyId: input.companyId, documentId: document.id };
     expect(await listExtractionVersions(user.client, target.companyId, target.documentId)).toEqual([]);
-    expect(await correctDocument(user.client, { ...target, basedOnVersion: 0, payload: { ...SAMPLE_EXTRACTION, taxPointDate: null } })).toEqual({ ok: false, error: "tax_point_date_required" });
-    expect(await correctDocument(user.client, { ...target, basedOnVersion: 0, payload: SAMPLE_EXTRACTION })).toEqual({ ok: true, value: { version: 1 } });
+    expect(await correctDocument(user.client, { ...target, basedOnVersion: 0, payload: { ...SAMPLE_EXTRACTION, taxPointDate: null } })).toEqual({ ok: false, error: "tax_point_date_required", findings: [{ field: "taxPointDate", severity: "error", code: "tax_point_date_required" }] });
+    expect(await correctDocument(user.client, { ...target, basedOnVersion: 0, payload: REVIEWED_EXTRACTION })).toEqual({ ok: true, value: { version: 1 } });
     expect(await approveDocument(user.client, { ...target, version: 1 })).toEqual({ ok: true, value: null });
   }
   expect(await defineSourceDocuments(user.client, input)).toEqual(defined);
@@ -208,6 +212,7 @@ it.each([
 
 async function uploadedSource() {
   const context = await administratorWithCompany();
+  await knownSupplierFixture(context);
   const uploaded = await uploadSourceFile(context.client, { async send() {} }, { companyId: context.companyId, fileName: "receipt.png", bytes: fixtureFile("receipt.png") });
   if (!uploaded.ok) throw new Error(uploaded.error);
   const file = await getSourceFile(context.client, context.companyId, uploaded.value.id);
@@ -280,7 +285,7 @@ it("legacy locked snapshots without Source entries do not invent a period for a 
   const defined = await defineSourceDocuments(context.client, { ...sourceInput, ranges: [{ firstPage: 1, lastPage: 1 }] });
   if (!defined.ok) throw new Error(defined.error);
   const document = { companyId: context.companyId, documentId: defined.value.documentIds[0] };
-  expect(await correctDocument(context.client, { ...document, basedOnVersion: 0, payload: SAMPLE_EXTRACTION })).toEqual({ ok: true, value: { version: 1 } });
+  expect(await correctDocument(context.client, { ...document, basedOnVersion: 0, payload: REVIEWED_EXTRACTION })).toEqual({ ok: true, value: { version: 1 } });
   expect(await approveDocument(context.client, { ...document, version: 1 })).toEqual({ ok: false, error: "period_locked" });
   expect(await getVatReport(context.client, context.companyId, reportInput.period)).toEqual(before);
 });
@@ -431,7 +436,7 @@ it("actual Split recording serializes behind takeover without a Source/Company l
   const defined = await defineSourceDocuments(context.client, { ...input, ranges: [{ firstPage: 1, lastPage: 1 }] });
   if (!defined.ok) throw new Error(defined.error);
   const document = { companyId: context.companyId, documentId: defined.value.documentIds[0] };
-  await correctDocument(context.client, { ...document, basedOnVersion: 0, payload: SAMPLE_EXTRACTION });
+  await correctDocument(context.client, { ...document, basedOnVersion: 0, payload: REVIEWED_EXTRACTION });
   expect(await approveDocument(context.client, { ...document, version: 1 })).toEqual({ ok: true, value: null });
   expect((await record()).error).toBeNull();
   expect((await listExtractionVersions(context.client, input.companyId, document.documentId)).map((version) => version.author.kind)).toEqual(["user"]);

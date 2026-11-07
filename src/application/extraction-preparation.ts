@@ -1,6 +1,6 @@
 import { CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA, validateDocument, type ValidationFinding } from "./document-validation";
 import { applyCnbConversion, type ExchangeRateProvider } from "./exchange-rates";
-import { invalidAmountFields, normalizeExtractionPayload, omitZeroRateBreakdownRows, validateManualDocumentPayload, type ExtractionPayload, type ManualDocumentPayloadError } from "./extraction-payload";
+import { manualDocumentPayloadFindings, normalizeExtractionPayload, omitZeroRateBreakdownRows, validateManualDocumentPayload, type ExtractionPayload, type ManualDocumentPayloadError } from "./extraction-payload";
 import { vatRegistryFindings, type VatPayerRegistry } from "./vat-registry";
 
 /** Manual draft refusals precede the correction's RLS lookup and any external work. */
@@ -13,9 +13,10 @@ export function prepareManualExtractionPayload(candidate: ExtractionPayload): { 
   });
   if (!candidate.sourceRateRows && payload.rateBreakdown.length === candidate.rateBreakdown.length) delete payload.sourceRateRows;
   const invalid = validateManualDocumentPayload(payload);
-  if (invalid) return { ok: false, error: invalid,
-    ...(invalid === "invalid_amount" ? { findings: invalidAmountFields(payload).map(field => ({ field, severity: "error" as const, code: "invalid_amount" })) } : {}),
-  };
+  if (invalid) {
+    const findings = manualDocumentPayloadFindings(payload);
+    return { ok: false, error: invalid, ...(findings.length ? { findings } : {}) };
+  }
   delete payload.confidence;
   return { ok: true, value: payload };
 }
