@@ -233,11 +233,12 @@ export default async function DocumentReviewPage({
           ) : (
             <EmptyState icon="file" title={t("review.noExtraction")} />
           )}
-          {reviewing && !viewingRecorded && current && (ordinaryDomesticClaim(current.payload) || document.claimedReportingPeriod) && (
+          {!viewingRecorded && current && (
             <ReportingAssignmentForm
               companyId={companyId}
               documentId={document.id}
               claimedReportingPeriod={document.claimedReportingPeriod}
+              available={reviewing && (ordinaryDomesticClaim(current.payload) || !!document.claimedReportingPeriod)}
               periods={deferredClaimPeriods}
             />
           )}

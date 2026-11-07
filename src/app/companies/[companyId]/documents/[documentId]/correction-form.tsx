@@ -85,6 +85,8 @@ export function CorrectionForm({
   const { version, payload, findings } = base;
   const [direction, setDirection] = useState(payload.direction);
   const [clientErrors, setClientErrors] = useState<{ field: string; message: string }[]>([]);
+  const [keepCounterpartyEditor, setKeepCounterpartyEditor] = useState(editable);
+  if (editable && !keepCounterpartyEditor) setKeepCounterpartyEditor(true);
   const [lines, setLines] = useState(() =>
     payload.rateBreakdown.flatMap((line, index) => isZeroRateBreakdownLine(line) ? [] : [index]),
   );
@@ -115,8 +117,11 @@ export function CorrectionForm({
     };
   }, [result, payload]);
   useEffect(() => {
-    if (editable && form.current) return register?.(form.current, () => resetDraft.current());
-  }, [register, version, editable, draftGeneration]);
+    // Readonly is an availability change, not permission to forget this draft.
+    // A historical form and the first editor opened by Return to Review get
+    // pristine baselines. Existing editors retain theirs when availability flips.
+    if (form.current) return register?.(form.current, () => resetDraft.current());
+  }, [register, version, draftGeneration, keepCounterpartyEditor]);
   useEffect(() => {
     if (state.error !== null || state.savedVersion !== undefined) settled?.(state.savedVersion !== undefined && state.error === null);
   }, [settled, state]);
@@ -466,7 +471,8 @@ export function CorrectionForm({
         </fieldset>
       )}
       <CounterpartyLinkSummary companyId={companyId} link={payload.counterpartyLink} />
-      {editable && <CounterpartyLinkFields key={`counterparty-${version}`} companyId={companyId} initialMode={state.values.counterpartyLinkMode ?? (payload.counterpartyLink === null ? "unlinked" : undefined)} initialId={state.values.counterpartyId ?? payload.counterpartyLink?.id ?? (payload.counterpartyLink === null ? "" : currentCounterparty?.id ?? "")} initialName={currentCounterparty?.recorded?.name ?? payload.counterpartyLink?.recorded?.name} currentDirectory={currentCounterparty} />}
+      {/* Keep existing draft controls when availability changes; initial readonly views omit the editor. */}
+      {keepCounterpartyEditor && <fieldset disabled={!editable} style={{ display: "contents" }}><CounterpartyLinkFields key={`counterparty-${version}`} companyId={companyId} initialMode={state.values.counterpartyLinkMode ?? (payload.counterpartyLink === null ? "unlinked" : undefined)} initialId={state.values.counterpartyId ?? payload.counterpartyLink?.id ?? (payload.counterpartyLink === null ? "" : currentCounterparty?.id ?? "")} initialName={currentCounterparty?.recorded?.name ?? payload.counterpartyLink?.recorded?.name} currentDirectory={currentCounterparty} /></fieldset>}
       {direction === "outgoing" ? [partyPanel("customer"), partyPanel("supplier")] : [partyPanel("supplier"), partyPanel("customer")]}
       <fieldset>
         <legend>{t("sections.payment")}</legend>

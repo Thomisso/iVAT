@@ -10,8 +10,8 @@ import { useReviewDraft } from "./review-guard";
 const EMPTY_STATE: ReportingAssignmentFormState = { error: null, values: {} };
 
 /** The independent Deferred Claim draft survives accounting-only refreshes. */
-export function ReportingAssignmentForm({ companyId, documentId, claimedReportingPeriod, periods }: {
-  companyId: string; documentId: string; claimedReportingPeriod: string | null; periods: readonly string[];
+export function ReportingAssignmentForm({ companyId, documentId, claimedReportingPeriod, periods, available }: {
+  companyId: string; documentId: string; claimedReportingPeriod: string | null; periods: readonly string[]; available: boolean;
 }) {
   const t = useTranslations("review.reportingAssignment");
   const { registerReporting, reportingSettled, setPending, pending: sharedPending } = useReviewDraft() ?? {};
@@ -39,6 +39,8 @@ export function ReportingAssignmentForm({ companyId, documentId, claimedReportin
       setValue(claimedReportingPeriod ?? "");
     }
   }
+  // Eligibility/status refreshes may remove the editor, never its dirty draft.
+  const visible = available || value !== base;
   useEffect(() => {
     reset.current = () => {
       setIgnoredResult(result);
@@ -48,7 +50,7 @@ export function ReportingAssignmentForm({ companyId, documentId, claimedReportin
   }, [result, claimedReportingPeriod]);
   useEffect(() => {
     if (form.current) return registerReporting?.(form.current, () => reset.current());
-  }, [registerReporting, base]);
+  }, [registerReporting, base, visible]);
   useEffect(() => {
     if (result.error !== null || result.savedReportingPeriod !== undefined) reportingSettled?.(result.error === null && result.savedReportingPeriod !== undefined);
   }, [result, reportingSettled]);
@@ -57,12 +59,13 @@ export function ReportingAssignmentForm({ companyId, documentId, claimedReportin
     return () => setPending?.("reporting", false);
   }, [setPending, pending]);
   const busy = pending || sharedPending;
+  if (!visible) return null;
   // Discard owns this controlled reset. React's automatic native reset must
   // not change the selection after its receipt establishes the guard baseline.
   return <form ref={form} action={action} className="form reporting-assignment-form" aria-busy={busy} onReset={event => event.preventDefault()}>
     <input type="hidden" name="companyId" value={companyId} />
     <input type="hidden" name="documentId" value={documentId} />
-    <fieldset disabled={busy}>
+    <fieldset disabled={busy || !available}>
       <legend>{t("title")}</legend>
       <div className="fields"><div className="iv-field"><label className="iv-field-label" htmlFor={id}>{t("claimedReportingPeriod")}</label>
         <select id={id} className="iv-input" name="claimedReportingPeriod" value={value} aria-describedby={`${id}-hint`} onChange={event => setValue(event.target.value)}>
@@ -73,7 +76,8 @@ export function ReportingAssignmentForm({ companyId, documentId, claimedReportin
         <small className="iv-field-hint" id={`${id}-hint`}>{t("claimedReportingPeriodHint")}</small>
       </div></div>
     </fieldset>
+    {!available && <p role="status">{t("unavailable")}</p>}
     <FormError error={state.error} />
-    <Button type="submit" variant="primary" disabled={busy}>{pending ? t("saving") : t("save")}</Button>
+    {available && <Button type="submit" variant="primary" disabled={busy}>{pending ? t("saving") : t("save")}</Button>}
   </form>;
 }

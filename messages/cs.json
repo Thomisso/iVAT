@@ -1111,7 +1111,8 @@
       "claimedReportingPeriodHint": "Vyberte nezamčené pozdější období, které skončí včas pro podání do konce lhůty nároku.",
       "claimedReportingPeriodPlaceholder": "2026-12 nebo 2027-Q1",
       "save": "Uložit zdaňovací období",
-      "saving": "Ukládání…"
+      "saving": "Ukládání…",
+      "unavailable": "Období vykazování nelze v aktuálním stavu tohoto dokladu změnit. Neuložený výběr zůstává zachován, dokud ho nezahodíte."
     },
     "findings": {
       "rate_vat_amount_mismatch": "DPH neodpovídá základu a sazbě.",
