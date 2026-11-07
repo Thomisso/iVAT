@@ -29,7 +29,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: node --test scripts/tests/ci-policy.test.mjs
+      - run: node --test scripts/tests/ci-policy.test.mjs scripts/tests/http-acceptance-policy.test.mjs
       - name: Agent tracker command behavior
         run: npm run test:agent-tracker
       - id: profile
@@ -124,15 +124,11 @@ jobs:
         run: npm run db:stop -- --no-backup
 
   acceptance:
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2, 3]
     needs: profile
     if: needs.profile.outputs.profile == 'full'
     runs-on: ubuntu-latest
-    # Every shard builds its own production app and starts an isolated stack.
-    # Playwright still uses one worker within each shard.
+    # One actual production HTTP suite owns one isolated stack.
+    # The three financial application-test shards above remain independent.
     timeout-minutes: 30
     steps:
       - name: Reserve Supabase ports before network setup
@@ -149,13 +145,12 @@ jobs:
         run: |
           npm install --global postman-cli@1.73.0
           postman --version
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e -- --shard=${{ matrix.shard }}/3
-      - name: Upload Playwright traces
+      - run: npm run test:http
+      - name: Upload HTTP acceptance service logs
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-traces-${{ matrix.shard }}
+          name: http-acceptance-logs
           path: test-results
           if-no-files-found: ignore
       - name: Stop the acceptance database

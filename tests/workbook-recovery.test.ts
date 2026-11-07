@@ -12,12 +12,15 @@ import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { defineSourceDocuments, getSourceFile, readSourceFile, readSourceWorkbook, excludeSourceFile, restoreSourceFile, retrySplit, startManualSourceReview, uploadSourceFile } from "@/application/source-files";
 import { approveDocument, correctDocument, listDocuments, listExtractionVersions, readDocumentPages, readDocumentRows } from "@/application/documents";
 import { getCompanyAiProcessingAllowance } from "@/application/ai-processing-allowance";
-import { administratorWithCompany, assignAiConfigurationFixture, companyMember } from "./support/fixtures";
+import { knownSupplierFixture, administratorWithCompany, assignAiConfigurationFixture, companyMember } from "./support/fixtures";
 import { splitJob } from "@/application/processing";
 import { testWorker, systemClient } from "./support/worker";
 
+// Explicit human confirmation belongs only to the manual corrections below, never the fake AI.
+const REVIEWED_EXTRACTION = { ...SAMPLE_EXTRACTION, claimEligibility: { period: "2026-10", origin: "user" as const, confirmed: true } };
+
 it.each(["xlsx", "xls"] as const)("a User recovers multiple sheets and row ranges from a failed %s without automatic AI or invented images", async (format) => {
-  const context = await administratorWithCompany(); const user = await companyMember(context);
+  const context = await administratorWithCompany(); await knownSupplierFixture(context); const user = await companyMember(context);
   const worker = testWorker(fakeAiProvider()); const bytes = multiSheetWorkbookFile(format);
   const uploaded = await uploadSourceFile(user.client, worker.jobs, { companyId: context.companyId, fileName: `manual.${format}`, bytes });
   if (!uploaded.ok) throw new Error(uploaded.error);
@@ -38,13 +41,19 @@ it.each(["xlsx", "xls"] as const)("a User recovers multiple sheets and row range
   ]));
   expect(documents).toHaveLength(3);
   const grouped = documents.find((document) => document.rowSet?.sheetName === "Přijaté účty" && document.rowSet.firstRow === 3)!;
-  expect(await readDocumentRows(user.client, context.companyId, grouped.id)).toEqual({ fileName: `manual.${format}`, sheetName: "Přijaté účty", firstRow: 3, lastRow: 4, text: '[Sheet "Přijaté účty"]\n1\tDocument number\tGross amount\n3\tMANUAL-2\t242\n4\tMANUAL-3\t363' });
+  expect(await readDocumentRows(user.client, context.companyId, grouped.id)).toEqual({ fileName: `manual.${format}`, sheetName: "Přijaté účty", firstRow: 3, lastRow: 4,
+    firstColumn: 1, lastColumn: 2, headerRow: 1, columns: [{ number: 1, label: "A" }, { number: 2, label: "B" }],
+    rows: [
+      { number: 1, context: true, cells: [{ address: "A1", column: 1, text: "Document number" }, { address: "B1", column: 2, text: "Gross amount" }] },
+      { number: 3, context: false, cells: [{ address: "A3", column: 1, text: "MANUAL-2" }, { address: "B3", column: 2, text: "242" }] },
+      { number: 4, context: false, cells: [{ address: "A4", column: 1, text: "MANUAL-3" }, { address: "B4", column: 2, text: "363" }] },
+    ], text: '[Sheet "Přijaté účty"]\n[Columns]\tA\tB\n1\tDocument number\tGross amount\n3\tMANUAL-2\t242\n4\tMANUAL-3\t363' });
   for (const document of documents) {
     expect(await readDocumentPages(user.client, context.companyId, document.id)).toBeNull();
     expect(await listExtractionVersions(user.client, context.companyId, document.id)).toEqual([]);
     const target = { companyId: context.companyId, documentId: document.id, basedOnVersion: 0 };
-    expect(await correctDocument(user.client, { ...target, payload: { ...SAMPLE_EXTRACTION, taxPointDate: null } })).toEqual({ ok: false, error: "tax_point_date_required" });
-    expect(await correctDocument(user.client, { ...target, payload: SAMPLE_EXTRACTION })).toEqual({ ok: true, value: { version: 1 } });
+    expect(await correctDocument(user.client, { ...target, payload: { ...SAMPLE_EXTRACTION, taxPointDate: null } })).toEqual({ ok: false, error: "tax_point_date_required", findings: [{ field: "taxPointDate", severity: "error", code: "tax_point_date_required" }] });
+    expect(await correctDocument(user.client, { ...target, payload: REVIEWED_EXTRACTION })).toEqual({ ok: true, value: { version: 1 } });
     expect(await approveDocument(user.client, { companyId: context.companyId, documentId: document.id, version: 1 })).toEqual({ ok: true, value: null });
   }
   expect(await defineSourceDocuments(user.client, input)).toEqual(defined);
@@ -114,7 +123,7 @@ function gate() {
 }
 
 it.each(["success", "failure"] as const)("late automatic workbook Split %s cannot undo manual row ownership or a User Version", async (outcome) => {
-  const context = await administratorWithCompany(); const started = gate(); const finish = gate();
+  const context = await administratorWithCompany(); await knownSupplierFixture(context); const started = gate(); const finish = gate();
   const worker = testWorker(fakeAiProvider({ split: async () => {
     started.release(); await finish.promise;
     if (outcome === "failure") throw new Error("Late provider failure");
@@ -129,7 +138,7 @@ it.each(["success", "failure"] as const)("late automatic workbook Split %s canno
   const defined = await defineSourceDocuments(context.client, { ...input, ranges: [{ sheetName: "Přijaté účty", firstRow: 2, lastRow: 4 }] });
   if (!defined.ok) throw new Error(defined.error);
   const target = { companyId: context.companyId, documentId: defined.value.documentIds[0] };
-  await correctDocument(context.client, { ...target, basedOnVersion: 0, payload: SAMPLE_EXTRACTION });
+  await correctDocument(context.client, { ...target, basedOnVersion: 0, payload: REVIEWED_EXTRACTION });
   await approveDocument(context.client, { ...target, version: 1 });
   finish.release(); await running;
   await worker.jobs.send(splitJob(input.sourceFileId)); expect(await worker.runJobsConcurrently()).toEqual([]);
@@ -207,7 +216,7 @@ it("manual worksheet bounds follow actual populated row positions rather than an
   const uploaded = await uploadSourceFile(context.client, { async send() {} }, { companyId: context.companyId, fileName: "offset.xlsx", bytes });
   if (!uploaded.ok) throw new Error(uploaded.error);
   const input = { companyId: context.companyId, sourceFileId: uploaded.value.id };
-  expect(await readSourceWorkbook(context.client, context.companyId, input.sourceFileId)).toEqual({ text: '[Sheet "Offset"]\n4\tDocument number\tGross amount\n5\tOFFSET-1\t121', rowSets: [{ sheetName: "Offset", firstRow: 4, lastRow: 5 }] });
+  expect(await readSourceWorkbook(context.client, context.companyId, input.sourceFileId)).toEqual({ text: '[Sheet "Offset"]\n[Columns]\tB\tC\n4\tDocument number\tGross amount\n5\tOFFSET-1\t121', rowSets: [{ sheetName: "Offset", firstRow: 4, lastRow: 5 }] });
   expect(await defineSourceDocuments(context.client, { ...input, ranges: [{ sheetName: "Offset", firstRow: 3, lastRow: 5 }] })).toEqual({ ok: false, error: "invalid_workbook_ranges" });
   expect((await defineSourceDocuments(context.client, { ...input, ranges: [{ sheetName: "Offset", firstRow: 5, lastRow: 5 }] })).ok).toBe(true);
 });

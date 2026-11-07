@@ -31,7 +31,9 @@
     "test:contract:anthropic": "ANTHROPIC_CONTRACT_TEST=1 vitest run tests/contract/anthropic.test.ts",
     "test:contract:openai": "OPENAI_CONTRACT_TEST=1 vitest run tests/contract/openai.test.ts",
     "evaluate:extraction": "tsx scripts/evaluate-extraction.ts",
-    "auth:templates": "node scripts/generate-auth-templates.mjs"
+    "auth:templates": "node scripts/generate-auth-templates.mjs",
+    "test:http": "node scripts/e2e.mjs",
+    "test:http:dev": "node scripts/e2e.mjs --dev-server"
   },
   "dependencies": {
     "@pdf-lib/fontkit": "^1.1.1",

@@ -242,6 +242,7 @@ it.each([
   ["2026-09-30T22:00:00Z", "2026-10-01", "2026-10-01", "2026-10-01", "2026-10", false],
   ["2026-12-31T22:59:59Z", "2026-12-15", "2026-12-15", "2026-12-31", "2026-12", false],
   ["2026-12-31T23:00:00Z", "2026-12-15", "2026-12-15", "2027-01-01", null, false],
+  ["2026-03-05T10:00:00Z", "2026-01-10", "2026-01-12", "2026-03-05", null, false],
   ["2026-03-05T10:00:00Z", "2026-01-10", "2026-02-12", "2026-03-05", "2026-Q1", true],
 ] as const)("uses actual Prague import %s and generated frequency for same-period eligibility", async (instant, taxPointDate, issueDate, importDate, expectedPeriod, quarterly) => {
   const user = await sourceDocument(instant, taxPointDate, issueDate, quarterly);

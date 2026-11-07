@@ -84,7 +84,7 @@ Focused local checks:
 
 ```bash
 npx vitest run tests/sign-up.test.ts tests/companies.test.ts tests/invitation-urls.test.ts
-PLAYWRIGHT_BASE_URL=http://127.0.0.1:3102 npx playwright test e2e/closed-signup.spec.ts e2e/auth-account-shell.spec.ts
+npm run test:http
 ```
 
 These do not call live Google. Application tests use the real SDK and Auth,
@@ -92,12 +92,12 @@ with a controlled settings response for the configured-provider branch. The
 OAuth insertion invariant is tested under the actual `supabase_auth_admin`
 database identity, because admin-create metadata is applied after the initial
 Auth INSERT and does not reproduce an OAuth callback's new-user trigger.
-For a disposable configured-provider UI check, run the browser command with
-`TEST_GOOGLE_CONFIGURED=1` after explicitly enabling Google in that isolated Auth
-configuration. This only changes test expectations. Synthetic credentials can
-exercise the settings/button branch without starting OAuth; they do not prove
-that Google accepts real deployment credentials. Restore the disabled default
-with the normal local startup wrapper afterwards.
+The HTTP acceptance suite checks native Auth and localized SSR without a
+browser. The configured-provider display case requires valid isolated Auth
+configuration and a real SSR observation before it may be claimed. Historical
+Playwright configured-provider checks remain source inventory. Synthetic
+credentials do not establish that Google accepts real deployment credentials;
+these local checks make no live-Google or client-interaction claim.
 
 References: [Supabase Google sign-in](https://supabase.com/docs/guides/auth/social-sign-in/auth-google),
 [Supabase identity linking](https://supabase.com/docs/guides/auth/auth-identity-linking).

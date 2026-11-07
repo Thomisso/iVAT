@@ -259,16 +259,16 @@ describe("correcting a Document", () => {
   });
 
   it.each([
-    ["an amount that is no number", { totals: { ...SAMPLE_EXTRACTION.totals, grossAmount: "1210 Kč" } }, "invalid_amount"],
-    ["a Rate Breakdown amount with three decimals", { rateBreakdown: [{ rate: 21, netAmount: "1000.005", vatAmount: "210.00" }] }, "invalid_amount"],
-    ["a negative VAT rate", { rateBreakdown: [{ rate: -21, netAmount: "1000.00", vatAmount: "210.00" }] }, "invalid_rate"],
-    ["a date that does not exist", { taxPointDate: "2026-02-30" }, "invalid_date"],
-    ["a currency that is not an ISO code", { currency: "Kč" }, "invalid_currency"],
-    ["a country that is not an ISO code", { supplier: { ...SAMPLE_EXTRACTION.supplier, country: "CZE" } }, "invalid_country"],
-    ["an unknown document type", { documentType: "invoic" as ExtractionPayload["documentType"] }, "invalid_choice"],
-    ["an unknown Direction", { direction: "sideways" as ExtractionPayload["direction"] }, "invalid_choice"],
-    ["an unknown VAT Regime", { proposedVatRegime: "export" as ExtractionPayload["proposedVatRegime"] }, "invalid_choice"],
-  ] satisfies [string, Partial<ExtractionPayload>, string][])("refuses %s", async (_case, change, error) => {
+    ["an amount that is no number", { totals: { ...SAMPLE_EXTRACTION.totals, grossAmount: "1210 Kč" } }, "invalid_amount", "totals.grossAmount"],
+    ["a Rate Breakdown amount with three decimals", { rateBreakdown: [{ rate: 21, netAmount: "1000.005", vatAmount: "210.00" }] }, "invalid_amount", "rateBreakdown.0.netAmount"],
+    ["a negative VAT rate", { rateBreakdown: [{ rate: -21, netAmount: "1000.00", vatAmount: "210.00" }] }, "invalid_rate", "rateBreakdown.0.rate"],
+    ["a date that does not exist", { taxPointDate: "2026-02-30" }, "invalid_date", "taxPointDate"],
+    ["a currency that is not an ISO code", { currency: "Kč" }, "invalid_currency", "currency"],
+    ["a country that is not an ISO code", { supplier: { ...SAMPLE_EXTRACTION.supplier, country: "CZE" } }, "invalid_country", "supplier.country"],
+    ["an unknown document type", { documentType: "invoic" as ExtractionPayload["documentType"] }, "invalid_choice", "documentType"],
+    ["an unknown Direction", { direction: "sideways" as ExtractionPayload["direction"] }, "invalid_choice", "direction"],
+    ["an unknown VAT Regime", { proposedVatRegime: "export" as ExtractionPayload["proposedVatRegime"] }, "invalid_choice", "proposedVatRegime"],
+  ] satisfies [string, Partial<ExtractionPayload>, string, string?][])("refuses %s", async (_case, change, error, field?: string) => {
     const { client, companyId, documentId } = await documentInReview();
 
     const result = await correctDocument(client, {
@@ -278,7 +278,9 @@ describe("correcting a Document", () => {
       payload: { ...SAMPLE_EXTRACTION, ...change },
     });
 
-    expect(result).toEqual({ ok: false, error });
+    expect(result).toEqual({ ok: false, error,
+      ...(field ? { findings: [{ field, severity: "error", code: error }] } : {}),
+    });
     expect(await listExtractionVersions(client, companyId, documentId)).toHaveLength(1);
   });
 

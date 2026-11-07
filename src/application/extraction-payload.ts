@@ -1,4 +1,5 @@
 import { remapSourceField, type SourceEvidence, type SourceLocation } from "./source-locations";
+import type { ValidationFinding } from "./document-validation";
 
 // The structured data an Extraction reads out of one Document: the payload of
 // an Extraction Version. Documented in docs/extraction-payload.md; change both
@@ -157,6 +158,20 @@ const isChoice = (choices: readonly string[], value: string | null) => value ===
 
 const AMOUNT = /^-?\d+\.\d{2}$/;
 
+/** Amount syntax failures, addressed to the caller's original Rate Breakdown rows. */
+function invalidAmountFields(payload: ExtractionPayload): string[] {
+  const fields: [string, string | null][] = [
+    ...payload.rateBreakdown.flatMap((line, index): [string, string | null][] => {
+      const row = payload.sourceRateRows?.[index] ?? index;
+      return [[`rateBreakdown.${row}.netAmount`, line.netAmount], [`rateBreakdown.${row}.vatAmount`, line.vatAmount]];
+    }),
+    ["totals.netAmount", payload.totals.netAmount],
+    ["totals.vatAmount", payload.totals.vatAmount],
+    ["totals.grossAmount", payload.totals.grossAmount],
+  ];
+  return fields.filter(([, value]) => value !== null && !AMOUNT.test(value)).map(([field]) => field);
+}
+
 /** Whether a value is an ISO date of a day that exists. */
 function isIsoDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -250,41 +265,59 @@ export function normalizeExtractionPayload(payload: ExtractionPayload): Extracti
     : normalized;
 }
 
-/** The first convention a payload breaks, or null. Null fields are always allowed. */
-export function validateExtractionPayload(payload: ExtractionPayload, { draft = false }: { draft?: boolean } = {}): ExtractionPayloadError | null {
-  if (
-    ![1, 2].includes(payload.schemaVersion) ||
-    !isChoice(DOCUMENT_TYPES, payload.documentType) ||
-    !isChoice(DIRECTIONS, payload.direction) ||
-    !isChoice(VAT_REGIMES, payload.proposedVatRegime)
-  ) {
-    return "invalid_choice";
+type PayloadIssue = { field: string | null; code: ExtractionPayloadError };
+
+/** Ordered parser issues retain the existing refusal precedence and submitted row identities. */
+function extractionPayloadIssues(payload: ExtractionPayload, { draft = false }: { draft?: boolean } = {}): PayloadIssue[] {
+  const issues: PayloadIssue[] = [];
+  const add = (field: string | null, code: ExtractionPayloadError) => issues.push({ field, code });
+  // Schema metadata has no editable form field; do not invent a focus target.
+  if (![1, 2].includes(payload.schemaVersion)) add(null, "invalid_choice");
+  if (!isChoice(DOCUMENT_TYPES, payload.documentType)) add("documentType", "invalid_choice");
+  if (!isChoice(DIRECTIONS, payload.direction)) add("direction", "invalid_choice");
+  if (!isChoice(VAT_REGIMES, payload.proposedVatRegime)) add("proposedVatRegime", "invalid_choice");
+  for (const field of invalidAmountFields(payload)) add(field, "invalid_amount");
+  if (!draft || payload.schemaVersion === 1) {
+    payload.rateBreakdown.forEach((line, index) => {
+      const row = payload.sourceRateRows?.[index] ?? index;
+      if (line.netAmount === null) add(`rateBreakdown.${row}.netAmount`, "invalid_amount");
+      if (line.vatAmount === null) add(`rateBreakdown.${row}.vatAmount`, "invalid_amount");
+    });
   }
-  const amounts = [
-    ...payload.rateBreakdown.flatMap((line) => [line.netAmount, line.vatAmount]),
-    payload.totals.netAmount,
-    payload.totals.vatAmount,
-    payload.totals.grossAmount,
-  ];
-  if (amounts.some((amount) => amount !== null && !AMOUNT.test(amount))) return "invalid_amount";
-  if ((!draft || payload.schemaVersion === 1) && payload.rateBreakdown.some((line) => line.netAmount === null || line.vatAmount === null)) return "invalid_amount";
-  if (
-    !draft &&
-    payload.documentType === "credit_note"
-    && (amounts.some((amount) => amount !== null && Number(amount) > 0)
-      || !amounts.some((amount) => amount !== null && Number(amount) < 0))
-  ) return "invalid_credit_note_amount";
-  if (payload.rateBreakdown.some((line) => line.rate === null ? !draft || payload.schemaVersion === 1 : !Number.isFinite(line.rate) || line.rate < 0 || line.rate > 100)) {
-    return "invalid_rate";
+  const amounts = [...payload.rateBreakdown.flatMap(line => [line.netAmount, line.vatAmount]),
+    payload.totals.netAmount, payload.totals.vatAmount, payload.totals.grossAmount];
+  if (!draft && payload.documentType === "credit_note"
+    && (amounts.some(value => value !== null && Number(value) > 0)
+      || !amounts.some(value => value !== null && Number(value) < 0))) add(null, "invalid_credit_note_amount");
+  payload.rateBreakdown.forEach((line, index) => {
+    if (line.rate === null ? !draft || payload.schemaVersion === 1 : !Number.isFinite(line.rate) || line.rate < 0 || line.rate > 100) {
+      add(`rateBreakdown.${payload.sourceRateRows?.[index] ?? index}.rate`, "invalid_rate");
+    }
+  });
+  for (const field of ["issueDate", "taxPointDate", "dueDate"] as const) {
+    const value = payload[field];
+    if (value !== null && !isIsoDate(value)) add(field, "invalid_date");
   }
-  const dates = [payload.issueDate, payload.taxPointDate, payload.dueDate];
-  if (dates.some((date) => date !== null && !isIsoDate(date))) return "invalid_date";
-  if (payload.currency !== null && !/^[A-Z]{3}$/.test(payload.currency)) return "invalid_currency";
+  if (payload.currency !== null && !/^[A-Z]{3}$/.test(payload.currency)) add("currency", "invalid_currency");
   const reverseChargeCode = payload.reverseChargeCode ?? null;
-  if (reverseChargeCode !== null && !/^\d{1,3}$/.test(reverseChargeCode)) {
-    return "invalid_reverse_charge_code";
+  if (reverseChargeCode !== null && !/^\d{1,3}$/.test(reverseChargeCode)) add("reverseChargeCode", "invalid_reverse_charge_code");
+  for (const party of ["supplier", "customer"] as const) {
+    const country = payload[party].country;
+    if (country !== null && !/^[A-Z]{2}$/.test(country)) add(`${party}.country`, "invalid_country");
   }
-  const countries = [payload.supplier.country, payload.customer.country];
-  if (countries.some((country) => country !== null && !/^[A-Z]{2}$/.test(country))) return "invalid_country";
-  return null;
+  return issues;
+}
+
+/** The first convention a payload breaks, preserving draft and Credit Note semantics. */
+export function validateExtractionPayload(payload: ExtractionPayload, options: { draft?: boolean } = {}): ExtractionPayloadError | null {
+  return extractionPayloadIssues(payload, options)[0]?.code ?? null;
+}
+
+/** Every editable parser error for a manual submission; nullable unfinished draft fields stay allowed. */
+export function manualDocumentPayloadFindings(payload: ExtractionPayload): ValidationFinding[] {
+  const issues = extractionPayloadIssues(payload, { draft: true });
+  return [
+    ...(!payload.taxPointDate ? [{ field: "taxPointDate", severity: "error" as const, code: "tax_point_date_required" }] : []),
+    ...issues.flatMap(issue => issue.field === null || issue.field === "taxPointDate" && !payload.taxPointDate ? [] : [{ field: issue.field, severity: "error" as const, code: issue.code }]),
+  ];
 }

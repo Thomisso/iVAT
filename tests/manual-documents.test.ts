@@ -41,7 +41,7 @@ it("requires a real Tax Point Date on creation and every manual correction, incl
   const administrator = await administratorWithCompany();
   for (const [taxPointDate, error] of [[null, "tax_point_date_required"], ["2026-02-30", "invalid_date"]] as const) {
     expect(await createConfirmedManualDocument(administrator.client, { companyId: administrator.companyId, payload: { ...SAMPLE_EXTRACTION, taxPointDate } }))
-      .toEqual({ ok: false, error });
+      .toEqual({ ok: false, error, findings: [{ field: "taxPointDate", severity: "error", code: error }] });
     const direct = await administrator.client.rpc("create_manual_document", {
       target_company_id: administrator.companyId, payload: { ...SAMPLE_EXTRACTION, taxPointDate }, findings: [],
     });
@@ -52,7 +52,7 @@ it("requires a real Tax Point Date on creation and every manual correction, incl
   expect(await correctDocument(administrator.client, {
     companyId: administrator.companyId, documentId: created.value.id, basedOnVersion: 1,
     payload: { ...SAMPLE_EXTRACTION, taxPointDate: null },
-  })).toEqual({ ok: false, error: "tax_point_date_required" });
+  })).toEqual({ ok: false, error: "tax_point_date_required", findings: [{ field: "taxPointDate", severity: "error", code: "tax_point_date_required" }] });
   const directCorrection = await administrator.client.rpc("correct_document", {
     target_document_id: created.value.id, based_on_version: 1,
     payload: { ...SAMPLE_EXTRACTION, taxPointDate: null }, findings: [],
@@ -194,7 +194,9 @@ it("reports complete source-independent data in its DUZP period and preserves an
   expect((await getVatReport(administrator.client, input.companyId, "2026-10"))?.result.totals.inputVat).toBe("210.00");
   expect(await returnDocumentToReview(administrator.client, input)).toEqual({ ok: true, value: null });
   expect(await updateDocumentReporting(administrator.client, { ...input, claimedReportingPeriod: "2026-11" })).toEqual({ ok: true, value: null });
-  expect(await approveDocument(administrator.client, { ...input, version: 1 })).toEqual({ ok: true, value: null });
+  // Initial approval recorded the new Counterparty link in User Version 2.
+  expect((await listExtractionVersions(administrator.client, input.companyId, input.documentId)).map(version => version.version)).toEqual([1, 2]);
+  expect(await approveDocument(administrator.client, { ...input, version: 2 })).toEqual({ ok: true, value: null });
   expect((await generateVatReport(administrator.client, { companyId: input.companyId, period: "2026-10" })).ok).toBe(true);
   expect((await generateVatReport(administrator.client, { companyId: input.companyId, period: "2026-11" })).ok).toBe(true);
   expect((await getVatReport(administrator.client, input.companyId, "2026-10"))?.result.totals.inputVat).toBe("0.00");

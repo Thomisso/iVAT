@@ -100,7 +100,7 @@ import { safeCompanyReturnTo } from "@/application/return-context";
  * messages, plus the submitted values so a refused form keeps its input
  * (React resets forms after an action). Passwords are never echoed back.
  */
-export type FormState = { error: string | null; values: Record<string, string> };
+export type FormState = { error: string | null; values: Record<string, string>; findings?: ValidationFinding[] };
 
 const field = (formData: FormData, name: string) => String(formData.get(name) ?? "");
 
@@ -650,7 +650,7 @@ export async function correctDocumentAction(_state: FormState, formData: FormDat
     const values = [...formData.entries()].filter(
       ([name, value]) => !name.startsWith("$") && typeof value === "string",
     );
-    return { error: result.error, values: Object.fromEntries(values) as Record<string, string> };
+    return { error: result.error, values: Object.fromEntries(values) as Record<string, string>, findings: result.findings };
   }
   refresh();
   return { error: null, values: {} };
@@ -663,6 +663,7 @@ export async function createManualDocumentAction(_state: FormState, formData: Fo
   }, configuredExchangeRates(), configuredVatPayerRegistry());
   if (!result.ok) return {
     error: result.error,
+    findings: result.findings,
     values: Object.fromEntries([...formData.entries()].filter(([name, value]) => !name.startsWith("$") && typeof value === "string")) as Record<string, string>,
   };
   redirect(`/companies/${companyId}/documents/${result.value.id}`);
@@ -692,7 +693,7 @@ export async function reviewDocumentAction(_state: DocumentReviewFormState, form
   const values = Object.fromEntries([...formData.entries()].filter(([name, value]) => !name.startsWith("$") && typeof value === "string")) as Record<string, string>;
   if (field(formData, "intent") !== "approve") {
     const saved = await correctDocument(client, input, configuredExchangeRates(), configuredVatPayerRegistry());
-    if (!saved.ok) return { error: saved.error, values, conflict: saved.conflict };
+    if (!saved.ok) return { error: saved.error, values, findings: saved.findings, conflict: saved.conflict };
     refresh();
     return { error: null, values: {}, savedVersion: saved.value.version };
   }

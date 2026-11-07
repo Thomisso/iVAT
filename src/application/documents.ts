@@ -66,7 +66,7 @@ export async function createManualDocument(
   input: { companyId: string; payload: ExtractionPayload },
   exchangeRates: ExchangeRateProvider = unavailableExchangeRates,
   vatRegistry: VatPayerRegistry = unavailableVatPayerRegistry,
-): Promise<Result<{ id: string }, ManualDocumentPayloadError | "forbidden" | "period_locked">> {
+): Promise<{ ok: true; value: { id: string } } | { ok: false; error: ManualDocumentPayloadError | "forbidden" | "period_locked"; findings?: ValidationFinding[] }> {
   if (!isUuid(input.companyId)) return { ok: false, error: "forbidden" };
   const candidate = prepareManualExtractionPayload(input.payload);
   if (!candidate.ok) return candidate;
@@ -502,7 +502,7 @@ export async function correctDocument(
   },
   exchangeRates: ExchangeRateProvider = unavailableExchangeRates,
   vatRegistry: VatPayerRegistry = unavailableVatPayerRegistry,
-): Promise<{ ok: true; value: { version: number } } | { ok: false; error: CorrectDocumentError; conflict?: ReviewConflict }> {
+): Promise<{ ok: true; value: { version: number } } | { ok: false; error: CorrectDocumentError; findings?: ValidationFinding[]; conflict?: ReviewConflict }> {
   if (input.requestId !== undefined && !isUuid(input.requestId)) return { ok: false, error: "stale_version" };
   const candidate = prepareManualExtractionPayload(input.payload);
   if (!candidate.ok) return candidate;
