@@ -311,14 +311,14 @@ isOneToOne: false
                   ]
                 },"company": {
                   Row: {
-                    "ai_processing_allowance": number | null,"ai_processing_enabled": boolean,"ai_provider": string | null,"ai_region": string | null,"city": string,"created_at": string,"created_by": string | null,"data_revision": number,"deleted_at": string | null,"deleted_by": string | null,"first_name": string | null,"house_number": string | null,"ico": string,"id": string,"last_name": string | null,"name": string,"organization_id": string,"orientation_number": string | null,"person_type": Database["public"]['Enums']["person_type"],"postal_code": string,"street": string,"street_name": string | null,"vat_id": string
+                    "ai_processing_allowance": number | null,"ai_processing_enabled": boolean,"ai_provider": string | null,"ai_region": string | null,"automatic_approval_enabled": boolean,"city": string,"created_at": string,"created_by": string | null,"data_revision": number,"deleted_at": string | null,"deleted_by": string | null,"first_name": string | null,"house_number": string | null,"ico": string,"id": string,"last_name": string | null,"name": string,"organization_id": string,"orientation_number": string | null,"person_type": Database["public"]['Enums']["person_type"],"postal_code": string,"street": string,"street_name": string | null,"vat_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "ai_processing_allowance"?: number | null,"ai_processing_enabled"?: boolean,"ai_provider"?: string | null,"ai_region"?: string | null,"city": string,"created_at"?: string,"created_by"?: string | null,"data_revision"?: number,"deleted_at"?: string | null,"deleted_by"?: string | null,"first_name"?: string | null,"house_number"?: string | null,"ico": string,"id"?: string,"last_name"?: string | null,"name": string,"organization_id": string,"orientation_number"?: string | null,"person_type"?: Database["public"]['Enums']["person_type"],"postal_code": string,"street": string,"street_name"?: string | null,"vat_id": string
+                    "ai_processing_allowance"?: number | null,"ai_processing_enabled"?: boolean,"ai_provider"?: string | null,"ai_region"?: string | null,"automatic_approval_enabled"?: boolean,"city": string,"created_at"?: string,"created_by"?: string | null,"data_revision"?: number,"deleted_at"?: string | null,"deleted_by"?: string | null,"first_name"?: string | null,"house_number"?: string | null,"ico": string,"id"?: string,"last_name"?: string | null,"name": string,"organization_id": string,"orientation_number"?: string | null,"person_type"?: Database["public"]['Enums']["person_type"],"postal_code": string,"street": string,"street_name"?: string | null,"vat_id": string
                   }
                   Update: {
-                    "ai_processing_allowance"?: number | null,"ai_processing_enabled"?: boolean,"ai_provider"?: string | null,"ai_region"?: string | null,"city"?: string,"created_at"?: string,"created_by"?: string | null,"data_revision"?: number,"deleted_at"?: string | null,"deleted_by"?: string | null,"first_name"?: string | null,"house_number"?: string | null,"ico"?: string,"id"?: string,"last_name"?: string | null,"name"?: string,"organization_id"?: string,"orientation_number"?: string | null,"person_type"?: Database["public"]['Enums']["person_type"],"postal_code"?: string,"street"?: string,"street_name"?: string | null,"vat_id"?: string
+                    "ai_processing_allowance"?: number | null,"ai_processing_enabled"?: boolean,"ai_provider"?: string | null,"ai_region"?: string | null,"automatic_approval_enabled"?: boolean,"city"?: string,"created_at"?: string,"created_by"?: string | null,"data_revision"?: number,"deleted_at"?: string | null,"deleted_by"?: string | null,"first_name"?: string | null,"house_number"?: string | null,"ico"?: string,"id"?: string,"last_name"?: string | null,"name"?: string,"organization_id"?: string,"orientation_number"?: string | null,"person_type"?: Database["public"]['Enums']["person_type"],"postal_code"?: string,"street"?: string,"street_name"?: string | null,"vat_id"?: string
                   }
                   Relationships: [
                     {
@@ -1201,6 +1201,9 @@ isOneToOne: false
 "dismiss_upload_notification":
 { Args: { "target_notification_id": string }; Returns: undefined
                            },
+"document_approval_decisions":
+{ Args: { "target_document_id": string }; Returns: Json
+                           },
 "document_approval_result":
 { Args: { "based_on_version": number,"operation_kind"?: string,"request_id": string,"submitted_payload": Json,"target_document_id": string }; Returns: number
                            },
@@ -1368,6 +1371,9 @@ isOneToOne: false
 "record_ai_extraction":
 { Args: { "findings": Json,"model": string,"payload": Json,"provider": string,"target_document_id": string,"target_extraction_request_id": string,"target_reservation_id": string }; Returns: undefined
                            },
+"record_ai_extraction_with_approval":
+{ Args: { "assessment": Json,"expected_company_revision": number,"findings": Json,"model": string,"payload": Json,"provider": string,"target_document_id": string,"target_extraction_request_id": string,"target_reservation_id": string }; Returns: undefined
+                           },
 "record_ai_failed_response":
 { Args: { "target_error": string,"target_id": string,"target_kind": Database["public"]['Enums']["ai_processing_target_kind"],"target_model"?: string,"target_provider": string,"target_request_id": string,"target_response": string }; Returns: undefined
                            },
@@ -1489,6 +1495,9 @@ isOneToOne: false
 { Args: { "target_allowance": number,"target_company_id": string }; Returns: {
               "document_id": string
             }[]
+                           },
+"set_company_automatic_approval":
+{ Args: { "enabled": boolean,"target_company_id": string }; Returns: undefined
                            },
 "set_company_filing_defaults":
 { Args: { "epo_address_confirmed": boolean,"new_economic_activity"?: string,"new_email": string,"new_epo_city": string,"new_epo_house_number": string,"new_epo_orientation_number": string,"new_epo_postal_code": string,"new_epo_street_name": string,"new_phone": string,"new_signatory_capacity": string,"new_signatory_first_name": string,"new_signatory_last_name": string,"new_tax_office": string,"new_territorial_office"?: string,"target_company_id": string }; Returns: undefined
