@@ -157,6 +157,20 @@ const isChoice = (choices: readonly string[], value: string | null) => value ===
 
 const AMOUNT = /^-?\d+\.\d{2}$/;
 
+/** Amount syntax failures, addressed to the caller's original Rate Breakdown rows. */
+export function invalidAmountFields(payload: ExtractionPayload): string[] {
+  const fields: [string, string | null][] = [
+    ...payload.rateBreakdown.flatMap((line, index): [string, string | null][] => {
+      const row = payload.sourceRateRows?.[index] ?? index;
+      return [[`rateBreakdown.${row}.netAmount`, line.netAmount], [`rateBreakdown.${row}.vatAmount`, line.vatAmount]];
+    }),
+    ["totals.netAmount", payload.totals.netAmount],
+    ["totals.vatAmount", payload.totals.vatAmount],
+    ["totals.grossAmount", payload.totals.grossAmount],
+  ];
+  return fields.filter(([, value]) => value !== null && !AMOUNT.test(value)).map(([field]) => field);
+}
+
 /** Whether a value is an ISO date of a day that exists. */
 function isIsoDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -266,7 +280,7 @@ export function validateExtractionPayload(payload: ExtractionPayload, { draft = 
     payload.totals.vatAmount,
     payload.totals.grossAmount,
   ];
-  if (amounts.some((amount) => amount !== null && !AMOUNT.test(amount))) return "invalid_amount";
+  if (invalidAmountFields(payload).length) return "invalid_amount";
   if ((!draft || payload.schemaVersion === 1) && payload.rateBreakdown.some((line) => line.netAmount === null || line.vatAmount === null)) return "invalid_amount";
   if (
     !draft &&

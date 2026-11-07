@@ -194,7 +194,9 @@ it("reports complete source-independent data in its DUZP period and preserves an
   expect((await getVatReport(administrator.client, input.companyId, "2026-10"))?.result.totals.inputVat).toBe("210.00");
   expect(await returnDocumentToReview(administrator.client, input)).toEqual({ ok: true, value: null });
   expect(await updateDocumentReporting(administrator.client, { ...input, claimedReportingPeriod: "2026-11" })).toEqual({ ok: true, value: null });
-  expect(await approveDocument(administrator.client, { ...input, version: 1 })).toEqual({ ok: true, value: null });
+  // Initial approval recorded the new Counterparty link in User Version 2.
+  expect((await listExtractionVersions(administrator.client, input.companyId, input.documentId)).map(version => version.version)).toEqual([1, 2]);
+  expect(await approveDocument(administrator.client, { ...input, version: 2 })).toEqual({ ok: true, value: null });
   expect((await generateVatReport(administrator.client, { companyId: input.companyId, period: "2026-10" })).ok).toBe(true);
   expect((await generateVatReport(administrator.client, { companyId: input.companyId, period: "2026-11" })).ok).toBe(true);
   expect((await getVatReport(administrator.client, input.companyId, "2026-10"))?.result.totals.inputVat).toBe("0.00");
