@@ -22,7 +22,7 @@ import type { VatPayerRegistry } from "./vat-registry";
 import { prepareExtractionVersion, prepareManualExtractionPayload } from "./extraction-preparation";
 import { prepareDocumentReporting, type DocumentReporting } from "./document-reporting";
 import { currentBusinessDate } from "./business-date";
-import { claimDeadline, firstOrdinaryFilingDate, ordinaryDomesticClaim } from "./claim-eligibility";
+import { claimDeadline, confirmedZeroClaim, firstOrdinaryFilingDate, ordinaryDomesticClaim } from "./claim-eligibility";
 import { randomUUID } from "node:crypto";
 import type { SourceRange } from "./ai-provider";
 
@@ -853,11 +853,12 @@ export async function listDeferredClaimPeriods(client: AppClient, companyId: str
   const source = reportingPeriodForDate(date, years);
   if (!source) return [];
   const deadline = claimDeadline(payload, years, await currentBusinessDate(client));
-  if (!deadline || deadline.evaluatedOn > deadline.lastFilingDate) return [];
+  const zero = confirmedZeroClaim(payload);
+  if (!zero && (!deadline || deadline.evaluatedOn > deadline.lastFilingDate)) return [];
   const candidates = reportingPeriodsOf(years).filter((period) => {
     const start = reportingPeriodStart(period)!;
     const earliest = payload.claimEligibility?.confirmed ? reportingPeriodStart(payload.claimEligibility.period) : null;
-    return start > reportingPeriodStart(source)! && firstOrdinaryFilingDate(period)! <= deadline.lastFilingDate && (!earliest || start >= earliest);
+    return start > reportingPeriodStart(source)! && (zero || firstOrdinaryFilingDate(period)! <= deadline!.lastFilingDate) && (!earliest || start >= earliest);
   });
   if (!candidates.length) return [];
   const { data, error } = await client.from("period_lock").select("period").eq("company_id", companyId).in("period", candidates);

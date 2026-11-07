@@ -1,12 +1,29 @@
 import type { ExtractionPayload } from "./extraction-payload";
 import type { ReportingYear } from "./companies";
 import type { ValidationFinding } from "./document-validation";
+import { partialClaimRates } from "./partial-claim";
+import { halers } from "./money";
+import { convertedAmount } from "./exchange-rates";
 import { nextCzechWorkingDate } from "./epo-export-timing";
 import { reportingPeriodsOf, reportingPeriodForDate, reportingPeriodStart } from "./reporting-periods";
 
 export function ordinaryDomesticClaim(payload: ExtractionPayload): boolean {
   return payload.direction === "incoming" && payload.proposedVatRegime === "domestic"
     && ["invoice", "receipt", "simplified_tax_document"].includes(payload.documentType ?? "");
+}
+
+/** A resolved human zero selection records evidence without exercising a deduction. */
+export function confirmedZeroClaim(payload: ExtractionPayload): boolean {
+  if (!ordinaryDomesticClaim(payload) || !payload.partialClaim?.basis || payload.partialClaim.zeroConfirmed !== true) return false;
+  const selected = partialClaimRates(payload);
+  if (!selected?.length || selected.some(line => halers(line.netAmount) !== BigInt(0) || halers(line.vatAmount) !== BigInt(0))) return false;
+  if (payload.currency !== "CZK") {
+    const conversion = payload.czkConversion;
+    if (!conversion || conversion.originalCurrency !== payload.currency || !payload.taxPointDate
+      || conversion.rateDate > payload.taxPointDate || Number(conversion.rate) <= 0
+      || convertedAmount("0.00", conversion) === null) return false;
+  }
+  return true;
 }
 
 /** Current reporting projection; saved Versions and reports are never rewritten. */
@@ -56,7 +73,7 @@ export function firstOrdinaryFilingDate(period: string): string | null {
 
 /** Projection only: write transitions independently re-evaluate the DB clock. */
 export function claimDeadline(payload: ExtractionPayload | null, years: readonly ReportingYear[], evaluatedOn: string): ClaimDeadline | null {
-  if (!payload || !ordinaryDomesticClaim(payload) || !payload.taxPointDate) return null;
+  if (!payload || !ordinaryDomesticClaim(payload) || !payload.taxPointDate || confirmedZeroClaim(payload)) return null;
   const origin = payload.taxPointDate;
   const originPeriod = reportingPeriodForDate(origin, years);
   if (!originPeriod) return null;
