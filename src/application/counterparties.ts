@@ -20,9 +20,19 @@ function counterparty(row: Row): Counterparty {
     postalCode: row.postal_code, countryCode: row.country_code, supplier: row.supplier,
     customer: row.customer, archivedAt: row.archived_at };
 }
+function normalizedIdentifiers(input: Pick<CounterpartyInput, "ico" | "vatId">) {
+  return { ico: input.ico?.replace(/\s/g, "") || null,
+    vatId: input.vatId?.replace(/\s/g, "").toUpperCase() || null };
+}
+function validIco(value: string | null): value is string {
+  return value !== null && /^\d{8}$/.test(value);
+}
+function validVatId(value: string | null): value is string {
+  return value !== null && /^[A-Z]{2}[A-Z0-9]{2,14}$/.test(value);
+}
 function normalized(input: CounterpartyInput) {
-  return { name: input.name.trim(), ico: input.ico?.replace(/\s/g, "") || null,
-    vat_id: input.vatId?.replace(/\s/g, "").toUpperCase() || null,
+  const identifiers = normalizedIdentifiers(input);
+  return { name: input.name.trim(), ico: identifiers.ico, vat_id: identifiers.vatId,
     street: input.street?.trim() ?? "", city: input.city?.trim() ?? "",
     postal_code: input.postalCode?.trim() ?? "", country_code: input.countryCode?.trim().toUpperCase() ?? "",
     supplier: input.supplier, customer: input.customer };
@@ -30,8 +40,8 @@ function normalized(input: CounterpartyInput) {
 function invalid(input: ReturnType<typeof normalized>): CounterpartyError | null {
   if (!input.name) return "name_required";
   if (input.name.length > 255) return "name_too_long";
-  if (input.ico && !/^\d{8}$/.test(input.ico)) return "invalid_ico";
-  if (input.vat_id && !/^[A-Z]{2}[A-Z0-9]{2,14}$/.test(input.vat_id)) return "counterparty_invalid_vat_id";
+  if (input.ico && !validIco(input.ico)) return "invalid_ico";
+  if (input.vat_id && !validVatId(input.vat_id)) return "counterparty_invalid_vat_id";
   if (input.country_code && !/^[A-Z]{2}$/.test(input.country_code)) return "invalid_country_code";
   if (!input.supplier && !input.customer) return "counterparty_role_required";
   return null;
@@ -59,16 +69,25 @@ export async function getCounterparty(client: AppClient, companyId: string, id: 
   if (error) throw error;
   return data ? counterparty(data) : null;
 }
-export type CounterpartyFilters = { search?: string; role?: "supplier" | "customer"; page?: number; pageSize?: number };
+export type CounterpartyFilters = { identifiers?: { ico?: string; vatId?: string }; state?: "active" | "archived"; search?: string; role?: "supplier" | "customer"; page?: number; pageSize?: number };
 export type CounterpartyPage = { entries: Counterparty[]; total: number; page: number; pageSize: number; pageCount: number };
 export async function listCounterparties(client: AppClient, companyId: string, input: CounterpartyFilters = {}): Promise<CounterpartyPage> {
   const page = Number.isFinite(input.page) ? Math.max(1, Math.trunc(input.page!)) : 1;
   const pageSize = Number.isFinite(input.pageSize) ? Math.min(100, Math.max(1, Math.trunc(input.pageSize!))) : 50;
   if (!isUuid(companyId)) return { entries: [], total: 0, page, pageSize, pageCount: 1 };
   const from = (page - 1) * pageSize;
-  const { data, error, count } = await client.rpc("search_counterparties", {
-    target_company_id: companyId, search_text: input.search?.trim() ?? "", directory_role: input.role ?? "",
-  }, { count: "exact" }).order("name").order("id").range(from, from + pageSize - 1);
+  const { ico, vatId } = normalizedIdentifiers(input.identifiers ?? {});
+  // Only validated identifier characters enter PostgREST's OR expression.
+  const identifiers = [
+    validIco(ico) ? `ico.eq.${ico}` : null,
+    validVatId(vatId) ? `vat_id.eq.${vatId}` : null,
+  ].filter((value): value is string => value !== null);
+  if (input.identifiers && identifiers.length === 0) return { entries: [], total: 0, page, pageSize, pageCount: 1 };
+  let query = client.rpc("search_counterparties", {
+    directory_state: input.state ?? "active", target_company_id: companyId, search_text: input.search?.trim() ?? "", directory_role: input.role ?? "",
+  }, { count: "exact" });
+  if (identifiers.length) query = query.or(identifiers.join(","));
+  const { data, error, count } = await query.order("name").order("id").range(from, from + pageSize - 1);
   if (error) throw error;
   const total = count ?? 0;
   return { entries: data.map(counterparty), total, page, pageSize, pageCount: Math.max(1, Math.ceil(total / pageSize)) };
@@ -95,4 +114,33 @@ export async function listCounterpartyDocuments(client: AppClient, companyId: st
   if (error) throw error;
   return { entries: data.map(row => ({ documentId: row.document_id, version: row.version, documentNumber: row.document_number })),
     total: count ?? 0, page, pageCount: Math.max(1, Math.ceil((count ?? 0) / pageSize)) };
+}
+
+
+type CounterpartyTarget = { companyId: string; id: string };
+type CounterpartyLifecycleOperation = "archive_counterparty" | "restore_counterparty" | "delete_counterparty";
+
+async function changeCounterpartyLifecycle(client: AppClient, input: CounterpartyTarget, operation: "delete_counterparty"): Promise<Result<null, "forbidden" | "counterparty_in_use">>;
+async function changeCounterpartyLifecycle(client: AppClient, input: CounterpartyTarget, operation: "archive_counterparty" | "restore_counterparty"): Promise<Result<null, "forbidden">>;
+async function changeCounterpartyLifecycle(client: AppClient, input: CounterpartyTarget, operation: CounterpartyLifecycleOperation): Promise<Result<null, "forbidden" | "counterparty_in_use">> {
+  if (!isUuid(input.companyId) || !isUuid(input.id)) return { ok: false, error: "forbidden" };
+  const { error } = await client.rpc(operation, {
+    target_company_id: input.companyId, target_counterparty_id: input.id,
+  });
+  if (error?.code === "42501") return { ok: false, error: "forbidden" };
+  if (operation === "delete_counterparty" && error?.code === "P0001" && error.hint === "counterparty_in_use") return { ok: false, error: "counterparty_in_use" };
+  if (error) throw error;
+  return { ok: true, value: null };
+}
+
+export async function archiveCounterparty(client: AppClient, input: CounterpartyTarget): Promise<Result<null, "forbidden">> {
+  return changeCounterpartyLifecycle(client, input, "archive_counterparty");
+}
+
+export async function restoreCounterparty(client: AppClient, input: CounterpartyTarget): Promise<Result<null, "forbidden">> {
+  return changeCounterpartyLifecycle(client, input, "restore_counterparty");
+}
+
+export async function deleteCounterparty(client: AppClient, input: CounterpartyTarget): Promise<Result<null, "forbidden" | "counterparty_in_use">> {
+  return changeCounterpartyLifecycle(client, input, "delete_counterparty");
 }
