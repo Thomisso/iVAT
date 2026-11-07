@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { strToU8, zipSync } from "fflate";
+import type { Counterparty } from "./counterparties";
 import type { Company, ReportingYear } from "./companies";
 import type { CompanyFilingDefaults } from "./company-filing-defaults";
 import type { Document, ExtractionVersion } from "./documents";
@@ -16,6 +17,7 @@ export type CompanyExportSnapshot = {
     changedAt: string;
   }[];
   reportingYears: ReportingYear[];
+  counterparties?: (Counterparty & { createdAt: string })[];
   sourceFiles: SourceFile[];
   documents: (Document & { supersededAt: string | null; extractionVersions: ExtractionVersion[] })[];
   vatReports: (VatReport & { generatedBy: string })[];
@@ -57,6 +59,7 @@ export async function buildCompanyDataArchive(
     "company.json": json({ ...company, setupSteps, reportingYears }),
     "source-files.json": json(sourceFiles),
     "documents.json": json(documents),
+    ...(snapshot.counterparties ? { "counterparties.json": json(snapshot.counterparties) } : {}),
     "vat-reports.json": json(vatReports),
     "vat-report-transitions.json": json(vatReportTransitions),
     "vat-report-artifacts.json": json(artifactMetadata),
