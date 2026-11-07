@@ -641,7 +641,7 @@ export async function withBrowserClaimDate<T>(date: string, run: Parameters<type
 }
 
 /** An actual Source File and worker Extraction for source-format browser review. */
-export async function addBrowserSourceFormatFixture(input: { companyId: string; cookies: { name: string; value: string }[] }) {
+export async function addBrowserSourceFormatFixture(input: { companyId: string; cookies: { name: string; value: string }[]; format?: "png" | "heic" | "xlsx" }) {
   const { asSystemClient } = await import("@/application/client");
   const { runJob } = await import("@/application/processing");
   const { fakeAiProvider, SAMPLE_EXTRACTION } = await import("@/ai/fake");
@@ -653,18 +653,33 @@ export async function addBrowserSourceFormatFixture(input: { companyId: string; 
   const queue: import("@/application/processing").ProcessingJob[] = [];
   const jobs = { async send(job: import("@/application/processing").ProcessingJob) { queue.push(job); } };
   const ai = fakeAiProvider({
-    split: () => [{ firstPage: 1, lastPage: 1 }],
-    extract: () => ({ ...SAMPLE_EXTRACTION, documentNumber: "IMAGE-240", sourceLocations: [
+    split: () => input.format === "xlsx" ? [{ sheetName: "Faktury říjen", firstRow: 7, lastRow: 7 }] : [{ firstPage: 1, lastPage: 1 }],
+    extract: () => ({ ...SAMPLE_EXTRACTION, documentNumber: input.format === "xlsx" ? "CELL-240" : "IMAGE-240", sourceLocations: input.format === "xlsx" ? [
+      { fieldPath: "documentNumber", kind: "workbook", sheetName: "Faktury říjen", firstRow: 7, lastRow: 7, firstColumn: 4, lastColumn: 4 },
+      { fieldPath: "rateBreakdown.0.vatAmount", kind: "workbook", sheetName: "Faktury říjen", firstRow: 7, lastRow: 7, firstColumn: 5, lastColumn: 5 },
+    ] : [
       { fieldPath: "documentNumber", kind: "page", page: 1, x: 0.1, y: 0.1, width: 0.3, height: 0.05 },
       { fieldPath: "rateBreakdown.0.vatAmount", kind: "page", page: 1, x: 0.7, y: 0.6, width: 0.2, height: 0.05 },
     ] }),
   });
   const worker = { system: asSystemClient(await browserFixtureClient()), providers: { get: () => ai }, jobs,
     vatRegistry: fakeVatPayerRegistry(), exchangeRates: fakeExchangeRates() };
-  const bytes = new Uint8Array(await sharp(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800"><rect width="600" height="800" fill="white"/><text x="60" y="110" font-size="20">IMAGE-240</text><text x="420" y="500" font-size="20">210.00</text></svg>')).png().toBuffer());
-  const uploaded = await uploadSourceFile(client, jobs, { companyId: input.companyId, fileName: "source-image.png", bytes });
+  let bytes: Uint8Array = new Uint8Array(await sharp(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800"><rect width="600" height="800" fill="white"/><text x="60" y="110" font-size="20">IMAGE-240</text><text x="420" y="500" font-size="20">210.00</text></svg>')).png().toBuffer());
+  if (input.format === "xlsx") {
+    const XLSX = await import("xlsx");
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([["OTHER-SHEET"]]), "Other");
+    const sheet = XLSX.utils.aoa_to_sheet([]);
+    XLSX.utils.sheet_add_aoa(sheet, [["Number", "VAT"], ["OTHER-DOCUMENT", "42.00"], ["CELL-240", "210.00"]], { origin: "D5" });
+    sheet["!ref"] = "D5:E7";
+    XLSX.utils.book_append_sheet(workbook, sheet, "Faktury říjen");
+    bytes = new Uint8Array(XLSX.write(workbook, { type: "array", bookType: "xlsx" }));
+  }
+  if (input.format === "heic") bytes = heicFixture();
+  const uploaded = await uploadSourceFile(client, jobs, { companyId: input.companyId, fileName: input.format === "xlsx" ? "source-workbook.xlsx" : input.format === "heic" ? "source-image.heic" : "source-image.png", bytes });
   if (!uploaded.ok) throw new Error(uploaded.error);
   while (queue.length) await runJob(worker, queue.shift()!, { final: true });
   const [document] = await listDocuments(client, input.companyId, uploaded.value.id);
-  return { documentId: document.id, sourceFileId: uploaded.value.id };
+  const source = (await getSourceFile(client, input.companyId, uploaded.value.id))!;
+  return { documentId: document.id, sourceFileId: uploaded.value.id, sourceSha256: source.sha256, normalizedSha256: source.normalizedDerivative?.sha256 };
 }
