@@ -80,6 +80,7 @@ begin
       or not exists(select 1 from public.counterparty c where c.id = recorded.counterparty_id and c.company_id = company.id and c.archived_at is null)
     or (recorded.payload ? 'partialClaim' and recorded.payload #>> '{partialClaim,confirmed}' is distinct from 'true')
     or private.document_eligibility_error(company.id, doc.id, recorded.payload, doc.claimed_reporting_period) is not null
+    or private.document_reporting_period_for(doc, recorded.payload) is null
     or private.is_reporting_period_locked(company.id, private.document_reporting_period_for(doc, recorded.payload))
     or exists (
       select 1 from public.document other

@@ -1,5 +1,5 @@
 import { expect, inject, it } from "vitest";
-import { getCompany, setCompanyAutomaticApproval } from "@/application/companies";
+import { getCompany, listCompanyReportingYears, setCompanyAutomaticApproval } from "@/application/companies";
 import { listAuditEvents } from "@/application/audit";
 import { administratorWithCompany, assignAiConfigurationFixture, companyMember } from "./support/fixtures";
 import { promotedSuperAdministrator } from "./support/platform";
@@ -42,6 +42,35 @@ async function queueOctoberDocument(company: Awaited<ReturnType<typeof administr
   const [document] = await listDocuments(company.client, company.companyId, source.value.id);
   return document;
 }
+
+it.each(["outgoing", "nonordinary incoming"] as const)("preserves otherwise eligible %s AI for review when no Reporting Year provides a period", async direction => {
+  await withClaimDate(inject("databaseUrl"), "2026-10-15", async () => {
+    const company = await administratorWithCompany();
+    const payload: ExtractionPayload = { ...SAMPLE_EXTRACTION,
+      issueDate: "2025-10-01", taxPointDate: "2025-10-01", dueDate: "2025-10-15",
+      supplier: direction === "outgoing" ? SAMPLE_EXTRACTION.customer : { ...SAMPLE_EXTRACTION.supplier, ico: null, vatId: "DE123456789", country: "DE" },
+      customer: direction === "outgoing" ? SAMPLE_EXTRACTION.supplier : SAMPLE_EXTRACTION.customer,
+      proposedVatRegime: direction === "outgoing" ? "domestic" : "eu_received_service",
+    };
+    expect(await listCompanyReportingYears(company.client, company.companyId)).not.toContainEqual(expect.objectContaining({ year: 2025 }));
+    const worker = testWorker(fakeAiProvider({ extract: () => payload }));
+    await assignAiConfigurationFixture(company.client, worker.jobs, { companyId: company.companyId, provider: worker.ai });
+    await setCompanyAutomaticApproval(company.client, { companyId: company.companyId, enabled: true });
+    const document = await queueOctoberDocument(company, worker);
+    expect(await worker.runJobs()).toEqual([]);
+    const review = await getDocumentReview(company.client, { companyId: company.companyId, documentId: document.id });
+    expect(review).toMatchObject({ shownFindings: [], reporting: { period: null,
+      mapping: { vatReturnUnknownReason: null, controlStatementUnknownReason: null } } });
+    expect(review?.document.status).toBe("needs_review");
+    expect(await listExtractionVersions(company.client, company.companyId, document.id)).toMatchObject([
+      { version: 1, author: { kind: "ai" }, payload: { documentNumber: "FV-2026-0001" } },
+    ]);
+    expect((await listCounterparties(company.client, company.companyId)).total).toBe(0);
+    expect(await getCompanyAiProcessingAllowance(company.client, company.companyId)).toMatchObject({ ok: true, value: { used: 1 } });
+    expect((await listAuditEvents(company.client, company.organizationId)).filter(event => ["counterparty.created", "document.automatically_approved"].includes(event.action)))
+      .toEqual([]);
+  });
+});
 
 it("defaults automatic approval off and audits an Administrator's explicit policy changes", async () => {
   const company = await administratorWithCompany();
