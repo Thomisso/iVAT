@@ -167,6 +167,35 @@ export function missingRequiredReportingVatId(p: ExtractionPayload): boolean {
       || (p.direction === "incoming" && !!p.supplier.vatId && !/^CZ[0-9]{8,10}$/.test(p.supplier.vatId))));
 }
 
+/** Validates the human amounts separately from the full Document's evidence. */
+function partialClaimRates(payload: ExtractionPayload): RateBreakdownLine[] | null {
+  const claim = payload.partialClaim;
+  if (payload.direction !== "incoming" || payload.proposedVatRegime !== "domestic"
+    || payload.currency !== "CZK" || payload.rateBreakdown.length !== 1
+    || payload.documentType === "credit_note") return null;
+  if (!claim || claim.confirmed !== true || !Array.isArray(claim.rateBreakdown) || claim.rateBreakdown.length !== 1) return null;
+  const selected = claim.rateBreakdown[0];
+  if (!selected || typeof selected !== "object") return null;
+  const original = payload.rateBreakdown.find((line) => line.rate === selected.rate);
+  if (!original || (selected.rate !== 21 && selected.rate !== 12) || typeof selected.netAmount !== "string" || typeof selected.vatAmount !== "string"
+    || !/^-?\d+\.\d{2}$/.test(selected.netAmount) || !/^-?\d+\.\d{2}$/.test(selected.vatAmount)
+    || !original.netAmount || !original.vatAmount
+    || !payload.totals.netAmount || !payload.totals.vatAmount) return null;
+  const net = halers(selected.netAmount);
+  const vat = halers(selected.vatAmount);
+  if (net <= BigInt(0) || vat < BigInt(0)
+    || net > halers(original.netAmount) || vat > halers(original.vatAmount)) return null;
+  const differences = [
+    vat - halers(assessedVat(selected.netAmount, selected.rate)),
+    halers(original.vatAmount) - halers(assessedVat(original.netAmount, selected.rate)),
+    halers(payload.totals.netAmount) - halers(original.netAmount),
+    halers(payload.totals.vatAmount) - halers(original.vatAmount),
+  ];
+  // Preserve the existing two-haler tolerance; gross-total mismatch is advisory.
+  if (differences.some((difference) => (difference < BigInt(0) ? -difference : difference) > BigInt(2))) return null;
+  return [{ rate: selected.rate, netAmount: selected.netAmount, vatAmount: selected.vatAmount }];
+}
+
 export function vatReportDocumentExclusion(document: ReportDocument): ExclusionReason | null {
   if (document.status !== "approved") return "not_approved";
   const p = document.payload;
@@ -180,6 +209,7 @@ export function vatReportDocumentExclusion(document: ReportDocument): ExclusionR
     !p.totals.grossAmount
   )
     return "incomplete_data";
+  if (p.partialClaim !== undefined && !partialClaimRates(p)) return "incomplete_data";
   const regime = p.proposedVatRegime;
   if (
     !regime ||
@@ -357,7 +387,8 @@ export function computeVatReport(
       controlStatement.push(entry);
     }
     entry.documentIds.push(document.id);
-    for (const rate of p.rateBreakdown) {
+    const reportingRates = p.partialClaim ? partialClaimRates(p)! : p.rateBreakdown;
+    for (const rate of reportingRates) {
       const selfAssessed = p.proposedVatRegime !== "domestic";
       const calculatedVat = selfAssessed
         ? assessedVat(rate.netAmount, rate.rate)

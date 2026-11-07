@@ -35,12 +35,36 @@ The payload is a proposal (ADR-0003). Nothing in it counts towards a VAT Report 
 | `proposedVatRegime` | `domestic` · `domestic_reverse_charge` · `eu_acquisition_of_goods` · `eu_received_service` · `other` | Proposed VAT Regime. `other` leads to Manual Classification Required |
 | `reverseChargeCode` | string | Official Control Statement subject code for `domestic_reverse_charge`; otherwise `null` |
 | `originalDocumentNumber` | string | For a Credit Note, the number of the Document it corrects |
+| `partialClaim` | `{ confirmed, rateBreakdown }`, optional | Explicit human selection of separate supplies. Absence retains full-Document reporting; an unconfirmed selection never silently restores a full claim. Full source Rate Breakdown and totals remain unchanged. |
 | `czkConversion` | object, optional | Derived CZK rate breakdown/totals plus original currency, ČNB rate, quoted unit, actual fixing date and source. Printed amounts stay unchanged. |
 | `confidence` | `{ [fieldPath]: number }`, optional | The provider's confidence from 0 to 1, keyed by field path (`documentNumber`, `supplier.vatId`, `rateBreakdown.0.vatAmount`). Only for fields the provider reports on |
 
 A **Party** is `{ name, ico, vatId, street, city, postalCode, country }`.
 
 Line items are not part of the MVP schema (#11).
+
+## Partial Claim
+
+`partialClaim` is human-authored metadata, never an AI proposal. Its `rateBreakdown`
+uses the same nullable rate/net/VAT representation as a human draft. `confirmed`
+records whether the preserved selection has been confirmed for the current source
+values; missing or false confirmation prevents contribution to reports. Adding this
+optional metadata leaves historical versions without it readable as full claims.
+
+The initial supported reporting scope is one positive, nonzero selection at one
+VAT rate on a CZK incoming domestic Document, excluding Credit Notes. Selected
+amounts must be complete, nonnegative and no greater than the full amounts, with
+net/VAT arithmetic within the existing two-haler tolerance. Full source net/VAT
+arithmetic remains independently required; a gross-total warning does not become a
+blocking error. Mixed rates, foreign currencies and explicitly confirmed zero are
+reserved for the subsequent extension and are currently excluded from reporting.
+
+The full Document determines identification and Control Statement thresholds. The
+same selected amounts feed the VAT Return and Control Statement and therefore the
+existing shared XML, PDF and preview outputs. For full `12000.00 + 2520.00` and
+selected `6000.00 + 1260.00`, the report uses the selected values on Return line 40
+and Control Statement B.2 with `pomer=N`. This is not statutory proportional
+or reduced deduction. One Document still has one Reporting Period.
 
 ## Example
 
