@@ -1,3 +1,4 @@
+import { getDocumentBankAccountChecks } from "./bank-account-checks";
 import { listCompanyReportingYears } from "./companies";
 import { reportingPeriodForDate, reportingPeriodsOf, reportingPeriodStart } from "./reporting-periods";
 import type { PostgrestError } from "@supabase/supabase-js";
@@ -474,24 +475,33 @@ export async function correctDocument(
     companyId: string;
     documentId: string;
     basedOnVersion: number;
+    requestId?: string;
     payload: ExtractionPayload;
   },
   exchangeRates: ExchangeRateProvider = unavailableExchangeRates,
   vatRegistry: VatPayerRegistry = unavailableVatPayerRegistry,
-): Promise<Result<{ version: number }, CorrectDocumentError>> {
+): Promise<{ ok: true; value: { version: number } } | { ok: false; error: CorrectDocumentError; conflict?: ReviewConflict }> {
+  if (input.requestId !== undefined && !isUuid(input.requestId)) return { ok: false, error: "stale_version" };
   const candidate = prepareManualExtractionPayload(input.payload);
   if (!candidate.ok) return candidate;
   const document = await findDocumentId(client, input.companyId, input.documentId);
   if (!document) return { ok: false, error: "forbidden" };
+  if (input.requestId) {
+    const replay = await client.rpc("document_approval_result", { target_document_id: document, request_id: input.requestId,
+      submitted_payload: candidate.value, based_on_version: input.basedOnVersion, operation_kind: "draft" });
+    if (replay.error) return documentReviewRefusal(client, input, refusal(replay.error, ["stale_version"]));
+    if (replay.data !== null) return { ok: true, value: { version: replay.data } };
+  }
   const prepared = await prepareExtractionVersion(candidate.value, exchangeRates, vatRegistry);
 
-  const { data: version, error } = await client.rpc("correct_document", {
-    target_document_id: document,
-    based_on_version: input.basedOnVersion,
-    payload: prepared.payload,
-    findings: await prepared.findings(),
-  });
-  if (error) return refusal(error, ["not_in_review", "stale_version", "period_locked", "tax_point_date_required", "invalid_date"]);
+  const fields = { target_document_id: document, based_on_version: input.basedOnVersion, payload: prepared.payload, findings: await prepared.findings() };
+  const { data: version, error } = input.requestId
+    ? await client.rpc("save_document_review", { ...fields, request_id: input.requestId, submitted_payload: candidate.value })
+    : await client.rpc("correct_document", fields);
+  if (error) {
+    const result = refusal(error, ["not_in_review", "stale_version", "period_locked", "tax_point_date_required", "invalid_date"]);
+    return input.requestId ? documentReviewRefusal(client, input, result) : result;
+  }
   return { ok: true, value: { version } };
 }
 
@@ -524,6 +534,81 @@ export async function approveDocument(
     "period_locked",
   ]);
   return { ok: true, value: null };
+}
+
+export type SaveAndApproveDocumentError = CorrectDocumentError | "direction_required" | "vat_regime_required" | "document_incomplete" | "document_validation_failed" | "counterparty_vat_id_required" | "currency_conversion_required" | "rate_breakdown_totals_mismatch" | "invalid_credit_note_amount" | "review_context_changed";
+export type ReviewConfirmation = { id: string; findings: ValidationFinding[] };
+export type ReviewConflict = { version: number; status: DocumentStatus; payload: ExtractionPayload };
+export type SaveAndApproveDocumentResult = { ok: true; value: { version: number } }
+  | { ok: false; error: SaveAndApproveDocumentError; findings?: ValidationFinding[]; conflict?: ReviewConflict }
+  | { ok: false; error: "review_warnings_changed"; confirmation: ReviewConfirmation };
+
+async function documentReviewRefusal<E extends SaveAndApproveDocumentError>(client: AppClient, input: { companyId: string; documentId: string }, result: { ok: false; error: E }, findings?: ValidationFinding[]): Promise<{ ok: false; error: E; findings?: ValidationFinding[]; conflict?: ReviewConflict }> {
+  if (!["stale_version", "not_in_review", "review_context_changed", "period_locked"].includes(result.error)) return { ...result, findings };
+  const [document, version] = await Promise.all([
+    getDocument(client, input.companyId, input.documentId),
+    client.from("extraction_version").select("version, payload").eq("company_id", input.companyId).eq("document_id", input.documentId)
+      .order("version", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  if (version.error) throw version.error;
+  const current = version.data;
+  return { ...result, ...(findings ? { findings } : {}), ...(document && current ? { conflict: { version: current.version, status: document.status, payload: current.payload as ExtractionPayload } } : {}) };
+}
+
+function warningIdentity(findings: ValidationFinding[]) {
+  return JSON.stringify(findings.filter((finding) => finding.severity === "warning")
+    .map((finding) => JSON.stringify(Object.entries(finding).sort(([left], [right]) => left.localeCompare(right)))).sort());
+}
+
+/**
+ * Fresh preparation on every attempt; a database acknowledgement is valid only
+ * for the exact prepared data, findings and unchanged accounting context.
+ * External adapters supply observations as on creation/correction; PostgreSQL
+ * independently enforces authorization, locks and financial invariants.
+ */
+export async function saveAndApproveDocument(
+  client: AppClient,
+  input: { companyId: string; documentId: string; basedOnVersion: number; requestId: string; payload: ExtractionPayload; acknowledgement?: string; displayedBankAccountCheckId?: string | null },
+  exchangeRates: ExchangeRateProvider = unavailableExchangeRates,
+  vatRegistry: VatPayerRegistry = unavailableVatPayerRegistry,
+): Promise<SaveAndApproveDocumentResult> {
+  if (!isUuid(input.requestId) || (input.acknowledgement !== undefined && !isUuid(input.acknowledgement))) return { ok: false, error: "stale_version" };
+  const candidate = prepareManualExtractionPayload(input.payload);
+  if (!candidate.ok) return candidate;
+  const document = await findDocumentId(client, input.companyId, input.documentId);
+  if (!document) return { ok: false, error: "forbidden" };
+  const replay = await client.rpc("document_approval_result", {
+    target_document_id: document, request_id: input.requestId, submitted_payload: candidate.value, based_on_version: input.basedOnVersion,
+  });
+  if (replay.error) return documentReviewRefusal(client, input, refusal(replay.error, ["stale_version"]));
+  if (replay.data !== null) return { ok: true, value: { version: replay.data } };
+  const context = await client.rpc("document_review_context", { target_document_id: document, based_on_version: input.basedOnVersion });
+  if (context.error) return documentReviewRefusal(client, input, refusal(context.error, ["stale_version", "not_in_review"]));
+  // Same query/projection as the actual current review; immutable Version
+  // findings alone can differ after a dated Bank Account Check.
+  const visible = await getDocumentBankAccountChecks(client, input);
+  const prepared = await prepareExtractionVersion(candidate.value, exchangeRates, vatRegistry);
+  const findings = await prepared.findings();
+  const fields = {
+    target_document_id: document, based_on_version: input.basedOnVersion, request_id: input.requestId,
+    submitted_payload: candidate.value, payload: prepared.payload, findings,
+    expected_context: context.data,
+  };
+  let saved = await client.rpc("save_and_approve_document", { ...fields, acknowledgement: input.acknowledgement });
+  const pending = saved.data as { confirmationId?: string; findings: ValidationFinding[]; unchanged?: boolean } | null;
+  if (!saved.error && pending?.confirmationId && pending.unchanged && !input.acknowledgement
+    && (input.displayedBankAccountCheckId === undefined || input.displayedBankAccountCheckId === (visible.current?.id ?? null))
+    && warningIdentity(pending.findings) === warningIdentity(visible.findings)) {
+    // These unchanged warnings are already visible. Confirm the opaque receipt,
+    // with the original context checked again against any intervening change.
+    saved = await client.rpc("save_and_approve_document", { ...fields, acknowledgement: pending.confirmationId });
+  }
+  const { data, error } = saved;
+  if (error) return documentReviewRefusal(client, input, refusal(error, ["not_in_review", "stale_version", "period_locked", "tax_point_date_required", "invalid_date", "direction_required", "vat_regime_required", "document_incomplete", "document_validation_failed", "counterparty_vat_id_required", "currency_conversion_required", "rate_breakdown_totals_mismatch", "invalid_credit_note_amount", "review_context_changed"]), findings);
+  const result = data as { version: number } | { confirmationId: string; findings: ValidationFinding[] };
+  return "confirmationId" in result
+    ? { ok: false, error: "review_warnings_changed", confirmation: { id: result.confirmationId, findings: result.findings } }
+    : { ok: true, value: { version: result.version } };
 }
 
 /** Takes ownership of unfinished Extraction without requesting or consuming AI work. */

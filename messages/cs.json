@@ -742,7 +742,9 @@
     "counterparty_role_required": "Vyberte dodavatele nebo odběratele.",
     "counterparty_identity_taken": "Protistrana se stejným IČO nebo DIČ již v této firmě existuje, případně je archivovaná.",
     "invalid_country_code": "Zadejte dvoupísmenný kód země.",
-    "counterparty_invalid_vat_id": "Zadejte DIČ s dvoupísmenným kódem země a 2 až 14 číslicemi nebo písmeny."
+    "counterparty_invalid_vat_id": "Zadejte DIČ s dvoupísmenným kódem země a 2 až 14 číslicemi nebo písmeny.",
+    "review_warnings_changed": "Zkontrolujte nově zjištěná upozornění a výslovně schvalte tyto hodnoty.",
+    "review_context_changed": "Podklady revize se během přípravy změnily. Porovnejte aktuální údaje a zkuste to znovu."
   },
   "aiUsage": {
     "platformNav": "Využití AI na platformě",
@@ -1204,7 +1206,15 @@
     "aiReplacementTitle": "Nahradit hodnoty pomocí AI",
     "aiReplacementWarning": "AI nahradí aktuální hodnoty a odebere případné schválení. Všechny předchozí verze zůstanou v historii. Úspěšný výsledek vyžaduje novou lidskou kontrolu a započítá se jako jedno úspěšné AI zpracování. Při selhání zůstanou poslední hodnoty a historie; schválení se automaticky neobnoví.",
     "aiReplacementConfirm": "Rozumím, že AI nahradí aktuální hodnoty a odebere schválení.",
-    "aiReplacementStart": "Spustit nahrazení pomocí AI"
+    "aiReplacementStart": "Spustit nahrazení pomocí AI",
+    "preparedWarnings": "Upozornění pro tyto rozepsané hodnoty",
+    "approvePreparedWarnings": "Schválit tyto hodnoty s upozorněními",
+    "compareCurrent": "Porovnat aktuální údaje",
+    "compareVersion": "Aktuální verze {version}",
+    "submittedNotSaved": "Rozepsané hodnoty nebyly uloženy. Porovnejte je s aktuálními údaji níže.",
+    "comparisonField": "Pole",
+    "submittedValue": "Rozepsaná hodnota",
+    "currentValue": "Aktuální hodnota"
   },
   "duplicateWarning": {
     "document_identity": "Možný duplikát: DIČ protistrany, číslo dokladu a směr se shodují se starším dokladem.",
