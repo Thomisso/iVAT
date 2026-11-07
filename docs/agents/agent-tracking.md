@@ -119,7 +119,7 @@ Ownership must be verifiable and the authenticated account must match the respon
 
 `sync` rereads current canonical state, checks the caller's generation, and checks every pending projection before reporting `synchronized: true`. A failed dispatch response is ambiguous: the persisted UUID is retried or acknowledged from the registry, rather than assumed absent. Older asynchronous snapshots cannot replace a newer locally known revision. `repair` forces actual idempotent projection of the latest canonical facts through the serialized worker even when no implementation revision changes. It neither owns work nor changes phase; it is also the repair path for an incomplete projection.
 
-Local process locks are shared by linked worktrees. A lock is reclaimed only when its recorded local PID is demonstrably gone, under a separate reclaimer election; a live, foreign-host, partial or otherwise unverified owner remains refused. There is no age-based lock removal. Killing the controller and removing its disposable worktree leaves the durable outbox in the Git common directory for recovery.
+Local process locks are shared by linked worktrees. Host verification accepts the exact kernel hostname; on macOS it also accepts the exact current system LocalHostName followed by `.local`, read through a bounded OS lookup. Missing or malformed OS names add no alias. A lock is reclaimed only when its recorded local PID is demonstrably gone, under a separate reclaimer election; a live, foreign-host, partial or otherwise unverified owner remains refused. There is no age-based lock removal. Killing the controller and removing its disposable worktree leaves the durable outbox in the Git common directory for recovery.
 
 ## Implementation reporting checkpoints
 
