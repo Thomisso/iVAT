@@ -14,7 +14,7 @@ export function PdfSourceViewer({ href, label, firstPage, lastPage }: {
   const fieldLabel = useSourceFieldLabel();
   const evidence = source?.payload.sourceEvidence;
   const range = evidence?.range ?? { firstPage, lastPage };
-  const url = `${href}?version=${source?.version ?? ""}`;
+  const url = source?.versionId ? `${href}?version=${source.version}` : href;
   const [loadedPdf, setPdf] = useState<{ url: string; document: PDFDocumentProxy } | null>(null);
   const pdf = loadedPdf?.url === url ? loadedPdf.document : null;
   const [failed, setFailed] = useState("");

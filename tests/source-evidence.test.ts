@@ -223,3 +223,23 @@ it("ignores invalid PDF locations while sound financial data remains approvable 
   expect(calls).toBe(1);
   expect(worker.queued).toEqual([]);
 });
+
+
+it("reads original pages without a Version while refusing explicit nonexistent Versions before first Extraction", async () => {
+  const worker = testWorker(fakeAiProvider({ split: () => [{ firstPage: 1, lastPage: 1 }, { firstPage: 2, lastPage: 3 }] }));
+  const admin = await administratorWithCompany();
+  const configured = await assignAiConfigurationFixture(admin.client, worker.jobs, { companyId: admin.companyId, provider: worker.ai });
+  if (!configured.ok) throw new Error(configured.error);
+  const uploaded = await uploadSourceFile(admin.client, worker.jobs, { companyId: admin.companyId, fileName: "before-extraction.pdf", bytes: await sourceEvidencePdfFixture() });
+  if (!uploaded.ok) throw new Error(uploaded.error);
+  await worker.runNextJob();
+  const documents = await listDocuments(admin.client, admin.companyId, uploaded.value.id);
+  const second = documents.find(document => document.firstPage === 2)!;
+  expect((await getDocumentReview(admin.client, { companyId: admin.companyId, documentId: second.id }))!.shown).toBeUndefined();
+  expect(await readDocumentPages(admin.client, admin.companyId, second.id)).toMatchObject({ fileName: "before-extraction.pdf", mediaType: "application/pdf", bytes: expect.any(Uint8Array) });
+  expect(await readDocumentPages(admin.client, admin.companyId, second.id, 0)).toBeNull();
+  expect(await readDocumentPages(admin.client, admin.companyId, second.id, 1)).toBeNull();
+  if (process.env.IVAT_239_PREVIEW_FIXTURE) writeFileSync(process.env.IVAT_239_PREVIEW_FIXTURE, JSON.stringify({
+    email: admin.email, password: "correct-horse-battery", companyId: admin.companyId, documentId: second.id,
+  }));
+});
