@@ -173,7 +173,7 @@ export function anthropicAiProvider(options: AnthropicAiProviderOptions): AiProv
       );
       return {
         model: result.model,
-        payload: interpreted(result.raw, () => extractionPayload("Anthropic", result.value)),
+        payload: interpreted(result.raw, () => extractionPayload("Anthropic", result.value, input)),
         ...(result.usage ? { usage: result.usage } : {}),
       };
     },

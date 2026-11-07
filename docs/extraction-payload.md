@@ -36,7 +36,10 @@ The payload is a proposal (ADR-0003). Nothing in it counts towards a VAT Report 
 | `reverseChargeCode` | string | Official Control Statement subject code for `domestic_reverse_charge`; otherwise `null` |
 | `originalDocumentNumber` | string | For a Credit Note, the number of the Document it corrects |
 | `czkConversion` | object, optional | Derived CZK rate breakdown/totals plus original currency, ČNB rate, quoted unit, actual fixing date and source. Printed amounts stay unchanged. |
+| `sourceLocations` | `{ fieldPath, kind: "page", page, x, y, width, height }[]`, optional | Unbound provider PDF references. Pages are 1-based within the supplied Document slice; rectangles use a top-left origin on the oriented page and coordinates from 0 to 1. Only server-bound evidence may be used in review. |
 | `confidence` | `{ [fieldPath]: number }`, optional | The provider's confidence from 0 to 1, keyed by field path (`documentNumber`, `supplier.vatId`, `rateBreakdown.0.vatAmount`). Only for fields the provider reports on |
+
+Strict AI provider requests include `sourceLocations` (an empty array when unavailable); older responses may omit it. Invalid entries are discarded without rejecting otherwise valid financial values. The parser checks supported field paths, input-page bounds, finite coordinates and positive rectangles entirely within the page. A provider cannot author the server's trusted `sourceEvidence` identity. Image and workbook evidence are outside this PDF contract.
 
 A **Party** is `{ name, ico, vatId, street, city, postalCode, country }`.
 
