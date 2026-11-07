@@ -1251,7 +1251,9 @@
       "reconfirmation": "Celý doklad se změnil. Porovnejte dosavadní výběr a znovu jej potvrďte, nebo jej vědomě vypněte.",
       "confirm": "Potvrdit výběr pro tyto celé částky",
       "unclaimed": "Neuplatněná část",
-      "unavailable": "Nelze vypočítat"
+      "unavailable": "Nelze vypočítat",
+      "confirmRate": "Potvrdit výběr se sazbou {rate}% pro tyto celé částky",
+      "previousSelection": "Dříve uložený výběr: {rate}% · základ {net}, DPH {vat}"
     }
   },
   "duplicateWarning": {

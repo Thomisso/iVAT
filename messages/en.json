@@ -1251,7 +1251,9 @@
       "reconfirmation": "The full document changed. Compare the previous selection and confirm it again, or turn selection off deliberately.",
       "confirm": "Confirm selection for these full amounts",
       "unclaimed": "Unclaimed Portion",
-      "unavailable": "Cannot calculate"
+      "unavailable": "Cannot calculate",
+      "confirmRate": "Confirm selection at {rate}% for these full amounts",
+      "previousSelection": "Previously saved selection: {rate}% · net {net}, VAT {vat}"
     }
   },
   "duplicateWarning": {

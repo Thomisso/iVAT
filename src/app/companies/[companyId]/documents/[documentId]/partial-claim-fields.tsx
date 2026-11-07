@@ -22,7 +22,7 @@ function formSource(form: HTMLFormElement, payload: ExtractionPayload): Extracti
 }
 
 /** Human-only selection stays separate from the full source fields above it. */
-export function PartialClaimFields({ payload, editable, values }: { payload: ExtractionPayload; editable: boolean; values: Record<string, string> }) {
+export function PartialClaimFields({ payload, editable, values, rateRows }: { payload: ExtractionPayload; editable: boolean; values: Record<string, string>; rateRows: readonly number[] }) {
   const t = useTranslations("review");
   const ref = useRef<HTMLFieldSetElement>(null);
   const [source, setSource] = useState(payload);
@@ -35,6 +35,7 @@ export function PartialClaimFields({ payload, editable, values }: { payload: Ext
   const [basis, setBasis] = useState(payload.partialClaim?.basis);
   const [confirmed, setConfirmed] = useState(payload.partialClaim?.confirmed ?? true);
   useEffect(() => {
+    if (!editable) return;
     const form = ref.current?.form;
     if (!form) return;
     const read = (event: Event) => {
@@ -43,10 +44,15 @@ export function PartialClaimFields({ payload, editable, values }: { payload: Ext
       // Let React commit controlled/date input changes before reading the form.
       queueMicrotask(() => setSource(formSource(form, payload)));
     };
+    // React Add/Remove actions change row structure without a native input event.
+    queueMicrotask(() => setSource(formSource(form, payload)));
     form.addEventListener("input", read);
     form.addEventListener("change", read);
     return () => { form.removeEventListener("input", read); form.removeEventListener("change", read); };
-  }, [payload]);
+  }, [payload, editable, rateRows]);
+  const sourceRate = source.rateBreakdown.length === 1 ? source.rateBreakdown[0].rate : null;
+  const changedRate = (sourceRate === 21 || sourceRate === 12) && sourceRate !== selection.rate;
+  const savedSelection = payload.partialClaim?.rateBreakdown[0];
   const changedBasis = basis !== undefined && claimBasisKey(basis) !== claimBasisKey(source);
   const candidate = normalizeExtractionPayload({ ...source, partialClaim: { confirmed: confirmed && !changedBasis, basis, rateBreakdown: [selection] } });
   const remainder = enabled ? unclaimedPortion(candidate) : null;
@@ -70,15 +76,23 @@ export function PartialClaimFields({ payload, editable, values }: { payload: Ext
       <input type="hidden" name="partialClaim.confirmed" value={confirmed && !changedBasis ? "true" : "false"} />
       <input type="hidden" name="partialClaim.basis" value={basis ? JSON.stringify(basis) : ""} />
       <div className="fields">
-        <TextField label={t("partialClaim.net")} name="partialClaim.netAmount" inputMode="decimal" value={selection.netAmount} disabled={!editable} onChange={event => setSelection({ ...selection, netAmount: event.target.value })} />
-        <TextField label={t("partialClaim.vat")} name="partialClaim.vatAmount" inputMode="decimal" value={selection.vatAmount} disabled={!editable} onChange={event => setSelection({ ...selection, vatAmount: event.target.value })} />
+        <TextField label={t("partialClaim.net")} name="partialClaim.netAmount" inputMode="decimal" mono value={selection.netAmount} disabled={!editable} onChange={event => setSelection({ ...selection, netAmount: event.target.value })} />
+        <TextField label={t("partialClaim.vat")} name="partialClaim.vatAmount" inputMode="decimal" mono value={selection.vatAmount} disabled={!editable} onChange={event => setSelection({ ...selection, vatAmount: event.target.value })} />
       </div>
       {(!confirmed || changedBasis) && <p>{t("partialClaim.reconfirmation")}</p>}
-      {editable && (!confirmed || changedBasis) && <Button type="button" onClick={() => { setBasis(claimBasis(source)); setConfirmed(true); }}>{t("partialClaim.confirm")}</Button>}
+      {(!confirmed || changedBasis) && savedSelection && <p className="amount">{t("partialClaim.previousSelection", {
+        rate: savedSelection.rate ?? t("notSet"), net: savedSelection.netAmount ?? t("notSet"), vat: savedSelection.vatAmount ?? t("notSet"),
+      })}</p>}
+      {editable && (!confirmed || changedBasis) && <Button type="button" onClick={() => {
+        // Rate reconciliation is part of this explicit human confirmation;
+        // never rescale or replace the net/VAT amounts already entered.
+        if (changedRate) setSelection({ ...selection, rate: sourceRate });
+        setBasis(claimBasis(source)); setConfirmed(true);
+      }}>{changedRate ? t("partialClaim.confirmRate", { rate: sourceRate }) : t("partialClaim.confirm")}</Button>}
       {!valid && <p role="alert">{t("findings.partial_claim_invalid")}</p>}
       <section role="region" aria-label={t("partialClaim.unclaimed")}>
         <h3>{t("partialClaim.unclaimed")}</h3>
-        {remainder ? <dl><dt>{t("fields.netAmount")}</dt><dd>{remainder.netAmount}</dd><dt>{t("fields.vatAmount")}</dt><dd>{remainder.vatAmount}</dd><dt>{t("fields.totalGross")}</dt><dd>{remainder.grossAmount} {source.currency}</dd></dl> : <p>{t("partialClaim.unavailable")}</p>}
+        {remainder ? <dl><dt>{t("fields.netAmount")}</dt><dd className="amount">{remainder.netAmount}</dd><dt>{t("fields.vatAmount")}</dt><dd className="amount">{remainder.vatAmount}</dd><dt>{t("fields.totalGross")}</dt><dd className="amount">{remainder.grossAmount} {source.currency}</dd></dl> : <p>{t("partialClaim.unavailable")}</p>}
       </section>
     </>}
   </fieldset>;

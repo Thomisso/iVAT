@@ -1,13 +1,5 @@
+import { halers, amount, assessedVat } from "./money";
 import type { ClaimBasis, ExtractionPayload, RateBreakdownLine } from "./extraction-payload";
-
-function halers(value: string): bigint { return BigInt(value.replace(".", "")); }
-function amount(value: bigint): string {
-  const absolute = value < BigInt(0) ? -value : value;
-  return `${value < BigInt(0) ? "-" : ""}${absolute / BigInt(100)}.${String(absolute % BigInt(100)).padStart(2, "0")}`;
-}
-function assessedVat(net: string, rate: number): string {
-  return amount((halers(net) * BigInt(rate) + BigInt(50)) / BigInt(100));
-}
 
 /** The full financial inputs a human confirms, independent of directory/evidence metadata. */
 export function claimBasis(payload: ClaimBasis): ClaimBasis {

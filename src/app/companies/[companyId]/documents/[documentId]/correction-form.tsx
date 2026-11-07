@@ -319,7 +319,7 @@ export function CorrectionForm({
           )}
         </div>
       </fieldset>
-      <PartialClaimFields key={version} payload={payload} editable={editable} values={state.values} />
+      <PartialClaimFields key={version} payload={payload} editable={editable} values={state.values} rateRows={lines} />
       {payload.czkConversion && (
         <fieldset>
           <legend>{t("sections.czkConversion")}</legend>
