@@ -32,7 +32,12 @@ assert(container.NetworkSettings.Ports["5432/tcp"].some(binding => Number(bindin
 assert(!fs.existsSync(".supabase-worktree/claim-clock-restore.json"), "Restore/reset interrupted clock fixture before acceptance");
 const nextListeners = spawnSync("lsof", ["-t", "-a", "-iTCP:3142", "-sTCP:LISTEN"], { encoding: "utf8" });
 assert.equal(nextListeners.status, 1, "Stop acceptance Next before resetting its DB");
-for (const file of ["package.json", "package-lock.json", "vitest.config.ts", "tests/support/global-setup.ts"]) {
+const baselinePackage = JSON.parse(git("show", `${BASELINE}:package.json`));
+const currentPackage = JSON.parse(fs.readFileSync("package.json", "utf8"));
+for (const field of ["dependencies", "devDependencies", "optionalDependencies", "overrides", "engines"]) {
+  assert.deepEqual(currentPackage[field], baselinePackage[field], `Baseline dependency compatibility drift: ${field}`);
+}
+for (const file of ["package-lock.json", "vitest.config.ts", "tests/support/global-setup.ts"]) {
   assert.equal(git("show", `${BASELINE}:${file}`), fs.readFileSync(file, "utf8").trim(), `Baseline dependency/setup drift: ${file}`);
 }
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), "ivat-242-upgrade-"));

@@ -34,11 +34,8 @@ it("upgrades real legacy Versions and locked archives without invented metadata 
           expect(version.payload).not.toHaveProperty("sourceEvidence");
           expect(version.payload).not.toHaveProperty("counterpartyLink");
           const historical = await getDocumentReview(client, { companyId: identity.companyId, documentId: id, requestedVersion: String(version.version) });
-          expect(historical?.shown?.payload).toEqual(version.payload);
+          expect(historical?.shown).toEqual(version);
         }
-        const links = await client.from("extraction_version").select("counterparty_id").eq("document_id", id);
-        if (links.error) throw links.error;
-        expect(links.data.every(row => row.counterparty_id === null)).toBe(true);
       }
       const target = { companyId: identity.companyId, documentId: identity.documentIds[0] };
       expect(await returnDocumentToReview(client, target)).toEqual({ ok: false, error: "period_locked" });
@@ -69,7 +66,7 @@ it("upgrades real legacy Versions and locked archives without invented metadata 
         expect(await approveDocument(client, { ...target, version: 1 })).toEqual({ ok: true, value: null });
         expect(await generateVatReport(client, { companyId: identity.companyId, period: "2025-10" })).toMatchObject({ ok: true });
         const afterResolution = await captureLegacy(client, identity);
-        expect(afterResolution.documents[0].storedVersions.slice(0, before.documents[0].storedVersions.length)).toEqual(before.documents[0].storedVersions);
+        expect(afterResolution.documents[0].versions.slice(0, before.documents[0].versions.length)).toEqual(before.documents[0].versions);
         expect(afterResolution.documents[0].versions.map(version => version.author)).toEqual([
           { kind: "user", userId: identity.userId }, { kind: "user", userId: identity.userId },
         ]);

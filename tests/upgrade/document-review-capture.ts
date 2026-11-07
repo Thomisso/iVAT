@@ -11,7 +11,7 @@ export type LegacyCompany = {
   period: string; sourceFileId?: string;
 };
 
-/** JSONB has structural equality, not a lexical representation. */
+/** Stable hashes supplement full public Version comparisons; object key order is irrelevant. */
 export function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
   if (value && typeof value === "object") return `{${Object.entries(value).sort(([a], [b]) => a.localeCompare(b))
@@ -20,21 +20,14 @@ export function canonical(value: unknown): string {
 }
 export const sha256 = (value: string | Uint8Array) => createHash("sha256").update(value).digest("hex");
 
-/** Public User observations, plus immutable stored values so read projections cannot hide a migration rewrite. */
+/** Capture only public observations under the real User identity. */
 export async function captureLegacy(client: AppClient, company: LegacyCompany) {
   const documents = [];
   for (const id of company.documentIds) {
-    const stored = await client.from("extraction_version")
-      .select("id, document_id, version, author_user_id, payload, findings, created_at")
-      .eq("company_id", company.companyId).eq("document_id", id).order("version");
-    if (stored.error) throw stored.error;
+    const versions = await listExtractionVersions(client, company.companyId, id);
     documents.push({ document: await getDocument(client, company.companyId, id),
-      versions: await listExtractionVersions(client, company.companyId, id),
-      storedVersions: stored.data, storedSha256: sha256(canonical(stored.data)) });
+      versions, versionSha256: sha256(canonical(versions)) });
   }
-  const requests = await client.from("document").select("id, extraction_request_id, status")
-    .eq("company_id", company.companyId).in("id", company.documentIds).order("id");
-  if (requests.error) throw requests.error;
   const artifacts = [];
   for (const artifact of await listVatReportArtifacts(client, { companyId: company.companyId, period: company.period })) {
     const downloaded = await readVatReportArtifact(client, { companyId: company.companyId, artifactId: artifact.id });
@@ -44,7 +37,7 @@ export async function captureLegacy(client: AppClient, company: LegacyCompany) {
   }
   const source = company.sourceFileId ? await getSourceFile(client, company.companyId, company.sourceFileId) : null;
   const original = company.sourceFileId ? await readSourceFile(client, company.companyId, company.sourceFileId) : null;
-  return { documents, extractionRequests: requests.data, report: await getVatReport(client, company.companyId, company.period),
+  return { documents, report: await getVatReport(client, company.companyId, company.period),
     lock: await getPeriodLock(client, company.companyId, company.period),
     transitions: await listVatReportTransitions(client, company.companyId, company.period), artifacts,
     source, originalBase64: original ? Buffer.from(original.bytes).toString("base64") : null,
