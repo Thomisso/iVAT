@@ -12,6 +12,7 @@ import { fakeVatPayerRegistry } from "@/vat-registry/fake";
 import { administratorWithCompany, companyMember, assignAiConfigurationFixture } from "./support/fixtures";
 import { fakeExchangeRates } from "@/cnb/fake";
 import { listAuditEvents } from "@/application/audit";
+import { createCounterparty } from "@/application/counterparties";
 
 const full = {
   ...SAMPLE_EXTRACTION,
@@ -144,6 +145,13 @@ it.each([
 
 it("preserves a prior selection after changed originals until human reconfirmation, and keeps the old report", async () => {
   const company = await administratorWithCompany();
+  // Keep this selection-only scenario on Version 1 when initial approval
+  // resolves its directory identity; link-creation Versions are covered separately.
+  const party = full.supplier;
+  const entry = await createCounterparty(company.client, { companyId: company.companyId,
+    name: party.name!, ico: party.ico, vatId: party.vatId, street: party.street!, city: party.city!,
+    postalCode: party.postalCode!, countryCode: party.country!, supplier: true, customer: false });
+  if (!entry.ok) throw new Error(entry.error);
   const created = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload: { ...full, partialClaim } }, undefined, registry);
   if (!created.ok) throw new Error(created.error);
   const input = { companyId: company.companyId, documentId: created.value.id };
