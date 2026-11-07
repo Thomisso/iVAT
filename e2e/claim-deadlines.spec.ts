@@ -31,6 +31,7 @@ test("review displays the filing cutoff and trusted date, refusing a fresh appro
     } }, undefined, fakeVatPayerRegistry());
     if (!created.ok) throw new Error(created.error);
     await page.goto(`/companies/${companyId}/documents/${created.value.id}`);
+    await page.getByText("Reporting context", { exact: true }).click({ timeout: 3_000 });
     await expect(page.getByText("Claim must be exercised by filing no later than: 31.12.2027", { exact: true })).toBeVisible();
     await expect(page.getByText("Assessed as of: 31.12.2027", { exact: true })).toBeVisible();
     await expect(page.getByText("Latest available ordinary period: 2027-11", { exact: true })).toBeVisible();
@@ -38,8 +39,13 @@ test("review displays the filing cutoff and trusted date, refusing a fresh appro
     await expect(page.getByText("Choose an unlocked later period that can end before the claim filing deadline.", { exact: true })).toBeVisible();
     await clock.setDate("2028-01-01");
     await page.reload();
+    await page.getByText("Reporting context", { exact: true }).click({ timeout: 3_000 });
     await expect(page.getByText("Assessed as of: 01.01.2028", { exact: true })).toBeVisible();
     await expect(page.getByText("The claim filing deadline has expired. A new approval cannot establish timely filing.", { exact: true }).first()).toBeVisible();
+    await page.getByRole("region", { name: "Errors to correct", exact: true }).getByRole("button", { name: /^Earliest Claim Period:/ }).click({ timeout: 3_000 });
+    await expect(page.getByRole("combobox", { name: "First eligible period", exact: true })).toBeFocused({ timeout: 3_000 });
+    await expect(page.getByRole("combobox", { name: "First eligible period", exact: true })).toHaveAttribute("aria-invalid", "true");
+    await expect(page.getByRole("combobox", { name: "First eligible period", exact: true })).toHaveAccessibleDescription("The claim filing deadline has expired. A new approval cannot establish timely filing.");
     await page.getByRole("button", { name: "Approve version 1", exact: true }).click();
     await expect(page.getByRole("alert").filter({ hasText: "The claim filing deadline has expired." })).toBeVisible();
     await expect(page.getByRole("button", { name: "Approve version 1", exact: true })).toBeEnabled();

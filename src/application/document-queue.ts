@@ -146,16 +146,16 @@ export function documentQueueQuery(queue: DocumentQueue): string {
 
 /** Re-parses a submitted query so redirects cannot preserve arbitrary parameters. */
 export function normalizeDocumentQueueQuery(query: string): string {
-  const params = new URLSearchParams(query);
-  return documentQueueQuery(parseDocumentQueue(Object.fromEntries(params)));
+  const params = Object.fromEntries(new URLSearchParams(query));
+  return hasDocumentQueueContext(params) ? documentQueueQuery(parseDocumentQueue(params)) : "";
 }
 
 /** Keeps queue continuation and an explicit work origin across authorized review decisions. */
 export function documentDecisionHref(companyId: string, input: { documentId: string; nextDocumentId: string; queueQuery: string; returnTo?: unknown }): string {
   const query = normalizeDocumentQueueQuery(input.queueQuery);
   const origin = safeCompanyReturnTo(companyId, input.returnTo);
-  if (isUuid(input.nextDocumentId)) return withCompanyReturnTo(companyId, `/companies/${companyId}/documents/${input.nextDocumentId}?${query}`, origin);
-  return origin ?? `/companies/${companyId}/documents?${query}#document-${input.documentId}`;
+  if (query && isUuid(input.nextDocumentId)) return withCompanyReturnTo(companyId, `/companies/${companyId}/documents/${input.nextDocumentId}?${query}`, origin);
+  return origin ?? `/companies/${companyId}/documents${query ? `?${query}#document-${input.documentId}` : ""}`;
 }
 
 /** Resolves a list route's filters, optional upload batch, and complete queue. */
@@ -182,7 +182,7 @@ export type DocumentQueuePosition = ResolvedDocumentQueue & {
   index: number;
   previousDocumentId?: string;
   nextDocumentId?: string;
-  /** The next remaining item after a decision: forward first, then wrap backward. */
+  /** Continue forward, then backward; use the first remaining item if this Document left the queue. */
   continuationDocumentId?: string;
 };
 
@@ -206,6 +206,6 @@ export async function getDocumentQueuePosition(
     index,
     previousDocumentId,
     nextDocumentId,
-    continuationDocumentId: nextDocumentId ?? previousDocumentId,
+    continuationDocumentId: nextDocumentId ?? previousDocumentId ?? (index < 0 ? resolved.documents[0]?.id : undefined),
   };
 }

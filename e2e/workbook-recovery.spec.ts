@@ -52,10 +52,10 @@ test("a User defines actual workbook sheets and rows, keeps refused input and ma
   await expect(page.getByText("This Document came from spreadsheet rows and has no document image.", { exact: true })).toBeVisible();
   await expect(page.locator("pre")).toHaveText('[Sheet "Přijaté účty"]\n1\tDocument number\tGross amount\n3\tMANUAL-2\t242\n4\tMANUAL-3\t363');
   await expect(page.getByLabel("Tax point date", { exact: true })).toHaveValue("");
-  await page.getByRole("button", { name: "Save corrections", exact: true }).click();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByLabel("Tax point date", { exact: true })).toBeFocused();
   await page.getByLabel("Tax point date", { exact: true }).fill("15.10.2026");
   await page.getByLabel("Document number", { exact: true }).fill(`WORKBOOK-${run}`);
-  await page.getByRole("button", { name: "Save corrections", exact: true }).click();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByRole("button", { name: "Approve version 1", exact: true })).toBeVisible();
 });
