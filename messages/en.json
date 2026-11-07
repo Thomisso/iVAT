@@ -1223,7 +1223,9 @@
     "submittedNotSaved": "Your submitted values have not been saved. Compare them with the current data below.",
     "comparisonField": "Field",
     "submittedValue": "Submitted value",
-    "currentValue": "Current value"
+    "currentValue": "Current value",
+    "sourceInspect": "Inspect",
+    "sourceInspectCrop": "Magnified source"
   },
   "duplicateWarning": {
     "document_identity": "Possible duplicate: the counterparty VAT ID, document number and direction match an earlier Document.",

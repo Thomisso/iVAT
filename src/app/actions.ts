@@ -592,6 +592,7 @@ function payloadFromForm(formData: FormData): ExtractionPayload {
     supplier: partyFromForm(formData, "supplier"),
     customer: partyFromForm(formData, "customer"),
     currency: optionalField(formData, "currency"),
+    sourceRateRows: lines.map((i) => Number(i)),
     rateBreakdown: lines.map((i) => ({
       rate: optionalField(formData, `rateBreakdown.${i}.rate`) === null ? null
         : Number(field(formData, `rateBreakdown.${i}.rate`).replace(",", ".")),

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { PDFDocumentLoadingTask, PDFDocumentProxy, RenderTask } from "pdfjs-dist";
+import { Icon } from "@/components/icon";
 import { useSourceEvidence, useSourceFieldLabel } from "./source-evidence-context";
 
 export function PdfSourceViewer({ href, label, firstPage, lastPage }: {
@@ -17,15 +18,17 @@ export function PdfSourceViewer({ href, label, firstPage, lastPage }: {
   const [loadedPdf, setPdf] = useState<{ url: string; document: PDFDocumentProxy } | null>(null);
   const pdf = loadedPdf?.url === url ? loadedPdf.document : null;
   const [failed, setFailed] = useState("");
-  const [navigation, setNavigation] = useState({ field: source?.selectedField, page: range.firstPage });
+  const [navigation, setNavigation] = useState({ selection: source?.selection, page: range.firstPage });
   const [zoom, setZoom] = useState(1);
   const [width, setWidth] = useState(500);
   const [dimensions, setDimensions] = useState({ width: 500, height: 667, key: "" });
   const container = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const selected = source?.selectedField ? evidence?.fields[source.selectedField] : undefined;
+  const [inspect, setInspect] = useState(false);
+  const crop = useRef<HTMLCanvasElement>(null);
   const selectedPage = selected?.locations[0]?.page;
-  const page = navigation.field !== source?.selectedField && selectedPage !== undefined ? selectedPage : navigation.page;
+  const page = navigation.selection !== source?.selection && selectedPage !== undefined ? selectedPage : navigation.page;
   const renderKey = `${url}:${page}:${width}:${zoom}`;
   const ready = dimensions.key === renderKey;
   useEffect(() => {
@@ -77,16 +80,40 @@ export function PdfSourceViewer({ href, label, firstPage, lastPage }: {
     })();
     return () => { cancelled = true; rendering?.cancel(); };
   }, [pdf, page, range.firstPage, width, zoom, renderKey, url]);
+  const cropLocation = selected?.locations.find((location) => location.page === page);
+  useEffect(() => {
+    if (!inspect) return;
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !document.querySelector('dialog[open],[role="dialog"][aria-modal="true"]')) setInspect(false);
+    };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [inspect]);
+  useEffect(() => {
+    const original = canvas.current; const visible = crop.current;
+    if (!inspect || !ready || !cropLocation || !original || !visible) return;
+    const sx = Math.max(0, cropLocation.x - 0.025) * original.width;
+    const sy = Math.max(0, cropLocation.y - 0.025) * original.height;
+    const sw = Math.min(original.width - sx, (cropLocation.width + 0.05) * original.width);
+    const sh = Math.min(original.height - sy, (cropLocation.height + 0.05) * original.height);
+    visible.width = 640; visible.height = Math.max(80, Math.round(640 * sh / sw));
+    visible.getContext("2d")?.drawImage(original, sx, sy, sw, sh, 0, 0, visible.width, visible.height);
+  }, [inspect, ready, cropLocation, renderKey]);
   return <section className="iv-viewer pdf-source-viewer" aria-label={label} data-evidence-version={source?.versionId}>
     <div className="pdf-source-toolbar">
-      <label>{t("sourcePage")} <select aria-label={t("sourcePage")} value={page} onChange={(event) => setNavigation({ field: source?.selectedField, page: Number(event.target.value) })}>
+      <label>{t("sourcePage")} <select aria-label={t("sourcePage")} value={page} onChange={(event) => setNavigation({ selection: source?.selection, page: Number(event.target.value) })}>
         {Array.from({ length: range.lastPage - range.firstPage + 1 }, (_, index) => range.firstPage + index).map((number) =>
           <option key={number} value={number}>{t("page", { page: number })}</option>)}
       </select></label>
       <label>{t("sourceZoom")} <select aria-label={t("sourceZoom")} value={zoom} onChange={(event) => setZoom(Number(event.target.value))}>
         {[0.75, 1, 1.25, 1.5, 2].map((scale) => <option key={scale} value={scale}>{t("sourceZoomValue", { percent: scale * 100 })}</option>)}
       </select></label>
+      <button type="button" data-source-inspect-toggle aria-pressed={inspect} disabled={!inspect && (!selected || !ready)}
+        onClick={() => setInspect((value) => !value)}><Icon name="search" />{t("sourceInspect")}</button>
     </div>
+    {inspect && selected && cropLocation && ready && <aside className="pdf-source-inspect" data-source-inspect-crop aria-label={t("sourceInspectCrop")}>
+      <canvas ref={crop} role="img" aria-label={t("sourceFor", { field: fieldLabel(source!.selectedField!) })} />
+    </aside>}
     {failed === url && <p role="status">{t("sourceUnavailable")}</p>}
     {source?.selectedField && !selected && <p role="status">{t("sourceNoLocation")}</p>}
     <div className="pdf-source-scroll" ref={container}>

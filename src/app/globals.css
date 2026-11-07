@@ -2404,3 +2404,8 @@ select:disabled {
 .source-field.is-selected { outline: 2px solid #d6b833; outline-offset: 3px; }
 .source-field-link { position: absolute; top: 0; right: 0; padding: 2px; border: 0; background: transparent; color: var(--ink-muted); cursor: pointer; }
 .source-manual { display: block; color: var(--ink-muted); font-size: 11px; }
+
+.pdf-source-viewer { position: sticky; }
+.pdf-source-inspect { position: absolute; right: 16px; top: 70px; width: min(320px, 80%); z-index: 3; padding: 8px; border: 2px solid #a98400; background: white; box-shadow: var(--shadow-sm); pointer-events: none; }
+.pdf-source-inspect canvas { display: block; width: 100%; height: auto; }
+.pdf-source-toolbar button { display: inline-flex; align-items: center; gap: 5px; padding: 5px 8px; }

@@ -1,3 +1,6 @@
+import { fakeAiProvider } from "@/ai/fake";
+import { fakeVatPayerRegistry } from "@/vat-registry/fake";
+import { correctDocument, createManualDocument, readDocumentPages, reprocessDocument, saveAndApproveDocument } from "@/application/documents";
 import { writeFileSync } from "node:fs";
 import { sourceEvidencePdfFixture } from "./support/source-evidence";
 import { createServer } from "node:http";
@@ -6,7 +9,7 @@ import { openAiProvider } from "@/ai/openai";
 import { SAMPLE_EXTRACTION } from "@/ai/fake";
 import { getDocumentReview } from "@/application/document-review";
 import { listDocuments } from "@/application/documents";
-import { getSourceFile, uploadSourceFile } from "@/application/source-files";
+import { getSourceFile, readSourceFile, uploadSourceFile } from "@/application/source-files";
 import { administratorWithCompany, assignAiConfigurationFixture } from "./support/fixtures";
 import { testWorker } from "./support/worker";
 
@@ -55,8 +58,9 @@ it("loads PDF evidence bound to the second Document's original page after zero-r
   const admin = await administratorWithCompany();
   const configured = await assignAiConfigurationFixture(admin.client, worker.jobs, { companyId: admin.companyId, provider });
   if (!configured.ok) throw new Error(configured.error);
+  const sourceBytes = await sourceEvidencePdfFixture();
   const uploaded = await uploadSourceFile(admin.client, worker.jobs, {
-    companyId: admin.companyId, fileName: "evidence-three-pages.pdf", bytes: await sourceEvidencePdfFixture(),
+    companyId: admin.companyId, fileName: "evidence-three-pages.pdf", bytes: sourceBytes,
   });
   if (!uploaded.ok) throw new Error(uploaded.error);
   expect(await worker.runJobs()).toEqual([]);
@@ -64,6 +68,7 @@ it("loads PDF evidence bound to the second Document's original page after zero-r
   const second = documents.find((document) => document.firstPage === 2);
   if (!second) throw new Error("Second Document missing");
   const source = await getSourceFile(admin.client, admin.companyId, uploaded.value.id);
+  expect((await readSourceFile(admin.client, admin.companyId, uploaded.value.id))?.bytes).toEqual(sourceBytes);
   const review = await getDocumentReview(admin.client, { companyId: admin.companyId, documentId: second.id });
 
   expect(review?.shown?.payload).toMatchObject({
@@ -88,8 +93,129 @@ it("loads PDF evidence bound to the second Document's original page after zero-r
     email: admin.email, password: "correct-horse-battery", companyId: admin.companyId,
     documentId: second.id, sourceFileId: uploaded.value.id, versionId: review?.shown?.id,
   }));
+  expect(await readDocumentPages(admin.client, admin.companyId, second.id, 999)).toBeNull();
   expect(extractionRequests).toHaveLength(2);
   expect(extractionRequests[1]).toMatchObject({
     text: { format: { schema: { required: expect.arrayContaining(["sourceLocations"]), properties: { sourceLocations: { type: "array" } } } } },
   });
+});
+
+it("retains only locked-base references with manual provenance and remapped deleted rate rows", async () => {
+  const payload = {
+    ...SAMPLE_EXTRACTION, documentNumber: "AI-ORIGINAL",
+    rateBreakdown: [
+      { rate: 21, netAmount: "100.00", vatAmount: "21.00" },
+      { rate: 21, netAmount: "200.00", vatAmount: "42.00" },
+      { rate: 21, netAmount: "300.00", vatAmount: "63.00" },
+    ],
+    totals: { netAmount: "600.00", vatAmount: "126.00", grossAmount: "726.00" },
+    sourceLocations: [
+      { fieldPath: "documentNumber", kind: "page" as const, page: 1, x: 0.1, y: 0.1, width: 0.3, height: 0.05 },
+      { fieldPath: "rateBreakdown.2.vatAmount", kind: "page" as const, page: 1, x: 0.7, y: 0.6, width: 0.2, height: 0.05 },
+    ],
+  };
+  const worker = testWorker(fakeAiProvider({ extract: () => payload }));
+  const admin = await administratorWithCompany();
+  const configured = await assignAiConfigurationFixture(admin.client, worker.jobs, { companyId: admin.companyId, provider: worker.ai });
+  if (!configured.ok) throw new Error(configured.error);
+  const uploaded = await uploadSourceFile(admin.client, worker.jobs, { companyId: admin.companyId, fileName: "provenance.pdf", bytes: await sourceEvidencePdfFixture() });
+  if (!uploaded.ok) throw new Error(uploaded.error);
+  expect(await worker.runJobs()).toEqual([]);
+  const [document] = await listDocuments(admin.client, admin.companyId, uploaded.value.id);
+  const target = { companyId: admin.companyId, documentId: document.id };
+  const original = (await getDocumentReview(admin.client, target))!.shown!;
+  const changed = {
+    ...original.payload, documentNumber: "HUMAN-EDIT",
+    rateBreakdown: [payload.rateBreakdown[0], payload.rateBreakdown[2]],
+    sourceRateRows: [0, 2],
+    sourceEvidence: { ...original.payload.sourceEvidence!, sourceFileId: crypto.randomUUID() },
+  };
+  expect(await correctDocument(admin.client, { ...target, basedOnVersion: 1, payload: changed }, undefined, fakeVatPayerRegistry()))
+    .toEqual({ ok: true, value: { version: 2 } });
+  const review = (await getDocumentReview(admin.client, target))!;
+  expect(review.shown!.payload.sourceEvidence).toMatchObject({
+    sourceFileId: uploaded.value.id, documentId: document.id, extractionVersionId: review.shown!.id,
+    fields: {
+      documentNumber: { origin: "manual", originalValue: "AI-ORIGINAL" },
+      "rateBreakdown.1.vatAmount": { origin: "ai", originalValue: "63.00" },
+    },
+  });
+  expect(review.shown!.payload.sourceEvidence!.fields).not.toHaveProperty("rateBreakdown.2.vatAmount");
+  expect(review.shown!.payload).not.toHaveProperty("sourceRateRows");
+  expect(await correctDocument(admin.client, { ...target, basedOnVersion: 2, payload: {
+    ...review.shown!.payload,
+    rateBreakdown: [{ rate: 21, netAmount: "0.00", vatAmount: "0.00" }, payload.rateBreakdown[2]],
+  } }, undefined, fakeVatPayerRegistry())).toEqual({ ok: true, value: { version: 3 } });
+  const zeroed = (await getDocumentReview(admin.client, target))!.shown!;
+  expect(zeroed.payload.sourceEvidence!.fields["rateBreakdown.0.vatAmount"])
+    .toMatchObject({ origin: "ai", originalValue: "63.00" });
+  expect(zeroed.payload.sourceEvidence!.fields).not.toHaveProperty("rateBreakdown.1.vatAmount");
+  expect((await getDocumentReview(admin.client, { ...target, requestedVersion: "1" }))!.shown!.payload.sourceEvidence!.fields.documentNumber)
+    .toMatchObject({ origin: "ai", originalValue: "AI-ORIGINAL" });
+});
+
+it("keeps each manual and AI Version's own evidence and never backfills missing locations", async () => {
+  let calls = 0;
+  const worker = testWorker(fakeAiProvider({ split: () => [{ firstPage: 1, lastPage: 3 }], extract: () => {
+    calls++;
+    return { ...SAMPLE_EXTRACTION, documentNumber: `AI-${calls}`, sourceLocations: [
+      { fieldPath: "documentNumber", kind: "page", page: calls === 1 ? 1 : 2, x: 0.1, y: 0.1, width: 0.3, height: 0.05 },
+    ] };
+  } }));
+  const admin = await administratorWithCompany();
+  const configured = await assignAiConfigurationFixture(admin.client, worker.jobs, { companyId: admin.companyId, provider: worker.ai });
+  if (!configured.ok) throw new Error(configured.error);
+  const uploaded = await uploadSourceFile(admin.client, worker.jobs, { companyId: admin.companyId, fileName: "history.pdf", bytes: await sourceEvidencePdfFixture() });
+  if (!uploaded.ok) throw new Error(uploaded.error);
+  expect(await worker.runJobs()).toEqual([]);
+  const [document] = await listDocuments(admin.client, admin.companyId, uploaded.value.id);
+  const target = { companyId: admin.companyId, documentId: document.id };
+  const original = (await getDocumentReview(admin.client, target))!.shown!;
+  const changed = { ...original.payload, documentNumber: "MANUAL-2" };
+  expect(await correctDocument(admin.client, { ...target, basedOnVersion: 1, payload: changed }, undefined, fakeVatPayerRegistry())).toEqual({ ok: true, value: { version: 2 } });
+  const corrected = (await getDocumentReview(admin.client, target))!.shown!;
+  const approved = await saveAndApproveDocument(admin.client, { ...target, basedOnVersion: 2, requestId: crypto.randomUUID(), payload: { ...corrected.payload, documentNumber: "MANUAL-3" } }, undefined, fakeVatPayerRegistry());
+  expect(approved).toEqual({ ok: true, value: { version: 3 } });
+  const approvedVersion = (await getDocumentReview(admin.client, target))!.shown!;
+  expect(approvedVersion.payload.sourceEvidence).toMatchObject({ extractionVersionId: approvedVersion.id, fields: { documentNumber: { origin: "manual", originalValue: "AI-1", locations: [{ page: 1 }] } } });
+  expect(await reprocessDocument(admin.client, worker.jobs, { ...target, confirmed: true })).toEqual({ ok: true, value: null });
+  expect(await worker.runJobs()).toEqual([]);
+  const current = (await getDocumentReview(admin.client, target))!.shown!;
+  expect(current).toMatchObject({ version: 4, payload: { documentNumber: "AI-2", sourceEvidence: { extractionVersionId: current.id, fields: { documentNumber: { origin: "ai", originalValue: "AI-2", locations: [{ page: 2 }] } } } } });
+  expect((await getDocumentReview(admin.client, { ...target, requestedVersion: "1" }))!.shown!.payload).toEqual(original.payload);
+  expect((await getDocumentReview(admin.client, { ...target, requestedVersion: "3" }))!.shown!.payload).toEqual(approvedVersion.payload);
+  expect(calls).toBe(2);
+
+  const manual = await createManualDocument(admin.client, { companyId: admin.companyId, payload: { ...SAMPLE_EXTRACTION, sourceEvidence: current.payload.sourceEvidence } }, undefined, fakeVatPayerRegistry());
+  if (!manual.ok) throw new Error(manual.error);
+  const noSource = { companyId: admin.companyId, documentId: manual.value.id };
+  const manualReview = (await getDocumentReview(admin.client, noSource))!;
+  expect(manualReview.shown!.payload).not.toHaveProperty("sourceEvidence");
+  expect(await saveAndApproveDocument(admin.client, { ...noSource, basedOnVersion: 1, requestId: crypto.randomUUID(), payload: manualReview.shown!.payload }, undefined, fakeVatPayerRegistry())).toEqual({ ok: true, value: { version: 1 } });
+  expect(calls).toBe(2);
+});
+
+it("ignores invalid PDF locations while sound financial data remains approvable without another AI call", async () => {
+  let calls = 0;
+  const worker = testWorker(fakeAiProvider({ split: () => [{ firstPage: 1, lastPage: 3 }], extract: () => {
+    calls++;
+    return { ...SAMPLE_EXTRACTION, sourceLocations: [
+      { fieldPath: "documentNumber", kind: "page", page: 9, x: 0.1, y: 0.1, width: 0.2, height: 0.1 },
+      { fieldPath: "companyId", kind: "page", page: 1, x: 0.1, y: 0.1, width: 0.2, height: 0.1 },
+    ] };
+  } }));
+  const admin = await administratorWithCompany();
+  const configured = await assignAiConfigurationFixture(admin.client, worker.jobs, { companyId: admin.companyId, provider: worker.ai });
+  if (!configured.ok) throw new Error(configured.error);
+  const uploaded = await uploadSourceFile(admin.client, worker.jobs, { companyId: admin.companyId, fileName: "missing-locations.pdf", bytes: await sourceEvidencePdfFixture() });
+  if (!uploaded.ok) throw new Error(uploaded.error);
+  expect(await worker.runJobs()).toEqual([]);
+  const [document] = await listDocuments(admin.client, admin.companyId, uploaded.value.id);
+  const target = { companyId: admin.companyId, documentId: document.id };
+  const review = (await getDocumentReview(admin.client, target))!;
+  expect(review.shown!.payload).not.toHaveProperty("sourceEvidence");
+  expect(review.shown!.findings).toEqual([]);
+  expect(await saveAndApproveDocument(admin.client, { ...target, basedOnVersion: 1, requestId: crypto.randomUUID(), payload: review.shown!.payload }, undefined, fakeVatPayerRegistry())).toEqual({ ok: true, value: { version: 1 } });
+  expect(calls).toBe(1);
+  expect(worker.queued).toEqual([]);
 });

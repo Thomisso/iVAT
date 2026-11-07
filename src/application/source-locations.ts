@@ -52,6 +52,7 @@ export type SourceFieldEvidence = {
 /** Identity and page basis supplied by the server, scoped by the containing immutable Version. */
 export type SourceEvidence = {
   schemaVersion: 1;
+  extractionVersionId?: string;
   sourceFileId: string;
   sourceSha256: string;
   documentId: string;

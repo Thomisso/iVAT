@@ -1223,7 +1223,9 @@
     "submittedNotSaved": "Rozepsané hodnoty nebyly uloženy. Porovnejte je s aktuálními údaji níže.",
     "comparisonField": "Pole",
     "submittedValue": "Rozepsaná hodnota",
-    "currentValue": "Aktuální hodnota"
+    "currentValue": "Aktuální hodnota",
+    "sourceInspect": "Inspect",
+    "sourceInspectCrop": "Zvětšený výřez předlohy"
   },
   "duplicateWarning": {
     "document_identity": "Možný duplikát: DIČ protistrany, číslo dokladu a směr se shodují se starším dokladem.",

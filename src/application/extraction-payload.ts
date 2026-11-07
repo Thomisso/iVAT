@@ -94,6 +94,8 @@ export type ExtractionPayload = {
   /** Unbound references returned by a provider; only server-bound evidence is usable in review. */
   sourceLocations?: SourcePageLocation[];
   sourceEvidence?: SourceEvidence;
+  /** Submitted base row identities; validated and removed at immutable Version insertion. */
+  sourceRateRows?: (number | null)[];
 };
 
 /** Nothing is inferred for a new manual Document, including its DUZP and Direction. */
@@ -172,6 +174,7 @@ export function omitZeroRateBreakdownRows(payload: ExtractionPayload, { omitEmpt
     ...payload,
     rateBreakdown: retained.map((entry) => entry.line),
     ...(confidence ? { confidence } : {}),
+    ...(payload.sourceRateRows ? { sourceRateRows: retained.map(({ index }) => payload.sourceRateRows?.[index] ?? null) } : {}),
     ...(payload.sourceLocations ? { sourceLocations: payload.sourceLocations.flatMap((location) => {
       const fieldPath = remapSourceField(location.fieldPath, newIndices);
       return fieldPath === null ? [] : [{ ...location, fieldPath }];

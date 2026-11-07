@@ -1,12 +1,13 @@
 "use client";
 
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import type { ExtractionPayload } from "@/application/extraction-payload";
 import { Icon } from "@/components/icon";
 
 const SourceContext = createContext<{
   payload: ExtractionPayload; version: number; versionId: string;
+  selection: number; acceptBase: (payload: ExtractionPayload, version: number, versionId: string) => void;
   selectedField: string | null; selectField: (field: string, focus?: boolean) => void;
 } | null>(null);
 
@@ -14,10 +15,13 @@ const SourceContext = createContext<{
 export function SourceEvidenceProvider({ payload, version, versionId, children }: {
   payload: ExtractionPayload; version: number; versionId: string; children: ReactNode;
 }) {
-  const [base] = useState({ payload, version, versionId });
+  const [base, setBase] = useState({ payload, version, versionId });
   const [selectedField, setSelectedField] = useState<string | null>(null);
+  const [selection, setSelection] = useState(0);
+  const acceptBase = useCallback((payload: ExtractionPayload, version: number, versionId: string) => setBase({ payload, version, versionId }), []);
   function selectField(field: string, focus = false) {
     setSelectedField(field);
+    setSelection((value) => value + 1);
     if (focus) {
       const wrapper = [...document.querySelectorAll<HTMLElement>("[data-source-field]")].find((node) => node.dataset.sourceField === field);
       const input = wrapper?.querySelector<HTMLElement>("input:not([type=hidden]):not(:disabled),select:not(:disabled)");
@@ -25,7 +29,7 @@ export function SourceEvidenceProvider({ payload, version, versionId, children }
       wrapper?.scrollIntoView({ block: "nearest", behavior: "smooth" });
     }
   }
-  return <SourceContext value={{ ...base, selectedField, selectField }}>{children}</SourceContext>;
+  return <SourceContext value={{ ...base, selectedField, selectField, selection, acceptBase }}>{children}</SourceContext>;
 }
 
 export const useSourceEvidence = () => useContext(SourceContext);
