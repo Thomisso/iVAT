@@ -1135,7 +1135,8 @@
       "currency_conversion_not_performed": "Kurz ČNB nebyl dostupný, proto nebylo možné vypočítat částky v CZK.",
       "manual_classification_required": "Tento režim DPH není podporován a vyžaduje ruční klasifikaci.",
       "reverse_charge_code_required": "Zadejte oficiální kód předmětu plnění v režimu přenesení daňové povinnosti.",
-      "counterparty_directory_difference": "Údaj protistrany na dokladu: „{documentValue}“; v adresáři: „{directoryValue}“."
+      "counterparty_directory_difference": "Údaj protistrany na dokladu: „{documentValue}“; v adresáři: „{directoryValue}“.",
+      "partial_claim_invalid": "Doplňte a potvrďte platný kladný výběr v rozsahu celých částek. Podporován je tuzemský přijatý doklad v Kč s jednou sazbou."
     },
     "noDocumentImage": "Tento doklad vznikl z řádků tabulky a nemá obraz dokladu.",
     "sections": {
@@ -1240,7 +1241,18 @@
     "sourceOriginalValue": "AI přečetla: {value}",
     "sourceZoomValue": "{percent}%",
     "sourceInspect": "Inspect",
-    "sourceInspectCrop": "Zvětšený výřez předlohy"
+    "sourceInspectCrop": "Zvětšený výřez předlohy",
+    "partialClaim": {
+      "title": "Částečné uplatnění",
+      "enable": "Uplatnit vybraná plnění",
+      "explanation": "Vyberte způsobilá samostatná plnění. Celé částky dokladu zůstávají zachované. Nejde o poměrný ani krácený odpočet.",
+      "net": "Uplatňovaný základ",
+      "vat": "Uplatňovaná DPH",
+      "reconfirmation": "Celý doklad se změnil. Porovnejte dosavadní výběr a znovu jej potvrďte, nebo jej vědomě vypněte.",
+      "confirm": "Potvrdit výběr pro tyto celé částky",
+      "unclaimed": "Neuplatněná část",
+      "unavailable": "Nelze vypočítat"
+    }
   },
   "duplicateWarning": {
     "document_identity": "Možný duplikát: DIČ protistrany, číslo dokladu a směr se shodují se starším dokladem.",

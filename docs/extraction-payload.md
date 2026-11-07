@@ -56,8 +56,17 @@ A directory link never copies values into `supplier` or `customer`. Explicitly c
 
 ## Partial Claim
 
-`partialClaim` is human-authored metadata, never an AI proposal. Its `rateBreakdown`
-uses the same nullable rate/net/VAT representation as a human draft. `confirmed`
+`partialClaim` is human-authored metadata, never an AI proposal. Its optional
+`basis` records the confirmed full type, direction, regime, currency, Tax Point
+Date, Rate Breakdown and totals. PostgreSQL binds an initial selection to these
+inputs and invalidates confirmation after a relevant change. New AI cannot create
+selection metadata: insertion strips provider-authored choices and preserves a
+previous human choice as unconfirmed. Manual omission preserves the previous
+choice; an explicit `partialClaim: null` command returns to full amounts and is
+removed before immutable storage. The authenticated correction and approval audit
+points to the resulting Version. This optional command value is not a saved claim.
+
+Its `rateBreakdown` uses the same nullable rate/net/VAT representation as a human draft. `confirmed`
 records whether the preserved selection has been confirmed for the current source
 values; missing or false confirmation prevents contribution to reports. Adding this
 optional metadata leaves historical versions without it readable as full claims.
