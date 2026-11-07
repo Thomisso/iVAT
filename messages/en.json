@@ -1204,7 +1204,16 @@
     "aiReplacementTitle": "Replace values using AI",
     "aiReplacementWarning": "AI will replace the current values and withdraw any approval. All earlier Versions stay in history. A successful result needs a new human review and uses one successful AI allowance. Failure keeps the last values and history; approval is not restored automatically.",
     "aiReplacementConfirm": "I understand that AI will replace the current values and withdraw approval.",
-    "aiReplacementStart": "Run AI replacement"
+    "aiReplacementStart": "Run AI replacement",
+    "sourceFor": "Source for {field}",
+    "sourcePage": "Original page",
+    "sourceZoom": "Zoom",
+    "sourceRenderedPage": "Original page {page}",
+    "sourceUnavailable": "The PDF preview is unavailable.",
+    "sourceNoLocation": "Highlight unavailable for this field.",
+    "sourceManual": "Manually corrected",
+    "sourceOriginalValue": "AI read: {value}",
+    "sourceZoomValue": "{percent}%"
   },
   "duplicateWarning": {
     "document_identity": "Possible duplicate: the counterparty VAT ID, document number and direction match an earlier Document.",

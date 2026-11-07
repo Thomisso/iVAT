@@ -1,3 +1,5 @@
+import { SourceEvidenceProvider } from "./source-evidence-context";
+import { PdfSourceViewer } from "./pdf-source-viewer";
 import { getDocumentReview } from "@/application/document-review";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -83,6 +85,7 @@ export default async function DocumentReviewPage({
 
   return (
     <>
+      <SourceEvidenceProvider key={viewingRecorded ? `recorded-${shown?.id}` : document.id} payload={shown?.payload ?? emptyDocumentPayload()} version={shown?.version ?? 0} versionId={shown?.id ?? ""}>
       <PageLayout className="review" measure="wide">
         <header className="review-header">
           <nav className="review-queue-nav" aria-label={t("review.queueNavigation")}>
@@ -160,7 +163,7 @@ export default async function DocumentReviewPage({
           ))}
         </header>
         <section className="review-original">
-          {file ? <DocumentViewer label={file.fileName}>
+          {file?.format === "pdf" && !document.rowSet ? <PdfSourceViewer href={contentUrl} label={file.fileName} firstPage={document.firstPage!} lastPage={document.lastPage!} /> : file ? <DocumentViewer label={file.fileName}>
             {document.rowSet ? (
               <div className="workbook-source">
                 <Notice>{t("review.noDocumentImage")}</Notice>
@@ -312,6 +315,7 @@ export default async function DocumentReviewPage({
           )}
         </section>
       </PageLayout>
+      </SourceEvidenceProvider>
       <RefreshWhile
         active={
           company.aiProcessingEnabled &&

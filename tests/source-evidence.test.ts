@@ -1,3 +1,5 @@
+import { writeFileSync } from "node:fs";
+import { sourceEvidencePdfFixture } from "./support/source-evidence";
 import { createServer } from "node:http";
 import { afterEach, expect, it } from "vitest";
 import { openAiProvider } from "@/ai/openai";
@@ -5,7 +7,6 @@ import { SAMPLE_EXTRACTION } from "@/ai/fake";
 import { getDocumentReview } from "@/application/document-review";
 import { listDocuments } from "@/application/documents";
 import { getSourceFile, uploadSourceFile } from "@/application/source-files";
-import { fixtureFile } from "./support/files";
 import { administratorWithCompany, assignAiConfigurationFixture } from "./support/fixtures";
 import { testWorker } from "./support/worker";
 
@@ -23,7 +24,7 @@ it("loads PDF evidence bound to the second Document's original page after zero-r
     const split = body.text.format.name === "ivat_split";
     if (!split) extractionRequests.push(body);
     const output = split
-      ? { documents: [{ firstPage: 1, lastPage: 1 }, { firstPage: 2, lastPage: 2 }] }
+      ? { documents: [{ firstPage: 1, lastPage: 1 }, { firstPage: 2, lastPage: 3 }] }
       : {
           ...SAMPLE_EXTRACTION,
           documentNumber: "PDF-EVIDENCE",
@@ -55,7 +56,7 @@ it("loads PDF evidence bound to the second Document's original page after zero-r
   const configured = await assignAiConfigurationFixture(admin.client, worker.jobs, { companyId: admin.companyId, provider });
   if (!configured.ok) throw new Error(configured.error);
   const uploaded = await uploadSourceFile(admin.client, worker.jobs, {
-    companyId: admin.companyId, fileName: "two-invoices.pdf", bytes: fixtureFile("two-invoices.pdf"),
+    companyId: admin.companyId, fileName: "evidence-three-pages.pdf", bytes: await sourceEvidencePdfFixture(),
   });
   if (!uploaded.ok) throw new Error(uploaded.error);
   expect(await worker.runJobs()).toEqual([]);
@@ -70,7 +71,7 @@ it("loads PDF evidence bound to the second Document's original page after zero-r
     sourceEvidence: {
       schemaVersion: 1, sourceFileId: uploaded.value.id, sourceSha256: source?.sha256, documentId: second.id,
       basis: { kind: "original", format: "pdf", sha256: source?.sha256 },
-      range: { firstPage: 2, lastPage: 2 },
+      range: { firstPage: 2, lastPage: 3 },
       fields: {
         documentNumber: {
           origin: "ai", originalValue: "PDF-EVIDENCE",
@@ -83,6 +84,10 @@ it("loads PDF evidence bound to the second Document's original page after zero-r
       },
     },
   });
+  if (process.env.IVAT_239_BROWSER_FIXTURE) writeFileSync(process.env.IVAT_239_BROWSER_FIXTURE, JSON.stringify({
+    email: admin.email, password: "correct-horse-battery", companyId: admin.companyId,
+    documentId: second.id, sourceFileId: uploaded.value.id, versionId: review?.shown?.id,
+  }));
   expect(extractionRequests).toHaveLength(2);
   expect(extractionRequests[1]).toMatchObject({
     text: { format: { schema: { required: expect.arrayContaining(["sourceLocations"]), properties: { sourceLocations: { type: "array" } } } } },
