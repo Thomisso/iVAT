@@ -25,11 +25,11 @@ test("unextracted Documents recover manually or by reversible reasoned exclusion
   await expect(page.getByRole("img", { name: "receipt.png", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Complete manually", exact: true }).click();
   await expect(page.getByLabel("Tax point date", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Save corrections", exact: true }).click();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByLabel("Tax point date", { exact: true })).toBeFocused();
   await page.getByLabel("Tax point date", { exact: true }).fill("15.10.2026");
   await page.getByLabel("Document number", { exact: true }).fill(`RECOVERED-${run}`);
-  await page.getByRole("button", { name: "Save corrections", exact: true }).click();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByRole("button", { name: "Approve version 1", exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByLabel("Document number", { exact: true })).toHaveValue(`RECOVERED-${run}`);
@@ -45,7 +45,7 @@ test("unextracted Documents recover manually or by reversible reasoned exclusion
   await page.getByLabel("Total net", { exact: true }).fill("100.00");
   await page.getByLabel("Total VAT", { exact: true }).fill("21.00");
   await page.getByLabel("Total incl. VAT", { exact: true }).fill("121.00");
-  await page.getByRole("button", { name: "Save corrections", exact: true }).click();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await page.getByRole("button", { name: "Approve version 2", exact: true }).click();
   await expect(page).toHaveURL(url => url.pathname === `/companies/${companyId}/documents`);
   await page.goto(`/companies/${companyId}/documents/${failed}`);

@@ -1,3 +1,5 @@
+import { ReviewWorkspace } from "./review-workspace";
+import { ReviewGuard } from "./review-guard";
 import { SourceEvidenceProvider } from "./source-evidence-context";
 import { PdfSourceViewer } from "./pdf-source-viewer";
 import { getDocumentReview } from "@/application/document-review";
@@ -24,7 +26,6 @@ import { EmptyState } from "@/components/empty-state";
 import { Notice } from "@/components/notice";
 import { StatusBadge } from "@/components/status-badge";
 import { statusBadgeState } from "@/components/status-badge-state";
-import { PageLayout } from "@/components/app-shell";
 import { formatDate, formatDateTime, formatMonthName } from "@/lib/format-date";
 import { emptyDocumentPayload } from "@/application/extraction-payload";
 import { ExclusionForm } from "./exclusion-form";
@@ -88,7 +89,8 @@ export default async function DocumentReviewPage({
   return (
     <>
       <SourceEvidenceProvider key={viewingRecorded ? `recorded-${shown?.id}` : document.id} payload={shown?.payload ?? emptyDocumentPayload()} version={shown?.version ?? 0} versionId={shown?.id ?? ""}>
-      <PageLayout className="review" measure="wide">
+      <ReviewGuard>
+      <ReviewWorkspace>
         <header className="review-header">
           <nav className="review-queue-nav" aria-label={t("review.queueNavigation")}>
             <CompanyReturnLink companyId={companyId} returnTo={returnTo} fallback={queueIndex >= 0 ? listHref : `/companies/${companyId}/documents`} />
@@ -118,8 +120,8 @@ export default async function DocumentReviewPage({
           {document.importDate && <p>
             {t("review.importDate")}: {formatDate(document.importDate)}
           </p>}
-          <DocumentReportingSummary reporting={reporting} />
-          {document.status === "approved" && !lockedPeriod && (
+          <details className="review-secondary"><summary>{t("review.reportingContext")}</summary><DocumentReportingSummary reporting={reporting} /></details>
+          {document.status === "approved" && !lockedPeriod && !viewingRecorded && (
             <CommandButton
               action={returnDocumentToReviewAction}
               fields={{ companyId, documentId: document.id }}
@@ -131,15 +133,15 @@ export default async function DocumentReviewPage({
             <Notice>{t("review.rejectedNote")}{document.exclusion && <p>{document.exclusion.reason} · {t(document.exclusion.userId === userId ? "review.userAuthorYou" : "review.userAuthor")} · {formatDateTime(document.exclusion.at)}</p>}</Notice>
           )}
           {lockedPeriod && <Notice tone="warning" title={t("review.lockedTitle", { period: lockedPeriod })}>{t("review.lockedNote")}</Notice>}
-          {document.sourceFileId && document.status === "failed" && current?.author.kind !== "user" && !lockedPeriod && <CommandButton
+          {!viewingRecorded && document.sourceFileId && document.status === "failed" && current?.author.kind !== "user" && !lockedPeriod && <CommandButton
             variant="ai"
             icon="marker"
             action={reprocessDocumentAction}
             fields={{ companyId, documentId: document.id }}
           >{t("review.retryExtraction")}</CommandButton>}
-          {document.sourceFileId && !lockedPeriod && ["failed", "needs_review", "approved"].includes(document.status) && (current?.author.kind === "user" || document.status === "approved") && <DocumentAiReplacementForm companyId={companyId} documentId={document.id} />}
-          {recoverable && <CommandButton action={startManualDocumentReviewAction} fields={{ companyId, documentId: document.id }}>{t("review.takeOverManually")}</CommandButton>}
-          {document.status === "rejected" && !lockedPeriod && <CommandButton action={restoreDocumentAction} fields={{ companyId, documentId: document.id }}>{t("review.reverseExclusion")}</CommandButton>}
+          {!viewingRecorded && document.sourceFileId && !lockedPeriod && ["failed", "needs_review", "approved"].includes(document.status) && (current?.author.kind === "user" || document.status === "approved") && <details className="review-secondary"><summary>{t("review.otherActions")}</summary><DocumentAiReplacementForm companyId={companyId} documentId={document.id} /></details>}
+          {recoverable && !viewingRecorded && <CommandButton action={startManualDocumentReviewAction} fields={{ companyId, documentId: document.id }}>{t("review.takeOverManually")}</CommandButton>}
+          {document.status === "rejected" && !lockedPeriod && !viewingRecorded && <CommandButton action={restoreDocumentAction} fields={{ companyId, documentId: document.id }}>{t("review.reverseExclusion")}</CommandButton>}
           {missingPeriod && (
             <Notice tone="danger">
               {t(`review.findings.${missingPeriod.code}`, {
@@ -164,7 +166,7 @@ export default async function DocumentReviewPage({
             </Notice>
           ))}
         </header>
-        <section className="review-original">
+        <section className="review-original" role="region" aria-label={t("review.workspace.sourcePanel")}>
           {file?.format === "pdf" && !document.rowSet ? <PdfSourceViewer href={contentUrl} label={file.fileName} firstPage={document.firstPage!} lastPage={document.lastPage!} /> : file ? <DocumentViewer label={file.fileName}>
             {document.rowSet ? (
               <div className="workbook-source">
@@ -179,10 +181,10 @@ export default async function DocumentReviewPage({
             )}
           </DocumentViewer> : <>
             <EmptyState icon="file" title={t("review.noSourceFile")} />
-            {!lockedPeriod && current?.author.kind === "user" && <AttachDocumentSourceForm companyId={companyId} documentId={document.id} />}
+            {!lockedPeriod && !viewingRecorded && current?.author.kind === "user" && <AttachDocumentSourceForm companyId={companyId} documentId={document.id} />}
           </>}
         </section>
-        <section className="review-data">
+        <section className="review-data" role="region" aria-label={t("review.workspace.dataPanel")}>
           {shown && current && viewingRecorded && (
             <Notice>
               {t(shown === current ? "bankAccountCheck.viewingRecordedVersion" : "review.viewingOld", {
@@ -193,33 +195,6 @@ export default async function DocumentReviewPage({
                 {t("review.showCurrent")}
               </Link>
             </Notice>
-          )}
-          {shown && current && !viewingRecorded && (
-            <section aria-label={t("bankAccountCheck.title")}>
-              <h2>{t("bankAccountCheck.title")}</h2>
-              <p>{t("bankAccountCheck.currentInformation")}</p>
-              {bankChecks.current ? (
-                <Notice tone={bankChecks.current.outcome === "published" ? "info" : "warning"}>
-                  {t(`bankAccountCheck.${bankChecks.current.direction === "outgoing" ? "ownOutcomes" : "outcomes"}.${bankChecks.current.outcome}`)}{" "}
-                  {t("bankAccountCheck.checkedAt", { time: formatDateTime(bankChecks.current.checkedAt) })}
-                </Notice>
-              ) : <p>{t("bankAccountCheck.notRefreshed")}</p>}
-              <CommandButton action={refreshBankAccountCheckAction} fields={{ companyId, documentId }}>
-                {t("bankAccountCheck.refresh")}
-              </CommandButton>
-              {bankChecks.checks.length > 0 && <details>
-                <summary>{t("bankAccountCheck.history")}</summary>
-                <ol>
-                  {bankChecks.checks.map((check) => <li key={check.id}>
-                    {t("bankAccountCheck.checkedAt", { time: formatDateTime(check.checkedAt) })}{" · "}
-                    {t(`bankAccountCheck.${check.direction === "outgoing" ? "ownOutcomes" : "outcomes"}.${check.outcome}`)}{" · "}
-                    {t("bankAccountCheck.inputs", { supplier: check.supplierVatId ?? t("review.notSet"), account: [check.payment.bankAccount, check.payment.iban].filter(Boolean).join(" / ") || t("review.notSet") })}{" · "}
-                    <Link href={reviewHref(document.id, check.version)}>{t("bankAccountCheck.version", { version: check.version })}</Link>
-                    {check.extractionVersionId !== current.id && <> · {t("bankAccountCheck.olderData")}</>}
-                  </li>)}
-                </ol>
-              </details>}
-            </section>
           )}
           {shownWarningFindings.map((finding) => (
             <Notice
@@ -265,10 +240,37 @@ export default async function DocumentReviewPage({
               periods={deferredClaimPeriods}
             />
           )}
-          {excludable && <ExclusionForm fields={{ companyId, documentId: document.id, nextDocumentId: position.continuationDocumentId ?? "", queueQuery, returnTo: returnTo ?? "" }} />}
+          {shown && current && !viewingRecorded && (
+            <section aria-label={t("bankAccountCheck.title")}>
+              <h2>{t("bankAccountCheck.title")}</h2>
+              <p>{t("bankAccountCheck.currentInformation")}</p>
+              {bankChecks.current ? (
+                <Notice tone={bankChecks.current.outcome === "published" ? "info" : "warning"}>
+                  {t(`bankAccountCheck.${bankChecks.current.direction === "outgoing" ? "ownOutcomes" : "outcomes"}.${bankChecks.current.outcome}`)}{" "}
+                  {t("bankAccountCheck.checkedAt", { time: formatDateTime(bankChecks.current.checkedAt) })}
+                </Notice>
+              ) : <p>{t("bankAccountCheck.notRefreshed")}</p>}
+              <CommandButton action={refreshBankAccountCheckAction} fields={{ companyId, documentId }}>
+                {t("bankAccountCheck.refresh")}
+              </CommandButton>
+              {bankChecks.checks.length > 0 && <details>
+                <summary>{t("bankAccountCheck.history")}</summary>
+                <ol>
+                  {bankChecks.checks.map((check) => <li key={check.id}>
+                    {t("bankAccountCheck.checkedAt", { time: formatDateTime(check.checkedAt) })}{" · "}
+                    {t(`bankAccountCheck.${check.direction === "outgoing" ? "ownOutcomes" : "outcomes"}.${check.outcome}`)}{" · "}
+                    {t("bankAccountCheck.inputs", { supplier: check.supplierVatId ?? t("review.notSet"), account: [check.payment.bankAccount, check.payment.iban].filter(Boolean).join(" / ") || t("review.notSet") })}{" · "}
+                    <Link href={reviewHref(document.id, check.version)}>{t("bankAccountCheck.version", { version: check.version })}</Link>
+                    {check.extractionVersionId !== current.id && <> · {t("bankAccountCheck.olderData")}</>}
+                  </li>)}
+                </ol>
+              </details>}
+            </section>
+          )}
+          {excludable && !viewingRecorded && <ExclusionForm fields={{ companyId, documentId: document.id, nextDocumentId: position.continuationDocumentId ?? "", queueQuery, returnTo: returnTo ?? "" }} />}
           {versions.length > 0 && (
             <>
-              <h2>{t("review.history")}</h2>
+              <details className="review-history"><summary>{t("review.history")}</summary>
               <ol className="version-history" reversed>
                 {versions.toReversed().map((v) => (
                   <li
@@ -299,11 +301,12 @@ export default async function DocumentReviewPage({
                     </span>
                   </li>
                 ))}
-              </ol>
+              </ol></details>
             </>
           )}
         </section>
-      </PageLayout>
+      </ReviewWorkspace>
+      </ReviewGuard>
       </SourceEvidenceProvider>
       <RefreshWhile
         active={
