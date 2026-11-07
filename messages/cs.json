@@ -753,7 +753,8 @@
     "claim_eligibility_unresolved": "Před novou přípravou nebo exportem XML vyřešte přípustnost uplatnění a lhůty podání označených dokladů.",
     "claim_document_type_required": "Vyberte typ dokladu, aby bylo možné potvrdit způsobilost uplatnění.",
     "claim_deadline_expired": "Lhůta pro uplatnění nároku podáním již uplynula. Nové schválení nemůže doložit včasné podání.",
-    "claimed_period_after_deadline": "Toto období končí příliš pozdě pro běžné uplatnění před koncem lhůty podání. Zvolte dřívější přípustné období."
+    "claimed_period_after_deadline": "Toto období končí příliš pozdě pro běžné uplatnění před koncem lhůty podání. Zvolte dřívější přípustné období.",
+    "counterparty_resolution_required": "Před schválením vyřešte identitu protistrany. Vyberte existující záznam, obnovte archivovanou shodu nebo výslovně potvrďte vytvoření bez identifikátorů. Změněná upozornění adresáře je nutné zkontrolovat."
   },
   "aiUsage": {
     "platformNav": "Využití AI na platformě",
@@ -1235,7 +1236,7 @@
     "currentValue": "Aktuální hodnota",
     "directory": {
       "title": "Adresář protistran",
-      "linkHint": "Propojte existující záznam. Údaje dokladu zůstávají vlastní.",
+      "linkHint": "Jednoznačná shoda IČO nebo VAT ID se propojí automaticky. Nová protistrana vznikne až při úspěšném schválení. Údaje dokladu zůstanou zachované.",
       "selected": "Propojená protistrana",
       "clear": "Zrušit propojení",
       "search": "Hledat existující protistrany",
@@ -1245,7 +1246,12 @@
       "copy": "Převzít údaje z adresáře do dokladu",
       "recorded": "Zaznamenané údaje adresáře",
       "notRecorded": "Tato verze nemá zaznamenané propojení s adresářem.",
-      "open": "Otevřít propojenou protistranu"
+      "open": "Otevřít propojenou protistranu",
+      "unlinked": "Propojení s adresářem bylo výslovně odebráno. Před schválením existující identity vyberte záznam.",
+      "automatic": "Použít automatické párování",
+      "confirmWithoutIdentity": "Při schválení tohoto dokladu vytvořit novou protistranu bez IČO a VAT ID",
+      "findIdentity": "Vyhledat podle IČO nebo VAT ID",
+      "archivedIdentity": "Najít archivovanou identitu"
     },
     "sourceFor": "Předloha pro {field}",
     "sourcePage": "Strana originálu",

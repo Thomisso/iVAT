@@ -15,6 +15,10 @@ import { testWorker } from "./support/worker";
 
 async function documentInReview(registry = fakeVatPayerRegistry()) {
   const user = await administratorWithCompany();
+  const party = SAMPLE_EXTRACTION.supplier;
+  const entry = await createCounterparty(user.client, { companyId: user.companyId, name: party.name!, ico: party.ico, vatId: party.vatId,
+    street: party.street!, city: party.city!, postalCode: party.postalCode!, countryCode: party.country!, supplier: true, customer: false });
+  if (!entry.ok) throw new Error(entry.error);
   const created = await createConfirmedManualDocument(user.client, { companyId: user.companyId, payload: SAMPLE_EXTRACTION }, undefined, registry);
   if (!created.ok) throw new Error(created.error);
   return { ...user, documentId: created.value.id };
@@ -104,6 +108,10 @@ describe("atomic Document approval", () => {
 
   it("approves a real AI Version unchanged while retaining its author and confidence", async () => {
     const document = await administratorWithCompany();
+  const party = SAMPLE_EXTRACTION.supplier;
+  const entry = await createCounterparty(document.client, { companyId: document.companyId, name: party.name!, ico: party.ico, vatId: party.vatId,
+    street: party.street!, city: party.city!, postalCode: party.postalCode!, countryCode: party.country!, supplier: true, customer: false });
+  if (!entry.ok) throw new Error(entry.error);
     const worker = testWorker(fakeAiProvider());
     expect((await assignAiConfigurationFixture(document.client, worker.jobs, { companyId: document.companyId, provider: worker.ai })).ok).toBe(true);
     const uploaded = await uploadSourceFile(document.client, worker.jobs, { companyId: document.companyId, fileName: "receipt.png", bytes: fixtureFile("receipt.png") });
