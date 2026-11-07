@@ -168,6 +168,23 @@ test("the laptop comparison desk resizes and scrolls independently while mobile 
   await separator.focus();
   await page.keyboard.press("ArrowRight");
   expect((await source.boundingBox())!.width).toBeGreaterThan(initialWidth);
+  const workspace = page.locator("main.review-workspace");
+  await workspace.evaluate(element => element.style.setProperty("--space-3", "20px"));
+  await expect(separator).toHaveCSS("width", "20px");
+  const dividerBox = (await separator.boundingBox())!;
+  const sourceBeforeDrag = (await source.boundingBox())!.width;
+  const center = dividerBox.x + dividerBox.width / 2;
+  await page.mouse.move(center, dividerBox.y + 40);
+  await page.mouse.down();
+  await page.mouse.move(center + 50, dividerBox.y + 40);
+  await page.mouse.up();
+  expect(Math.abs((await source.boundingBox())!.width - sourceBeforeDrag - 50)).toBeLessThan(2);
+  const lineCenter = await separator.evaluate(element => {
+    const style = getComputedStyle(element, "::after");
+    return Number.parseFloat(style.left) + new DOMMatrixReadOnly(style.transform).m41 + Number.parseFloat(style.width) / 2;
+  });
+  expect(lineCenter).toBeCloseTo(dividerBox.width / 2, 1);
+  await workspace.evaluate(element => element.style.removeProperty("--space-3"));
   const amount = page.getByRole("group", { name: "Rate breakdown and totals", exact: true });
   const supplier = page.getByRole("group", { name: "Supplier", exact: true });
   expect(await amount.evaluate((element, other) => !!(element.compareDocumentPosition(other as Node) & Node.DOCUMENT_POSITION_FOLLOWING), await supplier.elementHandle())).toBe(true);
@@ -911,3 +928,39 @@ test("a current Period Lock refresh keeps tracking the existing readonly account
   await expect(guard).toHaveCount(0, { timeout: 3_000 });
   await expect(page).toHaveURL(url => url.pathname === `/companies/${companyId}/documents`);
 });
+
+
+for (const decision of ["approve", "reject"] as const) {
+  test(`a saved correction outside the originating filter still continues its ${decision} queue`, async ({ page, context, baseURL }) => {
+    const { companyId, client } = await setupReviewCompany(page, context, baseURL, `QueueChange${decision}`);
+    const ids: string[] = [];
+    for (const documentNumber of [`LEAVING-${decision}-229`, `REMAINING-${decision}-229`]) {
+      const created = await createManualDocument(client, { companyId, payload: { ...SAMPLE_EXTRACTION, direction: "outgoing", documentNumber } }, undefined, fakeVatPayerRegistry());
+      if (!created.ok) throw new Error(created.error);
+      ids.push(created.value.id);
+    }
+    await page.goto(`/companies/${companyId}/documents?view=outgoing&status=needs_review&reportingPeriod=2026-10`);
+    await page.getByRole("table", { name: "Documents", exact: true }).getByRole("row").filter({ hasText: `LEAVING-${decision}-229` }).getByRole("link").first().click();
+    await expect(page).toHaveURL(url => url.pathname.endsWith(ids[0]) && url.searchParams.get("reportingPeriod") === "2026-10");
+    await page.getByText("Other Document details", { exact: true }).click();
+    await page.getByLabel("Issue date", { exact: true }).fill("1.11.2026");
+    await page.getByLabel("Due date", { exact: true }).fill("15.11.2026");
+    await page.getByLabel("Tax point date", { exact: true }).fill("1.11.2026");
+    await page.getByRole("button", { name: "Save draft", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Approve version 2", exact: true })).toBeEnabled();
+    await expect(page.getByText(/Document \d+ of \d+/, { exact: true })).toHaveCount(0);
+    expect((await listExtractionVersions(client, companyId, ids[0]))[1].payload.taxPointDate).toBe("2026-11-01");
+    if (decision === "approve") await page.getByRole("button", { name: "Approve version 2", exact: true }).click();
+    else {
+      await page.getByRole("group", { name: "Document decisions", exact: true }).getByRole("button", { name: "Reject", exact: true }).click();
+      const dialog = page.getByRole("dialog", { name: "Reject", exact: true });
+      await dialog.getByLabel("Exclusion reason", { exact: true }).fill("Excluded after correcting its Tax Point Date");
+      await dialog.getByRole("button", { name: "Reject", exact: true }).click();
+    }
+    await expect(page).toHaveURL(url => url.pathname === `/companies/${companyId}/documents/${ids[1]}` && url.searchParams.get("view") === "outgoing" && url.searchParams.get("reportingPeriod") === "2026-10", { timeout: 3_000 });
+    await expect(page.getByLabel("Document number", { exact: true })).toHaveValue(`REMAINING-${decision}-229`);
+    expect((await getDocument(client, companyId, ids[0]))?.status).toBe(decision === "approve" ? "approved" : "rejected");
+    expect((await getDocument(client, companyId, ids[1]))?.status).toBe("needs_review");
+    expect(await listExtractionVersions(client, companyId, ids[1])).toHaveLength(1);
+  });
+}

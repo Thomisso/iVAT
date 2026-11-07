@@ -2429,13 +2429,13 @@ select:disabled {
 .review-workspace .correction-form .fields { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .review-workspace .source-field { min-width: 0; }
 .review-splitter { grid-area: splitter; cursor: col-resize; touch-action: none; position: relative; }
-.review-splitter::after { content: ""; position: absolute; left: 5px; width: 2px; top: 0; bottom: 0; background: var(--line); }
+.review-splitter::after { content: ""; position: absolute; left: 50%; transform: translateX(-50%); width: 2px; top: 0; bottom: 0; background: var(--line); }
 .review-splitter:hover::after, .review-splitter:focus-visible::after { background: var(--accent); }
 .review-actions { grid-area: actions; display: flex; gap: var(--space-2); align-items: center; padding: var(--space-3) 0 0; background: var(--canvas); }
 .review-action-approve { order: 1; }
 .review-action-reject { order: 2; }
 .review-action-save { order: 3; margin-left: auto; }
-.review-actions .iv-btn { height: auto; min-height: 36px; white-space: normal; }
+.review-actions .iv-btn { height: auto; min-height: var(--row-compact); white-space: normal; }
 .review-mobile-tabs { display: none; }
 .review-party > summary, .review-infrequent > summary, .review-secondary > summary, .review-history > summary { cursor: pointer; font-weight: 500; }
 .review-party > summary { padding-block: 6px; }

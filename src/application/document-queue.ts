@@ -182,7 +182,7 @@ export type DocumentQueuePosition = ResolvedDocumentQueue & {
   index: number;
   previousDocumentId?: string;
   nextDocumentId?: string;
-  /** The next remaining item after a decision: forward first, then wrap backward. */
+  /** Continue forward, then backward; use the first remaining item if this Document left the queue. */
   continuationDocumentId?: string;
 };
 
@@ -206,6 +206,6 @@ export async function getDocumentQueuePosition(
     index,
     previousDocumentId,
     nextDocumentId,
-    continuationDocumentId: nextDocumentId ?? previousDocumentId,
+    continuationDocumentId: nextDocumentId ?? previousDocumentId ?? (index < 0 ? resolved.documents[0]?.id : undefined),
   };
 }
