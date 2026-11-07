@@ -69,6 +69,8 @@ export type ClaimBasis = Pick<ExtractionPayload, "documentType" | "direction" | 
 export type PartialClaim = {
   basis?: ClaimBasis;
   confirmed: boolean;
+  /** An explicit human decision to keep this Document recorded without a deduction. */
+  zeroConfirmed?: boolean;
   rateBreakdown: DraftRateBreakdownLine[];
 };
 

@@ -617,6 +617,7 @@ it.each([
   { name: "negative", rates: [{ rate: 21, netAmount: "-6000.00", vatAmount: "-1260.00" }] },
   { name: "unbalanced VAT", rates: [{ rate: 21, netAmount: "6000.00", vatAmount: "1200.00" }] },
   { name: "VAT without any selected supply", rates: [{ rate: 21, netAmount: "0.00", vatAmount: "0.01" }] },
+  { name: "zero without explicit zero confirmation", rates: [{ rate: 21, netAmount: "0.00", vatAmount: "0.00" }] },
   { name: "wrong rate", rates: [{ rate: 12, netAmount: "6000.00", vatAmount: "720.00" }] },
   { name: "empty", rates: [] },
   { name: "duplicate rate", rates: [
@@ -711,6 +712,9 @@ it.each([
   '{"confirmed":true}',
   '{"confirmed":true,"rateBreakdown":[null]}',
   '{"confirmed":true,"rateBreakdown":[{"rate":21,"netAmount":6000.01,"vatAmount":"1260.00"}]}',
+  '{"confirmed":true,"method":"section75","rateBreakdown":[{"rate":21,"netAmount":"6000.00","vatAmount":"1260.00"}]}',
+  '{"confirmed":true,"method":"section76","rateBreakdown":[{"rate":21,"netAmount":"6000.00","vatAmount":"1260.00"}]}',
+  '{"confirmed":true,"periods":["2026-10","2026-11"],"rateBreakdown":[{"rate":21,"netAmount":"6000.00","vatAmount":"1260.00"}]}',
 ])("excludes malformed saved selection metadata %s without restoring a full claim", (serialized) => {
   const selected = document({
     rateBreakdown: [{ rate: 21, netAmount: "12000.00", vatAmount: "2520.00" }],

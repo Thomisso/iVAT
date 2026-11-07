@@ -581,6 +581,8 @@ function payloadFromForm(formData: FormData): ExtractionPayload {
   const lines = [
     ...new Set([...formData.keys()].flatMap((key) => /^rateBreakdown\.(\d+)\./.exec(key)?.[1] ?? [])),
   ].sort((a, b) => Number(a) - Number(b));
+  const selectedLines = [...new Set([...formData.keys()].flatMap(key => /^partialClaim\.(\d+)\./.exec(key)?.[1] ?? []))]
+    .sort((a, b) => Number(a) - Number(b));
   let basis: NonNullable<ExtractionPayload["partialClaim"]>["basis"];
   let basisValid = true;
   try { basis = optionalField(formData, "partialClaim.basis") ? JSON.parse(field(formData, "partialClaim.basis")) : undefined; }
@@ -603,8 +605,10 @@ function payloadFromForm(formData: FormData): ExtractionPayload {
     currency: optionalField(formData, "currency"),
     ...(field(formData, "partialClaim.mode") === "full" ? { partialClaim: null } : field(formData, "partialClaim.mode") === "selected" ? { partialClaim: {
       confirmed: basisValid && field(formData, "partialClaim.confirmed") === "true",
+      zeroConfirmed: field(formData, "partialClaim.zeroConfirmed") === "true",
       ...(basis ? { basis } : {}),
-      rateBreakdown: [{ rate: Number(field(formData, "partialClaim.rate")), netAmount: optionalField(formData, "partialClaim.netAmount"), vatAmount: optionalField(formData, "partialClaim.vatAmount") }],
+      rateBreakdown: selectedLines.map(i => ({ rate: optionalField(formData, `partialClaim.${i}.rate`) === null ? null : Number(field(formData, `partialClaim.${i}.rate`).replace(",", ".")),
+        netAmount: optionalField(formData, `partialClaim.${i}.netAmount`), vatAmount: optionalField(formData, `partialClaim.${i}.vatAmount`) })),
     } } : {}),
     sourceRateRows: lines.map((i) => Number(i)),
     rateBreakdown: lines.map((i) => ({

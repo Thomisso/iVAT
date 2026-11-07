@@ -1264,7 +1264,12 @@
       "unclaimed": "Neuplatněná část",
       "unavailable": "Nelze vypočítat",
       "confirmRate": "Potvrdit výběr se sazbou {rate}% pro tyto celé částky",
-      "previousSelection": "Dříve uložený výběr: {rate}% · základ {net}, DPH {vat}"
+      "previousSelection": "Dříve uložený výběr: {rate}% · základ {net}, DPH {vat}",
+      "rate": "Vybraná plnění se sazbou {rate}%",
+      "remainderRate": "Neuplatněno se sazbou {rate}%",
+      "addRate": "Přidat uplatňovanou sazbu",
+      "removeRate": "Odebrat uplatňovanou sazbu",
+      "zeroConfirm": "Potvrzuji nulový nárok na odpočet z tohoto dokladu."
     },
     "claimEligibility": {
       "title": "Nejdřívější období uplatnění",

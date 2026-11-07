@@ -73,7 +73,7 @@ it("records an explicitly confirmed zero selection without a deduction or a zero
     streetName: "Praha", houseNumber: "1", orientationNumber: null, city: "Praha", postalCode: "110 00", personType: "legal" as const,
   };
   const payload = { ...SAMPLE_EXTRACTION,
-    partialClaim: { confirmed: true, rateBreakdown: [{ rate: 21, netAmount: "0.00", vatAmount: "0.00" }] },
+    partialClaim: { confirmed: true, zeroConfirmed: true, rateBreakdown: [{ rate: 21, netAmount: "0.00", vatAmount: "0.00" }] },
   };
   const report = computeVatReport(company, "2026-10", [{ id: "zero", extractionVersionId: "zero-v1", status: "approved", payload }]);
   expect(report.excludedDocuments).toEqual([]);
