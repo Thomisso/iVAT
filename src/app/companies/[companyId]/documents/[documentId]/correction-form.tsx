@@ -1,8 +1,8 @@
 "use client";
 
-import { SourceField } from "./source-evidence-context";
+import { SourceField, useSourceEvidence } from "./source-evidence-context";
 
-import { useActionState, useState, type ComponentProps } from "react";
+import { useActionState, useEffect, useState, type ComponentProps } from "react";
 import { useTranslations } from "next-intl";
 import { reviewDocumentAction, createManualDocumentAction, type DocumentReviewFormState } from "@/app/actions";
 import {
@@ -30,6 +30,7 @@ export function CorrectionForm({
   companyId,
   documentId,
   version: currentVersion,
+  extractionVersionId,
   payload: currentPayload,
   findings: currentFindings,
   editable,
@@ -41,6 +42,7 @@ export function CorrectionForm({
   companyId: string;
   documentId?: string;
   version: number;
+  extractionVersionId?: string;
   payload: ExtractionPayload;
   findings: ValidationFinding[];
   editable: boolean;
@@ -50,19 +52,20 @@ export function CorrectionForm({
   decision?: { nextDocumentId: string; queueQuery: string; returnTo: string };
 }) {
   const t = useTranslations("review");
+  const source = useSourceEvidence();
   const [state, action, pending] = useActionState<DocumentReviewFormState, FormData>(documentId ? reviewDocumentAction : createManualDocumentAction, {
     error: null,
     values: {},
   });
   // A Server Action may rerender the page with someone else's newer Version.
   // Keep this draft's base until our explicit save actually succeeds.
-  const [base, setBase] = useState({ version: currentVersion, payload: currentPayload, findings: currentFindings, requestId, displayedBankAccountCheckId });
+  const [base, setBase] = useState({ version: currentVersion, payload: currentPayload, findings: currentFindings, requestId, displayedBankAccountCheckId, extractionVersionId });
   const { version, payload, findings } = base;
   const [lines, setLines] = useState(() =>
     payload.rateBreakdown.flatMap((line, index) => isZeroRateBreakdownLine(line) ? [] : [index]),
   );
   if (state.savedVersion !== undefined && state.savedVersion === currentVersion && base.version !== currentVersion) {
-    setBase({ version: currentVersion, payload: currentPayload, findings: currentFindings, requestId, displayedBankAccountCheckId });
+    setBase({ version: currentVersion, payload: currentPayload, findings: currentFindings, requestId, displayedBankAccountCheckId, extractionVersionId });
     setLines(currentPayload.rateBreakdown.flatMap((line, index) => isZeroRateBreakdownLine(line) ? [] : [index]));
   } else if (base.version === currentVersion && base.displayedBankAccountCheckId !== displayedBankAccountCheckId) {
     // An explicit same-Version refresh has rendered this dated observation.
@@ -70,6 +73,9 @@ export function CorrectionForm({
     // observation must never be adopted by this draft.
     setBase({ ...base, displayedBankAccountCheckId });
   }
+  useEffect(() => {
+    if (source && source.version !== base.version) source.acceptBase(base.payload, base.version, base.extractionVersionId ?? "");
+  }, [source, base.payload, base.version, base.extractionVersionId]);
   const nextLine = Math.max(payload.rateBreakdown.length - 1, ...lines) + 1;
   const finding = (field: string) =>
     (state.findings ?? findings).find(

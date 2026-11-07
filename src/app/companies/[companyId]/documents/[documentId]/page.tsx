@@ -236,6 +236,7 @@ export default async function DocumentReviewPage({
               companyId={companyId}
               documentId={document.id}
               version={shown.version}
+              extractionVersionId={shown.id}
               requestId={randomUUID()}
               displayedBankAccountCheckId={bankChecks.current?.id ?? null}
               decision={{ nextDocumentId: position.continuationDocumentId ?? "", queueQuery, returnTo: returnTo ?? "" }}
