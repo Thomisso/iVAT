@@ -30,6 +30,36 @@ test("Approve saves the current form fields and preserves refusals", async ({ pa
   await expect(page).toHaveURL(/\/documents(?:\?.*)?$/);
   const versions = await listExtractionVersions(client, companyId, created.value.id);
   expect(versions.map((version) => version.payload.documentNumber)).toEqual(["FV-2026-0001", "DIRTY-APPROVED-228"]);
+  const observedPayload = { ...SAMPLE_EXTRACTION, payment: { ...SAMPLE_EXTRACTION.payment, bankAccount: "987654321/0100" } };
+  const initiallyPublished = fakeVatPayerRegistry({ outcome: "checked", unreliable: false, publishedAccounts: ["987654321/0100"] });
+  const observed = await createManualDocument(client, { companyId, payload: observedPayload }, undefined, initiallyPublished);
+  if (!observed.ok) throw new Error(observed.error);
+  await page.goto(`/companies/${companyId}/documents/${observed.value.id}`);
+  const originalObservationRequest = await page.locator('input[name="requestId"]').inputValue();
+  await page.getByRole("button", { name: "Check payment account again", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Bank Account Check", exact: true })).toContainText("The payment account was checked and is not published for the supplier.");
+  expect(await page.locator('input[name="requestId"]').inputValue()).toBe(originalObservationRequest);
+  await page.getByRole("button", { name: "Approve version 1", exact: true }).click();
+  await expect(page).toHaveURL(/\/documents(?:\?.*)?$/);
+  expect((await getDocument(client, companyId, observed.value.id))?.status).toBe("approved");
+  expect(await listExtractionVersions(client, companyId, observed.value.id)).toHaveLength(1);
+
+  const otherObservation = await createManualDocument(client, { companyId, payload: observedPayload }, undefined, initiallyPublished);
+  if (!otherObservation.ok) throw new Error(otherObservation.error);
+  await page.goto(`/companies/${companyId}/documents/${otherObservation.value.id}`);
+  const frozenObservationRequest = await page.locator('input[name="requestId"]').inputValue();
+  await page.getByLabel("Document number", { exact: true }).fill("KEEP-DRAFT-OBS-228");
+  expect((await correctDocument(client, { companyId, documentId: otherObservation.value.id, basedOnVersion: 1, payload: { ...observedPayload, documentNumber: "CURRENT-OBS-228" } }, undefined, initiallyPublished)).ok).toBe(true);
+  await page.getByRole("button", { name: "Check payment account again", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Bank Account Check", exact: true })).toContainText("The payment account was checked and is not published for the supplier.");
+  await expect(page.getByLabel("Document number", { exact: true })).toHaveValue("KEEP-DRAFT-OBS-228");
+  await expect(page.locator('input[name="basedOnVersion"]')).toHaveValue("1");
+  await expect(page.locator('input[name="displayedBankAccountCheckId"]')).toHaveValue("");
+  expect(await page.locator('input[name="requestId"]').inputValue()).toBe(frozenObservationRequest);
+  await page.getByRole("button", { name: "Approve version 1", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Compare current data", exact: true })).toContainText("CURRENT-OBS-228");
+  expect(await listExtractionVersions(client, companyId, otherObservation.value.id)).toHaveLength(2);
+
   const warned = await createManualDocument(client, { companyId, payload: SAMPLE_EXTRACTION }, undefined, fakeVatPayerRegistry());
   if (!warned.ok) throw new Error(warned.error);
   await page.goto(`/companies/${companyId}/documents/${warned.value.id}`);

@@ -62,6 +62,11 @@ export function CorrectionForm({
   if (state.savedVersion !== undefined && state.savedVersion === currentVersion && base.version !== currentVersion) {
     setBase({ version: currentVersion, payload: currentPayload, findings: currentFindings, requestId, displayedBankAccountCheckId });
     setLines(currentPayload.rateBreakdown.flatMap((line, index) => isZeroRateBreakdownLine(line) ? [] : [index]));
+  } else if (base.version === currentVersion && base.displayedBankAccountCheckId !== displayedBankAccountCheckId) {
+    // An explicit same-Version refresh has rendered this dated observation.
+    // Keep the draft's fields, Version and operation ID; another Version's
+    // observation must never be adopted by this draft.
+    setBase({ ...base, displayedBankAccountCheckId });
   }
   const nextLine = Math.max(payload.rateBreakdown.length - 1, ...lines) + 1;
   const finding = (field: string) =>
