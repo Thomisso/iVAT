@@ -1,6 +1,6 @@
 ## Agent execution
 
-All agent processes, including invoked external skills, use CLI commands, HTTP APIs and file/source tools. Computer use is prohibited: do not open or control browsers or native apps, use interactive browser automation, or require GUI inspection, screenshots or user-operated GUI steps. Never request browser/GUI permission as a process gate. Follow [CLI process and evidence rules](docs/agents/cli-processes.md) for runtime verification, external setup and unavailable capabilities.
+All agent processes, including invoked external skills, use CLI commands, HTTP APIs and file/source tools. Computer use is prohibited: do not open or control browsers or native apps, use browser automation (including headless CLI/CI execution), install browser binaries, or require GUI inspection, screenshots or user-operated GUI steps. Never request browser/GUI permission as a process gate. Follow [CLI process and evidence rules](docs/agents/cli-processes.md) for runtime verification, external setup and unavailable capabilities.
 
 ## Agent skills
 

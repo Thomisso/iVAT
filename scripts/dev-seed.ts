@@ -1,6 +1,6 @@
 // Seeds the local stack with a fresh QA account to look at the app with: an
-// Organization, a Company, and a two-Document PDF uploaded to it. Assign a
-// platform AI Configuration in the SuperAdmin UI to process the upload.
+// Organization, a Company, and a two-Document PDF uploaded to it. An existing
+// platform AI Configuration and allowance are required to process the upload.
 //
 //   npm run dev:seed [-- --base-url http://localhost:3100]
 //
@@ -84,7 +84,7 @@ async function main() {
   console.log(`Company:     ${url}/companies/${companyId}`);
   console.log(`Source File: ${url}/companies/${companyId}/source-files/${uploaded.value.id}`);
   console.log(`Cookie:      ${sessionCookie(data.session)}`);
-  console.log("Assign an AI Configuration in Platform settings, then the worker can process the Source File.");
+  console.log("Processing requires an existing AI Configuration and allowance. Use authorized application commands through CLI/HTTP; report a missing operator session or capability.");
 }
 
 main().then(
