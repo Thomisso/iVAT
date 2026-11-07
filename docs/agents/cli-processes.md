@@ -2,6 +2,12 @@
 
 The execution rule in [AGENTS.md](../../AGENTS.md#agent-execution) applies to implementation, review, research, testing, tracking, deployment, recovery and every local or external skill used in this repository. Apply it before following a skill's tool requirements. Read documentation through files, CLI help or HTTP; inspect services through supported APIs and commands.
 
+This includes automated browser suites launched from CLI or CI. The current
+production acceptance command is `npm run test:http` (`test:e2e` is a compatible
+alias for that same HTTP runner). Historical Playwright files remain source
+inventory; older browser-execution instructions are superseded by this policy.
+They cannot be invoked to complete an agent or CI gate.
+
 ## Choose an observable command
 
 Use the existing application commands and queries as real users against the worktree's real database, authenticated HTTP requests to the app, server logs, applicable repository tests and server-capable Next.js MCP tools. [next-dev-loop](../../.agents/skills/next-dev-loop/SKILL.md) defines runtime verification; [run-app](../../.claude/skills/run-app/SKILL.md) starts the isolated app. Keep the checked revision, command, result and observed durable state together.

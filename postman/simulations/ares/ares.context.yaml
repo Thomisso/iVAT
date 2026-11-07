@@ -1,6 +1,6 @@
 purpose:
   stands_in_for: ARES economic-subject lookup used by Company onboarding.
-  unblocks: Deterministic browser verification of structured registered-address prefill without live-service calls.
+  unblocks: Deterministic CLI HTTP verification of structured registered-address prefill without live-service calls; earlier browser evidence is retained below.
 assumptions:
   - id: structured-address-response
     status: unknown
@@ -30,6 +30,13 @@ assumptions:
     verification: On 2026-10-30 ticket 134 at base 3b168cf with implementation changes passed all three company-onboarding Playwright journeys and 39 focused ARES/Company/filing-defaults tests. Next MCP reported no compilation or runtime errors. The simulation proves caller behavior under modelled responses, not live registry completeness or availability. QA v5 ticket 160 revalidated the three onboarding journeys with private account provisioning and real UI login while public Auth signup was disabled. A production-mode subset also passed all 12 accounting, security, Company and invitation journeys; captured Postman events included the summary and RŽP routes with 200 responses and the unavailable summary response with 503. This revalidates local caller behavior, not live ARES behavior.
     source: e2e/company-onboarding.spec.ts; tests/ares.test.ts; postman/mocks/ares/default.js; src/ares/registry.ts
     updated_at: "2026-10-30"
+  - id: cli-http-identity-and-refusal
+    status: unknown
+    claim: The production HTTP acceptance harness can reuse the existing stand-in through the real ARES adapter for structured natural-person identity and an unavailable-provider refusal.
+    reason: The new CLI acceptance source uses the existing adapter, simulation and modelled responses; runtime execution has not yet occurred on this candidate.
+    verification: On 2026-11-07 prepared the production HTTP harness and read the existing adapter/stand-in contract. Runtime verification awaits an isolated database lease. No live ARES, UI interaction or current runtime pass is claimed.
+    source: acceptance/auth-http.test.ts; scripts/e2e.mjs; src/ares/registry.ts; postman/mocks/ares/default.js
+    updated_at: "2026-11-07"
 fingerprints:
   - id: ivat-134-dirty-2026-10-30
     date: "2026-10-30"
