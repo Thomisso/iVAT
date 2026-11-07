@@ -27,6 +27,7 @@ import { provisionedUser } from "./support/clients";
 import { fixtureFile } from "./support/files";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { testWorker } from "./support/worker";
+import { withSupabaseRequestDiagnostics } from "./support/request-failure-diagnostics";
 
 async function companyWithReportDocuments() {
   const admin = await administratorWithCompany();
@@ -345,16 +346,20 @@ it("a malformed AI date cannot block generation from valid Documents", async () 
 });
 
 it("generates from more Documents than the API row cap without losing exclusions", async () => {
-  const a = await companyWithManyReportDocuments(1001);
-  const generated = await generateVatReport(a.client, {
-    companyId: a.companyId,
-    period: "2026-10",
+  await withSupabaseRequestDiagnostics(async (setPhase) => {
+    const a = await companyWithManyReportDocuments(1001);
+    setPhase("generation");
+    const generated = await generateVatReport(a.client, {
+      companyId: a.companyId,
+      period: "2026-10",
+    });
+    expect(generated.ok).toBe(true);
+    setPhase("readback_assertions");
+    const report = (await getVatReport(a.client, a.companyId, "2026-10"))!;
+    expect(report.documents).toHaveLength(1001);
+    expect(report.documents.map(document => document.id).toSorted()).toEqual(a.documentIds.toSorted());
+    expect(report.documents.map(document => document.importDate)).toEqual(Array(1001).fill("2026-10-10"));
+    expect(report.result.excludedDocuments).toHaveLength(1001);
+    expect(report.result.excludedDocuments.map(document => document.reason)).toEqual(Array(1001).fill("not_approved"));
   });
-  expect(generated.ok).toBe(true);
-  const report = (await getVatReport(a.client, a.companyId, "2026-10"))!;
-  expect(report.documents).toHaveLength(1001);
-  expect(report.documents.map(document => document.id).toSorted()).toEqual(a.documentIds.toSorted());
-  expect(report.documents.map(document => document.importDate)).toEqual(Array(1001).fill("2026-10-10"));
-  expect(report.result.excludedDocuments).toHaveLength(1001);
-  expect(report.result.excludedDocuments.map(document => document.reason)).toEqual(Array(1001).fill("not_approved"));
 }, 60000);
