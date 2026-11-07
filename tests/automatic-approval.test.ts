@@ -7,18 +7,18 @@ import { createCounterparty, listCounterparties, updateCounterparty } from "@/ap
 import { SAMPLE_EXTRACTION, fakeAiProvider } from "@/ai/fake";
 import { uploadSourceFile } from "@/application/source-files";
 import { getDocumentReview } from "@/application/document-review";
-import { listDocuments, listExtractionVersions, startManualDocumentReview, correctDocument, reprocessDocument, createManualDocument, approveDocument, returnDocumentToReview } from "@/application/documents";
+import { getDocument, listDocuments, listExtractionVersions, startManualDocumentReview, correctDocument, reprocessDocument, createManualDocument, approveDocument, returnDocumentToReview } from "@/application/documents";
 import { extractJob } from "@/application/processing";
 import { getCompanyAiProcessingAllowance } from "@/application/ai-processing-allowance";
 import { systemClient, testWorker } from "./support/worker";
 import { withClaimDate } from "./support/claim-clock";
-import { setOctoberImportFixture } from "./support/claim-eligibility";
+import { createConfirmedManualDocument, setOctoberImportFixture } from "./support/claim-eligibility";
 import { fixtureFile } from "./support/files";
 import { legacyUnknownApprovalFixture, privateWorkerApprovalRefusals } from "./support/automatic-approval-security";
 import { fakeVatPayerRegistry } from "@/vat-registry/fake";
 import { refreshBankAccountCheck } from "@/application/bank-account-checks";
 import type { ExtractionPayload } from "@/application/extraction-payload";
-import { generateVatReport, getVatReport, finalizeVatReport } from "@/application/vat-reports";
+import { generateVatReport, getVatReport, finalizeVatReport, getPeriodLock } from "@/application/vat-reports";
 
 function heldRegistry() {
   const entered = Promise.withResolvers<void>();
@@ -42,6 +42,72 @@ async function queueOctoberDocument(company: Awaited<ReturnType<typeof administr
   const [document] = await listDocuments(company.client, company.companyId, source.value.id);
   return document;
 }
+
+it("preserves a successful rerun proposing a locked period without retrying AI or changing locked accounting", async () => {
+  await withClaimDate(inject("databaseUrl"), "2026-10-15", async () => {
+    const company = await administratorWithCompany();
+    const rerunStarted = Promise.withResolvers<void>();
+    const releaseRerun = Promise.withResolvers<void>();
+    let providerCalls = 0;
+    const outgoing = { ...SAMPLE_EXTRACTION, documentNumber: "RERUN-LOCKED-TARGET", supplier: SAMPLE_EXTRACTION.customer, customer: SAMPLE_EXTRACTION.supplier };
+    const worker = testWorker(fakeAiProvider({ async extract() {
+      providerCalls += 1;
+      if (providerCalls === 1) return outgoing;
+      if (providerCalls === 2) { rerunStarted.resolve(); await releaseRerun.promise; }
+      return { ...outgoing, issueDate: "2026-09-01", taxPointDate: "2026-09-01", dueDate: "2026-09-15" };
+    } }));
+    await assignAiConfigurationFixture(company.client, worker.jobs, { companyId: company.companyId, provider: worker.ai });
+    const document = await queueOctoberDocument(company, worker);
+    expect(await worker.runJobs()).toEqual([]);
+    const input = { companyId: company.companyId, documentId: document.id };
+    const oldVersions = await listExtractionVersions(company.client, company.companyId, document.id);
+    expect(await getDocument(company.client, company.companyId, document.id)).toMatchObject({ status: "needs_review" });
+
+    const locked = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload: {
+      ...SAMPLE_EXTRACTION, documentNumber: "LOCKED-SEPTEMBER-BASE", issueDate: "2026-09-01", taxPointDate: "2026-09-01", dueDate: "2026-09-15",
+      supplier: { ...SAMPLE_EXTRACTION.supplier, name: "Locked supplier", ico: "12345679", vatId: "CZ12345679" },
+    } }, undefined, fakeVatPayerRegistry());
+    if (!locked.ok) throw new Error(locked.error);
+    expect(await approveDocument(company.client, { companyId: company.companyId, documentId: locked.value.id, version: 1 })).toEqual({ ok: true, value: null });
+    expect((await generateVatReport(company.client, { companyId: company.companyId, period: "2026-09" })).ok).toBe(true);
+    expect(await finalizeVatReport(company.client, { companyId: company.companyId, period: "2026-09", confirmed: true })).toEqual({ ok: true, value: null });
+    const lockedReport = await getVatReport(company.client, company.companyId, "2026-09");
+    const lockedVersions = await listExtractionVersions(company.client, company.companyId, locked.value.id);
+    const periodLock = await getPeriodLock(company.client, company.companyId, "2026-09");
+    const directory = await listCounterparties(company.client, company.companyId);
+    await setCompanyAutomaticApproval(company.client, { companyId: company.companyId, enabled: true });
+    expect(await reprocessDocument(company.client, worker.jobs, { ...input, confirmed: true })).toEqual({ ok: true, value: null });
+    const processing = worker.runJobs({ final: false });
+    try {
+      await rerunStarted.promise;
+      expect(await getDocument(company.client, company.companyId, document.id)).toMatchObject({ status: "processing" });
+      expect(await listExtractionVersions(company.client, company.companyId, document.id)).toEqual(oldVersions);
+    } finally { releaseRerun.resolve(); }
+    const errors = await processing;
+    await worker.jobs.send(extractJob(document.id));
+    const replayErrors = await worker.runJobs({ final: false });
+    const versions = await listExtractionVersions(company.client, company.companyId, document.id);
+    const current = await getDocumentReview(company.client, input);
+    const allowance = await getCompanyAiProcessingAllowance(company.client, company.companyId);
+    // These invariants also run on the recording-failure RED, before the success assertion.
+    expect(await listCounterparties(company.client, company.companyId)).toEqual(directory);
+    expect(await getVatReport(company.client, company.companyId, "2026-09")).toEqual(lockedReport);
+    expect(await listExtractionVersions(company.client, company.companyId, locked.value.id)).toEqual(lockedVersions);
+    expect(await getPeriodLock(company.client, company.companyId, "2026-09")).toEqual(periodLock);
+    expect({ errors, replayErrors, providerCalls, versions: versions.length, status: current?.document.status, allowance })
+      .toMatchObject({ errors: [], replayErrors: [], providerCalls: 2, versions: 2, status: "needs_review", allowance: { ok: true, value: { used: 2 } } });
+    expect(versions[0]).toEqual(oldVersions[0]);
+    expect(versions[1]).toMatchObject({ author: { kind: "ai" }, payload: { direction: "outgoing", taxPointDate: "2026-09-01" } });
+    expect(current?.lockedPeriod).toBe("2026-09");
+    expect(current?.approvalDecisions).toEqual([]);
+    expect(await approveDocument(company.client, { ...input, version: 2 })).toEqual({ ok: false, error: "period_locked" });
+    expect(await correctDocument(company.client, { ...input, basedOnVersion: 2, payload: outgoing }, undefined, fakeVatPayerRegistry()))
+      .toEqual({ ok: false, error: "period_locked" });
+    expect(await reprocessDocument(company.client, worker.jobs, { ...input, confirmed: true })).toEqual({ ok: false, error: "period_locked" });
+    expect(await returnDocumentToReview(company.client, { companyId: company.companyId, documentId: locked.value.id }))
+      .toEqual({ ok: false, error: "period_locked" });
+  });
+});
 
 it.each(["outgoing", "nonordinary incoming"] as const)("preserves otherwise eligible %s AI for review when no Reporting Year provides a period", async direction => {
   await withClaimDate(inject("databaseUrl"), "2026-10-15", async () => {
