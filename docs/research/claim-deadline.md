@@ -42,6 +42,8 @@ Additional **derived**, not judicial, holiday cases: April 2021 entitlement → 
 
 Its example 2 separates entitlement **2025-05-26**, Document delivery **2025-07-03**, earliest period **July/Q3 2025**, and last actual filing **2027-12-31** (Friday). The ordinary latest period is **November/Q3 2027**, not automatically December/Q4. These are separate facts; neither the chosen Reporting Period nor creating an XML establishes timely filing.
 
+**Ordinary-period feasibility is separate from the nominal due date.** GFŘ describes VAT returns as due within 25 days after a Reporting Period ends ([2025 information, page 4, payer obligations](https://financnisprava.gov.cz/assets/cs/prilohy/Informace_GFR_k_danovemu_posouzeni_povinnosti_poskytovatelu_.pdf)). The product therefore derives the first possible ordinary filing date from the day after period end; it does not require waiting until the 25th-day due date. For the court's November 2016 entitlement and **2019-12-02** cutoff, November 2019 has already ended and an ordinary return can be prepared for filing on December 1 or 2. This is the calendar application of the published filing window, not a claim that a particular return was submitted. December 2019 cannot end in time. The real report/XML regression uses November 2019 at that exact cutoff rather than a comfortably earlier period.
+
 Under #222, evaluate new preparation/export using the current business date and record that date. Export and Finalization are not submission to the authority. Preserve historical report downloads; today's date does not prove an archived report was filed late. The inclusive calendar comparison is only one eligibility check.
 
 ## Limits and verification

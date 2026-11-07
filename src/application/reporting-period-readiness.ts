@@ -1,3 +1,4 @@
+import { currentBusinessDate } from "./business-date";
 import { loadStoredDocumentFindings, prepareDocumentReporting, type DocumentReporting } from "./document-reporting";
 import type { SourceFileStatus } from "./source-files";
 import type { ExtractionPayload } from "./extraction-payload";
@@ -300,9 +301,10 @@ export async function getReportingPeriodReadiness(
   }
   const company = await getCompany(client, input.companyId);
   if (!company) return { ok: false, error: "forbidden" };
-  const [frequency, reportingYears] = await Promise.all([
+  const [frequency, reportingYears, evaluatedOn] = await Promise.all([
     getReportingPeriodFrequency(client, input.companyId, input.period),
     listCompanyReportingYears(client, input.companyId),
+    currentBusinessDate(client),
   ]);
   if (
     frequency === null ||
@@ -328,7 +330,7 @@ export async function getReportingPeriodReadiness(
     const reporting = prepareDocumentReporting(document, reportingYears, input.period, [
       ...(document.extractionVersionId ? byVersion.get(document.extractionVersionId) ?? [] : []),
       ...(gap ? [gap] : []),
-    ]);
+    ], evaluatedOn);
     return {
       ...document,
       reporting,
