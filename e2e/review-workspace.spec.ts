@@ -74,6 +74,16 @@ test("a pending approval protects the draft until refusal, then permits a delibe
   await expect(type).toHaveValue("");
   await expect(number).toHaveValue("PENDING-SUBMITTED-229");
   expect(await listExtractionVersions(client, companyId, created.value.id)).toHaveLength(1);
+  const acceptedRequest = await page.locator('input[name="requestId"]').inputValue();
+  await page.getByRole("group", { name: "Document decisions", exact: true }).getByRole("button", { name: "Reject", exact: true }).click();
+  await page.getByRole("dialog", { name: "Unsaved changes", exact: true }).getByRole("button", { name: "Discard changes", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Reject", exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(number).toHaveValue("FV-2026-0001");
+  await expect(type).toHaveValue("");
+  await expect(page.locator('input[name="requestId"]')).toHaveValue(acceptedRequest);
+  await expect(page.locator('input[name="basedOnVersion"]')).toHaveValue("1");
+  await expect(page.locator('input[name="acknowledgement"]')).toHaveValue("");
 
   await type.selectOption("invoice");
   await number.fill("AFTER-REFUSAL-229");
@@ -190,6 +200,18 @@ test("the laptop comparison desk resizes and scrolls independently while mobile 
   const navBox = (await page.getByRole("navigation", { name: "Company navigation", exact: true }).boundingBox())!;
   expect(actionBox.y + actionBox.height).toBeLessThanOrEqual(navBox.y);
   await page.screenshot({ path: testInfo.outputPath("review-desk-mobile.png") });
+  const mountedSource = await page.locator(".pdf-source-page > canvas").elementHandle();
+  const acceptedBase = await page.locator('input[name="basedOnVersion"]').inputValue();
+  const acceptedRequest = await page.locator('input[name="requestId"]').inputValue();
+  await actions.getByRole("button", { name: "Reject", exact: true }).click();
+  await page.getByRole("dialog", { name: "Unsaved changes", exact: true }).getByRole("button", { name: "Discard changes", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Reject", exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(number).toHaveValue("PDF-EVIDENCE");
+  expect(await mountedSource!.evaluate(element => element.isConnected)).toBe(true);
+  await expect(page.locator('input[name="basedOnVersion"]')).toHaveValue(acceptedBase);
+  await expect(page.locator('input[name="requestId"]')).toHaveValue(acceptedRequest);
+  await number.fill("MOBILE-KEEPS-229");
   await page.getByText("AI and other actions", { exact: true }).click();
   await page.getByRole("checkbox", { name: /I understand that AI will replace/ }).check();
   await page.getByRole("button", { name: "Run AI replacement", exact: true }).click();
@@ -256,6 +278,9 @@ test("reasoned rejection follows the filtered queue and history, restore and loc
   await page.getByRole("button", { name: "Approve version 1", exact: true }).click();
   await expect(page).toHaveURL(url => url.pathname === `/companies/${companyId}/documents` && url.searchParams.get("view") === "outgoing" && url.searchParams.get("status") === "needs_review");
   await expect(page.getByText("No documents match the filters.", { exact: true })).toBeVisible();
+  const approvedVersions = await listExtractionVersions(client, companyId, approvedId);
+  expect(approvedVersions.map(version => version.version)).toEqual([1, 2]);
+  expect(approvedVersions[1].payload.counterpartyLink?.recorded).toMatchObject({ name: "Novák s.r.o.", ico: "25596641" });
   const approvedHref = `/companies/${companyId}/documents/${approvedId}`;
   await page.goto(`${approvedHref}?version=1`);
   await expect(page.getByLabel("Document number", { exact: true })).toBeDisabled();
@@ -272,7 +297,7 @@ test("reasoned rejection follows the filtered queue and history, restore and loc
   await expect(page.getByRole("button", { name: "Check payment account again", exact: true })).toBeEnabled();
   expect(await getVatReport(client, companyId, "2026-10")).toEqual(lockedReport);
   expect((await getDocument(client, companyId, approvedId))?.status).toBe("approved");
-  expect(await listExtractionVersions(client, companyId, approvedId)).toHaveLength(1);
+  expect(await listExtractionVersions(client, companyId, approvedId)).toEqual(approvedVersions);
   // A separate period keeps restore independent of the finalized October.
   const restored = await createManualDocument(client, { companyId, payload: { ...SAMPLE_EXTRACTION, direction: "outgoing", documentNumber: "DIRECT-RESTORE-229", taxPointDate: "2026-11-01" } }, undefined, fakeVatPayerRegistry());
   if (!restored.ok) throw new Error(restored.error);
@@ -333,6 +358,13 @@ for (const direction of ["Back", "Forward"] as const) {
     await expect(number).toHaveValue(`BROWSER-${direction.toUpperCase()}-DRAFT-229`);
     await expect(page).toHaveURL(href);
     expect(await listExtractionVersions(client, companyId, documentId)).toHaveLength(1);
+    // Rapid native requests may coalesce; either way the original draft stays.
+    await page.evaluate(forward => { if (forward) { history.forward(); history.forward(); } else { history.back(); history.back(); } }, direction === "Forward");
+    await expect(guard).toBeVisible({ timeout: 3_000 });
+    await expect(page).toHaveURL(href);
+    expect(await form!.evaluate(element => element.isConnected)).toBe(true);
+    await guard.getByRole("button", { name: "Stay here", exact: true }).click();
+    await expect(number).toHaveValue(`BROWSER-${direction.toUpperCase()}-DRAFT-229`);
 
     const date = page.getByLabel("Tax point date", { exact: true });
     await date.fill("31.2.2026");
@@ -383,8 +415,8 @@ for (const direction of ["Back", "Forward"] as const) {
     await expect(page.locator('form.correction-form input[name="documentId"]')).toHaveValue(documentId);
     await expect(number).toHaveValue(`BROWSER-${direction.toUpperCase()}-DRAFT-229`);
     await number.fill(`DISCARD-${direction.toUpperCase()}-229`);
-    // Repeated requests while the modal is open must keep the same draft.
-    if (direction === "Back") await page.goBack({ waitUntil: "commit" });
+    // A history-menu jump is real traversal too; a later request wins.
+    if (direction === "Back") await page.evaluate(() => history.go(-2));
     else await page.goForward({ waitUntil: "commit" });
     await expect(guard).toBeVisible({ timeout: 3_000 });
     if (direction === "Back") await page.goBack({ waitUntil: "commit" });
@@ -399,6 +431,25 @@ for (const direction of ["Back", "Forward"] as const) {
     await expect(page).toHaveURL(href);
     await expect(guard).toHaveCount(0);
     await expect(number).toHaveValue(`BROWSER-${direction.toUpperCase()}-DRAFT-229`);
+    if (direction === "Back") {
+      // Same URL, different entries: identity must not be inferred from href.
+      await page.getByText("Version history", { exact: true }).click();
+      await page.getByRole("link", { name: /^Version 1:/ }).click();
+      await expect(number).toBeDisabled();
+      await page.getByRole("link", { name: "Show the current version", exact: true }).click();
+      await expect(page.getByRole("button", { name: "Approve version 2", exact: true })).toBeEnabled();
+      await expect(page).toHaveURL(href);
+      const entry = await page.evaluate(() => (window as Window & { navigation?: { currentEntry: { key: string } } }).navigation!.currentEntry.key);
+      const sameUrlForm = await page.locator("form.correction-form").elementHandle();
+      await number.fill("SAME-URL-DRAFT-229");
+      await page.evaluate(() => history.go(-2));
+      await expect(guard).toBeVisible({ timeout: 3_000 });
+      await expect(page).toHaveURL(href);
+      expect(await page.evaluate(() => (window as Window & { navigation?: { currentEntry: { key: string } } }).navigation!.currentEntry.key)).toBe(entry);
+      expect(await sameUrlForm!.evaluate(element => element.isConnected)).toBe(true);
+      await guard.getByRole("button", { name: "Stay here", exact: true }).click();
+      await expect(number).toHaveValue("SAME-URL-DRAFT-229");
+    }
   });
 }
 
@@ -420,6 +471,11 @@ test("the mobile Partial Claim error summary focuses the visible selection contr
   await expect(page.getByRole("region", { name: "Document data", exact: true })).toBeVisible();
   await expect(selection).toBeChecked();
   expect(await listExtractionVersions(client, companyId, created.value.id)).toHaveLength(1);
+  await page.getByText("Version history", { exact: true }).click();
+  await page.getByRole("link", { name: /^Version 1:/ }).click();
+  await expect(selection).toBeDisabled();
+  await summary.getByRole("button", { name: /^Partial Claim:/ }).click();
+  await expect(page.getByRole("group", { name: "Partial Claim", exact: true })).toBeFocused();
 });
 
 
@@ -433,13 +489,16 @@ test("without Navigation API review history uses the native warning and preserve
   await page.goto(`/companies/${companyId}/documents?view=outgoing&status=needs_review`);
   await page.getByRole("table", { name: "Documents", exact: true }).getByRole("link").first().click();
   const firstHref = page.url();
-  await expect(page.getByLabel("Document number", { exact: true })).toBeVisible();
+  await expect(page.locator(".review-actions button[form]")).toHaveCount(2);
   await page.getByRole("link", { name: "Next →", exact: true }).click();
   await expect(page).not.toHaveURL(firstHref);
   const href = page.url();
   const documentId = new URL(href).pathname.split("/").at(-1)!;
   await expect(page.locator('form.correction-form input[name="documentId"]')).toHaveValue(documentId);
+  await expect(page.locator(".review-actions button[form]")).toHaveCount(2);
   const number = page.getByLabel("Document number", { exact: true });
+  await number.click();
+  expect(await page.evaluate(() => navigator.userActivation.hasBeenActive)).toBe(true);
   const accepted = await number.inputValue();
   await number.fill("NATIVE-KEEP-DRAFT-229");
   let warning = "";

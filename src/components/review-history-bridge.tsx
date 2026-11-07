@@ -18,8 +18,8 @@ export function listenToReviewTraversal(next: TraversalListener) {
 }
 
 /** Register before App Router, including when a review is opened by a Link.
- * In Chromium, a late window capture listener runs after Next's existing
- * target listener; rollback then restores the URL but has already lost the form.
+ * In the verified Next/Chromium runtime a late capture listener ran after Next's
+ * target listener: rollback restored the URL after the form was already lost.
  */
 export function ReviewHistoryBridge() {
   useLayoutEffect(() => {
