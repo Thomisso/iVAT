@@ -36,6 +36,7 @@ export function ReviewGuard({ children }: { children: ReactNode }) {
   const dialog = useRef<HTMLDialogElement>(null);
 
   const request = useCallback((next: () => void) => {
+    if (form.current?.getAttribute("aria-busy") === "true") return;
     if (form.current) dirty.current = snapshot(form.current) !== baseline.current;
     if (!dirty.current) { next(); return; }
     intent.current = next;
@@ -79,9 +80,10 @@ export function ReviewGuard({ children }: { children: ReactNode }) {
       const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[href]") : null;
       if (!link || link.hasAttribute("download") || link.target && link.target !== "_self") return;
       const destination = new URL(link.href, location.href);
+      if (!["http:", "https:"].includes(destination.protocol)) return;
       if (destination.href === location.href || destination.pathname === location.pathname && destination.search === location.search && destination.hash) return;
       if (form.current) dirty.current = snapshot(form.current) !== baseline.current;
-      if (!dirty.current) return;
+      if (!dirty.current && form.current?.getAttribute("aria-busy") !== "true") return;
       event.preventDefault();
       event.stopPropagation();
       request(() => destination.origin === location.origin ? router.push(destination.pathname + destination.search + destination.hash) : location.assign(destination.href));
@@ -91,7 +93,7 @@ export function ReviewGuard({ children }: { children: ReactNode }) {
       const other = event.target;
       if (!other.matches('[data-review-departure], .company-shell-menu form')) return;
       if (form.current) dirty.current = snapshot(form.current) !== baseline.current;
-      if (!dirty.current) return;
+      if (!dirty.current && form.current?.getAttribute("aria-busy") !== "true") return;
       event.preventDefault();
       event.stopPropagation();
       const submitter = event.submitter;
@@ -103,7 +105,7 @@ export function ReviewGuard({ children }: { children: ReactNode }) {
     };
     const beforeUnload = (event: BeforeUnloadEvent) => {
       if (form.current) dirty.current = snapshot(form.current) !== baseline.current;
-      if (!dirty.current) return;
+      if (!dirty.current && form.current?.getAttribute("aria-busy") !== "true") return;
       event.preventDefault();
       event.returnValue = "";
     };

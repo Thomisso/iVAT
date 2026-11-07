@@ -1305,7 +1305,10 @@
     "otherDetails": "Other Document details",
     "errorSummary": "Errors to correct",
     "otherActions": "AI and other actions",
-    "requiredField": "Complete this field."
+    "requiredField": "Complete this field.",
+    "fullAmounts": "Full amounts",
+    "confirmed": "Confirmed",
+    "selectionConfirmation": "Selection confirmation"
   },
   "duplicateWarning": {
     "document_identity": "Possible duplicate: the counterparty VAT ID, document number and direction match an earlier Document.",

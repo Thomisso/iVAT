@@ -126,10 +126,12 @@ test("human selection preserves full values from activation through saved approv
     { section: "B.2", rateBreakdown: [{ netAmount: "6000.00", vatAmount: "1260.00" }] },
   ]);
   await page.goto(`/companies/${companyId}/documents/${created.value.id}`);
-  await page.getByRole("link", { name: "Version 1: FV-2026-0001 (User (you))", exact: true }).click();
+  await page.getByText("Version history", { exact: true }).click();
+  await page.getByRole("link", { name: "Version 1: FV-2026-0001 (User (you))", exact: true }).click({ timeout: 3_000 });
   await expect(page.getByRole("checkbox", { name: "Claim selected supplies", exact: true })).not.toBeChecked();
   await expect(page.getByRole("region", { name: "Unclaimed Portion", exact: true })).toHaveCount(0);
-  await page.getByRole("link", { name: "Version 2: FV-2026-0001 (User (you))", exact: true }).click();
+  await page.getByText("Version history", { exact: true }).click();
+  await page.getByRole("link", { name: "Version 2: FV-2026-0001 (User (you))", exact: true }).click({ timeout: 3_000 });
   await expect(page.getByLabel("Claimed net", { exact: true })).toHaveValue("6000.00");
   await expect(page.getByLabel("Claimed net", { exact: true })).toBeDisabled();
   await expect(page.getByRole("region", { name: "Unclaimed Portion", exact: true })).toContainText("7260.00");
