@@ -15,6 +15,16 @@ export interface ExchangeRateProvider {
   rateFor(date: string, currency: string): Promise<CnbRate | null>;
 }
 
+/** Stored fixing associated with this Document; callers validate usable amounts/rates. */
+export function documentCzkConversion(
+  payload: Pick<ExtractionPayload, "currency" | "taxPointDate" | "czkConversion">,
+): CzkConversion | null {
+  const conversion = payload.czkConversion;
+  if (!conversion || conversion.originalCurrency !== payload.currency || !payload.taxPointDate
+    || conversion.rateDate > payload.taxPointDate) return null;
+  return conversion;
+}
+
 function withoutConversion(payload: ExtractionPayload): ExtractionPayload {
   const original = { ...payload };
   delete original.czkConversion;

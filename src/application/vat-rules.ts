@@ -1,6 +1,6 @@
 import { halers, amount, assessedVat } from "./money";
 import { partialClaimRates } from "./partial-claim";
-import { convertedAmount } from "./exchange-rates";
+import { convertedAmount, documentCzkConversion } from "./exchange-rates";
 import type {
   CompanyDetails,
   ReportingYear,
@@ -186,12 +186,7 @@ export function vatReportDocumentExclusion(document: ReportDocument): ExclusionR
   if (regime === "domestic_reverse_charge" && !/^\d{1,3}$/.test(p.reverseChargeCode ?? "")) {
     return "incomplete_data";
   }
-  if (
-    p.currency !== "CZK" &&
-    (!p.czkConversion ||
-      p.czkConversion.originalCurrency !== p.currency ||
-      p.czkConversion.rateDate > p.taxPointDate)
-  ) return "currency_conversion_required";
+  if (p.currency !== "CZK" && !documentCzkConversion(p)) return "currency_conversion_required";
   if (missingRequiredReportingVatId(p)) return "incomplete_data";
   return null;
 }
@@ -202,9 +197,8 @@ type CompleteExtractionPayload = Omit<ExtractionPayload, "rateBreakdown"> & { ra
 function reportingClaimRates(payload: ExtractionPayload): RateBreakdownLine[] | null {
   const selected = partialClaimRates(payload);
   if (!selected || payload.currency === "CZK") return selected;
-  const conversion = payload.czkConversion;
-  if (!conversion || conversion.originalCurrency !== payload.currency || !payload.taxPointDate
-    || conversion.rateDate > payload.taxPointDate) return null;
+  const conversion = documentCzkConversion(payload);
+  if (!conversion) return null;
   const converted = selected.map(line => ({
     rate: line.rate, netAmount: convertedAmount(line.netAmount, conversion), vatAmount: convertedAmount(line.vatAmount, conversion),
   }));

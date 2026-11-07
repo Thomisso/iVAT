@@ -342,3 +342,38 @@ it("still requires predecessor earliest-period confirmation for an expired valid
       .toEqual({ ok: false, error: "claim_eligibility_required" });
   });
 });
+
+it("keeps a foreign confirmed zero valid after expiry using its Document's own fixing", async () => {
+  await withClaimDate(inject("databaseUrl"), "2028-01-01", async () => {
+    const { getDocumentReview } = await import("@/application/document-review");
+    const { listDeferredClaimPeriods } = await import("@/application/documents");
+    const { generateVatReport, getVatReport } = await import("@/application/vat-reports");
+    const { exportVatReport } = await import("@/application/epo-export");
+    const user = await administratorWithCompany();
+    for (const year of [2025, 2027]) await setCurrentReportingYear(user.client, { companyId: user.companyId, year, filingFrequency: "monthly" });
+    const created = await createManualDocument(user.client, { companyId: user.companyId, payload: {
+      ...SAMPLE_EXTRACTION, currency: "EUR", taxPointDate: "2025-05-26", issueDate: "2025-05-26",
+      claimEligibility: { period: "2025-05", origin: "user", confirmed: true },
+      partialClaim: { confirmed: true, zeroConfirmed: true, rateBreakdown: [{ rate: 21, netAmount: "0.00", vatAmount: "0.00" }] },
+    } }, fakeExchangeRates("24.345"), fakeVatPayerRegistry());
+    if (!created.ok) throw new Error(created.error);
+    const input = { companyId: user.companyId, documentId: created.value.id };
+    const review = await getDocumentReview(user.client, input);
+    expect(review?.shown?.payload).toMatchObject({ currency: "EUR", czkConversion: {
+      originalCurrency: "EUR", rate: "24.345", unit: 1, rateDate: "2025-05-26",
+      totals: { netAmount: "24345.00", vatAmount: "5112.45", grossAmount: "29457.45" },
+    } });
+    expect(review?.shownFindings.some(finding => finding.code === "claim_deadline_expired")).toBe(false);
+    expect(await listDeferredClaimPeriods(user.client, input.companyId, input.documentId)).toContain("2027-12");
+    expect(await approveDocument(user.client, { ...input, version: 1 })).toEqual({ ok: true, value: null });
+    expect(await generateVatReport(user.client, { companyId: user.companyId, period: "2025-05" })).toMatchObject({ ok: true });
+    const report = await getVatReport(user.client, user.companyId, "2025-05");
+    expect(report?.result.totals.inputVat).toBe("0.00");
+    expect(report?.result.controlStatement).toEqual([]);
+    const exported = await exportVatReport(user.client, { companyId: user.companyId, period: "2025-05", format: "dphdp3", details: {
+      taxOffice: "451", territorialOffice: "2003", economicActivity: "621000", personType: "P", preparedOn: "2028-01-01",
+      email: "qa@example.test", phone: "", signatoryFirstName: "Jana", signatoryLastName: "Nováková", signatoryCapacity: "jednatelka",
+    } });
+    expect(exported).toMatchObject({ ok: true, value: { xml: expect.stringContaining('odp_tuz23_nar="0"') } });
+  });
+});
