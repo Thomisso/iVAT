@@ -1207,6 +1207,15 @@
     "aiReplacementWarning": "AI nahradí aktuální hodnoty a odebere případné schválení. Všechny předchozí verze zůstanou v historii. Úspěšný výsledek vyžaduje novou lidskou kontrolu a započítá se jako jedno úspěšné AI zpracování. Při selhání zůstanou poslední hodnoty a historie; schválení se automaticky neobnoví.",
     "aiReplacementConfirm": "Rozumím, že AI nahradí aktuální hodnoty a odebere schválení.",
     "aiReplacementStart": "Spustit nahrazení pomocí AI",
+    "sourceFor": "Předloha pro {field}",
+    "sourcePage": "Strana originálu",
+    "sourceZoom": "Přiblížení",
+    "sourceRenderedPage": "Strana originálu {page}",
+    "sourceUnavailable": "Náhled PDF není dostupný.",
+    "sourceNoLocation": "Zvýraznění tohoto údaje není dostupné.",
+    "sourceManual": "Ručně upraveno",
+    "sourceOriginalValue": "AI přečetla: {value}",
+    "sourceZoomValue": "{percent}%",
     "preparedWarnings": "Upozornění pro tyto rozepsané hodnoty",
     "approvePreparedWarnings": "Schválit tyto hodnoty s upozorněními",
     "compareCurrent": "Porovnat aktuální údaje",
@@ -1214,7 +1223,9 @@
     "submittedNotSaved": "Rozepsané hodnoty nebyly uloženy. Porovnejte je s aktuálními údaji níže.",
     "comparisonField": "Pole",
     "submittedValue": "Rozepsaná hodnota",
-    "currentValue": "Aktuální hodnota"
+    "currentValue": "Aktuální hodnota",
+    "sourceInspect": "Inspect",
+    "sourceInspectCrop": "Zvětšený výřez předlohy"
   },
   "duplicateWarning": {
     "document_identity": "Možný duplikát: DIČ protistrany, číslo dokladu a směr se shodují se starším dokladem.",

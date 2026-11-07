@@ -26,6 +26,35 @@ async function openAiStandIn(
 }
 
 describe("OpenAI provider", () => {
+  it("requests PDF field locations relative to the oriented input pages", async () => {
+    let requestBody: unknown;
+    const sourceLocations = [
+      { fieldPath: "documentNumber", kind: "page", page: 2, x: 0.1, y: 0.2, width: 0.3, height: 0.05 },
+    ];
+    const baseUrl = await openAiStandIn((_request, body, response) => {
+      requestBody = body;
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({
+        model: "gpt-extract", status: "completed",
+        output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify({ ...SAMPLE_EXTRACTION, sourceLocations }) }] }],
+      }));
+    });
+    const provider = openAiProvider({ apiKey: "test-secret", splitModel: "gpt-split", extractModel: "gpt-extract", baseUrl });
+    await expect(provider.extract({ format: "pdf", mediaType: "application/pdf", bytes: new Uint8Array([37, 80, 68, 70]), pageCount: 2 }))
+      .resolves.toMatchObject({ payload: { documentNumber: "FV-2026-0001", sourceLocations } });
+    expect(requestBody).toMatchObject({
+      input: [{ content: expect.arrayContaining([expect.objectContaining({ type: "input_text", text: expect.stringMatching(/sourceLocations[\s\S]*oriented[\s\S]*1-based/) })]) }],
+      text: { format: { schema: {
+        required: expect.arrayContaining(["sourceLocations"]),
+        properties: { sourceLocations: { type: "array", items: {
+          additionalProperties: false,
+          required: ["fieldPath", "kind", "page", "x", "y", "width", "height"],
+          properties: { kind: { enum: ["page"] }, page: { type: "integer", minimum: 1 } },
+        } } },
+      } } },
+    });
+  });
+
   it.each([1, 2])("refuses a nullable human draft row in provider payload version %i", async (schemaVersion) => {
     const baseUrl = await openAiStandIn((_request, _body, response) => {
       response.writeHead(200, { "content-type": "application/json" });

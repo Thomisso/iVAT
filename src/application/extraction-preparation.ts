@@ -6,7 +6,13 @@ import { vatRegistryFindings, type VatPayerRegistry } from "./vat-registry";
 
 /** Manual draft refusals precede the correction's RLS lookup and any external work. */
 export function prepareManualExtractionPayload(candidate: ExtractionPayload): Result<ExtractionPayload, ManualDocumentPayloadError> {
-  const payload = normalizeExtractionPayload(candidate);
+  // Keep the caller's pre-normalization row identity when this preparation
+  // removes zero/empty rows. Already compacted rows without a map remain
+  // ambiguous and the database safely omits their references.
+  const payload = normalizeExtractionPayload(candidate.sourceRateRows ? candidate : {
+    ...candidate, sourceRateRows: candidate.rateBreakdown.map((_, index) => index),
+  });
+  if (!candidate.sourceRateRows && payload.rateBreakdown.length === candidate.rateBreakdown.length) delete payload.sourceRateRows;
   const invalid = validateManualDocumentPayload(payload);
   if (invalid) return { ok: false, error: invalid };
   delete payload.confidence;
