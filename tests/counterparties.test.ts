@@ -1,11 +1,11 @@
 import { strFromU8, unzipSync } from "fflate";
-import { exportCompanyData, getCompanyDataExportStatus } from "@/application/company-deletion";
+import { exportCompanyData, getCompanyDataExportStatus, softDeleteCompany } from "@/application/company-deletion";
 import { testWorker } from "./support/worker";
 import { expect, it } from "vitest";
 import { createCounterparty, getCounterparty, listCounterparties, updateCounterparty } from "@/application/counterparties";
-import { createCompany } from "@/application/companies";
+import { createCompany, getCompany } from "@/application/companies";
 import { provisionedUser } from "./support/clients";
-import { archiveCounterpartyFixture } from "./support/counterparties";
+import { archiveCounterpartyFixture, directoryMutationAfterCompanyDeletion } from "./support/counterparties";
 import { listAuditEvents } from "@/application/audit";
 import { promotedSuperAdministrator } from "./support/platform";
 import { administratorWithCompany, companyMember, companyDetails } from "./support/fixtures";
@@ -157,7 +157,7 @@ it("keeps archived IDs reserved and refuses edits colliding with either identifi
   if (!other.ok) throw new Error(other.error);
   expect(await updateCounterparty(company.client, { ...values, id: other.value.id, vatId: "SK1234567890" })).toEqual({ ok: false, error: "counterparty_identity_taken" });
   expect(await updateCounterparty(company.client, { ...values, id: other.value.id, ico: "12345679" })).toEqual({ ok: false, error: "counterparty_identity_taken" });
-  await archiveCounterpartyFixture(original.value.id);
+  await archiveCounterpartyFixture(original.value.id, company.userId);
   expect((await listCounterparties(company.client, company.companyId)).entries.map(entry => entry.name)).toEqual(["Other identity"]);
   expect((await getCounterparty(company.client, company.companyId, original.value.id))?.archivedAt).not.toBeNull();
   expect(await createCounterparty(company.client, { ...values, ico: "2708 2440", vatId: "cz 27082440" })).toEqual({ ok: false, error: "counterparty_identity_taken" });
@@ -193,4 +193,35 @@ it("preserves the directory in Company archives and invalidates an export after 
   expect(await getCompanyDataExportStatus(company.client, { companyId: company.companyId, exportId: exported.value.exportId })).toEqual({ ok: true, value: "completed" });
   expect(await updateCounterparty(company.client, { companyId: company.companyId, id: created.value.id, name: "Changed after export", supplier: true, customer: false })).toEqual({ ok: true, value: null });
   expect(await getCompanyDataExportStatus(company.client, { companyId: company.companyId, exportId: exported.value.exportId })).toEqual({ ok: true, value: "stale" });
+});
+
+
+it.each(["create", "update"] as const)("refuses a concurrent directory %s after Company deletion wins its lock", async operation => {
+  const company = await administratorWithCompany();
+  const user = await companyMember(company);
+  const values = { companyId: company.companyId, name: "Before deletion", supplier: true, customer: false };
+  let counterpartyId = "";
+  if (operation === "update") {
+    const created = await createCounterparty(user.client, values);
+    if (!created.ok) throw new Error(created.error);
+    counterpartyId = created.value.id;
+  }
+  const worker = testWorker();
+  const exported = await exportCompanyData(company.client, worker.jobs, { companyId: company.companyId });
+  if (!exported.ok) throw new Error(exported.error);
+  expect(await worker.runJobs()).toEqual([]);
+  const mutation = () => operation === "create"
+    ? createCounterparty(user.client, { ...values, name: "After deletion" })
+    : updateCounterparty(user.client, { ...values, id: counterpartyId, name: "After deletion" });
+  const outcomes = await directoryMutationAfterCompanyDeletion(company.companyId,
+    () => softDeleteCompany(company.client, { companyId: company.companyId, exportId: exported.value.exportId }),
+    mutation,
+  );
+  expect(outcomes).toEqual([
+    { status: "fulfilled", value: { ok: true, value: { sourceFileCount: 0, documentCount: 0, approvedDocumentCount: 0, periodLockCount: 0 } } },
+    { status: "fulfilled", value: { ok: false, error: "forbidden" } },
+  ]);
+  expect(await getCompany(company.client, company.companyId)).toBeNull();
+  const changes = (await listAuditEvents(company.client, company.organizationId)).filter(event => event.action.startsWith("counterparty."));
+  expect(changes.map(event => event.action)).toEqual(operation === "create" ? [] : ["counterparty.created"]);
 });
