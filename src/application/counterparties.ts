@@ -59,7 +59,7 @@ export async function getCounterparty(client: AppClient, companyId: string, id: 
   if (error) throw error;
   return data ? counterparty(data) : null;
 }
-export type CounterpartyFilters = { search?: string; role?: "supplier" | "customer"; page?: number; pageSize?: number };
+export type CounterpartyFilters = { state?: "active" | "archived"; search?: string; role?: "supplier" | "customer"; page?: number; pageSize?: number };
 export type CounterpartyPage = { entries: Counterparty[]; total: number; page: number; pageSize: number; pageCount: number };
 export async function listCounterparties(client: AppClient, companyId: string, input: CounterpartyFilters = {}): Promise<CounterpartyPage> {
   const page = Number.isFinite(input.page) ? Math.max(1, Math.trunc(input.page!)) : 1;
@@ -67,7 +67,7 @@ export async function listCounterparties(client: AppClient, companyId: string, i
   if (!isUuid(companyId)) return { entries: [], total: 0, page, pageSize, pageCount: 1 };
   const from = (page - 1) * pageSize;
   const { data, error, count } = await client.rpc("search_counterparties", {
-    target_company_id: companyId, search_text: input.search?.trim() ?? "", directory_role: input.role ?? "",
+    directory_state: input.state ?? "active", target_company_id: companyId, search_text: input.search?.trim() ?? "", directory_role: input.role ?? "",
   }, { count: "exact" }).order("name").order("id").range(from, from + pageSize - 1);
   if (error) throw error;
   const total = count ?? 0;
@@ -95,4 +95,36 @@ export async function listCounterpartyDocuments(client: AppClient, companyId: st
   if (error) throw error;
   return { entries: data.map(row => ({ documentId: row.document_id, version: row.version, documentNumber: row.document_number })),
     total: count ?? 0, page, pageCount: Math.max(1, Math.ceil((count ?? 0) / pageSize)) };
+}
+
+
+export async function archiveCounterparty(client: AppClient, input: { companyId: string; id: string }): Promise<Result<null, "forbidden">> {
+  if (!isUuid(input.companyId) || !isUuid(input.id)) return { ok: false, error: "forbidden" };
+  const { error } = await client.rpc("archive_counterparty", {
+    target_company_id: input.companyId, target_counterparty_id: input.id,
+  });
+  if (error?.code === "42501") return { ok: false, error: "forbidden" };
+  if (error) throw error;
+  return { ok: true, value: null };
+}
+
+export async function restoreCounterparty(client: AppClient, input: { companyId: string; id: string }): Promise<Result<null, "forbidden">> {
+  if (!isUuid(input.companyId) || !isUuid(input.id)) return { ok: false, error: "forbidden" };
+  const { error } = await client.rpc("restore_counterparty", {
+    target_company_id: input.companyId, target_counterparty_id: input.id,
+  });
+  if (error?.code === "42501") return { ok: false, error: "forbidden" };
+  if (error) throw error;
+  return { ok: true, value: null };
+}
+
+export async function deleteCounterparty(client: AppClient, input: { companyId: string; id: string }): Promise<Result<null, "forbidden" | "counterparty_in_use">> {
+  if (!isUuid(input.companyId) || !isUuid(input.id)) return { ok: false, error: "forbidden" };
+  const { error } = await client.rpc("delete_counterparty", {
+    target_company_id: input.companyId, target_counterparty_id: input.id,
+  });
+  if (error?.code === "42501") return { ok: false, error: "forbidden" };
+  if (error?.code === "P0001" && error.hint === "counterparty_in_use") return { ok: false, error: "counterparty_in_use" };
+  if (error) throw error;
+  return { ok: true, value: null };
 }
