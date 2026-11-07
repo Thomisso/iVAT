@@ -30,3 +30,11 @@ it("exposes addressable cells and the actual header without leaking another Docu
     ],
   });
 });
+
+it("refuses a fractional Document row instead of inventing a workbook source address", () => {
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([["Number"], ["ROW-2"], ["ROW-3"]]), "Invoices");
+  const bytes = XLSX.write(workbook, { type: "array", bookType: "xlsx" });
+  expect(() => workbookRowsToText(bytes, { sheetName: "Invoices", firstRow: 2.5, lastRow: 3 }))
+    .toThrow("Document row set is outside the workbook");
+});
