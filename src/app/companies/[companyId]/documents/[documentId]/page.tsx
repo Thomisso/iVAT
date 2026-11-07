@@ -1,3 +1,5 @@
+import { SourceEvidenceProvider } from "./source-evidence-context";
+import { PdfSourceViewer } from "./pdf-source-viewer";
 import { getDocumentReview } from "@/application/document-review";
 import Link from "next/link";
 import { randomUUID } from "node:crypto";
@@ -83,6 +85,7 @@ export default async function DocumentReviewPage({
 
   return (
     <>
+      <SourceEvidenceProvider key={viewingRecorded ? `recorded-${shown?.id}` : document.id} payload={shown?.payload ?? emptyDocumentPayload()} version={shown?.version ?? 0} versionId={shown?.id ?? ""}>
       <PageLayout className="review" measure="wide">
         <header className="review-header">
           <nav className="review-queue-nav" aria-label={t("review.queueNavigation")}>
@@ -160,7 +163,7 @@ export default async function DocumentReviewPage({
           ))}
         </header>
         <section className="review-original">
-          {file ? <DocumentViewer label={file.fileName}>
+          {file?.format === "pdf" && !document.rowSet ? <PdfSourceViewer href={contentUrl} label={file.fileName} firstPage={document.firstPage!} lastPage={document.lastPage!} /> : file ? <DocumentViewer label={file.fileName}>
             {document.rowSet ? (
               <div className="workbook-source">
                 <Notice>{t("review.noDocumentImage")}</Notice>
@@ -233,6 +236,7 @@ export default async function DocumentReviewPage({
               companyId={companyId}
               documentId={document.id}
               version={shown.version}
+              extractionVersionId={shown.id}
               requestId={randomUUID()}
               displayedBankAccountCheckId={bankChecks.current?.id ?? null}
               displayedReviewContext={review.displayedReviewContext}
@@ -297,6 +301,7 @@ export default async function DocumentReviewPage({
           )}
         </section>
       </PageLayout>
+      </SourceEvidenceProvider>
       <RefreshWhile
         active={
           company.aiProcessingEnabled &&

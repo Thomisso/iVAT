@@ -2,9 +2,10 @@ import { readDocumentPages } from "@/application/documents";
 import { requireUserClient } from "@/lib/supabase/server";
 
 // Serves the Document's own pages for the review workspace, as the signed-in user.
-export async function GET(_request: Request, ctx: RouteContext<"/companies/[companyId]/documents/[documentId]/content">) {
+export async function GET(request: Request, ctx: RouteContext<"/companies/[companyId]/documents/[documentId]/content">) {
   const { companyId, documentId } = await ctx.params;
-  const pages = await readDocumentPages(await requireUserClient(), companyId, documentId);
+  const requested = new URL(request.url).searchParams.get("version");
+  const pages = await readDocumentPages(await requireUserClient(), companyId, documentId, requested === null ? undefined : Number(requested));
   if (!pages) return new Response(null, { status: 404 });
 
   return new Response(Buffer.from(pages.bytes), {

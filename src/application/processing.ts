@@ -1,3 +1,4 @@
+import { bindPdfSourceEvidence } from "./source-locations";
 import {
   AiProviderError,
   type AiInput,
@@ -346,7 +347,7 @@ async function extractDocument(
 ) {
   const { data: document, error } = await system
     .from("document")
-    .select("id, organization_id, company_id, source_file_id, first_page, last_page, source_sheet, first_row, last_row, status, superseded_at, extraction_request_id, source_file (format, normalized_format)")
+    .select("id, organization_id, company_id, source_file_id, first_page, last_page, source_sheet, first_row, last_row, status, superseded_at, extraction_request_id, source_file (format, normalized_format, sha256)")
     .eq("id", documentId)
     .single();
   if (error) throw error;
@@ -426,8 +427,12 @@ async function extractDocument(
         .eq("id", document.company_id)
         .single();
       if (companyError) throw companyError;
+      const evidencePayload = bindPdfSourceEvidence(extractedPayload, {
+        sourceFileId, documentId: document.id, sha256: document.source_file!.sha256,
+        requestId: document.extraction_request_id, format: processingFile.format, firstPage, lastPage,
+      });
       const prepared = await prepareExtractionVersion({
-        ...extractedPayload,
+        ...evidencePayload,
         direction: detectDocumentDirection(
           extractedPayload,
           { ico: company.ico, vatId: company.vat_id },
