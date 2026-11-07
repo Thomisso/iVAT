@@ -23,12 +23,19 @@ create table public.counterparty (
 create function private.prepare_counterparty()
 returns trigger language plpgsql security definer set search_path = ''
 as $$
+declare
+  target public.company;
 begin
+  -- Serialize every directory write with Company deletion before changing data.
+  -- Inspect the locked row: an earlier statement snapshot may still show it active.
+  select * into target from public.company where id = new.company_id for update;
+  if not found or target.deleted_at is not null
+    or not private.can_access_company(target.id, target.organization_id)
+  then
+    raise insufficient_privilege;
+  end if;
   if tg_op = 'INSERT' then
-    select c.organization_id into new.organization_id from public.company c where c.id = new.company_id;
-    if new.organization_id is null or not private.can_access_company(new.company_id, new.organization_id) then
-      raise insufficient_privilege;
-    end if;
+    new.organization_id := target.organization_id;
   end if;
   new.name := btrim(new.name);
   new.ico := nullif(regexp_replace(new.ico, '[[:space:]]', '', 'g'), '');
