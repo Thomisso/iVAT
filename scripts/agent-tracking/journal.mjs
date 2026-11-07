@@ -63,6 +63,8 @@ function acquireLock(directory, depth = 0) {
   if (depth > 8) throw new TrackerError("local_lock_unverified");
   try { fs.mkdirSync(directory); }
   catch (error) {
+    // Another reclaimer can retire the parent before this election starts.
+    if (error.code === "ENOENT" && depth > 0) throw new TrackerError("local_run_busy");
     if (error.code !== "EEXIST") throw error;
     const previous = fs.lstatSync(directory);
     if (!previous.isDirectory() || previous.isSymbolicLink()) throw new TrackerError("local_lock_unverified");
