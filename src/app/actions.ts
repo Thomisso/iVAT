@@ -589,6 +589,7 @@ function payloadFromForm(formData: FormData): ExtractionPayload {
     taxPointDate: optionalField(formData, "taxPointDate"),
     dueDate: optionalField(formData, "dueDate"),
     direction: optionalField(formData, "direction") as ExtractionPayload["direction"],
+    ...(optionalField(formData, "counterpartyId") ? { counterpartyLink: { id: field(formData, "counterpartyId") } } : {}),
     supplier: partyFromForm(formData, "supplier"),
     customer: partyFromForm(formData, "customer"),
     currency: optionalField(formData, "currency"),
@@ -656,7 +657,7 @@ export async function reviewDocumentAction(_state: DocumentReviewFormState, form
   const client = await requireUserClient();
   const companyId = field(formData, "companyId");
   const documentId = field(formData, "documentId");
-  const input = { companyId, documentId, basedOnVersion: Number(field(formData, "basedOnVersion")), requestId: field(formData, "requestId"), displayedBankAccountCheckId: optionalField(formData, "displayedBankAccountCheckId"), payload: payloadFromForm(formData) };
+  const input = { companyId, documentId, basedOnVersion: Number(field(formData, "basedOnVersion")), requestId: field(formData, "requestId"), displayedBankAccountCheckId: optionalField(formData, "displayedBankAccountCheckId"), displayedReviewContext: optionalField(formData, "displayedReviewContext") ?? undefined, payload: payloadFromForm(formData) };
   const values = Object.fromEntries([...formData.entries()].filter(([name, value]) => !name.startsWith("$") && typeof value === "string")) as Record<string, string>;
   if (field(formData, "intent") !== "approve") {
     const saved = await correctDocument(client, input, configuredExchangeRates(), configuredVatPayerRegistry());

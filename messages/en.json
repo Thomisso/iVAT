@@ -1134,7 +1134,8 @@
       "direction_unknown": "Direction could not be detected from the Company identity. Set it before approval.",
       "currency_conversion_not_performed": "The ČNB exchange rate was unavailable, so CZK amounts could not be calculated.",
       "manual_classification_required": "This VAT treatment is outside the supported regimes and requires manual classification.",
-      "reverse_charge_code_required": "Enter the official reverse-charge subject code."
+      "reverse_charge_code_required": "Enter the official reverse-charge subject code.",
+      "counterparty_directory_difference": "Counterparty detail on the Document: “{documentValue}”; in the directory: “{directoryValue}”."
     },
     "noDocumentImage": "This Document came from spreadsheet rows and has no document image.",
     "sections": {
@@ -1207,6 +1208,28 @@
     "aiReplacementWarning": "AI will replace the current values and withdraw any approval. All earlier Versions stay in history. A successful result needs a new human review and uses one successful AI allowance. Failure keeps the last values and history; approval is not restored automatically.",
     "aiReplacementConfirm": "I understand that AI will replace the current values and withdraw approval.",
     "aiReplacementStart": "Run AI replacement",
+    "preparedWarnings": "Warnings for these submitted values",
+    "approvePreparedWarnings": "Approve these values with warnings",
+    "compareCurrent": "Compare current data",
+    "compareVersion": "Current version {version}",
+    "submittedNotSaved": "Your submitted values have not been saved. Compare them with the current data below.",
+    "comparisonField": "Field",
+    "submittedValue": "Submitted value",
+    "currentValue": "Current value",
+    "directory": {
+      "title": "Counterparty Directory",
+      "linkHint": "Link an existing entry. The Document keeps its own details.",
+      "selected": "Linked Counterparty",
+      "clear": "Remove link",
+      "search": "Search existing Counterparties",
+      "searchAction": "Search directory",
+      "choose": "Link {name}",
+      "empty": "No matching Counterparties.",
+      "copy": "Copy directory details to Document",
+      "recorded": "Recorded directory details",
+      "notRecorded": "No directory link is recorded for this Version.",
+      "open": "Open linked Counterparty"
+    },
     "sourceFor": "Source for {field}",
     "sourcePage": "Original page",
     "sourceZoom": "Zoom",
@@ -1216,14 +1239,6 @@
     "sourceManual": "Manually corrected",
     "sourceOriginalValue": "AI read: {value}",
     "sourceZoomValue": "{percent}%",
-    "preparedWarnings": "Warnings for these submitted values",
-    "approvePreparedWarnings": "Approve these values with warnings",
-    "compareCurrent": "Compare current data",
-    "compareVersion": "Current version {version}",
-    "submittedNotSaved": "Your submitted values have not been saved. Compare them with the current data below.",
-    "comparisonField": "Field",
-    "submittedValue": "Submitted value",
-    "currentValue": "Current value",
     "sourceInspect": "Inspect",
     "sourceInspectCrop": "Magnified source"
   },
@@ -1774,6 +1789,11 @@
     "pagination": "Directory pages",
     "previous": "Previous",
     "next": "Next",
-    "page": "Page {page} of {total}"
+    "page": "Page {page} of {total}",
+    "linkedDocuments": "Linked Documents",
+    "linkedCount": "Documents: {count}",
+    "unnumberedDocument": "Document without a number",
+    "noLinkedDocuments": "No linked Documents.",
+    "documentPages": "Linked Document pages"
   }
 }

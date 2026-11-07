@@ -18,6 +18,8 @@ import { Button } from "@/components/button";
 import { TextField } from "@/components/text-field";
 import { FormError } from "@/components/form-error";
 import { DateInput } from "@/components/date-input";
+import { CounterpartyLinkSummary } from "./counterparty-link-summary";
+import { CounterpartyLinkFields } from "./counterparty-link-fields";
 import { StatusBadge } from "@/components/status-badge";
 import { statusBadgeState } from "@/components/status-badge-state";
 
@@ -37,6 +39,8 @@ export function CorrectionForm({
   aiProposed,
   requestId,
   displayedBankAccountCheckId,
+  displayedReviewContext,
+  currentCounterparty,
   decision,
 }: {
   companyId: string;
@@ -49,6 +53,8 @@ export function CorrectionForm({
   aiProposed?: boolean;
   requestId?: string;
   displayedBankAccountCheckId?: string | null;
+  displayedReviewContext?: string;
+  currentCounterparty?: ExtractionPayload["counterpartyLink"] | null;
   decision?: { nextDocumentId: string; queueQuery: string; returnTo: string };
 }) {
   const t = useTranslations("review");
@@ -59,19 +65,19 @@ export function CorrectionForm({
   });
   // A Server Action may rerender the page with someone else's newer Version.
   // Keep this draft's base until our explicit save actually succeeds.
-  const [base, setBase] = useState({ version: currentVersion, payload: currentPayload, findings: currentFindings, requestId, displayedBankAccountCheckId, extractionVersionId });
+  const [base, setBase] = useState({ version: currentVersion, payload: currentPayload, findings: currentFindings, requestId, displayedBankAccountCheckId, displayedReviewContext, extractionVersionId });
   const { version, payload, findings } = base;
   const [lines, setLines] = useState(() =>
     payload.rateBreakdown.flatMap((line, index) => isZeroRateBreakdownLine(line) ? [] : [index]),
   );
   if (state.savedVersion !== undefined && state.savedVersion === currentVersion && base.version !== currentVersion) {
-    setBase({ version: currentVersion, payload: currentPayload, findings: currentFindings, requestId, displayedBankAccountCheckId, extractionVersionId });
+    setBase({ version: currentVersion, payload: currentPayload, findings: currentFindings, requestId, displayedBankAccountCheckId, displayedReviewContext, extractionVersionId });
     setLines(currentPayload.rateBreakdown.flatMap((line, index) => isZeroRateBreakdownLine(line) ? [] : [index]));
-  } else if (base.version === currentVersion && base.displayedBankAccountCheckId !== displayedBankAccountCheckId) {
+  } else if (base.version === currentVersion && (base.displayedBankAccountCheckId !== displayedBankAccountCheckId || base.displayedReviewContext !== displayedReviewContext)) {
     // An explicit same-Version refresh has rendered this dated observation.
     // Keep the draft's fields, Version and operation ID; another Version's
     // observation must never be adopted by this draft.
-    setBase({ ...base, displayedBankAccountCheckId });
+    setBase({ ...base, displayedBankAccountCheckId, displayedReviewContext });
   }
   useEffect(() => {
     if (source && source.version !== base.version) source.acceptBase(base.payload, base.version, base.extractionVersionId ?? "");
@@ -187,6 +193,7 @@ export function CorrectionForm({
       <input type="hidden" name="basedOnVersion" value={version} />
       <input type="hidden" name="requestId" value={base.requestId ?? ""} />
       <input type="hidden" name="displayedBankAccountCheckId" value={base.displayedBankAccountCheckId ?? ""} />
+      <input type="hidden" name="displayedReviewContext" value={base.displayedReviewContext ?? ""} />
       <input type="hidden" name="acknowledgement" value={state.confirmation?.id ?? ""} />
       {decision && Object.entries(decision).map(([name, entry]) => <input key={name} type="hidden" name={name} value={entry} />)}
       <fieldset>
@@ -224,6 +231,8 @@ export function CorrectionForm({
           {text("originalDocumentNumber", payload.originalDocumentNumber)}
         </div>
       </fieldset>
+      <CounterpartyLinkSummary companyId={companyId} link={payload.counterpartyLink} />
+      {editable && <CounterpartyLinkFields companyId={companyId} initialId={state.values.counterpartyId ?? payload.counterpartyLink?.id ?? ""} initialName={currentCounterparty?.recorded?.name ?? payload.counterpartyLink?.recorded?.name} currentDirectory={currentCounterparty} />}
       {party("supplier")}
       {party("customer")}
       <fieldset>

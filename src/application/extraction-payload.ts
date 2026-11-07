@@ -71,6 +71,8 @@ export type ExtractionPayload = {
   taxPointDate: string | null;
   dueDate: string | null;
   direction: Direction | null;
+  /** Existing directory identity and its then-current details; never replaces Party fields. */
+  counterpartyLink?: { id: string; recorded?: Party };
   supplier: Party;
   customer: Party;
   /** ISO 4217, e.g. "CZK". */
