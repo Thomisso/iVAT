@@ -1,6 +1,6 @@
 # Multi-ticket implementation
 
-Use this workflow when one spec is implemented through parallel tickets. Its completion criterion is one reviewable integration pull request whose child diffs and combined behavior have both passed review.
+Use this workflow when one spec is implemented through parallel tickets. Its completion criterion is one reviewable integration pull request whose child diffs and combined behavior have both passed review. Apply the [CLI process and evidence rules](cli-processes.md) to every implementation, review and verification step, including external skills; keep unproven required evidence outstanding.
 
 ## Reporting entry point
 
