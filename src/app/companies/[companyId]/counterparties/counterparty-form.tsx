@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { useTranslations } from "next-intl";
 import type { Counterparty } from "@/application/counterparties";
@@ -21,6 +22,7 @@ export function CounterpartyForm({ companyId, entry }: { companyId: string; entr
     <input type="hidden" name="companyId" value={companyId} />
     <input type="hidden" name="id" value={entry?.id ?? ""} />
     <FormError error={state.error} />
+    {state.error === "counterparty_identity_taken" && <Link href={`/companies/${companyId}/counterparties?${new URLSearchParams({ state: "archived", search: values.ico || values.vatId || values.name })}`}>{t("searchArchived")}</Link>}
     <TextField name="name" label={t("name")} defaultValue={values.name} maxLength={255} required error={fieldError("name_required", "name_too_long")} />
     <div className="form-row">
       <TextField name="ico" label={t("ico")} defaultValue={values.ico} error={fieldError("invalid_ico")} />
