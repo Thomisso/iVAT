@@ -1,3 +1,4 @@
+import { setOctoberImportFixture } from "./support/claim-eligibility";
 import { expect, it } from "vitest";
 import { saveCompanyFilingDefaults } from "@/application/company-filing-defaults";
 import { acknowledgeVatReportDownload, exportVatReport } from "@/application/epo-export";
@@ -133,6 +134,7 @@ it("lists the Documents still needing review and blocks later steps until they a
     bytes: fixtureFile("two-invoices.pdf"),
   });
   if (!uploaded.ok) throw new Error(uploaded.error);
+  await setOctoberImportFixture(uploaded.value.id);
   expect(await worker.runJobs()).toEqual([]);
   const input = { companyId: company.companyId, period: "2026-10" };
   expect((await generateVatReport(company.client, input)).ok).toBe(true);

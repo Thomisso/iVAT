@@ -1,3 +1,4 @@
+import { setOctoberImportFixture } from "./support/claim-eligibility";
 import { refreshBankAccountCheck } from "@/application/bank-account-checks";
 import { fakeVatPayerRegistry } from "@/vat-registry/fake";
 import { describe, expect, it, vi } from "vitest";
@@ -19,6 +20,7 @@ import { createCompany } from "@/application/companies";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import {
   administratorWithCompany,
+  knownSupplierFixture,
   assignAiConfigurationFixture as enableAiProcessing,
   companyDetails,
   companyMember,
@@ -47,6 +49,7 @@ async function finishedBatch(
       ...file,
     });
     if (!uploaded.ok) throw new Error(uploaded.error);
+    await setOctoberImportFixture(uploaded.value.id);
   }
   await finishUploadBatch(client, batch.value.id);
   expect(await worker.runJobs()).toEqual([]);
@@ -83,6 +86,7 @@ async function companyWithAi() {
     }),
   }));
   const admin = { ...user, companyId: created.value.id };
+  await knownSupplierFixture(admin);
   await enableAiProcessing(admin.client, worker.jobs, { companyId: admin.companyId, provider: worker.ai });
   return { ...admin, worker };
 }
