@@ -163,33 +163,41 @@ npm run db:start
 npm test
 ```
 
-Integration and browser fixtures provision accounts through the isolated Auth
-admin API, then sign in with their real credentials. Browser scenarios still
-use the login UI; they do not need public registration. Privileged setup runs
-only in the test process using the local stack's secret key, with no public
-provisioning endpoint or browser access to that key. `db:start` exposes this
-checkout's Mailpit SMTP port and writes local-only invitation capture settings
-to `.env.local`; routine browser tests never use the production mailbox.
+Integration and HTTP acceptance fixtures provision accounts through the isolated
+Auth admin API, then sign in through real Auth. Privileged setup stays in the
+Node test process; session cookies use the native Supabase SSR serializer and
+never appear in reports. No public provisioning endpoint is added.
 
-The end-to-end acceptance suite stops this worktree's existing Supabase stack
-without retaining its data, starts only the services needed by the browser
-tests, builds the production Next.js application, and runs it with the worker
-and fake AI provider. Install Chromium once after `npm ci`, then run the same
-production-mode suite used by CI:
+The production acceptance command owns this worktree's disposable Supabase
+stack: it stops it without retaining data, starts Auth/Storage/Mailpit and the
+real worker, builds and starts Next.js, then runs the HTTP suite:
 
 ```bash
-npx playwright install chromium
-npm run test:e2e
+npm run test:http
 ```
 
-For a faster local loop that uses `next dev` and skips the production build,
-run `npm run test:e2e:dev`; use the production-mode command for final
-verification. The suite covers authentication and invitations, Company and
-Platform administration, uploads and background remediation, reporting and
-exports, responsive shell behavior, and accessibility. It does not call a real
-AI provider or another external network service. On failure, Playwright traces
-and separate Next.js, worker, and Postman logs are retained under
-`test-results/`.
+Run it from a linked worktree; it refuses the human main checkout before any
+database command. CI uses disposable runners. `IVAT_HTTP_BASE_URL` may select an
+unused `http://127.0.0.1:PORT`; otherwise the runner allocates a free port. A
+busy port fails before the database reset. Normal completion and startup
+failure stop the owned services and database. Failures retain service logs in
+`test-results/service-logs/`.
+
+`npm run test:e2e` is an alias for the same HTTP runner. For a focused loop
+without the production build, use `npm run test:http:dev` (`test:e2e:dev` is
+its alias). Final acceptance uses the production command. No browser binary
+installation or browser process is part of either path.
+
+The suite checks localized SSR, anonymous/member/foreign-tenant authority,
+upload HTTP requests and durable worker completion, current/recorded Document
+responses, original/page bytes and headers, draft/final immutable XML artifacts,
+and real private Auth transport with failure/recovery. Its ARES dependency is
+the existing local Postman simulation; AI, VAT registry and exchange rates use
+the established fake adapters. It does not call real external providers.
+It proves HTTP/application outcomes, not hydration, focus, keyboard behavior,
+responsive layout, accessibility or visual rendering. Those client-specific
+claims remain unverified. Retained `e2e/` Playwright files are historical/source
+inventory and are not an executable verification path under the project policy.
 
 The real-provider extraction evaluation is a separate manual command. Its
 versioned golden-set format, credentials, model overrides, scoring rules, and
