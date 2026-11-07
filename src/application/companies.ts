@@ -57,6 +57,7 @@ export type Company = CompanyDetails & {
   street: string;
   /** Generic processing state; provider/configuration details are platform-only. */
   aiProcessingEnabled: boolean;
+  automaticApprovalEnabled: boolean;
 };
 
 export type CompanySummary = { id: string; organizationId: string; name: string };
@@ -305,7 +306,7 @@ export async function getCompany(client: AppClient, companyId: string): Promise<
   if (!isUuid(companyId)) return null;
   const { data, error } = await client
     .from("company")
-    .select("id, organization_id, name, first_name, last_name, ico, vat_id, street, street_name, house_number, orientation_number, city, postal_code, person_type, ai_processing_enabled")
+    .select("id, organization_id, name, first_name, last_name, ico, vat_id, street, street_name, house_number, orientation_number, city, postal_code, person_type, ai_processing_enabled, automatic_approval_enabled")
     .eq("id", companyId)
     .maybeSingle();
   if (error) throw error;
@@ -330,7 +331,21 @@ export async function getCompany(client: AppClient, companyId: string): Promise<
     postalCode: data.postal_code,
     personType: data.person_type,
     aiProcessingEnabled: data.ai_processing_enabled,
+    automaticApprovalEnabled: data.automatic_approval_enabled,
   };
+}
+
+export async function setCompanyAutomaticApproval(
+  client: AppClient,
+  input: { companyId: string; enabled: boolean },
+): Promise<Result<null, "forbidden">> {
+  if (!isUuid(input.companyId)) return { ok: false, error: "forbidden" };
+  const { error } = await client.rpc("set_company_automatic_approval", {
+    target_company_id: input.companyId, enabled: input.enabled,
+  });
+  if (error?.code === "42501") return { ok: false, error: "forbidden" };
+  if (error) throw error;
+  return { ok: true, value: null };
 }
 
 export async function listCompanyReportingYears(

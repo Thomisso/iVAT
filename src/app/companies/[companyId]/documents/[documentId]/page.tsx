@@ -4,7 +4,7 @@ import { SourceEvidenceProvider } from "./source-evidence-context";
 import { WorkbookSourceViewer } from "./workbook-source-viewer";
 import { ImageSourceViewer } from "./image-source-viewer";
 import { PdfSourceViewer } from "./pdf-source-viewer";
-import { getDocumentReview } from "@/application/document-review";
+import { getDocumentReview, type DocumentApprovalDecision } from "@/application/document-review";
 import Link from "next/link";
 import { randomUUID } from "node:crypto";
 import { notFound } from "next/navigation";
@@ -72,6 +72,13 @@ export default async function DocumentReviewPage({
     return withCompanyReturnTo(companyId, `/companies/${companyId}/documents/${id}${query.size ? `?${query}` : ""}`, returnTo);
   };
   const [t, locale] = await Promise.all([getTranslations(), getLocale()]);
+  const approvalDecisionLabel = (decision: DocumentApprovalDecision) => {
+    if (decision.mode === "automatic") return t("review.approvalAutomatic");
+    if (decision.mode === "human" && decision.actorUserId) {
+      return t(decision.actorUserId === userId ? "review.approvalHumanYou" : "review.approvalHuman");
+    }
+    return t("review.approvalUnknown");
+  };
   const contentUrl = file?.normalizedDerivative
     ? `/companies/${companyId}/source-files/${file.id}/preview`
     : `/companies/${companyId}/documents/${document.id}/content`;
@@ -307,6 +314,20 @@ export default async function DocumentReviewPage({
                 ))}
               </ol></details>
             </>
+          )}
+          {review.approvalDecisions.length > 0 && (
+            <details className="review-history">
+              <summary>{t("review.approvalHistory")}</summary>
+              <ol>
+                {review.approvalDecisions.toReversed().map((decision, index) => (
+                  <li key={`${decision.occurredAt}-${index}`}>
+                    {approvalDecisionLabel(decision)}{" · "}
+                    {decision.version === null ? t("review.approvalVersionUnknown") : t("review.approvalVersion", { version: decision.version })}{" · "}
+                    <time dateTime={decision.occurredAt}>{formatDateTime(decision.occurredAt)}</time>
+                  </li>
+                ))}
+              </ol>
+            </details>
           )}
         </section>
       </ReviewWorkspace>
