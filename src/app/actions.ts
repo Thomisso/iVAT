@@ -655,11 +655,11 @@ export async function reviewDocumentAction(_state: DocumentReviewFormState, form
   const client = await requireUserClient();
   const companyId = field(formData, "companyId");
   const documentId = field(formData, "documentId");
-  const input = { companyId, documentId, basedOnVersion: Number(field(formData, "basedOnVersion")), payload: payloadFromForm(formData) };
+  const input = { companyId, documentId, basedOnVersion: Number(field(formData, "basedOnVersion")), requestId: field(formData, "requestId"), displayedBankAccountCheckId: optionalField(formData, "displayedBankAccountCheckId"), payload: payloadFromForm(formData) };
   const values = Object.fromEntries([...formData.entries()].filter(([name, value]) => !name.startsWith("$") && typeof value === "string")) as Record<string, string>;
   if (field(formData, "intent") !== "approve") {
     const saved = await correctDocument(client, input, configuredExchangeRates(), configuredVatPayerRegistry());
-    if (!saved.ok) return { error: saved.error, values };
+    if (!saved.ok) return { error: saved.error, values, conflict: saved.conflict };
     refresh();
     return { error: null, values: {}, savedVersion: saved.value.version };
   }

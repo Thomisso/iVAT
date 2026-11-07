@@ -62,6 +62,16 @@ test("Approve saves the current form fields and preserves refusals", async ({ pa
   await expect(comparison).toContainText("OTHER-USER-228");
   expect(await listExtractionVersions(client, companyId, conflict.value.id)).toHaveLength(2);
 
+  const staleSave = await createManualDocument(client, { companyId, payload: SAMPLE_EXTRACTION }, undefined, fakeVatPayerRegistry());
+  if (!staleSave.ok) throw new Error(staleSave.error);
+  await page.goto(`/companies/${companyId}/documents/${staleSave.value.id}`);
+  await page.getByLabel("Document number", { exact: true }).fill("MY-STALE-SAVE-228");
+  expect((await correctDocument(client, { companyId, documentId: staleSave.value.id, basedOnVersion: 1, payload: { ...SAMPLE_EXTRACTION, documentNumber: "CURRENT-SAVE-228" } }, undefined, fakeVatPayerRegistry())).ok).toBe(true);
+  await page.getByRole("button", { name: "Save corrections", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Compare current data", exact: true })).toContainText("CURRENT-SAVE-228");
+  await expect(page.getByLabel("Document number", { exact: true })).toHaveValue("MY-STALE-SAVE-228");
+  expect(await listExtractionVersions(client, companyId, staleSave.value.id)).toHaveLength(2);
+
   const draft = await createManualDocument(client, { companyId, payload: SAMPLE_EXTRACTION }, undefined, fakeVatPayerRegistry());
   if (!draft.ok) throw new Error(draft.error);
   await page.goto(`/companies/${companyId}/documents/${draft.value.id}`);
@@ -74,8 +84,10 @@ test("Approve saves the current form fields and preserves refusals", async ({ pa
   await page.getByRole("button", { name: "Approve version 1", exact: true }).click();
   await expect(page.getByRole("alert").filter({ hasText: "Set the document VAT Regime before approving it." })).toBeVisible();
   await expect(rates.getByRole("textbox", { name: "Net", exact: true }).nth(1)).toHaveValue("100,00");
+  const savedRequestId = await page.locator('input[name="requestId"]').inputValue();
   await page.getByRole("button", { name: "Save corrections", exact: true }).click();
   await expect(page.getByRole("button", { name: "Approve version 2", exact: true })).toBeVisible();
+  expect(await page.locator('input[name="requestId"]').inputValue()).not.toBe(savedRequestId);
   await expect(page.getByLabel("Document number", { exact: true })).toHaveValue("EXPLICIT-DRAFT-228");
   await page.getByLabel("Tax point date", { exact: true }).fill("31.2.2026");
   await page.getByRole("button", { name: "Save corrections", exact: true }).click();
