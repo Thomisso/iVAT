@@ -50,11 +50,8 @@ export function exportTiming(input: {
   // Legal persons file KH monthly even when their VAT Return is quarterly.
   const monthlyControlRequired = input.format === "dphkh1" && input.personType === "legal" && input.period.includes("-Q");
   const due = end && !monthlyControlRequired ? new Date(end) : null;
-  if (due) {
-    due.setUTCDate(due.getUTCDate() + 25);
-    while (isNonWorkingDay(due)) due.setUTCDate(due.getUTCDate() + 1);
-  }
-  const deadline = due?.toISOString().slice(0, 10) ?? null;
+  if (due) due.setUTCDate(due.getUTCDate() + 25);
+  const deadline = due ? nextCzechWorkingDate(due.toISOString().slice(0, 10)) : null;
   const preparedOn = isExportCalendarDate(input.preparedOn) ? input.preparedOn : null;
   const warnings: ExportTimingWarning[] = [];
   if (preparedOn && preparedOn > input.today) warnings.push("prepared_on_future");
