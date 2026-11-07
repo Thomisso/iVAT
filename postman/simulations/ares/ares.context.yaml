@@ -1,6 +1,6 @@
 purpose:
   stands_in_for: ARES economic-subject lookup used by Company onboarding.
-  unblocks: Deterministic CLI HTTP verification of structured registered-address prefill without live-service calls; earlier browser evidence is retained below.
+  unblocks: Deterministic CLI checks of the real ARES adapter against modelled identity and refusal responses without live-service calls; earlier browser evidence is retained below.
 assumptions:
   - id: structured-address-response
     status: unknown
@@ -31,11 +31,45 @@ assumptions:
     source: e2e/company-onboarding.spec.ts; tests/ares.test.ts; postman/mocks/ares/default.js; src/ares/registry.ts
     updated_at: "2026-10-30"
   - id: cli-http-identity-and-refusal
-    status: unknown
-    claim: The production HTTP acceptance harness can reuse the existing stand-in through the real ARES adapter for structured natural-person identity and an unavailable-provider refusal.
-    reason: The new CLI acceptance source uses the existing adapter, simulation and modelled responses; runtime execution has not yet occurred on this candidate.
-    verification: On 2026-11-07 prepared the production HTTP harness and read the existing adapter/stand-in contract. Runtime verification awaits an isolated database lease. No live ARES, UI interaction or current runtime pass is claimed.
-    source: acceptance/auth-http.test.ts; scripts/e2e.mjs; src/ares/registry.ts; postman/mocks/ares/default.js
+    status: supported
+    claim: >-
+      Against the existing local simulation, a focused CLI invocation of the
+      real ARES adapter preserves the modelled structured natural-person identity.
+    reason: >-
+      The real adapter returned the expected identity fields, and the simulation
+      request log confirms that both the summary and RŽP model routes were used.
+      This supports caller behavior against the local model, not live ARES behavior.
+    verification: >-
+      The earlier 2026-11-07 preparation at 9c8cbb1 had not executed the production
+      HTTP harness. The later focused CLI run at clean revision
+      9c8cbb1ff1131d42974cd973411fa5ec3012d25d, recorded by fingerprint
+      ivat-222-cli-ares-2026-11-07, passed the single test "runs the real ARES
+      adapter over the existing HTTP stand-in for structured identity and refusal"
+      with exit 0 and two other tests intentionally filtered out. At
+      2026-11-07T18:19:23Z, GET summary/90000001 and GET RŽP/90000001 both returned
+      200. The public adapter result contained personType natural, firstName
+      Marie Anna, lastName Nováková, streetName Dlouhá and orientationNumber 53A.
+      No production Next/SSR, UI interaction, live ARES or whole HTTP-suite pass
+      is established by this focused run.
+    source: acceptance/auth-http.test.ts:46-51; src/application/ares.ts; src/ares/registry.ts; postman/mocks/ares/default.js; postman/simulations/ares/ares.sim.yaml
+    updated_at: "2026-11-07"
+  - id: cli-adapter-unavailable-refusal
+    status: supported
+    claim: >-
+      Against the existing local simulation, the real ARES adapter maps the
+      modelled HTTP 503 summary response to the public ares_unavailable refusal.
+    reason: >-
+      The simulation recorded the unavailable response on the requested summary
+      route and the focused CLI test asserted the exact public refusal.
+      This establishes caller error mapping for that local response model.
+    verification: >-
+      In the same clean-revision focused run and fingerprint
+      ivat-222-cli-ares-2026-11-07, GET
+      /ekonomicke-subjekty-v-be/rest/ekonomicke-subjekty/90000003 returned 503 at
+      2026-11-07T18:19:23.916Z. prefillCompanyFromAres returned
+      { ok: false, error: "ares_unavailable" }. The test passed; no production
+      SSR, live provider availability or complete HTTP acceptance is inferred.
+    source: acceptance/auth-http.test.ts:46-51; src/application/ares.ts; src/ares/registry.ts; postman/mocks/ares/default.js; postman/simulations/ares/ares.sim.yaml
     updated_at: "2026-11-07"
 fingerprints:
   - id: ivat-134-dirty-2026-10-30
@@ -45,4 +79,8 @@ fingerprints:
   - id: ivat-77-dirty-2026-10-28
     date: "2026-10-28"
     commit: 0eabffa (dirty ticket worktree)
+    cli: Postman CLI 1.73.0
+  - id: ivat-222-cli-ares-2026-11-07
+    date: "2026-11-07"
+    commit: 9c8cbb1ff1131d42974cd973411fa5ec3012d25d (clean focused CLI adapter run)
     cli: Postman CLI 1.73.0
