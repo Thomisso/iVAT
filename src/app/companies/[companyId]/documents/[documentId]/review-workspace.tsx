@@ -4,9 +4,10 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 import { SOURCE_FIELD_FOCUS_EVENT } from "./source-evidence-context";
+import { useReviewDraft } from "./review-guard";
 import { Button } from "@/components/button";
 
-const WorkspaceContext = createContext<{ target: HTMLDivElement | null; showData: () => void; pending: boolean; setPending: (pending: boolean) => void } | null>(null);
+const WorkspaceContext = createContext<{ target: HTMLDivElement | null; showData: () => void; pending: boolean } | null>(null);
 export const useReviewWorkspace = () => useContext(WorkspaceContext);
 
 export function ReviewActions({ children, kind }: { children: ReactNode; kind: "approve" | "reject" | "save" }) {
@@ -18,7 +19,7 @@ export function ReviewActions({ children, kind }: { children: ReactNode; kind: "
 export function ReviewWorkspace({ children }: { children: ReactNode }) {
   const t = useTranslations("review.workspace");
   const [target, setTarget] = useState<HTMLDivElement | null>(null);
-  const [pending, setPending] = useState(false);
+  const pending = useReviewDraft()?.pending ?? false;
   const [view, setView] = useState("data");
   const [ratio, setRatio] = useState(50);
   const frame = useRef<HTMLElement>(null);
@@ -42,7 +43,7 @@ export function ReviewWorkspace({ children }: { children: ReactNode }) {
     return () => element?.removeEventListener(SOURCE_FIELD_FOCUS_EVENT, showData);
   }, [showData]);
   const adjust = (value: number) => setRatio(Math.min(bounds.max, Math.max(bounds.min, value)));
-  return <WorkspaceContext value={{ target, showData, pending, setPending }}>
+  return <WorkspaceContext value={{ target, showData, pending }}>
     <main ref={frame} className="app-page app-page-wide review review-workspace" data-mobile-view={view} style={{ "--review-columns": `minmax(0, ${ratio}fr) 12px minmax(0, ${100 - ratio}fr)` } as CSSProperties}>
       {children}
       <div className="review-mobile-tabs" role="group" aria-label={t("view")}>

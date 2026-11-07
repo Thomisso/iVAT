@@ -7,7 +7,7 @@ import { ClaimEligibilityFields } from "./claim-eligibility-fields";
 
 import { SourceField, useSourceEvidence } from "./source-evidence-context";
 
-import { useActionState, useEffect, useRef, useState, useId, type ComponentProps } from "react";
+import { useActionState, useEffect, useRef, useState, useId, type ComponentProps, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { reviewDocumentAction, createManualDocumentAction, type DocumentReviewFormState } from "@/app/actions";
 import {
@@ -50,6 +50,7 @@ export function CorrectionForm({
   currentCounterparty,
   decision,
   claimPeriods = [],
+  reportingContext,
 }: {
   companyId: string;
   documentId?: string;
@@ -65,10 +66,11 @@ export function CorrectionForm({
   currentCounterparty?: ExtractionPayload["counterpartyLink"] | null;
   decision?: { nextDocumentId: string; queueQuery: string; returnTo: string };
   claimPeriods?: readonly string[];
+  reportingContext?: ReactNode;
 }) {
   const t = useTranslations("review");
   const source = useSourceEvidence();
-  const { register, settled } = useReviewDraft() ?? {};
+  const { register, settled, setPending, pending: sharedPending } = useReviewDraft() ?? {};
   const workspace = useReviewWorkspace();
   const formId = useId();
   const form = useRef<HTMLFormElement>(null);
@@ -118,11 +120,11 @@ export function CorrectionForm({
   useEffect(() => {
     if (state.error !== null || state.savedVersion !== undefined) settled?.(state.savedVersion !== undefined && state.error === null);
   }, [settled, state]);
-  const setWorkspacePending = workspace?.setPending;
   useEffect(() => {
-    setWorkspacePending?.(pending);
-    return () => setWorkspacePending?.(false);
-  }, [setWorkspacePending, pending]);
+    setPending?.("correction", pending);
+    return () => setPending?.("correction", false);
+  }, [setPending, pending]);
+  const busy = pending || sharedPending;
   const nextLine = Math.max(payload.rateBreakdown.length - 1, ...lines) + 1;
   const finding = (field: string) =>
     (state.findings ?? findings).find(
@@ -283,7 +285,7 @@ export function CorrectionForm({
       ref={form}
       id={formId}
       action={action}
-      aria-busy={pending}
+      aria-busy={busy}
       onInvalidCapture={event => {
         const input = event.target as HTMLInputElement;
         const field = input.closest<HTMLElement>("[data-source-field]")?.dataset.sourceField ?? input.name;
@@ -300,7 +302,7 @@ export function CorrectionForm({
       }}
       className={`form correction-form ${aiProposed ? "is-ai" : ""}`}
     >
-      <fieldset disabled={pending} style={{ display: "contents" }}>
+      <fieldset disabled={busy} style={{ display: "contents" }}>
       <input type="hidden" name="companyId" value={companyId} />
       <input type="hidden" name="documentId" value={documentId} />
       <input type="hidden" name="basedOnVersion" value={version} />
@@ -338,6 +340,7 @@ export function CorrectionForm({
             "vatRegime",
           )}
           {date("taxPointDate")}
+          {reportingContext && <div className="iv-field">{reportingContext}</div>}
         </div>
         <ClaimEligibilityFields key={`eligibility-${version}`} payload={payload} periods={claimPeriods} editable={editable} values={state.values} error={findingMessage("claimEligibility")} />
         <details className="review-infrequent"><summary>{t("otherDetails")}</summary><div className="fields">
@@ -499,10 +502,10 @@ export function CorrectionForm({
               <tbody>{comparisonRows.map(row => <tr key={row.name}><th>{row.label}</th><td>{row.entered}</td><td>{row.saved}</td></tr>)}</tbody>
             </table>
           </section>}
-          <ReviewActions kind="save"><Button form={formId} type="submit" name="intent" value="save" disabled={pending}>
+          <ReviewActions kind="save"><Button form={formId} type="submit" name="intent" value="save" disabled={busy}>
             {t(documentId ? "save" : "createManual")}
           </Button></ReviewActions>
-          {documentId && decision && <ReviewActions kind="approve"><Button form={formId} type="submit" name="intent" value="approve" variant="primary" icon="check" disabled={pending}>
+          {documentId && decision && <ReviewActions kind="approve"><Button form={formId} type="submit" name="intent" value="approve" variant="primary" icon="check" disabled={busy}>
             {state.confirmation ? t("approvePreparedWarnings") : t("approve", { version })}
           </Button></ReviewActions>}
         </>

@@ -1297,7 +1297,11 @@
       "save": "Save draft and continue",
       "discard": "Discard changes",
       "stay": "Stay here",
-      "notSaved": "Your changes have not been saved. Correct the fields or stay to continue editing."
+      "notSaved": "Not all changes were saved. You are still on this Document. Stay to correct the remaining changes.",
+      "reportingTitle": "Unsaved Reporting Period",
+      "reportingExplanation": "Save the Reporting Period change before approval, discard that period change, or stay. Your accounting corrections will still be included in approval.",
+      "reportingSave": "Save Reporting Period and approve",
+      "reportingDiscard": "Discard Reporting Period change and approve"
     },
     "workspace": {
       "resize": "Resize source and data panels",

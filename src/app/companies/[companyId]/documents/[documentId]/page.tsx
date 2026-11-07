@@ -16,7 +16,7 @@ import {
 } from "@/app/actions";
 import { DocumentReportingSummary } from "@/components/document-reporting-summary";
 import { currentUserId } from "@/application/auth";
-import { documentQueueQuery, getDocumentQueuePosition } from "@/application/document-queue";
+import { documentQueueQuery, getDocumentQueuePosition, hasDocumentQueueContext } from "@/application/document-queue";
 import { isBeingExtracted } from "@/application/documents";
 import { CommandButton } from "@/components/command-button";
 import { RefreshWhile } from "@/components/refresh-while";
@@ -60,14 +60,14 @@ export default async function DocumentReviewPage({
   } = review;
   const position = await getDocumentQueuePosition(client, companyId, document.id, search);
   const { queue, documents: queuedDocuments, index: queueIndex } = position;
-  const queueQuery = documentQueueQuery(queue);
+  const queueQuery = hasDocumentQueueContext(search) ? documentQueueQuery(queue) : "";
   const returnTo = safeCompanyReturnTo(companyId, search.returnTo);
   const currentContext = companyPageContext(companyId, `/companies/${companyId}/documents/${documentId}`, search);
-  const listHref = `/companies/${companyId}/documents?${queueQuery}#document-${document.id}`;
+  const listHref = `/companies/${companyId}/documents${queueQuery ? `?${queueQuery}` : ""}#document-${document.id}`;
   const reviewHref = (id: string, version?: number) => {
     const query = new URLSearchParams(queueQuery);
     if (version !== undefined) query.set("version", String(version));
-    return withCompanyReturnTo(companyId, `/companies/${companyId}/documents/${id}?${query}`, returnTo);
+    return withCompanyReturnTo(companyId, `/companies/${companyId}/documents/${id}${query.size ? `?${query}` : ""}`, returnTo);
   };
   const [t, locale] = await Promise.all([getTranslations(), getLocale()]);
   const contentUrl = file?.normalizedDerivative
@@ -221,6 +221,7 @@ export default async function DocumentReviewPage({
               decision={{ nextDocumentId: position.continuationDocumentId ?? "", queueQuery, returnTo: returnTo ?? "" }}
               payload={shown.payload}
               claimPeriods={reportingPeriodsOf(review.reportingYears)}
+              reportingContext={<p>{t("documentReporting.period", { period: reporting.period ?? t("documentReporting.unassigned") })}</p>}
               findings={shownFindings}
               editable={reviewing && !viewingRecorded}
               aiProposed={
@@ -228,7 +229,7 @@ export default async function DocumentReviewPage({
               }
             />
           ) : document.status === "needs_review" && !lockedPeriod ? (
-            <CorrectionForm companyId={companyId} documentId={document.id} version={0} requestId={randomUUID()} displayedBankAccountCheckId={bankChecks.current?.id ?? null} decision={{ nextDocumentId: position.continuationDocumentId ?? "", queueQuery, returnTo: returnTo ?? "" }} payload={emptyDocumentPayload()} findings={[]} editable aiProposed={false} claimPeriods={reportingPeriodsOf(review.reportingYears)} />
+            <CorrectionForm companyId={companyId} documentId={document.id} version={0} requestId={randomUUID()} displayedBankAccountCheckId={bankChecks.current?.id ?? null} decision={{ nextDocumentId: position.continuationDocumentId ?? "", queueQuery, returnTo: returnTo ?? "" }} payload={emptyDocumentPayload()} findings={[]} editable aiProposed={false} claimPeriods={reportingPeriodsOf(review.reportingYears)} reportingContext={<p>{t("documentReporting.period", { period: reporting.period ?? t("documentReporting.unassigned") })}</p>} />
           ) : (
             <EmptyState icon="file" title={t("review.noExtraction")} />
           )}
