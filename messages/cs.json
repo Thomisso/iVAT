@@ -1834,6 +1834,7 @@
     "deleteHint": "Smazání je nevratné. Protistrany propojené s aktuálními nebo historickými doklady lze pouze archivovat.",
     "confirmDelete": "Trvale smazat",
     "keep": "Ponechat protistranu",
+    "matchingIdentifiers": "Záznamy odpovídající některému ze zadaných identifikátorů: {identifiers}",
     "searchArchived": "Hledat archivované protistrany",
     "archive": "Archivovat protistranu",
     "archived": "Archivovaná protistrana",

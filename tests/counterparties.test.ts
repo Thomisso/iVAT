@@ -361,3 +361,24 @@ it("includes archived entries in Company exports and invalidates exports only fo
     expect(await getCompanyDataExportStatus(company.client, status)).toEqual({ ok: true, value: "stale" });
   }
 });
+
+it("searches both normalized identifiers within the archived Company directory and counts before paging", async () => {
+  const company = await administratorWithCompany();
+  const other = await createCompany(company.client, { organizationId: company.organizationId, ...companyDetails() });
+  if (!other.ok) throw new Error(other.error);
+  for (const [companyId, name, ico, vatId, archived] of [
+    [company.companyId, "Alpha IČO match", "27082440", undefined, true],
+    [company.companyId, "Beta VAT match", undefined, "SK1234567890", true],
+    [company.companyId, "Active match", "12345679", "SK9876543210", false],
+    [other.value.id, "Other Company match", "27082440", "SK1234567890", true],
+  ] as const) {
+    const created = await createCounterparty(company.client, { companyId, name, ico, vatId, supplier: true, customer: false });
+    if (!created.ok) throw new Error(created.error);
+    if (archived) expect((await archiveCounterparty(company.client, { companyId, id: created.value.id })).ok).toBe(true);
+  }
+  const identifiers = { ico: "2708 2440", vatId: "sk 1234567890" };
+  const page = await listCounterparties(company.client, company.companyId, { state: "archived", identifiers, page: 2, pageSize: 1 });
+  expect(page).toMatchObject({ total: 2, page: 2, pageCount: 2, entries: [{ name: "Beta VAT match" }] });
+  expect((await listCounterparties(company.client, company.companyId, { identifiers })).entries).toEqual([]);
+  expect((await listCounterparties(company.client, company.companyId, { state: "archived", identifiers: { ico: "27082440),name.neq.x" } })).entries).toEqual([]);
+});

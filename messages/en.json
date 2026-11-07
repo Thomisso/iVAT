@@ -1834,6 +1834,7 @@
     "deleteHint": "Deletion is permanent. Counterparties linked to current or historical Documents can only be archived.",
     "confirmDelete": "Delete permanently",
     "keep": "Keep Counterparty",
+    "matchingIdentifiers": "Entries matching either submitted identifier: {identifiers}",
     "searchArchived": "Search archived Counterparties",
     "archive": "Archive Counterparty",
     "archived": "Archived Counterparty",
