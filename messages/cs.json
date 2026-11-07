@@ -26,6 +26,17 @@
     "received": "Přijaté doklady",
     "issued": "Vydané doklady"
   },
+  "companyShortcuts": {
+    "title": "Klávesové zkratky",
+    "close": "Zavřít klávesové zkratky",
+    "traversal": "Klávesami Tab a Shift+Tab procházíte pole a akce.",
+    "save": "Uložit koncept",
+    "approve": "Schválit",
+    "unavailable": "Na této stránce není dostupná žádná akce revize.",
+    "safety": "Zkratky revize používají stejné kontroly jako tlačítka. Dialogy a psaní pomocí kompozice mají přednost; samotný Enter v poli nikdy neschválí.",
+    "saveKeys": "Ctrl / Cmd + S",
+    "approveKeys": "Ctrl / Cmd + Enter"
+  },
   "shell": {
     "superAdmin": "SuperAdmin",
     "switchToSuperAdmin": "Přepnout do sekce SuperAdmin",
