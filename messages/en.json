@@ -94,7 +94,8 @@
     "documentsTitle": "Documents",
     "documentsDescription": "Review and manage the Company's Documents.",
     "vatTitle": "VAT",
-    "vatDescription": "Work with Reporting Periods and statutory outputs."
+    "vatDescription": "Work with Reporting Periods and statutory outputs.",
+    "counterparties": "Counterparty Directory"
   },
   "mfaRecovery": {
     "loginIntro": "Lost your authenticator? Use email recovery with a prepared backup code to set up a replacement.",
@@ -737,7 +738,11 @@
     "ai_configuration_unavailable": "AI is not enabled or has no usable configuration. Your current values and approval are unchanged.",
     "processing_dispatch_failed": "AI could not be queued. Your values and history are preserved; check the current review status before trying again.",
     "allowance_exhausted": "No successful AI allowance remains after queued and running work. Your values and approval are unchanged.",
-    "not_extracted": "The Document has no Extraction Version to check yet."
+    "not_extracted": "The Document has no Extraction Version to check yet.",
+    "counterparty_role_required": "Choose supplier or customer.",
+    "counterparty_identity_taken": "A Counterparty with this IČO or VAT ID already exists in this Company and may be archived.",
+    "invalid_country_code": "Enter a two-letter country code.",
+    "counterparty_invalid_vat_id": "Enter a VAT ID with a two-letter country prefix followed by 2 to 14 letters or digits."
   },
   "aiUsage": {
     "platformNav": "Platform AI usage",
@@ -1716,5 +1721,38 @@
       "inconsistent": "The domestic account number and IBAN conflict; publication remains undetermined.",
       "unrecognized": "The payment identifier is not a recognized bank account; publication remains undetermined."
     }
+  },
+  "counterparties": {
+    "title": "Counterparty Directory",
+    "description": "Suppliers and customers of this Company.",
+    "create": "New Counterparty",
+    "name": "Name",
+    "ico": "IČO",
+    "vatId": "VAT ID",
+    "street": "Street and number",
+    "city": "City",
+    "postalCode": "Postal code",
+    "countryCode": "Country code",
+    "roles": "Counterparty roles",
+    "supplier": "Supplier",
+    "customer": "Customer",
+    "allRoles": "All roles",
+    "search": "Search",
+    "searchHint": "Name, IČO or VAT ID",
+    "filter": "Apply filters",
+    "clear": "Clear filters",
+    "filters": "Directory filters",
+    "count": "Counterparties: {count}",
+    "notSet": "Not provided",
+    "empty": "No counterparties match these filters.",
+    "back": "Back to directory",
+    "save": "Save Counterparty",
+    "saving": "Saving…",
+    "saved": "Counterparty saved.",
+    "archived": "Archived Counterparty",
+    "pagination": "Directory pages",
+    "previous": "Previous",
+    "next": "Next",
+    "page": "Page {page} of {total}"
   }
 }

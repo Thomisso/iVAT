@@ -94,7 +94,8 @@
     "documentsTitle": "Doklady",
     "documentsDescription": "Kontrolujte a spravujte doklady firmy.",
     "vatTitle": "DPH",
-    "vatDescription": "Pracujte s obdobími pro vykazování a zákonnými výstupy."
+    "vatDescription": "Pracujte s obdobími pro vykazování a zákonnými výstupy.",
+    "counterparties": "Adresář protistran"
   },
   "mfaRecovery": {
     "loginIntro": "Ztratili jste autentizátor? Pomocí obnovy přes e-mail a připraveného záložního kódu nastavte náhradu.",
@@ -737,7 +738,11 @@
     "ai_configuration_unavailable": "AI není zapnuté nebo nemá použitelnou konfiguraci. Aktuální hodnoty a schválení zůstaly beze změny.",
     "processing_dispatch_failed": "AI se nepodařilo zařadit ke zpracování. Hodnoty a historie jsou zachované; před opakováním ověřte aktuální stav kontroly.",
     "allowance_exhausted": "Po započtení čekajícího a probíhajícího zpracování nezbývá volný limit úspěšného AI zpracování. Hodnoty a schválení zůstaly beze změny.",
-    "not_extracted": "Doklad zatím nemá verzi vytěžení, kterou lze ověřit."
+    "not_extracted": "Doklad zatím nemá verzi vytěžení, kterou lze ověřit.",
+    "counterparty_role_required": "Vyberte dodavatele nebo odběratele.",
+    "counterparty_identity_taken": "Protistrana se stejným IČO nebo DIČ již v této firmě existuje, případně je archivovaná.",
+    "invalid_country_code": "Zadejte dvoupísmenný kód země.",
+    "counterparty_invalid_vat_id": "Zadejte DIČ s dvoupísmenným kódem země a 2 až 14 číslicemi nebo písmeny."
   },
   "aiUsage": {
     "platformNav": "Využití AI na platformě",
@@ -1716,5 +1721,38 @@
       "inconsistent": "Tuzemské číslo účtu a IBAN si odporují; zveřejnění zůstává neurčené.",
       "unrecognized": "Platební údaj není rozpoznaným bankovním účtem; zveřejnění zůstává neurčené."
     }
+  },
+  "counterparties": {
+    "title": "Adresář protistran",
+    "description": "Dodavatelé a odběratelé této firmy.",
+    "create": "Nová protistrana",
+    "name": "Název",
+    "ico": "IČO",
+    "vatId": "DIČ",
+    "street": "Ulice a číslo",
+    "city": "Město",
+    "postalCode": "PSČ",
+    "countryCode": "Kód země",
+    "roles": "Role protistrany",
+    "supplier": "Dodavatel",
+    "customer": "Odběratel",
+    "allRoles": "Všechny role",
+    "search": "Hledat",
+    "searchHint": "Název, IČO nebo DIČ",
+    "filter": "Použít filtry",
+    "clear": "Zrušit filtry",
+    "filters": "Filtry adresáře",
+    "count": "Počet protistran: {count}",
+    "notSet": "Neuvedeno",
+    "empty": "Žádná protistrana neodpovídá filtrům.",
+    "back": "Zpět do adresáře",
+    "save": "Uložit protistranu",
+    "saving": "Ukládání…",
+    "saved": "Protistrana byla uložena.",
+    "archived": "Archivovaná protistrana",
+    "pagination": "Stránky adresáře",
+    "previous": "Předchozí",
+    "next": "Další",
+    "page": "Stránka {page} z {total}"
   }
 }
