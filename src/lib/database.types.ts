@@ -580,12 +580,6 @@ isOneToOne: false
                   }
                   Relationships: [
                     {
-      foreignKeyName: "extraction_version_counterparty"
-      columns: ["company_id","counterparty_id"]
-isOneToOne: false
-      referencedRelation: "counterparty"
-      referencedColumns: ["company_id","id"]
-    },{
       foreignKeyName: "extraction_version_document_id_company_id_organization_id_fkey"
       columns: ["document_id","company_id","organization_id"]
 isOneToOne: false
