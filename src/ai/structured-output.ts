@@ -5,13 +5,18 @@ import {
   VAT_REGIMES,
   type ExtractionPayload,
 } from "@/application/extraction-payload";
-import { withProviderResponse, type PageRange, type RowRange } from "@/application/ai-provider";
+import { validSourcePageLocations } from "@/application/source-locations";
+import { withProviderResponse, type AiInput, type PageRange, type RowRange } from "@/application/ai-provider";
 
 export const EXTRACTION_PROMPT =
   "Extract the Document fields exactly as shown. Use null when a field is not present; never infer tax treatment beyond the proposed VAT Regime. " +
   "For a Credit Note, represent all monetary values as negative amounts and set originalDocumentNumber to the original Document number when it is shown. " +
   "Write amounts with a dot and two decimals (1210.00), dates as YYYY-MM-DD, currency as an ISO 4217 code (CZK) " +
-  "and country as an ISO 3166-1 alpha-2 code (CZ), never as a name.";
+  "and country as an ISO 3166-1 alpha-2 code (CZ), never as a name. " +
+  "Return sourceLocations for fields visibly read from PDF pages: normalized rectangles with an upper-left origin on each oriented page, " +
+  "using 1-based page numbers relative to this input, never the original unsliced file. " +
+  "Use field paths such as documentNumber or rateBreakdown.0.vatAmount and only the printed value's rectangle. " +
+  "Return an empty sourceLocations array when locations are unavailable, including workbook input; never guess coordinates or source identifiers.";
 
 export const SPLIT_SCHEMA = {
   type: "object",
@@ -87,9 +92,26 @@ export const EXTRACTION_SCHEMA = {
   required: [
     "schemaVersion", "documentType", "documentNumber", "issueDate", "taxPointDate", "dueDate", "direction",
     "supplier", "customer", "currency", "rateBreakdown", "totals", "payment", "proposedVatRegime",
-    "reverseChargeCode", "originalDocumentNumber",
+    "reverseChargeCode", "originalDocumentNumber", "sourceLocations",
   ],
   properties: {
+    sourceLocations: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["fieldPath", "kind", "page", "x", "y", "width", "height"],
+        properties: {
+          fieldPath: { type: "string" },
+          kind: { type: "string", enum: ["page"] },
+          page: { type: "integer", minimum: 1 },
+          x: { type: "number", minimum: 0, maximum: 1 },
+          y: { type: "number", minimum: 0, maximum: 1 },
+          width: { type: "number", minimum: 0, maximum: 1 },
+          height: { type: "number", minimum: 0, maximum: 1 },
+        },
+      },
+    },
     schemaVersion: { type: "integer", enum: [1] },
     documentType: nullableChoice(DOCUMENT_TYPES),
     documentNumber: nullableString,
@@ -193,7 +215,7 @@ export function rowRanges(provider: string, value: unknown): RowRange[] {
   });
 }
 
-export function extractionPayload(provider: string, value: unknown): ExtractionPayload {
+export function extractionPayload(provider: string, value: unknown, input?: Pick<AiInput, "format" | "pageCount">): ExtractionPayload {
   if (
     !value || typeof value !== "object" ||
     !("schemaVersion" in value) || value.schemaVersion !== 1 ||
@@ -205,9 +227,16 @@ export function extractionPayload(provider: string, value: unknown): ExtractionP
   ) {
     throw new Error(`${provider} returned an invalid Extraction payload`);
   }
-  const payload = value as ExtractionPayload;
+  const payload = { ...value } as ExtractionPayload & { sourceEvidence?: unknown };
+  // Provider output can never author the server's trusted source identity.
+  delete payload.sourceEvidence;
   // The code names the failed check without echoing Document data into job logs.
   const error = validateExtractionPayload(payload);
   if (error) throw new Error(`${provider} returned an invalid Extraction payload (${error})`);
+  if ("sourceLocations" in value) {
+    payload.sourceLocations = input?.format === "pdf"
+      ? validSourcePageLocations(value.sourceLocations, payload, input.pageCount)
+      : [];
+  }
   return payload;
 }

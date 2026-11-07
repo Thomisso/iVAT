@@ -1,3 +1,5 @@
+import type { SourcePageLocation } from "./source-locations";
+
 // The structured data an Extraction reads out of one Document: the payload of
 // an Extraction Version. Documented in docs/extraction-payload.md; change both
 // together, and bump `schemaVersion` when a change is not backwards compatible.
@@ -89,6 +91,8 @@ export type ExtractionPayload = {
    * and only for fields the provider reports on.
    */
   confidence?: Record<string, number>;
+  /** Unbound references returned by a provider; only server-bound evidence is usable in review. */
+  sourceLocations?: SourcePageLocation[];
 };
 
 /** Nothing is inferred for a new manual Document, including its DUZP and Direction. */
