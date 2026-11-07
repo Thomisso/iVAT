@@ -61,12 +61,13 @@ export async function getDocumentReview(
   const reporting = prepareDocumentReporting({
     id: document.id, status: document.status, extractionVersionId: current?.id ?? null,
     payload: current?.payload ?? null, claimedReportingPeriod: document.claimedReportingPeriod,
+    importDate: document.importDate, sourceFileId: document.sourceFileId,
   }, reportingYears, undefined, currentFindings);
 
   return {
     company, document, versions, current, shown, viewingRecorded, shownFindings, shownWarningFindings,
     bankChecks, displayedReviewContext: observations.displayedReviewContext, currentCounterparty: matchingObservations ? observations.counterparty : null, file, sourceRows, duplicateWarnings, missingPeriod, role, lockedPeriod,
-    deferredClaimPeriods, reporting,
+    deferredClaimPeriods, reporting, reportingYears,
     reviewing: document.status === "needs_review" && current !== undefined && !lockedPeriod,
     recoverable: !["approved", "rejected", "needs_review"].includes(document.status) && !lockedPeriod,
     excludable: !["approved", "rejected"].includes(document.status) && !lockedPeriod,

@@ -1,3 +1,4 @@
+import { setOctoberImportFixture } from "./claim-eligibility";
 import { sourceSplitRequestFixture } from "./source-request";
 import {
   createCompany,
@@ -258,6 +259,7 @@ export async function companyWithManyReportDocuments(
       },
     );
     if (!file.ok) throw new Error(file.error);
+    await setOctoberImportFixture(file.value.id);
     const split = await system.rpc("record_split", {
       target_source_file_id: file.value.id, target_split_request_id: await sourceSplitRequestFixture(system, file.value.id),
       source_ranges: Array.from({ length: pageCount }, (_, i) => ({

@@ -1,6 +1,7 @@
 "use client";
 
 import { PartialClaimFields } from "./partial-claim-fields";
+import { ClaimEligibilityFields } from "./claim-eligibility-fields";
 
 import { SourceField, useSourceEvidence } from "./source-evidence-context";
 
@@ -44,6 +45,7 @@ export function CorrectionForm({
   displayedReviewContext,
   currentCounterparty,
   decision,
+  claimPeriods = [],
 }: {
   companyId: string;
   documentId?: string;
@@ -58,6 +60,7 @@ export function CorrectionForm({
   displayedReviewContext?: string;
   currentCounterparty?: ExtractionPayload["counterpartyLink"] | null;
   decision?: { nextDocumentId: string; queueQuery: string; returnTo: string };
+  claimPeriods?: readonly string[];
 }) {
   const t = useTranslations("review");
   const source = useSourceEvidence();
@@ -197,6 +200,7 @@ export function CorrectionForm({
       <input type="hidden" name="displayedBankAccountCheckId" value={base.displayedBankAccountCheckId ?? ""} />
       <input type="hidden" name="displayedReviewContext" value={base.displayedReviewContext ?? ""} />
       <input type="hidden" name="acknowledgement" value={state.confirmation?.id ?? ""} />
+      <ClaimEligibilityFields key={`eligibility-${version}`} payload={payload} periods={claimPeriods} editable={editable} values={state.values} />
       {decision && Object.entries(decision).map(([name, entry]) => <input key={name} type="hidden" name={name} value={entry} />)}
       <fieldset>
         <legend>{t("sections.document")}</legend>

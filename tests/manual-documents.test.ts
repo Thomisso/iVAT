@@ -1,7 +1,8 @@
+import { createConfirmedManualDocument } from "./support/claim-eligibility";
 import { reportingWorkbookCopy } from "./support/reporting-workbook-copy";
 import { expect, it } from "vitest";
 import { SAMPLE_EXTRACTION } from "@/ai/fake";
-import { approveDocument, correctDocument, createManualDocument, getDocument, listCompanyDocuments, listExtractionVersions, mergeDocuments, moveDocumentPage, readDocumentPages, readDocumentRows, reprocessDocument, splitDocument, updateDocumentReporting } from "@/application/documents";
+import { approveDocument, correctDocument, getDocument, listCompanyDocuments, listExtractionVersions, mergeDocuments, moveDocumentPage, readDocumentPages, readDocumentRows, reprocessDocument, splitDocument, updateDocumentReporting, returnDocumentToReview } from "@/application/documents";
 import type { ExtractionPayload } from "@/application/extraction-payload";
 import { listSourceFiles } from "@/application/source-files";
 import { getCompanyAiProcessingAllowance } from "@/application/ai-processing-allowance";
@@ -20,7 +21,7 @@ it("a Company User creates a Document with a real authored Version and no invent
   const administrator = await administratorWithCompany();
   const user = await companyMember(administrator);
   const before = await getCompanyAiProcessingAllowance(user.client, administrator.companyId);
-  const created = await createManualDocument(user.client, {
+  const created = await createConfirmedManualDocument(user.client, {
     companyId: administrator.companyId,
     payload: SAMPLE_EXTRACTION,
   });
@@ -39,14 +40,14 @@ it("a Company User creates a Document with a real authored Version and no invent
 it("requires a real Tax Point Date on creation and every manual correction, including direct database commands", async () => {
   const administrator = await administratorWithCompany();
   for (const [taxPointDate, error] of [[null, "tax_point_date_required"], ["2026-02-30", "invalid_date"]] as const) {
-    expect(await createManualDocument(administrator.client, { companyId: administrator.companyId, payload: { ...SAMPLE_EXTRACTION, taxPointDate } }))
+    expect(await createConfirmedManualDocument(administrator.client, { companyId: administrator.companyId, payload: { ...SAMPLE_EXTRACTION, taxPointDate } }))
       .toEqual({ ok: false, error });
     const direct = await administrator.client.rpc("create_manual_document", {
       target_company_id: administrator.companyId, payload: { ...SAMPLE_EXTRACTION, taxPointDate }, findings: [],
     });
     expect(direct.error).toMatchObject({ code: "P0001", hint: error });
   }
-  const created = await createManualDocument(administrator.client, { companyId: administrator.companyId, payload: SAMPLE_EXTRACTION });
+  const created = await createConfirmedManualDocument(administrator.client, { companyId: administrator.companyId, payload: SAMPLE_EXTRACTION });
   if (!created.ok) throw new Error(created.error);
   expect(await correctDocument(administrator.client, {
     companyId: administrator.companyId, documentId: created.value.id, basedOnVersion: 1,
@@ -67,7 +68,7 @@ it("preserves unfinished Credit Note amounts and Rate Breakdown until a complete
     rateBreakdown: [{ rate: null, netAmount: "-100.00", vatAmount: null }],
     totals: { netAmount: null, vatAmount: null, grossAmount: null },
   };
-  const created = await createManualDocument(administrator.client, { companyId: administrator.companyId, payload });
+  const created = await createConfirmedManualDocument(administrator.client, { companyId: administrator.companyId, payload });
   if (!created.ok) throw new Error(created.error);
   const input = { companyId: administrator.companyId, documentId: created.value.id };
   expect((await listExtractionVersions(administrator.client, input.companyId, input.documentId))[0].payload).toMatchObject({
@@ -91,7 +92,7 @@ it("preserves a first manual draft pointing into a Period Lock without changing 
   expect(await finalizeVatReport(administrator.client, { ...period, confirmed: true })).toEqual({ ok: true, value: null });
   const before = await getVatReport(administrator.client, period.companyId, period.period);
   const payload = { ...SAMPLE_EXTRACTION, taxPointDate: "2026-09-15" };
-  const created = await createManualDocument(administrator.client, { companyId: administrator.companyId, payload });
+  const created = await createConfirmedManualDocument(administrator.client, { companyId: administrator.companyId, payload });
   if (!created.ok) throw new Error(created.error);
   const input = { companyId: administrator.companyId, documentId: created.value.id };
   expect((await getDocument(administrator.client, input.companyId, input.documentId))?.status).toBe("needs_review");
@@ -105,7 +106,7 @@ it("preserves a first manual draft pointing into a Period Lock without changing 
 
 it("does not request file-dependent AI work or invent a viewer for a source-independent Document", async () => {
   const administrator = await administratorWithCompany();
-  const created = await createManualDocument(administrator.client, { companyId: administrator.companyId, payload: SAMPLE_EXTRACTION });
+  const created = await createConfirmedManualDocument(administrator.client, { companyId: administrator.companyId, payload: SAMPLE_EXTRACTION });
   if (!created.ok) throw new Error(created.error);
   const input = { companyId: administrator.companyId, documentId: created.value.id };
   const worker = testWorker();
@@ -120,7 +121,7 @@ it("does not request file-dependent AI work or invent a viewer for a source-inde
 
 it("keeps a DUZP-only draft visible and preserves nullable version-2 values in a completed Company archive", async () => {
   const administrator = await administratorWithCompany();
-  const created = await createManualDocument(administrator.client, {
+  const created = await createConfirmedManualDocument(administrator.client, {
     companyId: administrator.companyId,
     payload: { ...emptyDocumentPayload(), taxPointDate: "2026-10-15", rateBreakdown: [{ rate: 21, netAmount: "100.00", vatAmount: null }] },
   });
@@ -155,9 +156,9 @@ it("keeps a DUZP-only draft visible and preserves nullable version-2 values in a
 it("enforces tenant isolation for manual creation, correction and direct reads while retaining SuperAdmin scope", async () => {
   const administrator = await administratorWithCompany();
   const other = await administratorWithCompany();
-  const created = await createManualDocument(administrator.client, { companyId: administrator.companyId, payload: SAMPLE_EXTRACTION });
+  const created = await createConfirmedManualDocument(administrator.client, { companyId: administrator.companyId, payload: SAMPLE_EXTRACTION });
   if (!created.ok) throw new Error(created.error);
-  expect(await createManualDocument(other.client, { companyId: administrator.companyId, payload: SAMPLE_EXTRACTION }))
+  expect(await createConfirmedManualDocument(other.client, { companyId: administrator.companyId, payload: SAMPLE_EXTRACTION }))
     .toEqual({ ok: false, error: "forbidden" });
   expect(await getDocument(other.client, administrator.companyId, created.value.id)).toBeNull();
   expect(await correctDocument(other.client, { companyId: administrator.companyId, documentId: created.value.id, basedOnVersion: 1, payload: SAMPLE_EXTRACTION }))
@@ -165,7 +166,7 @@ it("enforces tenant isolation for manual creation, correction and direct reads w
   const direct = await other.client.from("document").select("id").eq("id", created.value.id);
   expect(direct.data).toEqual([]);
   const operator = await promotedSuperAdministrator("Manual Documents platform scope");
-  const platformCreated = await createManualDocument(operator.client, { companyId: administrator.companyId, payload: SAMPLE_EXTRACTION });
+  const platformCreated = await createConfirmedManualDocument(operator.client, { companyId: administrator.companyId, payload: SAMPLE_EXTRACTION });
   expect(platformCreated.ok).toBe(true);
   if (!platformCreated.ok) throw new Error(platformCreated.error);
   expect((await listExtractionVersions(operator.client, administrator.companyId, platformCreated.value.id))[0].author)
@@ -174,7 +175,7 @@ it("enforces tenant isolation for manual creation, correction and direct reads w
 
 it("allows a small domestic draft to be approved with the missing supplier VAT ID advisory", async () => {
   const administrator = await administratorWithCompany();
-  const created = await createManualDocument(administrator.client, {
+  const created = await createConfirmedManualDocument(administrator.client, {
     companyId: administrator.companyId,
     payload: { ...SAMPLE_EXTRACTION, supplier: { ...SAMPLE_EXTRACTION.supplier, vatId: null } },
   });
@@ -185,13 +186,15 @@ it("allows a small domestic draft to be approved with the missing supplier VAT I
 
 it("reports complete source-independent data in its DUZP period and preserves an incoming Deferred Claim", async () => {
   const administrator = await administratorWithCompany();
-  const created = await createManualDocument(administrator.client, { companyId: administrator.companyId, payload: SAMPLE_EXTRACTION });
+  const created = await createConfirmedManualDocument(administrator.client, { companyId: administrator.companyId, payload: SAMPLE_EXTRACTION });
   if (!created.ok) throw new Error(created.error);
   const input = { companyId: administrator.companyId, documentId: created.value.id };
   expect(await approveDocument(administrator.client, { ...input, version: 1 })).toEqual({ ok: true, value: null });
   expect((await generateVatReport(administrator.client, { companyId: input.companyId, period: "2026-10" })).ok).toBe(true);
   expect((await getVatReport(administrator.client, input.companyId, "2026-10"))?.result.totals.inputVat).toBe("210.00");
+  expect(await returnDocumentToReview(administrator.client, input)).toEqual({ ok: true, value: null });
   expect(await updateDocumentReporting(administrator.client, { ...input, claimedReportingPeriod: "2026-11" })).toEqual({ ok: true, value: null });
+  expect(await approveDocument(administrator.client, { ...input, version: 1 })).toEqual({ ok: true, value: null });
   expect((await generateVatReport(administrator.client, { companyId: input.companyId, period: "2026-10" })).ok).toBe(true);
   expect((await generateVatReport(administrator.client, { companyId: input.companyId, period: "2026-11" })).ok).toBe(true);
   expect((await getVatReport(administrator.client, input.companyId, "2026-10"))?.result.totals.inputVat).toBe("0.00");
@@ -202,7 +205,7 @@ it("reports complete source-independent data in its DUZP period and preserves an
 
 it("does not apply Credit Note sign rules to a Document whose optional type remains undetermined", async () => {
   const administrator = await administratorWithCompany();
-  const created = await createManualDocument(administrator.client, {
+  const created = await createConfirmedManualDocument(administrator.client, {
     companyId: administrator.companyId, payload: { ...SAMPLE_EXTRACTION, documentType: null },
   });
   if (!created.ok) throw new Error(created.error);
@@ -227,7 +230,7 @@ it.each(["merge", "split", "move"] as const)("refuses %s through commands and RP
   const administrator = await administratorWithCompany();
   const ids: string[] = [];
   for (const documentNumber of ["MANUAL-LEFT", "MANUAL-RIGHT"]) {
-    const result = await createManualDocument(administrator.client, {
+    const result = await createConfirmedManualDocument(administrator.client, {
       companyId: administrator.companyId, payload: { ...SAMPLE_EXTRACTION, documentNumber },
     });
     if (!result.ok) throw new Error(result.error);
