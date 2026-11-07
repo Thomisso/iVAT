@@ -6,6 +6,7 @@ create table public.document_approval_receipt (
   actor_user_id uuid not null,
   submitted_payload jsonb not null,
   based_on_version integer not null,
+  operation_kind text not null check (operation_kind in ('draft', 'approval')),
   version integer not null,
   created_at timestamptz not null default now(),
   primary key (document_id, request_id)
@@ -17,7 +18,7 @@ create policy document_approval_receipt_read on public.document_approval_receipt
   using (actor_user_id = auth.uid() and private.can_access_company(company_id, organization_id));
 
 -- A receipt is a result, never permission to mutate an already approved Document.
-create or replace function public.document_approval_result(target_document_id uuid, request_id uuid, submitted_payload jsonb, based_on_version integer)
+create or replace function public.document_approval_result(target_document_id uuid, request_id uuid, submitted_payload jsonb, based_on_version integer, operation_kind text default 'approval')
 returns integer language plpgsql security definer set search_path = '' as $$
 declare doc public.document; receipt public.document_approval_receipt;
 begin
@@ -28,14 +29,40 @@ begin
   select * into receipt from public.document_approval_receipt r
     where r.document_id = doc.id and r.request_id = document_approval_result.request_id;
   if not found then return null; end if;
-  if receipt.actor_user_id is distinct from auth.uid() or receipt.submitted_payload is distinct from submitted_payload or receipt.based_on_version is distinct from based_on_version then
+  if receipt.actor_user_id is distinct from auth.uid() or receipt.submitted_payload is distinct from submitted_payload or receipt.based_on_version is distinct from based_on_version or receipt.operation_kind is distinct from operation_kind then
     raise exception 'request identity was used for different data' using errcode = 'P0001', hint = 'stale_version';
   end if;
   return receipt.version;
 end;
 $$;
-revoke all on function public.document_approval_result(uuid, uuid, jsonb, integer) from public, anon, service_role;
-grant execute on function public.document_approval_result(uuid, uuid, jsonb, integer) to authenticated;
+revoke all on function public.document_approval_result(uuid, uuid, jsonb, integer, text) from public, anon, service_role;
+grant execute on function public.document_approval_result(uuid, uuid, jsonb, integer, text) to authenticated;
+
+-- Explicit draft operations use the same actor/data/base identity while keeping
+-- their result distinct from an approval or an intentional later save.
+create or replace function public.save_document_review(
+  target_document_id uuid, based_on_version integer, request_id uuid,
+  payload jsonb, findings jsonb, submitted_payload jsonb
+)
+returns integer language plpgsql security definer set search_path = '' as $$
+declare doc public.document; saved_version integer;
+begin
+  select * into doc from public.document where id = target_document_id;
+  if not found or not private.can_access_company(doc.company_id, doc.organization_id) then raise insufficient_privilege; end if;
+  perform 1 from public.company where id = doc.company_id for update;
+  select * into doc from public.document where id = target_document_id for update;
+  if not found or not private.can_access_company(doc.company_id, doc.organization_id) or doc.superseded_at is not null then raise insufficient_privilege; end if;
+  if request_id is null then raise exception 'invalid review request' using errcode = 'P0001', hint = 'stale_version'; end if;
+  saved_version := public.document_approval_result(target_document_id, request_id, submitted_payload, based_on_version, 'draft');
+  if saved_version is not null then return saved_version; end if;
+  saved_version := public.correct_document(target_document_id, based_on_version, payload, findings);
+  insert into public.document_approval_receipt(document_id, request_id, organization_id, company_id, actor_user_id, submitted_payload, based_on_version, operation_kind, version)
+    values(doc.id, request_id, doc.organization_id, doc.company_id, auth.uid(), submitted_payload, based_on_version, 'draft', saved_version);
+  return saved_version;
+end;
+$$;
+revoke all on function public.save_document_review(uuid, integer, uuid, jsonb, jsonb, jsonb) from public, anon, service_role;
+grant execute on function public.save_document_review(uuid, integer, uuid, jsonb, jsonb, jsonb) to authenticated;
 
 -- An opaque acknowledgement records what was returned for these prepared data.
 -- It is not a seal certifying external registry facts: preparation still runs in
@@ -129,7 +156,6 @@ declare
   approved_version integer;
   doc public.document;
   current_payload jsonb;
-  current_findings jsonb;
   current_version integer;
   current_context jsonb;
   warning_findings jsonb;
@@ -146,7 +172,7 @@ begin
   end if;
   approved_version := public.document_approval_result(target_document_id, request_id, submitted_payload, based_on_version);
   if approved_version is not null then return jsonb_build_object('version', approved_version); end if;
-  select v.version, v.payload, v.findings into current_version, current_payload, current_findings from public.extraction_version v
+  select v.version, v.payload into current_version, current_payload from public.extraction_version v
     where v.document_id = doc.id order by v.version desc limit 1;
   if coalesce(current_version, 0) is distinct from based_on_version then
     raise exception 'the Document has a newer Extraction Version' using errcode = 'P0001', hint = 'stale_version';
@@ -172,13 +198,15 @@ begin
   end if;
   select coalesce(jsonb_agg(f order by f::text), '[]'::jsonb) into warning_findings from jsonb_array_elements(findings) f where f ->> 'severity' = 'warning';
   if warning_findings <> '[]'::jsonb
-    and not coalesce((private.document_review_data(current_payload) = private.document_review_data(payload)
-      and warning_findings = (select coalesce(jsonb_agg(f order by f::text), '[]'::jsonb) from jsonb_array_elements(coalesce(current_findings, '[]')) f where f ->> 'severity' = 'warning')), false)
     and not exists (select 1 from public.document_review_confirmation c where c.id = acknowledgement and c.document_id = doc.id
       and c.actor_user_id = auth.uid() and c.payload = save_and_approve_document.payload and c.findings = save_and_approve_document.findings and c.context = current_context) then
     insert into public.document_review_confirmation(document_id, organization_id, company_id, actor_user_id, payload, findings, context)
       values(doc.id, doc.organization_id, doc.company_id, auth.uid(), payload, findings, current_context) returning id into confirmation_id;
-    return jsonb_build_object('confirmationId', confirmation_id, 'findings', findings);
+    -- The application may acknowledge an unchanged visible warning list only
+    -- after reading the actual current Bank Account Check projection. The same
+    -- expected_context is checked again if it immediately confirms this receipt.
+    return jsonb_build_object('confirmationId', confirmation_id, 'findings', findings,
+      'unchanged', private.document_review_data(current_payload) = private.document_review_data(payload));
   end if;
   -- Confidence is AI metadata; schemaVersion describes draft compatibility.
   if private.document_review_data(current_payload) = private.document_review_data(payload) then
@@ -188,8 +216,8 @@ begin
   end if;
   -- Existing triggers enforce accounting invariants even when callers forge findings.
   perform public.approve_document(target_document_id, approved_version);
-  insert into public.document_approval_receipt(document_id, request_id, organization_id, company_id, actor_user_id, submitted_payload, based_on_version, version)
-    values (doc.id, request_id, doc.organization_id, doc.company_id, auth.uid(), submitted_payload, based_on_version, approved_version);
+  insert into public.document_approval_receipt(document_id, request_id, organization_id, company_id, actor_user_id, submitted_payload, based_on_version, operation_kind, version)
+    values (doc.id, request_id, doc.organization_id, doc.company_id, auth.uid(), submitted_payload, based_on_version, 'approval', approved_version);
   return jsonb_build_object('version', approved_version);
 end;
 $$;

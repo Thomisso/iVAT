@@ -469,14 +469,14 @@ isOneToOne: false
                   ]
                 },"document_approval_receipt": {
                   Row: {
-                    "actor_user_id": string,"based_on_version": number,"company_id": string,"created_at": string,"document_id": string,"organization_id": string,"request_id": string,"submitted_payload": NonNullable<Json>,"version": number
+                    "actor_user_id": string,"based_on_version": number,"company_id": string,"created_at": string,"document_id": string,"operation_kind": string,"organization_id": string,"request_id": string,"submitted_payload": NonNullable<Json>,"version": number
                   }
                   ComputedFields: never
                   Insert: {
-                    "actor_user_id": string,"based_on_version": number,"company_id": string,"created_at"?: string,"document_id": string,"organization_id": string,"request_id": string,"submitted_payload": NonNullable<Json>,"version": number
+                    "actor_user_id": string,"based_on_version": number,"company_id": string,"created_at"?: string,"document_id": string,"operation_kind": string,"organization_id": string,"request_id": string,"submitted_payload": NonNullable<Json>,"version": number
                   }
                   Update: {
-                    "actor_user_id"?: string,"based_on_version"?: number,"company_id"?: string,"created_at"?: string,"document_id"?: string,"organization_id"?: string,"request_id"?: string,"submitted_payload"?: NonNullable<Json>,"version"?: number
+                    "actor_user_id"?: string,"based_on_version"?: number,"company_id"?: string,"created_at"?: string,"document_id"?: string,"operation_kind"?: string,"organization_id"?: string,"request_id"?: string,"submitted_payload"?: NonNullable<Json>,"version"?: number
                   }
                   Relationships: [
                     {
@@ -1188,7 +1188,7 @@ isOneToOne: false
 { Args: { "target_notification_id": string }; Returns: undefined
                            },
 "document_approval_result":
-{ Args: { "based_on_version": number,"request_id": string,"submitted_payload": Json,"target_document_id": string }; Returns: number
+{ Args: { "based_on_version": number,"operation_kind"?: string,"request_id": string,"submitted_payload": Json,"target_document_id": string }; Returns: number
                            },
 "document_review_context":
 { Args: { "based_on_version": number,"target_document_id": string }; Returns: Json
@@ -1423,6 +1423,9 @@ isOneToOne: false
                            },
 "save_and_approve_document":
 { Args: { "acknowledgement"?: string,"based_on_version": number,"expected_context": Json,"findings": Json,"payload": Json,"request_id": string,"submitted_payload": Json,"target_document_id": string }; Returns: Json
+                           },
+"save_document_review":
+{ Args: { "based_on_version": number,"findings": Json,"payload": Json,"request_id": string,"submitted_payload": Json,"target_document_id": string }; Returns: number
                            },
 "save_vat_report":
 { Args: { "computed_result": Json,"expected_documents": Json,"target_company_id": string,"target_period": string }; Returns: string

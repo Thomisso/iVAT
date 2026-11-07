@@ -33,6 +33,7 @@ export function CorrectionForm({
   editable,
   aiProposed,
   requestId,
+  displayedBankAccountCheckId,
   decision,
 }: {
   companyId: string;
@@ -43,6 +44,7 @@ export function CorrectionForm({
   editable: boolean;
   aiProposed?: boolean;
   requestId?: string;
+  displayedBankAccountCheckId?: string | null;
   decision?: { nextDocumentId: string; queueQuery: string; returnTo: string };
 }) {
   const t = useTranslations("review");
@@ -52,13 +54,13 @@ export function CorrectionForm({
   });
   // A Server Action may rerender the page with someone else's newer Version.
   // Keep this draft's base until our explicit save actually succeeds.
-  const [base, setBase] = useState({ version: currentVersion, payload: currentPayload, findings: currentFindings, requestId });
+  const [base, setBase] = useState({ version: currentVersion, payload: currentPayload, findings: currentFindings, requestId, displayedBankAccountCheckId });
   const { version, payload, findings } = base;
   const [lines, setLines] = useState(() =>
     payload.rateBreakdown.flatMap((line, index) => isZeroRateBreakdownLine(line) ? [] : [index]),
   );
   if (state.savedVersion !== undefined && state.savedVersion === currentVersion && base.version !== currentVersion) {
-    setBase({ version: currentVersion, payload: currentPayload, findings: currentFindings, requestId });
+    setBase({ version: currentVersion, payload: currentPayload, findings: currentFindings, requestId, displayedBankAccountCheckId });
     setLines(currentPayload.rateBreakdown.flatMap((line, index) => isZeroRateBreakdownLine(line) ? [] : [index]));
   }
   const nextLine = Math.max(payload.rateBreakdown.length - 1, ...lines) + 1;
@@ -171,6 +173,7 @@ export function CorrectionForm({
       <input type="hidden" name="documentId" value={documentId} />
       <input type="hidden" name="basedOnVersion" value={version} />
       <input type="hidden" name="requestId" value={base.requestId ?? ""} />
+      <input type="hidden" name="displayedBankAccountCheckId" value={base.displayedBankAccountCheckId ?? ""} />
       <input type="hidden" name="acknowledgement" value={state.confirmation?.id ?? ""} />
       {decision && Object.entries(decision).map(([name, entry]) => <input key={name} type="hidden" name={name} value={entry} />)}
       <fieldset>
@@ -354,7 +357,7 @@ export function CorrectionForm({
             <StatusBadge status={statusBadgeState(state.conflict.status, "document")} />
             <p>{t("submittedNotSaved")}</p>
             <table><thead><tr><th>{t("comparisonField")}</th><th>{t("submittedValue")}</th><th>{t("currentValue")}</th></tr></thead>
-              <tbody>{Object.entries(state.values).filter(([name]) => !["companyId", "documentId", "basedOnVersion", "requestId", "acknowledgement", "intent", "nextDocumentId", "queueQuery", "returnTo"].includes(name)).map(([name, submitted]) => {
+              <tbody>{Object.entries(state.values).filter(([name]) => !["companyId", "documentId", "basedOnVersion", "requestId", "displayedBankAccountCheckId", "acknowledgement", "intent", "nextDocumentId", "queueQuery", "returnTo"].includes(name)).map(([name, submitted]) => {
                 const current = name.split(".").reduce<unknown>((entry, part) => entry !== null && typeof entry === "object" ? (entry as Record<string, unknown>)[part] : undefined, state.conflict!.payload);
                 const saved = current === null || current === undefined ? "" : String(current);
                 const labels: Record<string, string> = { proposedVatRegime: "vatRegime", "totals.netAmount": "totalNet", "totals.vatAmount": "totalVat", "totals.grossAmount": "totalGross" };

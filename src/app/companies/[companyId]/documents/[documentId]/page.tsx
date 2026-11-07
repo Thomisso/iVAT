@@ -234,6 +234,7 @@ export default async function DocumentReviewPage({
               documentId={document.id}
               version={shown.version}
               requestId={randomUUID()}
+              displayedBankAccountCheckId={bankChecks.current?.id ?? null}
               decision={{ nextDocumentId: position.continuationDocumentId ?? "", queueQuery, returnTo: returnTo ?? "" }}
               payload={shown.payload}
               findings={shownFindings}
@@ -243,7 +244,7 @@ export default async function DocumentReviewPage({
               }
             />
           ) : document.status === "needs_review" && !lockedPeriod ? (
-            <CorrectionForm companyId={companyId} documentId={document.id} version={0} requestId={randomUUID()} decision={{ nextDocumentId: position.continuationDocumentId ?? "", queueQuery, returnTo: returnTo ?? "" }} payload={emptyDocumentPayload()} findings={[]} editable aiProposed={false} />
+            <CorrectionForm companyId={companyId} documentId={document.id} version={0} requestId={randomUUID()} displayedBankAccountCheckId={bankChecks.current?.id ?? null} decision={{ nextDocumentId: position.continuationDocumentId ?? "", queueQuery, returnTo: returnTo ?? "" }} payload={emptyDocumentPayload()} findings={[]} editable aiProposed={false} />
           ) : (
             <EmptyState icon="file" title={t("review.noExtraction")} />
           )}

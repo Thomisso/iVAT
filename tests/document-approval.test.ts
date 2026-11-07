@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { createCounterparty } from "@/application/counterparties";
 import { finalizeVatReport, generateVatReport } from "@/application/vat-reports";
+import { getDocumentReview } from "@/application/document-review";
+import { refreshBankAccountCheck } from "@/application/bank-account-checks";
 import { listAuditEvents } from "@/application/audit";
 import { correctDocument, createManualDocument, getDocument, listDocuments, listExtractionVersions, saveAndApproveDocument } from "@/application/documents";
 import { fakeVatPayerRegistry } from "@/vat-registry/fake";
@@ -10,9 +12,9 @@ import { uploadSourceFile } from "@/application/source-files";
 import { fixtureFile } from "./support/files";
 import { testWorker } from "./support/worker";
 
-async function documentInReview() {
+async function documentInReview(registry = fakeVatPayerRegistry()) {
   const user = await administratorWithCompany();
-  const created = await createManualDocument(user.client, { companyId: user.companyId, payload: SAMPLE_EXTRACTION }, undefined, fakeVatPayerRegistry());
+  const created = await createManualDocument(user.client, { companyId: user.companyId, payload: SAMPLE_EXTRACTION }, undefined, registry);
   if (!created.ok) throw new Error(created.error);
   return { ...user, documentId: created.value.id };
 }
@@ -156,6 +158,9 @@ describe("atomic Document approval", () => {
     expect(forged.error?.code).toBe("42501");
     expect((await saveAndApproveDocument(document.client, { ...input, acknowledgement: warning.confirmation.id }, undefined, registry)).ok).toBe(true);
     expect((await foreign.client.from("document_approval_receipt").select("request_id").eq("document_id", document.documentId)).data).toEqual([]);
+    expect((await foreign.client.from("document_approval_receipt").update({ version: 999 }).eq("document_id", document.documentId).eq("request_id", input.requestId)).error?.code).toBe("42501");
+    expect((await foreign.client.from("document_approval_receipt").delete().eq("document_id", document.documentId).eq("request_id", input.requestId)).error?.code).toBe("42501");
+    expect(await saveAndApproveDocument(document.client, input, undefined, registry)).toEqual({ ok: true, value: { version: 2 } });
     expect((await foreign.client.rpc("document_approval_result", { target_document_id: document.documentId, request_id: input.requestId, submitted_payload: input.payload, based_on_version: 1 })).error?.code).toBe("42501");
   });
 
@@ -191,6 +196,44 @@ describe("atomic Document approval", () => {
     } };
     expect(await saveAndApproveDocument(document.client, { ...document, basedOnVersion: 1, requestId: crypto.randomUUID(), payload: { ...SAMPLE_EXTRACTION, documentNumber: "NO-PARTIAL-228" } }, undefined, registry)).toMatchObject({ ok: false, error: "review_context_changed", conflict: { version: 1, status: "needs_review" } });
     expect(await listExtractionVersions(document.client, document.companyId, document.documentId)).toHaveLength(1);
+  });
+
+  it.each([true, false])("uses the actual displayed Bank Account Check findings, not stored warnings (stored unpublished=%s)", async (storedUnpublished) => {
+    const unpublished = fakeVatPayerRegistry({ outcome: "checked", unreliable: false, publishedAccounts: [] });
+    const document = await documentInReview(storedUnpublished ? unpublished : fakeVatPayerRegistry());
+    expect((await refreshBankAccountCheck(document.client, document, storedUnpublished ? fakeVatPayerRegistry() : unpublished)).ok).toBe(true);
+    const displayed = await getDocumentReview(document.client, document);
+    expect(displayed?.shownFindings.some((finding) => finding.code === "unpublished_bank_account")).toBe(!storedUnpublished);
+    const [current] = await listExtractionVersions(document.client, document.companyId, document.documentId);
+    const result = await saveAndApproveDocument(document.client, { ...document, basedOnVersion: 1, requestId: crypto.randomUUID(), payload: current.payload }, undefined, unpublished);
+    if (storedUnpublished) {
+      expect(result).toMatchObject({ ok: false, error: "review_warnings_changed" });
+      expect((await getDocument(document.client, document.companyId, document.documentId))?.status).toBe("needs_review");
+    } else expect(result).toEqual({ ok: true, value: { version: 1 } });
+    expect(await listExtractionVersions(document.client, document.companyId, document.documentId)).toHaveLength(1);
+  });
+
+  it("replays a successful explicit draft save without confusing it with approval or a new save", async () => {
+    const document = await documentInReview();
+    const input = { ...document, basedOnVersion: 1, requestId: crypto.randomUUID(), payload: { ...SAMPLE_EXTRACTION, documentNumber: "DRAFT-RETRY-228" } };
+    expect(await correctDocument(document.client, input, undefined, fakeVatPayerRegistry())).toEqual({ ok: true, value: { version: 2 } });
+    expect(await correctDocument(document.client, input, undefined, fakeVatPayerRegistry())).toEqual({ ok: true, value: { version: 2 } });
+    expect(await correctDocument(document.client, { ...input, requestId: crypto.randomUUID() }, undefined, fakeVatPayerRegistry())).toMatchObject({ ok: false, error: "stale_version", conflict: { version: 2 } });
+    expect(await saveAndApproveDocument(document.client, input, undefined, fakeVatPayerRegistry())).toMatchObject({ ok: false, error: "stale_version" });
+    expect(await correctDocument(document.client, { ...input, basedOnVersion: 2, requestId: crypto.randomUUID() }, undefined, fakeVatPayerRegistry())).toEqual({ ok: true, value: { version: 3 } });
+    expect(await correctDocument(document.client, input, undefined, fakeVatPayerRegistry())).toEqual({ ok: true, value: { version: 2 } });
+    expect((await getDocument(document.client, document.companyId, document.documentId))?.status).toBe("needs_review");
+    expect(await listExtractionVersions(document.client, document.companyId, document.documentId)).toHaveLength(3);
+  });
+
+  it("does not implicitly acknowledge a Bank Account Check warning introduced after the displayed review", async () => {
+    const document = await documentInReview();
+    const displayed = await getDocumentReview(document.client, document);
+    const unpublished = fakeVatPayerRegistry({ outcome: "checked", unreliable: false, publishedAccounts: [] });
+    expect((await refreshBankAccountCheck(document.client, document, unpublished)).ok).toBe(true);
+    const [current] = await listExtractionVersions(document.client, document.companyId, document.documentId);
+    expect(await saveAndApproveDocument(document.client, { ...document, basedOnVersion: 1, requestId: crypto.randomUUID(), payload: current.payload, displayedBankAccountCheckId: displayed?.bankChecks.current?.id ?? null }, undefined, unpublished)).toMatchObject({ ok: false, error: "review_warnings_changed" });
+    expect((await getDocument(document.client, document.companyId, document.documentId))?.status).toBe("needs_review");
   });
 
 });
