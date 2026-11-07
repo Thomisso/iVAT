@@ -63,6 +63,15 @@ export type CzkConversion = {
   totals: { netAmount: string | null; vatAmount: string | null; grossAmount: string | null };
 };
 
+/** A human selection of separate supplies; full source amounts remain unchanged. */
+export type ClaimBasis = Pick<ExtractionPayload, "documentType" | "direction" | "currency" | "proposedVatRegime" | "taxPointDate" | "rateBreakdown" | "totals">;
+
+export type PartialClaim = {
+  basis?: ClaimBasis;
+  confirmed: boolean;
+  rateBreakdown: DraftRateBreakdownLine[];
+};
+
 export type ExtractionPayload = {
   schemaVersion: 1 | 2;
   documentType: DocumentType | null;
@@ -85,6 +94,8 @@ export type ExtractionPayload = {
   reverseChargeCode: string | null;
   /** For a Credit Note: the number of the Document it corrects. */
   originalDocumentNumber: string | null;
+  /** Absent on legacy/full claims. AI must never create or confirm this choice. */
+  partialClaim?: PartialClaim | null;
   /** Derived CZK values; the printed currency and amounts above stay unchanged. */
   czkConversion?: CzkConversion;
   /**
@@ -212,6 +223,12 @@ export function normalizeExtractionPayload(payload: ExtractionPayload): Extracti
     customer: party(payload.customer),
     rateBreakdown: payload.rateBreakdown
       .map((line) => ({ ...line, netAmount: normalizeAmount(line.netAmount), vatAmount: normalizeAmount(line.vatAmount) })),
+    ...(payload.partialClaim ? { partialClaim: {
+      ...payload.partialClaim,
+      rateBreakdown: payload.partialClaim.rateBreakdown.map(line => ({ ...line,
+        netAmount: normalizeAmount(line.netAmount), vatAmount: normalizeAmount(line.vatAmount),
+      })),
+    } } : {}),
     totals: {
       netAmount: amount(payload.totals.netAmount),
       vatAmount: amount(payload.totals.vatAmount),

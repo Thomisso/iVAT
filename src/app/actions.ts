@@ -581,6 +581,10 @@ function payloadFromForm(formData: FormData): ExtractionPayload {
   const lines = [
     ...new Set([...formData.keys()].flatMap((key) => /^rateBreakdown\.(\d+)\./.exec(key)?.[1] ?? [])),
   ].sort((a, b) => Number(a) - Number(b));
+  let basis: NonNullable<ExtractionPayload["partialClaim"]>["basis"];
+  let basisValid = true;
+  try { basis = optionalField(formData, "partialClaim.basis") ? JSON.parse(field(formData, "partialClaim.basis")) : undefined; }
+  catch { basisValid = false; }
   return {
     schemaVersion: 1,
     documentType: optionalField(formData, "documentType") as ExtractionPayload["documentType"],
@@ -593,6 +597,11 @@ function payloadFromForm(formData: FormData): ExtractionPayload {
     supplier: partyFromForm(formData, "supplier"),
     customer: partyFromForm(formData, "customer"),
     currency: optionalField(formData, "currency"),
+    ...(field(formData, "partialClaim.mode") === "full" ? { partialClaim: null } : field(formData, "partialClaim.mode") === "selected" ? { partialClaim: {
+      confirmed: basisValid && field(formData, "partialClaim.confirmed") === "true",
+      ...(basis ? { basis } : {}),
+      rateBreakdown: [{ rate: Number(field(formData, "partialClaim.rate")), netAmount: optionalField(formData, "partialClaim.netAmount"), vatAmount: optionalField(formData, "partialClaim.vatAmount") }],
+    } } : {}),
     sourceRateRows: lines.map((i) => Number(i)),
     rateBreakdown: lines.map((i) => ({
       rate: optionalField(formData, `rateBreakdown.${i}.rate`) === null ? null

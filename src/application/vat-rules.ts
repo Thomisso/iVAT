@@ -1,3 +1,5 @@
+import { halers, amount, assessedVat } from "./money";
+import { partialClaimRates } from "./partial-claim";
 import type {
   CompanyDetails,
   ReportingYear,
@@ -110,20 +112,6 @@ export type ComputedVatReport = {
   excludedDocuments: { documentId: string; reason: ExclusionReason }[];
 };
 
-/** Amounts are summed in integer halers; no financial value passes through a float. */
-function halers(value: string): bigint {
-  return BigInt(value.replace(".", ""));
-}
-function amount(value: bigint): string {
-  const absolute = value < BigInt(0) ? -value : value;
-  return `${value < BigInt(0) ? "-" : ""}${absolute / BigInt(100)}.${String(absolute % BigInt(100)).padStart(2, "0")}`;
-}
-function assessedVat(netAmount: string, rate: number): string {
-  const numerator = halers(netAmount) * BigInt(rate);
-  const absolute = numerator < BigInt(0) ? -numerator : numerator;
-  const rounded = (absolute + BigInt(50)) / BigInt(100);
-  return amount(numerator < BigInt(0) ? -rounded : rounded);
-}
 function add(
   target: { netAmount: string; vatAmount: string; documentIds: string[] },
   source: { netAmount: string; vatAmount: string },
@@ -180,6 +168,7 @@ export function vatReportDocumentExclusion(document: ReportDocument): ExclusionR
     !p.totals.grossAmount
   )
     return "incomplete_data";
+  if (p.partialClaim !== undefined && !partialClaimRates(p)) return "incomplete_data";
   const regime = p.proposedVatRegime;
   if (
     !regime ||
@@ -357,7 +346,8 @@ export function computeVatReport(
       controlStatement.push(entry);
     }
     entry.documentIds.push(document.id);
-    for (const rate of p.rateBreakdown) {
+    const reportingRates = p.partialClaim ? partialClaimRates(p)! : p.rateBreakdown;
+    for (const rate of reportingRates) {
       const selfAssessed = p.proposedVatRegime !== "domestic";
       const calculatedVat = selfAssessed
         ? assessedVat(rate.netAmount, rate.rate)

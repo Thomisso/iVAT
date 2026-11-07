@@ -35,6 +35,7 @@ The payload is a proposal (ADR-0003). Nothing in it counts towards a VAT Report 
 | `proposedVatRegime` | `domestic` · `domestic_reverse_charge` · `eu_acquisition_of_goods` · `eu_received_service` · `other` | Proposed VAT Regime. `other` leads to Manual Classification Required |
 | `reverseChargeCode` | string | Official Control Statement subject code for `domestic_reverse_charge`; otherwise `null` |
 | `originalDocumentNumber` | string | For a Credit Note, the number of the Document it corrects |
+| `partialClaim` | `{ confirmed, rateBreakdown }`, optional | Explicit human selection of separate supplies. Absence retains full-Document reporting; an unconfirmed selection never silently restores a full claim. Full source Rate Breakdown and totals remain unchanged. |
 | `czkConversion` | object, optional | Derived CZK rate breakdown/totals plus original currency, ČNB rate, quoted unit, actual fixing date and source. Printed amounts stay unchanged. |
 | `counterpartyLink` | object, optional | Server-validated existing Counterparty `id` and a `recorded` Party-shaped snapshot of its directory details when this Version was saved. Supplier/customer fields remain the Document’s own data. |
 | `sourceEvidence` | object, optional | Server-bound PDF references for this immutable Version: Source File/Document identity, original hash and oriented basis, original page range, `extractionVersionId`, original AI request, and per-field locations with `origin` and `originalValue`. |
@@ -52,6 +53,38 @@ A **Party** is `{ name, ico, vatId, street, city, postalCode, country }`.
 Line items are not part of the MVP schema (#11).
 
 A directory link never copies values into `supplier` or `customer`. Explicitly copying directory details is a manual correction and creates a new Version. The current review compares the Document's Party against today's linked entry; a requested historical Version uses its recorded snapshot and findings. Directory edits do not rewrite Versions or stored VAT Reports. Legacy Versions without a link stay link-free. The server replaces caller-supplied `recorded` values and checks that the entry belongs to the Document's Company. Links retained only in older Versions still protect the directory entry from deletion.
+
+## Partial Claim
+
+`partialClaim` is human-authored metadata, never an AI proposal. Its optional
+`basis` records the confirmed full type, direction, regime, currency, Tax Point
+Date, Rate Breakdown and totals. PostgreSQL binds an initial selection to these
+inputs and invalidates confirmation after a relevant change. New AI cannot create
+selection metadata: insertion strips provider-authored choices and preserves a
+previous human choice as unconfirmed. Manual omission preserves the previous
+choice; an explicit `partialClaim: null` command returns to full amounts and is
+removed before immutable storage. The authenticated correction and approval audit
+points to the resulting Version. This optional command value is not a saved claim.
+
+Its `rateBreakdown` uses the same nullable rate/net/VAT representation as a human draft. `confirmed`
+records whether the preserved selection has been confirmed for the current source
+values; missing or false confirmation prevents contribution to reports. Adding this
+optional metadata leaves historical versions without it readable as full claims.
+
+The initial supported reporting scope is one positive, nonzero selection at one
+VAT rate on a CZK incoming domestic Document, excluding Credit Notes. Selected
+amounts must be complete, nonnegative and no greater than the full amounts, with
+net/VAT arithmetic within the existing two-haler tolerance. Full source net/VAT
+arithmetic remains independently required; a gross-total warning does not become a
+blocking error. Mixed rates, foreign currencies and explicitly confirmed zero are
+reserved for the subsequent extension and are currently excluded from reporting.
+
+The full Document determines identification and Control Statement thresholds. The
+same selected amounts feed the VAT Return and Control Statement and therefore the
+existing shared XML, PDF and preview outputs. For full `12000.00 + 2520.00` and
+selected `6000.00 + 1260.00`, the report uses the selected values on Return line 40
+and Control Statement B.2 with `pomer=N`. This is not statutory proportional
+or reduced deduction. One Document still has one Reporting Period.
 
 ## Example
 
