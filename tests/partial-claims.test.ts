@@ -35,7 +35,7 @@ it.each([
   expect((await getDocument(company.client, company.companyId, created.value.id))?.status).toBe("needs_review");
 });
 
-it("retains a human-confirmed zero choice in history and a locked report without any KH row", async () => {
+it("retains a human-confirmed zero choice in history and a locked report without any Control Statement row", async () => {
   const company = await administratorWithCompany();
   const created = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload: full }, undefined, registry);
   if (!created.ok) throw new Error(created.error);
