@@ -1273,7 +1273,7 @@
       "same_period": "Pravidlo stejného období DUZP, vystavení a importu.",
       "unconfirmed": "Vyžaduje potvrzení",
       "confirm": "Potvrzuji splnění podmínek pro vybrané období.",
-      "hint": "Import Date je datum skutečného uploadu, nikoli důkaz dřívějšího doručení. Ruční doklad bez originálu vyžaduje potvrzení účetním."
+      "hint": "Datum importu je datum skutečného nahrání, nikoli důkaz dřívějšího doručení. Ruční doklad bez originálu vyžaduje potvrzení účetním."
     }
   },
   "duplicateWarning": {
