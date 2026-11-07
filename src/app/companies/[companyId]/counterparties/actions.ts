@@ -23,35 +23,25 @@ export async function saveCounterpartyAction(_previous: FormState, formData: For
 }
 
 
-export async function archiveCounterpartyAction(_previous: FormState, formData: FormData): Promise<FormState> {
+async function runCounterpartyLifecycleAction(formData: FormData, command: typeof deleteCounterparty, destination: "detail" | "directory"): Promise<FormState> {
   const values = { companyId: String(formData.get("companyId") ?? ""), id: String(formData.get("id") ?? "") };
   const client = await requireUserClient();
-  const result = await archiveCounterparty(client, values);
+  const result = await command(client, values);
   if (!result.ok) return { error: result.error, values };
   const base = `/companies/${values.companyId}/counterparties`;
   revalidatePath(base);
   revalidatePath(`${base}/${values.id}`);
-  redirect(`${base}/${values.id}`);
+  redirect(destination === "detail" ? `${base}/${values.id}` : base);
+}
+
+export async function archiveCounterpartyAction(_previous: FormState, formData: FormData): Promise<FormState> {
+  return runCounterpartyLifecycleAction(formData, archiveCounterparty, "detail");
 }
 
 export async function restoreCounterpartyAction(_previous: FormState, formData: FormData): Promise<FormState> {
-  const values = { companyId: String(formData.get("companyId") ?? ""), id: String(formData.get("id") ?? "") };
-  const client = await requireUserClient();
-  const result = await restoreCounterparty(client, values);
-  if (!result.ok) return { error: result.error, values };
-  const base = `/companies/${values.companyId}/counterparties`;
-  revalidatePath(base);
-  revalidatePath(`${base}/${values.id}`);
-  redirect(`${base}/${values.id}`);
+  return runCounterpartyLifecycleAction(formData, restoreCounterparty, "detail");
 }
 
 export async function deleteCounterpartyAction(_previous: FormState, formData: FormData): Promise<FormState> {
-  const values = { companyId: String(formData.get("companyId") ?? ""), id: String(formData.get("id") ?? "") };
-  const client = await requireUserClient();
-  const result = await deleteCounterparty(client, values);
-  if (!result.ok) return { error: result.error, values };
-  const base = `/companies/${values.companyId}/counterparties`;
-  revalidatePath(base);
-  revalidatePath(`${base}/${values.id}`);
-  redirect(base);
+  return runCounterpartyLifecycleAction(formData, deleteCounterparty, "directory");
 }

@@ -98,33 +98,30 @@ export async function listCounterpartyDocuments(client: AppClient, companyId: st
 }
 
 
-export async function archiveCounterparty(client: AppClient, input: { companyId: string; id: string }): Promise<Result<null, "forbidden">> {
+type CounterpartyTarget = { companyId: string; id: string };
+type CounterpartyLifecycleOperation = "archive_counterparty" | "restore_counterparty" | "delete_counterparty";
+
+async function changeCounterpartyLifecycle(client: AppClient, input: CounterpartyTarget, operation: "delete_counterparty"): Promise<Result<null, "forbidden" | "counterparty_in_use">>;
+async function changeCounterpartyLifecycle(client: AppClient, input: CounterpartyTarget, operation: "archive_counterparty" | "restore_counterparty"): Promise<Result<null, "forbidden">>;
+async function changeCounterpartyLifecycle(client: AppClient, input: CounterpartyTarget, operation: CounterpartyLifecycleOperation): Promise<Result<null, "forbidden" | "counterparty_in_use">> {
   if (!isUuid(input.companyId) || !isUuid(input.id)) return { ok: false, error: "forbidden" };
-  const { error } = await client.rpc("archive_counterparty", {
+  const { error } = await client.rpc(operation, {
     target_company_id: input.companyId, target_counterparty_id: input.id,
   });
   if (error?.code === "42501") return { ok: false, error: "forbidden" };
+  if (operation === "delete_counterparty" && error?.code === "P0001" && error.hint === "counterparty_in_use") return { ok: false, error: "counterparty_in_use" };
   if (error) throw error;
   return { ok: true, value: null };
 }
 
-export async function restoreCounterparty(client: AppClient, input: { companyId: string; id: string }): Promise<Result<null, "forbidden">> {
-  if (!isUuid(input.companyId) || !isUuid(input.id)) return { ok: false, error: "forbidden" };
-  const { error } = await client.rpc("restore_counterparty", {
-    target_company_id: input.companyId, target_counterparty_id: input.id,
-  });
-  if (error?.code === "42501") return { ok: false, error: "forbidden" };
-  if (error) throw error;
-  return { ok: true, value: null };
+export async function archiveCounterparty(client: AppClient, input: CounterpartyTarget): Promise<Result<null, "forbidden">> {
+  return changeCounterpartyLifecycle(client, input, "archive_counterparty");
 }
 
-export async function deleteCounterparty(client: AppClient, input: { companyId: string; id: string }): Promise<Result<null, "forbidden" | "counterparty_in_use">> {
-  if (!isUuid(input.companyId) || !isUuid(input.id)) return { ok: false, error: "forbidden" };
-  const { error } = await client.rpc("delete_counterparty", {
-    target_company_id: input.companyId, target_counterparty_id: input.id,
-  });
-  if (error?.code === "42501") return { ok: false, error: "forbidden" };
-  if (error?.code === "P0001" && error.hint === "counterparty_in_use") return { ok: false, error: "counterparty_in_use" };
-  if (error) throw error;
-  return { ok: true, value: null };
+export async function restoreCounterparty(client: AppClient, input: CounterpartyTarget): Promise<Result<null, "forbidden">> {
+  return changeCounterpartyLifecycle(client, input, "restore_counterparty");
+}
+
+export async function deleteCounterparty(client: AppClient, input: CounterpartyTarget): Promise<Result<null, "forbidden" | "counterparty_in_use">> {
+  return changeCounterpartyLifecycle(client, input, "delete_counterparty");
 }
