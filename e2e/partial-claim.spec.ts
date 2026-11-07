@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page, type BrowserContext } from "@playwright/test";
 import { provisionAndLogIn } from "./support/accounts";
 import { browserUserClient } from "../tests/support/e2e";
 import { SAMPLE_EXTRACTION } from "../src/ai/fake";
@@ -6,7 +6,7 @@ import { createManualDocument, listExtractionVersions } from "../src/application
 import { generateVatReport, getVatReport } from "../src/application/vat-reports";
 import { fakeVatPayerRegistry } from "../src/vat-registry/fake";
 
-test("human selection preserves full values from activation through saved approval and B.2 report", async ({ page, context, baseURL }) => {
+async function documentForReview(page: Page, context: BrowserContext, baseURL: string | undefined) {
   if (!baseURL) throw new Error("base URL required");
   await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseURL }]);
   const run = crypto.randomUUID();
@@ -31,6 +31,11 @@ test("human selection preserves full values from activation through saved approv
   const created = await createManualDocument(client, { companyId, payload: full }, undefined, fakeVatPayerRegistry());
   if (!created.ok) throw new Error(created.error);
   await page.goto(`/companies/${companyId}/documents/${created.value.id}`);
+  return { companyId, client, created, full };
+}
+
+test("human selection preserves full values from activation through saved approval and B.2 report", async ({ page, context, baseURL }) => {
+  const { companyId, client, created, full } = await documentForReview(page, context, baseURL);
   await expect(page.getByRole("region", { name: "Unclaimed Portion", exact: true })).toHaveCount(0);
   await page.getByRole("checkbox", { name: "Claim selected supplies", exact: true }).check();
   await expect(page.getByLabel("Claimed net", { exact: true })).toHaveValue("12000.00");
@@ -80,4 +85,40 @@ test("human selection preserves full values from activation through saved approv
   await expect(page.getByRole("checkbox", { name: "Uplatnit vybraná plnění", exact: true })).toBeChecked();
   await expect(page.getByRole("region", { name: "Neuplatněná část", exact: true })).toContainText("7260.00");
 
+});
+
+
+test("a changed single-rate source clears the old remainder and permits explicit rate reconfirmation without losing selection", async ({ page, context, baseURL }) => {
+  const { companyId, client, created } = await documentForReview(page, context, baseURL);
+  await page.getByRole("checkbox", { name: "Claim selected supplies", exact: true }).check();
+  await page.getByLabel("Claimed net", { exact: true }).fill("6000.00");
+  await page.getByLabel("Claimed VAT", { exact: true }).fill("1260.00");
+  await page.getByRole("button", { name: "Save corrections", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Approve version 2", exact: true })).toBeVisible();
+  const remainder = page.getByRole("region", { name: "Unclaimed Portion", exact: true });
+  await expect(remainder).toContainText("7260.00");
+  await page.getByRole("button", { name: "Remove", exact: true }).click();
+  await expect(remainder).toContainText("Cannot calculate");
+  await expect(page.getByLabel("Claimed net", { exact: true })).toHaveValue("6000.00");
+  await page.getByRole("button", { name: "Add rate", exact: true }).click();
+  const rates = page.getByRole("group", { name: "Rate breakdown and totals", exact: true });
+  await rates.getByRole("textbox", { name: "Rate (%)", exact: true }).fill("12");
+  await rates.getByRole("textbox", { name: "Net", exact: true }).fill("12000.00");
+  await rates.getByRole("textbox", { name: "VAT", exact: true }).fill("1440.00");
+  await page.getByLabel("Total VAT", { exact: true }).fill("1440.00");
+  await page.getByLabel("Total incl. VAT", { exact: true }).fill("13440.00");
+  await page.getByLabel("Claimed VAT", { exact: true }).fill("720.00");
+  await expect(page.getByText("Previously saved selection: 21% · net 6000.00, VAT 1260.00", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Confirm selection at 12% for these full amounts", exact: true }).click();
+  await expect(remainder).toContainText("6720.00");
+  await expect(page.getByLabel("Claimed net", { exact: true })).toHaveValue("6000.00");
+  await expect(page.getByLabel("Claimed VAT", { exact: true })).toHaveValue("720.00");
+  await page.getByRole("button", { name: "Approve version 2", exact: true }).click();
+  await expect(page).toHaveURL(/\/documents(?:\?.*)?$/);
+  const versions = await listExtractionVersions(client, companyId, created.value.id);
+  expect(versions[1].payload.partialClaim).toMatchObject({ rateBreakdown: [{ rate: 21, netAmount: "6000.00", vatAmount: "1260.00" }] });
+  expect(versions[2].payload.partialClaim).toMatchObject({ confirmed: true, rateBreakdown: [{ rate: 12, netAmount: "6000.00", vatAmount: "720.00" }] });
+  expect((await generateVatReport(client, { companyId, period: "2026-10" })).ok).toBe(true);
+  expect((await getVatReport(client, companyId, "2026-10"))?.result.vatReturn.find(line => line.line === "41"))
+    .toMatchObject({ netAmount: "6000.00", vatAmount: "720.00" });
 });
