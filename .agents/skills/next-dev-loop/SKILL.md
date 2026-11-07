@@ -82,6 +82,12 @@ use an explicitly configured separate output directory. Stop only the server
 and worker started for this verification; retain an already-running worktree
 server. Keep the human checkout and its database untouched.
 
+For production HTTP acceptance, run `npm run test:http` in an isolated worktree.
+It builds and starts the production app, uses real Auth/database/worker paths,
+executes the CLI HTTP suite and tears down the owned services/stack. It never
+executes the retained browser test inventory. `npm run test:http:dev` is a
+focused development alternative; it does not supply production-build evidence.
+
 Report the exact revision, commands/tools, observed outcomes and remaining
 limitations. Treat existing test evidence according to its scope and revision;
 source inspection, successful compilation and HTTP checks cannot prove
