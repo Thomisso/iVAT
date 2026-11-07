@@ -49,7 +49,7 @@ function observationFindings(check: BankAccountCheck): ValidationFinding[] {
  * unrelated findings and all stored Versions remain intact. No report writes.
  */
 export async function getDocumentBankAccountChecks(client: AppClient, input: { companyId: string; documentId: string }) {
-  const empty = { checks: [] as BankAccountCheck[], current: null as BankAccountCheck | null, findings: [] as ValidationFinding[], extractionVersionId: null as string | null };
+  const empty = { checks: [] as BankAccountCheck[], current: null as BankAccountCheck | null, findings: [] as ValidationFinding[], payload: null as ExtractionPayload | null, extractionVersionId: null as string | null };
   if (!isUuid(input.companyId) || !isUuid(input.documentId)) return empty;
   const latest = await client.from("extraction_version").select("id, payload, findings")
     .eq("company_id", input.companyId).eq("document_id", input.documentId).order("version", { ascending: false }).limit(1).maybeSingle();
@@ -73,7 +73,7 @@ export async function getDocumentBankAccountChecks(client: AppClient, input: { c
   }
   const current = checks.find((check) => check.extractionVersionId === latestVersion.id) ?? null;
   const findings = currentValidationFindings(latestVersion.payload as ExtractionPayload, latestVersion.findings as ValidationFinding[]);
-  return { checks, current, extractionVersionId: latestVersion.id,
+  return { checks, current, payload: latestVersion.payload as ExtractionPayload, extractionVersionId: latestVersion.id,
     findings: current ? [...findings.filter((finding) => !isBankAccountFinding(finding)), ...observationFindings(current)] : findings };
 }
 

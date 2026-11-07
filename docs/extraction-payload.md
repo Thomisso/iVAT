@@ -36,6 +36,7 @@ The payload is a proposal (ADR-0003). Nothing in it counts towards a VAT Report 
 | `reverseChargeCode` | string | Official Control Statement subject code for `domestic_reverse_charge`; otherwise `null` |
 | `originalDocumentNumber` | string | For a Credit Note, the number of the Document it corrects |
 | `czkConversion` | object, optional | Derived CZK rate breakdown/totals plus original currency, ČNB rate, quoted unit, actual fixing date and source. Printed amounts stay unchanged. |
+| `counterpartyLink` | object, optional | Server-validated existing Counterparty `id` and a `recorded` Party-shaped snapshot of its directory details when this Version was saved. Supplier/customer fields remain the Document’s own data. |
 | `sourceEvidence` | object, optional | Server-bound PDF references for this immutable Version: Source File/Document identity, original hash and oriented basis, original page range, `extractionVersionId`, original AI request, and per-field locations with `origin` and `originalValue`. |
 | `sourceLocations` | `{ fieldPath, kind: "page", page, x, y, width, height }[]`, optional | Unbound provider PDF references. Pages are 1-based within the supplied Document slice; rectangles use a top-left origin on the oriented page and coordinates from 0 to 1. Only server-bound evidence may be used in review. |
 | `confidence` | `{ [fieldPath]: number }`, optional | The provider's confidence from 0 to 1, keyed by field path (`documentNumber`, `supplier.vatId`, `rateBreakdown.0.vatAmount`). Only for fields the provider reports on |
@@ -49,6 +50,8 @@ Review requests for an explicit Version load that Version's content basis. The v
 A **Party** is `{ name, ico, vatId, street, city, postalCode, country }`.
 
 Line items are not part of the MVP schema (#11).
+
+A directory link never copies values into `supplier` or `customer`. Explicitly copying directory details is a manual correction and creates a new Version. The current review compares the Document's Party against today's linked entry; a requested historical Version uses its recorded snapshot and findings. Directory edits do not rewrite Versions or stored VAT Reports. Legacy Versions without a link stay link-free. The server replaces caller-supplied `recorded` values and checks that the entry belongs to the Document's Company. Links retained only in older Versions still protect the directory entry from deletion.
 
 ## Example
 
