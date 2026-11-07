@@ -48,7 +48,7 @@ export function AttachDocumentSourceForm({ companyId, documentId }: { companyId:
 export function DocumentAiReplacementForm({ companyId, documentId }: { companyId: string; documentId: string }) {
   const t = useTranslations("review");
   const [state, action, pending] = useActionState(reprocessDocumentAction, { error: null, values: {} });
-  return <form action={action} className="form">
+  return <form action={action} className="form" data-review-departure>
     <input type="hidden" name="companyId" value={companyId} /><input type="hidden" name="documentId" value={documentId} />
     <Notice tone="warning" title={t("aiReplacementTitle")}>{t("aiReplacementWarning")}</Notice>
     <label className="iv-checkbox-row"><input type="checkbox" name="confirmed" required defaultChecked={state.values.confirmed === "on"} disabled={pending} /><span>{t("aiReplacementConfirm")}</span></label>

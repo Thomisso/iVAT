@@ -24,6 +24,9 @@ export function ClaimEligibilityFields({ payload, periods, editable, values, err
     // DateInput commits its ISO hidden field in React's event handler. Observe
     // after that commit, rather than reading the preceding date at native bubble time.
     const read = () => {
+      // Native pending protection excludes disabled fields from FormData.
+      // It is not a human change to the eligibility basis.
+      if (form.getAttribute("aria-busy") === "true") return;
       const data = new FormData(form);
       const value = (key: string) => String(data.get(key) ?? "").trim() || null;
       const previous = observed.current;
@@ -57,8 +60,8 @@ export function ClaimEligibilityFields({ payload, periods, editable, values, err
       {error && <p id="claim-eligibility-error" className="iv-field-error">{error}</p>}
       <p>{claim?.confirmed ? t(claim.origin) : t("unconfirmed")}</p>
       <p>{t("hint")}</p>
-      {editable && <label><input type="checkbox" checked={claim?.origin === "user" && claim.confirmed}
-        disabled={!claim?.period} onChange={event => setClaim(current => current ? { period: current.period, origin: "user", confirmed: event.target.checked } : current)} /> {t("confirm")}</label>}
+      <label><input type="checkbox" checked={claim?.origin === "user" && claim.confirmed}
+        disabled={!editable || !claim?.period} onChange={event => setClaim(current => current ? { period: current.period, origin: "user", confirmed: event.target.checked } : current)} /> {t("confirm")}</label>
     </div>
   </fieldset>;
 }

@@ -35,7 +35,7 @@ test("manual Source recovery defines real PDF pages and resolves or restores an 
   await page.reload();
   await documents.getByRole("link", { name: "1", exact: true }).click();
   await expect(page.getByLabel("Tax point date", { exact: true })).toHaveValue("");
-  await page.getByRole("button", { name: "Save corrections", exact: true }).click();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByLabel("Tax point date", { exact: true })).toBeFocused();
   await page.getByLabel("Tax point date", { exact: true }).fill("15.10.2026");
   await page.getByLabel("Document number", { exact: true }).fill(`PDF-${run}`);
@@ -49,7 +49,7 @@ test("manual Source recovery defines real PDF pages and resolves or restores an 
   await rates.getByRole("textbox", { name: "Net", exact: true }).fill("100.00");
   await rates.getByRole("textbox", { name: "VAT", exact: true }).fill("21.00");
   await page.getByLabel("Total net", { exact: true }).fill("100.00"); await page.getByLabel("Total VAT", { exact: true }).fill("21.00"); await page.getByLabel("Total incl. VAT", { exact: true }).fill("121.00");
-  await page.getByRole("button", { name: "Save corrections", exact: true }).click();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await page.getByRole("button", { name: "Approve version 1", exact: true }).click();
   const image = await addBrowserUnsplitSourceFixture({ companyId, email, password, fileName: "receipt.png" });
   await page.goto(`/companies/${companyId}/source-files/${image.sourceFileId}`);
@@ -72,7 +72,7 @@ test("manual Source recovery defines real PDF pages and resolves or restores an 
   await expect(page.getByRole("img", { name: "receipt.png", exact: true })).toBeVisible();
   await page.getByLabel("Tax point date", { exact: true }).fill("15.10.2026");
   await page.getByLabel("Document number", { exact: true }).fill(`IMAGE-${run}`);
-  await page.getByRole("button", { name: "Save corrections", exact: true }).click();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByRole("button", { name: "Approve version 1", exact: true })).toBeVisible();
   const heic = await addBrowserUnsplitSourceFixture({ companyId, email, password, fileName: "receipt.heic" });
   await page.goto(`/companies/${companyId}/source-files/${heic.sourceFileId}`);
