@@ -6,41 +6,6 @@ import { createManualDocument, listExtractionVersions } from "../src/application
 import { createCounterparty, updateCounterparty } from "../src/application/counterparties";
 import { fakeVatPayerRegistry } from "../src/vat-registry/fake";
 
-test("links an existing entry without rewriting the Document Party", async ({ page, context, baseURL }) => {
-  if (!baseURL) throw new Error("base URL required");
-  await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseURL }]);
-  const run = crypto.randomUUID();
-  await provisionAndLogIn(page, { organizationName: `Links ${run}`, email: `links-${run}@example.test`, password: "Directory-browser-password-232" });
-  await page.getByLabel("Company name").fill(`Links ${run}`);
-  await page.getByLabel("IČO").fill("25596641");
-  await page.getByLabel("VAT ID").fill("CZ25596641");
-  await page.getByLabel("Street name").fill("Vinohradská");
-  await page.getByLabel("House number").fill("12");
-  await page.getByLabel("City").fill("Praha");
-  await page.getByLabel("Postal code").fill("12000");
-  await page.getByRole("button", { name: "Create company", exact: true }).click();
-  await page.getByRole("button", { name: "Save and continue", exact: true }).click();
-  await expect(page).toHaveURL(/\/setup\/ai-processing$/);
-  const companyId = new URL(page.url()).pathname.split("/")[2];
-  const client = await browserUserClient(await context.cookies());
-  const entry = await createCounterparty(client, { companyId, name: "Directory Supplier 232", supplier: true, customer: false });
-  if (!entry.ok) throw new Error(entry.error);
-  const created = await createManualDocument(client, { companyId, payload: SAMPLE_EXTRACTION }, undefined, fakeVatPayerRegistry());
-  if (!created.ok) throw new Error(created.error);
-  await page.goto(`/companies/${companyId}/documents/${created.value.id}`);
-  const supplierName = page.getByRole("group", { name: "Supplier", exact: true }).getByLabel("Name", { exact: true });
-  await expect(page.getByRole("textbox", { name: "Search existing Counterparties", exact: true })).toBeVisible();
-  await page.getByRole("textbox", { name: "Search existing Counterparties", exact: true }).fill("Supplier 232");
-  await page.getByRole("button", { name: "Search directory", exact: true }).click();
-  await page.getByRole("button", { name: "Link Directory Supplier 232", exact: true }).click();
-  await expect(supplierName).toHaveValue(SAMPLE_EXTRACTION.supplier.name!);
-  await page.getByRole("button", { name: "Save corrections", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Approve version 2", exact: true })).toBeVisible();
-  await expect(supplierName).toHaveValue(SAMPLE_EXTRACTION.supplier.name!);
-  const versions = await listExtractionVersions(client, companyId, created.value.id);
-  expect(versions[1].payload.counterpartyLink).toMatchObject({ id: entry.value.id, recorded: { name: "Directory Supplier 232" } });
-});
-
 test("existing directory selection preserves Party fields, explicit copy saves a new Version, and history stays recorded", async ({ page, context, baseURL }) => {
   if (!baseURL) throw new Error("base URL required");
   await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseURL }]);
@@ -87,6 +52,7 @@ test("existing directory selection preserves Party fields, explicit copy saves a
   await expect(page.getByRole("button", { name: "Approve version 4", exact: true })).toBeVisible();
   const versions = await listExtractionVersions(client, companyId, created.value.id);
   expect(versions[3].payload).not.toHaveProperty("counterpartyLink");
+  expect(versions[1].payload.counterpartyLink).toMatchObject({ id: entry.value.id, recorded: { name: "Directory Supplier 232" } });
   expect(versions[1].payload.supplier.name).toBe(SAMPLE_EXTRACTION.supplier.name);
   expect(versions[2].payload.supplier.name).toBe("Directory Changed 232");
   await page.goto(`${reviewUrl}?version=2`);
