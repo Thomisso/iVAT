@@ -225,8 +225,9 @@ export function CorrectionForm({
   const focusField = (field: string) => {
     workspace?.showData();
     const wrapper = [...(form.current?.querySelectorAll<HTMLElement>("[data-source-field]") ?? [])].find(element => element.dataset.sourceField === field);
-    const target = wrapper?.querySelector<HTMLElement>('input:not([type="hidden"]):not([type="date"]),select')
-      ?? [...(form.current?.elements ?? [])].find(element => element instanceof HTMLElement && element.getAttribute("name") === field) as HTMLElement | undefined;
+    const target = field === "claimEligibility" ? form.current?.querySelector<HTMLElement>("#earliest-claim-period")
+      : wrapper?.querySelector<HTMLElement>('input:not([type="hidden"]):not([type="date"]),select')
+        ?? [...(form.current?.elements ?? [])].find(element => element instanceof HTMLElement && element.getAttribute("name") === field) as HTMLElement | undefined;
     for (let parent = target?.parentElement; parent; parent = parent.parentElement) if (parent instanceof HTMLDetailsElement) parent.open = true;
     requestAnimationFrame(() => { target?.focus({ preventScroll: true }); target?.scrollIntoView({ block: "center" }); });
   };
