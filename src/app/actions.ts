@@ -42,7 +42,9 @@ import {
 import { cancelInvitation, changeMembershipRole, completeInvitationOnboarding, generateInvitationLink, getInvitationOnboarding, inviteMember, removeMembership, replaceInvitationLink } from "@/application/memberships";
 import { configuredInvitationUrls, invitationAuthentication, invitationMailer } from "@/lib/invitations";
 import {
-  approveDocument,
+  saveAndApproveDocument,
+  type ReviewConfirmation,
+  type ReviewConflict,
   attachDocumentSource,
   correctDocument,
   createManualDocument,
@@ -56,6 +58,7 @@ import {
   splitDocument,
   updateDocumentReporting,
 } from "@/application/documents";
+import type { ValidationFinding } from "@/application/document-validation";
 import type { ExtractionPayload, Party } from "@/application/extraction-payload";
 import { retrySplit, uploadSourceFile } from "@/application/source-files";
 import {
@@ -645,15 +648,27 @@ export async function createManualDocumentAction(_state: FormState, formData: Fo
   redirect(`/companies/${companyId}/documents/${result.value.id}`);
 }
 
-export async function approveDocumentAction(_state: FormState, formData: FormData): Promise<FormState> {
+export type DocumentReviewFormState = FormState & { findings?: ValidationFinding[]; confirmation?: ReviewConfirmation; conflict?: ReviewConflict; savedVersion?: number };
+
+/** Both submit buttons send the same current fields; only successful approval advances the queue. */
+export async function reviewDocumentAction(_state: DocumentReviewFormState, formData: FormData): Promise<DocumentReviewFormState> {
+  const client = await requireUserClient();
   const companyId = field(formData, "companyId");
   const documentId = field(formData, "documentId");
-  const result = await approveDocument(await requireUserClient(), {
-    companyId,
-    documentId,
-    version: Number(field(formData, "version")),
-  });
-  if (!result.ok) return settled(result);
+  const input = { companyId, documentId, basedOnVersion: Number(field(formData, "basedOnVersion")), payload: payloadFromForm(formData) };
+  const values = Object.fromEntries([...formData.entries()].filter(([name, value]) => !name.startsWith("$") && typeof value === "string")) as Record<string, string>;
+  if (field(formData, "intent") !== "approve") {
+    const saved = await correctDocument(client, input, configuredExchangeRates(), configuredVatPayerRegistry());
+    if (!saved.ok) return { error: saved.error, values };
+    refresh();
+    return { error: null, values: {}, savedVersion: saved.value.version };
+  }
+  const result = await saveAndApproveDocument(client, {
+    ...input, requestId: field(formData, "requestId"), acknowledgement: optionalField(formData, "acknowledgement") ?? undefined,
+  }, configuredExchangeRates(), configuredVatPayerRegistry());
+  if (!result.ok) return result.error === "review_warnings_changed"
+    ? { error: result.error, values, confirmation: result.confirmation, findings: result.confirmation.findings }
+    : { error: result.error, values, findings: result.findings, conflict: result.conflict };
   redirectAfterDocumentDecision(formData, companyId, documentId);
 }
 
