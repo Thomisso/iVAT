@@ -1,6 +1,7 @@
 // Test-only OS boundaries and native filesystem scheduling for real CLI recovery commands.
 import fs from "node:fs";
 import os from "node:os";
+import path from "node:path";
 import childProcess from "node:child_process";
 import { syncBuiltinESMExports } from "node:module";
 
@@ -34,7 +35,7 @@ if (settings.retirementGate) {
     }
   };
   fs.mkdirSync = (directory, ...args) => {
-    if (directory === `${settings.lock}/recovery`) {
+    if (settings.lock && directory === path.join(settings.lock, "recovery")) {
       try { nativeMkdirSync(`${settingsFile}.elected`); }
       catch (error) {
         if (error.code !== "EEXIST") throw error;
