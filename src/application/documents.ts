@@ -21,7 +21,8 @@ import type { ExchangeRateProvider } from "./exchange-rates";
 import type { VatPayerRegistry } from "./vat-registry";
 import { prepareExtractionVersion, prepareManualExtractionPayload } from "./extraction-preparation";
 import { prepareDocumentReporting, type DocumentReporting } from "./document-reporting";
-import { ordinaryDomesticClaim } from "./claim-eligibility";
+import { currentBusinessDate } from "./business-date";
+import { claimDeadline, confirmedZeroClaim, firstOrdinaryFilingDate, ordinaryDomesticClaim } from "./claim-eligibility";
 import { randomUUID } from "node:crypto";
 import type { SourceRange } from "./ai-provider";
 
@@ -215,7 +216,7 @@ export async function listCompanyDocuments(
   if (filters.sourceFileIds?.length === 0) return [];
   if (filters.documentIds?.length === 0) return [];
   const counterparty = filters.counterparty?.trim();
-  const reportingYears = await listCompanyReportingYears(client, companyId);
+  const [reportingYears, evaluatedOn] = await Promise.all([listCompanyReportingYears(client, companyId), currentBusinessDate(client)]);
   const documents: DocumentOverview[] = [];
   for (let from = 0; ; from += 1000) {
     let query = client
@@ -245,7 +246,7 @@ export async function listCompanyDocuments(
         claimedReportingPeriod: d.claimed_reporting_period,
         importDate: d.import_date, sourceFileId: d.source_file_id,
       }, reportingYears, filters.reportingPeriod === NO_REPORTING_PERIOD ? undefined : filters.reportingPeriod,
-      (d.reporting_findings ?? []) as ValidationFinding[]);
+      (d.reporting_findings ?? []) as ValidationFinding[], evaluatedOn);
       return {
         id: d.id,
         sourceFileId: d.source_file_id,
@@ -523,7 +524,11 @@ export async function correctDocument(
  * counts towards VAT Reports (ADR-0003). `version` is the Extraction Version the
  * User reviewed; it is refused if a newer one has been recorded.
  */
-export type ClaimEligibilityError = "claim_document_type_required" | "claim_eligibility_required" | "invalid_earliest_claim_period" | "claimed_period_before_earliest" | "deferred_claim_not_supported";
+const CLAIM_ELIGIBILITY_ERRORS = [
+  "claimed_period_after_deadline", "claim_deadline_expired", "claim_document_type_required",
+  "claim_eligibility_required", "invalid_earliest_claim_period", "claimed_period_before_earliest", "deferred_claim_not_supported",
+] as const;
+export type ClaimEligibilityError = (typeof CLAIM_ELIGIBILITY_ERRORS)[number];
 export async function approveDocument(
   client: AppClient,
   input: { companyId: string; documentId: string; version: number },
@@ -535,8 +540,7 @@ export async function approveDocument(
     reviewed_version: input.version,
   });
   if (error) return refusal(error, [
-    "counterparty_resolution_required",
-    "claim_document_type_required", "claim_eligibility_required", "invalid_earliest_claim_period", "claimed_period_before_earliest", "deferred_claim_not_supported",
+    "counterparty_resolution_required", ...CLAIM_ELIGIBILITY_ERRORS,
     "not_in_review",
     "stale_version",
     "direction_required",
@@ -625,7 +629,7 @@ export async function saveAndApproveDocument(
     saved = await client.rpc("save_and_approve_document", { ...fields, acknowledgement: pending.confirmationId });
   }
   const { data, error } = saved;
-  if (error) return documentReviewRefusal(client, input, refusal(error, ["counterparty_resolution_required", "claim_document_type_required", "claim_eligibility_required", "invalid_earliest_claim_period", "claimed_period_before_earliest", "deferred_claim_not_supported", "not_in_review", "stale_version", "period_locked", "tax_point_date_required", "invalid_date", "direction_required", "vat_regime_required", "document_incomplete", "document_validation_failed", "counterparty_vat_id_required", "currency_conversion_required", "rate_breakdown_totals_mismatch", "invalid_credit_note_amount", "review_context_changed"]), findings);
+  if (error) return documentReviewRefusal(client, input, refusal(error, ["counterparty_resolution_required", ...CLAIM_ELIGIBILITY_ERRORS, "not_in_review", "stale_version", "period_locked", "tax_point_date_required", "invalid_date", "direction_required", "vat_regime_required", "document_incomplete", "document_validation_failed", "counterparty_vat_id_required", "currency_conversion_required", "rate_breakdown_totals_mismatch", "invalid_credit_note_amount", "review_context_changed"]), findings);
   const result = data as { version: number } | { confirmationId: string; findings: ValidationFinding[] };
   return "confirmationId" in result
     ? { ok: false, error: "review_warnings_changed", confirmation: { id: result.confirmationId, findings: result.findings } }
@@ -721,7 +725,7 @@ export async function updateDocumentReporting(
       "invalid_reporting_period",
       "claimed_period_not_later",
       "incoming_required",
-      "deferred_claim_not_supported", "not_in_review", "claim_eligibility_required", "invalid_earliest_claim_period", "claimed_period_before_earliest",
+      ...CLAIM_ELIGIBILITY_ERRORS, "not_in_review",
       "period_locked",
     ]);
   }
@@ -837,7 +841,7 @@ export async function moveDocumentPage(
   return { ok: true, value: null };
 }
 
-/** Selectable Deferred Claims for the current incoming Extraction, including only unlocked generated periods within three years. */
+/** Unlocked generated periods that can support an ordinary claim before its filing deadline. */
 export async function listDeferredClaimPeriods(client: AppClient, companyId: string, documentId: string): Promise<string[]> {
   const document = await getDocument(client, companyId, documentId);
   if (!document) return [];
@@ -850,11 +854,13 @@ export async function listDeferredClaimPeriods(client: AppClient, companyId: str
   const years = await listCompanyReportingYears(client, companyId);
   const source = reportingPeriodForDate(date, years);
   if (!source) return [];
-  const deadline = `${Number(date.slice(0, 4)) + 3}${date.slice(4)}`;
+  const deadline = claimDeadline(payload, years, await currentBusinessDate(client));
+  const zero = confirmedZeroClaim(payload);
+  if (!zero && (!deadline || deadline.evaluatedOn > deadline.lastFilingDate)) return [];
   const candidates = reportingPeriodsOf(years).filter((period) => {
     const start = reportingPeriodStart(period)!;
     const earliest = payload.claimEligibility?.confirmed ? reportingPeriodStart(payload.claimEligibility.period) : null;
-    return start > reportingPeriodStart(source)! && start <= deadline && (!earliest || start >= earliest);
+    return start > reportingPeriodStart(source)! && (zero || firstOrdinaryFilingDate(period)! <= deadline!.lastFilingDate) && (!earliest || start >= earliest);
   });
   if (!candidates.length) return [];
   const { data, error } = await client.from("period_lock").select("period").eq("company_id", companyId).in("period", candidates);
