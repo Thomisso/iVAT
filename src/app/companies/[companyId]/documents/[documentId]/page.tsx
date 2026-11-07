@@ -1,9 +1,9 @@
 import { getDocumentReview } from "@/application/document-review";
 import Link from "next/link";
+import { randomUUID } from "node:crypto";
 import { notFound } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
 import {
-  approveDocumentAction,
   refreshBankAccountCheckAction,
   startManualDocumentReviewAction,
   restoreDocumentAction,
@@ -229,10 +229,13 @@ export default async function DocumentReviewPage({
           ))}
           {shown ? (
             <CorrectionForm
-              key={shown.id}
+              key={viewingRecorded ? shown.id : document.id}
               companyId={companyId}
               documentId={document.id}
               version={shown.version}
+              requestId={randomUUID()}
+              displayedBankAccountCheckId={bankChecks.current?.id ?? null}
+              decision={{ nextDocumentId: position.continuationDocumentId ?? "", queueQuery, returnTo: returnTo ?? "" }}
               payload={shown.payload}
               findings={shownFindings}
               editable={reviewing && !viewingRecorded}
@@ -241,7 +244,7 @@ export default async function DocumentReviewPage({
               }
             />
           ) : document.status === "needs_review" && !lockedPeriod ? (
-            <CorrectionForm companyId={companyId} documentId={document.id} version={0} payload={emptyDocumentPayload()} findings={[]} editable aiProposed={false} />
+            <CorrectionForm companyId={companyId} documentId={document.id} version={0} requestId={randomUUID()} displayedBankAccountCheckId={bankChecks.current?.id ?? null} decision={{ nextDocumentId: position.continuationDocumentId ?? "", queueQuery, returnTo: returnTo ?? "" }} payload={emptyDocumentPayload()} findings={[]} editable aiProposed={false} />
           ) : (
             <EmptyState icon="file" title={t("review.noExtraction")} />
           )}
@@ -252,26 +255,6 @@ export default async function DocumentReviewPage({
               claimedReportingPeriod={document.claimedReportingPeriod}
               periods={deferredClaimPeriods}
             />
-          )}
-          {reviewing && current && (
-            <div className="review-decision">
-              <CommandButton
-                variant="primary"
-                icon="check"
-                action={approveDocumentAction}
-                fields={{
-                  companyId,
-                  documentId: document.id,
-                  version: String(current.version),
-                  nextDocumentId: position.continuationDocumentId ?? "",
-                  queueQuery,
-                  returnTo: returnTo ?? "",
-                }}
-              >
-                {t("review.approve", { version: current.version })}
-              </CommandButton>
-
-            </div>
           )}
           {excludable && <ExclusionForm fields={{ companyId, documentId: document.id, nextDocumentId: position.continuationDocumentId ?? "", queueQuery, returnTo: returnTo ?? "" }} />}
           {versions.length > 0 && (

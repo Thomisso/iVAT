@@ -2,7 +2,7 @@
 
 import { useActionState, useState, type ComponentProps } from "react";
 import { useTranslations } from "next-intl";
-import { correctDocumentAction, createManualDocumentAction } from "@/app/actions";
+import { reviewDocumentAction, createManualDocumentAction, type DocumentReviewFormState } from "@/app/actions";
 import {
   DIRECTIONS,
   DOCUMENT_TYPES,
@@ -16,6 +16,8 @@ import { Button } from "@/components/button";
 import { TextField } from "@/components/text-field";
 import { FormError } from "@/components/form-error";
 import { DateInput } from "@/components/date-input";
+import { StatusBadge } from "@/components/status-badge";
+import { statusBadgeState } from "@/components/status-badge-state";
 
 /**
  * The extracted fields of one Extraction Version. While `editable`, saving
@@ -25,11 +27,14 @@ import { DateInput } from "@/components/date-input";
 export function CorrectionForm({
   companyId,
   documentId,
-  version,
-  payload,
-  findings,
+  version: currentVersion,
+  payload: currentPayload,
+  findings: currentFindings,
   editable,
   aiProposed,
+  requestId,
+  displayedBankAccountCheckId,
+  decision,
 }: {
   companyId: string;
   documentId?: string;
@@ -38,18 +43,34 @@ export function CorrectionForm({
   findings: ValidationFinding[];
   editable: boolean;
   aiProposed?: boolean;
+  requestId?: string;
+  displayedBankAccountCheckId?: string | null;
+  decision?: { nextDocumentId: string; queueQuery: string; returnTo: string };
 }) {
   const t = useTranslations("review");
-  const [state, action, pending] = useActionState(documentId ? correctDocumentAction : createManualDocumentAction, {
+  const [state, action, pending] = useActionState<DocumentReviewFormState, FormData>(documentId ? reviewDocumentAction : createManualDocumentAction, {
     error: null,
     values: {},
   });
+  // A Server Action may rerender the page with someone else's newer Version.
+  // Keep this draft's base until our explicit save actually succeeds.
+  const [base, setBase] = useState({ version: currentVersion, payload: currentPayload, findings: currentFindings, requestId, displayedBankAccountCheckId });
+  const { version, payload, findings } = base;
   const [lines, setLines] = useState(() =>
     payload.rateBreakdown.flatMap((line, index) => isZeroRateBreakdownLine(line) ? [] : [index]),
   );
+  if (state.savedVersion !== undefined && state.savedVersion === currentVersion && base.version !== currentVersion) {
+    setBase({ version: currentVersion, payload: currentPayload, findings: currentFindings, requestId, displayedBankAccountCheckId });
+    setLines(currentPayload.rateBreakdown.flatMap((line, index) => isZeroRateBreakdownLine(line) ? [] : [index]));
+  } else if (base.version === currentVersion && base.displayedBankAccountCheckId !== displayedBankAccountCheckId) {
+    // An explicit same-Version refresh has rendered this dated observation.
+    // Keep the draft's fields, Version and operation ID; another Version's
+    // observation must never be adopted by this draft.
+    setBase({ ...base, displayedBankAccountCheckId });
+  }
   const nextLine = Math.max(payload.rateBreakdown.length - 1, ...lines) + 1;
   const finding = (field: string) =>
-    findings.find(
+    (state.findings ?? findings).find(
       (item) => item.field === field && item.severity === "error",
     );
   const findingMessage = (field: string) => {
@@ -149,12 +170,17 @@ export function CorrectionForm({
 
   return (
     <form
+      key={version}
       action={action}
       className={`form correction-form ${aiProposed ? "is-ai" : ""}`}
     >
       <input type="hidden" name="companyId" value={companyId} />
       <input type="hidden" name="documentId" value={documentId} />
       <input type="hidden" name="basedOnVersion" value={version} />
+      <input type="hidden" name="requestId" value={base.requestId ?? ""} />
+      <input type="hidden" name="displayedBankAccountCheckId" value={base.displayedBankAccountCheckId ?? ""} />
+      <input type="hidden" name="acknowledgement" value={state.confirmation?.id ?? ""} />
+      {decision && Object.entries(decision).map(([name, entry]) => <input key={name} type="hidden" name={name} value={entry} />)}
       <fieldset>
         <legend>{t("sections.document")}</legend>
         <div className="fields">
@@ -324,9 +350,33 @@ export function CorrectionForm({
       {editable && (
         <>
           <FormError error={state.error} />
-          <Button type="submit" disabled={pending}>
+          {state.confirmation && <section aria-label={t("preparedWarnings")} role="status">
+            <p>{t("preparedWarnings")}</p>
+            <ul>{state.confirmation.findings.filter((item) => item.severity === "warning").map((item) => {
+              const message = messageOf(item);
+              return <li key={`${item.field}-${item.code}`}>{t(`findings.${message.key}`, message.values)}</li>;
+            })}</ul>
+          </section>}
+          {state.conflict && <section aria-label={t("compareCurrent")}>
+            <h3>{t("compareVersion", { version: state.conflict.version })}</h3>
+            <StatusBadge status={statusBadgeState(state.conflict.status, "document")} />
+            <p>{t("submittedNotSaved")}</p>
+            <table><thead><tr><th>{t("comparisonField")}</th><th>{t("submittedValue")}</th><th>{t("currentValue")}</th></tr></thead>
+              <tbody>{Object.entries(state.values).filter(([name]) => !["companyId", "documentId", "basedOnVersion", "requestId", "displayedBankAccountCheckId", "acknowledgement", "intent", "nextDocumentId", "queueQuery", "returnTo"].includes(name)).map(([name, submitted]) => {
+                const current = name.split(".").reduce<unknown>((entry, part) => entry !== null && typeof entry === "object" ? (entry as Record<string, unknown>)[part] : undefined, state.conflict!.payload);
+                const saved = current === null || current === undefined ? "" : String(current);
+                const labels: Record<string, string> = { proposedVatRegime: "vatRegime", "totals.netAmount": "totalNet", "totals.vatAmount": "totalVat", "totals.grossAmount": "totalGross" };
+                const label = labels[name] ?? name.split(".").at(-1)!;
+                return submitted !== saved ? <tr key={name}><th>{t(`fields.${label}`)}</th><td>{submitted || t("notSet")}</td><td>{saved || t("notSet")}</td></tr> : null;
+              })}</tbody>
+            </table>
+          </section>}
+          <Button type="submit" name="intent" value="save" disabled={pending}>
             {t(documentId ? "save" : "createManual")}
           </Button>
+          {documentId && decision && <Button type="submit" name="intent" value="approve" variant="primary" icon="check" disabled={pending}>
+            {state.confirmation ? t("approvePreparedWarnings") : t("approve", { version })}
+          </Button>}
         </>
       )}
     </form>
