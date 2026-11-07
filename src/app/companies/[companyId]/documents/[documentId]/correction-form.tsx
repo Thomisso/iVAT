@@ -1,5 +1,7 @@
 "use client";
 
+import { SourceField } from "./source-evidence-context";
+
 import { useActionState, useState, type ComponentProps } from "react";
 import { useTranslations } from "next-intl";
 import { correctDocumentAction, createManualDocumentAction } from "@/app/actions";
@@ -69,7 +71,7 @@ export function CorrectionForm({
     label = name,
     props: ComponentProps<"input"> = {},
   ) => (
-    <TextField
+    <SourceField key={name} field={name}><TextField
       key={name}
       label={t(`fields.${label}`)}
       name={name}
@@ -80,10 +82,10 @@ export function CorrectionForm({
         name,
       )}
       {...props}
-    />
+    /></SourceField>
   );
   const date = (name: "issueDate" | "taxPointDate" | "dueDate") => (
-    <DateInput
+    <SourceField key={name} field={name}><DateInput
       key={name}
       label={t(`fields.${name}`)}
       name={name}
@@ -91,7 +93,7 @@ export function CorrectionForm({
       disabled={!editable}
       error={findingMessage(name)}
       required={editable && name === "taxPointDate"}
-    />
+    /></SourceField>
   );
   const amount = (name: string, saved: string | null, label: string) =>
     text(name, saved, label, { inputMode: "decimal" });
@@ -102,7 +104,7 @@ export function CorrectionForm({
     options: readonly string[],
     namespace: string,
   ) => (
-    <div className={`iv-field ${finding(name) ? "is-invalid" : ""}`} key={name}>
+    <SourceField key={name} field={name}><div className={`iv-field ${finding(name) ? "is-invalid" : ""}`} key={name}>
       <label className="iv-field-label" htmlFor={`field-${name}`}>
         {t(`fields.${label}`)}
       </label>
@@ -126,7 +128,7 @@ export function CorrectionForm({
           {findingMessage(name)}
         </span>
       )}
-    </div>
+    </div></SourceField>
   );
   const party = (prefix: "supplier" | "customer") => (
     <fieldset>
@@ -211,7 +213,7 @@ export function CorrectionForm({
                 const message = findingMessage(field);
                 return (
                 <td className={message ? "validation-cell is-invalid" : "validation-cell"}>
-                  <input
+                  <SourceField field={field}><input
                     name={field}
                     defaultValue={value(
                       field,
@@ -224,7 +226,7 @@ export function CorrectionForm({
                     className="iv-input amount"
                     disabled={!editable}
                   />
-                  {message && (
+                  </SourceField>{message && (
                     <span id={`finding-${field}`} className="iv-field-error" role="alert">
                       {message}
                     </span>

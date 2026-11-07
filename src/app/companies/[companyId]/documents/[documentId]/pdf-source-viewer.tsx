@@ -1,0 +1,104 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
+import type { PDFDocumentLoadingTask, PDFDocumentProxy, RenderTask } from "pdfjs-dist";
+import { useSourceEvidence, useSourceFieldLabel } from "./source-evidence-context";
+
+export function PdfSourceViewer({ href, label, firstPage, lastPage }: {
+  href: string; label: string; firstPage: number; lastPage: number;
+}) {
+  const t = useTranslations("review");
+  const source = useSourceEvidence();
+  const fieldLabel = useSourceFieldLabel();
+  const evidence = source?.payload.sourceEvidence;
+  const range = evidence?.range ?? { firstPage, lastPage };
+  const url = `${href}?version=${source?.version ?? ""}`;
+  const [loadedPdf, setPdf] = useState<{ url: string; document: PDFDocumentProxy } | null>(null);
+  const pdf = loadedPdf?.url === url ? loadedPdf.document : null;
+  const [failed, setFailed] = useState("");
+  const [navigation, setNavigation] = useState({ field: source?.selectedField, page: range.firstPage });
+  const [zoom, setZoom] = useState(1);
+  const [width, setWidth] = useState(500);
+  const [dimensions, setDimensions] = useState({ width: 500, height: 667, key: "" });
+  const container = useRef<HTMLDivElement>(null);
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const selected = source?.selectedField ? evidence?.fields[source.selectedField] : undefined;
+  const selectedPage = selected?.locations[0]?.page;
+  const page = navigation.field !== source?.selectedField && selectedPage !== undefined ? selectedPage : navigation.page;
+  const renderKey = `${url}:${page}:${width}:${zoom}`;
+  const ready = dimensions.key === renderKey;
+  useEffect(() => {
+    const element = container.current;
+    if (!element) return;
+    const observer = new ResizeObserver(([entry]) => setWidth(Math.max(100, entry.contentRect.width)));
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+  useEffect(() => {
+    const controller = new AbortController();
+    let loading: PDFDocumentLoadingTask | undefined;
+    void (async () => {
+      try {
+        const response = await fetch(url, { signal: controller.signal });
+        if (!response.ok || !response.headers.get("Content-Type")?.startsWith("application/pdf")) throw new Error("PDF unavailable");
+        const bytes = await response.arrayBuffer();
+        const pdfjs = await import("pdfjs-dist");
+        controller.signal.throwIfAborted();
+        pdfjs.GlobalWorkerOptions.workerSrc = `/pdf-worker?v=${pdfjs.version}`;
+        loading = pdfjs.getDocument({ data: bytes });
+        const loaded = await loading.promise;
+        controller.signal.throwIfAborted();
+        setPdf({ url, document: loaded });
+      } catch { if (!controller.signal.aborted) setFailed(url); }
+    })();
+    return () => { controller.abort(); void loading?.destroy(); };
+  }, [url]);
+  useEffect(() => {
+    let cancelled = false;
+    let rendering: RenderTask | undefined;
+    void (async () => {
+      if (!pdf) return;
+      try {
+        const documentPage = await pdf.getPage(page - range.firstPage + 1);
+        if (cancelled) return;
+        const basis = documentPage.getViewport({ scale: 1 });
+        const viewport = documentPage.getViewport({ scale: width / basis.width * zoom });
+        const ratio = window.devicePixelRatio || 1;
+        const buffer = document.createElement("canvas");
+        buffer.width = Math.ceil(viewport.width * ratio); buffer.height = Math.ceil(viewport.height * ratio);
+        rendering = documentPage.render({ canvas: buffer, viewport, transform: [ratio, 0, 0, ratio, 0, 0] });
+        await rendering.promise;
+        if (cancelled || !canvas.current) return;
+        canvas.current.width = buffer.width; canvas.current.height = buffer.height;
+        canvas.current.getContext("2d")?.drawImage(buffer, 0, 0);
+        setDimensions({ width: viewport.width, height: viewport.height, key: renderKey });
+      } catch { if (!cancelled) setFailed(url); }
+    })();
+    return () => { cancelled = true; rendering?.cancel(); };
+  }, [pdf, page, range.firstPage, width, zoom, renderKey, url]);
+  return <section className="iv-viewer pdf-source-viewer" aria-label={label} data-evidence-version={source?.versionId}>
+    <div className="pdf-source-toolbar">
+      <label>{t("sourcePage")} <select aria-label={t("sourcePage")} value={page} onChange={(event) => setNavigation({ field: source?.selectedField, page: Number(event.target.value) })}>
+        {Array.from({ length: range.lastPage - range.firstPage + 1 }, (_, index) => range.firstPage + index).map((number) =>
+          <option key={number} value={number}>{t("page", { page: number })}</option>)}
+      </select></label>
+      <label>{t("sourceZoom")} <select aria-label={t("sourceZoom")} value={zoom} onChange={(event) => setZoom(Number(event.target.value))}>
+        {[0.75, 1, 1.25, 1.5, 2].map((scale) => <option key={scale} value={scale}>{t("sourceZoomValue", { percent: scale * 100 })}</option>)}
+      </select></label>
+    </div>
+    {failed === url && <p role="status">{t("sourceUnavailable")}</p>}
+    {source?.selectedField && !selected && <p role="status">{t("sourceNoLocation")}</p>}
+    <div className="pdf-source-scroll" ref={container}>
+      <div className="pdf-source-page" data-original-page={page} style={{ width: dimensions.width, height: dimensions.height }} aria-busy={!ready}>
+        <canvas ref={canvas} role="img" aria-label={t("sourceRenderedPage", { page })} data-ready={ready} style={{ width: dimensions.width, height: dimensions.height }} />
+        {ready && Object.entries(evidence?.fields ?? {}).flatMap(([field, reference]) => reference.locations.flatMap((location, index) =>
+          location.page === page ? [<button type="button" key={`${field}-${index}`} data-source-region={field}
+            className={`pdf-source-region ${source?.selectedField === field ? "is-active" : ""}`}
+            aria-label={t("sourceFor", { field: fieldLabel(field) })} aria-pressed={source?.selectedField === field}
+            onClick={() => source?.selectField(field, true)}
+            style={{ left: `${location.x * 100}%`, top: `${location.y * 100}%`, width: `${location.width * 100}%`, height: `${location.height * 100}%` }} />] : []))}
+      </div>
+    </div>
+  </section>;
+}

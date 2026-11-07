@@ -2389,3 +2389,18 @@ select:disabled {
 .vat-pdf-thumbnail-link { display: block; width: 100%; margin: 0 0 var(--space-4); border: 1px solid var(--line-strong); background: var(--surface); }
 .vat-pdf-thumbnail-link:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 .vat-pdf-thumbnail { display: block; width: 100%; height: auto; aspect-ratio: 595 / 842; }
+
+/* Source evidence shares the canvas's oriented page coordinate system. */
+.pdf-source-viewer { display: block; padding: 16px; }
+.pdf-source-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 12px; }
+.pdf-source-toolbar label { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.pdf-source-toolbar select { max-width: 110px; padding: 5px; }
+.pdf-source-scroll { width: 100%; max-height: 78vh; overflow: auto; }
+.pdf-source-page { position: relative; background: white; }
+.pdf-source-page canvas { display: block; }
+.pdf-source-region { position: absolute; border: 1px solid #a98400; background: #ffe45166; cursor: pointer; padding: 0; }
+.pdf-source-region.is-active, .pdf-source-region:focus-visible { background: #ffe45199; outline: 2px solid #806200; }
+.source-field { position: relative; min-width: 0; border-radius: 4px; }
+.source-field.is-selected { outline: 2px solid #d6b833; outline-offset: 3px; }
+.source-field-link { position: absolute; top: 0; right: 0; padding: 2px; border: 0; background: transparent; color: var(--ink-muted); cursor: pointer; }
+.source-manual { display: block; color: var(--ink-muted); font-size: 11px; }

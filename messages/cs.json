@@ -1204,7 +1204,16 @@
     "aiReplacementTitle": "Nahradit hodnoty pomocí AI",
     "aiReplacementWarning": "AI nahradí aktuální hodnoty a odebere případné schválení. Všechny předchozí verze zůstanou v historii. Úspěšný výsledek vyžaduje novou lidskou kontrolu a započítá se jako jedno úspěšné AI zpracování. Při selhání zůstanou poslední hodnoty a historie; schválení se automaticky neobnoví.",
     "aiReplacementConfirm": "Rozumím, že AI nahradí aktuální hodnoty a odebere schválení.",
-    "aiReplacementStart": "Spustit nahrazení pomocí AI"
+    "aiReplacementStart": "Spustit nahrazení pomocí AI",
+    "sourceFor": "Předloha pro {field}",
+    "sourcePage": "Strana originálu",
+    "sourceZoom": "Přiblížení",
+    "sourceRenderedPage": "Strana originálu {page}",
+    "sourceUnavailable": "Náhled PDF není dostupný.",
+    "sourceNoLocation": "Zvýraznění tohoto údaje není dostupné.",
+    "sourceManual": "Ručně upraveno",
+    "sourceOriginalValue": "AI přečetla: {value}",
+    "sourceZoomValue": "{percent}%"
   },
   "duplicateWarning": {
     "document_identity": "Možný duplikát: DIČ protistrany, číslo dokladu a směr se shodují se starším dokladem.",
