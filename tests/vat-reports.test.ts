@@ -353,5 +353,8 @@ it("generates from more Documents than the API row cap without losing exclusions
   expect(generated.ok).toBe(true);
   const report = (await getVatReport(a.client, a.companyId, "2026-10"))!;
   expect(report.documents).toHaveLength(1001);
+  expect(report.documents.map(document => document.id).toSorted()).toEqual(a.documentIds.toSorted());
+  expect(report.documents.map(document => document.importDate)).toEqual(Array(1001).fill("2026-10-10"));
   expect(report.result.excludedDocuments).toHaveLength(1001);
+  expect(report.result.excludedDocuments.map(document => document.reason)).toEqual(Array(1001).fill("not_approved"));
 }, 60000);
