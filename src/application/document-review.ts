@@ -31,7 +31,7 @@ export async function getDocumentReview(
   ]);
   if (!company || !document) return null;
 
-  const [versions, duplicateWarnings, missingPeriod, role, reportingYears, file, locks, deferredClaimPeriods, sourceRows, observations] = await Promise.all([
+  const [versions, duplicateWarnings, missingPeriod, role, reportingYears, file, locks, deferredClaimPeriods, observations] = await Promise.all([
     listExtractionVersions(client, companyId, documentId),
     listDuplicateWarnings(client, companyId, documentId),
     missingReportingPeriodFinding(client, companyId, documentId),
@@ -40,7 +40,6 @@ export async function getDocumentReview(
     document.sourceFileId ? getSourceFile(client, companyId, document.sourceFileId) : null,
     documentPeriodLocks(client, companyId, [documentId]),
     listDeferredClaimPeriods(client, companyId, documentId),
-    document.rowSet ? readDocumentRows(client, companyId, documentId) : null,
     getCurrentDocumentReviewFindings(client, input),
   ]);
   if (document.sourceFileId && !file) return null;
@@ -53,6 +52,7 @@ export async function getDocumentReview(
   const currentFindings = matchingObservations ? observations.findings : current?.findings ?? [];
   const recorded = versions.find((version) => String(version.version) === requestedVersion);
   const shown = recorded ?? current;
+  const sourceRows = document.rowSet ? await readDocumentRows(client, companyId, documentId, shown?.version) : null;
   const viewingRecorded = recorded !== undefined;
   const shownFindings = viewingRecorded ? shown?.findings ?? [] : currentFindings;
   const shownWarningFindings = shownFindings.filter((finding) => finding.severity === "warning"
