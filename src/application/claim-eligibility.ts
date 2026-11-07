@@ -3,7 +3,7 @@ import type { ReportingYear } from "./companies";
 import type { ValidationFinding } from "./document-validation";
 import { partialClaimRates } from "./partial-claim";
 import { halers } from "./money";
-import { convertedAmount } from "./exchange-rates";
+import { convertedAmount, documentCzkConversion } from "./exchange-rates";
 import { nextCzechWorkingDate } from "./epo-export-timing";
 import { reportingPeriodsOf, reportingPeriodForDate, reportingPeriodStart } from "./reporting-periods";
 
@@ -18,10 +18,8 @@ export function confirmedZeroClaim(payload: ExtractionPayload): boolean {
   const selected = partialClaimRates(payload);
   if (!selected?.length || selected.some(line => halers(line.netAmount) !== BigInt(0) || halers(line.vatAmount) !== BigInt(0))) return false;
   if (payload.currency !== "CZK") {
-    const conversion = payload.czkConversion;
-    if (!conversion || conversion.originalCurrency !== payload.currency || !payload.taxPointDate
-      || conversion.rateDate > payload.taxPointDate || Number(conversion.rate) <= 0
-      || convertedAmount("0.00", conversion) === null) return false;
+    const conversion = documentCzkConversion(payload);
+    if (!conversion || Number(conversion.rate) <= 0 || convertedAmount("0.00", conversion) === null) return false;
   }
   return true;
 }
