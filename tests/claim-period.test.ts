@@ -29,6 +29,7 @@ import { testWorker } from "./support/worker";
 import { assignAiConfigurationFixture } from "./support/fixtures";
 import { fixtureFile } from "./support/files";
 import { changeReportingYearFrequency } from "@/application/reporting-years";
+import { setLegacyDocumentApprovedFixture } from "./support/legacy-document-approval";
 
 async function sourceDocument(instant: string, taxPointDate: string, issueDate: string, quarterly = false) {
   const user = await administratorWithCompany();
@@ -48,6 +49,70 @@ async function sourceDocument(instant: string, taxPointDate: string, issueDate: 
   const [document] = await listDocuments(user.client, user.companyId, uploaded.value.id);
   return { ...user, document, versions: await listExtractionVersions(user.client, user.companyId, document.id) };
 }
+
+it.each(["application", "database"] as const)("blocks unresolved domestic document type at the %s approval boundary", async boundary => {
+  const user = await administratorWithCompany();
+  const created = await createManualDocument(user.client, { companyId: user.companyId,
+    payload: { ...SAMPLE_EXTRACTION, documentType: null },
+  }, fakeExchangeRates(), fakeVatPayerRegistry());
+  if (!created.ok) throw new Error(created.error);
+  const input = { companyId: user.companyId, documentId: created.value.id };
+  if (boundary === "application") expect(await approveDocument(user.client, { ...input, version: 1 }))
+    .toEqual({ ok: false, error: "claim_document_type_required" });
+  else expect((await user.client.rpc("approve_document", { target_document_id: input.documentId, reviewed_version: 1 })).error)
+    .toMatchObject({ code: "P0001", hint: "claim_document_type_required" });
+  expect(await getDocument(user.client, user.companyId, input.documentId)).toMatchObject({ status: "needs_review", importDate: null });
+  expect((await getDocumentReview(user.client, input))?.shownFindings)
+    .toContainEqual({ field: "documentType", severity: "error", code: "claim_document_type_required" });
+});
+
+it.each(["application", "database"] as const)("blocks legacy null-type deduction at the %s preparation boundary without rewriting history", async boundary => {
+  const user = await administratorWithCompany();
+  const created = await createManualDocument(user.client, { companyId: user.companyId,
+    payload: { ...SAMPLE_EXTRACTION, documentType: null },
+  }, fakeExchangeRates(), fakeVatPayerRegistry());
+  if (!created.ok) throw new Error(created.error);
+  await setLegacyDocumentApprovedFixture(inject("databaseUrl"), created.value.id);
+  const before = await listExtractionVersions(user.client, user.companyId, created.value.id);
+  if (boundary === "application") expect(await generateVatReport(user.client, { companyId: user.companyId, period: "2026-10" }))
+    .toEqual({ ok: false, error: "claim_eligibility_unresolved" });
+  else expect((await user.client.rpc("save_vat_report", { target_company_id: user.companyId, target_period: "2026-10",
+    expected_documents: [], computed_result: {},
+  })).error).toMatchObject({ code: "P0001", hint: "claim_eligibility_unresolved" });
+  expect(await listExtractionVersions(user.client, user.companyId, created.value.id)).toEqual(before);
+});
+
+it("clearing a confirmed ordinary type cannot bypass atomic approval and remains a valid draft", async () => {
+  const user = await administratorWithCompany();
+  const created = await createManualDocument(user.client, { companyId: user.companyId, payload: { ...SAMPLE_EXTRACTION,
+    claimEligibility: { period: "2026-10", origin: "user", confirmed: true },
+  } }, fakeExchangeRates(), fakeVatPayerRegistry());
+  if (!created.ok) throw new Error(created.error);
+  const input = { companyId: user.companyId, documentId: created.value.id };
+  const [original] = await listExtractionVersions(user.client, input.companyId, input.documentId);
+  const cleared = { ...original.payload, documentType: null };
+  expect(await saveAndApproveDocument(user.client, { ...input, basedOnVersion: 1, requestId: crypto.randomUUID(), payload: cleared }, fakeExchangeRates(), fakeVatPayerRegistry()))
+    .toMatchObject({ ok: false, error: "claim_document_type_required" });
+  expect(await listExtractionVersions(user.client, input.companyId, input.documentId)).toEqual([original]);
+  expect(await correctDocument(user.client, { ...input, basedOnVersion: 1, payload: cleared }, fakeExchangeRates(), fakeVatPayerRegistry()))
+    .toMatchObject({ ok: true, value: { version: 2 } });
+  const history = await listExtractionVersions(user.client, input.companyId, input.documentId);
+  expect(history[0]).toEqual(original);
+  expect(history[1].payload).toMatchObject({ documentType: null, claimEligibility: { confirmed: false } });
+  expect(await approveDocument(user.client, { ...input, version: 2 })).toEqual({ ok: false, error: "claim_document_type_required" });
+});
+
+it("resolves a null-type draft only after classification and explicit temporal confirmation", async () => {
+  const user = await administratorWithCompany();
+  const created = await createManualDocument(user.client, { companyId: user.companyId, payload: { ...SAMPLE_EXTRACTION, documentType: null } }, fakeExchangeRates(), fakeVatPayerRegistry());
+  if (!created.ok) throw new Error(created.error);
+  const input = { companyId: user.companyId, documentId: created.value.id, basedOnVersion: 1 };
+  expect(await saveAndApproveDocument(user.client, { ...input, requestId: crypto.randomUUID(), payload: SAMPLE_EXTRACTION }, fakeExchangeRates(), fakeVatPayerRegistry()))
+    .toMatchObject({ ok: false, error: "claim_eligibility_required" });
+  expect(await saveAndApproveDocument(user.client, { ...input, requestId: crypto.randomUUID(), payload: { ...SAMPLE_EXTRACTION,
+    claimEligibility: { period: "2026-10", origin: "user", confirmed: true },
+  } }, fakeExchangeRates(), fakeVatPayerRegistry())).toMatchObject({ ok: true, value: { version: 2 } });
+});
 
 it("refuses a shared Deferred Claim for an incoming domestic reverse-charge Document", async () => {
   const administrator = await administratorWithCompany();
