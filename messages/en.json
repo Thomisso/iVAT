@@ -1264,7 +1264,12 @@
       "unclaimed": "Unclaimed Portion",
       "unavailable": "Cannot calculate",
       "confirmRate": "Confirm selection at {rate}% for these full amounts",
-      "previousSelection": "Previously saved selection: {rate}% · net {net}, VAT {vat}"
+      "previousSelection": "Previously saved selection: {rate}% · net {net}, VAT {vat}",
+      "rate": "Selected supplies at {rate}%",
+      "remainderRate": "Unclaimed at {rate}%",
+      "addRate": "Add selected rate",
+      "removeRate": "Remove selected rate",
+      "zeroConfirm": "I confirm no input VAT deduction from this Document."
     },
     "claimEligibility": {
       "title": "Earliest Claim Period",

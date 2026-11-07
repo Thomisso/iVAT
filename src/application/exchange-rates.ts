@@ -29,7 +29,7 @@ function scaledDecimal(value: string): { value: bigint; scale: bigint } | null {
 }
 
 /** Converts a two-decimal amount with integer arithmetic and rounds to halers. */
-function convertedAmount(value: string | null, rate: CnbRate): string | null {
+export function convertedAmount(value: string | null, rate: Pick<CnbRate, "rate" | "unit">): string | null {
   if (value === null) return null;
   const amount = /^(-?)(\d+)\.(\d{2})$/.exec(value);
   const quote = scaledDecimal(rate.rate);
