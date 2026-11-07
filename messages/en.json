@@ -744,7 +744,12 @@
     "invalid_country_code": "Enter a two-letter country code.",
     "counterparty_invalid_vat_id": "Enter a VAT ID with a two-letter country prefix followed by 2 to 14 letters or digits.",
     "review_warnings_changed": "Review the newly prepared warnings and explicitly approve these values.",
-    "review_context_changed": "The review inputs changed while preparing approval. Compare the current data and try again."
+    "review_context_changed": "The review inputs changed while preparing approval. Compare the current data and try again.",
+    "claim_eligibility_required": "Confirm the Earliest Claim Period; the available facts do not yet establish eligibility.",
+    "invalid_earliest_claim_period": "Choose a generated period on or after the Tax Point Date period.",
+    "claimed_period_before_earliest": "The chosen claim period precedes the confirmed Earliest Claim Period.",
+    "deferred_claim_not_supported": "Shared deferral is not supported for this regime. Resolve the Document manually before preparing a new report.",
+    "claim_eligibility_unresolved": "Resolve claim eligibility for the flagged Documents in period readiness before preparing a new report."
   },
   "aiUsage": {
     "platformNav": "Platform AI usage",
@@ -1136,7 +1141,11 @@
       "manual_classification_required": "This VAT treatment is outside the supported regimes and requires manual classification.",
       "reverse_charge_code_required": "Enter the official reverse-charge subject code.",
       "counterparty_directory_difference": "Counterparty detail on the Document: “{documentValue}”; in the directory: “{directoryValue}”.",
-      "partial_claim_invalid": "Complete and confirm a valid positive selection within the full amounts. Only single-rate CZK domestic incoming Documents are supported."
+      "partial_claim_invalid": "Complete and confirm a valid positive selection within the full amounts. Only single-rate CZK domestic incoming Documents are supported.",
+      "claim_eligibility_required": "Confirm the Earliest Claim Period; the available facts do not yet establish eligibility.",
+      "invalid_earliest_claim_period": "Choose a generated period on or after the Tax Point Date period.",
+      "claimed_period_before_earliest": "The chosen claim period precedes the confirmed Earliest Claim Period.",
+      "deferred_claim_not_supported": "Shared deferral is not supported for this regime. Resolve the Document manually before preparing a new report."
     },
     "noDocumentImage": "This Document came from spreadsheet rows and has no document image.",
     "sections": {
@@ -1254,6 +1263,15 @@
       "unavailable": "Cannot calculate",
       "confirmRate": "Confirm selection at {rate}% for these full amounts",
       "previousSelection": "Previously saved selection: {rate}% · net {net}, VAT {vat}"
+    },
+    "claimEligibility": {
+      "title": "Earliest Claim Period",
+      "period": "First eligible period",
+      "user": "Confirmed by a User.",
+      "same_period": "Same-period rule for Tax Point Date, issue date and import.",
+      "unconfirmed": "Confirmation required",
+      "confirm": "I confirm the eligibility conditions were met in the selected period.",
+      "hint": "Import Date records the actual upload and does not prove earlier possession. A Document without a Source File requires an accountant’s confirmation."
     }
   },
   "duplicateWarning": {

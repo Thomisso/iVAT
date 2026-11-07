@@ -1,8 +1,9 @@
+import { createConfirmedManualDocument } from "./support/claim-eligibility";
 import { directoryIdentityDuringApproval, attemptHistoricalCounterpartyDelete } from "./support/counterparty-link-race";
 import { expect, it } from "vitest";
 import { SAMPLE_EXTRACTION } from "@/ai/fake";
 import { createCounterparty, updateCounterparty, listCounterpartyDocuments } from "@/application/counterparties";
-import { correctDocument, createManualDocument, listExtractionVersions, saveAndApproveDocument } from "@/application/documents";
+import { correctDocument, listExtractionVersions, saveAndApproveDocument } from "@/application/documents";
 import { getDocumentReview } from "@/application/document-review";
 import { fakeVatPayerRegistry } from "@/vat-registry/fake";
 import { createCompany } from "@/application/companies";
@@ -15,7 +16,7 @@ it("links an existing Counterparty while preserving the Document's own Party and
   const entry = await createCounterparty(company.client, { companyId: company.companyId, name: "Directory Supplier", supplier: true, customer: false });
   if (!entry.ok) throw new Error(entry.error);
   const payload = { ...SAMPLE_EXTRACTION, supplier: { ...SAMPLE_EXTRACTION.supplier, name: "Recorded Supplier" } };
-  const created = await createManualDocument(company.client, { companyId: company.companyId, payload }, undefined, fakeVatPayerRegistry());
+  const created = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload }, undefined, fakeVatPayerRegistry());
   if (!created.ok) throw new Error(created.error);
   const target = { companyId: company.companyId, documentId: created.value.id };
   const linked = { ...payload, counterpartyLink: { id: entry.value.id } };
@@ -30,7 +31,7 @@ it("shows today's material differences while recorded Versions and historical-on
   const company = await administratorWithCompany();
   const entry = await createCounterparty(company.client, { companyId: company.companyId, name: "Recorded Supplier", ico: "27082440", supplier: true, customer: false });
   if (!entry.ok) throw new Error(entry.error);
-  const created = await createManualDocument(company.client, { companyId: company.companyId, payload: SAMPLE_EXTRACTION }, undefined, fakeVatPayerRegistry());
+  const created = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload: SAMPLE_EXTRACTION }, undefined, fakeVatPayerRegistry());
   if (!created.ok) throw new Error(created.error);
   const target = { companyId: company.companyId, documentId: created.value.id };
   const linked = { ...SAMPLE_EXTRACTION, counterpartyLink: { id: entry.value.id } };
@@ -49,7 +50,7 @@ it("binds link-only approval and acknowledgements to fresh directory details wit
   const company = await administratorWithCompany();
   const entry = await createCounterparty(company.client, { companyId: company.companyId, name: "Directory Before", supplier: true, customer: false });
   if (!entry.ok) throw new Error(entry.error);
-  const created = await createManualDocument(company.client, { companyId: company.companyId, payload: SAMPLE_EXTRACTION }, undefined, fakeVatPayerRegistry());
+  const created = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload: SAMPLE_EXTRACTION }, undefined, fakeVatPayerRegistry());
   if (!created.ok) throw new Error(created.error);
   const input = { companyId: company.companyId, documentId: created.value.id, basedOnVersion: 1, requestId: crypto.randomUUID(), payload: { ...SAMPLE_EXTRACTION, counterpartyLink: { id: entry.value.id } } };
   const pending = await saveAndApproveDocument(company.client, input, undefined, fakeVatPayerRegistry());
@@ -71,7 +72,7 @@ it("refuses a foreign Company's existing entry even for a caller with access to 
   if (!other.ok) throw new Error(other.error);
   const entry = await createCounterparty(company.client, { companyId: other.value.id, name: "Foreign Company entry", supplier: true, customer: false });
   if (!entry.ok) throw new Error(entry.error);
-  const created = await createManualDocument(company.client, { companyId: company.companyId, payload: SAMPLE_EXTRACTION }, undefined, fakeVatPayerRegistry());
+  const created = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload: SAMPLE_EXTRACTION }, undefined, fakeVatPayerRegistry());
   if (!created.ok) throw new Error(created.error);
   const target = { companyId: company.companyId, documentId: created.value.id };
   const payload = { ...SAMPLE_EXTRACTION, counterpartyLink: { id: entry.value.id, recorded: SAMPLE_EXTRACTION.supplier } };
@@ -94,7 +95,7 @@ it("normalizes formatting without hiding material outgoing customer differences 
   const entry = await createCounterparty(company.client, { companyId: company.companyId, ...party, countryCode: "cz", supplier: true, customer: true });
   if (!entry.ok) throw new Error(entry.error);
   const payload = { ...SAMPLE_EXTRACTION, direction: "outgoing" as const, customer: { ...party, name: " Novák  a   syn ", ico: "2708 2440", vatId: "cz 27082440", postalCode: "120 00", country: "cz" }, counterpartyLink: { id: entry.value.id, recorded: { ...party, name: "Forged" } } };
-  const created = await createManualDocument(company.client, { companyId: company.companyId, payload }, undefined, fakeVatPayerRegistry());
+  const created = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload }, undefined, fakeVatPayerRegistry());
   if (!created.ok) throw new Error(created.error);
   const target = { companyId: company.companyId, documentId: created.value.id };
   const review = await getDocumentReview(company.client, target);
@@ -109,7 +110,7 @@ it("keeps stored reports, approved Party fields and historical links unchanged a
   const party = SAMPLE_EXTRACTION.supplier;
   const entry = await createCounterparty(company.client, { companyId: company.companyId, name: party.name!, ico: party.ico, vatId: party.vatId, street: party.street!, city: party.city!, postalCode: party.postalCode!, countryCode: party.country!, supplier: true, customer: false });
   if (!entry.ok) throw new Error(entry.error);
-  const created = await createManualDocument(company.client, { companyId: company.companyId, payload: SAMPLE_EXTRACTION }, undefined, fakeVatPayerRegistry());
+  const created = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload: SAMPLE_EXTRACTION }, undefined, fakeVatPayerRegistry());
   if (!created.ok) throw new Error(created.error);
   const input = { companyId: company.companyId, documentId: created.value.id, basedOnVersion: 1, requestId: crypto.randomUUID(), payload: { ...SAMPLE_EXTRACTION, counterpartyLink: { id: entry.value.id } } };
   expect(await saveAndApproveDocument(company.client, input, undefined, fakeVatPayerRegistry())).toEqual({ ok: true, value: { version: 2 } });
@@ -134,7 +135,7 @@ it("uses the same live warning projection and rendered directory context for unc
   const party = SAMPLE_EXTRACTION.supplier;
   const entry = await createCounterparty(company.client, { companyId: company.companyId, name: party.name!, ico: party.ico, vatId: party.vatId, street: party.street!, city: party.city!, postalCode: party.postalCode!, countryCode: party.country!, supplier: true, customer: false });
   if (!entry.ok) throw new Error(entry.error);
-  const created = await createManualDocument(company.client, { companyId: company.companyId, payload: { ...SAMPLE_EXTRACTION, counterpartyLink: { id: entry.value.id } } }, undefined, fakeVatPayerRegistry());
+  const created = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload: { ...SAMPLE_EXTRACTION, counterpartyLink: { id: entry.value.id } } }, undefined, fakeVatPayerRegistry());
   if (!created.ok) throw new Error(created.error);
   const target = { companyId: company.companyId, documentId: created.value.id };
   const displayed = await getDocumentReview(company.client, target);
@@ -149,7 +150,7 @@ it("refuses directory changes during approval preparation without saving partial
   const company = await administratorWithCompany();
   const entry = await createCounterparty(company.client, { companyId: company.companyId, name: "Before preparation", supplier: true, customer: false });
   if (!entry.ok) throw new Error(entry.error);
-  const created = await createManualDocument(company.client, { companyId: company.companyId, payload: SAMPLE_EXTRACTION }, undefined, fakeVatPayerRegistry());
+  const created = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload: SAMPLE_EXTRACTION }, undefined, fakeVatPayerRegistry());
   if (!created.ok) throw new Error(created.error);
   const target = { companyId: company.companyId, documentId: created.value.id };
   const registry = { async check() {
@@ -166,7 +167,7 @@ it("serializes a directory identifier update behind link approval without deadlo
   const party = SAMPLE_EXTRACTION.supplier;
   const entry = await createCounterparty(company.client, { companyId: company.companyId, name: party.name!, ico: party.ico, vatId: party.vatId, street: party.street!, city: party.city!, postalCode: party.postalCode!, countryCode: party.country!, supplier: true, customer: false });
   if (!entry.ok) throw new Error(entry.error);
-  const created = await createManualDocument(company.client, { companyId: company.companyId, payload: SAMPLE_EXTRACTION }, undefined, fakeVatPayerRegistry());
+  const created = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload: SAMPLE_EXTRACTION }, undefined, fakeVatPayerRegistry());
   if (!created.ok) throw new Error(created.error);
   const target = { companyId: company.companyId, documentId: created.value.id };
   const result = await directoryIdentityDuringApproval(company.companyId,
@@ -186,7 +187,7 @@ it("protects a historical-only link from direct authenticated deletion and Versi
   const company = await administratorWithCompany();
   const entry = await createCounterparty(company.client, { companyId: company.companyId, name: "Historical only", supplier: true, customer: false });
   if (!entry.ok) throw new Error(entry.error);
-  const created = await createManualDocument(company.client, { companyId: company.companyId, payload: { ...SAMPLE_EXTRACTION, counterpartyLink: { id: entry.value.id } } }, undefined, fakeVatPayerRegistry());
+  const created = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload: { ...SAMPLE_EXTRACTION, counterpartyLink: { id: entry.value.id } } }, undefined, fakeVatPayerRegistry());
   if (!created.ok) throw new Error(created.error);
   const target = { companyId: company.companyId, documentId: created.value.id };
   expect((await correctDocument(company.client, { ...target, basedOnVersion: 1, payload: SAMPLE_EXTRACTION }, undefined, fakeVatPayerRegistry())).ok).toBe(true);
@@ -200,7 +201,7 @@ it("recomputes directory differences in a direct authenticated approval even whe
   const company = await administratorWithCompany();
   const entry = await createCounterparty(company.client, { companyId: company.companyId, name: "Authoritative directory", supplier: true, customer: false });
   if (!entry.ok) throw new Error(entry.error);
-  const created = await createManualDocument(company.client, { companyId: company.companyId, payload: SAMPLE_EXTRACTION }, undefined, fakeVatPayerRegistry());
+  const created = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload: SAMPLE_EXTRACTION }, undefined, fakeVatPayerRegistry());
   if (!created.ok) throw new Error(created.error);
   const context = await company.client.rpc("document_review_context", { target_document_id: created.value.id, based_on_version: 1 });
   expect(context.error).toBeNull();

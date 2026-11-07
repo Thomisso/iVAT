@@ -1207,6 +1207,9 @@ isOneToOne: false
 "finalize_vat_report":
 { Args: { "finalization_confirmed": boolean,"target_company_id": string,"target_period": string }; Returns: undefined
                            },
+"finalize_vat_report_before_claim_eligibility":
+{ Args: { "finalization_confirmed": boolean,"target_company_id": string,"target_period": string }; Returns: undefined
+                           },
 "finish_mfa_disenrollment":
 { Args: Record<PropertyKey, never>; Returns: undefined
                            },
@@ -1389,6 +1392,9 @@ isOneToOne: false
 "replace_invitation":
 { Args: { "target_invitation_id": string }; Returns: string
                            },
+"reporting_period_claim_issues":
+{ Args: { "target_company_id": string,"target_period": string }; Returns: Json
+                           },
 "reprocess_document":
 { Args: { "replacement_confirmed"?: boolean,"target_document_id": string }; Returns: string
                            },
@@ -1436,6 +1442,9 @@ isOneToOne: false
 { Args: { "based_on_version": number,"findings": Json,"payload": Json,"request_id": string,"submitted_payload": Json,"target_document_id": string }; Returns: number
                            },
 "save_vat_report":
+{ Args: { "computed_result": Json,"expected_documents": Json,"target_company_id": string,"target_period": string }; Returns: string
+                           },
+"save_vat_report_before_claim_eligibility":
 { Args: { "computed_result": Json,"expected_documents": Json,"target_company_id": string,"target_period": string }; Returns: string
                            },
 "search_counterparties":
@@ -1526,6 +1535,9 @@ isOneToOne: false
 "update_document_reporting":
 { Args: { "new_claimed_reporting_period": string,"target_document_id": string }; Returns: undefined
                            },
+"update_document_reporting_before_claim_eligibility":
+{ Args: { "new_claimed_reporting_period": string,"target_document_id": string }; Returns: undefined
+                           },
 "upload_batch_deletion_refusal":
 { Args: { "target_batch_id": string }; Returns: string
                            },
@@ -1551,6 +1563,9 @@ isOneToOne: false
 { Args: { "target_company_id": string,"target_period": string }; Returns: Json
                            },
 "vat_report_documents":
+{ Args: { "target_company_id": string,"target_period": string }; Returns: Json
+                           },
+"vat_report_documents_before_claim_eligibility":
 { Args: { "target_company_id": string,"target_period": string }; Returns: Json
                            },
 "vat_report_draft_progress":

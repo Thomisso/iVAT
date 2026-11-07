@@ -744,7 +744,12 @@
     "invalid_country_code": "Zadejte dvoupísmenný kód země.",
     "counterparty_invalid_vat_id": "Zadejte DIČ s dvoupísmenným kódem země a 2 až 14 číslicemi nebo písmeny.",
     "review_warnings_changed": "Zkontrolujte nově zjištěná upozornění a výslovně schvalte tyto hodnoty.",
-    "review_context_changed": "Podklady revize se během přípravy změnily. Porovnejte aktuální údaje a zkuste to znovu."
+    "review_context_changed": "Podklady revize se během přípravy změnily. Porovnejte aktuální údaje a zkuste to znovu.",
+    "claim_eligibility_required": "Potvrďte nejdřívější období uplatnění; dostupné údaje zatím způsobilost nedokládají.",
+    "invalid_earliest_claim_period": "Vyberte existující období, které není před obdobím DUZP.",
+    "claimed_period_before_earliest": "Zvolené období uplatnění je před potvrzeným nejdřívějším obdobím.",
+    "deferred_claim_not_supported": "Společný odklad není pro tento režim podporován. Případ vyřešte ručně před novou přípravou výkazu.",
+    "claim_eligibility_unresolved": "Nejdříve vyřešte způsobilost uplatnění označených dokladů v připravenosti období."
   },
   "aiUsage": {
     "platformNav": "Využití AI na platformě",
@@ -1136,7 +1141,11 @@
       "manual_classification_required": "Tento režim DPH není podporován a vyžaduje ruční klasifikaci.",
       "reverse_charge_code_required": "Zadejte oficiální kód předmětu plnění v režimu přenesení daňové povinnosti.",
       "counterparty_directory_difference": "Údaj protistrany na dokladu: „{documentValue}“; v adresáři: „{directoryValue}“.",
-      "partial_claim_invalid": "Doplňte a potvrďte platný kladný výběr v rozsahu celých částek. Podporován je tuzemský přijatý doklad v Kč s jednou sazbou."
+      "partial_claim_invalid": "Doplňte a potvrďte platný kladný výběr v rozsahu celých částek. Podporován je tuzemský přijatý doklad v Kč s jednou sazbou.",
+      "claim_eligibility_required": "Potvrďte nejdřívější období uplatnění; dostupné údaje zatím způsobilost nedokládají.",
+      "invalid_earliest_claim_period": "Vyberte existující období, které není před obdobím DUZP.",
+      "claimed_period_before_earliest": "Zvolené období uplatnění je před potvrzeným nejdřívějším obdobím.",
+      "deferred_claim_not_supported": "Společný odklad není pro tento režim podporován. Případ vyřešte ručně před novou přípravou výkazu."
     },
     "noDocumentImage": "Tento doklad vznikl z řádků tabulky a nemá obraz dokladu.",
     "sections": {
@@ -1254,6 +1263,15 @@
       "unavailable": "Nelze vypočítat",
       "confirmRate": "Potvrdit výběr se sazbou {rate}% pro tyto celé částky",
       "previousSelection": "Dříve uložený výběr: {rate}% · základ {net}, DPH {vat}"
+    },
+    "claimEligibility": {
+      "title": "Nejdřívější období uplatnění",
+      "period": "První přípustné období",
+      "user": "Potvrzeno uživatelem.",
+      "same_period": "Pravidlo stejného období DUZP, vystavení a importu.",
+      "unconfirmed": "Vyžaduje potvrzení",
+      "confirm": "Potvrzuji splnění podmínek pro vybrané období.",
+      "hint": "Import Date je datum skutečného uploadu, nikoli důkaz dřívějšího doručení. Ruční doklad bez originálu vyžaduje potvrzení účetním."
     }
   },
   "duplicateWarning": {
