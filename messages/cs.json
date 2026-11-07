@@ -1134,7 +1134,8 @@
       "direction_unknown": "Směr se nepodařilo určit podle identity firmy. Před schválením jej nastavte.",
       "currency_conversion_not_performed": "Kurz ČNB nebyl dostupný, proto nebylo možné vypočítat částky v CZK.",
       "manual_classification_required": "Tento režim DPH není podporován a vyžaduje ruční klasifikaci.",
-      "reverse_charge_code_required": "Zadejte oficiální kód předmětu plnění v režimu přenesení daňové povinnosti."
+      "reverse_charge_code_required": "Zadejte oficiální kód předmětu plnění v režimu přenesení daňové povinnosti.",
+      "counterparty_directory_difference": "Údaj protistrany na dokladu: „{documentValue}“; v adresáři: „{directoryValue}“."
     },
     "noDocumentImage": "Tento doklad vznikl z řádků tabulky a nemá obraz dokladu.",
     "sections": {
@@ -1214,7 +1215,32 @@
     "submittedNotSaved": "Rozepsané hodnoty nebyly uloženy. Porovnejte je s aktuálními údaji níže.",
     "comparisonField": "Pole",
     "submittedValue": "Rozepsaná hodnota",
-    "currentValue": "Aktuální hodnota"
+    "currentValue": "Aktuální hodnota",
+    "directory": {
+      "title": "Adresář protistran",
+      "linkHint": "Propojte existující záznam. Údaje dokladu zůstávají vlastní.",
+      "selected": "Propojená protistrana",
+      "clear": "Zrušit propojení",
+      "search": "Hledat existující protistrany",
+      "searchAction": "Hledat v adresáři",
+      "choose": "Propojit {name}",
+      "empty": "Žádné odpovídající protistrany.",
+      "copy": "Převzít údaje z adresáře do dokladu",
+      "recorded": "Zaznamenané údaje adresáře",
+      "notRecorded": "Tato verze nemá zaznamenané propojení s adresářem.",
+      "open": "Otevřít propojenou protistranu"
+    },
+    "sourceFor": "Předloha pro {field}",
+    "sourcePage": "Strana originálu",
+    "sourceZoom": "Přiblížení",
+    "sourceRenderedPage": "Strana originálu {page}",
+    "sourceUnavailable": "Náhled PDF není dostupný.",
+    "sourceNoLocation": "Zvýraznění tohoto údaje není dostupné.",
+    "sourceManual": "Ručně upraveno",
+    "sourceOriginalValue": "AI přečetla: {value}",
+    "sourceZoomValue": "{percent}%",
+    "sourceInspect": "Inspect",
+    "sourceInspectCrop": "Zvětšený výřez předlohy"
   },
   "duplicateWarning": {
     "document_identity": "Možný duplikát: DIČ protistrany, číslo dokladu a směr se shodují se starším dokladem.",
@@ -1763,6 +1789,11 @@
     "pagination": "Stránky adresáře",
     "previous": "Předchozí",
     "next": "Další",
-    "page": "Stránka {page} z {total}"
+    "page": "Stránka {page} z {total}",
+    "linkedDocuments": "Navázané doklady",
+    "linkedCount": "Doklady: {count}",
+    "unnumberedDocument": "Doklad bez čísla",
+    "noLinkedDocuments": "Žádné navázané doklady.",
+    "documentPages": "Stránky navázaných dokladů"
   }
 }

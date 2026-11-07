@@ -26,6 +26,38 @@ async function anthropicStandIn(
 }
 
 describe("Anthropic AI provider", () => {
+  it("discards unsupported PDF locations without losing valid financial values", async () => {
+    const valid = { fieldPath: "rateBreakdown.0.vatAmount", kind: "page", page: 1, x: 0.6, y: 0.7, width: 0.2, height: 0.05 };
+    let requestBody: unknown;
+    const baseUrl = await anthropicStandIn((_request, body, response) => {
+      requestBody = body;
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({
+        model: "claude-extract",
+        content: [{ type: "text", text: JSON.stringify({
+          ...SAMPLE_EXTRACTION,
+          sourceEvidence: { sourceFileId: "provider-selected-source" },
+          sourceLocations: [
+            valid, null, "rectangle",
+            { ...valid, fieldPath: "companyId" },
+            { ...valid, fieldPath: "rateBreakdown.9.vatAmount" },
+            { ...valid, page: 2 }, { ...valid, page: 0 }, { ...valid, page: 1.5 },
+            { ...valid, x: -0.1 }, { ...valid, x: 0.9 },
+            { ...valid, width: 0 }, { ...valid, height: "0.05" },
+            { ...valid, kind: "workbook" },
+            { ...valid, sourceFileId: "provider-selected-source" },
+          ],
+        }) }],
+      }));
+    });
+    const provider = anthropicAiProvider({ apiKey: "test-secret", splitModel: "claude-split", extractModel: "claude-extract", baseUrl });
+    const extraction = await provider.extract({ format: "pdf", mediaType: "application/pdf", bytes: new Uint8Array([37, 80, 68, 70]), pageCount: 1 });
+    expect(extraction.payload).toEqual({ ...SAMPLE_EXTRACTION, sourceLocations: [valid] });
+    expect(requestBody).toMatchObject({
+      output_config: { format: { schema: { required: expect.arrayContaining(["sourceLocations"]) } } },
+    });
+  });
+
   it("sends a PDF natively and returns the schema-constrained Split", async () => {
     let received: { headers: IncomingMessage["headers"]; body: unknown } | undefined;
     const baseUrl = await anthropicStandIn((request, body, response) => {
