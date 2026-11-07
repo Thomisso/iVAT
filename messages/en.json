@@ -1229,7 +1229,18 @@
       "recorded": "Recorded directory details",
       "notRecorded": "No directory link is recorded for this Version.",
       "open": "Open linked Counterparty"
-    }
+    },
+    "sourceFor": "Source for {field}",
+    "sourcePage": "Original page",
+    "sourceZoom": "Zoom",
+    "sourceRenderedPage": "Original page {page}",
+    "sourceUnavailable": "The PDF preview is unavailable.",
+    "sourceNoLocation": "Highlight unavailable for this field.",
+    "sourceManual": "Manually corrected",
+    "sourceOriginalValue": "AI read: {value}",
+    "sourceZoomValue": "{percent}%",
+    "sourceInspect": "Inspect",
+    "sourceInspectCrop": "Magnified source"
   },
   "duplicateWarning": {
     "document_identity": "Possible duplicate: the counterparty VAT ID, document number and direction match an earlier Document.",
