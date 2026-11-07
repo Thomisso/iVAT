@@ -1,3 +1,4 @@
+import { setOctoberImportFixture } from "./support/claim-eligibility";
 import { describe, expect, it } from "vitest";
 import { listAuditEvents } from "@/application/audit";
 import {
@@ -30,6 +31,7 @@ async function approvedDocument() {
     bytes: fixtureFile("receipt.png"),
   });
   if (!uploaded.ok) throw new Error(uploaded.error);
+  await setOctoberImportFixture(uploaded.value.id);
   await worker.runJobs();
   const [document] = await listDocuments(admin.client, admin.companyId, uploaded.value.id);
   const approved = await approveDocument(admin.client, { companyId: admin.companyId, documentId: document.id, version: 1 });

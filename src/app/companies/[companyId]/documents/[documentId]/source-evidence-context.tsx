@@ -5,6 +5,8 @@ import { useTranslations } from "next-intl";
 import type { ExtractionPayload } from "@/application/extraction-payload";
 import { Icon } from "@/components/icon";
 
+export const SOURCE_FIELD_FOCUS_EVENT = "ivat:source-field-focus";
+
 const SourceContext = createContext<{
   payload: ExtractionPayload; version: number; versionId: string;
   selection: number; acceptBase: (payload: ExtractionPayload, version: number, versionId: string) => void;
@@ -22,7 +24,7 @@ export function SourceEvidenceProvider({ payload, version, versionId, children }
   const [selection, setSelection] = useState(0);
   const acceptBase = useCallback((payload: ExtractionPayload, version: number, versionId: string) => setBase({ payload, version, versionId }), []);
   function selectField(field: string, focus = false, location = 0) {
-    // A source click focuses its field synchronously. That focus is not a new
+    // A source click focuses its field after any panel reveal. That focus is not a new
     // field-to-source selection and must keep the clicked occurrence.
     if (!focus && sourceFocus.current === field) return;
     setSelectedField(field);
@@ -31,10 +33,17 @@ export function SourceEvidenceProvider({ payload, version, versionId, children }
     if (focus) {
       const wrapper = [...document.querySelectorAll<HTMLElement>("[data-source-field]")].find((node) => node.dataset.sourceField === field);
       const input = wrapper?.querySelector<HTMLElement>("input:not([type=hidden]):not(:disabled),select:not(:disabled)");
-      sourceFocus.current = field;
-      try { (input ?? wrapper)?.focus({ preventScroll: true }); }
-      finally { sourceFocus.current = null; }
-      wrapper?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      // The workspace may hide the data pane on mobile or collapse a Company.
+      // Reveal the existing nodes before focusing; do not remount their draft.
+      for (let parent = wrapper?.parentElement; parent; parent = parent.parentElement) if (parent instanceof HTMLDetailsElement) parent.open = true;
+      wrapper?.dispatchEvent(new Event(SOURCE_FIELD_FOCUS_EVENT, { bubbles: true }));
+      requestAnimationFrame(() => {
+        if (!wrapper?.isConnected) return;
+        sourceFocus.current = field;
+        try { (input ?? wrapper).focus({ preventScroll: true }); }
+        finally { sourceFocus.current = null; }
+        wrapper.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      });
     }
   }
   return <SourceContext value={{ ...base, selectedField, selectedLocation, selectField, selection, acceptBase }}>{children}</SourceContext>;

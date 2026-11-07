@@ -1,11 +1,13 @@
 "use client";
 
+import { ReviewActions, useReviewWorkspace } from "./review-workspace";
+import { useReviewDraft } from "./review-guard";
 import { PartialClaimFields } from "./partial-claim-fields";
 import { ClaimEligibilityFields } from "./claim-eligibility-fields";
 
 import { SourceField, useSourceEvidence } from "./source-evidence-context";
 
-import { useActionState, useEffect, useState, type ComponentProps } from "react";
+import { useActionState, useEffect, useRef, useState, useId, type ComponentProps, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { reviewDocumentAction, createManualDocumentAction, type DocumentReviewFormState } from "@/app/actions";
 import {
@@ -25,6 +27,8 @@ import { CounterpartyLinkSummary } from "./counterparty-link-summary";
 import { CounterpartyLinkFields } from "./counterparty-link-fields";
 import { StatusBadge } from "@/components/status-badge";
 import { statusBadgeState } from "@/components/status-badge-state";
+
+const EMPTY_REVIEW_STATE: DocumentReviewFormState = { error: null, values: {} };
 
 /**
  * The extracted fields of one Extraction Version. While `editable`, saving
@@ -46,6 +50,7 @@ export function CorrectionForm({
   currentCounterparty,
   decision,
   claimPeriods = [],
+  reportingContext,
 }: {
   companyId: string;
   documentId?: string;
@@ -61,22 +66,34 @@ export function CorrectionForm({
   currentCounterparty?: ExtractionPayload["counterpartyLink"] | null;
   decision?: { nextDocumentId: string; queueQuery: string; returnTo: string };
   claimPeriods?: readonly string[];
+  reportingContext?: ReactNode;
 }) {
   const t = useTranslations("review");
   const source = useSourceEvidence();
-  const [state, action, pending] = useActionState<DocumentReviewFormState, FormData>(documentId ? reviewDocumentAction : createManualDocumentAction, {
-    error: null,
-    values: {},
-  });
+  const { register, settled, setPending, pending: sharedPending } = useReviewDraft() ?? {};
+  const workspace = useReviewWorkspace();
+  const formId = useId();
+  const form = useRef<HTMLFormElement>(null);
+  const [result, action, pending] = useActionState<DocumentReviewFormState, FormData>(documentId ? reviewDocumentAction : createManualDocumentAction, EMPTY_REVIEW_STATE);
+  const [discardedResult, setDiscardedResult] = useState<DocumentReviewFormState | null>(null);
+  const state = result === discardedResult ? EMPTY_REVIEW_STATE : result;
+  const [draftGeneration, setDraftGeneration] = useState(0);
+  const resetDraft = useRef<() => void>(() => {});
   // A Server Action may rerender the page with someone else's newer Version.
   // Keep this draft's base until our explicit save actually succeeds.
   const [base, setBase] = useState({ version: currentVersion, payload: currentPayload, findings: currentFindings, requestId, displayedBankAccountCheckId, displayedReviewContext, extractionVersionId });
   const { version, payload, findings } = base;
+  const [direction, setDirection] = useState(payload.direction);
+  const [clientErrors, setClientErrors] = useState<{ field: string; message: string }[]>([]);
+  const [keepCounterpartyEditor, setKeepCounterpartyEditor] = useState(editable);
+  if (editable && !keepCounterpartyEditor) setKeepCounterpartyEditor(true);
   const [lines, setLines] = useState(() =>
     payload.rateBreakdown.flatMap((line, index) => isZeroRateBreakdownLine(line) ? [] : [index]),
   );
   if (state.savedVersion !== undefined && state.savedVersion === currentVersion && base.version !== currentVersion) {
     setBase({ version: currentVersion, payload: currentPayload, findings: currentFindings, requestId, displayedBankAccountCheckId, displayedReviewContext, extractionVersionId });
+    setDirection(currentPayload.direction);
+    setClientErrors([]);
     setLines(currentPayload.rateBreakdown.flatMap((line, index) => isZeroRateBreakdownLine(line) ? [] : [index]));
   } else if (base.version === currentVersion && (base.displayedBankAccountCheckId !== displayedBankAccountCheckId || base.displayedReviewContext !== displayedReviewContext)) {
     // An explicit same-Version refresh has rendered this dated observation.
@@ -87,6 +104,32 @@ export function CorrectionForm({
   useEffect(() => {
     if (source && source.version !== base.version) source.acceptBase(base.payload, base.version, base.extractionVersionId ?? "");
   }, [source, base.payload, base.version, base.extractionVersionId]);
+  useEffect(() => {
+    resetDraft.current = () => {
+      // Discard restores this mounted draft's accepted base, never another
+      // user's newer RSC payload. Remount only fields to reset controlled
+      // selections/date state and refused values; the source stays mounted.
+      setDiscardedResult(result);
+      setDirection(payload.direction);
+      setLines(payload.rateBreakdown.flatMap((line, index) => isZeroRateBreakdownLine(line) ? [] : [index]));
+      setClientErrors([]);
+      setDraftGeneration(generation => generation + 1);
+    };
+  }, [result, payload]);
+  useEffect(() => {
+    // Readonly is an availability change, not permission to forget this draft.
+    // A historical form and the first editor opened by Return to Review get
+    // pristine baselines. Existing editors retain theirs when availability flips.
+    if (form.current) return register?.(form.current, () => resetDraft.current());
+  }, [register, version, draftGeneration, keepCounterpartyEditor]);
+  useEffect(() => {
+    if (state.error !== null || state.savedVersion !== undefined) settled?.(state.savedVersion !== undefined && state.error === null);
+  }, [settled, state]);
+  useEffect(() => {
+    setPending?.("correction", pending);
+    return () => setPending?.("correction", false);
+  }, [setPending, pending]);
+  const busy = pending || sharedPending;
   const nextLine = Math.max(payload.rateBreakdown.length - 1, ...lines) + 1;
   const finding = (field: string) =>
     (state.findings ?? findings).find(
@@ -151,6 +194,7 @@ export function CorrectionForm({
         name={name}
         defaultValue={value(name, saved)}
         disabled={!editable}
+        onChange={name === "direction" ? event => setDirection(event.target.value as ExtractionPayload["direction"]) : undefined}
         aria-invalid={finding(name) ? true : undefined}
         aria-describedby={finding(name) ? `finding-${name}` : undefined}
       >
@@ -186,13 +230,84 @@ export function CorrectionForm({
       </div>
     </fieldset>
   );
+  const ownParty = direction === "incoming" ? "customer" : direction === "outgoing" ? "supplier" : null;
+  const partyPanel = (prefix: "supplier" | "customer") => <details className="review-party" key={prefix} open={prefix !== ownParty}>
+    <summary>{prefix === ownParty ? t("ownCompany", { name: payload[prefix].name ?? t("notSet") }) : t(`sections.${prefix}`)}</summary>
+    {party(prefix)}
+  </details>;
+  const errors = (state.findings ?? findings).filter(item => item.severity === "error");
+  const fieldLabel = (field: string) => {
+    if (field === "claimEligibility") return t("claimEligibility.title");
+    if (field === "partialClaim") return t("partialClaim.title");
+    const labels: Record<string, string> = { proposedVatRegime: "vatRegime", "totals.netAmount": "totalNet", "totals.vatAmount": "totalVat", "totals.grossAmount": "totalGross", partialClaim: "totalNet" };
+    const key = `fields.${labels[field] ?? field.split(".").at(-1)!}`;
+    const label = t.has(key) ? t(key) : t("sections.document");
+    return field.startsWith("supplier.") || field.startsWith("customer.") ? `${t(`sections.${field.split(".")[0]}`)} · ${label}` : label;
+  };
+  const focusField = (field: string) => {
+    workspace?.showData();
+    const wrapper = [...(form.current?.querySelectorAll<HTMLElement>("[data-source-field]") ?? [])].find(element => element.dataset.sourceField === field);
+    const target = field === "claimEligibility" ? form.current?.querySelector<HTMLElement>("#earliest-claim-period")
+      : field === "partialClaim" ? form.current?.querySelector<HTMLElement>(editable ? "#partial-claim-enabled" : "#partial-claim")
+      : wrapper?.querySelector<HTMLElement>('input:not([type="hidden"]):not([type="date"]),select')
+        ?? [...(form.current?.elements ?? [])].find(element => element instanceof HTMLElement && element.getAttribute("name") === field) as HTMLElement | undefined;
+    for (let parent = target?.parentElement; parent; parent = parent.parentElement) if (parent instanceof HTMLDetailsElement) parent.open = true;
+    requestAnimationFrame(() => { target?.focus({ preventScroll: true }); target?.scrollIntoView({ block: "center" }); });
+  };
+
+  const comparisonRows = state.conflict ? Object.entries(state.values).flatMap(([name, submitted]) => {
+    // Receipts, directory identities and validation bases are not editable fields.
+    if (["companyId", "documentId", "basedOnVersion", "requestId", "displayedBankAccountCheckId", "displayedReviewContext", "acknowledgement", "intent", "nextDocumentId", "queueQuery", "returnTo", "counterpartyId", "partialClaim.basis"].includes(name)) return [];
+    const currentPayload = state.conflict!.payload;
+    const path = name.replace(/^partialClaim\.(\d+)\./, "partialClaim.rateBreakdown.$1.");
+    const current = path.split(".").reduce<unknown>((entry, part) => entry !== null && typeof entry === "object" ? (entry as Record<string, unknown>)[part] : undefined, currentPayload);
+    let saved = current === null || current === undefined ? "" : String(current);
+    let entered = submitted;
+    let label = fieldLabel(name);
+    if (name === "claimEligibility") {
+      const describe = (claim: ExtractionPayload["claimEligibility"]) => !claim?.period ? t("notSet")
+        : `${claim.period} · ${claim.confirmed ? t(`claimEligibility.${claim.origin}`) : t("claimEligibility.unconfirmed")}`;
+      try { entered = describe(JSON.parse(submitted) as ExtractionPayload["claimEligibility"]); }
+      catch { entered = t("notSet"); }
+      saved = describe(currentPayload.claimEligibility);
+      label = t("claimEligibility.title");
+    } else if (name === "partialClaim.mode") {
+      label = t("partialClaim.title");
+      entered = submitted === "selected" ? t("partialClaim.enable") : t("fullAmounts");
+      saved = currentPayload.partialClaim ? t("partialClaim.enable") : t("fullAmounts");
+    } else if (name === "partialClaim.confirmed" || name === "partialClaim.zeroConfirmed") {
+      label = t(name.endsWith("zeroConfirmed") ? "partialClaim.zeroConfirm" : "selectionConfirmation");
+      entered = t(submitted === "true" ? "confirmed" : "claimEligibility.unconfirmed");
+      saved = t(current === true ? "confirmed" : "claimEligibility.unconfirmed");
+    }
+    return entered === saved ? [] : [{ name, label, entered: entered || t("notSet"), saved: saved || t("notSet") }];
+  }) : [];
+
 
   return (
     <form
-      key={version}
+      key={`${version}:${draftGeneration}`}
+      ref={form}
+      id={formId}
       action={action}
+      aria-busy={busy}
+      onInvalidCapture={event => {
+        const input = event.target as HTMLInputElement;
+        const field = input.closest<HTMLElement>("[data-source-field]")?.dataset.sourceField ?? input.name;
+        if (!field) return;
+        event.preventDefault();
+        const message = input.validity.valueMissing ? t("requiredField") : input.validationMessage;
+        setClientErrors(current => [...current.filter(item => item.field !== field), { field, message }]);
+        if (!document.querySelector("dialog[open]")) focusField(field);
+      }}
+      onInputCapture={event => {
+        const input = event.target as HTMLInputElement;
+        const field = input.closest<HTMLElement>("[data-source-field]")?.dataset.sourceField ?? input.name;
+        setClientErrors(current => current.some(item => item.field === field) ? current.filter(item => item.field !== field) : current);
+      }}
       className={`form correction-form ${aiProposed ? "is-ai" : ""}`}
     >
+      <fieldset disabled={busy} style={{ display: "contents" }}>
       <input type="hidden" name="companyId" value={companyId} />
       <input type="hidden" name="documentId" value={documentId} />
       <input type="hidden" name="basedOnVersion" value={version} />
@@ -200,8 +315,10 @@ export function CorrectionForm({
       <input type="hidden" name="displayedBankAccountCheckId" value={base.displayedBankAccountCheckId ?? ""} />
       <input type="hidden" name="displayedReviewContext" value={base.displayedReviewContext ?? ""} />
       <input type="hidden" name="acknowledgement" value={state.confirmation?.id ?? ""} />
-      <ClaimEligibilityFields key={`eligibility-${version}`} payload={payload} periods={claimPeriods} editable={editable} values={state.values} error={findingMessage("claimEligibility")} />
       {decision && Object.entries(decision).map(([name, entry]) => <input key={name} type="hidden" name={name} value={entry} />)}
+      {(errors.length > 0 || clientErrors.length > 0) && <section role="region" aria-label={t("errorSummary")} className="review-error-summary">
+        <h2>{t("errorSummary")}</h2><ul>{clientErrors.map(item => <li key={`client-${item.field}`}><button type="button" onClick={() => focusField(item.field)}>{fieldLabel(item.field)}: {item.message}</button></li>)}{errors.map((item, index) => { const message = messageOf(item); return <li key={`${item.field}-${item.code}-${index}`}><button type="button" onClick={() => focusField(item.field)}>{fieldLabel(item.field)}: {t(`findings.${message.key}`, message.values)}</button></li>; })}</ul>
+      </section>}
       <fieldset>
         <legend>{t("sections.document")}</legend>
         <div className="fields">
@@ -227,22 +344,20 @@ export function CorrectionForm({
             VAT_REGIMES,
             "vatRegime",
           )}
-          {text("reverseChargeCode", payload.reverseChargeCode, "reverseChargeCode", {
-            maxLength: 3,
-          })}
-          {date("issueDate")}
           {date("taxPointDate")}
-          {date("dueDate")}
-          {text("currency", payload.currency, "currency", { maxLength: 3 })}
-          {text("originalDocumentNumber", payload.originalDocumentNumber)}
+          {reportingContext && <div className="iv-field">{reportingContext}</div>}
         </div>
+        <ClaimEligibilityFields key={`eligibility-${version}`} payload={payload} periods={claimPeriods} editable={editable} values={state.values} error={findingMessage("claimEligibility")} />
+        <details className="review-infrequent"><summary>{t("otherDetails")}</summary><div className="fields">
+          {text("reverseChargeCode", payload.reverseChargeCode, "reverseChargeCode", { maxLength: 3 })}
+          {date("issueDate")}{date("dueDate")}
+          {text("originalDocumentNumber", payload.originalDocumentNumber)}
+        </div></details>
+
       </fieldset>
-      <CounterpartyLinkSummary companyId={companyId} link={payload.counterpartyLink} />
-      {editable && <CounterpartyLinkFields key={`counterparty-${version}`} companyId={companyId} initialMode={state.values.counterpartyLinkMode ?? (payload.counterpartyLink === null ? "unlinked" : undefined)} initialId={state.values.counterpartyId ?? payload.counterpartyLink?.id ?? (payload.counterpartyLink === null ? "" : currentCounterparty?.id ?? "")} initialName={currentCounterparty?.recorded?.name ?? payload.counterpartyLink?.recorded?.name} currentDirectory={currentCounterparty} />}
-      {party("supplier")}
-      {party("customer")}
       <fieldset>
         <legend>{t("sections.amounts")}</legend>
+        {text("currency", payload.currency, "currency", { maxLength: 3 })}
         <table className="rate-breakdown">
           <thead>
             <tr>
@@ -355,6 +470,10 @@ export function CorrectionForm({
           </p>
         </fieldset>
       )}
+      <CounterpartyLinkSummary companyId={companyId} link={payload.counterpartyLink} />
+      {/* Keep existing draft controls when availability changes; initial readonly views omit the editor. */}
+      {keepCounterpartyEditor && <fieldset disabled={!editable} style={{ display: "contents" }}><CounterpartyLinkFields key={`counterparty-${version}`} companyId={companyId} initialMode={state.values.counterpartyLinkMode ?? (payload.counterpartyLink === null ? "unlinked" : undefined)} initialId={state.values.counterpartyId ?? payload.counterpartyLink?.id ?? (payload.counterpartyLink === null ? "" : currentCounterparty?.id ?? "")} initialName={currentCounterparty?.recorded?.name ?? payload.counterpartyLink?.recorded?.name} currentDirectory={currentCounterparty} /></fieldset>}
+      {direction === "outgoing" ? [partyPanel("customer"), partyPanel("supplier")] : [partyPanel("supplier"), partyPanel("customer")]}
       <fieldset>
         <legend>{t("sections.payment")}</legend>
         <div className="fields">
@@ -386,23 +505,18 @@ export function CorrectionForm({
             <StatusBadge status={statusBadgeState(state.conflict.status, "document")} />
             <p>{t("submittedNotSaved")}</p>
             <table><thead><tr><th>{t("comparisonField")}</th><th>{t("submittedValue")}</th><th>{t("currentValue")}</th></tr></thead>
-              <tbody>{Object.entries(state.values).filter(([name]) => !["companyId", "documentId", "basedOnVersion", "requestId", "displayedBankAccountCheckId", "acknowledgement", "intent", "nextDocumentId", "queueQuery", "returnTo"].includes(name)).map(([name, submitted]) => {
-                const current = name.split(".").reduce<unknown>((entry, part) => entry !== null && typeof entry === "object" ? (entry as Record<string, unknown>)[part] : undefined, state.conflict!.payload);
-                const saved = current === null || current === undefined ? "" : String(current);
-                const labels: Record<string, string> = { proposedVatRegime: "vatRegime", "totals.netAmount": "totalNet", "totals.vatAmount": "totalVat", "totals.grossAmount": "totalGross" };
-                const label = labels[name] ?? name.split(".").at(-1)!;
-                return submitted !== saved ? <tr key={name}><th>{t(`fields.${label}`)}</th><td>{submitted || t("notSet")}</td><td>{saved || t("notSet")}</td></tr> : null;
-              })}</tbody>
+              <tbody>{comparisonRows.map(row => <tr key={row.name}><th>{row.label}</th><td>{row.entered}</td><td>{row.saved}</td></tr>)}</tbody>
             </table>
           </section>}
-          <Button type="submit" name="intent" value="save" disabled={pending}>
+          <ReviewActions kind="save"><Button form={formId} type="submit" name="intent" value="save" disabled={busy}>
             {t(documentId ? "save" : "createManual")}
-          </Button>
-          {documentId && decision && <Button type="submit" name="intent" value="approve" variant="primary" icon="check" disabled={pending}>
+          </Button></ReviewActions>
+          {documentId && decision && <ReviewActions kind="approve"><Button form={formId} type="submit" name="intent" value="approve" variant="primary" icon="check" disabled={busy}>
             {state.confirmation ? t("approvePreparedWarnings") : t("approve", { version })}
-          </Button>}
+          </Button></ReviewActions>}
         </>
       )}
+      </fieldset>
     </form>
   );
 }

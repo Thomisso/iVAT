@@ -2407,3 +2407,61 @@ select:disabled {
 .pdf-source-inspect { position: absolute; right: var(--space-4); top: calc(var(--space-12) + var(--space-6)); width: min(calc(var(--control-lg) * 8), 80%); z-index: 3; padding: var(--space-2); border: 2px solid var(--ai-edge); border-radius: var(--radius-sm); background: var(--paper); box-shadow: var(--shadow-sm); pointer-events: none; }
 .pdf-source-inspect canvas { display: block; width: 100%; height: auto; }
 .pdf-source-toolbar button { display: inline-flex; align-items: center; gap: var(--space-1); padding: var(--space-1) var(--space-2); }
+
+.review-dialog { width: min(560px, calc(100vw - var(--space-8))); padding: var(--space-6); border: 1px solid var(--line-strong); border-radius: var(--radius-md); background: var(--surface); color: var(--ink); box-shadow: var(--shadow-pop); }
+.review-dialog::backdrop { background: #1c1c1a66; }
+.review-dialog h2 { margin: 0 0 var(--space-3); font-size: 20px; }
+.review-dialog .iv-row { margin-top: var(--space-5); flex-wrap: wrap; }
+.review-dialog .iv-btn { white-space: normal; height: auto; min-height: var(--control-md); }
+
+/* The review desk owns its bounded rows; the two comparison panes scroll separately. */
+.company-shell-content > .review.review-workspace { height: 100dvh; min-height: 0; max-width: none; padding: var(--space-4) var(--space-5); gap: 0; grid-template-columns: var(--review-columns); grid-template-rows: auto minmax(0, 1fr) auto; grid-template-areas: "header header header" "original splitter data" "actions actions actions"; }
+.company-shell-content > .review.review-workspace .review-header { max-height: 28dvh; min-height: 0; padding: 0 0 var(--space-3); margin-bottom: var(--space-3); overflow: auto; display: flex; flex-wrap: wrap; align-items: center; column-gap: var(--space-4); row-gap: 6px; }
+.review-workspace .review-header > .review-queue-nav { width: 100%; }
+.company-shell-content > .review.review-workspace .review-header h1 { margin: 0; font-size: 20px; line-height: 28px; }
+.review-workspace .review-header > p { margin: 0; font-size: 12px; }
+.review-workspace .review-header > .iv-notice { width: 100%; }
+.review-workspace .review-original { overflow: auto; min-height: 0; overscroll-behavior: contain; background: var(--desk); }
+.company-shell-content > .review.review-workspace .review-original > .iv-viewer { position: static; }
+.company-shell-content > .review.review-workspace .review-data { width: auto; max-width: none; overflow: auto; min-height: 0; padding: var(--space-3); gap: var(--space-3); overscroll-behavior: contain; }
+.review-workspace .correction-form { gap: var(--space-3); }
+.review-workspace .correction-form fieldset { border-radius: var(--radius-sm); padding: 10px; }
+.review-workspace .correction-form .fields { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.review-workspace .source-field { min-width: 0; }
+.review-splitter { grid-area: splitter; cursor: col-resize; touch-action: none; position: relative; }
+.review-splitter::after { content: ""; position: absolute; left: 50%; transform: translateX(-50%); width: 2px; top: 0; bottom: 0; background: var(--line); }
+.review-splitter:hover::after, .review-splitter:focus-visible::after { background: var(--accent); }
+.review-actions { grid-area: actions; display: flex; gap: var(--space-2); align-items: center; padding: var(--space-3) 0 0; background: var(--canvas); }
+.review-action-approve { order: 1; }
+.review-action-reject { order: 2; }
+.review-action-save { order: 3; margin-left: auto; }
+.review-actions .iv-btn { height: auto; min-height: var(--row-compact); white-space: normal; }
+.review-mobile-tabs { display: none; }
+.review-party > summary, .review-infrequent > summary, .review-secondary > summary, .review-history > summary { cursor: pointer; font-weight: 500; }
+.review-party > summary { padding-block: 6px; }
+.review-infrequent { margin-top: 10px; }
+.review-infrequent[open] > summary { margin-bottom: 10px; }
+.review-error-summary { border-left: 3px solid var(--danger); padding: 10px var(--space-3); background: var(--danger-soft); }
+.review-error-summary h2 { margin: 0; font-size: 14px; }
+.review-error-summary ul { margin: 6px 0 0; padding-left: 18px; }
+.review-error-summary button { padding: 2px 0; border: 0; background: none; color: var(--danger); font: inherit; text-align: left; text-decoration: underline; cursor: pointer; }
+.review-workspace .rate-breakdown .amount, .review-workspace input[inputmode="decimal"] { text-align: right; }
+@media (max-width: 800px) {
+  .company-shell-content > .review.review-workspace { height: calc(100dvh - 129px); min-height: 0; padding: var(--space-3); grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto; grid-template-areas: "header" "tabs" "data" "actions"; }
+  .review-workspace .review-splitter { display: none; }
+  .review-mobile-tabs { grid-area: tabs; display: flex; gap: var(--space-2); padding-bottom: 10px; }
+  .review-mobile-tabs [aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+  .review-workspace[data-mobile-view="source"] { grid-template-areas: "header" "tabs" "original" "actions"; }
+  .review-workspace[data-mobile-view="source"] .review-data, .review-workspace[data-mobile-view="data"] .review-original { display: none; }
+  .review-actions { flex-wrap: wrap; gap: var(--space-2); padding-top: 10px; }
+  .review-action-save { margin-left: 0; }
+  .company-shell-content > .review.review-workspace .review-header { max-height: 22dvh; }
+}
+
+.review-workspace .correction-form input[type="checkbox"] { width: auto; }
+.review-workspace fieldset:has(> .fields #earliest-claim-period) > .fields { display: flex; flex-direction: column; align-items: stretch; }
+.review-workspace fieldset:has(#earliest-claim-period) p { margin: 0; }
+.review-workspace fieldset:has(#earliest-claim-period) label:has(input[type="checkbox"]) { display: flex; flex-direction: row; align-items: start; gap: var(--space-2); }
+.review-workspace .review-secondary[open] { width: 100%; }
+
+.review-error-summary li > button { display: block; max-width: 100%; }
