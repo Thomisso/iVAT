@@ -1,3 +1,4 @@
+import { setOctoberImportFixture } from "./support/claim-eligibility";
 import { succeeded } from "./support/results";
 import { withPostgrestRowLimit } from "./support/postgrest";
 import { describe, expect, it } from "vitest";
@@ -97,6 +98,7 @@ describe("membership-independent SuperAdmin authority", () => {
       companyId: target.companyId, fileName: "receipt.png", bytes: original,
     });
     if (!uploaded.ok) throw new Error(uploaded.error);
+    await setOctoberImportFixture(uploaded.value.id);
     expect((await readSourceFile(operator.client, target.companyId, uploaded.value.id))?.bytes).toEqual(original);
     expect(await worker.runJobs()).toEqual([]);
     const [document] = await listDocuments(operator.client, target.companyId, uploaded.value.id);

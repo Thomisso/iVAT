@@ -1,3 +1,4 @@
+import { setOctoberImportFixture } from "./support/claim-eligibility";
 import { describe, expect, it } from "vitest";
 import { approveDocument, listDocuments, listDuplicateWarnings } from "@/application/documents";
 import type { ExtractionPayload } from "@/application/extraction-payload";
@@ -27,6 +28,7 @@ async function companyWithExtractions(...extractions: ExtractionPayload[]) {
       bytes: fixtureFile(fixture),
     });
     if (!result.ok) throw new Error(result.error);
+    await setOctoberImportFixture(result.value.id);
     await worker.runJobs();
     const [document] = await listDocuments(admin.client, admin.companyId, result.value.id);
     return document;

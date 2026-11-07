@@ -1,3 +1,4 @@
+import { setOctoberImportFixture } from "./support/claim-eligibility";
 import { withPostgrestRowLimit } from "./support/postgrest";
 import { Client as DatabaseClient } from "pg";
 import { pragueDate } from "@/application/reporting-periods";
@@ -39,6 +40,7 @@ import {
 } from "@/lib/jobs";
 import {
   administratorWithCompany,
+  knownSupplierFixture,
   companyMember,
   assignAiConfigurationFixture as enableAiProcessing,
 } from "./support/fixtures";
@@ -890,6 +892,7 @@ it.each([
   ["needs_review", "fail"], ["approved", "fail"], ["uploaded", "pending"],
 ] as const)("a migrated Split with a legacy %s Document permits %s child recovery without changing Source history", async (status, outcome) => {
   const company = await administratorWithCompany("Legacy Split dispatch");
+  await knownSupplierFixture(company);
   const operator = await superAdministrator();
   const worker = testWorker();
   await enableAiProcessing(company.client, worker.jobs, { companyId: company.companyId, provider: worker.ai });
@@ -897,6 +900,7 @@ it.each([
     companyId: company.companyId, fileName: "legacy-dispatch.png", bytes: fixtureFile("receipt.png"),
   });
   if (!source.ok) throw new Error(source.error);
+  await setOctoberImportFixture(source.value.id);
   if (status === "uploaded") await worker.runNextJob();
   else expect(await worker.runJobs()).toEqual([]);
   const [document] = await listDocuments(company.client, company.companyId, source.value.id);
