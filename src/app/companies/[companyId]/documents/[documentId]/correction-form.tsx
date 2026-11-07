@@ -28,6 +28,8 @@ import { CounterpartyLinkFields } from "./counterparty-link-fields";
 import { StatusBadge } from "@/components/status-badge";
 import { statusBadgeState } from "@/components/status-badge-state";
 
+const EMPTY_REVIEW_STATE: DocumentReviewFormState = { error: null, values: {} };
+
 /**
  * The extracted fields of one Extraction Version. While `editable`, saving
  * them records the User's corrections as the next version; otherwise they are
@@ -70,10 +72,11 @@ export function CorrectionForm({
   const workspace = useReviewWorkspace();
   const formId = useId();
   const form = useRef<HTMLFormElement>(null);
-  const [state, action, pending] = useActionState<DocumentReviewFormState, FormData>(documentId ? reviewDocumentAction : createManualDocumentAction, {
-    error: null,
-    values: {},
-  });
+  const [result, action, pending] = useActionState<DocumentReviewFormState, FormData>(documentId ? reviewDocumentAction : createManualDocumentAction, EMPTY_REVIEW_STATE);
+  const [discardedResult, setDiscardedResult] = useState<DocumentReviewFormState | null>(null);
+  const state = result === discardedResult ? EMPTY_REVIEW_STATE : result;
+  const [draftGeneration, setDraftGeneration] = useState(0);
+  const resetDraft = useRef<() => void>(() => {});
   // A Server Action may rerender the page with someone else's newer Version.
   // Keep this draft's base until our explicit save actually succeeds.
   const [base, setBase] = useState({ version: currentVersion, payload: currentPayload, findings: currentFindings, requestId, displayedBankAccountCheckId, displayedReviewContext, extractionVersionId });
@@ -98,8 +101,20 @@ export function CorrectionForm({
     if (source && source.version !== base.version) source.acceptBase(base.payload, base.version, base.extractionVersionId ?? "");
   }, [source, base.payload, base.version, base.extractionVersionId]);
   useEffect(() => {
-    if (editable && form.current) return register?.(form.current);
-  }, [register, version, editable]);
+    resetDraft.current = () => {
+      // Discard restores this mounted draft's accepted base, never another
+      // user's newer RSC payload. Remount only fields to reset controlled
+      // selections/date state and refused values; the source stays mounted.
+      setDiscardedResult(result);
+      setDirection(payload.direction);
+      setLines(payload.rateBreakdown.flatMap((line, index) => isZeroRateBreakdownLine(line) ? [] : [index]));
+      setClientErrors([]);
+      setDraftGeneration(generation => generation + 1);
+    };
+  }, [result, payload]);
+  useEffect(() => {
+    if (editable && form.current) return register?.(form.current, () => resetDraft.current());
+  }, [register, version, editable, draftGeneration]);
   useEffect(() => {
     if (state.error !== null || state.savedVersion !== undefined) settled?.(state.savedVersion !== undefined && state.error === null);
   }, [settled, state]);
@@ -226,6 +241,7 @@ export function CorrectionForm({
     workspace?.showData();
     const wrapper = [...(form.current?.querySelectorAll<HTMLElement>("[data-source-field]") ?? [])].find(element => element.dataset.sourceField === field);
     const target = field === "claimEligibility" ? form.current?.querySelector<HTMLElement>("#earliest-claim-period")
+      : field === "partialClaim" ? form.current?.querySelector<HTMLElement>(editable ? "#partial-claim-enabled" : "#partial-claim")
       : wrapper?.querySelector<HTMLElement>('input:not([type="hidden"]):not([type="date"]),select')
         ?? [...(form.current?.elements ?? [])].find(element => element instanceof HTMLElement && element.getAttribute("name") === field) as HTMLElement | undefined;
     for (let parent = target?.parentElement; parent; parent = parent.parentElement) if (parent instanceof HTMLDetailsElement) parent.open = true;
@@ -263,7 +279,7 @@ export function CorrectionForm({
 
   return (
     <form
-      key={version}
+      key={`${version}:${draftGeneration}`}
       ref={form}
       id={formId}
       action={action}
