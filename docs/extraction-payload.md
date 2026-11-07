@@ -35,7 +35,7 @@ The payload is a proposal (ADR-0003). Nothing in it counts towards a VAT Report 
 | `proposedVatRegime` | `domestic` · `domestic_reverse_charge` · `eu_acquisition_of_goods` · `eu_received_service` · `other` | Proposed VAT Regime. `other` leads to Manual Classification Required |
 | `reverseChargeCode` | string | Official Control Statement subject code for `domestic_reverse_charge`; otherwise `null` |
 | `originalDocumentNumber` | string | For a Credit Note, the number of the Document it corrects |
-| `partialClaim` | `{ confirmed, rateBreakdown }`, optional | Explicit human selection of separate supplies. Absence retains full-Document reporting; an unconfirmed selection never silently restores a full claim. Full source Rate Breakdown and totals remain unchanged. |
+| `partialClaim` | `{ confirmed, rateBreakdown, basis?, zeroConfirmed? }`, optional | Explicit human selection of separate supplies. Absence retains full-Document reporting; an unconfirmed selection never silently restores a full claim. Full source Rate Breakdown and totals remain unchanged. |
 | `czkConversion` | object, optional | Derived CZK rate breakdown/totals plus original currency, ČNB rate, quoted unit, actual fixing date and source. Printed amounts stay unchanged. |
 | `counterpartyLink` | object, optional | Server-validated existing Counterparty `id` and a `recorded` Party-shaped snapshot of its directory details when this Version was saved. Supplier/customer fields remain the Document’s own data. |
 | `sourceEvidence` | object, optional | Server-bound PDF references for this immutable Version: Source File/Document identity, original hash and oriented basis, original page range, `extractionVersionId`, original AI request, and per-field locations with `origin` and `originalValue`. |
@@ -71,13 +71,26 @@ records whether the preserved selection has been confirmed for the current sourc
 values; missing or false confirmation prevents contribution to reports. Adding this
 optional metadata leaves historical versions without it readable as full claims.
 
-The initial supported reporting scope is one positive, nonzero selection at one
-VAT rate on a CZK incoming domestic Document, excluding Credit Notes. Selected
-amounts must be complete, nonnegative and no greater than the full amounts, with
-net/VAT arithmetic within the existing two-haler tolerance. Full source net/VAT
-arithmetic remains independently required; a gross-total warning does not become a
-blocking error. Mixed rates, foreign currencies and explicitly confirmed zero are
-reserved for the subsequent extension and are currently excluded from reporting.
+The supported scope is an incoming domestic Document, excluding Credit Notes,
+with one complete selected row for each original supported VAT rate (21% or 12%).
+Selected amounts stay in the Document currency, must be nonnegative and no greater
+than that rate's full amounts, and keep net/VAT arithmetic within the existing
+two-haler tolerance. Full source arithmetic remains independently required; a
+gross-total warning does not become a blocking error. Either discrepancy prevents
+the per-rate Unclaimed Portion from being calculated. Foreign selections use the
+same stored fixing, quoted unit and integer conversion as the full Document; a
+currency-rounding difference is never added to the source-currency remainder.
+
+An all-zero selection additionally requires `zeroConfirmed: true`, set by a separate
+human confirmation. It remains recorded in the Version and report snapshot with no
+deduction contributor and no zero Control Statement row. Editing the selected
+amounts clears that checkbox. A relevant source change or new AI still requires
+renewed selection confirmation even for a previously confirmed zero. Unknown
+selection metadata (including statutory deduction methods or multiple periods) is
+refused. Statutory §75/§76, self-assessed and Credit Note Partial Claims remain
+outside this contract. An explicit return to full amounts writes
+`document.partial_claim_cleared` with the human actor and previous/new Versions;
+idempotent replay writes no duplicate decision.
 
 The full Document determines identification and Control Statement thresholds. The
 same selected amounts feed the VAT Return and Control Statement and therefore the
