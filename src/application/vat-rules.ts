@@ -43,8 +43,9 @@ function validDate(value: string | null): value is string {
 
 /**
  * Assigns a Document to the Company's Reporting Period of its Tax Point Date
- * (ADR-0012), or to an incoming Document's later Deferred Claim. Mirrors
- * `private.document_reporting_period` in the database.
+ * (ADR-0012), or to an incoming Document's recorded later Deferred Claim.
+ * Attribution preserves legacy assignments; eligibility for fresh preparation
+ * is checked separately rather than silently moving a claim to another period.
  */
 export function reportingPeriodForDocument(
   document: ReportingPeriodDocument,
@@ -61,8 +62,7 @@ export function reportingPeriodForDocument(
     claimedStart &&
     reportingPeriodForDate(claimedStart, reportingYears) ===
       document.claimedReportingPeriod &&
-    claimedStart > reportingPeriodStart(assigned)! &&
-    claimedStart <= `${Number(document.taxPointDate.slice(0, 4)) + 3}${document.taxPointDate.slice(4)}`
+    claimedStart > reportingPeriodStart(assigned)!
   ) {
     return document.claimedReportingPeriod;
   }

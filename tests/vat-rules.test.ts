@@ -123,6 +123,23 @@ it("moves an incoming input VAT claim to the explicitly chosen later Reporting P
   ).toBe("2026-12");
 });
 
+it("preserves a recorded legacy Deferred Claim beyond the old three-year cutoff in report attribution", () => {
+  // Attribution retains saved accounting facts; fresh preparation separately
+  // checks whether the legacy claim can still be used.
+  const legacy = {
+    ...document({ taxPointDate: "2021-12-15", issueDate: "2021-12-15" }),
+    claimedReportingPeriod: "2026-10",
+  };
+  const report = computeVatReport(company, "2026-10", [legacy], [
+    { year: 2021, frequency: "monthly", firstMonth: 1 },
+    { year: 2026, frequency: "monthly", firstMonth: 1 },
+  ]);
+
+  expect(report.vatReturn.find((entry) => entry.line === "40")).toEqual({
+    line: "40", netAmount: "1000.00", vatAmount: "210.00", documentIds: ["doc-1"],
+  });
+});
+
 it.each([
   ["2026-12-15", "2026-12"],
   ["2027-01-15", "2027-Q1"],
