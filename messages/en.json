@@ -1323,7 +1323,14 @@
     "requiredField": "Complete this field.",
     "fullAmounts": "Full amounts",
     "confirmed": "Confirmed",
-    "selectionConfirmation": "Selection confirmation"
+    "selectionConfirmation": "Selection confirmation",
+    "approvalHistory": "Approval decisions",
+    "approvalAutomatic": "Automatically approved under the Company's policy",
+    "approvalHumanYou": "Approved by you",
+    "approvalHuman": "Approved by a User",
+    "approvalUnknown": "Approval recorded; original decision details are unknown",
+    "approvalVersion": "Version {version}",
+    "approvalVersionUnknown": "Version not recorded"
   },
   "duplicateWarning": {
     "document_identity": "Possible duplicate: the counterparty VAT ID, document number and direction match an earlier Document.",
@@ -1894,5 +1901,14 @@
     "unnumberedDocument": "Document without a number",
     "noLinkedDocuments": "No linked Documents.",
     "documentPages": "Linked Document pages"
+  },
+  "automaticApproval": {
+    "title": "Automatic Document approval",
+    "intro": "Automatically approve eligible Documents after a new successful AI Extraction, with no errors or warnings and all required checks completed.",
+    "enabled": "Enable automatic approval for this Company",
+    "hint": "This applies only to new successful AI Extractions. Enabling it does not approve existing Documents; manual changes and Bank Account Checks do not trigger approval.",
+    "save": "Save approval policy",
+    "saving": "Saving…",
+    "saved": "Automatic approval policy saved."
   }
 }

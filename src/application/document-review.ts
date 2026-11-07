@@ -14,6 +14,8 @@ import {
 import { missingReportingPeriodFinding } from "./reporting-years";
 import { getSourceFile } from "./source-files";
 
+export type DocumentApprovalDecision = { mode: "automatic" | "human" | "unknown"; version: number | null; occurredAt: string; actorUserId: string | null };
+
 /**
  * Loads the review under the reader's identity. An explicit Version selects
  * its recorded findings, even when it is the latest Version. The default view
@@ -31,7 +33,7 @@ export async function getDocumentReview(
   ]);
   if (!company || !document) return null;
 
-  const [versions, duplicateWarnings, missingPeriod, role, reportingYears, file, locks, deferredClaimPeriods, sourceRows, observations] = await Promise.all([
+  const [versions, duplicateWarnings, missingPeriod, role, reportingYears, file, locks, deferredClaimPeriods, sourceRows, observations, decisions] = await Promise.all([
     listExtractionVersions(client, companyId, documentId),
     listDuplicateWarnings(client, companyId, documentId),
     missingReportingPeriodFinding(client, companyId, documentId),
@@ -42,7 +44,9 @@ export async function getDocumentReview(
     listDeferredClaimPeriods(client, companyId, documentId),
     document.rowSet ? readDocumentRows(client, companyId, documentId) : null,
     getCurrentDocumentReviewFindings(client, input),
+    client.rpc("document_approval_decisions", { target_document_id: document.id }),
   ]);
+  if (decisions.error) throw decisions.error;
   if (document.sourceFileId && !file) return null;
 
   const current = versions.at(-1);
@@ -66,6 +70,7 @@ export async function getDocumentReview(
 
   return {
     company, document, versions, current, shown, viewingRecorded, shownFindings, shownWarningFindings,
+    approvalDecisions: decisions.data as unknown as DocumentApprovalDecision[],
     bankChecks, displayedReviewContext: observations.displayedReviewContext, currentCounterparty: matchingObservations ? observations.counterparty : null, file, sourceRows, duplicateWarnings, missingPeriod, role, lockedPeriod,
     deferredClaimPeriods, reporting, reportingYears,
     reviewing: document.status === "needs_review" && current !== undefined && !lockedPeriod,

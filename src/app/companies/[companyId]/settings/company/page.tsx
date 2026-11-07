@@ -3,19 +3,21 @@ import { getTranslations } from "next-intl/server";
 import { getCompany, getMyCompanyRole } from "@/application/companies";
 import { requireUserClient } from "@/lib/supabase/server";
 import { CompanyForm } from "../../../new/company-form";
+import { AutomaticApprovalForm } from "./automatic-approval-form";
 
 export default async function CompanyDetailsSettingsPage({ params }: { params: Promise<{ companyId: string }> }) {
   const { companyId } = await params;
   const client = await requireUserClient();
-  const [company, role, t] = await Promise.all([
+  const [company, role, t, automatic] = await Promise.all([
     getCompany(client, companyId),
     getMyCompanyRole(client, companyId),
     getTranslations("company"),
+    getTranslations("automaticApproval"),
   ]);
   if (!company) notFound();
   if (role !== "administrator") redirect(`/companies/${company.id}/settings`);
 
-  return <section className="company-settings-section">
+  return <><section className="company-settings-section">
     <header><h2>{t("companyDetails")}</h2><p>{t("profileIntro")}</p></header>
     <CompanyForm
       layout="settings"
@@ -35,5 +37,10 @@ export default async function CompanyDetailsSettingsPage({ params }: { params: P
         personType: company.personType,
       }}
     />
-  </section>;
+  </section>
+    <section className="company-settings-section" id="automatic-approval">
+      <header><h2>{automatic("title")}</h2><p>{automatic("intro")}</p></header>
+      <AutomaticApprovalForm companyId={company.id} enabled={company.automaticApprovalEnabled} />
+    </section>
+  </>;
 }
