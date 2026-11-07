@@ -738,10 +738,12 @@ function redirectAfterDocumentDecision(formData: FormData, companyId: string, do
   redirect(documentDecisionHref(companyId, { documentId, nextDocumentId: field(formData, "nextDocumentId"), queueQuery: field(formData, "queueQuery"), returnTo: field(formData, "returnTo") }));
 }
 
+export type ReportingAssignmentFormState = FormState & { savedReportingPeriod?: string | null };
+
 export async function updateDocumentReportingAction(
   _state: FormState,
   formData: FormData,
-): Promise<FormState> {
+): Promise<ReportingAssignmentFormState> {
   const result = await updateDocumentReporting(await requireUserClient(), {
     companyId: field(formData, "companyId"),
     documentId: field(formData, "documentId"),
@@ -751,7 +753,7 @@ export async function updateDocumentReportingAction(
     return refused(result.error, formData, ["claimedReportingPeriod"]);
   }
   refresh();
-  return { error: null, values: {} };
+  return { error: null, values: {}, savedReportingPeriod: optionalField(formData, "claimedReportingPeriod") };
 }
 
 export async function setLocaleAction(formData: FormData): Promise<void> {
