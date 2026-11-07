@@ -89,7 +89,8 @@ export function workbookToText(bytes: Uint8Array): { text: string; rowSets: Work
 /** The source rows for one row-based Document, including the sheet's header row as context. */
 export function workbookRowsToText(bytes: Uint8Array, rowSet: WorkbookRowSet): string {
   const sheet = parsedSheets(bytes).find(({ sheetName }) => sheetName === rowSet.sheetName);
-  if (!sheet || rowSet.firstRow < sheet.firstRow || rowSet.lastRow > sheet.lastRow || rowSet.lastRow < rowSet.firstRow) {
+  if (!sheet || !Number.isSafeInteger(rowSet.firstRow) || !Number.isSafeInteger(rowSet.lastRow)
+    || rowSet.firstRow < sheet.firstRow || rowSet.lastRow > sheet.lastRow || rowSet.lastRow < rowSet.firstRow) {
     throw new Error("Document row set is outside the workbook");
   }
   const rows = Array.from({ length: rowSet.lastRow - rowSet.firstRow + 1 }, (_, offset) => rowSet.firstRow + offset);
