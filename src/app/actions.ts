@@ -585,8 +585,12 @@ function payloadFromForm(formData: FormData): ExtractionPayload {
   let basisValid = true;
   try { basis = optionalField(formData, "partialClaim.basis") ? JSON.parse(field(formData, "partialClaim.basis")) : undefined; }
   catch { basisValid = false; }
+  let claimEligibility: ExtractionPayload["claimEligibility"];
+  try { claimEligibility = optionalField(formData, "claimEligibility") ? JSON.parse(field(formData, "claimEligibility")) : undefined; }
+  catch { claimEligibility = undefined; }
   return {
     schemaVersion: 1,
+    ...(claimEligibility ? { claimEligibility } : {}),
     documentType: optionalField(formData, "documentType") as ExtractionPayload["documentType"],
     documentNumber: optionalField(formData, "documentNumber"),
     issueDate: optionalField(formData, "issueDate"),

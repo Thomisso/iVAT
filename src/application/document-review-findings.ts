@@ -2,6 +2,9 @@ import type { AppClient, Result } from "./client";
 import type { ExtractionPayload } from "./extraction-payload";
 import type { ValidationFinding } from "./document-validation";
 import { getDocumentBankAccountChecks } from "./bank-account-checks";
+import { getDocument } from "./documents";
+import { listCompanyReportingYears } from "./companies";
+import { claimEligibilityFinding } from "./claim-eligibility";
 
 /** One authoritative projection for new Versions and the current-view warnings. */
 export async function prepareDocumentCounterparty(client: AppClient, companyId: string, documentId: string | null, payload: ExtractionPayload): Promise<Result<{ payload: ExtractionPayload; findings: ValidationFinding[] }, "forbidden">> {
@@ -15,7 +18,9 @@ export async function getCurrentDocumentReviewFindings(client: AppClient, input:
   const observations = await getDocumentBankAccountChecks(client, input);
   const directory = observations.payload ? await prepareDocumentCounterparty(client, input.companyId, input.documentId, observations.payload) : null;
   const counterparty = directory?.ok ? directory.value.payload.counterpartyLink ?? null : null;
-  const findings = [...observations.findings.filter(f => f.code !== "counterparty_directory_difference"), ...(directory?.ok ? directory.value.findings : [])];
+  const [document, years] = await Promise.all([getDocument(client, input.companyId, input.documentId), listCompanyReportingYears(client, input.companyId)]);
+  const eligibility = document ? claimEligibilityFinding({ ...document, payload: observations.payload }, years) : null;
+  const findings = [...observations.findings.filter(f => f.code !== "counterparty_directory_difference"), ...(directory?.ok ? directory.value.findings : []), ...(eligibility ? [eligibility] : [])];
   const displayedReviewContext = JSON.stringify({ version: observations.extractionVersionId, bankCheck: observations.current?.id ?? null, counterparty });
   return { ...observations, findings, counterparty, displayedReviewContext };
 }

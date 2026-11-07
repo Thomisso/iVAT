@@ -1,8 +1,9 @@
+import { createConfirmedManualDocument } from "./support/claim-eligibility";
 import { expect, it } from "vitest";
 import { SAMPLE_EXTRACTION } from "@/ai/fake";
 import { refreshBankAccountCheck } from "@/application/bank-account-checks";
 import { getDocumentReview } from "@/application/document-review";
-import { correctDocument, createManualDocument } from "@/application/documents";
+import { correctDocument } from "@/application/documents";
 import type { ExtractionPayload } from "@/application/extraction-payload";
 import { fakeExchangeRates } from "@/cnb/fake";
 import { fakeVatPayerRegistry } from "@/vat-registry/fake";
@@ -10,7 +11,7 @@ import { administratorWithCompany } from "./support/fixtures";
 
 async function manualDocumentInReview(payload: ExtractionPayload = SAMPLE_EXTRACTION) {
   const company = await administratorWithCompany();
-  const created = await createManualDocument(company.client, { companyId: company.companyId, payload }, fakeExchangeRates(), fakeVatPayerRegistry());
+  const created = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload }, fakeExchangeRates(), fakeVatPayerRegistry());
   if (!created.ok) throw new Error(created.error);
   return { ...company, documentId: created.value.id };
 }
