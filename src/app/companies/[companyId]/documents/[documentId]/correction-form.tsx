@@ -238,7 +238,7 @@ export function CorrectionForm({
         </div>
       </fieldset>
       <CounterpartyLinkSummary companyId={companyId} link={payload.counterpartyLink} />
-      {editable && <CounterpartyLinkFields key={version} companyId={companyId} initialMode={state.values.counterpartyLinkMode ?? (payload.counterpartyLink === null ? "unlinked" : undefined)} initialId={state.values.counterpartyId ?? payload.counterpartyLink?.id ?? (payload.counterpartyLink === null ? "" : currentCounterparty?.id ?? "")} initialName={currentCounterparty?.recorded?.name ?? payload.counterpartyLink?.recorded?.name} currentDirectory={currentCounterparty} />}
+      {editable && <CounterpartyLinkFields key={`counterparty-${version}`} companyId={companyId} initialMode={state.values.counterpartyLinkMode ?? (payload.counterpartyLink === null ? "unlinked" : undefined)} initialId={state.values.counterpartyId ?? payload.counterpartyLink?.id ?? (payload.counterpartyLink === null ? "" : currentCounterparty?.id ?? "")} initialName={currentCounterparty?.recorded?.name ?? payload.counterpartyLink?.recorded?.name} currentDirectory={currentCounterparty} />}
       {party("supplier")}
       {party("customer")}
       <fieldset>
