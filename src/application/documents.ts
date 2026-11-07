@@ -1,4 +1,4 @@
-import { getDocumentBankAccountChecks } from "./bank-account-checks";
+import { getCurrentDocumentReviewFindings, prepareDocumentCounterparty } from "./document-review-findings";
 import { listCompanyReportingYears } from "./companies";
 import { reportingPeriodForDate, reportingPeriodsOf, reportingPeriodStart } from "./reporting-periods";
 import type { PostgrestError } from "@supabase/supabase-js";
@@ -492,9 +492,11 @@ export async function correctDocument(
     if (replay.error) return documentReviewRefusal(client, input, refusal(replay.error, ["stale_version"]));
     if (replay.data !== null) return { ok: true, value: { version: replay.data } };
   }
-  const prepared = await prepareExtractionVersion(candidate.value, exchangeRates, vatRegistry);
+  const directory = await prepareDocumentCounterparty(client, input.companyId, document, candidate.value);
+  if (!directory.ok) return directory;
+  const prepared = await prepareExtractionVersion(directory.value.payload, exchangeRates, vatRegistry);
 
-  const fields = { target_document_id: document, based_on_version: input.basedOnVersion, payload: prepared.payload, findings: await prepared.findings() };
+  const fields = { target_document_id: document, based_on_version: input.basedOnVersion, payload: prepared.payload, findings: [...await prepared.findings(), ...directory.value.findings] };
   const { data: version, error } = input.requestId
     ? await client.rpc("save_document_review", { ...fields, request_id: input.requestId, submitted_payload: candidate.value })
     : await client.rpc("correct_document", fields);
@@ -568,7 +570,7 @@ function warningIdentity(findings: ValidationFinding[]) {
  */
 export async function saveAndApproveDocument(
   client: AppClient,
-  input: { companyId: string; documentId: string; basedOnVersion: number; requestId: string; payload: ExtractionPayload; acknowledgement?: string; displayedBankAccountCheckId?: string | null },
+  input: { companyId: string; documentId: string; basedOnVersion: number; requestId: string; payload: ExtractionPayload; acknowledgement?: string; displayedBankAccountCheckId?: string | null; displayedReviewContext?: string },
   exchangeRates: ExchangeRateProvider = unavailableExchangeRates,
   vatRegistry: VatPayerRegistry = unavailableVatPayerRegistry,
 ): Promise<SaveAndApproveDocumentResult> {
@@ -586,9 +588,11 @@ export async function saveAndApproveDocument(
   if (context.error) return documentReviewRefusal(client, input, refusal(context.error, ["stale_version", "not_in_review"]));
   // Same query/projection as the actual current review; immutable Version
   // findings alone can differ after a dated Bank Account Check.
-  const visible = await getDocumentBankAccountChecks(client, input);
-  const prepared = await prepareExtractionVersion(candidate.value, exchangeRates, vatRegistry);
-  const findings = await prepared.findings();
+  const visible = await getCurrentDocumentReviewFindings(client, input);
+  const directory = await prepareDocumentCounterparty(client, input.companyId, document, candidate.value);
+  if (!directory.ok) return directory;
+  const prepared = await prepareExtractionVersion(directory.value.payload, exchangeRates, vatRegistry);
+  const findings = [...await prepared.findings(), ...directory.value.findings];
   const fields = {
     target_document_id: document, based_on_version: input.basedOnVersion, request_id: input.requestId,
     submitted_payload: candidate.value, payload: prepared.payload, findings,
@@ -597,6 +601,7 @@ export async function saveAndApproveDocument(
   let saved = await client.rpc("save_and_approve_document", { ...fields, acknowledgement: input.acknowledgement });
   const pending = saved.data as { confirmationId?: string; findings: ValidationFinding[]; unchanged?: boolean } | null;
   if (!saved.error && pending?.confirmationId && pending.unchanged && !input.acknowledgement
+    && (input.displayedReviewContext === undefined || input.displayedReviewContext === visible.displayedReviewContext)
     && (input.displayedBankAccountCheckId === undefined || input.displayedBankAccountCheckId === (visible.current?.id ?? null))
     && warningIdentity(pending.findings) === warningIdentity(visible.findings)) {
     // These unchanged warnings are already visible. Confirm the opaque receipt,

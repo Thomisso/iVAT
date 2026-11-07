@@ -235,6 +235,8 @@ export default async function DocumentReviewPage({
               version={shown.version}
               requestId={randomUUID()}
               displayedBankAccountCheckId={bankChecks.current?.id ?? null}
+              displayedReviewContext={review.displayedReviewContext}
+              currentCounterparty={viewingRecorded ? null : review.currentCounterparty}
               decision={{ nextDocumentId: position.continuationDocumentId ?? "", queueQuery, returnTo: returnTo ?? "" }}
               payload={shown.payload}
               findings={shownFindings}
