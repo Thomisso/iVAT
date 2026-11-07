@@ -20,6 +20,7 @@ export function partialClaimRates(payload: ExtractionPayload): RateBreakdownLine
     || payload.documentType === "credit_note") return null;
   if (!claim || claim.confirmed !== true || !Array.isArray(claim.rateBreakdown)
     || claim.rateBreakdown.length !== payload.rateBreakdown.length) return null;
+  if (Object.keys(claim).some(key => !["basis", "confirmed", "zeroConfirmed", "rateBreakdown"].includes(key))) return null;
   if (claim.basis) {
     try { if (claimBasisKey(claim.basis) !== claimBasisKey(payload)) return null; }
     catch { return null; }
@@ -28,6 +29,8 @@ export function partialClaimRates(payload: ExtractionPayload): RateBreakdownLine
   const seen = new Set<number>();
   let fullNet = BigInt(0);
   let fullVat = BigInt(0);
+  let selectedNet = BigInt(0);
+  let selectedVat = BigInt(0);
   for (const selected of claim.rateBreakdown) {
     if (!selected || typeof selected !== "object") return null;
     const original = payload.rateBreakdown.find((line) => line.rate === selected.rate);
@@ -51,9 +54,12 @@ export function partialClaimRates(payload: ExtractionPayload): RateBreakdownLine
     seen.add(selected.rate);
     fullNet += halers(original.netAmount);
     fullVat += halers(original.vatAmount);
+    selectedNet += net;
+    selectedVat += vat;
     rates.push({ rate: selected.rate, netAmount: selected.netAmount, vatAmount: selected.vatAmount });
   }
   const totals = [halers(payload.totals.netAmount!) - fullNet, halers(payload.totals.vatAmount!) - fullVat];
+  if (selectedNet === BigInt(0) && selectedVat === BigInt(0) && claim.zeroConfirmed !== true) return null;
   if (totals.some(difference => (difference < BigInt(0) ? -difference : difference) > BigInt(2))) return null;
   return rates;
 }
@@ -65,7 +71,12 @@ export function unclaimedPortion(payload: ExtractionPayload) {
   if (!selected || !netAmount || !vatAmount || !grossAmount || !/^-?\d+\.\d{2}$/.test(grossAmount)) return null;
   const difference = halers(netAmount) + halers(vatAmount) - halers(grossAmount);
   if ((difference < BigInt(0) ? -difference : difference) > BigInt(2)) return null;
-  const net = halers(payload.rateBreakdown[0].netAmount!) - halers(selected[0].netAmount);
-  const vat = halers(payload.rateBreakdown[0].vatAmount!) - halers(selected[0].vatAmount);
-  return { netAmount: amount(net), vatAmount: amount(vat), grossAmount: amount(net + vat) };
+  const rateBreakdown = payload.rateBreakdown.map(original => {
+    const claimed = selected.find(line => line.rate === original.rate)!;
+    return { rate: original.rate!, netAmount: amount(halers(original.netAmount!) - halers(claimed.netAmount)),
+      vatAmount: amount(halers(original.vatAmount!) - halers(claimed.vatAmount)) };
+  });
+  const net = rateBreakdown.reduce((sum, line) => sum + halers(line.netAmount), BigInt(0));
+  const vat = rateBreakdown.reduce((sum, line) => sum + halers(line.vatAmount), BigInt(0));
+  return { rateBreakdown, netAmount: amount(net), vatAmount: amount(vat), grossAmount: amount(net + vat) };
 }

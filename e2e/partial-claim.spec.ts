@@ -5,8 +5,9 @@ import { SAMPLE_EXTRACTION } from "../src/ai/fake";
 import { createManualDocument, listExtractionVersions } from "../src/application/documents";
 import { generateVatReport, getVatReport } from "../src/application/vat-reports";
 import { fakeVatPayerRegistry } from "../src/vat-registry/fake";
+import type { ExtractionPayload } from "../src/application/extraction-payload";
 
-async function documentForReview(page: Page, context: BrowserContext, baseURL: string | undefined) {
+async function documentForReview(page: Page, context: BrowserContext, baseURL: string | undefined, overrides: Partial<ExtractionPayload> = {}) {
   if (!baseURL) throw new Error("base URL required");
   await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseURL }]);
   const run = crypto.randomUUID();
@@ -27,12 +28,64 @@ async function documentForReview(page: Page, context: BrowserContext, baseURL: s
   const full = { ...SAMPLE_EXTRACTION,
     rateBreakdown: [{ rate: 21, netAmount: "12000.00", vatAmount: "2520.00" }],
     totals: { netAmount: "12000.00", vatAmount: "2520.00", grossAmount: "14520.00" },
+    claimEligibility: { period: "2026-10", origin: "user" as const, confirmed: true },
+    ...overrides,
   };
   const created = await createManualDocument(client, { companyId, payload: full }, undefined, fakeVatPayerRegistry());
   if (!created.ok) throw new Error(created.error);
   await page.goto(`/companies/${companyId}/documents/${created.value.id}`);
   return { companyId, client, created, full };
 }
+
+test("mixed foreign supplies retain source amounts and an explicit zero choice retains previous report history", async ({ page, context, baseURL }) => {
+  const { companyId, client, created } = await documentForReview(page, context, baseURL, {
+    currency: "EUR", rateBreakdown: [{ rate: 21, netAmount: "1000.00", vatAmount: "210.00" }, { rate: 12, netAmount: "1000.00", vatAmount: "120.00" }],
+    totals: { netAmount: "2000.00", vatAmount: "330.00", grossAmount: "2330.00" },
+  });
+  await page.getByRole("checkbox", { name: "Claim selected supplies", exact: true }).check();
+  const standard = page.getByRole("group", { name: "Selected supplies at 21%", exact: true });
+  const reduced = page.getByRole("group", { name: "Selected supplies at 12%", exact: true });
+  await expect(standard.getByLabel("Claimed net", { exact: true })).toHaveValue("1000.00");
+  await expect(reduced.getByLabel("Claimed VAT", { exact: true })).toHaveValue("120.00");
+  await standard.getByLabel("Claimed net", { exact: true }).fill("333,35");
+  await standard.getByLabel("Claimed VAT", { exact: true }).fill("70,00");
+  await reduced.getByLabel("Claimed net", { exact: true }).fill("100,05");
+  await reduced.getByLabel("Claimed VAT", { exact: true }).fill("12,01");
+  const remainder = page.getByRole("region", { name: "Unclaimed Portion", exact: true });
+  await expect(remainder).toContainText("666.65");
+  await expect(remainder).toContainText("899.95");
+  await expect(remainder).toContainText("1814.59 EUR");
+  await page.getByRole("button", { name: "Approve version 1", exact: true }).click();
+  await expect(page).toHaveURL(/\/documents(?:\?.*)?$/);
+  const versions = await listExtractionVersions(client, companyId, created.value.id);
+  expect(versions[1].payload.partialClaim?.rateBreakdown).toEqual([
+    { rate: 21, netAmount: "333.35", vatAmount: "70.00" }, { rate: 12, netAmount: "100.05", vatAmount: "12.01" },
+  ]);
+  expect((await generateVatReport(client, { companyId, period: "2026-10" })).ok).toBe(true);
+  const saved = await getVatReport(client, companyId, "2026-10");
+  expect(saved?.result.vatReturn.filter(line => line.documentIds.length)).toMatchObject([
+    { line: "40", netAmount: "8333.75", vatAmount: "1750.00" }, { line: "41", netAmount: "2501.25", vatAmount: "300.25" },
+  ]);
+  await page.goto(`/companies/${companyId}/documents/${created.value.id}`);
+  await page.getByRole("button", { name: "Return to review", exact: true }).click();
+  await expect(standard.getByLabel("Claimed net", { exact: true })).toBeEnabled();
+  await standard.getByLabel("Claimed net", { exact: true }).fill("0");
+  await standard.getByLabel("Claimed VAT", { exact: true }).fill("0");
+  await reduced.getByLabel("Claimed net", { exact: true }).fill("0");
+  await reduced.getByLabel("Claimed VAT", { exact: true }).fill("0");
+  await expect(remainder).toContainText("Cannot calculate");
+  await page.getByRole("checkbox", { name: "I confirm no input VAT deduction from this Document.", exact: true }).check();
+  await expect(remainder).toContainText("2330.00 EUR");
+  await page.getByRole("button", { name: "Approve version 2", exact: true }).click();
+  await expect(page).toHaveURL(/\/documents(?:\?.*)?$/);
+  expect((await listExtractionVersions(client, companyId, created.value.id))[2].payload.partialClaim).toMatchObject({ confirmed: true, zeroConfirmed: true });
+  expect(await getVatReport(client, companyId, "2026-10")).toEqual(saved);
+  expect((await generateVatReport(client, { companyId, period: "2026-10" })).ok).toBe(true);
+  expect((await getVatReport(client, companyId, "2026-10"))?.result.controlStatement).toEqual([]);
+  await page.goto(`/companies/${companyId}/documents/${created.value.id}?version=2`);
+  await expect(standard.getByLabel("Claimed net", { exact: true })).toHaveValue("333.35");
+  await expect(standard.getByLabel("Claimed net", { exact: true })).toBeDisabled();
+});
 
 test("human selection preserves full values from activation through saved approval and B.2 report", async ({ page, context, baseURL }) => {
   const { companyId, client, created, full } = await documentForReview(page, context, baseURL);
