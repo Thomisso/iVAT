@@ -4,6 +4,9 @@ import { getTranslations } from "next-intl/server";
 import { getCounterparty, listCounterpartyDocuments } from "@/application/counterparties";
 import { PageContent, PageHeader, PageLayout } from "@/components/app-shell";
 import { requireUserClient } from "@/lib/supabase/server";
+import { DeleteCounterpartyForm } from "../delete-counterparty-form";
+import { CommandButton } from "@/components/command-button";
+import { archiveCounterpartyAction, restoreCounterpartyAction } from "../actions";
 import { CounterpartyForm } from "../counterparty-form";
 
 export default async function CounterpartyPage({ params, searchParams }: {
@@ -23,6 +26,8 @@ export default async function CounterpartyPage({ params, searchParams }: {
       {search.saved === "1" && <p role="status">{t("saved")}</p>}
       {entry.archivedAt && <p>{t("archived")}</p>}
       <CounterpartyForm companyId={companyId} entry={entry} />
+      <CommandButton action={entry.archivedAt ? restoreCounterpartyAction : archiveCounterpartyAction} fields={{ companyId, id: entry.id }}>{t(entry.archivedAt ? "restore" : "archive")}</CommandButton>
+      <DeleteCounterpartyForm companyId={companyId} id={entry.id} />
       <section aria-label={t("linkedDocuments")}>
         <h2>{t("linkedDocuments")}</h2>
         <p>{t("linkedCount", { count: documents.total })}</p>
