@@ -6,7 +6,7 @@ import type { ValidationFinding } from "@/application/document-validation";
  */
 export function findingMessage(finding: ValidationFinding): {
   key: string;
-  values: { difference?: number };
+  values: Record<string, string | number>;
 } {
   const difference = finding.params?.difference;
   if (finding.code === "total_gross_amount_mismatch" && difference === undefined) {
@@ -14,6 +14,6 @@ export function findingMessage(finding: ValidationFinding): {
   }
   return {
     key: finding.code,
-    values: difference === undefined ? {} : { difference: Number(difference) },
+    values: { ...finding.params, ...(difference === undefined ? {} : { difference: Number(difference) }) },
   };
 }
