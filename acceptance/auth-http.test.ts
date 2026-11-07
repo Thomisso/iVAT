@@ -26,9 +26,14 @@ it("uses real Auth cookies for SSR and enforces ordinary-member and foreign-Orga
   const member = await companyMember(owner);
   const stranger = await provisionedUser("HTTP foreign organization");
   const path = `/companies/${owner.companyId}/documents`;
-  const anonymous = await fetch(new URL(path, baseUrl()), { redirect: "manual" });
+  const anonymousUrl = new URL(path, baseUrl());
+  const anonymous = await fetch(anonymousUrl, { redirect: "manual" });
   expect(anonymous.status).toBe(307);
-  expect(new URL(anonymous.headers.get("location")!).pathname).toBe("/login");
+  const location = anonymous.headers.get("location");
+  expect(location?.trim()).toBeTruthy();
+  const destination = new URL(location!, anonymousUrl);
+  expect(destination.origin).toBe(anonymousUrl.origin);
+  expect(destination.pathname).toBe("/login");
   for (const user of [owner, member]) {
     const response = await (await httpAs(user.client))(path);
     expect(response.status).toBe(200);
