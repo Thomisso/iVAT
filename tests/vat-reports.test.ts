@@ -17,6 +17,7 @@ import { listAuditEvents } from "@/application/audit";
 import { uploadSourceFile } from "@/application/source-files";
 import {
   administratorWithCompany,
+  knownSupplierFixture,
   assignAiConfigurationFixture as enableAiProcessing,
   companyDetails,
   companyMember,
@@ -29,6 +30,7 @@ import { testWorker } from "./support/worker";
 
 async function companyWithReportDocuments() {
   const admin = await administratorWithCompany();
+  await knownSupplierFixture(admin);
   const worker = testWorker();
   await enableAiProcessing(admin.client, worker.jobs, {
     companyId: admin.companyId,
@@ -107,6 +109,7 @@ it("a Company User generates a stored draft, with exclusions, source versions an
 
 it("includes a late-imported incoming Document in its Tax Point Date's period, or in its later Deferred Claim", async () => {
   const admin = await administratorWithCompany();
+  await knownSupplierFixture(admin);
   const worker = testWorker(fakeAiProvider({
     extract: () => ({ ...SAMPLE_EXTRACTION, direction: "incoming", taxPointDate: "2026-09-15", issueDate: "2026-09-15" }),
   }));

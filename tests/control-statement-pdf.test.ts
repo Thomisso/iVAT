@@ -1,10 +1,11 @@
+import { createConfirmedManualDocument } from "./support/claim-eligibility";
 import { expect, it } from "vitest";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { exportControlStatementPdf, exportControlStatementThumbnail } from "@/application/control-statement-pdf";
 import { exportVatReport } from "@/application/epo-export";
 import { generateVatReport } from "@/application/vat-reports";
 import { SAMPLE_EXTRACTION } from "@/ai/fake";
-import { createManualDocument, approveDocument } from "@/application/documents";
+import { approveDocument } from "@/application/documents";
 import { administratorWithCompany, companyDetails, companyMember, companyWithManyReportDocuments } from "./support/fixtures";
 import { createCompany, updateCompanyIdentity } from "@/application/companies";
 import { getCompanyFilingDefaults, saveCompanyFilingDefaults } from "@/application/company-filing-defaults";
@@ -73,11 +74,11 @@ it("places all supported EPO sections, rates, codes, aggregates and decimal summ
     ["B3", "incoming", "domestic", 21, "500.00", "105.00", "605.00"],
   ] as const;
   for (const [documentNumber, direction, proposedVatRegime, rate, netAmount, vatAmount, grossAmount] of cases) {
-    const created = await createManualDocument(company.client, { companyId: company.companyId, payload: {
+    const created = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload: {
       ...SAMPLE_EXTRACTION, documentNumber, direction, proposedVatRegime,
       documentType: netAmount.startsWith("-") ? "credit_note" : "invoice",
       reverseChargeCode: proposedVatRegime === "domestic_reverse_charge" ? "4" : null,
-      supplier: direction === "outgoing" ? SAMPLE_EXTRACTION.customer : { ...SAMPLE_EXTRACTION.supplier, ...(documentNumber === "A2" ? { vatId: "DE123456789", country: "DE" } : {}) },
+      supplier: direction === "outgoing" ? SAMPLE_EXTRACTION.customer : { ...SAMPLE_EXTRACTION.supplier, ...(documentNumber === "A2" ? { ico: null, vatId: "DE123456789", country: "DE" } : {}) },
       customer: direction === "outgoing" ? SAMPLE_EXTRACTION.supplier : SAMPLE_EXTRACTION.customer,
       rateBreakdown: [{ rate, netAmount, vatAmount }], totals: { netAmount, vatAmount, grossAmount },
     } });
@@ -138,10 +139,10 @@ it.each([
 ] as const)("continues %s at its exact form capacity without losing row identity", async (section, capacity, direction, proposedVatRegime, firstTop, lastTop, documentLeft, documentRight) => {
   const company = await administratorWithCompany();
   for (let index = 1; index <= capacity + 1; index++) {
-    const created = await createManualDocument(company.client, { companyId: company.companyId, payload: {
+    const created = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload: {
       ...SAMPLE_EXTRACTION, documentNumber: `${section}-${String(index).padStart(3, "0")}`, direction, proposedVatRegime,
       reverseChargeCode: proposedVatRegime === "domestic_reverse_charge" ? "4" : null,
-      supplier: direction === "outgoing" ? SAMPLE_EXTRACTION.customer : { ...SAMPLE_EXTRACTION.supplier, ...(section === "A2" ? { vatId: "DE123456789", country: "DE" } : {}) },
+      supplier: direction === "outgoing" ? SAMPLE_EXTRACTION.customer : { ...SAMPLE_EXTRACTION.supplier, ...(section === "A2" ? { ico: null, vatId: "DE123456789", country: "DE" } : {}) },
       customer: direction === "outgoing" ? SAMPLE_EXTRACTION.supplier : SAMPLE_EXTRACTION.customer,
       rateBreakdown: [{ rate: 21, netAmount: "12000.00", vatAmount: proposedVatRegime === "domestic" ? "2520.00" : "0.00" }],
       totals: { netAmount: "12000.00", vatAmount: proposedVatRegime === "domestic" ? "2520.00" : "0.00", grossAmount: proposedVatRegime === "domestic" ? "14520.00" : "12000.00" },
@@ -253,7 +254,7 @@ it("lets a Company User download the saved amounts after additional Documents ar
 it("keeps a long Czech document identifier, both rate columns and nonzero bases with zero VAT together in one detail row", async () => {
   const company = await administratorWithCompany();
   const documentNumber = "Č".repeat(60);
-  const created = await createManualDocument(company.client, { companyId: company.companyId, payload: {
+  const created = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload: {
     ...SAMPLE_EXTRACTION, documentNumber, direction: "incoming", proposedVatRegime: "domestic",
     rateBreakdown: [{ rate: 21, netAmount: "12000.00", vatAmount: "2520.00" }, { rate: 12, netAmount: "0.05", vatAmount: "0.00" }],
     totals: { netAmount: "12000.05", vatAmount: "2520.00", grossAmount: "14520.05" },

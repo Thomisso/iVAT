@@ -11,7 +11,7 @@ The new acceptance uses real local Auth/RLS and existing public application comm
 | A03 | `tests/document-approval.test.ts`, `e2e/atomic-document-approval.spec.ts`, workspace pending/refusal cases: atomic current correction/approval, lock/conflict refusal and retained input. |
 | A04 | `tests/document-approval.test.ts`, `tests/document-counterparty-links.test.ts`, `tests/document-review-composition.test.ts`: changed warning/value/context consent, no partial save while paused. |
 | A05 | Approval/counterparty-link suites and composition: same-request replay, double submission, stale different request, one Version/directory identity/decision. |
-| A06 | Workspace departure/history cases; approval/manual suites: save/discard/stay and invalid Tax Point Date refusal. First recovery Version saved by the departure coordinator remains a distinct unexecuted navigation check. |
+| A06 | Workspace departure/history cases; approval/manual suites: save/discard/stay and invalid Tax Point Date refusal. `tests/document-review-initial-save.test.ts` proves the recovered Version-zero editor records its first User Version and completes queued departure Save through the actual page-produced editor, React and real Auth/public commands. The framework action transport is replaced in that Node DOM test; Next Flight and native navigation remain unverified. |
 | A07 | `e2e/documents-queue.spec.ts`, workspace rejection/restore cases; composition checks actual filtered remaining Document and no invented direct-entry queue through public queries. |
 | A08 | `e2e/review-shortcuts.spec.ts`: bell adjacency, contextual guide/focus/Escape, Control/Meta, composition, modality, pending/history/lock guards. |
 | A09 | `tests/source-evidence.test.ts`, `e2e/source-evidence.spec.ts`: original PDF page mapping, normalized highlights, Inspect/zoom/resize/history and before-first-Extraction source access. |
@@ -35,7 +35,7 @@ The new acceptance uses real local Auth/RLS and existing public application comm
 | A27 | Automatic-approval suite: concurrent/replayed completion, policy toggled off/on, directory change/human takeover, duplicate ordering, locked target, reserved worker authority and one directory identity. |
 | A28 | Automatic-approval suite: preserved successful Extraction/one allowance on approval failure, no orphan, later warning/duplicate leaves approval and locked report intact. |
 | A29 | `tests/document-review.test.ts`, `tests/return-to-review.test.ts`, `tests/bank-advisories.test.ts`, workspace/shortcuts readonly cases: recorded/current distinction, authoritative locks, independent permitted Bank Account Check. |
-| A30 | Manual-document/document-recovery/source-recovery/extraction-preparation suites; format source-independent case; actual upgrade's source-independent legacy Version: truthful source/date/author and no AI allowance. Departure-first-save is separately identified under A06. |
+| A30 | Manual-document/document-recovery/source-recovery/extraction-preparation suites; format source-independent case; actual upgrade's source-independent legacy Version: truthful source/date/author and no AI allowance. The Version-zero departure-first-save component/command regression is covered under A06; it supplies no native-navigation or Next Flight proof. |
 | A31 | `tests/extraction-preparation.test.ts`, `tests/ai-processing-failures.test.ts`, processing/manual-source-AI suites: three public entry paths, real job handler, retry/platform/final distinctions, request generation and usage preservation. |
 | A32 | Review/bank-advisory suites and actual upgrade: current versus recorded findings, late previous-Version result isolation, readable legacy Versions/reports without invented metadata. |
 | A33 | Reviewed documentation commit `085ec43c34fe2f0651e0491884423a6ae0ed6f45` contains the seven approved artifacts. Preserve its ancestry and original manifest evidence; later intentional edits require applicable review. |
@@ -52,7 +52,7 @@ The production command is `npm run test:http`; its actual build/runtime results 
 | `acceptance/transport-http.test.ts` | Private real-Auth transport, dependency-fault refusal/recovery, independent liveness and fail-closed session behavior. |
 | `scripts/tests/ci-policy.test.mjs`, `scripts/tests/http-acceptance-policy.test.mjs` | Static profile/gate and browser-free execution policy checks; these establish no application runtime outcome. |
 
-HTTP/SSR and application results do not establish hydration, clickable error-summary behavior, focus, shortcuts, responsive layout, Inspect rendering, accessibility or visual correctness. Keep those distinctions when recording actual check applicability and historical evidence.
+The Node React lifecycle test under A06 establishes the queued Save receipt across the actual page's first-Version reconciliation. It does not execute a browser, exercise Next Flight transport or establish native navigation. HTTP/SSR and application results do not establish hydration, clickable error-summary behavior, focus, shortcuts, responsive layout, Inspect rendering, accessibility or visual correctness. Keep those distinctions when recording actual check applicability and historical evidence.
 
 ## Actual upgrade procedure
 
