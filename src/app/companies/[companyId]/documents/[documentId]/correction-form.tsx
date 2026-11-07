@@ -1,5 +1,7 @@
 "use client";
 
+import { PartialClaimFields } from "./partial-claim-fields";
+
 import { SourceField, useSourceEvidence } from "./source-evidence-context";
 
 import { useActionState, useEffect, useState, type ComponentProps } from "react";
@@ -317,6 +319,7 @@ export function CorrectionForm({
           )}
         </div>
       </fieldset>
+      <PartialClaimFields key={version} payload={payload} editable={editable} values={state.values} />
       {payload.czkConversion && (
         <fieldset>
           <legend>{t("sections.czkConversion")}</legend>

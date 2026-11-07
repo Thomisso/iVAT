@@ -1135,7 +1135,8 @@
       "currency_conversion_not_performed": "The ČNB exchange rate was unavailable, so CZK amounts could not be calculated.",
       "manual_classification_required": "This VAT treatment is outside the supported regimes and requires manual classification.",
       "reverse_charge_code_required": "Enter the official reverse-charge subject code.",
-      "counterparty_directory_difference": "Counterparty detail on the Document: “{documentValue}”; in the directory: “{directoryValue}”."
+      "counterparty_directory_difference": "Counterparty detail on the Document: “{documentValue}”; in the directory: “{directoryValue}”.",
+      "partial_claim_invalid": "Complete and confirm a valid positive selection within the full amounts. Only single-rate CZK domestic incoming Documents are supported."
     },
     "noDocumentImage": "This Document came from spreadsheet rows and has no document image.",
     "sections": {
@@ -1240,7 +1241,18 @@
     "sourceOriginalValue": "AI read: {value}",
     "sourceZoomValue": "{percent}%",
     "sourceInspect": "Inspect",
-    "sourceInspectCrop": "Magnified source"
+    "sourceInspectCrop": "Magnified source",
+    "partialClaim": {
+      "title": "Partial Claim",
+      "enable": "Claim selected supplies",
+      "explanation": "Select eligible separate supplies. Full source amounts remain unchanged. This is not statutory proportional or reduced deduction.",
+      "net": "Claimed net",
+      "vat": "Claimed VAT",
+      "reconfirmation": "The full document changed. Compare the previous selection and confirm it again, or turn selection off deliberately.",
+      "confirm": "Confirm selection for these full amounts",
+      "unclaimed": "Unclaimed Portion",
+      "unavailable": "Cannot calculate"
+    }
   },
   "duplicateWarning": {
     "document_identity": "Possible duplicate: the counterparty VAT ID, document number and direction match an earlier Document.",

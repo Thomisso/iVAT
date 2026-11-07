@@ -433,6 +433,9 @@ async function extractDocument(
       });
       const prepared = await prepareExtractionVersion({
         ...evidencePayload,
+        // Partial Claim is a human decision. Ignore even malformed provider
+        // metadata before financial findings; PostgreSQL preserves prior choices.
+        partialClaim: undefined,
         direction: detectDocumentDirection(
           extractedPayload,
           { ico: company.ico, vatId: company.vat_id },
