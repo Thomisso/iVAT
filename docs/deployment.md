@@ -1,5 +1,7 @@
 # Pilot deployment on Roští
 
+Agent operations follow the [CLI process and evidence rules](agents/cli-processes.md). Use existing authorized credentials and supported CLI/HTTP interfaces for every step; unavailable provider capabilities remain explicit limitations.
+
 The pilot runs Next.js, the Worker and self-hosted Supabase in one Roští Stack.
 The application is at `https://app.ivat.cz`; the public Supabase API is at
 `https://api.ivat.cz`. DNS stays at WEDOS with DNSSEC. AI uses the existing
@@ -161,10 +163,15 @@ DOCKER_DEFAULT_PLATFORM=linux/amd64 docker compose --env-file .env.rosti -f dock
 
 ## Connect Roští
 
-Install the official [rosticli](https://rosti.cz/cli) and authenticate with
-`rosticli login`; complete the login in the browser. Keep credentials out of
-chat. Initialize a target named `rosti`, selecting the existing company and
-the Medium trial profile. Keep the prepared Dockerfiles and Compose file.
+Use an existing authorized target in the official [rosticli](https://rosti.cz/cli),
+or an existing provider API credential and the exact company/Stack identifiers
+from protected input. Before configuring authentication, inspect the installed
+CLI's help or current provider HTTP documentation for a supported unattended
+mode; do not invoke a login flow that requires a web page. If that mode is
+unavailable, report the missing authenticated target/credential capability and
+continue independent preparation. Keep credentials out of chat. Initialize a
+target named `rosti` only through supported CLI/API inputs for the existing
+company and Medium trial profile. Keep the prepared Dockerfiles and Compose file.
 The deployment has four built images, including the root application image.
 CLI 1.9.3's automatic multi-image discovery omits the root image and does not
 recognize this Compose frontend. Use the explicit Compose build and SSH
@@ -218,11 +225,18 @@ deployment step.
 
 ## Domain and first login
 
-Add `app.ivat.cz` and `api.ivat.cz` in the Stack's Proxy settings. At WEDOS,
-create CNAME records `app` and `api`, both pointing to `lb.rosti.cz`, retaining
-the existing NSSET and DNSSEC. Disable redirecting all domains to the first
-domain: the API and application need separate Host routing. Let Roští issue
-HTTPS certificates for both names.
+Use existing provider credentials and resource identifiers to configure
+`app.ivat.cz` and `api.ivat.cz` through supported Roští CLI/HTTP operations.
+At WEDOS, use its supported authenticated interface to create CNAME records
+`app` and `api`, both pointing to `lb.rosti.cz`, retaining the existing NSSET
+and DNSSEC. Verify the current provider contract before issuing a write; this
+runbook does not establish domain-management endpoints or unattended credential
+issuance. If the required operation or access is unavailable, report the exact
+missing capability rather than directing anyone to Proxy settings or a DNS
+console. Disable redirecting all domains to the first domain through a supported
+interface: the API and application need separate Host routing. Roští must issue
+HTTPS certificates for both names. Verify DNS with CLI lookups and actual TLS
+with HTTPS requests; a configured hostname alone does not prove issuance.
 
 The application proxy redirects forwarded HTTP requests to the configured
 HTTPS hostname, retaining the path and query string. Internal health checks
@@ -243,7 +257,7 @@ Nginx only serves the application and API on their configured hostnames.
 `https://ivat-931.rostiapp.cz/healthz` returns `200`; `/` and `/login` return
 `404` by design. That `404` is independent of TLS certificate validity.
 
-Create the operator interactively on the Stack:
+Create the operator through the existing Stack command in a private terminal:
 
 ```bash
 docker compose --env-file .env -f docker-compose.rosti.yml run --rm --no-deps web node deploy/scripts/provision-user.mjs operator@example.com --superadmin
@@ -251,10 +265,14 @@ docker compose --env-file .env -f docker-compose.rosti.yml run --rm --no-deps we
 
 This creates or reuses an Auth User and grants SuperAdmin only when the flag
 is present. A new User's password is printed once; use a private terminal and
-store it securely. Enroll TOTP after signing in. Use the same command without
-`--superadmin` for pilot Users; each receives its own Organization through the
-existing database trigger. Configure real AI credentials at
-`/platform/ai-settings`, assign configurations and processing allowances.
+store it securely. Use the same command without `--superadmin` for pilot Users;
+each receives its own Organization through the existing database trigger.
+The product operator flow enrolls TOTP after sign-in and manages real AI
+credentials, assignments and allowances at `/platform/ai-settings`. Agent
+operations use real Auth/MFA and the existing authorized application commands
+and queries through CLI/HTTP; they do not navigate that UI or bypass those
+authorities. If the required operator session or supported operation is missing,
+record that precise limitation before claiming live workflow verification.
 
 Verify a real uploaded Document reaches review and the expected report/export
 can be generated. Verify the full 50 MiB upload through Roští's outer proxy,
@@ -266,11 +284,14 @@ cannot override the provider's outer limits.
 ### Prepare a versioned GitHub Release
 
 Merging a pull request into `main` does not update production. When the complete
-tested state of `main` is ready to ship, open **Releases → Draft a new release**
-in GitHub, choose `main` (or its exact tested commit), create a new version tag
-such as `v0.2.0`, and generate the release notes to inspect the included pull
-requests. Publish a normal Release; drafts and prereleases do not prepare a
-production deployment. Do not move or reuse a published version tag.
+tested state of `main` is ready to ship, prepare a draft through
+`gh release create NEW_VERSION --repo Thomisso/iVAT --target EXACT_TESTED_MAIN_SHA --generate-notes --draft`.
+Choose a fresh version such as `v0.2.0`, inspect the draft with
+`gh release view NEW_VERSION --repo Thomisso/iVAT`, and verify its tag/target
+through Git/API before publishing. After the existing activation/release review,
+`gh release edit NEW_VERSION --repo Thomisso/iVAT --draft=false` publishes the
+normal Release. Drafts and prereleases do not prepare production deployment.
+Do not move or reuse a published version tag.
 
 The **Release Roští pilot** workflow first resolves the tag to its exact
 commit, including annotated tags, and checks that it belongs to `main`. It
@@ -327,8 +348,11 @@ production public API URL and publishable/anon key. These are public build
 settings. Never enter a service-role key, database password or JWT signing
 secret there. The workflow refuses private service keys before building.
 
-Open the successful workflow run and download its `rosti-release-…` artifact
-to inspect the bundle. It contains a manifest with the revision, version,
+Read the exact workflow run with `gh run view RUN_ID --repo Thomisso/iVAT`
+and download its `rosti-release-…` artifact with
+`gh run download RUN_ID --repo Thomisso/iVAT --pattern 'rosti-release-*' --dir PRIVATE_BUNDLE_DIRECTORY`
+to inspect the bundle. Match the run and attempt to the intended Release before
+using it; an unrelated latest artifact is not evidence. It contains a manifest with the revision, version,
 four image digests, public build settings and asset checksums, plus the
 digest-pinned Compose configuration and deployment scripts. It contains no
 production environment file. The Compose file is JSON, which is valid Compose
@@ -392,9 +416,7 @@ Before enabling anything, review these concrete prerequisites together:
    and seven-day retention. Confirm previous revision/image records are present
    and there is no unresolved deployment. No extra release backup, computer
    copy or external destination is required.
-5. In GitHub **Settings → Secrets and variables → Actions**, configure the
-   following repository settings. This setup uses repository settings and does
-   not require a paid GitHub environment feature.
+5. Configure the following repository values through `gh variable set NAME --repo Thomisso/iVAT < REVIEWED_VALUE_FILE` and `gh secret set NAME --repo Thomisso/iVAT < PROTECTED_SECRET_FILE`. Read non-secret values back with `gh variable list`; a secret-name listing establishes presence only, and actual authorized workflow execution establishes usable access. This setup uses repository values and does not require a paid GitHub environment feature.
 
 | Kind | Name | Reviewed value |
 | --- | --- | --- |
@@ -413,9 +435,13 @@ GHCR packages permit this token to pull all four images. No permanent registry
 password is required on the host. The preparation job has package write access
 but receives no production credentials.
 
-Finally, after the explicit activation review, set `ROSTI_DEPLOY_ENABLED` to
-`true` and publish one monitored stable Release. Watch its Actions run and
-verify public HTTPS, a real login and a representative Document workflow.
+Finally, after the explicit activation review, set `ROSTI_DEPLOY_ENABLED` with
+`gh variable set ROSTI_DEPLOY_ENABLED --repo Thomisso/iVAT --body true` and
+publish one monitored stable Release through the CLI path above. Read its exact
+Actions run through `gh run view`/`gh run watch RUN_ID --exit-status` and verify
+public HTTPS, a real login and a representative Document workflow through
+supported CLI/HTTP and authorized application commands. Preserve any required
+client-only behavior as unverified; server checks do not prove a UI interaction.
 The first live run still needs to establish real SSH trust/access, GHCR access,
 provider API/readback behavior, cron/backup state and production routing.
 Local disposable checks cannot establish those facts. Setting the flag back
@@ -533,8 +559,12 @@ flock -w 900 /tmp/ivat-backup.lock sh /srv/stack/deploy/scripts/backup-daily.sh 
 
 Host output stays in the private `daily.log`; the workflow reports only
 success or failure, and a failed scheduled run triggers GitHub's normal
-workflow-failure notification. Run it manually with **Actions → Daily Roští
-backup → Run workflow**. GitHub may start scheduled runs some minutes late.
+workflow-failure notification. For an explicitly requested run, use
+`gh workflow run daily-backup.yml --repo Thomisso/iVAT`, then identify the
+resulting dispatch with `gh run list --repo Thomisso/iVAT --workflow daily-backup.yml --event workflow_dispatch`
+and inspect/watch that exact run. Dispatch acceptance is not backup completion;
+retain the completed archive, inventory and integrity checks above. GitHub may
+start scheduled runs some minutes late.
 
 The original host crontab entry in the provider's `system-mgm-1` never ran:
 its `crond` did not pick up `/etc/crontabs/root` (`cron.update` was never
