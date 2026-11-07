@@ -1,23 +1,6 @@
 import { Client } from "pg";
 import { inject } from "vitest";
 
-/** Historical archive fixture; lifecycle commands belong to the follow-up ticket. */
-export async function archiveCounterpartyFixture(id: string, userId: string) {
-  const database = new Client({ connectionString: inject("databaseUrl") });
-  await database.connect();
-  try {
-    await database.query("begin");
-    await database.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ sub: userId, role: "authenticated", aal: "aal1" })]);
-    await database.query("update public.counterparty set archived_at = '2026-11-01T00:00:00Z' where id = $1", [id]);
-    await database.query("commit");
-  } catch (error) {
-    await database.query("rollback");
-    throw error;
-  } finally {
-    await database.end();
-  }
-}
-
 /** Queue real authenticated commands at the Company's existing deletion lock. */
 export async function directoryMutationAfterCompanyDeletion(
   companyId: string,

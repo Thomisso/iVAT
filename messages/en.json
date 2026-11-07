@@ -741,6 +741,7 @@
     "not_extracted": "The Document has no Extraction Version to check yet.",
     "counterparty_role_required": "Choose supplier or customer.",
     "counterparty_identity_taken": "A Counterparty with this IČO or VAT ID already exists in this Company and may be archived.",
+    "counterparty_in_use": "This Counterparty is linked to recorded Documents and can only be archived.",
     "invalid_country_code": "Enter a two-letter country code.",
     "counterparty_invalid_vat_id": "Enter a VAT ID with a two-letter country prefix followed by 2 to 14 letters or digits.",
     "review_warnings_changed": "Review the newly prepared warnings and explicitly approve these values.",

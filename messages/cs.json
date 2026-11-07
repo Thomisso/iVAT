@@ -741,6 +741,7 @@
     "not_extracted": "Doklad zatím nemá verzi vytěžení, kterou lze ověřit.",
     "counterparty_role_required": "Vyberte dodavatele nebo odběratele.",
     "counterparty_identity_taken": "Protistrana se stejným IČO nebo DIČ již v této firmě existuje, případně je archivovaná.",
+    "counterparty_in_use": "Protistrana je propojená se zaznamenanými doklady a lze ji pouze archivovat.",
     "invalid_country_code": "Zadejte dvoupísmenný kód země.",
     "counterparty_invalid_vat_id": "Zadejte DIČ s dvoupísmenným kódem země a 2 až 14 číslicemi nebo písmeny.",
     "review_warnings_changed": "Zkontrolujte nově zjištěná upozornění a výslovně schvalte tyto hodnoty.",
