@@ -44,10 +44,10 @@ export function PartialClaimFields({ payload, editable, values, rateRows }: { pa
       const name = (event.target as HTMLInputElement).name;
       if (!name || name.startsWith("partialClaim.")) return;
       // Let React commit controlled/date input changes before reading the form.
-      queueMicrotask(() => setSource(formSource(form, payload)));
+      queueMicrotask(() => { if (form.getAttribute("aria-busy") !== "true") setSource(formSource(form, payload)); });
     };
     // React Add/Remove actions change row structure without a native input event.
-    queueMicrotask(() => setSource(formSource(form, payload)));
+    queueMicrotask(() => { if (form.getAttribute("aria-busy") !== "true") setSource(formSource(form, payload)); });
     form.addEventListener("input", read);
     form.addEventListener("change", read);
     return () => { form.removeEventListener("input", read); form.removeEventListener("change", read); };
@@ -70,9 +70,9 @@ export function PartialClaimFields({ payload, editable, values, rateRows }: { pa
       setBasis(claimBasis(current)); setConfirmed(true);
     }
   };
-  return <fieldset ref={ref}>
+  return <fieldset ref={ref} id="partial-claim" tabIndex={-1}>
     <legend>{t("partialClaim.title")}</legend>
-    <label><input type="checkbox" checked={enabled} disabled={!editable} onChange={event => activate(event.target.checked)} /> {t("partialClaim.enable")}</label>
+    <label><input id="partial-claim-enabled" type="checkbox" checked={enabled} disabled={!editable} onChange={event => activate(event.target.checked)} /> {t("partialClaim.enable")}</label>
     <input type="hidden" name="partialClaim.mode" value={enabled ? "selected" : payload.partialClaim ? "full" : "absent"} />
     {enabled && <>
       <p>{t("partialClaim.explanation")}</p>

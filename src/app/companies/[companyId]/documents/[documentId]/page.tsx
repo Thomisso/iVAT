@@ -1,3 +1,5 @@
+import { ReviewWorkspace } from "./review-workspace";
+import { ReviewGuard } from "./review-guard";
 import { SourceEvidenceProvider } from "./source-evidence-context";
 import { ImageSourceViewer } from "./image-source-viewer";
 import { PdfSourceViewer } from "./pdf-source-viewer";
@@ -15,7 +17,7 @@ import {
 } from "@/app/actions";
 import { DocumentReportingSummary } from "@/components/document-reporting-summary";
 import { currentUserId } from "@/application/auth";
-import { documentQueueQuery, getDocumentQueuePosition } from "@/application/document-queue";
+import { documentQueueQuery, getDocumentQueuePosition, hasDocumentQueueContext } from "@/application/document-queue";
 import { isBeingExtracted } from "@/application/documents";
 import { CommandButton } from "@/components/command-button";
 import { RefreshWhile } from "@/components/refresh-while";
@@ -25,7 +27,6 @@ import { EmptyState } from "@/components/empty-state";
 import { Notice } from "@/components/notice";
 import { StatusBadge } from "@/components/status-badge";
 import { statusBadgeState } from "@/components/status-badge-state";
-import { PageLayout } from "@/components/app-shell";
 import { formatDate, formatDateTime, formatMonthName } from "@/lib/format-date";
 import { emptyDocumentPayload } from "@/application/extraction-payload";
 import { ExclusionForm } from "./exclusion-form";
@@ -60,14 +61,14 @@ export default async function DocumentReviewPage({
   } = review;
   const position = await getDocumentQueuePosition(client, companyId, document.id, search);
   const { queue, documents: queuedDocuments, index: queueIndex } = position;
-  const queueQuery = documentQueueQuery(queue);
+  const queueQuery = hasDocumentQueueContext(search) ? documentQueueQuery(queue) : "";
   const returnTo = safeCompanyReturnTo(companyId, search.returnTo);
   const currentContext = companyPageContext(companyId, `/companies/${companyId}/documents/${documentId}`, search);
-  const listHref = `/companies/${companyId}/documents?${queueQuery}#document-${document.id}`;
+  const listHref = `/companies/${companyId}/documents${queueQuery ? `?${queueQuery}` : ""}#document-${document.id}`;
   const reviewHref = (id: string, version?: number) => {
     const query = new URLSearchParams(queueQuery);
     if (version !== undefined) query.set("version", String(version));
-    return withCompanyReturnTo(companyId, `/companies/${companyId}/documents/${id}?${query}`, returnTo);
+    return withCompanyReturnTo(companyId, `/companies/${companyId}/documents/${id}${query.size ? `?${query}` : ""}`, returnTo);
   };
   const [t, locale] = await Promise.all([getTranslations(), getLocale()]);
   const contentUrl = file?.normalizedDerivative
@@ -89,7 +90,8 @@ export default async function DocumentReviewPage({
   return (
     <>
       <SourceEvidenceProvider key={viewingRecorded ? `recorded-${shown?.id}` : document.id} payload={shown?.payload ?? emptyDocumentPayload()} version={shown?.version ?? 0} versionId={shown?.id ?? ""}>
-      <PageLayout className="review" measure="wide">
+      <ReviewGuard>
+      <ReviewWorkspace>
         <header className="review-header">
           <nav className="review-queue-nav" aria-label={t("review.queueNavigation")}>
             <CompanyReturnLink companyId={companyId} returnTo={returnTo} fallback={queueIndex >= 0 ? listHref : `/companies/${companyId}/documents`} />
@@ -119,8 +121,8 @@ export default async function DocumentReviewPage({
           {document.importDate && <p>
             {t("review.importDate")}: {formatDate(document.importDate)}
           </p>}
-          <DocumentReportingSummary reporting={reporting} />
-          {document.status === "approved" && !lockedPeriod && (
+          <details className="review-secondary"><summary>{t("review.reportingContext")}</summary><DocumentReportingSummary reporting={reporting} /></details>
+          {document.status === "approved" && !lockedPeriod && !viewingRecorded && (
             <CommandButton
               action={returnDocumentToReviewAction}
               fields={{ companyId, documentId: document.id }}
@@ -132,15 +134,15 @@ export default async function DocumentReviewPage({
             <Notice>{t("review.rejectedNote")}{document.exclusion && <p>{document.exclusion.reason} · {t(document.exclusion.userId === userId ? "review.userAuthorYou" : "review.userAuthor")} · {formatDateTime(document.exclusion.at)}</p>}</Notice>
           )}
           {lockedPeriod && <Notice tone="warning" title={t("review.lockedTitle", { period: lockedPeriod })}>{t("review.lockedNote")}</Notice>}
-          {document.sourceFileId && document.status === "failed" && current?.author.kind !== "user" && !lockedPeriod && <CommandButton
+          {!viewingRecorded && document.sourceFileId && document.status === "failed" && current?.author.kind !== "user" && !lockedPeriod && <CommandButton
             variant="ai"
             icon="marker"
             action={reprocessDocumentAction}
             fields={{ companyId, documentId: document.id }}
           >{t("review.retryExtraction")}</CommandButton>}
-          {document.sourceFileId && !lockedPeriod && ["failed", "needs_review", "approved"].includes(document.status) && (current?.author.kind === "user" || document.status === "approved") && <DocumentAiReplacementForm companyId={companyId} documentId={document.id} />}
-          {recoverable && <CommandButton action={startManualDocumentReviewAction} fields={{ companyId, documentId: document.id }}>{t("review.takeOverManually")}</CommandButton>}
-          {document.status === "rejected" && !lockedPeriod && <CommandButton action={restoreDocumentAction} fields={{ companyId, documentId: document.id }}>{t("review.reverseExclusion")}</CommandButton>}
+          {!viewingRecorded && document.sourceFileId && !lockedPeriod && ["failed", "needs_review", "approved"].includes(document.status) && (current?.author.kind === "user" || document.status === "approved") && <details className="review-secondary"><summary>{t("review.otherActions")}</summary><DocumentAiReplacementForm companyId={companyId} documentId={document.id} /></details>}
+          {recoverable && !viewingRecorded && <CommandButton action={startManualDocumentReviewAction} fields={{ companyId, documentId: document.id }}>{t("review.takeOverManually")}</CommandButton>}
+          {document.status === "rejected" && !lockedPeriod && !viewingRecorded && <CommandButton action={restoreDocumentAction} fields={{ companyId, documentId: document.id }}>{t("review.reverseExclusion")}</CommandButton>}
           {missingPeriod && (
             <Notice tone="danger">
               {t(`review.findings.${missingPeriod.code}`, {
@@ -165,7 +167,7 @@ export default async function DocumentReviewPage({
             </Notice>
           ))}
         </header>
-        <section className="review-original">
+        <section className="review-original" role="region" aria-label={t("review.workspace.sourcePanel")}>
           {file?.format === "pdf" && !document.rowSet ? <PdfSourceViewer href={contentUrl} label={file.fileName} firstPage={document.firstPage!} lastPage={document.lastPage!} /> : file && !document.rowSet && (["png", "jpeg"].includes(file.format) || file.normalizedDerivative) ? <ImageSourceViewer href={contentUrl} label={file.fileName} /> : file ? <DocumentViewer label={file.fileName}>
             {document.rowSet ? (
               <div className="workbook-source">
@@ -180,10 +182,10 @@ export default async function DocumentReviewPage({
             )}
           </DocumentViewer> : <>
             <EmptyState icon="file" title={t("review.noSourceFile")} />
-            {!lockedPeriod && current?.author.kind === "user" && <AttachDocumentSourceForm companyId={companyId} documentId={document.id} />}
+            {!lockedPeriod && !viewingRecorded && current?.author.kind === "user" && <AttachDocumentSourceForm companyId={companyId} documentId={document.id} />}
           </>}
         </section>
-        <section className="review-data">
+        <section className="review-data" role="region" aria-label={t("review.workspace.dataPanel")}>
           {shown && current && viewingRecorded && (
             <Notice>
               {t(shown === current ? "bankAccountCheck.viewingRecordedVersion" : "review.viewingOld", {
@@ -194,6 +196,52 @@ export default async function DocumentReviewPage({
                 {t("review.showCurrent")}
               </Link>
             </Notice>
+          )}
+          {shownWarningFindings.map((finding) => (
+            <Notice
+              key={`${finding.field}-${finding.code}`}
+              tone="warning"
+            >
+              {t(
+                `review.findings.${findingMessage(finding).key}`,
+                findingMessage(finding).values,
+              )}
+            </Notice>
+          ))}
+          {shown ? (
+            <CorrectionForm
+              key={viewingRecorded ? shown.id : document.id}
+              companyId={companyId}
+              documentId={document.id}
+              version={shown.version}
+              extractionVersionId={shown.id}
+              requestId={randomUUID()}
+              displayedBankAccountCheckId={bankChecks.current?.id ?? null}
+              displayedReviewContext={review.displayedReviewContext}
+              currentCounterparty={viewingRecorded ? null : review.currentCounterparty}
+              decision={{ nextDocumentId: position.continuationDocumentId ?? "", queueQuery, returnTo: returnTo ?? "" }}
+              payload={shown.payload}
+              claimPeriods={reportingPeriodsOf(review.reportingYears)}
+              reportingContext={<p>{t("documentReporting.period", { period: reporting.period ?? t("documentReporting.unassigned") })}</p>}
+              findings={shownFindings}
+              editable={reviewing && !viewingRecorded}
+              aiProposed={
+                shown.author.kind === "ai" && document.status !== "approved"
+              }
+            />
+          ) : document.status === "needs_review" && !lockedPeriod ? (
+            <CorrectionForm companyId={companyId} documentId={document.id} version={0} requestId={randomUUID()} displayedBankAccountCheckId={bankChecks.current?.id ?? null} decision={{ nextDocumentId: position.continuationDocumentId ?? "", queueQuery, returnTo: returnTo ?? "" }} payload={emptyDocumentPayload()} findings={[]} editable aiProposed={false} claimPeriods={reportingPeriodsOf(review.reportingYears)} reportingContext={<p>{t("documentReporting.period", { period: reporting.period ?? t("documentReporting.unassigned") })}</p>} />
+          ) : (
+            <EmptyState icon="file" title={t("review.noExtraction")} />
+          )}
+          {!viewingRecorded && current && (
+            <ReportingAssignmentForm
+              companyId={companyId}
+              documentId={document.id}
+              claimedReportingPeriod={document.claimedReportingPeriod}
+              available={reviewing && (ordinaryDomesticClaim(current.payload) || !!document.claimedReportingPeriod)}
+              periods={deferredClaimPeriods}
+            />
           )}
           {shown && current && !viewingRecorded && (
             <section aria-label={t("bankAccountCheck.title")}>
@@ -222,54 +270,10 @@ export default async function DocumentReviewPage({
               </details>}
             </section>
           )}
-          {shownWarningFindings.map((finding) => (
-            <Notice
-              key={`${finding.field}-${finding.code}`}
-              tone="warning"
-            >
-              {t(
-                `review.findings.${findingMessage(finding).key}`,
-                findingMessage(finding).values,
-              )}
-            </Notice>
-          ))}
-          {shown ? (
-            <CorrectionForm
-              key={viewingRecorded ? shown.id : document.id}
-              companyId={companyId}
-              documentId={document.id}
-              version={shown.version}
-              extractionVersionId={shown.id}
-              requestId={randomUUID()}
-              displayedBankAccountCheckId={bankChecks.current?.id ?? null}
-              displayedReviewContext={review.displayedReviewContext}
-              currentCounterparty={viewingRecorded ? null : review.currentCounterparty}
-              decision={{ nextDocumentId: position.continuationDocumentId ?? "", queueQuery, returnTo: returnTo ?? "" }}
-              payload={shown.payload}
-              claimPeriods={reportingPeriodsOf(review.reportingYears)}
-              findings={shownFindings}
-              editable={reviewing && !viewingRecorded}
-              aiProposed={
-                shown.author.kind === "ai" && document.status !== "approved"
-              }
-            />
-          ) : document.status === "needs_review" && !lockedPeriod ? (
-            <CorrectionForm companyId={companyId} documentId={document.id} version={0} requestId={randomUUID()} displayedBankAccountCheckId={bankChecks.current?.id ?? null} decision={{ nextDocumentId: position.continuationDocumentId ?? "", queueQuery, returnTo: returnTo ?? "" }} payload={emptyDocumentPayload()} findings={[]} editable aiProposed={false} claimPeriods={reportingPeriodsOf(review.reportingYears)} />
-          ) : (
-            <EmptyState icon="file" title={t("review.noExtraction")} />
-          )}
-          {reviewing && !viewingRecorded && current && (ordinaryDomesticClaim(current.payload) || document.claimedReportingPeriod) && (
-            <ReportingAssignmentForm
-              companyId={companyId}
-              documentId={document.id}
-              claimedReportingPeriod={document.claimedReportingPeriod}
-              periods={deferredClaimPeriods}
-            />
-          )}
-          {excludable && <ExclusionForm fields={{ companyId, documentId: document.id, nextDocumentId: position.continuationDocumentId ?? "", queueQuery, returnTo: returnTo ?? "" }} />}
+          {excludable && !viewingRecorded && <ExclusionForm fields={{ companyId, documentId: document.id, nextDocumentId: position.continuationDocumentId ?? "", queueQuery, returnTo: returnTo ?? "" }} />}
           {versions.length > 0 && (
             <>
-              <h2>{t("review.history")}</h2>
+              <details className="review-history"><summary>{t("review.history")}</summary>
               <ol className="version-history" reversed>
                 {versions.toReversed().map((v) => (
                   <li
@@ -300,11 +304,12 @@ export default async function DocumentReviewPage({
                     </span>
                   </li>
                 ))}
-              </ol>
+              </ol></details>
             </>
           )}
         </section>
-      </PageLayout>
+      </ReviewWorkspace>
+      </ReviewGuard>
       </SourceEvidenceProvider>
       <RefreshWhile
         active={

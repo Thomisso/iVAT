@@ -1089,7 +1089,7 @@
     "rejectedNote": "Rejected. The document is excluded from VAT reports.",
     "notReviewableNote": "The document is not ready for review yet.",
     "noExtraction": "Nothing has been extracted yet.",
-    "save": "Save corrections",
+    "save": "Save draft",
     "approve": "Approve version {version}",
     "reject": "Reject",
     "returnToReview": "Return to review",
@@ -1111,7 +1111,8 @@
       "claimedReportingPeriodHint": "Choose an unlocked later period that can end before the claim filing deadline.",
       "claimedReportingPeriodPlaceholder": "2026-12 or 2027-Q1",
       "save": "Save Reporting Period",
-      "saving": "Saving…"
+      "saving": "Saving…",
+      "unavailable": "The Reporting Period cannot be changed for this Document’s current state. Your unsaved selection is retained until you discard it."
     },
     "findings": {
       "rate_vat_amount_mismatch": "VAT does not match the net amount and rate.",
@@ -1290,7 +1291,39 @@
       "unconfirmed": "Confirmation required",
       "confirm": "I confirm the eligibility conditions were met in the selected period.",
       "hint": "Import Date records the actual upload and does not prove earlier possession. A Document without a Source File requires an accountant’s confirmation."
-    }
+    },
+    "departure": {
+      "title": "Unsaved changes",
+      "explanation": "Save your draft before continuing, discard the changes, or stay on this Document.",
+      "save": "Save draft and continue",
+      "discard": "Discard changes",
+      "stay": "Stay here",
+      "notSaved": "Not all changes were saved. You are still on this Document. Stay to correct the remaining changes.",
+      "reportingTitle": "Unsaved Reporting Period",
+      "reportingExplanation": "Save the Reporting Period change before approval, discard that period change, or stay. Your accounting corrections will still be included in approval.",
+      "reportingSave": "Save Reporting Period and approve",
+      "reportingDiscard": "Discard Reporting Period change and approve"
+    },
+    "workspace": {
+      "resize": "Resize source and data panels",
+      "view": "Review view",
+      "source": "Show Source File",
+      "data": "Show document data",
+      "sourcePanel": "Source File",
+      "dataPanel": "Document data",
+      "decisions": "Document decisions"
+    },
+    "rejectHint": "Exclude this Document from processing and VAT reports. The data and history will be retained.",
+    "cancelDecision": "Cancel",
+    "reportingContext": "Reporting context",
+    "ownCompany": "Own Company: {name}",
+    "otherDetails": "Other Document details",
+    "errorSummary": "Errors to correct",
+    "otherActions": "AI and other actions",
+    "requiredField": "Complete this field.",
+    "fullAmounts": "Full amounts",
+    "confirmed": "Confirmed",
+    "selectionConfirmation": "Selection confirmation"
   },
   "duplicateWarning": {
     "document_identity": "Possible duplicate: the counterparty VAT ID, document number and direction match an earlier Document.",

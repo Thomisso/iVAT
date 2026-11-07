@@ -38,11 +38,11 @@ test("identity matching, deliberate unlink, no-ID consent and explicit archived 
   const supplierName = page.getByRole("group", { name: "Supplier", exact: true }).getByLabel("Name", { exact: true });
   await expect(supplierName).toHaveValue("Dodavatel s.r.o.");
   await directory.getByRole("button", { name: "Remove link", exact: true }).click();
-  await page.getByRole("button", { name: "Save corrections", exact: true }).click();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByRole("button", { name: "Approve version 2", exact: true })).toBeVisible();
   expect((await listExtractionVersions(client, companyId, first.value.id))[1].payload.counterpartyLink).toBeNull();
   await directory.getByRole("button", { name: "Use automatic matching", exact: true }).click();
-  await page.getByRole("button", { name: "Save corrections", exact: true }).click();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByRole("button", { name: "Approve version 3", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Approve version 3", exact: true }).click();
   await expect(page).toHaveURL(/\/documents(?:\?.*)?$/);

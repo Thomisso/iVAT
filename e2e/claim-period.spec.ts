@@ -39,6 +39,7 @@ test("an accountant explicitly confirms source-less eligibility and history/lock
   await page.getByLabel("First eligible period", { exact: true }).selectOption("2026-10", { timeout: 10_000 });
   await page.getByRole("checkbox", { name: "I confirm the eligibility conditions were met in the selected period.", exact: true }).check();
   await expect(page.getByLabel("Document type", { exact: true })).toHaveValue("invoice");
+  await page.getByText("Other Document details", { exact: true }).click({ timeout: 3_000 });
   await page.getByLabel("Issue date", { exact: true }).fill("2.10.2026");
   await expect(page.getByRole("checkbox", { name: "I confirm the eligibility conditions were met in the selected period.", exact: true })).not.toBeChecked();
   await page.getByRole("checkbox", { name: "I confirm the eligibility conditions were met in the selected period.", exact: true }).check();
