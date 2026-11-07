@@ -1861,5 +1861,14 @@
     "unnumberedDocument": "Document without a number",
     "noLinkedDocuments": "No linked Documents.",
     "documentPages": "Linked Document pages"
+  },
+  "automaticApproval": {
+    "title": "Automatic Document approval",
+    "intro": "Automatically approve eligible Documents after a new successful AI Extraction, with no errors or warnings and all required checks completed.",
+    "enabled": "Enable automatic approval for this Company",
+    "hint": "This applies only to new successful AI Extractions. Enabling it does not approve existing Documents; manual changes and Bank Account Checks do not trigger approval.",
+    "save": "Save approval policy",
+    "saving": "Saving…",
+    "saved": "Automatic approval policy saved."
   }
 }
