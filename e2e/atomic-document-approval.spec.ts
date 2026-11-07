@@ -5,9 +5,16 @@ import { SAMPLE_EXTRACTION } from "../src/ai/fake";
 import { correctDocument, createManualDocument, getDocument, listExtractionVersions } from "../src/application/documents";
 import { fakeVatPayerRegistry } from "../src/vat-registry/fake";
 
+// This workflow targets approval/warning races, with the temporal facts explicitly confirmed.
+const eligiblePayload = { ...SAMPLE_EXTRACTION, claimEligibility: { period: "2026-10", origin: "user" as const, confirmed: true } };
+
 test("Approve saves the current form fields and preserves refusals", async ({ page, context, baseURL }) => {
   if (!baseURL) throw new Error("base URL required");
+  // Deliberate fixture-to-fixture navigation accepts the system leave warning.
+  page.on("dialog", dialog => { if (dialog.type() === "beforeunload") void dialog.accept(); });
   await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseURL }]);
+  const translationErrors: string[] = [];
+  page.on("console", message => { if (message.type() === "error" && message.text().includes("MISSING_MESSAGE")) translationErrors.push(message.text()); });
   const run = crypto.randomUUID();
   await provisionAndLogIn(page, { organizationName: `Atomic ${run}`, email: `atomic-${run}@example.test`, password: "Atomic-browser-password-228" });
   await page.getByLabel("Company name").fill(`Atomic ${run}`);
@@ -22,7 +29,7 @@ test("Approve saves the current form fields and preserves refusals", async ({ pa
   await expect(page).toHaveURL(/\/setup\/ai-processing$/);
   const companyId = new URL(page.url()).pathname.split("/")[2];
   const client = await browserUserClient(await context.cookies());
-  const created = await createManualDocument(client, { companyId, payload: SAMPLE_EXTRACTION }, undefined, fakeVatPayerRegistry());
+  const created = await createManualDocument(client, { companyId, payload: eligiblePayload }, undefined, fakeVatPayerRegistry());
   if (!created.ok) throw new Error(created.error);
   await page.goto(`/companies/${companyId}/documents/${created.value.id}`);
   await page.getByLabel("Document number", { exact: true }).fill("DIRTY-APPROVED-228");
@@ -30,7 +37,7 @@ test("Approve saves the current form fields and preserves refusals", async ({ pa
   await expect(page).toHaveURL(/\/documents(?:\?.*)?$/);
   const versions = await listExtractionVersions(client, companyId, created.value.id);
   expect(versions.map((version) => version.payload.documentNumber)).toEqual(["FV-2026-0001", "DIRTY-APPROVED-228"]);
-  const observedPayload = { ...SAMPLE_EXTRACTION, payment: { ...SAMPLE_EXTRACTION.payment, bankAccount: "987654321/0100" } };
+  const observedPayload = { ...eligiblePayload, payment: { ...eligiblePayload.payment, bankAccount: "987654321/0100" } };
   const initiallyPublished = fakeVatPayerRegistry({ outcome: "checked", unreliable: false, publishedAccounts: ["987654321/0100"] });
   const observed = await createManualDocument(client, { companyId, payload: observedPayload }, undefined, initiallyPublished);
   if (!observed.ok) throw new Error(observed.error);
@@ -60,7 +67,7 @@ test("Approve saves the current form fields and preserves refusals", async ({ pa
   await expect(page.getByRole("region", { name: "Compare current data", exact: true })).toContainText("CURRENT-OBS-228");
   expect(await listExtractionVersions(client, companyId, otherObservation.value.id)).toHaveLength(2);
 
-  const warned = await createManualDocument(client, { companyId, payload: SAMPLE_EXTRACTION }, undefined, fakeVatPayerRegistry());
+  const warned = await createManualDocument(client, { companyId, payload: eligiblePayload }, undefined, fakeVatPayerRegistry());
   if (!warned.ok) throw new Error(warned.error);
   await page.goto(`/companies/${companyId}/documents/${warned.value.id}`);
   await page.getByLabel("Document number", { exact: true }).fill("WARNING-DIRTY-228");
@@ -80,29 +87,30 @@ test("Approve saves the current form fields and preserves refusals", async ({ pa
   expect((await getDocument(client, companyId, warned.value.id))?.status).toBe("approved");
   expect((await listExtractionVersions(client, companyId, warned.value.id)).at(-1)?.payload.totals.grossAmount).toBe("1212.00");
 
-  const conflict = await createManualDocument(client, { companyId, payload: SAMPLE_EXTRACTION }, undefined, fakeVatPayerRegistry());
+  const conflict = await createManualDocument(client, { companyId, payload: eligiblePayload }, undefined, fakeVatPayerRegistry());
   if (!conflict.ok) throw new Error(conflict.error);
   await page.goto(`/companies/${companyId}/documents/${conflict.value.id}`);
   await page.getByLabel("Document number", { exact: true }).fill("MY-UNSAVED-228");
-  expect((await correctDocument(client, { companyId, documentId: conflict.value.id, basedOnVersion: 1, payload: { ...SAMPLE_EXTRACTION, documentNumber: "OTHER-USER-228" } }, undefined, fakeVatPayerRegistry())).ok).toBe(true);
+  expect((await correctDocument(client, { companyId, documentId: conflict.value.id, basedOnVersion: 1, payload: { ...eligiblePayload, documentNumber: "OTHER-USER-228" } }, undefined, fakeVatPayerRegistry())).ok).toBe(true);
   await page.getByRole("button", { name: "Approve version 1", exact: true }).click();
   await expect(page.getByLabel("Document number", { exact: true })).toHaveValue("MY-UNSAVED-228");
   const comparison = page.getByRole("region", { name: "Compare current data", exact: true });
   await expect(comparison).toContainText("MY-UNSAVED-228");
   await expect(comparison).toContainText("OTHER-USER-228");
+  expect(translationErrors).toEqual([]);
   expect(await listExtractionVersions(client, companyId, conflict.value.id)).toHaveLength(2);
 
-  const staleSave = await createManualDocument(client, { companyId, payload: SAMPLE_EXTRACTION }, undefined, fakeVatPayerRegistry());
+  const staleSave = await createManualDocument(client, { companyId, payload: eligiblePayload }, undefined, fakeVatPayerRegistry());
   if (!staleSave.ok) throw new Error(staleSave.error);
   await page.goto(`/companies/${companyId}/documents/${staleSave.value.id}`);
   await page.getByLabel("Document number", { exact: true }).fill("MY-STALE-SAVE-228");
-  expect((await correctDocument(client, { companyId, documentId: staleSave.value.id, basedOnVersion: 1, payload: { ...SAMPLE_EXTRACTION, documentNumber: "CURRENT-SAVE-228" } }, undefined, fakeVatPayerRegistry())).ok).toBe(true);
+  expect((await correctDocument(client, { companyId, documentId: staleSave.value.id, basedOnVersion: 1, payload: { ...eligiblePayload, documentNumber: "CURRENT-SAVE-228" } }, undefined, fakeVatPayerRegistry())).ok).toBe(true);
   await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByRole("region", { name: "Compare current data", exact: true })).toContainText("CURRENT-SAVE-228");
   await expect(page.getByLabel("Document number", { exact: true })).toHaveValue("MY-STALE-SAVE-228");
   expect(await listExtractionVersions(client, companyId, staleSave.value.id)).toHaveLength(2);
 
-  const draft = await createManualDocument(client, { companyId, payload: SAMPLE_EXTRACTION }, undefined, fakeVatPayerRegistry());
+  const draft = await createManualDocument(client, { companyId, payload: eligiblePayload }, undefined, fakeVatPayerRegistry());
   if (!draft.ok) throw new Error(draft.error);
   await page.goto(`/companies/${companyId}/documents/${draft.value.id}`);
   await page.getByLabel("Document number", { exact: true }).fill("EXPLICIT-DRAFT-228");
@@ -130,6 +138,7 @@ test("Approve saves the current form fields and preserves refusals", async ({ pa
   await page.getByLabel("Total net", { exact: true }).fill("1100,00");
   await page.getByLabel("Total VAT", { exact: true }).fill("222,00");
   await page.getByLabel("Total incl. VAT", { exact: true }).fill("1322,00");
+  await page.getByRole("checkbox", { name: "I confirm the eligibility conditions were met in the selected period.", exact: true }).check();
   await page.getByRole("button", { name: "Approve version 2", exact: true }).click();
   await expect(page).toHaveURL(/\/documents(?:\?.*)?$/);
   expect((await getDocument(client, companyId, draft.value.id))?.status).toBe("approved");
@@ -137,7 +146,7 @@ test("Approve saves the current form fields and preserves refusals", async ({ pa
 
   const queueIds: string[] = [];
   for (const number of ["QUEUE-A-228", "QUEUE-B-228"]) {
-    const item = await createManualDocument(client, { companyId, payload: { ...SAMPLE_EXTRACTION, direction: "outgoing", documentNumber: number } }, undefined, fakeVatPayerRegistry());
+    const item = await createManualDocument(client, { companyId, payload: { ...eligiblePayload, direction: "outgoing", documentNumber: number } }, undefined, fakeVatPayerRegistry());
     if (!item.ok) throw new Error(item.error);
     queueIds.push(item.value.id);
   }

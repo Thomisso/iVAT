@@ -2459,7 +2459,9 @@ select:disabled {
 }
 
 .review-workspace .correction-form input[type="checkbox"] { width: auto; }
-.review-workspace fieldset:has(#earliest-claim-period) > .fields { display: flex; flex-direction: column; align-items: stretch; }
+.review-workspace fieldset:has(> .fields #earliest-claim-period) > .fields { display: flex; flex-direction: column; align-items: stretch; }
 .review-workspace fieldset:has(#earliest-claim-period) p { margin: 0; }
-.review-workspace fieldset:has(#earliest-claim-period) label:has(input[type="checkbox"]) { display: flex; align-items: start; gap: 8px; }
+.review-workspace fieldset:has(#earliest-claim-period) label:has(input[type="checkbox"]) { display: flex; flex-direction: row; align-items: start; gap: 8px; }
 .review-workspace .review-secondary[open] { width: 100%; }
+
+.review-error-summary li > button { display: block; max-width: 100%; }

@@ -1305,7 +1305,10 @@
     "otherDetails": "Další údaje dokladu",
     "errorSummary": "Chyby k opravě",
     "otherActions": "AI a další akce",
-    "requiredField": "Vyplňte toto pole."
+    "requiredField": "Vyplňte toto pole.",
+    "fullAmounts": "Plné částky",
+    "confirmed": "Potvrzeno",
+    "selectionConfirmation": "Potvrzení výběru"
   },
   "duplicateWarning": {
     "document_identity": "Možný duplikát: DIČ protistrany, číslo dokladu a směr se shodují se starším dokladem.",

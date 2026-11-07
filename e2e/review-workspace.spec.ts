@@ -50,11 +50,15 @@ test("a pending approval protects the draft until refusal, then permits a delibe
     await approve.click();
     await expect.poll(() => held).toBe(true);
     await expect(approve).toBeDisabled();
+    await expect(page.getByRole("group", { name: "Document decisions", exact: true }).getByRole("button", { name: "Reject", exact: true })).toBeDisabled({ timeout: 3_000 });
     await expect(type).toBeDisabled({ timeout: 3_000 });
     await expect(number).toBeDisabled({ timeout: 3_000 });
     await expect(page.getByLabel("Tax point date", { exact: true })).toBeDisabled({ timeout: 3_000 });
     await expect(page.getByRole("checkbox", { name: "Claim selected supplies", exact: true })).toBeDisabled({ timeout: 3_000 });
     await expect(page.getByRole("button", { name: "Add rate", exact: true })).toBeDisabled({ timeout: 3_000 });
+    await page.getByRole("navigation", { name: "Company navigation", exact: true }).getByRole("link", { name: "Documents", exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`${href}$`));
+    await expect(page.getByRole("dialog", { name: "Unsaved changes", exact: true })).toHaveCount(0);
   } finally {
     release();
   }
@@ -199,6 +203,9 @@ test("the laptop comparison desk resizes and scrolls independently while mobile 
   await page.getByRole("button", { name: "Show Source File", exact: true }).click();
   await expect(source).toBeVisible();
   await expect(data).toBeHidden();
+  await page.locator('[data-source-region="documentNumber"]').click();
+  await expect(number).toBeFocused({ timeout: 3_000 });
+  await expect(data).toBeVisible();
   await page.getByRole("button", { name: "Show document data", exact: true }).click();
   await expect(number).toHaveValue("MOBILE-KEEPS-229");
   await expect(actions.getByRole("button", { name: "Approve version 2", exact: true })).toBeInViewport();
@@ -207,6 +214,20 @@ test("the laptop comparison desk resizes and scrolls independently while mobile 
   const navBox = (await page.getByRole("navigation", { name: "Company navigation", exact: true }).boundingBox())!;
   expect(actionBox.y + actionBox.height).toBeLessThanOrEqual(navBox.y);
   await page.screenshot({ path: testInfo.outputPath("review-desk-mobile.png") });
+  await page.getByText("AI and other actions", { exact: true }).click();
+  await page.getByRole("checkbox", { name: /I understand that AI will replace/ }).check();
+  await page.getByRole("button", { name: "Run AI replacement", exact: true }).click();
+  const departure = page.getByRole("dialog", { name: "Unsaved changes", exact: true });
+  await expect(departure).toBeVisible({ timeout: 3_000 });
+  await departure.getByRole("button", { name: "Stay here", exact: true }).click();
+  await expect(number).toHaveValue("MOBILE-KEEPS-229");
+  expect((await getDocument(client, companyId, documentId))?.status).toBe("needs_review");
+  expect(await listExtractionVersions(client, companyId, documentId)).toHaveLength(2);
+  let browserWarning = "";
+  page.once("dialog", async warning => { browserWarning = warning.type(); await warning.dismiss(); });
+  await page.reload({ timeout: 3_000 }).catch(error => { if (!browserWarning) throw error; });
+  expect(browserWarning).toBe("beforeunload");
+  await expect(number).toHaveValue("MOBILE-KEEPS-229");
 });
 
 

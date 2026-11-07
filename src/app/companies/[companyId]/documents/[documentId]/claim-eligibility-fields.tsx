@@ -24,6 +24,9 @@ export function ClaimEligibilityFields({ payload, periods, editable, values }: {
     // DateInput commits its ISO hidden field in React's event handler. Observe
     // after that commit, rather than reading the preceding date at native bubble time.
     const read = () => {
+      // Native pending protection excludes disabled fields from FormData.
+      // It is not a human change to the eligibility basis.
+      if (form.getAttribute("aria-busy") === "true") return;
       const data = new FormData(form);
       const value = (key: string) => String(data.get(key) ?? "").trim() || null;
       const previous = observed.current;

@@ -66,7 +66,7 @@ export function CorrectionForm({
 }) {
   const t = useTranslations("review");
   const source = useSourceEvidence();
-  const draft = useReviewDraft();
+  const { register, settled } = useReviewDraft() ?? {};
   const workspace = useReviewWorkspace();
   const formId = useId();
   const form = useRef<HTMLFormElement>(null);
@@ -98,11 +98,16 @@ export function CorrectionForm({
     if (source && source.version !== base.version) source.acceptBase(base.payload, base.version, base.extractionVersionId ?? "");
   }, [source, base.payload, base.version, base.extractionVersionId]);
   useEffect(() => {
-    if (editable && form.current) return draft?.register(form.current);
-  }, [draft?.register, version, editable]);
+    if (editable && form.current) return register?.(form.current);
+  }, [register, version, editable]);
   useEffect(() => {
-    if (state.error !== null || state.savedVersion !== undefined) draft?.settled(state.savedVersion !== undefined && state.error === null);
-  }, [draft?.settled, state]);
+    if (state.error !== null || state.savedVersion !== undefined) settled?.(state.savedVersion !== undefined && state.error === null);
+  }, [settled, state]);
+  const setWorkspacePending = workspace?.setPending;
+  useEffect(() => {
+    setWorkspacePending?.(pending);
+    return () => setWorkspacePending?.(false);
+  }, [setWorkspacePending, pending]);
   const nextLine = Math.max(payload.rateBreakdown.length - 1, ...lines) + 1;
   const finding = (field: string) =>
     (state.findings ?? findings).find(
@@ -225,6 +230,34 @@ export function CorrectionForm({
     for (let parent = target?.parentElement; parent; parent = parent.parentElement) if (parent instanceof HTMLDetailsElement) parent.open = true;
     requestAnimationFrame(() => { target?.focus({ preventScroll: true }); target?.scrollIntoView({ block: "center" }); });
   };
+
+  const comparisonRows = state.conflict ? Object.entries(state.values).flatMap(([name, submitted]) => {
+    // Receipts, directory identities and validation bases are not editable fields.
+    if (["companyId", "documentId", "basedOnVersion", "requestId", "displayedBankAccountCheckId", "displayedReviewContext", "acknowledgement", "intent", "nextDocumentId", "queueQuery", "returnTo", "counterpartyId", "partialClaim.basis"].includes(name)) return [];
+    const currentPayload = state.conflict!.payload;
+    const path = name.replace(/^partialClaim\.(\d+)\./, "partialClaim.rateBreakdown.$1.");
+    const current = path.split(".").reduce<unknown>((entry, part) => entry !== null && typeof entry === "object" ? (entry as Record<string, unknown>)[part] : undefined, currentPayload);
+    let saved = current === null || current === undefined ? "" : String(current);
+    let entered = submitted;
+    let label = fieldLabel(name);
+    if (name === "claimEligibility") {
+      const describe = (claim: ExtractionPayload["claimEligibility"]) => !claim?.period ? t("notSet")
+        : `${claim.period} · ${claim.confirmed ? t(`claimEligibility.${claim.origin}`) : t("claimEligibility.unconfirmed")}`;
+      try { entered = describe(JSON.parse(submitted) as ExtractionPayload["claimEligibility"]); }
+      catch { entered = t("notSet"); }
+      saved = describe(currentPayload.claimEligibility);
+      label = t("claimEligibility.title");
+    } else if (name === "partialClaim.mode") {
+      label = t("partialClaim.title");
+      entered = submitted === "selected" ? t("partialClaim.enable") : t("fullAmounts");
+      saved = currentPayload.partialClaim ? t("partialClaim.enable") : t("fullAmounts");
+    } else if (name === "partialClaim.confirmed" || name === "partialClaim.zeroConfirmed") {
+      label = t(name.endsWith("zeroConfirmed") ? "partialClaim.zeroConfirm" : "selectionConfirmation");
+      entered = t(submitted === "true" ? "confirmed" : "claimEligibility.unconfirmed");
+      saved = t(current === true ? "confirmed" : "claimEligibility.unconfirmed");
+    }
+    return entered === saved ? [] : [{ name, label, entered: entered || t("notSet"), saved: saved || t("notSet") }];
+  }) : [];
 
 
   return (
@@ -446,13 +479,7 @@ export function CorrectionForm({
             <StatusBadge status={statusBadgeState(state.conflict.status, "document")} />
             <p>{t("submittedNotSaved")}</p>
             <table><thead><tr><th>{t("comparisonField")}</th><th>{t("submittedValue")}</th><th>{t("currentValue")}</th></tr></thead>
-              <tbody>{Object.entries(state.values).filter(([name]) => !["companyId", "documentId", "basedOnVersion", "requestId", "displayedBankAccountCheckId", "acknowledgement", "intent", "nextDocumentId", "queueQuery", "returnTo"].includes(name)).map(([name, submitted]) => {
-                const current = name.split(".").reduce<unknown>((entry, part) => entry !== null && typeof entry === "object" ? (entry as Record<string, unknown>)[part] : undefined, state.conflict!.payload);
-                const saved = current === null || current === undefined ? "" : String(current);
-                const labels: Record<string, string> = { proposedVatRegime: "vatRegime", "totals.netAmount": "totalNet", "totals.vatAmount": "totalVat", "totals.grossAmount": "totalGross" };
-                const label = labels[name] ?? name.split(".").at(-1)!;
-                return submitted !== saved ? <tr key={name}><th>{t(`fields.${label}`)}</th><td>{submitted || t("notSet")}</td><td>{saved || t("notSet")}</td></tr> : null;
-              })}</tbody>
+              <tbody>{comparisonRows.map(row => <tr key={row.name}><th>{row.label}</th><td>{row.entered}</td><td>{row.saved}</td></tr>)}</tbody>
             </table>
           </section>}
           <ReviewActions kind="save"><Button form={formId} type="submit" name="intent" value="save" disabled={pending}>
