@@ -5,15 +5,26 @@ iVAT uses Supabase Auth's server-side PKCE flow. The browser returns to
 
 ## Local setup
 
-1. In Google Auth Platform, create an OAuth 2.0 client with application type
-   **Web application**.
-2. Add the URL where Next.js runs as an authorized JavaScript origin, normally
-   `http://127.0.0.1:3000` (or the free port used by a worktree, such as `3100`).
+Apply the [CLI process and evidence rules](agents/cli-processes.md). Optional
+Google setup consumes an existing OAuth Web application client and its secret;
+it is not a prerequisite for ordinary email/password development or tests.
+
+1. Obtain the existing client id, protected client secret and configured
+   origin/redirect identifiers as text or secret-store input. This runbook does
+   not establish a supported non-GUI API for creating Google Web application
+   clients. If that resource is missing, report that precise capability/input
+   gap; do not direct anyone to Google Auth Platform or start a browser flow.
+2. Confirm the existing client's authorized JavaScript origins include the
+   actual Next.js URL, normally `http://127.0.0.1:3000` or the worktree's free
+   port such as `3100`. Use provider readback from a supported authenticated
+   CLI/API when available; a supplied identifier alone is not configuration proof.
 3. Start the checkout's Supabase stack once with `npm run db:start`, then run
-   `node scripts/supabase.mjs status -o json`. Add the reported `API_URL` plus
-   `/auth/v1/callback` as an authorized redirect URI in Google. The main
-   checkout normally uses `http://127.0.0.1:54321/auth/v1/callback`; worktrees
-   intentionally use a different port.
+   `node scripts/supabase.mjs status -o json`. The existing client's authorized
+   redirects must include the reported `API_URL` plus `/auth/v1/callback`.
+   The main checkout normally uses `http://127.0.0.1:54321/auth/v1/callback`;
+   worktrees intentionally use a different port. Change provider allowlists
+   only through a currently supported CLI/API verified against its contract;
+   otherwise report the missing capability and retain setup as unverified.
 4. Create a gitignored `.env` at the repository root:
 
    ```dotenv
@@ -34,9 +45,13 @@ Google and confirm that public signup is disabled. Missing settings, errors and
 unsafe signup configuration hide the option; direct actions enforce the same
 condition. Never enable the provider with example or placeholder credentials.
 
-For a hosted Supabase project, enable Google in the project's Auth provider
-settings, enter the same client credentials, and allow the deployed
-`https://<app-host>/auth/callback` URL.
+For a hosted Supabase project, use the existing project reference, authorized
+management credential and a supported Auth-configuration API to enable Google,
+supply the same client credentials and allow the exact deployed
+`https://<app-host>/auth/callback` URL. Verify that API's current primary contract
+before issuing a write, and read back non-secret configuration. If that interface
+or access is unavailable, report the exact missing capability/input; do not
+redirect anyone to project Auth settings. Never expose the client secret.
 
 For self-hosted Compose, the default is also disabled. Set
 `SUPABASE_AUTH_EXTERNAL_GOOGLE_ENABLED=true` and the existing client-id/secret
