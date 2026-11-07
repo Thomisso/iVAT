@@ -73,6 +73,14 @@ export type PartialClaim = {
 };
 
 export type ExtractionPayload = {
+  /** Human accounting confirmation or the accepted same-period rule; never AI authority. */
+  claimEligibility?: {
+    period: string;
+    origin: "user" | "same_period";
+    confirmed: boolean;
+    basis?: { documentType: DocumentType | null; direction: Direction | null; proposedVatRegime: VatRegime | null;
+      taxPointDate: string | null; issueDate: string | null; sourceFileId: string | null; importDate: string | null };
+  };
   schemaVersion: 1 | 2;
   documentType: DocumentType | null;
   documentNumber: string | null;
