@@ -227,3 +227,66 @@ it("keeps an unapproved excluded Document distinct from a fresh deduction when e
     expect(exported).toMatchObject({ ok: true, value: { xml: expect.stringContaining('odp_tuz23_nar="0"') } });
   });
 });
+
+it("records a confirmed zero choice after expiry without a fictitious deduction while positive claims still expire", async () => {
+  await withClaimDate(inject("databaseUrl"), "2027-12-31", async clock => {
+    const { getDocumentReview } = await import("@/application/document-review");
+    const { listDeferredClaimPeriods, returnDocumentToReview, updateDocumentReporting } = await import("@/application/documents");
+    const { generateVatReport, getVatReport } = await import("@/application/vat-reports");
+    const { exportVatReport, readVatReportArtifact } = await import("@/application/epo-export");
+    const user = await administratorWithCompany();
+    for (const year of [2025, 2027]) await setCurrentReportingYear(user.client, { companyId: user.companyId, year, filingFrequency: "monthly" });
+    const create = async (documentNumber: string, zero: boolean) => {
+      const created = await createManualDocument(user.client, { companyId: user.companyId, payload: {
+        ...SAMPLE_EXTRACTION, documentNumber, taxPointDate: "2025-05-26", issueDate: "2025-05-26",
+        claimEligibility: { period: "2025-05", origin: "user", confirmed: true },
+        partialClaim: zero ? { confirmed: true, zeroConfirmed: true, rateBreakdown: [
+          { rate: 21, netAmount: "0.00", vatAmount: "0.00" },
+        ] } : undefined,
+      } }, fakeExchangeRates(), fakeVatPayerRegistry());
+      if (!created.ok) throw new Error(created.error);
+      return { companyId: user.companyId, documentId: created.value.id, version: 1 };
+    };
+    const details = {
+      taxOffice: "451", territorialOffice: "2003", economicActivity: "621000", personType: "P", preparedOn: "2027-12-31",
+      email: "qa@example.test", phone: "", signatoryFirstName: "Jana", signatoryLastName: "Nováková", signatoryCapacity: "jednatelka",
+    };
+    const archivedZero = await create("ZERO-ARCHIVED-238", true);
+    expect(await approveDocument(user.client, archivedZero)).toEqual({ ok: true, value: null });
+    expect(await generateVatReport(user.client, { companyId: user.companyId, period: "2025-05" })).toMatchObject({ ok: true });
+    const originalReport = await getVatReport(user.client, user.companyId, "2025-05");
+    const archived = await exportVatReport(user.client, { companyId: user.companyId, period: "2025-05", format: "dphdp3", details });
+    if (!archived.ok) throw new Error(archived.error);
+    const originalArtifact = await readVatReportArtifact(user.client, { companyId: user.companyId, artifactId: archived.value.artifactId });
+
+    await clock.setDate("2028-01-01");
+    const zero = await create("ZERO-AFTER-CUTOFF-238", true);
+    const positive = await create("POSITIVE-AFTER-CUTOFF-238", false);
+    const zeroOptions = await listDeferredClaimPeriods(user.client, zero.companyId, zero.documentId);
+    // The first RED must be the real approval of an otherwise-valid zero choice.
+    expect(await approveDocument(user.client, zero)).toEqual({ ok: true, value: null });
+    expect(await approveDocument(user.client, positive)).toEqual({ ok: false, error: "claim_deadline_expired" });
+    expect((await user.client.rpc("approve_document", { target_document_id: positive.documentId, reviewed_version: 1 })).error)
+      .toMatchObject({ code: "P0001", hint: "claim_deadline_expired" });
+    expect((await getDocumentReview(user.client, zero))?.shownFindings.some(finding => finding.code === "claim_deadline_expired" || finding.code === "claimed_period_after_deadline")).toBe(false);
+    expect(zeroOptions).toContain("2027-12");
+    // Explicitly recording zero in December does not claim a late deduction.
+    expect(await returnDocumentToReview(user.client, zero)).toEqual({ ok: true, value: null });
+    expect(await updateDocumentReporting(user.client, { ...zero, claimedReportingPeriod: "2027-12" })).toEqual({ ok: true, value: null });
+    expect(await approveDocument(user.client, zero)).toEqual({ ok: true, value: null });
+    expect(await generateVatReport(user.client, { companyId: user.companyId, period: "2027-12" })).toMatchObject({ ok: true });
+    const report = await getVatReport(user.client, user.companyId, "2027-12");
+    expect(report?.result.totals.inputVat).toBe("0.00");
+    expect(report?.result.controlStatement).toEqual([]);
+    expect(report?.result.excludedDocuments).toEqual([]);
+    for (const format of ["dphdp3", "dphkh1"]) {
+      const exported = await exportVatReport(user.client, { companyId: user.companyId, period: "2027-12", format, details: { ...details, preparedOn: "2028-01-01" } });
+      if (!exported.ok) throw new Error(exported.error);
+      if (format === "dphdp3") expect(exported.value.xml).toContain('odp_tuz23_nar="0"');
+      else expect(exported.value.xml).not.toMatch(/<VetaB[123]\b/);
+    }
+    expect(await getVatReport(user.client, user.companyId, "2025-05")).toEqual(originalReport);
+    expect(await readVatReportArtifact(user.client, { companyId: user.companyId, artifactId: archived.value.artifactId })).toEqual(originalArtifact);
+    expect(await getDocument(user.client, positive.companyId, positive.documentId)).toMatchObject({ status: "needs_review" });
+  });
+});
