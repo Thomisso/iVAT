@@ -1,4 +1,5 @@
 import { SourceEvidenceProvider } from "./source-evidence-context";
+import { ImageSourceViewer } from "./image-source-viewer";
 import { PdfSourceViewer } from "./pdf-source-viewer";
 import { getDocumentReview } from "@/application/document-review";
 import Link from "next/link";
@@ -165,7 +166,7 @@ export default async function DocumentReviewPage({
           ))}
         </header>
         <section className="review-original">
-          {file?.format === "pdf" && !document.rowSet ? <PdfSourceViewer href={contentUrl} label={file.fileName} firstPage={document.firstPage!} lastPage={document.lastPage!} /> : file ? <DocumentViewer label={file.fileName}>
+          {file?.format === "pdf" && !document.rowSet ? <PdfSourceViewer href={contentUrl} label={file.fileName} firstPage={document.firstPage!} lastPage={document.lastPage!} /> : file && !document.rowSet && (["png", "jpeg"].includes(file.format) || file.normalizedDerivative) ? <ImageSourceViewer href={contentUrl} label={file.fileName} /> : file ? <DocumentViewer label={file.fileName}>
             {document.rowSet ? (
               <div className="workbook-source">
                 <Notice>{t("review.noDocumentImage")}</Notice>
