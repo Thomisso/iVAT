@@ -53,20 +53,31 @@ end;
 $$;
 revoke all on function private.claim_last_filing_date(uuid, jsonb) from public, anon, authenticated, service_role;
 
+-- Shared feasibility for both confirmed claims and period selection before
+-- Earliest Claim Period confirmation. The trusted clock stays inside this seam.
+create function private.claim_deadline_error(deadline date, chosen_period text)
+returns text language plpgsql stable security definer set search_path = '' as $$
+declare chosen_start date;
+begin
+  if deadline is null then return null; end if;
+  if private.current_business_date() > deadline then return 'claim_deadline_expired'; end if;
+  chosen_start := private.reporting_period_start(chosen_period);
+  if (chosen_start + case when chosen_period like '%-Q%' then interval '3 months' else interval '1 month' end)::date > deadline
+    then return 'claimed_period_after_deadline'; end if;
+  return null;
+end;
+$$;
+revoke all on function private.claim_deadline_error(date, text) from public, anon, authenticated, service_role;
+
 alter function private.document_eligibility_error(uuid, uuid, jsonb, text) rename to document_eligibility_error_before_deadline;
 create function private.document_eligibility_error(target_company_id uuid, target_document_id uuid, candidate jsonb, claimed_period text)
 returns text language plpgsql stable security definer set search_path = '' as $$
-declare refusal text; deadline date; chosen_start date; chosen_period text;
+declare refusal text; chosen_period text;
 begin
   refusal := private.document_eligibility_error_before_deadline(target_company_id, target_document_id, candidate, claimed_period);
   if refusal is not null then return refusal; end if;
-  deadline := private.claim_last_filing_date(target_company_id, candidate);
-  if deadline is not null and private.current_business_date() > deadline then return 'claim_deadline_expired'; end if;
   chosen_period := coalesce(claimed_period, private.reporting_period_for_date(target_company_id, (candidate ->> 'taxPointDate')::date));
-  chosen_start := private.reporting_period_start(chosen_period);
-  if deadline is not null and (chosen_start + case when chosen_period like '%-Q%' then interval '3 months' else interval '1 month' end)::date > deadline
-    then return 'claimed_period_after_deadline'; end if;
-  return null;
+  return private.claim_deadline_error(private.claim_last_filing_date(target_company_id, candidate), chosen_period);
 end;
 $$;
 revoke all on function private.document_eligibility_error(uuid, uuid, jsonb, text) from public, anon, authenticated, service_role;
@@ -263,7 +274,7 @@ $$;
 -- Period feasibility does not depend on whether possession was confirmed yet.
 create or replace function public.update_document_reporting(target_document_id uuid, new_claimed_reporting_period text)
 returns void language plpgsql security definer set search_path = '' as $$
-declare doc public.document; candidate jsonb; refusal text; deadline date; claimed_start date;
+declare doc public.document; candidate jsonb; refusal text;
 begin
   select * into doc from public.document where id = target_document_id;
   if not found or not private.can_access_company(doc.company_id, doc.organization_id) then raise insufficient_privilege; end if;
@@ -280,13 +291,12 @@ begin
     raise exception 'shared deferral is not supported for this Document' using errcode = 'P0001', hint = 'deferred_claim_not_supported';
   end if;
   if new_claimed_reporting_period is not null and private.ordinary_domestic_claim(candidate) then
-    deadline := private.claim_last_filing_date(doc.company_id, candidate);
-    claimed_start := private.reporting_period_start(new_claimed_reporting_period);
-    if private.current_business_date() > deadline then
-      raise exception 'claim filing deadline expired' using errcode = 'P0001', hint = 'claim_deadline_expired';
+    refusal := private.claim_deadline_error(private.claim_last_filing_date(doc.company_id, candidate), new_claimed_reporting_period);
+    if refusal = 'claim_deadline_expired' then
+      raise exception 'claim filing deadline expired' using errcode = 'P0001', hint = refusal;
     end if;
-    if (claimed_start + case when new_claimed_reporting_period like '%-Q%' then interval '3 months' else interval '1 month' end)::date > deadline then
-      raise exception 'ordinary period ends after the claim cutoff' using errcode = 'P0001', hint = 'claimed_period_after_deadline';
+    if refusal = 'claimed_period_after_deadline' then
+      raise exception 'ordinary period ends after the claim cutoff' using errcode = 'P0001', hint = refusal;
     end if;
   end if;
   if candidate #>> '{claimEligibility,confirmed}' = 'true' and private.ordinary_domestic_claim(candidate) then
