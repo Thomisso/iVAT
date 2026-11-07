@@ -1,3 +1,5 @@
+import { setOctoberImportFixture } from "./support/claim-eligibility";
+import { createConfirmedManualDocument } from "./support/claim-eligibility";
 import { readFileSync } from "node:fs";
 import { PDFDocument } from "pdf-lib";
 import { Client as DatabaseClient } from "pg";
@@ -5,7 +7,6 @@ import { describe, expect, inject, it } from "vitest";
 import { listAuditEvents } from "@/application/audit";
 import {
   approveDocument,
-  createManualDocument,
   listDeferredClaimPeriods,
   correctDocument,
   getDocument,
@@ -50,6 +51,7 @@ async function documentInReview(extraction: ExtractionPayload = SAMPLE_EXTRACTIO
     bytes: fixtureFile("receipt.png"),
   });
   if (!uploaded.ok) throw new Error(uploaded.error);
+  await setOctoberImportFixture(uploaded.value.id);
   await worker.runJobs();
   const [document] = await listDocuments(admin.client, admin.companyId, uploaded.value.id);
   return { ...admin, worker, sourceFileId: uploaded.value.id, documentId: document.id };
@@ -212,7 +214,10 @@ describe("correcting a Document", () => {
       [1, { kind: "ai" }],
       [2, { kind: "user", userId }],
     ]);
-    expect(versions[0].payload).toEqual(SAMPLE_EXTRACTION);
+    expect(versions[0].payload).toEqual({ ...SAMPLE_EXTRACTION, claimEligibility: {
+      period: "2026-10", origin: "same_period", confirmed: true,
+      basis: { documentType: "invoice", direction: "incoming", proposedVatRegime: "domestic", taxPointDate: "2026-10-01", issueDate: "2026-10-01", sourceFileId: expect.any(String), importDate: "2026-10-10" },
+    } });
     expect(versions[1].payload).toEqual({ ...CORRECTED, confidence: undefined });
     expect(versions[1].payload).not.toHaveProperty("confidence");
   });
@@ -491,7 +496,7 @@ describe("approving and rejecting a Document", () => {
       rateBreakdown: [{ rate: 21, netAmount: "8264.46", vatAmount: "1735.54" }],
       totals: { netAmount: "8264.46", vatAmount: "1735.54", grossAmount: "10000.00" },
     };
-    const created = await createManualDocument(user.client, { companyId: administrator.companyId, payload });
+    const created = await createConfirmedManualDocument(user.client, { companyId: administrator.companyId, payload });
     if (!created.ok) throw new Error(created.error);
     const input = { companyId: administrator.companyId, documentId: created.value.id };
     expect((await listExtractionVersions(user.client, input.companyId, input.documentId))[0].findings)
@@ -549,7 +554,7 @@ describe("approving and rejecting a Document", () => {
         rateBreakdown: [{ rate: 21, netAmount, vatAmount }],
         totals: { netAmount, vatAmount, grossAmount },
       };
-      const created = await createManualDocument(user.client, { companyId: administrator.companyId, payload }, fakeExchangeRates("25.00"));
+      const created = await createConfirmedManualDocument(user.client, { companyId: administrator.companyId, payload }, fakeExchangeRates("25.00"));
       if (!created.ok) throw new Error(created.error);
       const input = { companyId: administrator.companyId, documentId: created.value.id };
       const [version] = await listExtractionVersions(user.client, input.companyId, input.documentId);
@@ -576,7 +581,7 @@ describe("approving and rejecting a Document", () => {
   it.each(["domestic_reverse_charge", "eu_acquisition_of_goods", "eu_received_service"] as const)("retains the mandatory supplier VAT ID for %s below the ordinary threshold", async proposedVatRegime => {
     const administrator = await administratorWithCompany();
     const payload: ExtractionPayload = { ...SAMPLE_EXTRACTION, proposedVatRegime, reverseChargeCode: "4", supplier: { ...SAMPLE_EXTRACTION.supplier, vatId: null } };
-    const created = await createManualDocument(administrator.client, { companyId: administrator.companyId, payload });
+    const created = await createConfirmedManualDocument(administrator.client, { companyId: administrator.companyId, payload });
     if (!created.ok) throw new Error(created.error);
     expect(await approveDocument(administrator.client, { companyId: administrator.companyId, documentId: created.value.id, version: 1 }))
       .toEqual({ ok: false, error: "counterparty_vat_id_required" });
@@ -594,7 +599,7 @@ describe("approving and rejecting a Document", () => {
       supplier: SAMPLE_EXTRACTION.customer,
       customer: { ...SAMPLE_EXTRACTION.supplier, vatId: null },
     };
-    const created = await createManualDocument(user.client, { companyId: administrator.companyId, payload });
+    const created = await createConfirmedManualDocument(user.client, { companyId: administrator.companyId, payload });
     if (!created.ok) throw new Error(created.error);
     const input = { companyId: administrator.companyId, documentId: created.value.id };
     expect((await listExtractionVersions(user.client, input.companyId, input.documentId))[0].findings)
@@ -1007,6 +1012,7 @@ describe("the Document list", () => {
         bytes: fixtureFile("receipt.png"),
       });
       if (!uploaded.ok) throw new Error(uploaded.error);
+  await setOctoberImportFixture(uploaded.value.id);
       sourceFileIds.push(uploaded.value.id);
     }
     await worker.runJobs();
@@ -1150,6 +1156,7 @@ describe("the review workspace", () => {
       bytes: fixtureFile("two-invoices.pdf"),
     });
     if (!uploaded.ok) throw new Error(uploaded.error);
+  await setOctoberImportFixture(uploaded.value.id);
     await worker.runJobs();
     const [, second] = await listDocuments(client, companyId, uploaded.value.id);
 

@@ -1,4 +1,5 @@
 import type { ReportingYear } from "./companies";
+import { claimEligibilityFinding } from "./claim-eligibility";
 import type { AppClient } from "./client";
 import { currentValidationFindings, type ValidationFinding } from "./document-validation";
 import { omitZeroRateBreakdownRows } from "./extraction-payload";
@@ -39,7 +40,8 @@ export function prepareDocumentReporting(
     : period === null ? "no_reporting_period"
     : selectedPeriod && selectedPeriod !== period ? "different_reporting_period"
     : vatReportDocumentExclusion({ ...document, payload });
-  const findings = payload ? currentValidationFindings(payload, storedFindings) : [];
+  const eligibility = claimEligibilityFinding(document, reportingYears);
+  const findings = [...(payload ? currentValidationFindings(payload, storedFindings).filter(finding => finding.code !== eligibility?.code) : []), ...(eligibility ? [eligibility] : [])];
   return {
     period, included: exclusionReason === null, exclusionReason,
     exclusionDetail: exclusionReason === "incomplete_data" && payload && missingRequiredReportingVatId(payload) ? "counterparty_vat_id_required" : null,

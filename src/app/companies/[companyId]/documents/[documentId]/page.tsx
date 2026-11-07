@@ -31,6 +31,8 @@ import { ExclusionForm } from "./exclusion-form";
 import { CorrectionForm } from "./correction-form";
 import { findingMessage } from "./finding-message";
 import { ReportingAssignmentForm } from "./reporting-assignment-form";
+import { reportingPeriodsOf } from "@/application/reporting-periods";
+import { ordinaryDomesticClaim } from "@/application/claim-eligibility";
 import { companyPageContext, safeCompanyReturnTo, withCompanyReturnTo } from "@/application/return-context";
 import { AttachDocumentSourceForm, DocumentAiReplacementForm } from "./source-attachment-form";
 import { CompanyReturnLink } from "@/components/company-return-link";
@@ -239,8 +241,11 @@ export default async function DocumentReviewPage({
               extractionVersionId={shown.id}
               requestId={randomUUID()}
               displayedBankAccountCheckId={bankChecks.current?.id ?? null}
+              displayedReviewContext={review.displayedReviewContext}
+              currentCounterparty={viewingRecorded ? null : review.currentCounterparty}
               decision={{ nextDocumentId: position.continuationDocumentId ?? "", queueQuery, returnTo: returnTo ?? "" }}
               payload={shown.payload}
+              claimPeriods={reportingPeriodsOf(review.reportingYears)}
               findings={shownFindings}
               editable={reviewing && !viewingRecorded}
               aiProposed={
@@ -248,11 +253,11 @@ export default async function DocumentReviewPage({
               }
             />
           ) : document.status === "needs_review" && !lockedPeriod ? (
-            <CorrectionForm companyId={companyId} documentId={document.id} version={0} requestId={randomUUID()} displayedBankAccountCheckId={bankChecks.current?.id ?? null} decision={{ nextDocumentId: position.continuationDocumentId ?? "", queueQuery, returnTo: returnTo ?? "" }} payload={emptyDocumentPayload()} findings={[]} editable aiProposed={false} />
+            <CorrectionForm companyId={companyId} documentId={document.id} version={0} requestId={randomUUID()} displayedBankAccountCheckId={bankChecks.current?.id ?? null} decision={{ nextDocumentId: position.continuationDocumentId ?? "", queueQuery, returnTo: returnTo ?? "" }} payload={emptyDocumentPayload()} findings={[]} editable aiProposed={false} claimPeriods={reportingPeriodsOf(review.reportingYears)} />
           ) : (
             <EmptyState icon="file" title={t("review.noExtraction")} />
           )}
-          {current?.payload.direction === "incoming" && (
+          {reviewing && !viewingRecorded && current && (ordinaryDomesticClaim(current.payload) || document.claimedReportingPeriod) && (
             <ReportingAssignmentForm
               companyId={companyId}
               documentId={document.id}
