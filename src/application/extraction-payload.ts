@@ -91,7 +91,7 @@ export type ExtractionPayload = {
   dueDate: string | null;
   direction: Direction | null;
   /** Existing directory identity and its then-current details; never replaces Party fields. */
-  counterpartyLink?: { id: string; recorded?: Party };
+  counterpartyLink?: { id: string; recorded?: Party } | null;
   supplier: Party;
   customer: Party;
   /** ISO 4217, e.g. "CZK". */
