@@ -18,6 +18,7 @@ function hostFixture(t, identity = {}) {
   assert.equal(repo.run("start", "--run", "host-recovery").status, 0);
   const common = path.resolve(repo.directory, repo.git("rev-parse", "--git-common-dir"), "agent-tracker");
   const directory = path.join(common, fs.readdirSync(common)[0], "lock");
+  if (identity.retirementGate) fs.writeFileSync(settingsFile, JSON.stringify({ ...JSON.parse(fs.readFileSync(settingsFile, "utf8")), lock: path.join(fs.realpathSync(path.dirname(directory)), "lock") }));
   return { ...repo, lock: directory, settingsFile };
 }
 
@@ -104,8 +105,8 @@ async function waitFor(predicate) {
   }
 }
 
-test("concurrent Mac alias reclaimers retain one live lock and one durable claim", async t => {
-  const repo = hostFixture(t, { gate: true });
+async function concurrentReclaim(t, retirementGate = false) {
+  const repo = hostFixture(t, { gate: true, retirementGate });
   const linked = repo.linked();
   repo.updateRemote(remote => { remote.deferDispatch = true; });
   installLock(repo, deadPid());
@@ -122,6 +123,13 @@ test("concurrent Mac alias reclaimers retain one live lock and one durable claim
   // Both commands have read the same retired alias owner before either can elect a reclaimer.
   await waitFor(() => fs.readdirSync(path.dirname(repo.settingsFile)).filter(name => name.endsWith(".ready")).length === 2);
   fs.writeFileSync(`${repo.settingsFile}.release`, "");
+  if (retirementGate) {
+    await waitFor(() => fs.existsSync(`${repo.settingsFile}.retired`) && clients.some(client => client.exited));
+    const refused = clients.find(client => client.exited);
+    assert.equal(refused.code, 1, refused.stderr);
+    assert.equal(JSON.parse(refused.stderr).error, "local_run_busy");
+    fs.writeFileSync(`${repo.settingsFile}.continue`, "");
+  }
   await waitFor(() => repo.remote().dispatches.length === 2 && clients.some(client => client.exited));
   const loser = clients.find(client => client.exited);
   assert.equal(loser.code, 1, loser.stderr);
@@ -143,4 +151,7 @@ test("concurrent Mac alias reclaimers retain one live lock and one durable claim
   assert.equal(state.remote.tickets[201].status, "implementing");
   assert.equal(state.remote.tickets[201].agent, winner.agent);
   assert.equal(fs.existsSync(repo.lock), false);
-});
+}
+
+test("concurrent Mac alias reclaimers retain one live lock and one durable claim", t => concurrentReclaim(t));
+test("a reclaimer losing its parent during election refuses without replacing the winner", t => concurrentReclaim(t, true));
