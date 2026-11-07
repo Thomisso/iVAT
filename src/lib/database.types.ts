@@ -1029,6 +1029,9 @@ isOneToOne: false
 "approve_document":
 { Args: { "reviewed_version": number,"target_document_id": string }; Returns: undefined
                            },
+"archive_counterparty":
+{ Args: { "target_company_id": string,"target_counterparty_id": string }; Returns: undefined
+                           },
 "assign_company_ai_configuration":
 { Args: { "target_company_id": string,"target_configuration_id": string }; Returns: undefined
                            },
@@ -1182,6 +1185,9 @@ isOneToOne: false
                            },
 "delete_company_reporting_year":
 { Args: { "target_company_id": string,"target_year": number }; Returns: undefined
+                           },
+"delete_counterparty":
+{ Args: { "target_company_id": string,"target_counterparty_id": string }; Returns: undefined
                            },
 "delete_upload_batch":
 { Args: { "target_batch_id": string }; Returns: (string)[]
@@ -1412,6 +1418,9 @@ isOneToOne: false
 "restore_ai_processing_allowance_wait":
 { Args: { "target_company_id": string,"target_document_ids": (string)[] }; Returns: undefined
                            },
+"restore_counterparty":
+{ Args: { "target_company_id": string,"target_counterparty_id": string }; Returns: undefined
+                           },
 "restore_document":
 { Args: { "target_document_id": string }; Returns: undefined
                            },
@@ -1448,7 +1457,7 @@ isOneToOne: false
 { Args: { "computed_result": Json,"expected_documents": Json,"target_company_id": string,"target_period": string }; Returns: string
                            },
 "search_counterparties":
-{ Args: { "directory_role"?: string,"search_text"?: string,"target_company_id": string }; Returns: {
+{ Args: { "directory_role"?: string,"directory_state"?: string,"search_text"?: string,"target_company_id": string }; Returns: {
               "archived_at": string | null,
 "city": string,
 "company_id": string,
