@@ -1,6 +1,6 @@
 # Document review acceptance (#222 / #242)
 
-This inventory maps A01–A33 to observable acceptance sources in the combined implementation. A file's presence is not a passing execution result. Final shared checks and independent Standards/Spec review must identify their actual resulting revision. Browser case references below are source references; they do not claim a browser was run during #242.
+This inventory maps A01–A33 to observable acceptance sources in the combined implementation. A file's presence is not a passing execution result. Final shared checks and independent Standards/Spec review must identify their actual resulting revision. Retained browser case references below are historical/source inventory; project policy forbids executing them, including headless CLI/CI. They do not claim a browser was run during #242.
 
 The new acceptance uses real local Auth/RLS and existing public application commands/queries. `tests/document-review-composition.test.ts` joins evidence, human eligibility, Partial Claim, directory selection, warning acknowledgement, atomic replay, filtered queue continuation and saved report/history in one Company User journey. It does not establish visual layout, focus, Inspect rendering or browser navigation.
 
@@ -39,6 +39,20 @@ The new acceptance uses real local Auth/RLS and existing public application comm
 | A31 | `tests/extraction-preparation.test.ts`, `tests/ai-processing-failures.test.ts`, processing/manual-source-AI suites: three public entry paths, real job handler, retry/platform/final distinctions, request generation and usage preservation. |
 | A32 | Review/bank-advisory suites and actual upgrade: current versus recorded findings, late previous-Version result isolation, readable legacy Versions/reports without invented metadata. |
 | A33 | Reviewed documentation commit `085ec43c34fe2f0651e0491884423a6ae0ed6f45` contains the seven approved artifacts. Preserve its ancestry and original manifest evidence; later intentional edits require applicable review. |
+
+## CLI HTTP runtime sources
+
+The production command is `npm run test:http`; its actual build/runtime results belong to the checked merged revision. This source map makes no runtime-pass attestation. The runner uses real Auth/database/worker paths and local dependency stand-ins, and never executes the retained browser inventory.
+
+| Source | Observable HTTP/application scope |
+| --- | --- |
+| `acceptance/auth-http.test.ts` | Localized login SSR, independent liveness/Auth dependency responses, actual Auth cookies, member/foreign-Organization refusals and real ARES adapter against its local stand-in. |
+| `acceptance/documents-http.test.ts` | Public upload routes and durable worker terminal state, current/recorded SSR values, protected original/page bytes and headers, nonexistent recorded Version and tenant refusals. |
+| `acceptance/reports-http.test.ts` | Literal draft/final XML responses, stale/premature export refusal, real Finalization/unlock, immutable archived artifact bytes/digests and tenant/period boundaries. |
+| `acceptance/transport-http.test.ts` | Private real-Auth transport, dependency-fault refusal/recovery, independent liveness and fail-closed session behavior. |
+| `scripts/tests/ci-policy.test.mjs`, `scripts/tests/http-acceptance-policy.test.mjs` | Static profile/gate and browser-free execution policy checks; these establish no application runtime outcome. |
+
+HTTP/SSR and application results do not establish hydration, clickable error-summary behavior, focus, shortcuts, responsive layout, Inspect rendering, accessibility or visual correctness. Keep those distinctions when recording actual check applicability and historical evidence.
 
 ## Actual upgrade procedure
 
