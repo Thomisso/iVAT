@@ -59,16 +59,26 @@ export async function getCounterparty(client: AppClient, companyId: string, id: 
   if (error) throw error;
   return data ? counterparty(data) : null;
 }
-export type CounterpartyFilters = { state?: "active" | "archived"; search?: string; role?: "supplier" | "customer"; page?: number; pageSize?: number };
+export type CounterpartyFilters = { identifiers?: { ico?: string; vatId?: string }; state?: "active" | "archived"; search?: string; role?: "supplier" | "customer"; page?: number; pageSize?: number };
 export type CounterpartyPage = { entries: Counterparty[]; total: number; page: number; pageSize: number; pageCount: number };
 export async function listCounterparties(client: AppClient, companyId: string, input: CounterpartyFilters = {}): Promise<CounterpartyPage> {
   const page = Number.isFinite(input.page) ? Math.max(1, Math.trunc(input.page!)) : 1;
   const pageSize = Number.isFinite(input.pageSize) ? Math.min(100, Math.max(1, Math.trunc(input.pageSize!))) : 50;
   if (!isUuid(companyId)) return { entries: [], total: 0, page, pageSize, pageCount: 1 };
   const from = (page - 1) * pageSize;
-  const { data, error, count } = await client.rpc("search_counterparties", {
+  const ico = input.identifiers?.ico?.replace(/\s/g, "") ?? "";
+  const vatId = input.identifiers?.vatId?.replace(/\s/g, "").toUpperCase() ?? "";
+  // Only validated identifier characters enter PostgREST's OR expression.
+  const identifiers = [
+    /^\d{8}$/.test(ico) ? `ico.eq.${ico}` : null,
+    /^[A-Z]{2}[A-Z0-9]{2,14}$/.test(vatId) ? `vat_id.eq.${vatId}` : null,
+  ].filter((value): value is string => value !== null);
+  if (input.identifiers && identifiers.length === 0) return { entries: [], total: 0, page, pageSize, pageCount: 1 };
+  let query = client.rpc("search_counterparties", {
     directory_state: input.state ?? "active", target_company_id: companyId, search_text: input.search?.trim() ?? "", directory_role: input.role ?? "",
-  }, { count: "exact" }).order("name").order("id").range(from, from + pageSize - 1);
+  }, { count: "exact" });
+  if (identifiers.length) query = query.or(identifiers.join(","));
+  const { data, error, count } = await query.order("name").order("id").range(from, from + pageSize - 1);
   if (error) throw error;
   const total = count ?? 0;
   return { entries: data.map(counterparty), total, page, pageSize, pageCount: Math.max(1, Math.ceil(total / pageSize)) };
