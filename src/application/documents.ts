@@ -527,7 +527,7 @@ export type ClaimEligibilityError = "claim_document_type_required" | "claim_elig
 export async function approveDocument(
   client: AppClient,
   input: { companyId: string; documentId: string; version: number },
-): Promise<Result<null, ClaimEligibilityError | "not_in_review" | "stale_version" | "direction_required" | "vat_regime_required" | "document_incomplete" | "document_validation_failed" | "counterparty_vat_id_required" | "currency_conversion_required" | "rate_breakdown_totals_mismatch" | "invalid_credit_note_amount" | "period_locked" | "forbidden">> {
+): Promise<Result<null, ClaimEligibilityError | "counterparty_resolution_required" | "not_in_review" | "stale_version" | "direction_required" | "vat_regime_required" | "document_incomplete" | "document_validation_failed" | "counterparty_vat_id_required" | "currency_conversion_required" | "rate_breakdown_totals_mismatch" | "invalid_credit_note_amount" | "period_locked" | "forbidden">> {
   const document = await findDocumentId(client, input.companyId, input.documentId);
   if (!document) return { ok: false, error: "forbidden" };
   const { error } = await client.rpc("approve_document", {
@@ -535,6 +535,7 @@ export async function approveDocument(
     reviewed_version: input.version,
   });
   if (error) return refusal(error, [
+    "counterparty_resolution_required",
     "claim_document_type_required", "claim_eligibility_required", "invalid_earliest_claim_period", "claimed_period_before_earliest", "deferred_claim_not_supported",
     "not_in_review",
     "stale_version",
@@ -551,7 +552,8 @@ export async function approveDocument(
   return { ok: true, value: null };
 }
 
-export type SaveAndApproveDocumentError = CorrectDocumentError | ClaimEligibilityError | "direction_required" | "vat_regime_required" | "document_incomplete" | "document_validation_failed" | "counterparty_vat_id_required" | "currency_conversion_required" | "rate_breakdown_totals_mismatch" | "invalid_credit_note_amount" | "review_context_changed";
+export type SaveAndApproveDocumentError = CorrectDocumentError | ClaimEligibilityError | "counterparty_resolution_required" | "direction_required" | "vat_regime_required" | "document_incomplete" | "document_validation_failed" | "counterparty_vat_id_required" | "currency_conversion_required" | "rate_breakdown_totals_mismatch" | "invalid_credit_note_amount" | "review_context_changed";
+export type CounterpartyCreationConsent = { direction: Direction; party: Party };
 export type ReviewConfirmation = { id: string; findings: ValidationFinding[] };
 export type ReviewConflict = { version: number; status: DocumentStatus; payload: ExtractionPayload };
 export type SaveAndApproveDocumentResult = { ok: true; value: { version: number } }
@@ -583,17 +585,18 @@ function warningIdentity(findings: ValidationFinding[]) {
  */
 export async function saveAndApproveDocument(
   client: AppClient,
-  input: { companyId: string; documentId: string; basedOnVersion: number; requestId: string; payload: ExtractionPayload; acknowledgement?: string; displayedBankAccountCheckId?: string | null; displayedReviewContext?: string },
+  input: { companyId: string; documentId: string; basedOnVersion: number; requestId: string; payload: ExtractionPayload; counterpartyCreationConsent?: CounterpartyCreationConsent; acknowledgement?: string; displayedBankAccountCheckId?: string | null; displayedReviewContext?: string },
   exchangeRates: ExchangeRateProvider = unavailableExchangeRates,
   vatRegistry: VatPayerRegistry = unavailableVatPayerRegistry,
 ): Promise<SaveAndApproveDocumentResult> {
   if (!isUuid(input.requestId) || (input.acknowledgement !== undefined && !isUuid(input.acknowledgement))) return { ok: false, error: "stale_version" };
   const candidate = prepareManualExtractionPayload(input.payload);
   if (!candidate.ok) return candidate;
+  const submittedPayload = input.counterpartyCreationConsent ? { ...candidate.value, counterpartyCreationConsent: input.counterpartyCreationConsent } : candidate.value;
   const document = await findDocumentId(client, input.companyId, input.documentId);
   if (!document) return { ok: false, error: "forbidden" };
   const replay = await client.rpc("document_approval_result", {
-    target_document_id: document, request_id: input.requestId, submitted_payload: candidate.value, based_on_version: input.basedOnVersion,
+    target_document_id: document, request_id: input.requestId, submitted_payload: submittedPayload, based_on_version: input.basedOnVersion,
   });
   if (replay.error) return documentReviewRefusal(client, input, refusal(replay.error, ["stale_version"]));
   if (replay.data !== null) return { ok: true, value: { version: replay.data } };
@@ -608,7 +611,7 @@ export async function saveAndApproveDocument(
   const findings = [...await prepared.findings(), ...directory.value.findings];
   const fields = {
     target_document_id: document, based_on_version: input.basedOnVersion, request_id: input.requestId,
-    submitted_payload: candidate.value, payload: prepared.payload, findings,
+    submitted_payload: submittedPayload, payload: prepared.payload, findings,
     expected_context: context.data,
   };
   let saved = await client.rpc("save_and_approve_document", { ...fields, acknowledgement: input.acknowledgement });
@@ -622,7 +625,7 @@ export async function saveAndApproveDocument(
     saved = await client.rpc("save_and_approve_document", { ...fields, acknowledgement: pending.confirmationId });
   }
   const { data, error } = saved;
-  if (error) return documentReviewRefusal(client, input, refusal(error, ["claim_document_type_required", "claim_eligibility_required", "invalid_earliest_claim_period", "claimed_period_before_earliest", "deferred_claim_not_supported", "not_in_review", "stale_version", "period_locked", "tax_point_date_required", "invalid_date", "direction_required", "vat_regime_required", "document_incomplete", "document_validation_failed", "counterparty_vat_id_required", "currency_conversion_required", "rate_breakdown_totals_mismatch", "invalid_credit_note_amount", "review_context_changed"]), findings);
+  if (error) return documentReviewRefusal(client, input, refusal(error, ["counterparty_resolution_required", "claim_document_type_required", "claim_eligibility_required", "invalid_earliest_claim_period", "claimed_period_before_earliest", "deferred_claim_not_supported", "not_in_review", "stale_version", "period_locked", "tax_point_date_required", "invalid_date", "direction_required", "vat_regime_required", "document_incomplete", "document_validation_failed", "counterparty_vat_id_required", "currency_conversion_required", "rate_breakdown_totals_mismatch", "invalid_credit_note_amount", "review_context_changed"]), findings);
   const result = data as { version: number } | { confirmationId: string; findings: ValidationFinding[] };
   return "confirmationId" in result
     ? { ok: false, error: "review_warnings_changed", confirmation: { id: result.confirmationId, findings: result.findings } }
