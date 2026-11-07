@@ -37,6 +37,7 @@ it("loads PDF evidence bound to the second Document's original page after zero-r
           ],
           sourceLocations: [
             { fieldPath: "documentNumber", kind: "page", page: 1, x: 0.1, y: 0.1, width: 0.3, height: 0.05 },
+            { fieldPath: "documentNumber", kind: "page", page: 2, x: 0.2, y: 0.2, width: 0.4, height: 0.07 },
             { fieldPath: "rateBreakdown.1.vatAmount", kind: "page", page: 1, x: 0.7, y: 0.6, width: 0.2, height: 0.05 },
           ],
         };
@@ -80,7 +81,10 @@ it("loads PDF evidence bound to the second Document's original page after zero-r
       fields: {
         documentNumber: {
           origin: "ai", originalValue: "PDF-EVIDENCE",
-          locations: [{ kind: "page", page: 2, x: 0.1, y: 0.1, width: 0.3, height: 0.05 }],
+          locations: [
+            { kind: "page", page: 2, x: 0.1, y: 0.1, width: 0.3, height: 0.05 },
+            { kind: "page", page: 3, x: 0.2, y: 0.2, width: 0.4, height: 0.07 },
+          ],
         },
         "rateBreakdown.0.vatAmount": {
           origin: "ai", originalValue: "210.00",

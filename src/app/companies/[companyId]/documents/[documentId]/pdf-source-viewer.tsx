@@ -27,7 +27,8 @@ export function PdfSourceViewer({ href, label, firstPage, lastPage }: {
   const selected = source?.selectedField ? evidence?.fields[source.selectedField] : undefined;
   const [inspect, setInspect] = useState(false);
   const crop = useRef<HTMLCanvasElement>(null);
-  const selectedPage = selected?.locations[0]?.page;
+  const selectedLocation = selected?.locations[source?.selectedLocation ?? 0];
+  const selectedPage = selectedLocation?.page;
   const page = navigation.selection !== source?.selection && selectedPage !== undefined ? selectedPage : navigation.page;
   const renderKey = `${url}:${page}:${width}:${zoom}`;
   const ready = dimensions.key === renderKey;
@@ -80,7 +81,7 @@ export function PdfSourceViewer({ href, label, firstPage, lastPage }: {
     })();
     return () => { cancelled = true; rendering?.cancel(); };
   }, [pdf, page, range.firstPage, width, zoom, renderKey, url]);
-  const cropLocation = selected?.locations.find((location) => location.page === page);
+  const cropLocation = selectedLocation?.page === page ? selectedLocation : undefined;
   useEffect(() => {
     if (!inspect) return;
     const close = (event: KeyboardEvent) => {
@@ -121,9 +122,9 @@ export function PdfSourceViewer({ href, label, firstPage, lastPage }: {
         <canvas ref={canvas} role="img" aria-label={t("sourceRenderedPage", { page })} data-ready={ready} style={{ width: dimensions.width, height: dimensions.height }} />
         {ready && Object.entries(evidence?.fields ?? {}).flatMap(([field, reference]) => reference.locations.flatMap((location, index) =>
           location.page === page ? [<button type="button" key={`${field}-${index}`} data-source-region={field}
-            className={`pdf-source-region ${source?.selectedField === field ? "is-active" : ""}`}
-            aria-label={t("sourceFor", { field: fieldLabel(field) })} aria-pressed={source?.selectedField === field}
-            onClick={() => source?.selectField(field, true)}
+            className={`pdf-source-region ${source?.selectedField === field && source.selectedLocation === index ? "is-active" : ""}`}
+            aria-label={t("sourceFor", { field: fieldLabel(field) })} aria-pressed={source?.selectedField === field && source.selectedLocation === index}
+            onClick={() => source?.selectField(field, true, index)}
             style={{ left: `${location.x * 100}%`, top: `${location.y * 100}%`, width: `${location.width * 100}%`, height: `${location.height * 100}%` }} />] : []))}
       </div>
     </div>
