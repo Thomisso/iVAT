@@ -150,6 +150,10 @@ the local Supabase CLI environment.
 
 All `db:*` scripts go through `scripts/supabase.mjs`. In the main checkout it uses `supabase/config.toml` as is. A linked git worktree gets its own stack instead: a separate database, ports shifted by 100 × a slot derived from the worktree path, and no Studio, Mailpit, analytics or edge runtime. Parallel worktrees can reset and test their databases independently. If two worktrees land on the same slot, set `SUPABASE_SLOT` (1–99) for one of them. Run `npm run db:stop -- --no-backup` before removing a worktree to delete its stack's data.
 
+## Agent verification
+
+Agent processes follow the [CLI-only execution policy](AGENTS.md#agent-execution) and [evidence rules](docs/agents/cli-processes.md). Use the project [run-app](.claude/skills/run-app/SKILL.md) and [next-dev-loop](.agents/skills/next-dev-loop/SKILL.md) skills for isolated CLI/HTTP runtime checks and real-user application checks. Record unverified client or visual behavior explicitly; a successful page response does not establish it.
+
 ## Testing
 
 Tests exercise the application layer as real users against the local Postgres with RLS enabled, per the seams in the requirements' Testing Decisions. Background jobs run synchronously through the worker's own handler (`testWorker` in `tests/support/worker.ts`), against a scripted fake AI provider. Tests create their own users and Organizations, so they need no reset between runs:

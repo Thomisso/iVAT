@@ -1,24 +1,22 @@
 ---
 name: run-app
-description: Run iVAT and verify a change in the running app. Use when asked to run, start, smoke-test or see the app, or to confirm a UI or route change works beyond the tests.
+description: Run iVAT and verify routes and application behavior through CLI and authenticated HTTP. Use when asked to run, start or smoke-test the app, or confirm a change works beyond compilation.
 ---
 
 # Run the app
 
-Each step ends when its check passes.
+Follow [AGENTS.md](../../../AGENTS.md#agent-execution) and the
+[CLI process and evidence rules](../../../docs/agents/cli-processes.md).
+Each step ends on its observed result.
 
-1. **Stack.** Work in your worktree (see `AGENTS.md`). `npm run db:start` brings up its Supabase stack and writes `.env.local`. Done when `npm run db:start` exits 0.
-2. **Servers.** In the background, start the dev server on a free port (for example, `npm run dev -- -p 3100`) and `npm run worker`. If a dev server already runs for this checkout, reuse it. Record the actual `Local` URL from its banner as `APP_URL`; use this same URL for the seed, browser and Next.js MCP endpoint. Set `APP_URL` to that value in each shell that uses it. Done when the dev log prints `Ready` and the worker prints `waiting for jobs`.
-3. **QA account.** `npm run dev:seed -- --base-url "${APP_URL:?Set APP_URL from the dev server banner}"`. It prints a fresh account's email and password, the Company and Source File URLs, and a `Cookie:` header. The worker turns the Source File into two Documents in review within seconds.
-4. **Drive it.** Visit every page and route the change touches.
-   - **Browser:** when `agent-browser` is on `PATH`, use the `next-dev-loop` skill and sign in with the seeded account. Forms and server actions (correcting, approving, uploading) can only be exercised this way.
-   - **HTTP:** otherwise, `curl -s -H "Cookie: <seeded cookie>" <url>` fetches pages and content routes as the QA user. Strip tags with `sed 's/<[^>]*>/ /g'` to read the text. Report which interactions stayed unverified.
-   - **Server errors:** the dev server logs JSON lines to `.next/dev/logs/next-development.log`; `grep '"level":"ERROR"'` it after loading pages. (`next-dev-loop` reads browser errors too.)
-   Done when each touched page renders what the change promises and the log holds no new errors.
-5. **Clean up.** Stop the dev server and worker you started.
+1. **Stack.** Work in your worktree. `npm run db:start` brings up its Supabase stack and writes `.env.local`. Done when it exits 0.
+2. **Servers.** Start the dev server on a free port (for example, `npm run dev -- -p 3100`) and `npm run worker` in the background. Reuse an existing server only for this checkout. Record the actual `Local` URL from its banner as `APP_URL`; use it for the seed, HTTP requests and Next.js MCP endpoint. Done when the dev log prints `Ready` and the worker prints `waiting for jobs`.
+3. **QA account.** Run `npm run dev:seed -- --base-url "${APP_URL:?Set APP_URL from the dev server banner}"`. It privately provisions and signs in a real account, uploads a Source File and prints account/Company/Source URLs and a session cookie. Keep those credentials and cookies private. Observe the Source File reaching its expected terminal state through the application query as the QA user; elapsed seconds alone do not establish completion.
+4. **Verify.** Follow [next-dev-loop](../../../.agents/skills/next-dev-loop/SKILL.md) for authenticated HTTP requests, server-capable MCP tools and focused application checks against the real database. Check each affected route's returned status/content and relevant new server/worker errors. Use existing application commands and queries as the QA user to verify mutations and durable results. Record which form/client behaviors remain unverified; HTTP page reads and application commands do not prove clicks, hydration or visual layout. Done when the selected cases have actual results and any required unproven behavior is explicitly outstanding.
+5. **Clean up.** Stop only the dev server and worker you started.
 
 ## Gotchas
 
-- A throwaway script resolves `@/` imports and `node_modules` only from inside the repo. Prefer extending `scripts/dev-seed.ts`.
-- `npm run build` rewrites `.next`, which a running `next dev` depends on; build only after stopping the dev servers of this checkout.
-- `npm run db:reset` deletes the stack's data; run it only in your own worktree, after changing a migration that is already applied. Stop that worktree's dev server and worker before resetting. After the reset succeeds, repeat steps 2–3 and sign in with the new QA account. Done when the new account can access its Company and its Documents reach review.
+- A throwaway script resolves `@/` imports and `node_modules` only from inside the repo. Prefer existing scripts and application test fixtures.
+- `npm run build` rewrites `.next`, which a running `next dev` depends on; build only after stopping this checkout's dev server, or configure separate output.
+- `npm run db:reset` deletes the stack's data. Run it only in your own worktree after changing an already-applied migration, with that worktree's dev server and worker stopped. Then repeat setup and QA provisioning; old credentials and cookies are not evidence that the reset stack works.
