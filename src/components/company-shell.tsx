@@ -26,18 +26,20 @@ import { AccountActions, AppShell, ContextNavigation } from "@/components/app-sh
 import { CommandButton } from "@/components/command-button";
 import { AccountMenu, Menu, ShellIcon, settingsIconPath } from "@/components/shell-controls";
 
-type Destination = "overview" | "upload" | "documents" | "vat" | "settings";
+type Destination = "overview" | "upload" | "documents" | "vat" | "counterparties" | "settings";
 
 const destinations: Array<{ key: Destination; icon: string; suffix: string }> = [
   { key: "overview", icon: "M3 11 12 3l9 8v10h-6v-6H9v6H3z", suffix: "" },
   { key: "upload", icon: "M12 16V4m-5 5 5-5 5 5M4 15v6h16v-6", suffix: "/upload" },
   { key: "documents", icon: "M6 3h8l4 4v14H6V3Zm8 0v5h5M9 12h6M9 16h6", suffix: "/documents" },
   { key: "vat", icon: "M5 4h14v16H5V4Zm3 4h8M8 12h3m2 0h3m-8 4h3m2 0h3", suffix: "/vat" },
+  { key: "counterparties", icon: "M3 4h18v16H3V4Zm4 4h4m-4 4h10m-10 4h10", suffix: "/counterparties" },
   { key: "settings", icon: settingsIconPath, suffix: "/settings" },
 ];
 
 function activeDestination(pathname: string, companyId: string): Destination {
   const rest = pathname.slice(`/companies/${companyId}`.length);
+  if (rest.startsWith("/counterparties")) return "counterparties";
   if (rest.startsWith("/documents")) return "documents";
   if (rest.startsWith("/source-files") || rest.startsWith("/upload-batches") || rest.startsWith("/upload")) return "upload";
   if (rest.startsWith("/vat") || rest.startsWith("/vat-reports")) return "vat";
