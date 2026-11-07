@@ -23,6 +23,7 @@ test("identity matching, deliberate unlink, no-ID consent and explicit archived 
   await expect(page).toHaveURL(/\/setup\/ai-processing$/);
   const companyId = new URL(page.url()).pathname.split("/")[2];
   const client = await browserUserClient(await context.cookies());
+  if (process.env.IVAT_234_BROWSER_STATE) await context.storageState({ path: process.env.IVAT_234_BROWSER_STATE });
   const party = SAMPLE_EXTRACTION.supplier;
   const known = await createCounterparty(client, { companyId, name: party.name!, ico: party.ico, vatId: party.vatId,
     street: party.street!, city: party.city!, postalCode: party.postalCode!, countryCode: party.country!, supplier: true, customer: false });
