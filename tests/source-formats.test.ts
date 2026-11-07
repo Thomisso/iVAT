@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, inject, it } from "vitest";
 import sharp from "sharp";
 import * as XLSX from "xlsx";
 import { heicFixture, fixtureFile, workbookFile } from "./support/files";
@@ -8,6 +8,8 @@ import { SAMPLE_EXTRACTION, fakeAiProvider } from "@/ai/fake";
 import { listDocuments, readDocumentRows, correctDocument, reprocessDocument, saveAndApproveDocument } from "@/application/documents";
 import { getDocumentReview } from "@/application/document-review";
 import { getSourceFile, readSourceFile, readSourceFileDerivative, uploadSourceFile } from "@/application/source-files";
+import { setCompanyAutomaticApproval } from "@/application/companies";
+import { withClaimDate } from "./support/claim-clock";
 import { createCounterparty } from "@/application/counterparties";
 import { createConfirmedManualDocument, setOctoberImportFixture } from "./support/claim-eligibility";
 import { fakeVatPayerRegistry } from "@/vat-registry/fake";
@@ -257,4 +259,37 @@ it.each(["png", "xlsx"] as const)("missing %s locations remain informational and
   expect((await getDocumentReview(admin.client, target))!.document.status).toBe("approved");
   expect(calls).toBe(1);
   expect(worker.queued).toEqual([]);
+});
+
+it.each([true, false])("keeps optional source evidence truthful through eligible automatic completion (locations: %s)", async withLocations => {
+  await withClaimDate(inject("databaseUrl"), "2026-10-15", async () => {
+    const admin = await administratorWithCompany();
+    const party = SAMPLE_EXTRACTION.supplier;
+    const known = await createCounterparty(admin.client, { companyId: admin.companyId, name: party.name!, ico: party.ico, vatId: party.vatId,
+      street: party.street!, city: party.city!, postalCode: party.postalCode!, countryCode: party.country!, supplier: true, customer: false });
+    if (!known.ok) throw new Error(known.error);
+    let calls = 0;
+    const worker = testWorker(fakeAiProvider({ extract: () => {
+      calls++;
+      return { ...SAMPLE_EXTRACTION, sourceLocations: withLocations
+        ? [{ fieldPath: "documentNumber", kind: "page", page: 1, x: 0.1, y: 0.1, width: 0.3, height: 0.05 }] : [] };
+    } }));
+    const configured = await assignAiConfigurationFixture(admin.client, worker.jobs, { companyId: admin.companyId, provider: worker.ai });
+    if (!configured.ok) throw new Error(configured.error);
+    expect(await setCompanyAutomaticApproval(admin.client, { companyId: admin.companyId, enabled: true })).toEqual({ ok: true, value: null });
+    const source = await uploadSourceFile(admin.client, worker.jobs, { companyId: admin.companyId, fileName: "automatic-source.png", bytes: fixtureFile("receipt.png") });
+    if (!source.ok) throw new Error(source.error);
+    await setOctoberImportFixture(source.value.id);
+    expect(await worker.runJobs()).toEqual([]);
+    const [document] = await listDocuments(admin.client, admin.companyId, source.value.id);
+    const review = (await getDocumentReview(admin.client, { companyId: admin.companyId, documentId: document.id }))!;
+    expect(review).toMatchObject({ document: { status: "approved" }, shown: { version: 1, author: { kind: "ai" } },
+      approvalDecisions: [{ mode: "automatic", version: 1, actorUserId: null }] });
+    expect(review.versions).toHaveLength(1);
+    if (withLocations) expect(review.shown!.payload.sourceEvidence).toMatchObject({ sourceFileId: source.value.id, extractionVersionId: review.shown!.id,
+      fields: { documentNumber: { origin: "ai", originalValue: "FV-2026-0001" } } });
+    else expect(review.shown!.payload).not.toHaveProperty("sourceEvidence");
+    expect(calls).toBe(1);
+    expect(worker.queued).toEqual([]);
+  });
 });
