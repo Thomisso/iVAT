@@ -75,11 +75,12 @@ Those workflows remain covered by the Auth, Invitation and recovery tests. Query
 the dependency endpoint separately for diagnostics; do not use it as a liveness
 or automatic-restart condition. There is no new polling/monitoring service.
 
-Local regression (own stack running, no other Next process in this checkout):
-`npm run test:http` in the isolated worktree.
-This exercises real local Auth behind the forwarding gateway with broken public
-TLS, HTTP refusal, a stalled socket and a closed listener, and verifies liveness
-and preserved cookies independently of dependency degradation.
+Local regression (isolated worktree, no other Next process in this checkout):
+`npm run test:http`.
+This exercises real local Auth through the runner-owned loopback gateway under
+injected HTTP 503 refusal and stalled forwarding requests. It checks bounded
+degraded dependency responses, fail-closed protected-page refusal, no cookie
+rewrite in fault responses, independent liveness and recovery.
 
 ## Prepare the release
 
