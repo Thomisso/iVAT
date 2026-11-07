@@ -1,209 +1,88 @@
 ---
 name: next-dev-loop
 description: >
-  Verify Next.js runtime behavior after editing app code. Use this
-  skill to confirm a change actually works in a running app — not
-  just that it compiles or type-checks. Combines /_next/mcp
-  (Next.js's view) with agent-browser (the browser's view).
-  Requires a running `next dev`.
+  Verify Next.js runtime behavior after editing app code through authenticated
+  HTTP, server-capable Next.js MCP tools, logs and application checks against
+  the worktree's real database. Use with a running next dev server.
 ---
 
-# next-dev-loop
+# Next.js runtime verification
 
-The edit/verify rhythm during `next dev` — make a change, then
-confirm it actually works at runtime, not only that the types or
-the build are happy.
+Follow [AGENTS.md](../../../AGENTS.md#agent-execution) and the
+[CLI process and evidence rules](../../../docs/agents/cli-processes.md).
+This project-maintained skill verifies observable runtime behavior through
+CLI and HTTP. It has no browser-tool or framework-upgrade preflight gate.
 
-You verify through two views of the same running app:
+## Prepare the running app
 
-- **`/_next/mcp`** — an HTTP endpoint Next.js exposes about itself.
-  Knows framework-specific things: routes, segments, RSC, server
-  actions, server logs, and errors as Next.js saw them. Call
-  `tools/list` for the current surface.
-- **`agent-browser`** — a CLI that drives a real Chrome. Knows
-  framework-agnostic browser things: DOM, console, network, React
-  fiber, vitals. Before driving it, run `agent-browser skills get core`
-  once for the version-matched usage guide — don't guess subcommands
-  from memory.
+1. Read the relevant installed Next.js guide in `node_modules/next/dist/docs/`
+   before changing framework code. Inspect the installed package and scripts
+   rather than assuming a version or bundler.
+2. Use this ticket's worktree and Supabase stack. Start or reuse only that
+   checkout's dev server on a free port and worker when the scenario needs it.
+   The [run-app skill](../../../.claude/skills/run-app/SKILL.md) covers setup
+   and real QA-account provisioning. Record the actual URL from the server
+   banner; use it for all HTTP requests and `/_next/mcp` calls.
+3. Define the changed behavior and its observable success and refusal cases.
+   Select the public route and existing application command/query or focused
+   test that can establish each case under a real user's identity.
 
-The two views cross-check each other.
+Done when the intended worktree, URL, authenticated test identity and required
+real services are identified and reachable. A missing service is a specific
+runtime limitation, never a successful check.
 
-## requires
+## Discover server capabilities
 
-- Next.js **16.3+** with **Turbopack** — `/_next/mcp` plus the
-  proactive compile check via `get_compilation_issues`.
-- `agent-browser` **>= 0.31.1** — React introspection, worktree-scoped
-  `session id`, idempotent `--restore`, and launch flag reconciliation.
+Probe `/_next/mcp` over HTTP with `tools/list` when that endpoint is available.
+Use only the tools actually advertised by this server whose execution does
+not require a browser session. Depending on the installed version, useful
+server tools include `get_project_metadata`, `get_routes`, `get_logs`,
+`get_server_action_by_id` and `get_compilation_issues`.
 
-These are hard floors, not soft preferences. If anything is missing,
-tell the user how to upgrade and stop. Don't fall back to grepping
-source or to a weaker probe — this skill assumes both views are live
-at the versions above.
+If the endpoint or a tool is unavailable, continue with the matching HTTP,
+server-log and application-check path and state which introspection was
+unavailable. A Turbopack-only compilation tool cannot establish compilation
+on another bundler; use the actual compiler result instead. Do not upgrade
+Next.js or install browser tooling merely to satisfy this skill.
 
-- Upgrade Next.js: `pnpm next upgrade` (or `npx next upgrade`).
-  Docs: https://nextjs.org/docs/app/getting-started/upgrading
-  (version-16 guide:
-  https://nextjs.org/docs/app/guides/upgrading/version-16)
-- Install or upgrade `agent-browser`: `npm i -g agent-browser@latest`.
-  If the CLI isn't on `PATH`, install it before continuing — preflight
-  expects to invoke it directly.
+`get_errors` and `get_page_metadata` may depend on a browser session. Do not
+invoke browser-dependent tools or interpret absent/empty session data as proof
+of no errors. An MCP wrapper's browser-control tools are outside this workflow.
+For SSE replies, parse JSON from `data:` records rather than the `event:` line.
 
-## preflight
+## Verify the change
 
-Once per session, confirm both views are live.
+1. **Compilation:** inspect available server compilation diagnostics and the
+   actual dev-server output for the affected routes. Typecheck/build results
+   support their own claims; they do not establish successful runtime behavior.
+2. **HTTP:** request each affected page, content route or API under the seeded
+   user's real session. Check the expected status, redirects, headers and
+   relevant returned content, including the applicable refusal case. Keep
+   session material in protected local input and out of reports and Git.
+3. **Application behavior:** use existing commands, queries and focused tests
+   against real Auth, Postgres and RLS to verify changed mutations and durable
+   results. Exercise them as the actual user through `AppClient`; use the
+   worker's genuine handlers for jobs. Observe a terminal result instead of
+   treating an enqueued job, transient alert or arbitrary delay as completion.
+   Application-layer proof does not itself prove form submission or client UI.
+4. **Errors:** inspect the worktree's dev-server and worker logs after the
+   scenario. Correlate relevant new errors with the request; an empty server
+   log does not establish an error-free client session.
 
-1. **Open `agent-browser` at the target URL, restoring saved
-   login state when present.** First derive one stable session id for
-   this checkout and use it for every `agent-browser` command:
+Done when each selected case has its actual result and the unchanged evidence
+requirements are met. Report required cases that these interfaces cannot
+establish as outstanding, with the precise limitation. Do not manufacture a
+runtime pass, visual claim or justified-applicability result to satisfy a gate.
 
-   ```bash
-   SESSION="$(agent-browser session id --scope worktree --prefix next-dev-loop)"
-   export AGENT_BROWSER_SESSION="$SESSION"
-   export AGENT_BROWSER_RESTORE="$SESSION"
-   ```
+## Preserve and clean up
 
-   Then open the target URL:
+Preserve `.next` while its dev server runs. Moving or deleting it also resets
+the server's generated state. Stop that server before a production build, or
+use an explicitly configured separate output directory. Stop only the server
+and worker started for this verification; retain an already-running worktree
+server. Keep the human checkout and its database untouched.
 
-   ```bash
-   agent-browser --session "$SESSION" --restore --enable react-devtools open <url>
-   ```
-
-   `--scope worktree` keeps parallel worktrees and copied checkouts
-   from colliding. Bare `--restore` uses the session id as the
-   persistence key, loads saved cookies/localStorage before navigation
-   when present, and auto-saves state on close. Always pass the desired
-   launch flags on `open`; agent-browser will reuse, relaunch, or restart
-   its scoped background state as needed.
-
-   Keep routine verification headless. If the user asks to see the UI, open the
-   current URL in the coding harness's inline browser. It is a separate browser
-   context, so do not assume state carries over. When login or existing
-   `agent-browser` state must carry over, reopen that session headed instead:
-
-   ```bash
-   agent-browser --session "$SESSION" --restore --headed --enable react-devtools open <url>
-   ```
-
-   Pause while the user drives login, then continue with the same session and
-   keep it headed for the rest of the loop.
-
-2. Probe `/_next/mcp` (`tools/list`) — confirm it's reachable and
-   lists `get_compilation_issues`. First read the port off the
-   `next dev` banner; if it isn't 3000, set
-   `NEXT_MCP_URL=http://localhost:<port>/_next/mcp` before probing:
-   - Unreachable → either `next dev` isn't running, or Next.js is
-     below 16.3. Check `package.json` to disambiguate, then refuse.
-   - `get_compilation_issues` not in the list → Next.js below 16.3.
-     Refuse and tell the user to upgrade.
-3. `get_compilation_issues` doubles as a Turbopack probe. An error
-   response of `"Turbopack project is not available..."` means the
-   user is on webpack. Refuse — Turbopack is required.
-4. `get_routes` → your route map for the rest of the session.
-
-## loop
-
-### before the edit — narrow the scope
-
-Ask the running app, not the codebase. `/_next/mcp` knows which
-files rendered the current route; use those as your search scope.
-Runtime introspection stays cheap as the codebase grows; agentic
-search doesn't.
-
-### after the edit — verify
-
-Four failure modes. Check each:
-
-- **Compiles** — `get_compilation_issues`.
-- **Runs without errors** — `/_next/mcp` (server and bubbled-up
-  browser errors both surface here).
-- **Behaves as intended** — `agent-browser` drives the page; assert
-  what the user actually sees.
-- **React-level behavior** — `agent-browser` with react-devtools
-  enabled exposes the component tree, props, state, and render
-  counts. Anchor framework-level checks here (extra renders,
-  server/client boundary shifts, suspense fallbacks) — DOM asserts
-  alone miss them.
-
-Pick the specific tool from `tools/list` or the agent-browser
-manual rather than from memory.
-
-## gotchas
-
-- **Preserve `.next` while the development server is running.** Moving or
-  deleting it disconnects the server from its generated state and discards
-  incremental caches. Moving it to a backup is still a reset. If a production
-  build needs isolated output, configure a separate `distDir`.
-- **Every `agent-browser` command must know your session and restore
-  key, or it may use an empty default browser or fail to save login
-  state.** Easiest: export both `AGENT_BROWSER_SESSION="$SESSION"` and
-  `AGENT_BROWSER_RESTORE="$SESSION"` at the top of each shell you run
-  agent-browser in. If you do not export them, pass
-  `--session "$SESSION" --restore` on every command.
-- **When the two views disagree, suspect the tooling first.** If
-  `agent-browser` says a route is broken but `/_next/mcp` and the
-  server say it rendered cleanly, a stale or misdirected browser
-  session is the likelier cause than a real bug — reconcile the views
-  before debugging the app.
-- Confirming a click or navigation: wait for the intended URL or visible
-  state, then snapshot/read to verify the result. Use the link's observed
-  href for `wait --url`, or exact text from a snapshot or the app's
-  translations for `wait --text`. For a mutation on the same page, wait
-  for its resulting state. PDF viewers and polling can keep network activity
-  alive, so `wait --load networkidle` is not a reliable completion check
-  for those pages. Guessed URLs or success messages only cause timeouts.
-- A blank read, empty snapshot, `about:blank`, or a "no browser
-  session" error — right after `open` or after a click (even if `open`
-  reported the page) — is the browser dropping the page (a stale
-  session), not a broken route. Reopen your session at the URL with the
-  same launch flags as the active loop, then re-snapshot. If still blank, run
-  `agent-browser --session "$SESSION" --restore close`, then reopen with
-  those same flags. Don't fall back to `curl`; it bypasses the browser
-  you're testing.
-- React introspection output is stale after navigation. Re-run.
-- `/_next/mcp` replies are SSE — read the JSON off the `data:` line
-  with `sed -n 's/^data: //p'` (a plain `sed 's/^data: //'` leaves the
-  `event:` line and the parse fails).
-- `get_errors` and `get_page_metadata` need at least one navigation
-  to populate.
-
-## reference
-
-All tools below are present once preflight passes. If `tools/list`
-is missing any of them, preflight should have refused — re-check.
-
-```
-# /_next/mcp                 notes
-get_project_metadata         projectPath, devServerUrl, bundler
-get_routes                   fs-scan; no browser session needed
-get_errors                   runtime + build; needs a browser session;
-                             includes browser-side errors caught by the
-                             dev server
-get_page_metadata            segment trie + routerType; needs a browser
-                             session; use as a discovery shortcut for
-                             which files power a route
-get_logs                     returns logFilePath
-get_server_action_by_id      hashed id → file + functionName
-get_compilation_issues       Turbopack only; errors on webpack
-                             ("Turbopack project is not available")
-```
-
-## teardown
-
-Close the session with the same session and restore context:
-`agent-browser --session "$SESSION" --restore close`. `close` saves
-that session's cookies and storage so the next loop's `--restore` open
-keeps the user logged in. Leave `next dev` up for the next loop.
-
-## Report Next.js friction
-
-Only participate in agent feedback when managed Next.js feedback instructions
-are already loaded for the project. Their presence means the feature is
-enabled; their absence means it is disabled.
-
-When enabled, add qualifying feedback candidates found during verification to
-the feedback candidate queue for the current user request, then continue
-verification. Do not run the feedback command or open review forms during the
-loop or at this Skill's teardown.
-
-The managed instructions own the single reporting pass immediately before the
-final response. If they are absent, do not queue or report feedback.
+Report the exact revision, commands/tools, observed outcomes and remaining
+limitations. Treat existing test evidence according to its scope and revision;
+source inspection, successful compilation and HTTP checks cannot prove
+hydration, click behavior, responsive layout, screenshots or React render counts.
