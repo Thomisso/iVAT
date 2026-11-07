@@ -467,6 +467,106 @@ isOneToOne: false
       referencedColumns: ["id","company_id","organization_id"]
     }
                   ]
+                },"document_approval_receipt": {
+                  Row: {
+                    "actor_user_id": string,"based_on_version": number,"company_id": string,"created_at": string,"document_id": string,"operation_kind": string,"organization_id": string,"request_id": string,"submitted_payload": NonNullable<Json>,"version": number
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "actor_user_id": string,"based_on_version": number,"company_id": string,"created_at"?: string,"document_id": string,"operation_kind": string,"organization_id": string,"request_id": string,"submitted_payload": NonNullable<Json>,"version": number
+                  }
+                  Update: {
+                    "actor_user_id"?: string,"based_on_version"?: number,"company_id"?: string,"created_at"?: string,"document_id"?: string,"operation_kind"?: string,"organization_id"?: string,"request_id"?: string,"submitted_payload"?: NonNullable<Json>,"version"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "document_approval_receipt_company_id_fkey"
+      columns: ["company_id"]
+isOneToOne: false
+      referencedRelation: "company"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "document_approval_receipt_document_id_fkey"
+      columns: ["document_id"]
+isOneToOne: false
+      referencedRelation: "document"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "document_approval_receipt_document_id_fkey"
+      columns: ["document_id"]
+isOneToOne: false
+      referencedRelation: "document_duplicate_warning"
+      referencedColumns: ["document_id"]
+    },{
+      foreignKeyName: "document_approval_receipt_document_id_fkey"
+      columns: ["document_id"]
+isOneToOne: false
+      referencedRelation: "document_overview"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "document_approval_receipt_document_id_fkey"
+      columns: ["document_id"]
+isOneToOne: false
+      referencedRelation: "vat_report_document"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "document_approval_receipt_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organization"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"document_review_confirmation": {
+                  Row: {
+                    "actor_user_id": string,"company_id": string,"context": NonNullable<Json>,"created_at": string,"document_id": string,"findings": NonNullable<Json>,"id": string,"organization_id": string,"payload": NonNullable<Json>
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "actor_user_id": string,"company_id": string,"context": NonNullable<Json>,"created_at"?: string,"document_id": string,"findings": NonNullable<Json>,"id"?: string,"organization_id": string,"payload": NonNullable<Json>
+                  }
+                  Update: {
+                    "actor_user_id"?: string,"company_id"?: string,"context"?: NonNullable<Json>,"created_at"?: string,"document_id"?: string,"findings"?: NonNullable<Json>,"id"?: string,"organization_id"?: string,"payload"?: NonNullable<Json>
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "document_review_confirmation_company_id_fkey"
+      columns: ["company_id"]
+isOneToOne: false
+      referencedRelation: "company"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "document_review_confirmation_document_id_fkey"
+      columns: ["document_id"]
+isOneToOne: false
+      referencedRelation: "document"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "document_review_confirmation_document_id_fkey"
+      columns: ["document_id"]
+isOneToOne: false
+      referencedRelation: "document_duplicate_warning"
+      referencedColumns: ["document_id"]
+    },{
+      foreignKeyName: "document_review_confirmation_document_id_fkey"
+      columns: ["document_id"]
+isOneToOne: false
+      referencedRelation: "document_overview"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "document_review_confirmation_document_id_fkey"
+      columns: ["document_id"]
+isOneToOne: false
+      referencedRelation: "vat_report_document"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "document_review_confirmation_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organization"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"extraction_version": {
                   Row: {
                     "author_user_id": string | null,"company_id": string,"created_at": string,"document_id": string,"extraction_request_id": string | null,"findings": NonNullable<Json>,"id": string,"model": string | null,"organization_id": string,"payload": NonNullable<Json>,"provider": string | null,"version": number
@@ -1087,6 +1187,12 @@ isOneToOne: false
 "dismiss_upload_notification":
 { Args: { "target_notification_id": string }; Returns: undefined
                            },
+"document_approval_result":
+{ Args: { "based_on_version": number,"operation_kind"?: string,"request_id": string,"submitted_payload": Json,"target_document_id": string }; Returns: number
+                           },
+"document_review_context":
+{ Args: { "based_on_version": number,"target_document_id": string }; Returns: Json
+                           },
 "exclude_source_file":
 { Args: { "exclusion_reason": string,"target_source_file_id": string }; Returns: undefined
                            },
@@ -1314,6 +1420,12 @@ isOneToOne: false
                            },
 "return_document_to_review":
 { Args: { "target_document_id": string }; Returns: undefined
+                           },
+"save_and_approve_document":
+{ Args: { "acknowledgement"?: string,"based_on_version": number,"expected_context": Json,"findings": Json,"payload": Json,"request_id": string,"submitted_payload": Json,"target_document_id": string }; Returns: Json
+                           },
+"save_document_review":
+{ Args: { "based_on_version": number,"findings": Json,"payload": Json,"request_id": string,"submitted_payload": Json,"target_document_id": string }; Returns: number
                            },
 "save_vat_report":
 { Args: { "computed_result": Json,"expected_documents": Json,"target_company_id": string,"target_period": string }; Returns: string
