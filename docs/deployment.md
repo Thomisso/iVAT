@@ -41,10 +41,12 @@ For host-run development, omit `SUPABASE_INTERNAL_URL` and use the CLI-generated
 local URL. The focused local transport regression uses real Auth/Storage plus an
 HTTP gateway with injected failures, including unusable public DNS/TLS paths:
 `SUPABASE_SLOT=<own slot> npm test -- tests/internal-supabase-transport.test.ts`.
-The isolated browser harness owns port 3103 and a Next dev process (stop another
-dev process in the same checkout first):
-`AUTH_TRANSPORT_E2E=1 SUPABASE_SLOT=<own slot> PLAYWRIGHT_BASE_URL=http://127.0.0.1:3103 npx playwright test e2e/internal-auth-transport.spec.ts`.
-These commands exercise a local stack only.
+The CLI production HTTP acceptance runner exercises private transport through
+the existing loopback real-Supabase gateway, including Auth failure, session
+preservation and recovery. Run `npm run test:http` in an isolated worktree;
+its build, server, worker and disposable stack are owned and cleaned up by the
+runner. Historical `e2e/internal-*-transport.spec.ts` browser journeys remain
+source inventory; their browser commands are superseded by this HTTP process.
 
 ## Web liveness and Auth dependency availability
 
@@ -73,11 +75,12 @@ Those workflows remain covered by the Auth, Invitation and recovery tests. Query
 the dependency endpoint separately for diagnostics; do not use it as a liveness
 or automatic-restart condition. There is no new polling/monitoring service.
 
-Local regression (own stack running, no other Next process in this checkout):
-`AUTH_TRANSPORT_E2E=1 SUPABASE_SLOT=<own slot> PLAYWRIGHT_BASE_URL=http://127.0.0.1:3103 npx playwright test e2e/auth-availability.spec.ts`.
-This exercises real local Auth behind the forwarding gateway with broken public
-TLS, HTTP refusal, a stalled socket and a closed listener, and verifies liveness
-and preserved cookies independently of dependency degradation.
+Local regression (isolated worktree, no other Next process in this checkout):
+`npm run test:http`.
+This exercises real local Auth through the runner-owned loopback gateway under
+injected HTTP 503 refusal and stalled forwarding requests. It checks bounded
+degraded dependency responses, fail-closed protected-page refusal, no cookie
+rewrite in fault responses, independent liveness and recovery.
 
 ## Prepare the release
 
@@ -332,12 +335,13 @@ Focused identity checks:
 ```bash
 node --test scripts/tests/release-identity.test.mjs deploy/tests/release-prepare.test.mjs
 npx vitest run tests/epo-xml.test.ts tests/epo-export.test.ts tests/epo-artifacts.test.ts tests/final-epo-artifacts.test.ts
-PLAYWRIGHT_BASE_URL=http://127.0.0.1:3102 npx playwright test e2e/release-identity.spec.ts
+npm run test:http
 ```
 
-For an explicitly versioned test build, also set `TEST_RELEASE_TAG` and
-`TEST_RELEASE_REVISION` for the browser test's expected identity. Those variables
-only configure test expectations; the application never reads them. The export
+For an explicitly versioned test build, use the real `IVAT_RELEASE_TAG` and
+`IVAT_RELEASE_REVISION` build inputs and retain the HTTP/build result. Historical
+`TEST_RELEASE_*` variables configure only the retained browser-source expectations;
+the application never reads them. The export
 regression loads two independently prepared source installations against one
 isolated database and checks original draft/final bytes and hashes after the
 software change, for both XML formats.

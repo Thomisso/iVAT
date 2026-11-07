@@ -85,7 +85,7 @@ it("refuses invalid or inaccessible manual corrections before external preparati
   const rates = { rateFor: async (): Promise<never> => { throw new Error("Refused input must not request a rate"); } };
   const registry = { check: async (): Promise<never> => { throw new Error("Refused input must not request a registry check"); } };
   expect(await correctDocument(company.client, { ...input, payload: { ...SAMPLE_EXTRACTION, currency: "EUR", taxPointDate: null } }, rates, registry))
-    .toEqual({ ok: false, error: "tax_point_date_required" });
+    .toEqual({ ok: false, error: "tax_point_date_required", findings: [{ field: "taxPointDate", severity: "error", code: "tax_point_date_required" }] });
   expect(await correctDocument(company.client, { ...input, payload: { ...SAMPLE_EXTRACTION, currency: "EUR" } }, rates, registry))
     .toEqual({ ok: false, error: "forbidden" });
 });
