@@ -2,7 +2,7 @@ import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { provisionAndLogIn } from "./support/accounts";
 import { browserUserClient, addBrowserSourceEvidenceFixture } from "../tests/support/e2e";
 import { SAMPLE_EXTRACTION } from "../src/ai/fake";
-import { correctDocument, createManualDocument, getDocument, listExtractionVersions, updateDocumentReporting } from "../src/application/documents";
+import { correctDocument, createManualDocument, getDocument, listExtractionVersions, updateDocumentReporting, approveDocument } from "../src/application/documents";
 import { generateVatReport, finalizeVatReport, getVatReport, unlockReportingPeriod } from "../src/application/vat-reports";
 import { fakeVatPayerRegistry } from "../src/vat-registry/fake";
 
@@ -521,6 +521,8 @@ test("without Navigation API review history uses the native warning and preserve
   // The browser owns native Leave semantics and may restore its cached draft.
   await expect(number).toHaveValue(new RegExp(`^(${accepted}|NATIVE-KEEP-DRAFT-229)$`));
   expect(await listExtractionVersions(client, companyId, documentId)).toHaveLength(1);
+  await expect(page.locator(".review-actions button[form]")).toHaveCount(2);
+  await number.click();
   await number.fill("NATIVE-DISCARD-229");
   await page.getByRole("link", { name: "← Previous", exact: true }).click();
   await expect(guard).toBeVisible({ timeout: 3_000 });
@@ -530,6 +532,8 @@ test("without Navigation API review history uses the native warning and preserve
   await page.goBack({ waitUntil: "commit" });
   await expect(page).toHaveURL(href);
   await expect(number).toHaveValue(accepted);
+  await expect(page.locator(".review-actions button[form]")).toHaveCount(2);
+  await number.click();
   await number.fill("NATIVE-SAVED-229");
   await page.getByRole("link", { name: "← Previous", exact: true }).click();
   await guard.getByRole("button", { name: "Save draft and continue", exact: true }).click();
@@ -539,6 +543,8 @@ test("without Navigation API review history uses the native warning and preserve
   await expect(number).toHaveValue("NATIVE-SAVED-229");
   expect((await listExtractionVersions(client, companyId, documentId))[1].payload.documentNumber).toBe("NATIVE-SAVED-229");
   // A restored document must not keep an earlier approved-unload bypass.
+  await expect(page.locator(".review-actions button[form]")).toHaveCount(2);
+  await number.click();
   await number.fill("NATIVE-NEW-DRAFT-229");
   warning = "";
   page.once("dialog", async dialog => { warning = dialog.type(); await dialog.dismiss(); });
@@ -793,4 +799,115 @@ test("key facts show the actual Reporting Period separately from Earliest Claim 
   await expect(page.locator('input[name="requestId"]')).toHaveValue(requestId);
   expect((await getDocument(client, companyId, created.value.id))).toMatchObject({ status: "needs_review", claimedReportingPeriod: "2026-11" });
   expect(await listExtractionVersions(client, companyId, created.value.id)).toHaveLength(2);
+});
+
+
+test("a saved Direction change cannot remove the remaining Reporting Period draft", async ({ page, context, baseURL }) => {
+  const { companyId, client } = await setupReviewCompany(page, context, baseURL, "PeriodAvailability");
+  const created = await createManualDocument(client, { companyId, payload: { ...SAMPLE_EXTRACTION,
+    claimEligibility: { period: "2026-10", origin: "user", confirmed: true },
+  } }, undefined, fakeVatPayerRegistry());
+  if (!created.ok) throw new Error(created.error);
+  const href = `/companies/${companyId}/documents/${created.value.id}`;
+  await page.goto(href);
+  await expect(page.locator(".review-actions button[form]")).toHaveCount(2);
+  const period = page.getByRole("combobox", { name: /^Move input VAT claim to/ });
+  await period.selectOption("2026-11", { timeout: 3_000 });
+  await page.getByLabel("Direction", { exact: true }).selectOption("outgoing");
+  await page.getByText("Version history", { exact: true }).click();
+  const history = page.getByRole("link", { name: /^Version 1:/ });
+  await history.click();
+  const guard = page.getByRole("dialog", { name: "Unsaved changes", exact: true });
+  await guard.getByRole("button", { name: "Save draft and continue", exact: true }).click();
+  await expect(guard.getByRole("alert")).toContainText("Not all changes were saved", { timeout: 3_000 });
+  await guard.getByRole("button", { name: "Stay here", exact: true }).click();
+  await expect(page).toHaveURL(href);
+  await expect(period).toHaveValue("2026-11", { timeout: 3_000 });
+  await expect(period).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Save Reporting Period", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("status").filter({ hasText: "Your unsaved selection is retained" })).toBeVisible();
+  const versions = await listExtractionVersions(client, companyId, created.value.id);
+  expect(versions).toHaveLength(2);
+  expect(versions[1].payload.direction).toBe("outgoing");
+  expect((await getDocument(client, companyId, created.value.id))?.claimedReportingPeriod).toBeNull();
+  await history.click();
+  await guard.getByRole("button", { name: "Discard changes", exact: true }).click();
+  await expect(page).toHaveURL(url => url.searchParams.get("version") === "1");
+  expect(await listExtractionVersions(client, companyId, created.value.id)).toEqual(versions);
+  await page.getByRole("link", { name: "Show the current version", exact: true }).click();
+  await expect(page.getByLabel("Direction", { exact: true })).toHaveValue("outgoing");
+  await expect(period).toHaveCount(0);
+});
+
+
+test("a current Period Lock refresh keeps tracking the existing readonly accounting draft", async ({ page, context, baseURL }) => {
+  const { companyId, client } = await setupReviewCompany(page, context, baseURL, "ReadonlyDeparture");
+  const created = await createManualDocument(client, { companyId, payload: { ...SAMPLE_EXTRACTION, direction: "outgoing" } }, undefined, fakeVatPayerRegistry());
+  if (!created.ok) throw new Error(created.error);
+  const href = `/companies/${companyId}/documents/${created.value.id}`;
+  await page.goto(href);
+  await expect(page.locator(".review-actions button[form]")).toHaveCount(2);
+  const number = page.getByLabel("Document number", { exact: true });
+  await number.fill("PRIMARY-LOCK-DRAFT-229");
+  expect(await approveDocument(client, { companyId, documentId: created.value.id, version: 1 })).toEqual({ ok: true, value: null });
+  expect((await generateVatReport(client, { companyId, period: "2026-10" })).ok).toBe(true);
+  expect(await finalizeVatReport(client, { companyId, period: "2026-10", confirmed: true })).toEqual({ ok: true, value: null });
+  const versions = await listExtractionVersions(client, companyId, created.value.id);
+  await page.getByRole("button", { name: "Check payment account again", exact: true }).click();
+  await expect(number).toBeDisabled();
+  await expect(number).toHaveValue("PRIMARY-LOCK-DRAFT-229");
+  await expect(page.getByRole("button", { name: "Save draft", exact: true })).toHaveCount(0);
+  const documents = page.getByRole("navigation", { name: "Company navigation", exact: true }).getByRole("link", { name: "Documents", exact: true });
+  await documents.click();
+  const guard = page.getByRole("dialog", { name: "Unsaved changes", exact: true });
+  await expect(guard).toBeVisible({ timeout: 3_000 });
+  await guard.getByRole("button", { name: "Save draft and continue", exact: true }).click();
+  await expect(guard.getByRole("alert")).toContainText("Not all changes were saved", { timeout: 3_000 });
+  await expect(page).toHaveURL(href);
+  await guard.getByRole("button", { name: "Stay here", exact: true }).click();
+  await expect(number).toHaveValue("PRIMARY-LOCK-DRAFT-229");
+  expect(await listExtractionVersions(client, companyId, created.value.id)).toEqual(versions);
+  expect(await unlockReportingPeriod(client, { companyId, period: "2026-10", reason: "Restore availability without replacing the existing draft", confirmed: true })).toEqual({ ok: true, value: null });
+  await page.getByRole("button", { name: "Check payment account again", exact: true }).click();
+  await page.getByRole("button", { name: "Return to review", exact: true }).click();
+  await expect(number).toBeEnabled();
+  await expect(number).toHaveValue("PRIMARY-LOCK-DRAFT-229");
+  await documents.click();
+  await expect(guard).toBeVisible({ timeout: 3_000 });
+  await guard.getByRole("button", { name: "Stay here", exact: true }).click();
+  await documents.click();
+  await guard.getByRole("button", { name: "Discard changes", exact: true }).click();
+  await expect(page).toHaveURL(url => url.pathname === `/companies/${companyId}/documents`);
+  await page.goto(`${href}?version=1`);
+  await page.getByRole("link", { name: "Show the current version", exact: true }).click();
+  await expect(page).toHaveURL(href);
+  await documents.click();
+  await expect(page).toHaveURL(url => url.pathname === `/companies/${companyId}/documents`);
+  await expect(guard).toHaveCount(0);
+  const clean = await createManualDocument(client, { companyId, payload: { ...SAMPLE_EXTRACTION, direction: "outgoing", documentNumber: "CLEAN-LOCK-229", taxPointDate: "2026-11-01", issueDate: "2026-11-01", dueDate: "2026-11-15" } }, undefined, fakeVatPayerRegistry());
+  if (!clean.ok) throw new Error(clean.error);
+  await page.goto(`/companies/${companyId}/documents/${clean.value.id}`);
+  await expect(page.locator(".review-actions button[form]")).toHaveCount(2);
+  expect(await approveDocument(client, { companyId, documentId: clean.value.id, version: 1 })).toEqual({ ok: true, value: null });
+  expect((await generateVatReport(client, { companyId, period: "2026-11" })).ok).toBe(true);
+  expect(await finalizeVatReport(client, { companyId, period: "2026-11", confirmed: true })).toEqual({ ok: true, value: null });
+  await page.getByRole("button", { name: "Check payment account again", exact: true }).click();
+  await expect(number).toBeDisabled();
+  await documents.click();
+  await expect(guard).toHaveCount(0, { timeout: 3_000 });
+  await expect(page).toHaveURL(url => url.pathname === `/companies/${companyId}/documents`);
+  const returned = await createManualDocument(client, { companyId, payload: { ...SAMPLE_EXTRACTION, direction: "outgoing", documentNumber: "FIRST-RETURN-229", taxPointDate: "2026-12-01", issueDate: "2026-12-01", dueDate: "2026-12-15" } }, undefined, fakeVatPayerRegistry());
+  if (!returned.ok) throw new Error(returned.error);
+  expect(await approveDocument(client, { companyId, documentId: returned.value.id, version: 1 })).toEqual({ ok: true, value: null });
+  await page.goto(`/companies/${companyId}/documents/${returned.value.id}`);
+  const field = page.locator('[data-source-field="documentNumber"]');
+  await field.focus();
+  await expect(field).toHaveClass(/is-selected/);
+  const currentForm = await page.locator("form.correction-form").elementHandle();
+  await page.getByRole("button", { name: "Return to review", exact: true }).click();
+  await expect(number).toBeEnabled();
+  expect(await currentForm!.evaluate(element => element.isConnected)).toBe(true);
+  await documents.click();
+  await expect(guard).toHaveCount(0, { timeout: 3_000 });
+  await expect(page).toHaveURL(url => url.pathname === `/companies/${companyId}/documents`);
 });

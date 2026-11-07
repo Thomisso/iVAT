@@ -1111,7 +1111,8 @@
       "claimedReportingPeriodHint": "Choose an unlocked later period that can end before the claim filing deadline.",
       "claimedReportingPeriodPlaceholder": "2026-12 or 2027-Q1",
       "save": "Save Reporting Period",
-      "saving": "Saving…"
+      "saving": "Saving…",
+      "unavailable": "The Reporting Period cannot be changed for this Document’s current state. Your unsaved selection is retained until you discard it."
     },
     "findings": {
       "rate_vat_amount_mismatch": "VAT does not match the net amount and rate.",

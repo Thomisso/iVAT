@@ -155,7 +155,7 @@ export function documentDecisionHref(companyId: string, input: { documentId: str
   const query = normalizeDocumentQueueQuery(input.queueQuery);
   const origin = safeCompanyReturnTo(companyId, input.returnTo);
   if (query && isUuid(input.nextDocumentId)) return withCompanyReturnTo(companyId, `/companies/${companyId}/documents/${input.nextDocumentId}?${query}`, origin);
-  return origin ?? `/companies/${companyId}/documents${query ? `?${query}` : ""}#document-${input.documentId}`;
+  return origin ?? `/companies/${companyId}/documents${query ? `?${query}#document-${input.documentId}` : ""}`;
 }
 
 /** Resolves a list route's filters, optional upload batch, and complete queue. */

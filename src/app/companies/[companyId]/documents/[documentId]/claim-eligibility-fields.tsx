@@ -60,8 +60,8 @@ export function ClaimEligibilityFields({ payload, periods, editable, values, err
       {error && <p id="claim-eligibility-error" className="iv-field-error">{error}</p>}
       <p>{claim?.confirmed ? t(claim.origin) : t("unconfirmed")}</p>
       <p>{t("hint")}</p>
-      {editable && <label><input type="checkbox" checked={claim?.origin === "user" && claim.confirmed}
-        disabled={!claim?.period} onChange={event => setClaim(current => current ? { period: current.period, origin: "user", confirmed: event.target.checked } : current)} /> {t("confirm")}</label>}
+      <label><input type="checkbox" checked={claim?.origin === "user" && claim.confirmed}
+        disabled={!editable || !claim?.period} onChange={event => setClaim(current => current ? { period: current.period, origin: "user", confirmed: event.target.checked } : current)} /> {t("confirm")}</label>
     </div>
   </fieldset>;
 }
