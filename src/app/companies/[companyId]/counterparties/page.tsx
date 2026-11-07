@@ -7,16 +7,17 @@ import { requireUserClient } from "@/lib/supabase/server";
 
 export default async function CounterpartiesPage({ params, searchParams }: {
   params: Promise<{ companyId: string }>;
-  searchParams: Promise<{ search?: string; role?: string; page?: string }>;
+  searchParams: Promise<{ search?: string; role?: string; state?: string; page?: string }>;
 }) {
   const { companyId } = await params;
   const search = await searchParams;
   const role = search.role === "supplier" || search.role === "customer" ? search.role : undefined;
+  const state = search.state === "archived" ? "archived" : "active";
   const client = await requireUserClient();
-  const page = await listCounterparties(client, companyId, { search: search.search, role, page: Number(search.page ?? 1) });
+  const page = await listCounterparties(client, companyId, { search: search.search, role, state, page: Number(search.page ?? 1) });
   const t = await getTranslations("counterparties");
   const base = `/companies/${companyId}/counterparties`;
-  const pageHref = (number: number) => `${base}?${new URLSearchParams({ search: search.search ?? "", role: role ?? "", page: String(number) })}`;
+  const pageHref = (number: number) => `${base}?${new URLSearchParams({ search: search.search ?? "", role: role ?? "", state, page: String(number) })}`;
   return <PageLayout className="documents-workspace counterparty-directory" measure="wide">
     <PageHeader title={t("title")} description={t("description")} actions={<Link className="iv-btn iv-btn-primary" href={`${base}/new`}>{t("create")}</Link>} />
     <PageContent measure="wide">
@@ -24,6 +25,9 @@ export default async function CounterpartiesPage({ params, searchParams }: {
         <label><span>{t("search")}</span><input className="iv-input" name="search" defaultValue={search.search} placeholder={t("searchHint")} /></label>
         <label><span>{t("roles")}</span><select className="iv-input" name="role" defaultValue={role ?? ""}>
           <option value="">{t("allRoles")}</option><option value="supplier">{t("supplier")}</option><option value="customer">{t("customer")}</option>
+        </select></label>
+        <label><span>{t("entries")}</span><select className="iv-input" name="state" defaultValue={state}>
+          <option value="active">{t("activeEntries")}</option><option value="archived">{t("archivedEntries")}</option>
         </select></label>
         <button className="iv-btn iv-btn-primary" type="submit">{t("filter")}</button>
         <Link href={base}>{t("clear")}</Link>
