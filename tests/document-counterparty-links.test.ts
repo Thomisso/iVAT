@@ -2,7 +2,7 @@ import { createConfirmedManualDocument } from "./support/claim-eligibility";
 import { directoryIdentityDuringApproval, attemptHistoricalCounterpartyDelete } from "./support/counterparty-link-race";
 import { expect, it } from "vitest";
 import { SAMPLE_EXTRACTION } from "@/ai/fake";
-import { createCounterparty, updateCounterparty, listCounterpartyDocuments } from "@/application/counterparties";
+import { createCounterparty, updateCounterparty, listCounterpartyDocuments, listCounterparties } from "@/application/counterparties";
 import { correctDocument, listExtractionVersions, saveAndApproveDocument } from "@/application/documents";
 import { getDocumentReview } from "@/application/document-review";
 import { fakeVatPayerRegistry } from "@/vat-registry/fake";
@@ -10,6 +10,34 @@ import { createCompany } from "@/application/companies";
 import { generateVatReport, getVatReport, finalizeVatReport } from "@/application/vat-reports";
 import { listAuditEvents } from "@/application/audit";
 import { administratorWithCompany, companyDetails } from "./support/fixtures";
+
+it("automatically links an unambiguous normalized identity and approves without duplicating the Counterparty", async () => {
+  const company = await administratorWithCompany();
+  const entry = await createCounterparty(company.client, {
+    companyId: company.companyId, name: "Dodavatel s.r.o.", ico: "27082440", vatId: "CZ27082440",
+    street: "Na Příkopě 1", city: "Praha", postalCode: "110 00", countryCode: "CZ",
+    supplier: true, customer: false,
+  });
+  if (!entry.ok) throw new Error(entry.error);
+  const created = await createConfirmedManualDocument(company.client, {
+    companyId: company.companyId,
+    payload: { ...SAMPLE_EXTRACTION, supplier: { ...SAMPLE_EXTRACTION.supplier, name: "Dodavatel   s.r.o.", vatId: "cz 27082440" } },
+  }, undefined, fakeVatPayerRegistry());
+  if (!created.ok) throw new Error(created.error);
+  const target = { companyId: company.companyId, documentId: created.value.id };
+  const review = await getDocumentReview(company.client, target);
+  expect(review?.current?.payload).toMatchObject({
+    supplier: { name: "Dodavatel   s.r.o.", ico: "27082440", vatId: "CZ27082440" },
+    counterpartyLink: { id: entry.value.id, recorded: { name: "Dodavatel s.r.o.", ico: "27082440", vatId: "CZ27082440" } },
+  });
+  if (!review?.current) throw new Error("expected current Document review");
+  expect(await saveAndApproveDocument(company.client, {
+    ...target, basedOnVersion: 1, requestId: crypto.randomUUID(), payload: review.current.payload,
+  }, undefined, fakeVatPayerRegistry())).toEqual({ ok: true, value: { version: 1 } });
+  expect((await getDocumentReview(company.client, target))?.document.status).toBe("approved");
+  expect(await listExtractionVersions(company.client, target.companyId, target.documentId)).toHaveLength(1);
+  expect(await listCounterparties(company.client, company.companyId)).toMatchObject({ total: 1, entries: [{ id: entry.value.id }] });
+});
 
 it("links an existing Counterparty while preserving the Document's own Party and earlier Version", async () => {
   const company = await administratorWithCompany();
