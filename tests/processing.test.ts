@@ -365,11 +365,15 @@ describe("Split", () => {
     expect(await worker.runJobs()).toEqual([]);
 
     expect(new TextDecoder().decode(splitInputs[0].bytes)).toContain(
-      '[Sheet "Invoices"]\n1\tDocument number\tIssue date\tGross amount\n2\tFV-1\t2026-10-01\t1210',
+      '[Sheet "Invoices"]\n[Columns]\tA\tB\tC\n1\tDocument number\tIssue date\tGross amount\n2\tFV-1\t2026-10-01\t1210',
     );
     expect(extracted.map((input) => new TextDecoder().decode(input.bytes))).toEqual([
-      '[Sheet "Invoices"]\n1\tDocument number\tIssue date\tGross amount\n2\tFV-1\t2026-10-01\t1210',
-      '[Sheet "Invoices"]\n1\tDocument number\tIssue date\tGross amount\n3\tFV-2\t2026-10-02\t2420.5',
+      '[Sheet "Invoices"]\n[Columns]\tA\tB\tC\n1\tDocument number\tIssue date\tGross amount\n2\tFV-1\t2026-10-01\t1210',
+      '[Sheet "Invoices"]\n[Columns]\tA\tB\tC\n1\tDocument number\tIssue date\tGross amount\n3\tFV-2\t2026-10-02\t2420.5',
+    ]);
+    expect(extracted.map(input => input.workbookEvidence)).toEqual([
+      { sheetName: "Invoices", firstRow: 2, lastRow: 2, firstColumn: 1, lastColumn: 3, headerRow: 1 },
+      { sheetName: "Invoices", firstRow: 3, lastRow: 3, firstColumn: 1, lastColumn: 3, headerRow: 1 },
     ]);
     const documents = await listDocuments(client, companyId, uploaded.value.id);
     expect(documents).toEqual([
@@ -389,7 +393,19 @@ describe("Split", () => {
       sheetName: "Invoices",
       firstRow: 3,
       lastRow: 3,
-      text: '[Sheet "Invoices"]\n1\tDocument number\tIssue date\tGross amount\n3\tFV-2\t2026-10-02\t2420.5',
+      firstColumn: 1,
+      lastColumn: 3,
+      headerRow: 1,
+      columns: [{ number: 1, label: "A" }, { number: 2, label: "B" }, { number: 3, label: "C" }],
+      rows: [
+        { number: 1, context: true, cells: [
+          { address: "A1", column: 1, text: "Document number" }, { address: "B1", column: 2, text: "Issue date" }, { address: "C1", column: 3, text: "Gross amount" },
+        ] },
+        { number: 3, context: false, cells: [
+          { address: "A3", column: 1, text: "FV-2" }, { address: "B3", column: 2, text: "2026-10-02" }, { address: "C3", column: 3, text: "2420.5" },
+        ] },
+      ],
+      text: '[Sheet "Invoices"]\n[Columns]\tA\tB\tC\n1\tDocument number\tIssue date\tGross amount\n3\tFV-2\t2026-10-02\t2420.5',
     });
   });
 

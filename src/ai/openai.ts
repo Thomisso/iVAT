@@ -9,7 +9,7 @@ import {
 } from "@/application/ai-provider";
 import {
   EXTRACTION_PROMPT,
-  EXTRACTION_SCHEMA,
+  extractionSchema,
   extractionPayload,
   interpreted,
   pageRanges,
@@ -180,7 +180,7 @@ export function openAiProvider(options: OpenAiProviderOptions): AiProvider {
         input,
         EXTRACTION_PROMPT,
         "ivat_extraction",
-        EXTRACTION_SCHEMA,
+        extractionSchema(input),
       );
       return {
         model: result.model,

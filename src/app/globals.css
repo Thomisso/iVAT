@@ -2465,3 +2465,16 @@ select:disabled {
 .review-workspace .review-secondary[open] { width: 100%; }
 
 .review-error-summary li > button { display: block; max-width: 100%; }
+
+/* Real worksheet coordinates stay attached to the cells, never to an image overlay. */
+.workbook-source-table { border-collapse: collapse; min-width: 100%; background: var(--paper); }
+.workbook-source-table caption { text-align: left; padding: var(--space-2); color: var(--ink-muted); }
+.workbook-source-table th, .workbook-source-table td { padding: var(--space-2) var(--space-3); border: 1px solid var(--line); white-space: nowrap; text-align: left; }
+.workbook-source-table th, .workbook-source-table tr[data-context="true"] { background: var(--surface-sunken); }
+.workbook-source-table td.has-evidence { background: color-mix(in srgb, var(--ai-mark) 40%, transparent); }
+.workbook-source-table td.is-selected { background: var(--ai-mark); outline: 2px solid var(--ai-edge); outline-offset: -2px; }
+.workbook-source-table td button { display: inline-flex; margin-left: var(--space-2); border: 0; padding: var(--space-1); background: transparent; color: var(--ink-on-mark); cursor: pointer; }
+.workbook-source-inspect { overflow: auto; }
+
+/* Keep Inspect positioned within the source while the workspace scrolls each pane. */
+.company-shell-content > .review.review-workspace .review-original > .pdf-source-viewer { position: relative; overflow: visible; }

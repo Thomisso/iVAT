@@ -1,3 +1,4 @@
+import type { WorkbookEvidenceRange } from "./source-locations";
 import type { ExtractionPayload } from "./extraction-payload";
 import type { SourceFileFormat } from "./source-files";
 import type { WorkbookRowSet } from "./workbooks";
@@ -12,6 +13,8 @@ export type AiInput = {
   text?: string;
   /** Populated worksheet bounds, for validating a spreadsheet Split. */
   workbookRowSets?: WorkbookRowSet[];
+  /** Exact worksheet rows/header and absolute columns supplied for Extraction. */
+  workbookEvidence?: WorkbookEvidenceRange;
 };
 
 /** A Document found by Split, as an inclusive range of 1-based page numbers. */

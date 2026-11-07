@@ -16,7 +16,7 @@ import {
   type ValidationFinding,
 } from "./document-validation";
 import { pdfPages, readSourceFile, SOURCE_FILE_MEDIA_TYPES, prepareSourceFile, storeSourceFileObjects, type UploadSourceFileError } from "./source-files";
-import { assertWorkbookRanges, workbookToText, workbookRowsToText, type WorkbookRowSet } from "./workbooks";
+import { assertWorkbookRanges, workbookToText, workbookRowsToText, workbookRows, type WorkbookRows, type WorkbookRowSet } from "./workbooks";
 import type { ExchangeRateProvider } from "./exchange-rates";
 import type { VatPayerRegistry } from "./vat-registry";
 import { prepareExtractionVersion, prepareManualExtractionPayload } from "./extraction-preparation";
@@ -415,7 +415,7 @@ export async function readDocumentPages(
   const bound = evidence?.documentId === document.id && evidence.sourceFileId === file.id
     && evidence.sourceSha256 === file.sha256 && evidence.basis.sha256 === file.sha256
     && evidence.extractionVersionId === selected?.id;
-  const range = bound ? evidence.range : { firstPage: document.firstPage, lastPage: document.lastPage };
+  const range = bound && "firstPage" in evidence.range ? evidence.range : { firstPage: document.firstPage, lastPage: document.lastPage };
   return {
     fileName: file.fileName,
     mediaType: SOURCE_FILE_MEDIA_TYPES[file.format],
@@ -428,15 +428,25 @@ export async function readDocumentRows(
   client: AppClient,
   companyId: string,
   documentId: string,
-): Promise<(WorkbookRowSet & { fileName: string; text: string }) | null> {
+  requestedVersion?: number,
+): Promise<(WorkbookRows & { fileName: string; text: string }) | null> {
   const document = await getDocument(client, companyId, documentId);
   if (!document?.rowSet || !document.sourceFileId) return null;
+  const selected = requestedVersion === undefined ? undefined
+    : (await listExtractionVersions(client, companyId, documentId)).find(version => version.version === requestedVersion);
+  if (requestedVersion !== undefined && !selected) return null;
   const stored = await readSourceFile(client, companyId, document.sourceFileId);
   if (!stored) return null;
+  const evidence = selected?.payload.sourceEvidence;
+  const bound = evidence?.documentId === document.id && evidence.sourceFileId === stored.file.id
+    && evidence.sourceSha256 === stored.file.sha256 && evidence.basis.kind === "original"
+    && evidence.basis.format === stored.file.format && evidence.basis.sha256 === stored.file.sha256
+    && evidence.extractionVersionId === selected?.id && "firstRow" in evidence.range;
+  const range = bound && "firstRow" in evidence.range ? evidence.range : document.rowSet;
   return {
     fileName: stored.file.fileName,
-    ...document.rowSet,
-    text: workbookRowsToText(stored.bytes, document.rowSet),
+    ...workbookRows(stored.bytes, range),
+    text: workbookRowsToText(stored.bytes, range),
   };
 }
 
