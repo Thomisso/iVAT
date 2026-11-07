@@ -16,34 +16,46 @@ export function claimBasisKey(payload: ClaimBasis): string {
 export function partialClaimRates(payload: ExtractionPayload): RateBreakdownLine[] | null {
   const claim = payload.partialClaim;
   if (payload.direction !== "incoming" || payload.proposedVatRegime !== "domestic"
-    || payload.currency !== "CZK" || payload.rateBreakdown.length !== 1
+    || !payload.rateBreakdown.length
     || payload.documentType === "credit_note") return null;
-  if (!claim || claim.confirmed !== true || !Array.isArray(claim.rateBreakdown) || claim.rateBreakdown.length !== 1) return null;
+  if (!claim || claim.confirmed !== true || !Array.isArray(claim.rateBreakdown)
+    || claim.rateBreakdown.length !== payload.rateBreakdown.length) return null;
   if (claim.basis) {
     try { if (claimBasisKey(claim.basis) !== claimBasisKey(payload)) return null; }
     catch { return null; }
   }
-  const selected = claim.rateBreakdown[0];
-  if (!selected || typeof selected !== "object") return null;
-  const original = payload.rateBreakdown.find((line) => line.rate === selected.rate);
-  if (!original || (selected.rate !== 21 && selected.rate !== 12) || typeof selected.netAmount !== "string" || typeof selected.vatAmount !== "string"
-    || !/^-?\d+\.\d{2}$/.test(selected.netAmount) || !/^-?\d+\.\d{2}$/.test(selected.vatAmount)
-    || !original.netAmount || !original.vatAmount
-    || !payload.totals.netAmount || !payload.totals.vatAmount
-    || [original.netAmount, original.vatAmount, payload.totals.netAmount, payload.totals.vatAmount].some(value => !/^-?\d+\.\d{2}$/.test(value))) return null;
-  const net = halers(selected.netAmount);
-  const vat = halers(selected.vatAmount);
-  if (net <= BigInt(0) || vat < BigInt(0)
-    || net > halers(original.netAmount) || vat > halers(original.vatAmount)) return null;
-  const differences = [
-    vat - halers(assessedVat(selected.netAmount, selected.rate)),
-    halers(original.vatAmount) - halers(assessedVat(original.netAmount, selected.rate)),
-    halers(payload.totals.netAmount) - halers(original.netAmount),
-    halers(payload.totals.vatAmount) - halers(original.vatAmount),
-  ];
-  // Preserve the existing two-haler tolerance; gross-total mismatch is advisory.
-  if (differences.some((difference) => (difference < BigInt(0) ? -difference : difference) > BigInt(2))) return null;
-  return [{ rate: selected.rate, netAmount: selected.netAmount, vatAmount: selected.vatAmount }];
+  const rates: RateBreakdownLine[] = [];
+  const seen = new Set<number>();
+  let fullNet = BigInt(0);
+  let fullVat = BigInt(0);
+  for (const selected of claim.rateBreakdown) {
+    if (!selected || typeof selected !== "object") return null;
+    const original = payload.rateBreakdown.find((line) => line.rate === selected.rate);
+    if (!original || (selected.rate !== 21 && selected.rate !== 12) || seen.has(selected.rate)
+      || payload.rateBreakdown.filter(line => line.rate === selected.rate).length !== 1
+      || typeof selected.netAmount !== "string" || typeof selected.vatAmount !== "string"
+      || !/^-?\d+\.\d{2}$/.test(selected.netAmount) || !/^-?\d+\.\d{2}$/.test(selected.vatAmount)
+      || !original.netAmount || !original.vatAmount
+      || !payload.totals.netAmount || !payload.totals.vatAmount
+      || [original.netAmount, original.vatAmount, payload.totals.netAmount, payload.totals.vatAmount].some(value => !/^-?\d+\.\d{2}$/.test(value))) return null;
+    const net = halers(selected.netAmount);
+    const vat = halers(selected.vatAmount);
+    if (net < BigInt(0) || vat < BigInt(0) || (net === BigInt(0) && vat !== BigInt(0))
+      || net > halers(original.netAmount) || vat > halers(original.vatAmount)) return null;
+    const differences = [
+      vat - halers(assessedVat(selected.netAmount, selected.rate)),
+      halers(original.vatAmount) - halers(assessedVat(original.netAmount, selected.rate)),
+    ];
+    // Preserve the existing two-haler tolerance; gross-total mismatch is advisory.
+    if (differences.some((difference) => (difference < BigInt(0) ? -difference : difference) > BigInt(2))) return null;
+    seen.add(selected.rate);
+    fullNet += halers(original.netAmount);
+    fullVat += halers(original.vatAmount);
+    rates.push({ rate: selected.rate, netAmount: selected.netAmount, vatAmount: selected.vatAmount });
+  }
+  const totals = [halers(payload.totals.netAmount!) - fullNet, halers(payload.totals.vatAmount!) - fullVat];
+  if (totals.some(difference => (difference < BigInt(0) ? -difference : difference) > BigInt(2))) return null;
+  return rates;
 }
 
 /** No numeric remainder exists before activation or while source arithmetic is inconsistent. */

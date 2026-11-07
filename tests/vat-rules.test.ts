@@ -584,14 +584,40 @@ it("never restores the full claim while a preserved human selection awaits confi
   expect(report.controlStatement).toEqual([]);
 });
 
+it("reports selected separate supplies at both rates without changing the full amounts", () => {
+  const selected = document({
+    rateBreakdown: [
+      { rate: 21, netAmount: "12000.10", vatAmount: "2520.02" },
+      { rate: 12, netAmount: "2000.20", vatAmount: "240.02" },
+    ],
+    totals: { netAmount: "14000.30", vatAmount: "2760.04", grossAmount: "16760.34" },
+    partialClaim: { confirmed: true, rateBreakdown: [
+      { rate: 12, netAmount: "1000.10", vatAmount: "120.01" },
+      { rate: 21, netAmount: "6000.05", vatAmount: "1260.01" },
+    ] },
+  });
+  const report = computeVatReport(company, period, [selected]);
+  expect(report.excludedDocuments).toEqual([]);
+  expect(report.vatReturn.filter(line => line.documentIds.length)).toEqual([
+    { line: "40", netAmount: "6000.05", vatAmount: "1260.01", documentIds: ["doc-1"] },
+    { line: "41", netAmount: "1000.10", vatAmount: "120.01", documentIds: ["doc-1"] },
+  ]);
+  expect(report.controlStatement).toEqual([expect.objectContaining({ section: "B.2", rateBreakdown: [
+    { rate: 12, netAmount: "1000.10", vatAmount: "120.01", documentIds: ["doc-1"] },
+    { rate: 21, netAmount: "6000.05", vatAmount: "1260.01", documentIds: ["doc-1"] },
+  ] })]);
+  expect(report.totals.inputVat).toBe("1380.02");
+  expect(selected.payload?.totals).toEqual({ netAmount: "14000.30", vatAmount: "2760.04", grossAmount: "16760.34" });
+});
+
 it.each([
   { name: "incomplete", rates: [{ rate: 21, netAmount: "6000.00", vatAmount: null }] },
   { name: "over-full net", rates: [{ rate: 21, netAmount: "12000.01", vatAmount: "2520.00" }] },
   { name: "over-full VAT", rates: [{ rate: 21, netAmount: "12000.00", vatAmount: "2520.01" }] },
   { name: "negative", rates: [{ rate: 21, netAmount: "-6000.00", vatAmount: "-1260.00" }] },
   { name: "unbalanced VAT", rates: [{ rate: 21, netAmount: "6000.00", vatAmount: "1200.00" }] },
+  { name: "VAT without any selected supply", rates: [{ rate: 21, netAmount: "0.00", vatAmount: "0.01" }] },
   { name: "wrong rate", rates: [{ rate: 12, netAmount: "6000.00", vatAmount: "720.00" }] },
-  { name: "zero", rates: [{ rate: 21, netAmount: "0.00", vatAmount: "0.00" }] },
   { name: "empty", rates: [] },
   { name: "duplicate rate", rates: [
     { rate: 21, netAmount: "3000.00", vatAmount: "630.00" },
@@ -616,17 +642,13 @@ it.each<{
   source: Partial<typeof SAMPLE_EXTRACTION>;
 }>([
   { name: "outgoing", source: { direction: "outgoing" } },
+  { name: "Credit Note", source: { documentType: "credit_note", originalDocumentNumber: "ORIGINAL" } },
   { name: "reverse charge", source: { proposedVatRegime: "domestic_reverse_charge", reverseChargeCode: "4" } },
   { name: "self-assessed EU service", source: {
     proposedVatRegime: "eu_received_service", supplier: { ...SAMPLE_EXTRACTION.supplier, vatId: "DE123456789", country: "DE" },
   } },
-  { name: "foreign currency", source: {
-    currency: "EUR",
-    czkConversion: {
-      originalCurrency: "EUR", rate: "25.00", unit: 1, rateDate: "2026-10-01", source: "CNB",
-      rateBreakdown: [{ rate: 21, netAmount: "300000.00", vatAmount: "63000.00" }],
-      totals: { netAmount: "300000.00", vatAmount: "63000.00", grossAmount: "363000.00" },
-    },
+  { name: "self-assessed EU goods", source: {
+    proposedVatRegime: "eu_acquisition_of_goods", supplier: { ...SAMPLE_EXTRACTION.supplier, vatId: "DE123456789", country: "DE" },
   } },
   { name: "multiple rates", source: {
     rateBreakdown: [
@@ -635,7 +657,7 @@ it.each<{
     ],
     totals: { netAmount: "13000.00", vatAmount: "2640.00", grossAmount: "15640.00" },
   } },
-])("excludes a Partial Claim on a $name Document outside the supported single-rate CZK scope", ({ source }) => {
+])("excludes a Partial Claim on an unsupported or incomplete $name Document", ({ source }) => {
   const selected = document({
     rateBreakdown: [{ rate: 21, netAmount: "12000.00", vatAmount: "2520.00" }],
     totals: { netAmount: "12000.00", vatAmount: "2520.00", grossAmount: "14520.00" },
