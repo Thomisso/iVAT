@@ -1,4 +1,5 @@
 import { createConfirmedManualDocument, setOctoberImportFixture } from "./support/claim-eligibility";
+import { createCounterparty } from "@/application/counterparties";
 import { fakeAiProvider } from "@/ai/fake";
 import { fakeVatPayerRegistry } from "@/vat-registry/fake";
 import { correctDocument, readDocumentPages, reprocessDocument, saveAndApproveDocument } from "@/application/documents";
@@ -213,6 +214,10 @@ it("ignores invalid PDF locations while sound financial data remains approvable 
     ] };
   } }));
   const admin = await administratorWithCompany();
+  const party = SAMPLE_EXTRACTION.supplier;
+  const known = await createCounterparty(admin.client, { companyId: admin.companyId, name: party.name!, ico: party.ico, vatId: party.vatId,
+    street: party.street!, city: party.city!, postalCode: party.postalCode!, countryCode: party.country!, supplier: true, customer: false });
+  if (!known.ok) throw new Error(known.error);
   const configured = await assignAiConfigurationFixture(admin.client, worker.jobs, { companyId: admin.companyId, provider: worker.ai });
   if (!configured.ok) throw new Error(configured.error);
   const uploaded = await uploadSourceFile(admin.client, worker.jobs, { companyId: admin.companyId, fileName: "missing-locations.pdf", bytes: await sourceEvidencePdfFixture() });

@@ -741,6 +741,7 @@
     "not_extracted": "Doklad zatím nemá verzi vytěžení, kterou lze ověřit.",
     "counterparty_role_required": "Vyberte dodavatele nebo odběratele.",
     "counterparty_identity_taken": "Protistrana se stejným IČO nebo DIČ již v této firmě existuje, případně je archivovaná.",
+    "counterparty_in_use": "Protistrana je propojená se zaznamenanými doklady a lze ji pouze archivovat.",
     "invalid_country_code": "Zadejte dvoupísmenný kód země.",
     "counterparty_invalid_vat_id": "Zadejte DIČ s dvoupísmenným kódem země a 2 až 14 číslicemi nebo písmeny.",
     "review_warnings_changed": "Zkontrolujte nově zjištěná upozornění a výslovně schvalte tyto hodnoty.",
@@ -749,8 +750,11 @@
     "invalid_earliest_claim_period": "Vyberte existující období, které není před obdobím DUZP.",
     "claimed_period_before_earliest": "Zvolené období uplatnění je před potvrzeným nejdřívějším obdobím.",
     "deferred_claim_not_supported": "Společný odklad není pro tento režim podporován. Případ vyřešte ručně před novou přípravou výkazu.",
-    "claim_eligibility_unresolved": "Nejdříve vyřešte způsobilost uplatnění označených dokladů v připravenosti období.",
-    "claim_document_type_required": "Vyberte typ dokladu, aby bylo možné potvrdit způsobilost uplatnění."
+    "claim_eligibility_unresolved": "Před novou přípravou nebo exportem XML vyřešte přípustnost uplatnění a lhůty podání označených dokladů.",
+    "claim_document_type_required": "Vyberte typ dokladu, aby bylo možné potvrdit způsobilost uplatnění.",
+    "claim_deadline_expired": "Lhůta pro uplatnění nároku podáním již uplynula. Nové schválení nemůže doložit včasné podání.",
+    "claimed_period_after_deadline": "Toto období končí příliš pozdě pro běžné uplatnění před koncem lhůty podání. Zvolte dřívější přípustné období.",
+    "counterparty_resolution_required": "Před schválením vyřešte identitu protistrany. Vyberte existující záznam, obnovte archivovanou shodu nebo výslovně potvrďte vytvoření bez identifikátorů. Změněná upozornění adresáře je nutné zkontrolovat."
   },
   "aiUsage": {
     "platformNav": "Využití AI na platformě",
@@ -1104,7 +1108,7 @@
       "title": "Zdaňovací období nároku na odpočet",
       "defaultPeriod": "Podle DUZP (bez odložení)",
       "claimedReportingPeriod": "Přesunout nárok na odpočet do období",
-      "claimedReportingPeriodHint": "Vyberte nezamčené pozdější období, nejvýše tři roky od DUZP.",
+      "claimedReportingPeriodHint": "Vyberte nezamčené pozdější období, které skončí včas pro podání do konce lhůty nároku.",
       "claimedReportingPeriodPlaceholder": "2026-12 nebo 2027-Q1",
       "save": "Uložit zdaňovací období",
       "saving": "Ukládání…"
@@ -1147,7 +1151,9 @@
       "invalid_earliest_claim_period": "Vyberte existující období, které není před obdobím DUZP.",
       "claimed_period_before_earliest": "Zvolené období uplatnění je před potvrzeným nejdřívějším obdobím.",
       "deferred_claim_not_supported": "Společný odklad není pro tento režim podporován. Případ vyřešte ručně před novou přípravou výkazu.",
-      "claim_document_type_required": "Vyberte typ dokladu, aby bylo možné potvrdit způsobilost uplatnění."
+      "claim_document_type_required": "Vyberte typ dokladu, aby bylo možné potvrdit způsobilost uplatnění.",
+      "claim_deadline_expired": "Lhůta pro uplatnění nároku podáním již uplynula. Nové schválení nemůže doložit včasné podání.",
+      "claimed_period_after_deadline": "Toto období končí příliš pozdě pro běžné uplatnění před koncem lhůty podání. Zvolte dřívější přípustné období."
     },
     "noDocumentImage": "Tento doklad vznikl z řádků tabulky a nemá obraz dokladu.",
     "sections": {
@@ -1230,7 +1236,7 @@
     "currentValue": "Aktuální hodnota",
     "directory": {
       "title": "Adresář protistran",
-      "linkHint": "Propojte existující záznam. Údaje dokladu zůstávají vlastní.",
+      "linkHint": "Jednoznačná shoda IČO nebo VAT ID se propojí automaticky. Nová protistrana vznikne až při úspěšném schválení. Údaje dokladu zůstanou zachované.",
       "selected": "Propojená protistrana",
       "clear": "Zrušit propojení",
       "search": "Hledat existující protistrany",
@@ -1240,7 +1246,12 @@
       "copy": "Převzít údaje z adresáře do dokladu",
       "recorded": "Zaznamenané údaje adresáře",
       "notRecorded": "Tato verze nemá zaznamenané propojení s adresářem.",
-      "open": "Otevřít propojenou protistranu"
+      "open": "Otevřít propojenou protistranu",
+      "unlinked": "Propojení s adresářem bylo výslovně odebráno. Před schválením existující identity vyberte záznam.",
+      "automatic": "Použít automatické párování",
+      "confirmWithoutIdentity": "Při schválení tohoto dokladu vytvořit novou protistranu bez IČO a VAT ID",
+      "findIdentity": "Vyhledat podle IČO nebo VAT ID",
+      "archivedIdentity": "Najít archivovanou identitu"
     },
     "sourceFor": "Předloha pro {field}",
     "sourcePage": "Strana originálu",
@@ -1709,7 +1720,11 @@
       "missing_currency": "K určení limitu v CZK je nutná měna.",
       "currency_conversion_required": "K určení limitu je nutný platný přepočet do CZK."
     },
-    "liveSummary": "Živý výpočet: {included} zahrnuto, {excluded} nezahrnuto."
+    "liveSummary": "Živý výpočet: {included} zahrnuto, {excluded} nezahrnuto.",
+    "claimLastFilingDate": "Nárok je nutné uplatnit podáním nejpozději: {date}",
+    "claimEvaluatedOn": "Rozhodné datum posouzení: {date}",
+    "claimLatestPeriod": "Poslední dostupné běžné období: {period}",
+    "claimFilingNote": "Příprava, finalizace ani export XML nejsou podáním přiznání. Uložené výkazy a archivní XML zachovávají své zaznamenané údaje."
   },
   "reportingWorkbook": {
     "columns": {
@@ -1824,6 +1839,18 @@
     "save": "Uložit protistranu",
     "saving": "Ukládání…",
     "saved": "Protistrana byla uložena.",
+    "restore": "Obnovit protistranu",
+    "entries": "Záznamy adresáře",
+    "activeEntries": "Aktivní",
+    "archivedEntries": "Archivované",
+    "delete": "Smazat protistranu",
+    "deleteTitle": "Smazat nepoužitou protistranu",
+    "deleteHint": "Smazání je nevratné. Protistrany propojené s aktuálními nebo historickými doklady lze pouze archivovat.",
+    "confirmDelete": "Trvale smazat",
+    "keep": "Ponechat protistranu",
+    "matchingIdentifiers": "Záznamy odpovídající některému ze zadaných identifikátorů: {identifiers}",
+    "searchArchived": "Hledat archivované protistrany",
+    "archive": "Archivovat protistranu",
     "archived": "Archivovaná protistrana",
     "pagination": "Stránky adresáře",
     "previous": "Předchozí",

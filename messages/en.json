@@ -741,6 +741,7 @@
     "not_extracted": "The Document has no Extraction Version to check yet.",
     "counterparty_role_required": "Choose supplier or customer.",
     "counterparty_identity_taken": "A Counterparty with this IČO or VAT ID already exists in this Company and may be archived.",
+    "counterparty_in_use": "This Counterparty is linked to recorded Documents and can only be archived.",
     "invalid_country_code": "Enter a two-letter country code.",
     "counterparty_invalid_vat_id": "Enter a VAT ID with a two-letter country prefix followed by 2 to 14 letters or digits.",
     "review_warnings_changed": "Review the newly prepared warnings and explicitly approve these values.",
@@ -749,8 +750,11 @@
     "invalid_earliest_claim_period": "Choose a generated period on or after the Tax Point Date period.",
     "claimed_period_before_earliest": "The chosen claim period precedes the confirmed Earliest Claim Period.",
     "deferred_claim_not_supported": "Shared deferral is not supported for this regime. Resolve the Document manually before preparing a new report.",
-    "claim_eligibility_unresolved": "Resolve claim eligibility for the flagged Documents in period readiness before preparing a new report.",
-    "claim_document_type_required": "Choose a Document type before confirming claim eligibility."
+    "claim_eligibility_unresolved": "Resolve claim eligibility and filing deadlines for the flagged Documents before new preparation or XML export.",
+    "claim_document_type_required": "Choose a Document type before confirming claim eligibility.",
+    "claim_deadline_expired": "The claim filing deadline has expired. A new approval cannot establish timely filing.",
+    "claimed_period_after_deadline": "This period ends too late for an ordinary claim before the filing deadline. Choose an earlier eligible period.",
+    "counterparty_resolution_required": "Resolve the Counterparty identity before approval. Select an existing entry, restore an archived match, or explicitly confirm creation without identifiers. Changed directory warnings must be reviewed."
   },
   "aiUsage": {
     "platformNav": "Platform AI usage",
@@ -1104,7 +1108,7 @@
       "title": "Input VAT Reporting Period",
       "defaultPeriod": "Tax Point Date period (no deferral)",
       "claimedReportingPeriod": "Move input VAT claim to",
-      "claimedReportingPeriodHint": "Choose an unlocked later period, at most three years after the Tax Point Date.",
+      "claimedReportingPeriodHint": "Choose an unlocked later period that can end before the claim filing deadline.",
       "claimedReportingPeriodPlaceholder": "2026-12 or 2027-Q1",
       "save": "Save Reporting Period",
       "saving": "Saving…"
@@ -1147,7 +1151,9 @@
       "invalid_earliest_claim_period": "Choose a generated period on or after the Tax Point Date period.",
       "claimed_period_before_earliest": "The chosen claim period precedes the confirmed Earliest Claim Period.",
       "deferred_claim_not_supported": "Shared deferral is not supported for this regime. Resolve the Document manually before preparing a new report.",
-      "claim_document_type_required": "Choose a Document type before confirming claim eligibility."
+      "claim_document_type_required": "Choose a Document type before confirming claim eligibility.",
+      "claim_deadline_expired": "The claim filing deadline has expired. A new approval cannot establish timely filing.",
+      "claimed_period_after_deadline": "This period ends too late for an ordinary claim before the filing deadline. Choose an earlier eligible period."
     },
     "noDocumentImage": "This Document came from spreadsheet rows and has no document image.",
     "sections": {
@@ -1230,7 +1236,7 @@
     "currentValue": "Current value",
     "directory": {
       "title": "Counterparty Directory",
-      "linkHint": "Link an existing entry. The Document keeps its own details.",
+      "linkHint": "Unambiguous IČO or VAT ID matches link automatically. A new identity is created only with successful approval. The Document keeps its own details.",
       "selected": "Linked Counterparty",
       "clear": "Remove link",
       "search": "Search existing Counterparties",
@@ -1240,7 +1246,12 @@
       "copy": "Copy directory details to Document",
       "recorded": "Recorded directory details",
       "notRecorded": "No directory link is recorded for this Version.",
-      "open": "Open linked Counterparty"
+      "open": "Open linked Counterparty",
+      "unlinked": "The directory link was deliberately removed. Choose an entry before approving an existing identity.",
+      "automatic": "Use automatic matching",
+      "confirmWithoutIdentity": "Create a new Counterparty without IČO or VAT ID when approving this Document",
+      "findIdentity": "Find by IČO or VAT ID",
+      "archivedIdentity": "Find an archived identity"
     },
     "sourceFor": "Source for {field}",
     "sourcePage": "Original page",
@@ -1709,7 +1720,11 @@
       "missing_currency": "The currency is required to determine the CZK threshold.",
       "currency_conversion_required": "A valid CZK conversion is required to determine the threshold."
     },
-    "liveSummary": "Live calculation: {included} included, {excluded} excluded."
+    "liveSummary": "Live calculation: {included} included, {excluded} excluded.",
+    "claimLastFilingDate": "Claim must be exercised by filing no later than: {date}",
+    "claimEvaluatedOn": "Assessed as of: {date}",
+    "claimLatestPeriod": "Latest available ordinary period: {period}",
+    "claimFilingNote": "Preparation, Finalization and XML export do not submit a return. Saved reports and archived XML retain their recorded data."
   },
   "reportingWorkbook": {
     "columns": {
@@ -1824,6 +1839,18 @@
     "save": "Save Counterparty",
     "saving": "Saving…",
     "saved": "Counterparty saved.",
+    "restore": "Restore Counterparty",
+    "entries": "Directory entries",
+    "activeEntries": "Active",
+    "archivedEntries": "Archived",
+    "delete": "Delete Counterparty",
+    "deleteTitle": "Delete unused Counterparty",
+    "deleteHint": "Deletion is permanent. Counterparties linked to current or historical Documents can only be archived.",
+    "confirmDelete": "Delete permanently",
+    "keep": "Keep Counterparty",
+    "matchingIdentifiers": "Entries matching either submitted identifier: {identifiers}",
+    "searchArchived": "Search archived Counterparties",
+    "archive": "Archive Counterparty",
     "archived": "Archived Counterparty",
     "pagination": "Directory pages",
     "previous": "Previous",
