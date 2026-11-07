@@ -6,6 +6,7 @@ import {
   approveDocument,
   listCompanyDocuments,
   listDocuments,
+  listExtractionVersions,
   rejectDocument,
 } from "@/application/documents";
 import { setCurrentReportingYear } from "@/application/companies";
@@ -278,6 +279,37 @@ it("reports a saved source snapshot as current, then stale after a relevant unas
   expect(stale.ok && stale.value.snapshot?.freshness).toBe("stale");
   expect(stale.ok && stale.value.groups.processing).toHaveLength(2);
   expect(await getVatReport(company.client, company.companyId, "2026-10")).toEqual(saved);
+});
+
+it("keeps unassigned Documents in their own Import Date period without changing recorded Versions", async () => {
+  const company = await administratorWithCompany();
+  const worker = testWorker(fakeAiProvider({ extract: () => ({ ...SAMPLE_EXTRACTION, taxPointDate: null }) }));
+  await enableAiProcessing(company.client, worker.jobs, { companyId: company.companyId, provider: worker.ai });
+  const documents: { id: string; period: string }[] = [];
+  const database = new DatabaseClient({ connectionString: inject("databaseUrl") });
+  await database.connect();
+  try {
+    for (const [period, importedAt] of [["2026-10", "2026-10-15T10:00:00Z"], ["2026-11", "2026-11-01T10:00:00Z"]]) {
+      const uploaded = await uploadSourceFile(company.client, worker.jobs, {
+        companyId: company.companyId, fileName: `unassigned-${period}.png`, bytes: fixtureFile("receipt.png"),
+      });
+      if (!uploaded.ok) throw new Error(uploaded.error);
+      await database.query("update public.source_file set uploaded_at = $2::timestamptz where id = $1", [uploaded.value.id, importedAt]);
+      expect(await worker.runJobs()).toEqual([]);
+      const [document] = await listDocuments(company.client, company.companyId, uploaded.value.id);
+      expect(document.importDate).toBe(importedAt.slice(0, 10));
+      documents.push({ id: document.id, period });
+    }
+  } finally { await database.end(); }
+  const versions = await Promise.all(documents.map(document => listExtractionVersions(company.client, company.companyId, document.id)));
+  for (const document of documents) {
+    const readiness = await getReportingPeriodReadiness(company.client, { companyId: company.companyId, period: document.period });
+    if (!readiness.ok) throw new Error(readiness.error);
+    expect(readiness.value.groups.needsReview).toEqual([document.id]);
+    expect(readiness.value.source.map(source => source.documentId)).toEqual([document.id]);
+    expect(readiness.value.blockers).toContainEqual({ code: "missing_tax_point_date", documentId: document.id });
+  }
+  expect(await Promise.all(documents.map(document => listExtractionVersions(company.client, company.companyId, document.id)))).toEqual(versions);
 });
 
 it("keeps a new snapshot current when unassigned rejected Documents are resolved", async () => {

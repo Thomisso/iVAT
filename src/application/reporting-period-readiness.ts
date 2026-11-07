@@ -13,6 +13,7 @@ import type { ValidationFinding } from "./document-validation";
 import { listCompanyDocuments } from "./documents";
 import {
   isReportingPeriod,
+  NO_REPORTING_PERIOD,
   reportingPeriodForDate,
   reportingPeriodGapFinding,
   reportingPeriodsOf,
@@ -255,7 +256,9 @@ async function relevantDocuments(
   if (error) throw error;
   const assigned = data as unknown as ReportDocument[];
   const assignedIds = new Set(assigned.map((document) => document.id));
-  const overviews = await listCompanyDocuments(client, companyId);
+  // Assigned Documents already came from the complete report projection.
+  // Fetch only the unassigned work whose Import Date may block this period.
+  const overviews = await listCompanyDocuments(client, companyId, { reportingPeriod: NO_REPORTING_PERIOD });
   // A Document without a Reporting Period still blocks the readiness of the
   // period of its Import Date, so unfinished work is not overlooked. It does
   // not join that period's VAT Report.
