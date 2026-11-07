@@ -1,6 +1,6 @@
 import type { ExtractionPayload } from "./extraction-payload";
 
-/** An unbound provider reference on the oriented PDF input, before server source binding. */
+/** An unbound provider reference on the oriented PDF or image input, before server source binding. */
 export type SourcePageLocation = {
   fieldPath: string;
   kind: "page";
@@ -11,6 +11,23 @@ export type SourcePageLocation = {
   height: number;
 };
 
+export type SourceWorkbookLocation = {
+  fieldPath: string;
+  kind: "workbook";
+  sheetName: string;
+  firstRow: number;
+  lastRow: number;
+  firstColumn: number;
+  lastColumn: number;
+};
+
+export type WorkbookEvidenceRange = {
+  sheetName: string; firstRow: number; lastRow: number;
+  firstColumn: number; lastColumn: number; headerRow: number;
+};
+
+export type SourceLocation = SourcePageLocation | SourceWorkbookLocation;
+
 const SCALAR_FIELDS = new Set([
   "documentType", "documentNumber", "issueDate", "taxPointDate", "dueDate", "direction", "currency",
   "proposedVatRegime", "reverseChargeCode", "originalDocumentNumber",
@@ -19,6 +36,30 @@ const SCALAR_FIELDS = new Set([
   ...["netAmount", "vatAmount", "grossAmount"].map((field) => `totals.${field}`),
   ...["variableSymbol", "bankAccount", "iban"].map((field) => `payment.${field}`),
 ]);
+function supportedField(field: string, payload: ExtractionPayload): boolean {
+  const rateField = /^rateBreakdown\.(0|[1-9]\d*)\.(rate|netAmount|vatAmount)$/.exec(field);
+  return SCALAR_FIELDS.has(field) || !!(rateField && Number(rateField[1]) < payload.rateBreakdown.length);
+}
+
+/** Only rows and columns actually supplied to this extraction can be referenced. */
+export function validSourceWorkbookLocations(value: unknown, payload: ExtractionPayload, range?: WorkbookEvidenceRange): SourceWorkbookLocation[] {
+  if (!Array.isArray(value) || !range) return [];
+  const keys = new Set(["fieldPath", "kind", "sheetName", "firstRow", "lastRow", "firstColumn", "lastColumn"]);
+  return value.flatMap((entry): SourceWorkbookLocation[] => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry) || Object.keys(entry).some((key) => !keys.has(key))) return [];
+    const location = entry as SourceWorkbookLocation;
+    if (typeof location.fieldPath !== "string" || !supportedField(location.fieldPath, payload)
+      || location.kind !== "workbook" || location.sheetName !== range.sheetName
+      || ![location.firstRow, location.lastRow, location.firstColumn, location.lastColumn].every(Number.isSafeInteger)
+      || location.firstRow > location.lastRow || location.firstColumn > location.lastColumn
+      || location.firstColumn < range.firstColumn || location.lastColumn > range.lastColumn
+      || !((location.firstRow >= range.firstRow && location.lastRow <= range.lastRow)
+        || (location.firstRow === range.headerRow && location.lastRow === range.headerRow))) return [];
+    return [{ fieldPath: location.fieldPath, kind: "workbook", sheetName: location.sheetName,
+      firstRow: location.firstRow, lastRow: location.lastRow, firstColumn: location.firstColumn, lastColumn: location.lastColumn }];
+  });
+}
+
 const LOCATION_KEYS = new Set(["fieldPath", "kind", "page", "x", "y", "width", "height"]);
 
 /** Missing or invalid evidence is informational; it never invalidates financial values. */
@@ -33,9 +74,7 @@ export function validSourcePageLocations(value: unknown, payload: ExtractionPayl
       || ![location.x, location.y, location.width, location.height].every((coordinate) => typeof coordinate === "number" && Number.isFinite(coordinate))
       || location.x < 0 || location.y < 0 || location.width <= 0 || location.height <= 0
       || location.x + location.width > 1 || location.y + location.height > 1) return [];
-    const rateField = /^rateBreakdown\.(0|[1-9]\d*)\.(rate|netAmount|vatAmount)$/.exec(location.fieldPath);
-    if (!SCALAR_FIELDS.has(location.fieldPath)
-      && !(rateField && Number(rateField[1]) < payload.rateBreakdown.length)) return [];
+    if (!supportedField(location.fieldPath, payload)) return [];
     return [{
       fieldPath: location.fieldPath, kind: "page", page: location.page,
       x: location.x, y: location.y, width: location.width, height: location.height,

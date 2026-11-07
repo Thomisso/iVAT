@@ -66,7 +66,9 @@ function rowText(sheet: ParsedSheet, row: number): string {
 }
 
 function tableText(sheet: ParsedSheet, rows: number[]): string {
-  return [`[Sheet "${sheet.sheetName.replaceAll('"', '""')}"]`, ...rows.map((row) => rowText(sheet, row))].join("\n");
+  const range = XLSX.utils.decode_range(sheet.worksheet["!ref"]!);
+  const columns = Array.from({ length: range.e.c - range.s.c + 1 }, (_, offset) => XLSX.utils.encode_col(range.s.c + offset));
+  return [`[Sheet "${sheet.sheetName.replaceAll('"', '""')}"]`, `[Columns]\t${columns.join("\t")}`, ...rows.map((row) => rowText(sheet, row))].join("\n");
 }
 
 /** Converts every populated worksheet to deterministic, row-numbered plain text. */
@@ -93,4 +95,33 @@ export function workbookRowsToText(bytes: Uint8Array, rowSet: WorkbookRowSet): s
   const rows = Array.from({ length: rowSet.lastRow - rowSet.firstRow + 1 }, (_, offset) => rowSet.firstRow + offset);
   if (sheet.firstRow < rowSet.firstRow) rows.unshift(sheet.firstRow);
   return tableText(sheet, rows);
+}
+
+/** Safe display values and exact addresses shared by Extraction and review. */
+export type WorkbookRows = WorkbookRowSet & {
+  firstColumn: number;
+  lastColumn: number;
+  headerRow: number;
+  columns: { number: number; label: string }[];
+  rows: { number: number; context: boolean; cells: { address: string; column: number; text: string }[] }[];
+};
+
+export function workbookRows(bytes: Uint8Array, rowSet: WorkbookRowSet): WorkbookRows {
+  const sheet = parsedSheets(bytes).find(({ sheetName }) => sheetName === rowSet.sheetName);
+  if (!sheet || !Number.isSafeInteger(rowSet.firstRow) || !Number.isSafeInteger(rowSet.lastRow)
+    || rowSet.firstRow < sheet.firstRow || rowSet.lastRow > sheet.lastRow || rowSet.lastRow < rowSet.firstRow) {
+    throw new Error("Document row set is outside the workbook");
+  }
+  const range = XLSX.utils.decode_range(sheet.worksheet["!ref"]!);
+  const columns = Array.from({ length: range.e.c - range.s.c + 1 }, (_, offset) => ({
+    number: range.s.c + offset + 1, label: XLSX.utils.encode_col(range.s.c + offset),
+  }));
+  const rows = Array.from({ length: rowSet.lastRow - rowSet.firstRow + 1 }, (_, offset) => rowSet.firstRow + offset);
+  if (sheet.firstRow < rowSet.firstRow) rows.unshift(sheet.firstRow);
+  return { ...rowSet, firstColumn: range.s.c + 1, lastColumn: range.e.c + 1, headerRow: sheet.firstRow, columns,
+    rows: rows.map((number) => ({ number, context: number < rowSet.firstRow, cells: columns.map(({ number: column }) => {
+      const address = XLSX.utils.encode_cell({ r: number - 1, c: column - 1 });
+      return { address, column, text: cellText(sheet.worksheet[address]) };
+    }) })),
+  };
 }
