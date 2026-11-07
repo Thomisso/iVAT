@@ -62,7 +62,7 @@ export async function getDocumentReview(
     id: document.id, status: document.status, extractionVersionId: current?.id ?? null,
     payload: current?.payload ?? null, claimedReportingPeriod: document.claimedReportingPeriod,
     importDate: document.importDate, sourceFileId: document.sourceFileId,
-  }, reportingYears, undefined, currentFindings);
+  }, reportingYears, undefined, currentFindings, observations.evaluatedOn);
 
   return {
     company, document, versions, current, shown, viewingRecorded, shownFindings, shownWarningFindings,

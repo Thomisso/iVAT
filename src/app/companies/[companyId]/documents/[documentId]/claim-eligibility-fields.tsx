@@ -6,8 +6,8 @@ import type { ExtractionPayload } from "@/application/extraction-payload";
 import { ordinaryDomesticClaim } from "@/application/claim-eligibility";
 
 /** A period confirmation, never an invented exact receipt date. */
-export function ClaimEligibilityFields({ payload, periods, editable, values }: {
-  payload: ExtractionPayload; periods: readonly string[]; editable: boolean; values: Record<string, string>;
+export function ClaimEligibilityFields({ payload, periods, editable, values, error }: {
+  payload: ExtractionPayload; periods: readonly string[]; editable: boolean; values: Record<string, string>; error?: string;
 }) {
   const t = useTranslations("review.claimEligibility");
   const ref = useRef<HTMLFieldSetElement>(null);
@@ -51,12 +51,13 @@ export function ClaimEligibilityFields({ payload, periods, editable, values }: {
     <div className="fields">
       <div className="iv-field">
         <label className="iv-field-label" htmlFor="earliest-claim-period">{t("period")}</label>
-        <select id="earliest-claim-period" className="iv-input" value={claim?.period ?? ""} disabled={!editable}
+        <select id="earliest-claim-period" className="iv-input" aria-invalid={error ? true : undefined} aria-describedby={error ? "claim-eligibility-error" : undefined} value={claim?.period ?? ""} disabled={!editable}
           onChange={event => setClaim({ period: event.target.value, origin: "user", confirmed: false })}>
           <option value="">{t("unconfirmed")}</option>
           {options.map(period => <option key={period} value={period}>{period}</option>)}
         </select>
       </div>
+      {error && <p id="claim-eligibility-error" className="iv-field-error">{error}</p>}
       <p>{claim?.confirmed ? t(claim.origin) : t("unconfirmed")}</p>
       <p>{t("hint")}</p>
       {editable && <label><input type="checkbox" checked={claim?.origin === "user" && claim.confirmed}

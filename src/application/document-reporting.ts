@@ -1,11 +1,12 @@
 import type { ReportingYear } from "./companies";
-import { claimEligibilityFinding } from "./claim-eligibility";
+import { claimDeadline, claimEligibilityFinding, type ClaimDeadline } from "./claim-eligibility";
 import type { AppClient } from "./client";
 import { currentValidationFindings, type ValidationFinding } from "./document-validation";
 import { omitZeroRateBreakdownRows } from "./extraction-payload";
 import { deriveDocumentVatMapping, missingRequiredReportingVatId, reportingPeriodForReportDocument, vatReportDocumentExclusion, type DocumentVatMapping, type ExclusionReason, type ReportDocument } from "./vat-rules";
 
 export type DocumentReporting = {
+  claimDeadline: ClaimDeadline | null;
   period: string | null;
   included: boolean;
   exclusionReason: ExclusionReason | "no_reporting_period" | "different_reporting_period" | "rejected" | null;
@@ -33,6 +34,7 @@ export function prepareDocumentReporting(
   reportingYears: readonly ReportingYear[],
   selectedPeriod?: string,
   storedFindings: readonly ValidationFinding[] = [],
+  evaluatedOn?: string,
 ): DocumentReporting {
   const payload = document.payload ? omitZeroRateBreakdownRows(document.payload) : null;
   const period = reportingPeriodForReportDocument({ ...document, payload }, reportingYears);
@@ -40,9 +42,10 @@ export function prepareDocumentReporting(
     : period === null ? "no_reporting_period"
     : selectedPeriod && selectedPeriod !== period ? "different_reporting_period"
     : vatReportDocumentExclusion({ ...document, payload });
-  const eligibility = claimEligibilityFinding(document, reportingYears);
+  const eligibility = claimEligibilityFinding(document, reportingYears, evaluatedOn);
   const findings = [...(payload ? currentValidationFindings(payload, storedFindings).filter(finding => finding.code !== eligibility?.code) : []), ...(eligibility ? [eligibility] : [])];
   return {
+    claimDeadline: evaluatedOn ? claimDeadline(payload, reportingYears, evaluatedOn) : null,
     period, included: exclusionReason === null, exclusionReason,
     exclusionDetail: exclusionReason === "incomplete_data" && payload && missingRequiredReportingVatId(payload) ? "counterparty_vat_id_required" : null,
     mapping: deriveDocumentVatMapping(payload),

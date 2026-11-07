@@ -20,6 +20,7 @@ export const EPO_SERIALIZER_VERSION = "2";
 
 export type ExportVatReportError =
   | EpoXmlError
+  | "claim_eligibility_unresolved"
   | "report_not_found"
   | "invalid_export_format"
   | "epo_address_required"
@@ -28,6 +29,7 @@ export type ExportVatReportError =
   | "report_finalized"
   | "report_not_finalized";
 export type EpoDownload = {
+  claimEvaluatedOn: string;
   timing: ExportTiming;
   artifactId: string;
   reportGeneratedAt: string;
@@ -51,7 +53,7 @@ export type VatReportArtifact = {
   mediaType: "application/xml; charset=utf-8";
   byteSize: number;
   sha256: string;
-  resolvedDetails: ExportDetails;
+  resolvedDetails: ExportDetails & { claimEvaluatedOn?: string };
   schemaVersion: string;
   serializerVersion: string;
   authorUserId: string;
@@ -103,6 +105,7 @@ async function exportVatReportArtifact(
     ? await client.rpc("create_draft_vat_report_artifact", rpcInput)
     : await client.rpc("create_final_vat_report_artifact", rpcInput);
   if (stored.error) {
+    if (stored.error.code === "P0001" && stored.error.hint === "claim_eligibility_unresolved") return { ok: false, error: "claim_eligibility_unresolved" };
     if (stored.error.code === "42501") return { ok: false, error: "forbidden" };
     if (stored.error.code === "P0001" && stored.error.hint === "stale_report")
       return { ok: false, error: "stale_report" };
@@ -114,15 +117,16 @@ async function exportVatReportArtifact(
       return { ok: false, error: "invalid_export_details" };
     throw stored.error;
   }
+  const artifact = await readVatReportArtifact(client, { companyId: report.companyId, artifactId: stored.data });
+  if (!artifact?.artifact.resolvedDetails.claimEvaluatedOn) throw new Error("New XML is missing its trusted claim evaluation date");
   return {
     ok: true,
     value: {
+      claimEvaluatedOn: artifact.artifact.resolvedDetails.claimEvaluatedOn,
       timing: exportTiming({ period: input.period, format: input.format, personType: report.result.company.personType, preparedOn: details.value.preparedOn, today }),
       artifactId: stored.data,
       reportGeneratedAt: report.generatedAt,
-      periodLockId: kind === "final"
-        ? (await readVatReportArtifact(client, { companyId: report.companyId, artifactId: stored.data }))?.artifact.periodLockId ?? null
-        : null,
+      periodLockId: kind === "final" ? artifact.artifact.periodLockId : null,
       xml: result.value,
       bytes,
       fileName,

@@ -1217,12 +1217,12 @@ it("offers only later generated periods for a Deferred Claim", async () => {
 });
 
 
-it("refuses a Deferred Claim more than three years after the Tax Point Date", async () => {
+it("refuses a generated Deferred Claim period after the entitlement filing deadline", async () => {
   const document = await documentInReview();
   const { setCurrentReportingYear } = await import("@/application/companies");
   await setCurrentReportingYear(document.client, { companyId: document.companyId, year: 2030, filingFrequency: "monthly" });
   expect(await updateDocumentReporting(document.client, { companyId: document.companyId, documentId: document.documentId, claimedReportingPeriod: "2030-01" }))
-    .toEqual({ ok: false, error: "invalid_reporting_period" });
+    .toEqual({ ok: false, error: "claimed_period_after_deadline" });
   expect(await listDeferredClaimPeriods(document.client, document.companyId, document.documentId)).not.toContain("2030-01");
 });
 
