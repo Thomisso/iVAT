@@ -65,7 +65,7 @@ test("dates are shown and entered as dd.mm.rrrr regardless of the browser locale
   await taxPointDate.blur();
   await expect(invalidDate).toBeVisible();
   await taxPointDate.fill("31.02.2026");
-  await page.getByRole("button", { name: "Save corrections" }).click();
+  await page.getByRole("button", { name: "Save draft" }).click();
   await expect(invalidDate).toBeVisible();
   await expect(page.getByRole("button", { name: "Approve version 2" })).toHaveCount(0);
   await taxPointCalendar.fill("2026-10-21");
@@ -77,7 +77,7 @@ test("dates are shown and entered as dd.mm.rrrr regardless of the browser locale
   await expect(dueDate).toHaveValue("");
   await dueDate.fill("1.11.2026");
   await expect(dueCalendar).toHaveValue("2026-11-01");
-  await page.getByRole("button", { name: "Save corrections" }).click();
+  await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByRole("button", { name: "Approve version 2" })).toBeVisible();
   await page.reload();
   await expect(taxPointDate).toHaveValue("21.10.2026");
@@ -85,7 +85,7 @@ test("dates are shown and entered as dd.mm.rrrr regardless of the browser locale
   await taxPointDate.fill("20.10.2026.");
   await expect(taxPointCalendar).toHaveValue("2026-10-20");
   await page.getByLabel("Direction", { exact: true }).selectOption("incoming");
-  await page.getByRole("button", { name: "Save corrections" }).click();
+  await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByRole("button", { name: "Approve version 3" })).toBeVisible();
   await expect(page.getByLabel("Tax point date", { exact: true })).toHaveValue("20.10.2026");
   await expect(page.locator("main")).not.toContainText(isoDate);

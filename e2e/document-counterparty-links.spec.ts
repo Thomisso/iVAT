@@ -34,7 +34,7 @@ test("existing directory selection preserves Party fields, explicit copy saves a
   await page.getByRole("button", { name: "Search directory", exact: true }).click();
   await page.getByRole("button", { name: "Link Directory Supplier 232", exact: true }).click();
   await expect(supplierName).toHaveValue(SAMPLE_EXTRACTION.supplier.name!);
-  await page.getByRole("button", { name: "Save corrections", exact: true }).click();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByRole("button", { name: "Approve version 2", exact: true })).toBeVisible();
   await expect(supplierName).toHaveValue(SAMPLE_EXTRACTION.supplier.name!);
   expect((await updateCounterparty(client, { companyId, id: entry.value.id, name: "Directory Changed 232", supplier: true, customer: false })).ok).toBe(true);
@@ -44,11 +44,11 @@ test("existing directory selection preserves Party fields, explicit copy saves a
   await expect(page.getByRole("button", { name: "Copy directory details to Document", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Copy directory details to Document", exact: true }).click();
   await expect(supplierName).toHaveValue("Directory Changed 232");
-  await page.getByRole("button", { name: "Save corrections", exact: true }).click();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByRole("button", { name: "Approve version 3", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Remove link", exact: true }).click();
   await expect(supplierName).toHaveValue("Directory Changed 232");
-  await page.getByRole("button", { name: "Save corrections", exact: true }).click();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByRole("button", { name: "Approve version 4", exact: true })).toBeVisible();
   const versions = await listExtractionVersions(client, companyId, created.value.id);
   expect(versions[3].payload).not.toHaveProperty("counterpartyLink");

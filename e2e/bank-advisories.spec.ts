@@ -31,13 +31,13 @@ test("bank advisories stay distinct through correction, approval and Finalizatio
   const documentId = new URL(page.url()).pathname.split("/").at(-1)!;
 
   await page.getByLabel("Bank account", { exact: true }).fill("000000-123456789/0100");
-  await page.getByRole("button", { name: "Save corrections", exact: true }).click();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByRole("button", { name: "Approve version 2", exact: true })).toBeVisible();
   await expect(page.getByText("The payment account is not published for this supplier in the VAT payer registry.", { exact: true })).toHaveCount(0);
 
   await page.getByLabel("Bank account", { exact: true }).fill("2000145399/0800");
   await page.getByLabel("IBAN", { exact: true }).fill("CZ6508000000192000145399");
-  await page.getByRole("button", { name: "Save corrections", exact: true }).click();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByRole("button", { name: "Approve version 3", exact: true })).toBeVisible();
   const inconsistent = "The domestic account number and IBAN identify different payment accounts. Correct the payment details; publication remains undetermined. You can still approve the Document.";
   await expect(page.getByText(inconsistent, { exact: true })).toBeVisible();
@@ -49,20 +49,20 @@ test("bank advisories stay distinct through correction, approval and Finalizatio
   await page.reload();
 
   await page.getByLabel("Bank account", { exact: true }).fill("19-2000145399/0800");
-  await page.getByRole("button", { name: "Save corrections", exact: true }).click();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByRole("button", { name: "Approve version 4", exact: true })).toBeVisible();
   await expect(page.getByText(inconsistent, { exact: true })).toHaveCount(0);
   await expect(page.getByText("The payment account is not published for this supplier in the VAT payer registry.", { exact: true })).toHaveCount(1);
 
   await page.getByLabel("Bank account", { exact: true }).fill("gateway-order-123");
   await page.getByLabel("IBAN", { exact: true }).fill("");
-  await page.getByRole("button", { name: "Save corrections", exact: true }).click();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByRole("button", { name: "Approve version 5", exact: true })).toBeVisible();
   await expect(page.getByText("The payment identifier is not a recognized bank account, so its publication could not be verified. Check the payment details manually; you can still approve the Document.", { exact: true })).toBeVisible();
   await expect(page.getByText("The payment account is not published for this supplier in the VAT payer registry.", { exact: true })).toHaveCount(0);
 
   await page.getByLabel("Bank account", { exact: true }).fill("");
-  await page.getByRole("button", { name: "Save corrections", exact: true }).click();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByRole("button", { name: "Approve version 6", exact: true })).toBeVisible();
   const missing = "No payment account is entered. Check the payment details; you can still approve the Document.";
   const unpublished = "The payment account is not published for this supplier in the VAT payer registry.";
@@ -71,7 +71,7 @@ test("bank advisories stay distinct through correction, approval and Finalizatio
   await expect(page.getByText(unpublished, { exact: true })).toHaveCount(0);
 
   await page.getByLabel("Bank account", { exact: true }).fill("999999/0100");
-  await page.getByRole("button", { name: "Save corrections", exact: true }).click();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByRole("button", { name: "Approve version 7", exact: true })).toBeVisible();
   await expect(page.getByText(unpublished, { exact: true })).toBeVisible();
   await expect(page.getByText(missing, { exact: true })).toHaveCount(0);

@@ -1,11 +1,13 @@
 "use client";
 
+import { ReviewActions, useReviewWorkspace } from "./review-workspace";
+import { useReviewDraft } from "./review-guard";
 import { PartialClaimFields } from "./partial-claim-fields";
 import { ClaimEligibilityFields } from "./claim-eligibility-fields";
 
 import { SourceField, useSourceEvidence } from "./source-evidence-context";
 
-import { useActionState, useEffect, useState, type ComponentProps } from "react";
+import { useActionState, useEffect, useRef, useState, useId, type ComponentProps } from "react";
 import { useTranslations } from "next-intl";
 import { reviewDocumentAction, createManualDocumentAction, type DocumentReviewFormState } from "@/app/actions";
 import {
@@ -64,6 +66,10 @@ export function CorrectionForm({
 }) {
   const t = useTranslations("review");
   const source = useSourceEvidence();
+  const draft = useReviewDraft();
+  const workspace = useReviewWorkspace();
+  const formId = useId();
+  const form = useRef<HTMLFormElement>(null);
   const [state, action, pending] = useActionState<DocumentReviewFormState, FormData>(documentId ? reviewDocumentAction : createManualDocumentAction, {
     error: null,
     values: {},
@@ -72,11 +78,15 @@ export function CorrectionForm({
   // Keep this draft's base until our explicit save actually succeeds.
   const [base, setBase] = useState({ version: currentVersion, payload: currentPayload, findings: currentFindings, requestId, displayedBankAccountCheckId, displayedReviewContext, extractionVersionId });
   const { version, payload, findings } = base;
+  const [direction, setDirection] = useState(payload.direction);
+  const [clientErrors, setClientErrors] = useState<{ field: string; message: string }[]>([]);
   const [lines, setLines] = useState(() =>
     payload.rateBreakdown.flatMap((line, index) => isZeroRateBreakdownLine(line) ? [] : [index]),
   );
   if (state.savedVersion !== undefined && state.savedVersion === currentVersion && base.version !== currentVersion) {
     setBase({ version: currentVersion, payload: currentPayload, findings: currentFindings, requestId, displayedBankAccountCheckId, displayedReviewContext, extractionVersionId });
+    setDirection(currentPayload.direction);
+    setClientErrors([]);
     setLines(currentPayload.rateBreakdown.flatMap((line, index) => isZeroRateBreakdownLine(line) ? [] : [index]));
   } else if (base.version === currentVersion && (base.displayedBankAccountCheckId !== displayedBankAccountCheckId || base.displayedReviewContext !== displayedReviewContext)) {
     // An explicit same-Version refresh has rendered this dated observation.
@@ -87,6 +97,12 @@ export function CorrectionForm({
   useEffect(() => {
     if (source && source.version !== base.version) source.acceptBase(base.payload, base.version, base.extractionVersionId ?? "");
   }, [source, base.payload, base.version, base.extractionVersionId]);
+  useEffect(() => {
+    if (editable && form.current) return draft?.register(form.current);
+  }, [draft?.register, version, editable]);
+  useEffect(() => {
+    if (state.error !== null || state.savedVersion !== undefined) draft?.settled(state.savedVersion !== undefined && state.error === null);
+  }, [draft?.settled, state]);
   const nextLine = Math.max(payload.rateBreakdown.length - 1, ...lines) + 1;
   const finding = (field: string) =>
     (state.findings ?? findings).find(
@@ -151,6 +167,7 @@ export function CorrectionForm({
         name={name}
         defaultValue={value(name, saved)}
         disabled={!editable}
+        onChange={name === "direction" ? event => setDirection(event.target.value as ExtractionPayload["direction"]) : undefined}
         aria-invalid={finding(name) ? true : undefined}
         aria-describedby={finding(name) ? `finding-${name}` : undefined}
       >
@@ -186,13 +203,54 @@ export function CorrectionForm({
       </div>
     </fieldset>
   );
+  const ownParty = direction === "incoming" ? "customer" : direction === "outgoing" ? "supplier" : null;
+  const partyPanel = (prefix: "supplier" | "customer") => <details className="review-party" key={prefix} open={prefix !== ownParty}>
+    <summary>{prefix === ownParty ? t("ownCompany", { name: payload[prefix].name ?? t("notSet") }) : t(`sections.${prefix}`)}</summary>
+    {party(prefix)}
+  </details>;
+  const errors = (state.findings ?? findings).filter(item => item.severity === "error");
+  const fieldLabel = (field: string) => {
+    if (field === "claimEligibility") return t("claimEligibility.title");
+    if (field === "partialClaim") return t("partialClaim.title");
+    const labels: Record<string, string> = { proposedVatRegime: "vatRegime", "totals.netAmount": "totalNet", "totals.vatAmount": "totalVat", "totals.grossAmount": "totalGross", partialClaim: "totalNet" };
+    const key = `fields.${labels[field] ?? field.split(".").at(-1)!}`;
+    const label = t.has(key) ? t(key) : t("sections.document");
+    return field.startsWith("supplier.") || field.startsWith("customer.") ? `${t(`sections.${field.split(".")[0]}`)} · ${label}` : label;
+  };
+  const focusField = (field: string) => {
+    workspace?.showData();
+    const wrapper = [...(form.current?.querySelectorAll<HTMLElement>("[data-source-field]") ?? [])].find(element => element.dataset.sourceField === field);
+    const target = wrapper?.querySelector<HTMLElement>('input:not([type="hidden"]):not([type="date"]),select')
+      ?? [...(form.current?.elements ?? [])].find(element => element instanceof HTMLElement && element.getAttribute("name") === field) as HTMLElement | undefined;
+    for (let parent = target?.parentElement; parent; parent = parent.parentElement) if (parent instanceof HTMLDetailsElement) parent.open = true;
+    requestAnimationFrame(() => { target?.focus({ preventScroll: true }); target?.scrollIntoView({ block: "center" }); });
+  };
+
 
   return (
     <form
       key={version}
+      ref={form}
+      id={formId}
       action={action}
+      aria-busy={pending}
+      onInvalidCapture={event => {
+        const input = event.target as HTMLInputElement;
+        const field = input.closest<HTMLElement>("[data-source-field]")?.dataset.sourceField ?? input.name;
+        if (!field) return;
+        event.preventDefault();
+        const message = input.validity.valueMissing ? t("requiredField") : input.validationMessage;
+        setClientErrors(current => [...current.filter(item => item.field !== field), { field, message }]);
+        if (!document.querySelector("dialog[open]")) focusField(field);
+      }}
+      onInputCapture={event => {
+        const input = event.target as HTMLInputElement;
+        const field = input.closest<HTMLElement>("[data-source-field]")?.dataset.sourceField ?? input.name;
+        setClientErrors(current => current.some(item => item.field === field) ? current.filter(item => item.field !== field) : current);
+      }}
       className={`form correction-form ${aiProposed ? "is-ai" : ""}`}
     >
+      <fieldset disabled={pending} style={{ display: "contents" }}>
       <input type="hidden" name="companyId" value={companyId} />
       <input type="hidden" name="documentId" value={documentId} />
       <input type="hidden" name="basedOnVersion" value={version} />
@@ -200,8 +258,10 @@ export function CorrectionForm({
       <input type="hidden" name="displayedBankAccountCheckId" value={base.displayedBankAccountCheckId ?? ""} />
       <input type="hidden" name="displayedReviewContext" value={base.displayedReviewContext ?? ""} />
       <input type="hidden" name="acknowledgement" value={state.confirmation?.id ?? ""} />
-      <ClaimEligibilityFields key={`eligibility-${version}`} payload={payload} periods={claimPeriods} editable={editable} values={state.values} />
       {decision && Object.entries(decision).map(([name, entry]) => <input key={name} type="hidden" name={name} value={entry} />)}
+      {(errors.length > 0 || clientErrors.length > 0) && <section role="region" aria-label={t("errorSummary")} className="review-error-summary">
+        <h2>{t("errorSummary")}</h2><ul>{clientErrors.map(item => <li key={`client-${item.field}`}><button type="button" onClick={() => focusField(item.field)}>{fieldLabel(item.field)}: {item.message}</button></li>)}{errors.map((item, index) => { const message = messageOf(item); return <li key={`${item.field}-${item.code}-${index}`}><button type="button" onClick={() => focusField(item.field)}>{fieldLabel(item.field)}: {t(`findings.${message.key}`, message.values)}</button></li>; })}</ul>
+      </section>}
       <fieldset>
         <legend>{t("sections.document")}</legend>
         <div className="fields">
@@ -227,22 +287,19 @@ export function CorrectionForm({
             VAT_REGIMES,
             "vatRegime",
           )}
-          {text("reverseChargeCode", payload.reverseChargeCode, "reverseChargeCode", {
-            maxLength: 3,
-          })}
-          {date("issueDate")}
           {date("taxPointDate")}
-          {date("dueDate")}
-          {text("currency", payload.currency, "currency", { maxLength: 3 })}
-          {text("originalDocumentNumber", payload.originalDocumentNumber)}
         </div>
+        <ClaimEligibilityFields key={`eligibility-${version}`} payload={payload} periods={claimPeriods} editable={editable} values={state.values} />
+        <details className="review-infrequent"><summary>{t("otherDetails")}</summary><div className="fields">
+          {text("reverseChargeCode", payload.reverseChargeCode, "reverseChargeCode", { maxLength: 3 })}
+          {date("issueDate")}{date("dueDate")}
+          {text("originalDocumentNumber", payload.originalDocumentNumber)}
+        </div></details>
+
       </fieldset>
-      <CounterpartyLinkSummary companyId={companyId} link={payload.counterpartyLink} />
-      {editable && <CounterpartyLinkFields companyId={companyId} initialId={state.values.counterpartyId ?? payload.counterpartyLink?.id ?? ""} initialName={currentCounterparty?.recorded?.name ?? payload.counterpartyLink?.recorded?.name} currentDirectory={currentCounterparty} />}
-      {party("supplier")}
-      {party("customer")}
       <fieldset>
         <legend>{t("sections.amounts")}</legend>
+        {text("currency", payload.currency, "currency", { maxLength: 3 })}
         <table className="rate-breakdown">
           <thead>
             <tr>
@@ -355,6 +412,9 @@ export function CorrectionForm({
           </p>
         </fieldset>
       )}
+      <CounterpartyLinkSummary companyId={companyId} link={payload.counterpartyLink} />
+      {editable && <CounterpartyLinkFields companyId={companyId} initialId={state.values.counterpartyId ?? payload.counterpartyLink?.id ?? ""} initialName={currentCounterparty?.recorded?.name ?? payload.counterpartyLink?.recorded?.name} currentDirectory={currentCounterparty} />}
+      {direction === "outgoing" ? [partyPanel("customer"), partyPanel("supplier")] : [partyPanel("supplier"), partyPanel("customer")]}
       <fieldset>
         <legend>{t("sections.payment")}</legend>
         <div className="fields">
@@ -395,14 +455,15 @@ export function CorrectionForm({
               })}</tbody>
             </table>
           </section>}
-          <Button type="submit" name="intent" value="save" disabled={pending}>
+          <ReviewActions kind="save"><Button form={formId} type="submit" name="intent" value="save" disabled={pending}>
             {t(documentId ? "save" : "createManual")}
-          </Button>
-          {documentId && decision && <Button type="submit" name="intent" value="approve" variant="primary" icon="check" disabled={pending}>
+          </Button></ReviewActions>
+          {documentId && decision && <ReviewActions kind="approve"><Button form={formId} type="submit" name="intent" value="approve" variant="primary" icon="check" disabled={pending}>
             {state.confirmation ? t("approvePreparedWarnings") : t("approve", { version })}
-          </Button>}
+          </Button></ReviewActions>}
         </>
       )}
+      </fieldset>
     </form>
   );
 }

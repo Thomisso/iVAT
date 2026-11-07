@@ -1085,7 +1085,7 @@
     "rejectedNote": "Rejected. The document is excluded from VAT reports.",
     "notReviewableNote": "The document is not ready for review yet.",
     "noExtraction": "Nothing has been extracted yet.",
-    "save": "Save corrections",
+    "save": "Save draft",
     "approve": "Approve version {version}",
     "reject": "Reject",
     "returnToReview": "Return to review",
@@ -1279,7 +1279,32 @@
       "unconfirmed": "Confirmation required",
       "confirm": "I confirm the eligibility conditions were met in the selected period.",
       "hint": "Import Date records the actual upload and does not prove earlier possession. A Document without a Source File requires an accountant’s confirmation."
-    }
+    },
+    "departure": {
+      "title": "Unsaved changes",
+      "explanation": "Save your draft before continuing, discard the changes, or stay on this Document.",
+      "save": "Save draft and continue",
+      "discard": "Discard changes",
+      "stay": "Stay here",
+      "notSaved": "Your changes have not been saved. Correct the fields or stay to continue editing."
+    },
+    "workspace": {
+      "resize": "Resize source and data panels",
+      "view": "Review view",
+      "source": "Show Source File",
+      "data": "Show document data",
+      "sourcePanel": "Source File",
+      "dataPanel": "Document data",
+      "decisions": "Document decisions"
+    },
+    "rejectHint": "Exclude this Document from processing and VAT reports. The data and history will be retained.",
+    "cancelDecision": "Cancel",
+    "reportingContext": "Reporting context",
+    "ownCompany": "Own Company: {name}",
+    "otherDetails": "Other Document details",
+    "errorSummary": "Errors to correct",
+    "otherActions": "AI and other actions",
+    "requiredField": "Complete this field."
   },
   "duplicateWarning": {
     "document_identity": "Possible duplicate: the counterparty VAT ID, document number and direction match an earlier Document.",

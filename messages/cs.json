@@ -1085,7 +1085,7 @@
     "rejectedNote": "Zamítnuto. Doklad se do přiznání k DPH nezapočítá.",
     "notReviewableNote": "Doklad ještě není připravený ke kontrole.",
     "noExtraction": "Zatím nic nebylo vytěženo.",
-    "save": "Uložit opravy",
+    "save": "Uložit rozpracované",
     "approve": "Schválit verzi {version}",
     "reject": "Zamítnout",
     "returnToReview": "Vrátit ke kontrole",
@@ -1279,7 +1279,32 @@
       "unconfirmed": "Vyžaduje potvrzení",
       "confirm": "Potvrzuji splnění podmínek pro vybrané období.",
       "hint": "Datum importu je datum skutečného nahrání, nikoli důkaz dřívějšího doručení. Ruční doklad bez originálu vyžaduje potvrzení účetním."
-    }
+    },
+    "departure": {
+      "title": "Neuložené změny",
+      "explanation": "Před pokračováním uložte rozpracované údaje, zahoďte změny nebo zůstaňte na dokladu.",
+      "save": "Uložit rozpracované a pokračovat",
+      "discard": "Zahodit změny",
+      "stay": "Zůstat zde",
+      "notSaved": "Změny nejsou uložené. Opravte údaje nebo zůstaňte a pokračujte v úpravách."
+    },
+    "workspace": {
+      "resize": "Změnit šířku předlohy a údajů",
+      "view": "Zobrazení revize",
+      "source": "Zobrazit předlohu",
+      "data": "Zobrazit údaje dokladu",
+      "sourcePanel": "Předloha",
+      "dataPanel": "Údaje dokladu",
+      "decisions": "Rozhodnutí o dokladu"
+    },
+    "rejectHint": "Doklad se vyřadí ze zpracování a výkazů DPH. Údaje a historie zůstanou zachované.",
+    "cancelDecision": "Zrušit",
+    "reportingContext": "Zařazení do výkazu",
+    "ownCompany": "Vlastní firma: {name}",
+    "otherDetails": "Další údaje dokladu",
+    "errorSummary": "Chyby k opravě",
+    "otherActions": "AI a další akce",
+    "requiredField": "Vyplňte toto pole."
   },
   "duplicateWarning": {
     "document_identity": "Možný duplikát: DIČ protistrany, číslo dokladu a směr se shodují se starším dokladem.",
