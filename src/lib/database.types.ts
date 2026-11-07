@@ -1163,6 +1163,9 @@ isOneToOne: false
 "create_password_recovery_request":
 { Args: { "target_email": string }; Returns: string
                            },
+"current_business_date":
+{ Args: Record<PropertyKey, never>; Returns: string
+                           },
 "current_company_role":
 { Args: { "target_company_id": string }; Returns: Database["public"]['Enums']["membership_role"]
                            },

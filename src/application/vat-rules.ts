@@ -101,6 +101,8 @@ export type ExclusionReason =
   | "currency_conversion_required"
   | "incomplete_data";
 export type ComputedVatReport = {
+  /** Present on new saved reports; legacy snapshots remain readable. */
+  claimEvaluatedOn?: string;
   company: CompanyDetails;
   period: string;
   vatReturn: VatReturnLine[];

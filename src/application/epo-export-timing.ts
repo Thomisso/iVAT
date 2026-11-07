@@ -63,3 +63,10 @@ export function exportTiming(input: {
   if (monthlyControlRequired) warnings.push("control_statement_monthly_required");
   return { today: input.today, periodEndsOn, filingKind: "ordinary", deadline, warnings };
 }
+
+/** A Czech civil deadline, using the holiday law applicable on that day. */
+export function nextCzechWorkingDate(value: string): string {
+  const date = new Date(`${value}T00:00:00Z`);
+  while (isNonWorkingDay(date)) date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString().slice(0, 10);
+}

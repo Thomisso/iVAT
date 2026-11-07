@@ -262,7 +262,9 @@ it.each(["pdf", "xlsx"] as const)("preserves a new %s Source's first manual DUZP
   expect(defined.value.documentIds).toHaveLength(1);
   const input = { companyId: period.companyId, documentId: defined.value.documentIds[0] };
   expect(await listExtractionVersions(user.client, input.companyId, input.documentId)).toEqual([]);
-  const payload = { ...SAMPLE_EXTRACTION, taxPointDate: "2026-09-15" };
+  const payload = { ...SAMPLE_EXTRACTION, taxPointDate: "2026-09-15", issueDate: "2026-09-15",
+    claimEligibility: { period: "2026-09", origin: "user" as const, confirmed: true },
+  };
   expect(await correctDocument(user.client, { ...input, basedOnVersion: 0, payload })).toEqual({ ok: true, value: { version: 1 } });
   const versions = await listExtractionVersions(user.client, input.companyId, input.documentId);
   expect(versions.map(version => [version.version, version.author.kind, version.payload.taxPointDate])).toEqual([[1, "user", "2026-09-15"]]);
