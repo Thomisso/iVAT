@@ -523,7 +523,7 @@ export async function correctDocument(
  * counts towards VAT Reports (ADR-0003). `version` is the Extraction Version the
  * User reviewed; it is refused if a newer one has been recorded.
  */
-export type ClaimEligibilityError = "claim_eligibility_required" | "invalid_earliest_claim_period" | "claimed_period_before_earliest" | "deferred_claim_not_supported";
+export type ClaimEligibilityError = "claim_document_type_required" | "claim_eligibility_required" | "invalid_earliest_claim_period" | "claimed_period_before_earliest" | "deferred_claim_not_supported";
 export async function approveDocument(
   client: AppClient,
   input: { companyId: string; documentId: string; version: number },
@@ -535,7 +535,7 @@ export async function approveDocument(
     reviewed_version: input.version,
   });
   if (error) return refusal(error, [
-    "claim_eligibility_required", "invalid_earliest_claim_period", "claimed_period_before_earliest", "deferred_claim_not_supported",
+    "claim_document_type_required", "claim_eligibility_required", "invalid_earliest_claim_period", "claimed_period_before_earliest", "deferred_claim_not_supported",
     "not_in_review",
     "stale_version",
     "direction_required",
@@ -622,7 +622,7 @@ export async function saveAndApproveDocument(
     saved = await client.rpc("save_and_approve_document", { ...fields, acknowledgement: pending.confirmationId });
   }
   const { data, error } = saved;
-  if (error) return documentReviewRefusal(client, input, refusal(error, ["claim_eligibility_required", "invalid_earliest_claim_period", "claimed_period_before_earliest", "deferred_claim_not_supported", "not_in_review", "stale_version", "period_locked", "tax_point_date_required", "invalid_date", "direction_required", "vat_regime_required", "document_incomplete", "document_validation_failed", "counterparty_vat_id_required", "currency_conversion_required", "rate_breakdown_totals_mismatch", "invalid_credit_note_amount", "review_context_changed"]), findings);
+  if (error) return documentReviewRefusal(client, input, refusal(error, ["claim_document_type_required", "claim_eligibility_required", "invalid_earliest_claim_period", "claimed_period_before_earliest", "deferred_claim_not_supported", "not_in_review", "stale_version", "period_locked", "tax_point_date_required", "invalid_date", "direction_required", "vat_regime_required", "document_incomplete", "document_validation_failed", "counterparty_vat_id_required", "currency_conversion_required", "rate_breakdown_totals_mismatch", "invalid_credit_note_amount", "review_context_changed"]), findings);
   const result = data as { version: number } | { confirmationId: string; findings: ValidationFinding[] };
   return "confirmationId" in result
     ? { ok: false, error: "review_warnings_changed", confirmation: { id: result.confirmationId, findings: result.findings } }

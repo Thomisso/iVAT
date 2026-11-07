@@ -111,6 +111,10 @@ create function private.document_eligibility_error(target_company_id uuid, targe
 returns text language plpgsql stable security definer set search_path = '' as $$
 declare claim jsonb := candidate -> 'claimEligibility'; tax_period text; earliest_start date; chosen_start date;
 begin
+  -- An undetermined type must not bypass the ordinary-claim eligibility gate.
+  -- Keep the draft readable; require classification before any new deduction.
+  if candidate ->> 'direction' = 'incoming' and candidate ->> 'proposedVatRegime' = 'domestic'
+    and nullif(candidate ->> 'documentType', '') is null then return 'claim_document_type_required'; end if;
   if candidate ->> 'direction' = 'incoming' and claimed_period is not null and not private.ordinary_domestic_claim(candidate) then
     return 'deferred_claim_not_supported';
   end if;

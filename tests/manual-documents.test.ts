@@ -203,14 +203,15 @@ it("reports complete source-independent data in its DUZP period and preserves an
   });
 });
 
-it("does not apply Credit Note sign rules to a Document whose optional type remains undetermined", async () => {
+it("preserves an undetermined domestic type as a draft and requires classification before claim approval", async () => {
   const administrator = await administratorWithCompany();
   const created = await createConfirmedManualDocument(administrator.client, {
     companyId: administrator.companyId, payload: { ...SAMPLE_EXTRACTION, documentType: null },
   });
   if (!created.ok) throw new Error(created.error);
   expect(await approveDocument(administrator.client, { companyId: administrator.companyId, documentId: created.value.id, version: 1 }))
-    .toEqual({ ok: true, value: null });
+    .toEqual({ ok: false, error: "claim_document_type_required" });
+  expect((await listExtractionVersions(administrator.client, administrator.companyId, created.value.id))[0].payload.documentType).toBeNull();
 });
 
 it("refuses inconsistent VAT arithmetic at the database approval boundary even when supplied findings are empty", async () => {

@@ -14,6 +14,8 @@ export function claimEligibilityFinding(document: {
 }, years: readonly ReportingYear[]): ValidationFinding | null {
   const payload = document.payload;
   if (!payload || payload.direction !== "incoming") return null;
+  if (payload.proposedVatRegime === "domestic" && !payload.documentType)
+    return { field: "documentType", severity: "error", code: "claim_document_type_required" };
   const error = (code: string): ValidationFinding => ({ field: "claimEligibility", severity: "error", code });
   if (document.claimedReportingPeriod && !ordinaryDomesticClaim(payload)) return error("deferred_claim_not_supported");
   if (!ordinaryDomesticClaim(payload)) return null;
