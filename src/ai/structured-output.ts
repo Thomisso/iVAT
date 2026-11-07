@@ -5,7 +5,7 @@ import {
   VAT_REGIMES,
   type ExtractionPayload,
 } from "@/application/extraction-payload";
-import { validSourcePageLocations } from "@/application/source-locations";
+import { validSourcePageLocations, validSourceWorkbookLocations } from "@/application/source-locations";
 import { withProviderResponse, type AiInput, type PageRange, type RowRange } from "@/application/ai-provider";
 
 export const EXTRACTION_PROMPT =
@@ -13,10 +13,10 @@ export const EXTRACTION_PROMPT =
   "For a Credit Note, represent all monetary values as negative amounts and set originalDocumentNumber to the original Document number when it is shown. " +
   "Write amounts with a dot and two decimals (1210.00), dates as YYYY-MM-DD, currency as an ISO 4217 code (CZK) " +
   "and country as an ISO 3166-1 alpha-2 code (CZ), never as a name. " +
-  "Return sourceLocations for fields visibly read from PDF pages: normalized rectangles with an upper-left origin on each oriented page, " +
-  "using 1-based page numbers relative to this input, never the original unsliced file. " +
+  "Return sourceLocations for fields visibly read from PDF pages or images: normalized rectangles with an upper-left origin on each oriented page, " +
+  "using 1-based page numbers relative to this input, never the original unsliced file; images always use page 1. " +
   "Use field paths such as documentNumber or rateBreakdown.0.vatAmount and only the printed value's rectangle. " +
-  "Return an empty sourceLocations array when locations are unavailable, including workbook input; never guess coordinates or source identifiers.";
+  "For workbook input return kind workbook, the actual sheetName, absolute firstRow/lastRow and 1-based firstColumn/lastColumn using the supplied column letters; preserve header context. Never translate workbook evidence to image rectangles. Return an empty sourceLocations array when locations are unavailable; never guess coordinates or source identifiers.";
 
 export const SPLIT_SCHEMA = {
   type: "object",
@@ -153,6 +153,22 @@ export const EXTRACTION_SCHEMA = {
   },
 } as const;
 
+/** Native providers require every object key, so each input gets its own location shape. */
+export function extractionSchema(input: Pick<AiInput, "format">) {
+  if (input.format !== "xls" && input.format !== "xlsx") return EXTRACTION_SCHEMA;
+  return { ...EXTRACTION_SCHEMA, properties: { ...EXTRACTION_SCHEMA.properties, sourceLocations: {
+    type: "array", items: {
+      type: "object", additionalProperties: false,
+      required: ["fieldPath", "kind", "sheetName", "firstRow", "lastRow", "firstColumn", "lastColumn"],
+      properties: {
+        fieldPath: { type: "string" }, kind: { type: "string", enum: ["workbook"] }, sheetName: { type: "string" },
+        firstRow: { type: "integer", minimum: 1 }, lastRow: { type: "integer", minimum: 1 },
+        firstColumn: { type: "integer", minimum: 1 }, lastColumn: { type: "integer", minimum: 1 },
+      },
+    },
+  } } };
+}
+
 /** A provider body parsed as JSON, or null when it is not JSON. */
 export function parsedOrNull(raw: string): unknown {
   try {
@@ -215,7 +231,7 @@ export function rowRanges(provider: string, value: unknown): RowRange[] {
   });
 }
 
-export function extractionPayload(provider: string, value: unknown, input?: Pick<AiInput, "format" | "pageCount">): ExtractionPayload {
+export function extractionPayload(provider: string, value: unknown, input?: Pick<AiInput, "format" | "pageCount" | "workbookEvidence">): ExtractionPayload {
   if (
     !value || typeof value !== "object" ||
     !("schemaVersion" in value) || value.schemaVersion !== 1 ||
@@ -234,9 +250,11 @@ export function extractionPayload(provider: string, value: unknown, input?: Pick
   const error = validateExtractionPayload(payload);
   if (error) throw new Error(`${provider} returned an invalid Extraction payload (${error})`);
   if ("sourceLocations" in value) {
-    payload.sourceLocations = input?.format === "pdf"
-      ? validSourcePageLocations(value.sourceLocations, payload, input.pageCount)
-      : [];
+    payload.sourceLocations = input && ["pdf", "png", "jpeg"].includes(input.format)
+      ? validSourcePageLocations(value.sourceLocations, payload, input.format === "pdf" ? input.pageCount : 1)
+      : input && ["xls", "xlsx"].includes(input.format)
+        ? validSourceWorkbookLocations(value.sourceLocations, payload, input.workbookEvidence)
+        : [];
   }
   return payload;
 }

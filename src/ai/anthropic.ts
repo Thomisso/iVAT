@@ -9,7 +9,7 @@ import {
 } from "@/application/ai-provider";
 import {
   EXTRACTION_PROMPT,
-  EXTRACTION_SCHEMA,
+  extractionSchema,
   extractionPayload,
   interpreted,
   pageRanges,
@@ -169,7 +169,7 @@ export function anthropicAiProvider(options: AnthropicAiProviderOptions): AiProv
         options.extractModel,
         input,
         EXTRACTION_PROMPT,
-        EXTRACTION_SCHEMA,
+        extractionSchema(input),
       );
       return {
         model: result.model,
