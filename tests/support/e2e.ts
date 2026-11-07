@@ -1,3 +1,4 @@
+import { withClaimDate } from "./claim-clock";
 import { sourceSplitRequestFixture } from "./source-request";
 import fs from "node:fs/promises";
 import { asUserClient } from "@/application/client";
@@ -631,4 +632,10 @@ export async function addBrowserSourceEvidenceFixture(input: { companyId: string
   const second = documents.find(document => document.firstPage === 2);
   if (!second) throw new Error("Second Document missing from browser fixture");
   return second.id;
+}
+
+/** Privileged external clock setup; browser actions retain real Auth/RLS. */
+export async function withBrowserClaimDate<T>(date: string, run: Parameters<typeof withClaimDate<T>>[2]) {
+  const environment = await browserFixtureEnvironment();
+  return withClaimDate(environment.DATABASE_URL, date, run);
 }

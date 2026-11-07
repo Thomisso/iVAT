@@ -51,7 +51,7 @@ test("existing directory selection preserves Party fields, explicit copy saves a
   await page.getByRole("button", { name: "Save corrections", exact: true }).click();
   await expect(page.getByRole("button", { name: "Approve version 4", exact: true })).toBeVisible();
   const versions = await listExtractionVersions(client, companyId, created.value.id);
-  expect(versions[3].payload).not.toHaveProperty("counterpartyLink");
+  expect(versions[3].payload.counterpartyLink).toBeNull();
   expect(versions[1].payload.counterpartyLink).toMatchObject({ id: entry.value.id, recorded: { name: "Directory Supplier 232" } });
   expect(versions[1].payload.supplier.name).toBe(SAMPLE_EXTRACTION.supplier.name);
   expect(versions[2].payload.supplier.name).toBe("Directory Changed 232");

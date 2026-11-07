@@ -50,11 +50,8 @@ export function exportTiming(input: {
   // Legal persons file KH monthly even when their VAT Return is quarterly.
   const monthlyControlRequired = input.format === "dphkh1" && input.personType === "legal" && input.period.includes("-Q");
   const due = end && !monthlyControlRequired ? new Date(end) : null;
-  if (due) {
-    due.setUTCDate(due.getUTCDate() + 25);
-    while (isNonWorkingDay(due)) due.setUTCDate(due.getUTCDate() + 1);
-  }
-  const deadline = due?.toISOString().slice(0, 10) ?? null;
+  if (due) due.setUTCDate(due.getUTCDate() + 25);
+  const deadline = due ? nextCzechWorkingDate(due.toISOString().slice(0, 10)) : null;
   const preparedOn = isExportCalendarDate(input.preparedOn) ? input.preparedOn : null;
   const warnings: ExportTimingWarning[] = [];
   if (preparedOn && preparedOn > input.today) warnings.push("prepared_on_future");
@@ -62,4 +59,11 @@ export function exportTiming(input: {
   if (deadline && (input.today > deadline || (preparedOn && preparedOn > deadline))) warnings.push("potentially_late_filing");
   if (monthlyControlRequired) warnings.push("control_statement_monthly_required");
   return { today: input.today, periodEndsOn, filingKind: "ordinary", deadline, warnings };
+}
+
+/** A Czech civil deadline, using the holiday law applicable on that day. */
+export function nextCzechWorkingDate(value: string): string {
+  const date = new Date(`${value}T00:00:00Z`);
+  while (isNonWorkingDay(date)) date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString().slice(0, 10);
 }

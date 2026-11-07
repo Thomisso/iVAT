@@ -1,3 +1,4 @@
+import { currentBusinessDate } from "./business-date";
 import * as XLSX from "xlsx";
 import type { ValidationFinding } from "./document-validation";
 import { isZeroRateBreakdownLine, type ExtractionPayload, type DraftRateBreakdownLine } from "./extraction-payload";
@@ -148,12 +149,13 @@ export async function exportReportingPeriodWorkbook(
   ) {
     return { ok: false, error: "invalid_reporting_period" };
   }
-  const [{ data, error }, reportingYears] = await Promise.all([
+  const [{ data, error }, reportingYears, evaluatedOn] = await Promise.all([
     client.rpc("vat_report_documents", {
       target_company_id: company.id,
       target_period: input.period,
     }),
     listCompanyReportingYears(client, company.id),
+    currentBusinessDate(client),
   ]);
   if (error) throw error;
   const reportDocuments = data as unknown as ReportDocument[];
@@ -165,7 +167,7 @@ export async function exportReportingPeriodWorkbook(
   const included: WorkbookRow[] = [];
   const attention: WorkbookRow[] = [];
   for (const document of documents) {
-    const reporting = prepareDocumentReporting(document, reportingYears, input.period, document.findings);
+    const reporting = prepareDocumentReporting(document, reportingYears, input.period, document.findings, evaluatedOn);
     const findingText = findings([...reporting.blockingFindings, ...reporting.advisoryFindings]);
     const meaningfulRates = document.payload?.rateBreakdown.filter((line) => !isZeroRateBreakdownLine(line)) ?? [];
     const rates = meaningfulRates.length ? meaningfulRates : [null];

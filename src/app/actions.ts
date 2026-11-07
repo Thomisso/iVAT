@@ -44,6 +44,7 @@ import { configuredInvitationUrls, invitationAuthentication, invitationMailer } 
 import {
   saveAndApproveDocument,
   type ReviewConfirmation,
+  type CounterpartyCreationConsent,
   type ReviewConflict,
   attachDocumentSource,
   correctDocument,
@@ -599,7 +600,7 @@ function payloadFromForm(formData: FormData): ExtractionPayload {
     taxPointDate: optionalField(formData, "taxPointDate"),
     dueDate: optionalField(formData, "dueDate"),
     direction: optionalField(formData, "direction") as ExtractionPayload["direction"],
-    ...(optionalField(formData, "counterpartyId") ? { counterpartyLink: { id: field(formData, "counterpartyId") } } : {}),
+    ...(optionalField(formData, "counterpartyId") ? { counterpartyLink: { id: field(formData, "counterpartyId") } } : field(formData, "counterpartyLinkMode") === "unlinked" ? { counterpartyLink: null } : {}),
     supplier: partyFromForm(formData, "supplier"),
     customer: partyFromForm(formData, "customer"),
     currency: optionalField(formData, "currency"),
@@ -669,6 +670,19 @@ export async function createManualDocumentAction(_state: FormState, formData: Fo
 
 export type DocumentReviewFormState = FormState & { findings?: ValidationFinding[]; confirmation?: ReviewConfirmation; conflict?: ReviewConflict; savedVersion?: number };
 
+/** Consent records the Party actually confirmed, rather than a reusable flag. */
+function counterpartyCreationConsentFromForm(formData: FormData): CounterpartyCreationConsent | undefined {
+  const raw = optionalField(formData, "counterpartyCreationConsent");
+  if (!raw) return undefined;
+  try {
+    const consent = JSON.parse(raw);
+    if (!consent || !["incoming", "outgoing"].includes(consent.direction) || !consent.party || typeof consent.party !== "object") return undefined;
+    const fields = ["name", "ico", "vatId", "street", "city", "postalCode", "country"] as const;
+    if (!fields.every(key => consent.party[key] === null || typeof consent.party[key] === "string")) return undefined;
+    return { direction: consent.direction, party: Object.fromEntries(fields.map(key => [key, consent.party[key]])) as Party };
+  } catch { return undefined; }
+}
+
 /** Both submit buttons send the same current fields; only successful approval advances the queue. */
 export async function reviewDocumentAction(_state: DocumentReviewFormState, formData: FormData): Promise<DocumentReviewFormState> {
   const client = await requireUserClient();
@@ -683,7 +697,7 @@ export async function reviewDocumentAction(_state: DocumentReviewFormState, form
     return { error: null, values: {}, savedVersion: saved.value.version };
   }
   const result = await saveAndApproveDocument(client, {
-    ...input, requestId: field(formData, "requestId"), acknowledgement: optionalField(formData, "acknowledgement") ?? undefined,
+    ...input, counterpartyCreationConsent: counterpartyCreationConsentFromForm(formData), requestId: field(formData, "requestId"), acknowledgement: optionalField(formData, "acknowledgement") ?? undefined,
   }, configuredExchangeRates(), configuredVatPayerRegistry());
   if (!result.ok) return result.error === "review_warnings_changed"
     ? { error: result.error, values, confirmation: result.confirmation, findings: result.confirmation.findings }

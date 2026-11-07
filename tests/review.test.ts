@@ -526,12 +526,13 @@ describe("approving and rejecting a Document", () => {
     expect((await listExtractionVersions(document.client, document.companyId, document.documentId))[1].findings)
       .toEqual([{ field: "supplier.vatId", severity: "warning", code: "missing_supplier_vat_id" }]);
     expect(await approveDocument(document.client, { ...document, version: 2 })).toEqual({ ok: true, value: null });
+    const approvedVersions = await listExtractionVersions(document.client, document.companyId, document.documentId);
     const period = { companyId: document.companyId, period: "2026-10" };
     const readiness = await getReportingPeriodReadiness(document.client, period);
     expect(readiness.ok && readiness.value.ready).toBe(true);
     expect((await generateVatReport(document.client, period)).ok).toBe(true);
     expect(await finalizeVatReport(document.client, { ...period, confirmed: true })).toEqual({ ok: true, value: null });
-    expect(await listExtractionVersions(document.client, document.companyId, document.documentId)).toHaveLength(2);
+    expect(await listExtractionVersions(document.client, document.companyId, document.documentId)).toEqual(approvedVersions);
   });
 
   describe.each(["incoming", "outgoing"] as const)("%s domestic VAT ID boundary", (direction) => {
@@ -687,7 +688,7 @@ describe("approving and rejecting a Document", () => {
     expect(await finalizeVatReport(document.client, { ...period, confirmed: true }))
       .toEqual({ ok: false, error: "readiness_blocked" });
     expect(await listExtractionVersions(document.client, document.companyId, document.documentId))
-      .toHaveLength(2);
+      .toEqual(versions);
   });
 
   it("preserves an undetermined VAT Regime in review and refuses approval until it is supplied", async () => {
@@ -833,7 +834,7 @@ describe("approving and rejecting a Document", () => {
         companyId: document.companyId,
         targetType: "document",
         targetId: document.documentId,
-        payload: { version: 1 },
+        payload: { version: 2 },
       }),
     );
   });
@@ -1053,7 +1054,7 @@ describe("the Document list", () => {
         expect.objectContaining({
           id: purchase,
           status: "approved",
-          version: 2,
+          version: 3,
           documentNumber: "FP-1a",
           direction: "incoming",
           taxPointDate: "2026-10-01",
@@ -1217,12 +1218,12 @@ it("offers only later generated periods for a Deferred Claim", async () => {
 });
 
 
-it("refuses a Deferred Claim more than three years after the Tax Point Date", async () => {
+it("refuses a generated Deferred Claim period after the entitlement filing deadline", async () => {
   const document = await documentInReview();
   const { setCurrentReportingYear } = await import("@/application/companies");
   await setCurrentReportingYear(document.client, { companyId: document.companyId, year: 2030, filingFrequency: "monthly" });
   expect(await updateDocumentReporting(document.client, { companyId: document.companyId, documentId: document.documentId, claimedReportingPeriod: "2030-01" }))
-    .toEqual({ ok: false, error: "invalid_reporting_period" });
+    .toEqual({ ok: false, error: "claimed_period_after_deadline" });
   expect(await listDeferredClaimPeriods(document.client, document.companyId, document.documentId)).not.toContain("2030-01");
 });
 
