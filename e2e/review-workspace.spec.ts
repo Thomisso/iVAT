@@ -2,8 +2,8 @@ import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { provisionAndLogIn } from "./support/accounts";
 import { browserUserClient, addBrowserSourceEvidenceFixture } from "../tests/support/e2e";
 import { SAMPLE_EXTRACTION } from "../src/ai/fake";
-import { correctDocument, createManualDocument, getDocument, listExtractionVersions } from "../src/application/documents";
-import { generateVatReport, finalizeVatReport, getVatReport } from "../src/application/vat-reports";
+import { correctDocument, createManualDocument, getDocument, listExtractionVersions, updateDocumentReporting } from "../src/application/documents";
+import { generateVatReport, finalizeVatReport, getVatReport, unlockReportingPeriod } from "../src/application/vat-reports";
 import { fakeVatPayerRegistry } from "../src/vat-registry/fake";
 
 async function setupReviewCompany(page: Page, context: BrowserContext, baseURL: string | undefined, scenario: string) {
@@ -545,4 +545,252 @@ test("without Navigation API review history uses the native warning and preserve
   await page.goBack({ waitUntil: "commit", timeout: 3_000 }).catch(error => { if (!warning) throw error; });
   expect(warning).toBe("beforeunload");
   await expect(number).toHaveValue("NATIVE-NEW-DRAFT-229");
+});
+
+
+test("direct history and current links never invent a decision queue", async ({ page, context, baseURL }) => {
+  const { companyId, client } = await setupReviewCompany(page, context, baseURL, "DirectHistory");
+  const ids: string[] = [];
+  for (const documentNumber of ["DIRECT-APPROVE-229", "DIRECT-REJECT-229", "UNRELATED-229"]) {
+    const created = await createManualDocument(client, { companyId, payload: { ...SAMPLE_EXTRACTION, direction: "outgoing", documentNumber } }, undefined, fakeVatPayerRegistry());
+    if (!created.ok) throw new Error(created.error);
+    ids.push(created.value.id);
+  }
+  for (const [index, decision] of ["approve", "reject"].entries()) {
+    const href = `/companies/${companyId}/documents/${ids[index]}`;
+    await page.goto(href);
+    await page.getByText("Version history", { exact: true }).click();
+    await page.getByRole("link", { name: /^Version 1:/ }).click();
+    await expect(page.getByLabel("Document number", { exact: true })).toBeDisabled();
+    await expect(page.getByText(/Document \d+ of \d+/, { exact: true })).toHaveCount(0, { timeout: 3_000 });
+    await page.getByRole("link", { name: "Show the current version", exact: true }).click();
+    await expect(page.getByText(/Document \d+ of \d+/, { exact: true })).toHaveCount(0, { timeout: 3_000 });
+    expect(new URL(page.url()).searchParams.has("view")).toBe(false);
+    if (decision === "approve") await page.getByRole("button", { name: "Approve version 1", exact: true }).click();
+    else {
+      await page.getByRole("group", { name: "Document decisions", exact: true }).getByRole("button", { name: "Reject", exact: true }).click();
+      const dialog = page.getByRole("dialog", { name: "Reject", exact: true });
+      await dialog.getByLabel("Exclusion reason", { exact: true }).fill("Direct-entry exclusion");
+      await dialog.getByRole("button", { name: "Reject", exact: true }).click();
+    }
+    await expect(page).toHaveURL(url => url.pathname === `/companies/${companyId}/documents` && !url.searchParams.has("view"));
+  }
+  expect((await getDocument(client, companyId, ids[2]))?.status).toBe("needs_review");
+  expect(await listExtractionVersions(client, companyId, ids[2])).toHaveLength(1);
+});
+
+
+test("a changed Reporting Period alone has Save Discard and Stay for history and browser traversal", async ({ page, context, baseURL }) => {
+  const { companyId, client } = await setupReviewCompany(page, context, baseURL, "ReportingDeparture");
+  const created = await createManualDocument(client, { companyId, payload: { ...SAMPLE_EXTRACTION,
+    claimEligibility: { period: "2026-10", origin: "user", confirmed: true },
+  } }, undefined, fakeVatPayerRegistry());
+  if (!created.ok) throw new Error(created.error);
+  const href = `/companies/${companyId}/documents/${created.value.id}`;
+  await page.goto(href);
+  await expect(page.locator(".review-actions button[form]")).toHaveCount(2);
+  const period = page.getByRole("combobox", { name: /^Move input VAT claim to/ });
+  await period.selectOption("2026-11", { timeout: 3_000 });
+  await page.getByText("Version history", { exact: true }).click();
+  const history = page.getByRole("link", { name: /^Version 1:/ });
+  const guard = page.getByRole("dialog", { name: "Unsaved changes", exact: true });
+  await history.click();
+  await expect(guard).toBeVisible({ timeout: 3_000 });
+  await guard.getByRole("button", { name: "Stay here", exact: true }).click();
+  await expect(period).toHaveValue("2026-11");
+  expect((await getDocument(client, companyId, created.value.id))?.claimedReportingPeriod).toBeNull();
+  await history.click();
+  await guard.getByRole("button", { name: "Discard changes", exact: true }).click();
+  await expect(page).toHaveURL(url => url.searchParams.get("version") === "1");
+  await expect(page.getByLabel("Document number", { exact: true })).toBeDisabled();
+  await page.getByRole("link", { name: "Show the current version", exact: true }).click();
+  await expect(period).toHaveValue("");
+  await period.selectOption("2026-11");
+  await page.getByText("Version history", { exact: true }).click();
+  await history.click();
+  await guard.getByRole("button", { name: "Save draft and continue", exact: true }).click();
+  await expect(page).toHaveURL(url => url.searchParams.get("version") === "1");
+  await expect(page.getByLabel("Document number", { exact: true })).toBeDisabled();
+  expect((await getDocument(client, companyId, created.value.id))?.claimedReportingPeriod).toBe("2026-11");
+  expect(await listExtractionVersions(client, companyId, created.value.id)).toHaveLength(1);
+  await page.getByRole("link", { name: "Show the current version", exact: true }).click();
+  await expect(period).toHaveValue("2026-11");
+  await period.selectOption("2026-12");
+  await page.goBack({ waitUntil: "commit" });
+  await expect(guard).toBeVisible({ timeout: 3_000 });
+  await expect(page).toHaveURL(href);
+  await guard.getByRole("button", { name: "Stay here", exact: true }).click();
+  await expect(period).toHaveValue("2026-12");
+});
+
+
+test("both review drafts validate first and a refused Reporting Period keeps saved amounts and the remaining draft", async ({ page, context, baseURL }) => {
+  const { companyId, client } = await setupReviewCompany(page, context, baseURL, "BothDrafts");
+  const created = await createManualDocument(client, { companyId, payload: { ...SAMPLE_EXTRACTION,
+    claimEligibility: { period: "2026-10", origin: "user", confirmed: true },
+  } }, undefined, fakeVatPayerRegistry());
+  if (!created.ok) throw new Error(created.error);
+  const href = `/companies/${companyId}/documents/${created.value.id}`;
+  await page.goto(href);
+  await expect(page.locator(".review-actions button[form]")).toHaveCount(2);
+  const period = page.getByRole("combobox", { name: /^Move input VAT claim to/ });
+  await period.selectOption("2026-11", { timeout: 3_000 });
+  const rates = page.getByRole("group", { name: "Rate breakdown and totals", exact: true });
+  await rates.getByRole("textbox", { name: "Net", exact: true }).fill("2000,00");
+  await rates.getByRole("textbox", { name: "VAT", exact: true }).fill("420,00");
+  await page.getByLabel("Total net", { exact: true }).fill("2000,00");
+  await page.getByLabel("Total VAT", { exact: true }).fill("420,00");
+  await page.getByLabel("Total incl. VAT", { exact: true }).fill("2420,00");
+  const date = page.getByLabel("Tax point date", { exact: true });
+  await date.fill("31.2.2026");
+  await date.blur();
+  await page.getByText("Version history", { exact: true }).click();
+  const history = page.getByRole("link", { name: /^Version 1:/ });
+  const guard = page.getByRole("dialog", { name: "Unsaved changes", exact: true });
+  await history.click();
+  await guard.getByRole("button", { name: "Save draft and continue", exact: true }).click();
+  await expect(date).toHaveAttribute("aria-invalid", "true");
+  expect(await listExtractionVersions(client, companyId, created.value.id)).toHaveLength(1);
+  expect((await getDocument(client, companyId, created.value.id))?.claimedReportingPeriod).toBeNull();
+  await guard.getByRole("button", { name: "Stay here", exact: true }).click();
+  await date.fill("1.10.2026");
+  expect((await generateVatReport(client, { companyId, period: "2026-11" })).ok).toBe(true);
+  expect(await finalizeVatReport(client, { companyId, period: "2026-11", confirmed: true })).toEqual({ ok: true, value: null });
+  await history.click();
+  await guard.getByRole("button", { name: "Save draft and continue", exact: true }).click();
+  await expect(guard.getByRole("alert")).toContainText("Not all changes were saved", { timeout: 3_000 });
+  await expect(page).toHaveURL(href);
+  await guard.getByRole("button", { name: "Stay here", exact: true }).click();
+  await expect(period).toHaveValue("2026-11");
+  await expect(page.getByLabel("Total incl. VAT", { exact: true })).toHaveValue("2420.00");
+  const versions = await listExtractionVersions(client, companyId, created.value.id);
+  expect(versions).toHaveLength(2);
+  expect(versions[1].payload).toMatchObject({ rateBreakdown: [{ rate: 21, netAmount: "2000.00", vatAmount: "420.00" }], totals: { netAmount: "2000.00", vatAmount: "420.00", grossAmount: "2420.00" } });
+  expect((await getDocument(client, companyId, created.value.id))?.claimedReportingPeriod).toBeNull();
+  expect(await unlockReportingPeriod(client, { companyId, period: "2026-11", reason: "Retry the preserved period draft", confirmed: true })).toEqual({ ok: true, value: null });
+  if (!await history.isVisible()) await page.getByText("Version history", { exact: true }).click();
+  await history.click();
+  await guard.getByRole("button", { name: "Save draft and continue", exact: true }).click();
+  await expect(page).toHaveURL(url => url.searchParams.get("version") === "1");
+  await expect(page.getByLabel("Document number", { exact: true })).toBeDisabled();
+  expect((await getDocument(client, companyId, created.value.id))?.claimedReportingPeriod).toBe("2026-11");
+  expect(await listExtractionVersions(client, companyId, created.value.id)).toEqual(versions);
+});
+
+
+test("Approve resolves the unsaved Reporting Period before submitting current accounting fields", async ({ page, context, baseURL }) => {
+  const { companyId, client } = await setupReviewCompany(page, context, baseURL, "PeriodApprove");
+  const created = await createManualDocument(client, { companyId, payload: { ...SAMPLE_EXTRACTION,
+    claimEligibility: { period: "2026-10", origin: "user", confirmed: true },
+  } }, undefined, fakeVatPayerRegistry());
+  if (!created.ok) throw new Error(created.error);
+  const href = `/companies/${companyId}/documents/${created.value.id}`;
+  await page.goto(href);
+  await expect(page.locator(".review-actions button[form]")).toHaveCount(2);
+  const period = page.getByRole("combobox", { name: /^Move input VAT claim to/ });
+  await period.selectOption("2026-11", { timeout: 3_000 });
+  const number = page.getByLabel("Document number", { exact: true });
+  await number.fill("CURRENT-ACCOUNTING-229");
+  await page.getByRole("button", { name: "Approve version 1", exact: true }).click();
+  const guard = page.getByRole("dialog", { name: "Unsaved Reporting Period", exact: true });
+  await expect(guard).toBeVisible({ timeout: 3_000 });
+  await guard.getByRole("button", { name: "Stay here", exact: true }).click();
+  await expect(period).toHaveValue("2026-11");
+  await expect(number).toHaveValue("CURRENT-ACCOUNTING-229");
+  await page.getByRole("button", { name: "Approve version 1", exact: true }).click();
+  await guard.getByRole("button", { name: "Discard Reporting Period change and approve", exact: true }).click();
+  await expect(page).toHaveURL(url => url.pathname === `/companies/${companyId}/documents`);
+  expect((await getDocument(client, companyId, created.value.id))).toMatchObject({ status: "approved", claimedReportingPeriod: null });
+  expect((await listExtractionVersions(client, companyId, created.value.id)).map(version => version.payload.documentNumber)).toEqual(["FV-2026-0001", "CURRENT-ACCOUNTING-229"]);
+
+  const saved = await createManualDocument(client, { companyId, payload: { ...SAMPLE_EXTRACTION, documentNumber: "PERIOD-SAVE-229",
+    claimEligibility: { period: "2026-10", origin: "user", confirmed: true },
+  } }, undefined, fakeVatPayerRegistry());
+  if (!saved.ok) throw new Error(saved.error);
+  const savedHref = `/companies/${companyId}/documents/${saved.value.id}`;
+  await page.goto(savedHref);
+  await expect(page.locator(".review-actions button[form]")).toHaveCount(2);
+  await period.selectOption("2026-11");
+  await number.fill("CURRENT-AFTER-PERIOD-SAVE-229");
+  await page.getByLabel("Total incl. VAT", { exact: true }).fill("1211,00");
+  const requestId = await page.locator('input[name="requestId"]').inputValue();
+  await page.getByRole("button", { name: "Approve version 1", exact: true }).click();
+  await expect(guard).toBeVisible({ timeout: 3_000 });
+  let held = false;
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  await page.route(`**${savedHref}`, async route => {
+    if (route.request().method() === "POST" && route.request().headers()["next-action"]) { held = true; await gate; }
+    await route.continue();
+  });
+  try {
+    await guard.getByRole("button", { name: "Save Reporting Period and approve", exact: true }).click();
+    await expect.poll(() => held).toBe(true);
+    await expect(number).toBeDisabled();
+    await expect(period).toBeDisabled();
+    await expect(page.getByLabel("Tax point date", { exact: true })).toBeDisabled();
+    await expect(page.getByRole("checkbox", { name: "Claim selected supplies", exact: true })).toBeDisabled();
+    await expect(page.getByRole("group", { name: "Document decisions", exact: true }).getByRole("button", { name: "Reject", exact: true })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Approve version 1", exact: true })).toBeDisabled();
+  } finally { release(); }
+  await expect(page.getByRole("status", { name: "Warnings for these submitted values", exact: true })).toBeVisible();
+  await expect(number).toHaveValue("CURRENT-AFTER-PERIOD-SAVE-229");
+  await expect(page.getByLabel("Total incl. VAT", { exact: true })).toHaveValue("1211,00");
+  await expect(period).toHaveValue("2026-11");
+  await expect(page.locator('input[name="requestId"]')).toHaveValue(requestId);
+  expect((await getDocument(client, companyId, saved.value.id))).toMatchObject({ status: "needs_review", claimedReportingPeriod: "2026-11" });
+  expect(await listExtractionVersions(client, companyId, saved.value.id)).toHaveLength(1);
+  await page.getByRole("button", { name: "Approve these values with warnings", exact: true }).click();
+  await expect(page).toHaveURL(url => url.pathname === `/companies/${companyId}/documents`);
+  const savedVersions = await listExtractionVersions(client, companyId, saved.value.id);
+  expect(savedVersions).toHaveLength(2);
+  expect(savedVersions[1].payload).toMatchObject({ documentNumber: "CURRENT-AFTER-PERIOD-SAVE-229", totals: { grossAmount: "1211.00" } });
+});
+
+
+test("key facts show the actual Reporting Period separately from Earliest Claim Period", async ({ page, context, baseURL }) => {
+  const { companyId, client } = await setupReviewCompany(page, context, baseURL, "PeriodFacts");
+  const created = await createManualDocument(client, { companyId, payload: { ...SAMPLE_EXTRACTION,
+    claimEligibility: { period: "2026-10", origin: "user", confirmed: true },
+  } }, undefined, fakeVatPayerRegistry());
+  if (!created.ok) throw new Error(created.error);
+  expect(await updateDocumentReporting(client, { companyId, documentId: created.value.id, claimedReportingPeriod: "2026-11" })).toEqual({ ok: true, value: null });
+  await page.goto(`/companies/${companyId}/documents/${created.value.id}`);
+  const facts = page.getByRole("group", { name: "Document", exact: true });
+  await expect(facts.getByText("Reporting Period: 2026-11", { exact: true })).toBeVisible({ timeout: 3_000 });
+  await expect(facts.getByRole("group", { name: "Earliest Claim Period", exact: true })).toContainText("2026-10");
+  const period = page.getByRole("combobox", { name: /^Move input VAT claim to/ });
+  expect(await period.evaluate(element => (element as HTMLSelectElement).form?.classList.contains("reporting-assignment-form"))).toBe(true);
+  expect(await facts.getByLabel("Document number", { exact: true }).evaluate(element => (element as HTMLInputElement).form?.classList.contains("correction-form"))).toBe(true);
+  // Pristine assignment follows a real refresh; edited assignments do not.
+  expect(await updateDocumentReporting(client, { companyId, documentId: created.value.id, claimedReportingPeriod: "2026-12" })).toEqual({ ok: true, value: null });
+  await page.getByRole("button", { name: "Check payment account again", exact: true }).click();
+  await expect(facts.getByText("Reporting Period: 2026-12", { exact: true })).toBeVisible();
+  await expect(period).toHaveValue("2026-12", { timeout: 3_000 });
+  await period.selectOption("2026-11");
+  const number = facts.getByLabel("Document number", { exact: true });
+  await number.fill("KEEP-CONCURRENT-DRAFT-229");
+  const requestId = await page.locator('input[name="requestId"]').inputValue();
+  expect(await updateDocumentReporting(client, { companyId, documentId: created.value.id, claimedReportingPeriod: null })).toEqual({ ok: true, value: null });
+  const current = await correctDocument(client, { companyId, documentId: created.value.id, basedOnVersion: 1,
+    payload: { ...SAMPLE_EXTRACTION, documentNumber: "OTHER-CURRENT-229", claimEligibility: { period: "2026-10", origin: "user", confirmed: true } },
+  }, undefined, fakeVatPayerRegistry());
+  expect(current.ok).toBe(true);
+  await page.getByRole("button", { name: "Check payment account again", exact: true }).click();
+  await expect(facts.getByText("Reporting Period: 2026-10", { exact: true })).toBeVisible();
+  await expect(period).toHaveValue("2026-11");
+  await expect(number).toHaveValue("KEEP-CONCURRENT-DRAFT-229");
+  await expect(page.locator('input[name="basedOnVersion"]')).toHaveValue("1");
+  await expect(page.locator('input[name="requestId"]')).toHaveValue(requestId);
+  await page.getByRole("button", { name: "Approve version 1", exact: true }).click();
+  const gate = page.getByRole("dialog", { name: "Unsaved Reporting Period", exact: true });
+  await expect(gate).toBeVisible({ timeout: 3_000 });
+  await gate.getByRole("button", { name: "Save Reporting Period and approve", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Compare current data", exact: true })).toContainText("OTHER-CURRENT-229");
+  await expect(number).toHaveValue("KEEP-CONCURRENT-DRAFT-229");
+  await expect(page.locator('input[name="basedOnVersion"]')).toHaveValue("1");
+  await expect(page.locator('input[name="requestId"]')).toHaveValue(requestId);
+  expect((await getDocument(client, companyId, created.value.id))).toMatchObject({ status: "needs_review", claimedReportingPeriod: "2026-11" });
+  expect(await listExtractionVersions(client, companyId, created.value.id)).toHaveLength(2);
 });
