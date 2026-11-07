@@ -2475,3 +2475,6 @@ select:disabled {
 .workbook-source-table td.is-selected { background: var(--ai-mark); outline: 2px solid var(--ai-edge); outline-offset: -2px; }
 .workbook-source-table td button { display: inline-flex; margin-left: var(--space-2); border: 0; padding: var(--space-1); background: transparent; color: var(--ink-on-mark); cursor: pointer; }
 .workbook-source-inspect { overflow: auto; }
+
+/* Keep Inspect positioned within the source while the workspace scrolls each pane. */
+.company-shell-content > .review.review-workspace .review-original > .pdf-source-viewer { position: relative; overflow: visible; }

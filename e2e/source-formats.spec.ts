@@ -1,9 +1,14 @@
 import { createHash } from "node:crypto";
 import { expect, test } from "@playwright/test";
+import { expectInspectInsideSource } from "./support/source-inspect";
 import { provisionAndLogIn } from "./support/accounts";
-import { addBrowserSourceFormatFixture } from "../tests/support/e2e";
+import { correctDocument, createManualDocument } from "../src/application/documents";
+import { getDocumentReview } from "../src/application/document-review";
+import { fakeVatPayerRegistry } from "../src/vat-registry/fake";
+import { addBrowserSourceFormatFixture, browserUserClient } from "../tests/support/e2e";
 
-test("image fields highlight the actual oriented source and Inspect stays explicit through zoom and resize", async ({ page, context, baseURL }, testInfo) => {
+for (const format of ["png", "jpeg"] as const) {
+test(`${format} fields highlight the actual oriented source and Inspect stays explicit through zoom and resize`, async ({ page, context, baseURL }, testInfo) => {
   if (!baseURL) throw new Error("Browser base URL required");
   await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseURL }]);
   const run = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -19,7 +24,7 @@ test("image fields highlight the actual oriented source and Inspect stays explic
   await page.getByRole("button", { name: "Save and continue", exact: true }).click();
   await expect(page).toHaveURL(/\/setup\/ai-processing$/);
   const companyId = new URL(page.url()).pathname.split("/")[2];
-  const { documentId } = await addBrowserSourceFormatFixture({ companyId, cookies: await context.cookies() });
+  const { documentId } = await addBrowserSourceFormatFixture({ companyId, cookies: await context.cookies(), format });
   await page.goto(`/companies/${companyId}/documents/${documentId}`);
   const region = page.locator('[data-source-region="documentNumber"]');
   await expect(region).toBeVisible();
@@ -51,6 +56,11 @@ test("image fields highlight the actual oriented source and Inspect stays explic
     for (let index = 0; index < pixels.length; index += 4) if (pixels[index] < 100 && pixels[index + 1] < 100 && pixels[index + 2] < 100) ink++;
     return ink;
   })).toBeGreaterThan(20);
+  await expectInspectInsideSource(page);
+  expect(await page.locator(".image-source-viewer .pdf-source-scroll").evaluate(element => {
+    element.scrollTop = 100; return element.scrollTop;
+  })).toBeGreaterThan(0);
+  await expectInspectInsideSource(page);
   await page.screenshot({ path: testInfo.outputPath("image-inspect.png") });
   await page.keyboard.press("Escape");
   await expect(crop).toHaveCount(0);
@@ -58,8 +68,10 @@ test("image fields highlight the actual oriented source and Inspect stays explic
   await page.locator('[data-source-field="supplier.name"] input').focus();
   await expect(inspect).toBeDisabled();
 });
+}
 
-test("workbook fields address the real sheet and absolute cells with header context and explicit row/cell Inspect", async ({ page, context, baseURL }, testInfo) => {
+for (const format of ["xls", "xlsx"] as const) {
+test(`${format} workbook fields address the real sheet and absolute cells with header context and explicit row/cell Inspect`, async ({ page, context, baseURL }, testInfo) => {
   if (!baseURL) throw new Error("Browser base URL required");
   await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseURL }]);
   const run = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -75,7 +87,7 @@ test("workbook fields address the real sheet and absolute cells with header cont
   await page.getByRole("button", { name: "Save and continue", exact: true }).click();
   await expect(page).toHaveURL(/\/setup\/ai-processing$/);
   const companyId = new URL(page.url()).pathname.split("/")[2];
-  const { documentId } = await addBrowserSourceFormatFixture({ companyId, cookies: await context.cookies(), format: "xlsx" });
+  const { documentId } = await addBrowserSourceFormatFixture({ companyId, cookies: await context.cookies(), format });
   await page.goto(`/companies/${companyId}/documents/${documentId}`);
   const table = page.locator("[data-source-workbook-original]");
   const cell = table.locator('[data-workbook-cell="D7"]');
@@ -102,6 +114,9 @@ test("workbook fields address the real sheet and absolute cells with header cont
   await expect(crop).toContainText("CELL-240");
   await expect(crop).toContainText("Number");
   await expect(crop).toContainText("D");
+  await expectInspectInsideSource(page);
+  expect(await table.evaluate(element => { element.scrollLeft = element.scrollWidth; return element.scrollLeft; })).toBeGreaterThan(0);
+  await expectInspectInsideSource(page);
   await page.screenshot({ path: testInfo.outputPath("workbook-inspect.png") });
   await page.keyboard.press("Escape");
   await expect(crop).toHaveCount(0);
@@ -113,8 +128,10 @@ test("workbook fields address the real sheet and absolute cells with header cont
   await inspect.click();
   await expect(crop).toHaveCount(0);
 });
+}
 
-test("HEIC uses the exact persisted JPEG preview, preserves the original and keeps manual/recorded evidence truthful", async ({ page, context, baseURL }, testInfo) => {
+for (const format of ["heic", "heif"] as const) {
+test(`${format} uses the exact persisted JPEG preview, preserves the original and keeps manual/recorded evidence truthful`, async ({ page, context, baseURL }, testInfo) => {
   if (!baseURL) throw new Error("Browser base URL required");
   await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseURL }]);
   const run = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -130,7 +147,7 @@ test("HEIC uses the exact persisted JPEG preview, preserves the original and kee
   await page.getByRole("button", { name: "Save and continue", exact: true }).click();
   await expect(page).toHaveURL(/\/setup\/ai-processing$/);
   const companyId = new URL(page.url()).pathname.split("/")[2];
-  const fixture = await addBrowserSourceFormatFixture({ companyId, cookies: await context.cookies(), format: "heic" });
+  const fixture = await addBrowserSourceFormatFixture({ companyId, cookies: await context.cookies(), format });
   const preview = page.waitForResponse(response => new URL(response.url()).pathname.endsWith(`/source-files/${fixture.sourceFileId}/preview`));
   await page.goto(`/companies/${companyId}/documents/${fixture.documentId}`);
   const response = await preview;
@@ -170,4 +187,70 @@ test("HEIC uses the exact persisted JPEG preview, preserves the original and kee
   await inspect.click();
   await expect(crop).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("heic-recorded.png") });
+});
+}
+
+test("workbook draft evidence freezes through conflicts and each new AI, manual and source-independent view keeps its own provenance", async ({ page, context, baseURL }, testInfo) => {
+  if (!baseURL) throw new Error("Browser base URL required");
+  await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseURL }]);
+  const run = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  await provisionAndLogIn(page, { organizationName: `Formats ${run}`, email: `formats-${run}@example.test`, password: "Browser-formats-240" });
+  await page.getByLabel("Company name").fill(`Formats ${run}`);
+  await page.getByLabel("IČO").fill("25596641");
+  await page.getByLabel("VAT ID").fill("CZ25596641");
+  await page.getByLabel("Street name").fill("Vinohradská");
+  await page.getByLabel("House number").fill("12");
+  await page.getByLabel("City", { exact: true }).fill("Praha");
+  await page.getByLabel("Postal code", { exact: true }).fill("12000");
+  await page.getByRole("button", { name: "Create company", exact: true }).click();
+  await page.getByRole("button", { name: "Save and continue", exact: true }).click();
+  await expect(page).toHaveURL(/\/setup\/ai-processing$/);
+  const companyId = new URL(page.url()).pathname.split("/")[2];
+  const fixture = await addBrowserSourceFormatFixture({ companyId, cookies: await context.cookies(), format: "xlsx" });
+  const target = { companyId, documentId: fixture.documentId };
+  const client = await browserUserClient(await context.cookies());
+  const original = (await getDocumentReview(client, target))!.shown!;
+  await page.goto(`/companies/${companyId}/documents/${fixture.documentId}`);
+  const number = page.getByLabel("Document number", { exact: true });
+  const viewer = page.locator(".workbook-source-viewer");
+  await number.fill("UNSAVED-WORKBOOK");
+  expect(await correctDocument(client, { ...target, basedOnVersion: 1, payload: { ...original.payload, documentNumber: "CONCURRENT-SAVED" } }, undefined, fakeVatPayerRegistry()))
+    .toEqual({ ok: true, value: { version: 2 } });
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Compare current data", exact: true })).toContainText("CONCURRENT-SAVED");
+  await expect(number).toHaveValue("UNSAVED-WORKBOOK");
+  await expect(page.locator('.correction-form input[name="basedOnVersion"]')).toHaveValue("1");
+  await expect(viewer).toHaveAttribute("data-evidence-version", original.id);
+  await expect(viewer.locator('[data-workbook-cell="D7"]')).toHaveClass(/is-selected/);
+  await page.screenshot({ path: testInfo.outputPath("workbook-frozen-conflict.png") });
+  await page.locator("details.review-history summary").click();
+  await page.getByRole("link", { name: /Version 2: CONCURRENT-SAVED/ }).click();
+  await page.getByRole("dialog", { name: "Unsaved changes", exact: true }).getByRole("button", { name: "Discard changes", exact: true }).click();
+  await expect(number).toHaveValue("CONCURRENT-SAVED");
+  await expect(number).toBeDisabled();
+  await expect(page.locator('[data-source-field="documentNumber"]')).toContainText("Manually corrected");
+  await expect(page.locator('[data-source-field="documentNumber"]')).toContainText("AI read: CELL-240");
+  await fixture.reextract();
+  await page.goto(`/companies/${companyId}/documents/${fixture.documentId}`);
+  await expect(number).toHaveValue("CELL-240");
+  await number.focus();
+  await expect(viewer.locator('[data-workbook-cell="F7"]')).toHaveClass(/is-selected/);
+  await expect(page.locator('[data-source-field="documentNumber"]')).not.toContainText("Manually corrected");
+  await expect(viewer).not.toHaveAttribute("data-evidence-version", original.id);
+  await page.getByRole("button", { name: "Inspect", exact: true }).click();
+  await expect(page.locator("[data-source-inspect-crop]")).toContainText("CELL-240");
+  await expect(page.locator("[data-source-inspect-crop]")).toContainText("F");
+  await page.screenshot({ path: testInfo.outputPath("workbook-new-ai.png") });
+  await page.goto(`/companies/${companyId}/documents/${fixture.documentId}?version=1`);
+  await page.locator('[data-source-field="documentNumber"] .source-field-link').click();
+  await expect(number).toHaveValue("CELL-240");
+  await expect(viewer).toHaveAttribute("data-evidence-version", original.id);
+  await expect(viewer.locator('[data-workbook-cell="D7"]')).toHaveClass(/is-selected/);
+  const manual = await createManualDocument(client, { companyId, payload: { ...original.payload, claimEligibility: { period: "2026-10", origin: "user", confirmed: true } } }, undefined, fakeVatPayerRegistry());
+  if (!manual.ok) throw new Error(manual.error);
+  await page.goto(`/companies/${companyId}/documents/${manual.value.id}`);
+  await expect(page.locator(".workbook-source-viewer,.image-source-viewer,[data-source-region],[data-source-inspect-toggle]")).toHaveCount(0);
+  await expect(page.getByText("No Source File is attached to this Document.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Attach original", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Extract with AI", exact: true })).toHaveCount(0);
 });
