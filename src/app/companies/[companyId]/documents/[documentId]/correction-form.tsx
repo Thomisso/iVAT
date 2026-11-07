@@ -1,5 +1,6 @@
 "use client";
 
+import { useCompanyReviewShortcuts } from "@/components/company-shortcuts";
 import { ReviewActions, useReviewWorkspace } from "./review-workspace";
 import { useReviewDraft } from "./review-guard";
 import { PartialClaimFields } from "./partial-claim-fields";
@@ -130,6 +131,10 @@ export function CorrectionForm({
     return () => setPending?.("correction", false);
   }, [setPending, pending]);
   const busy = pending || sharedPending;
+  const registerShortcuts = useCompanyReviewShortcuts();
+  useEffect(() => {
+    if (documentId && editable && !busy && form.current) return registerShortcuts?.(form.current);
+  }, [registerShortcuts, documentId, editable, busy, version, draftGeneration]);
   const nextLine = Math.max(payload.rateBreakdown.length - 1, ...lines) + 1;
   const finding = (field: string) =>
     (state.findings ?? findings).find(

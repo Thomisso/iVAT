@@ -21,6 +21,7 @@ import {
 } from "@/app/actions";
 import type { CompanySummary } from "@/application/companies";
 import type { UploadNotification } from "@/application/upload-batches";
+import { CompanyShortcuts, CompanyShortcutsTrigger } from "@/components/company-shortcuts";
 import { WorkSectionSwitch } from "@/components/work-section-switch";
 import { AccountActions, AppShell, ContextNavigation } from "@/components/app-shell";
 import { CommandButton } from "@/components/command-button";
@@ -219,16 +220,19 @@ export function CompanyShell({ children, companies, company, companyRole, email,
   />;
   const context = <CompanyMenu companies={companies} current={company} />;
   const accountActions = <AccountActions label={t("account")}>
-    <NotificationBell companyId={company.id} notifications={uploadNotifications} unreadCount={uploadUnreadCount} />
+    <div className="company-utility-actions">
+      <NotificationBell companyId={company.id} notifications={uploadNotifications} unreadCount={uploadUnreadCount} />
+      <CompanyShortcutsTrigger />
+    </div>
     {superAdmin && <WorkSectionSwitch section="company" companyHref={`/companies/${company.id}`} />}
     <AccountMenu email={email} />
   </AccountActions>;
-  return <AppShell
+  return <CompanyShortcuts key={company.id}><AppShell
     accountActions={accountActions}
     brandHref="/"
     brandLabel={app("name")}
     context={context}
     navigation={navigation}
     skipLabel={t("skip")}
-  >{children}</AppShell>;
+  >{children}</AppShell></CompanyShortcuts>;
 }

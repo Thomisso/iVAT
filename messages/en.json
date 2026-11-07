@@ -26,6 +26,17 @@
     "received": "Received Documents",
     "issued": "Issued Documents"
   },
+  "companyShortcuts": {
+    "title": "Keyboard shortcuts",
+    "close": "Close keyboard shortcuts",
+    "traversal": "Use Tab and Shift+Tab to move between fields and actions.",
+    "save": "Save draft",
+    "approve": "Approve",
+    "unavailable": "No review action is available on this page.",
+    "safety": "Review shortcuts follow the same checks as the buttons. Dialogs and composition input take priority; Enter in a field never approves.",
+    "saveKeys": "Ctrl / Cmd + S",
+    "approveKeys": "Ctrl / Cmd + Enter"
+  },
   "shell": {
     "superAdmin": "SuperAdmin",
     "switchToSuperAdmin": "Switch to SuperAdmin",

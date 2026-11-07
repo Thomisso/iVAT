@@ -2465,3 +2465,10 @@ select:disabled {
 .review-workspace .review-secondary[open] { width: 100%; }
 
 .review-error-summary li > button { display: block; max-width: 100%; }
+
+.company-utility-actions { display: flex; align-items: center; gap: 4px; }
+.company-shortcuts-dialog dl { display: grid; gap: var(--space-3); }
+.company-shortcuts-dialog dl > div { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.company-shortcuts-dialog dt { font-weight: 600; }
+.company-shortcuts-dialog dd { margin: 0; }
+.company-shortcuts-dialog kbd { white-space: nowrap; font-size: 12px; }
