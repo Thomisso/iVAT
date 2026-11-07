@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Icon } from "@/components/icon";
 import { useSourceEvidence, useSourceFieldLabel } from "./source-evidence-context";
@@ -17,6 +17,11 @@ export function ImageSourceViewer({ href, label }: { href: string; label: string
   const [inspect, setInspect] = useState(false);
   const image = useRef<HTMLImageElement>(null);
   const crop = useRef<HTMLCanvasElement>(null);
+  const captureImage = useCallback((node: HTMLImageElement | null) => {
+    image.current = node;
+    // A cached image can finish before hydration attaches onLoad.
+    if (node?.complete && node.naturalWidth) setLoaded({ url, width: node.naturalWidth, height: node.naturalHeight });
+  }, [url]);
   const ready = loaded.url === url;
   const evidence = source?.payload.sourceEvidence;
   const reference = source?.selectedField ? evidence?.fields[source.selectedField] : undefined;
@@ -57,7 +62,7 @@ export function ImageSourceViewer({ href, label }: { href: string; label: string
     <div className="pdf-source-scroll">
       <div className="pdf-source-page image-source-page" style={{ width: `${zoom * 100}%` }} aria-busy={!ready}>
         {/* eslint-disable-next-line @next/next/no-img-element -- render the immutable AI basis without optimization */}
-        <img ref={image} src={url} alt={label} data-ready={ready} style={{ display: "block", width: "100%", height: "auto" }}
+        <img ref={captureImage} src={url} alt={label} data-ready={ready} style={{ display: "block", width: "100%", height: "auto" }}
           onLoad={event => setLoaded({ url, width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight })}
           onError={() => setFailed(url)} />
         {ready && Object.entries(evidence?.fields ?? {}).flatMap(([field, entry]) => entry.locations.flatMap((region, index) =>
