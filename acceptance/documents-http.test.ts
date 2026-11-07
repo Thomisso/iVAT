@@ -88,8 +88,13 @@ it("returns current and recorded SSR values and protected original/page bytes wi
     expect(response.status).toBe(404);
     expect(await response.text()).not.toContain("HTTP-CORRECTED-VERSION-2");
   }
-  const anonymous = await fetch(new URL(`${path}/content`, baseUrl()), { redirect: "manual" });
+  const anonymousUrl = new URL(`${path}/content`, baseUrl());
+  const anonymous = await fetch(anonymousUrl, { redirect: "manual" });
   expect(anonymous.status).toBe(307);
-  expect(new URL(anonymous.headers.get("location")!).pathname).toBe("/login");
+  const location = anonymous.headers.get("location");
+  expect(location?.trim()).toBeTruthy();
+  const destination = new URL(location!, anonymousUrl);
+  expect(destination.origin).toBe(anonymousUrl.origin);
+  expect(destination.pathname).toBe("/login");
   expect((await listExtractionVersions(fixture.client, fixture.companyId, fixture.document.id)).map(version => version.version)).toEqual([1, 2]);
 });
