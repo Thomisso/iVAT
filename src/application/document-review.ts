@@ -1,5 +1,6 @@
+import { getCurrentDocumentReviewFindings } from "./document-review-findings";
 import type { AppClient } from "./client";
-import { getDocumentBankAccountChecks, isBankAccountFinding } from "./bank-account-checks";
+import { isBankAccountFinding } from "./bank-account-checks";
 import { getCompany, getMyCompanyRole, listCompanyReportingYears } from "./companies";
 import { prepareDocumentReporting } from "./document-reporting";
 import {
@@ -40,7 +41,7 @@ export async function getDocumentReview(
     documentPeriodLocks(client, companyId, [documentId]),
     listDeferredClaimPeriods(client, companyId, documentId),
     document.rowSet ? readDocumentRows(client, companyId, documentId) : null,
-    getDocumentBankAccountChecks(client, input),
+    getCurrentDocumentReviewFindings(client, input),
   ]);
   if (document.sourceFileId && !file) return null;
 
@@ -64,7 +65,7 @@ export async function getDocumentReview(
 
   return {
     company, document, versions, current, shown, viewingRecorded, shownFindings, shownWarningFindings,
-    bankChecks, file, sourceRows, duplicateWarnings, missingPeriod, role, lockedPeriod,
+    bankChecks, displayedReviewContext: observations.displayedReviewContext, currentCounterparty: matchingObservations ? observations.counterparty : null, file, sourceRows, duplicateWarnings, missingPeriod, role, lockedPeriod,
     deferredClaimPeriods, reporting,
     reviewing: document.status === "needs_review" && current !== undefined && !lockedPeriod,
     recoverable: !["approved", "rejected", "needs_review"].includes(document.status) && !lockedPeriod,

@@ -569,17 +569,23 @@ isOneToOne: false
                   ]
                 },"extraction_version": {
                   Row: {
-                    "author_user_id": string | null,"company_id": string,"created_at": string,"document_id": string,"extraction_request_id": string | null,"findings": NonNullable<Json>,"id": string,"model": string | null,"organization_id": string,"payload": NonNullable<Json>,"provider": string | null,"version": number
+                    "author_user_id": string | null,"company_id": string,"counterparty_id": string | null,"created_at": string,"document_id": string,"extraction_request_id": string | null,"findings": NonNullable<Json>,"id": string,"model": string | null,"organization_id": string,"payload": NonNullable<Json>,"provider": string | null,"version": number
                   }
                   ComputedFields: never
                   Insert: {
-                    "author_user_id"?: string | null,"company_id": string,"created_at"?: string,"document_id": string,"extraction_request_id"?: string | null,"findings"?: NonNullable<Json>,"id"?: string,"model"?: string | null,"organization_id": string,"payload": NonNullable<Json>,"provider"?: string | null,"version": number
+                    "author_user_id"?: string | null,"company_id": string,"counterparty_id"?: string | null,"created_at"?: string,"document_id": string,"extraction_request_id"?: string | null,"findings"?: NonNullable<Json>,"id"?: string,"model"?: string | null,"organization_id": string,"payload": NonNullable<Json>,"provider"?: string | null,"version": number
                   }
                   Update: {
-                    "author_user_id"?: string | null,"company_id"?: string,"created_at"?: string,"document_id"?: string,"extraction_request_id"?: string | null,"findings"?: NonNullable<Json>,"id"?: string,"model"?: string | null,"organization_id"?: string,"payload"?: NonNullable<Json>,"provider"?: string | null,"version"?: number
+                    "author_user_id"?: string | null,"company_id"?: string,"counterparty_id"?: string | null,"created_at"?: string,"document_id"?: string,"extraction_request_id"?: string | null,"findings"?: NonNullable<Json>,"id"?: string,"model"?: string | null,"organization_id"?: string,"payload"?: NonNullable<Json>,"provider"?: string | null,"version"?: number
                   }
                   Relationships: [
                     {
+      foreignKeyName: "extraction_version_counterparty"
+      columns: ["company_id","counterparty_id"]
+isOneToOne: false
+      referencedRelation: "counterparty"
+      referencedColumns: ["company_id","id"]
+    },{
       foreignKeyName: "extraction_version_document_id_company_id_organization_id_fkey"
       columns: ["document_id","company_id","organization_id"]
 isOneToOne: false
@@ -1131,6 +1137,11 @@ isOneToOne: false
 "correct_document":
 { Args: { "based_on_version": number,"findings": Json,"payload": Json,"target_document_id": string }; Returns: number
                            },
+"counterparty_documents":
+{ Args: { "target_company_id": string,"target_counterparty_id": string }; Returns: {
+              "document_id": string,"document_number": string,"version": number
+            }[]
+                           },
 "create_ai_configuration":
 { Args: { "configuration_label": string,"provider_credential": string,"target_extract_model": string,"target_provider": string,"target_split_model": string }; Returns: string
                            },
@@ -1338,6 +1349,9 @@ isOneToOne: false
 { Args: Record<PropertyKey, never>; Returns: {
               "max_source_file_bytes": number,"max_source_file_pages": number,"max_upload_batch_files": number
             }[]
+                           },
+"prepare_document_counterparty":
+{ Args: { "candidate": Json,"target_company_id": string,"target_document_id": string }; Returns: Json
                            },
 "prepare_document_source_attachment":
 { Args: { "target_company_id": string,"target_document_id": string,"target_source_file_id": string }; Returns: undefined

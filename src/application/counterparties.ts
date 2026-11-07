@@ -85,3 +85,14 @@ export async function updateCounterparty(client: AppClient, input: CounterpartyI
   if (error) throw error;
   return data ? { ok: true, value: null } : { ok: false, error: "forbidden" };
 }
+
+export async function listCounterpartyDocuments(client: AppClient, companyId: string, id: string, page = 1) {
+  page = Number.isFinite(page) ? Math.max(1, Math.trunc(page)) : 1;
+  const pageSize = 50;
+  if (!isUuid(companyId) || !isUuid(id)) return { entries: [], total: 0, page, pageCount: 1 };
+  const { data, error, count } = await client.rpc("counterparty_documents", { target_company_id: companyId, target_counterparty_id: id }, { count: "exact" })
+    .order("document_id").range((page - 1) * pageSize, page * pageSize - 1);
+  if (error) throw error;
+  return { entries: data.map(row => ({ documentId: row.document_id, version: row.version, documentNumber: row.document_number })),
+    total: count ?? 0, page, pageCount: Math.max(1, Math.ceil((count ?? 0) / pageSize)) };
+}
