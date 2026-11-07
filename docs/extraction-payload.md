@@ -35,7 +35,9 @@ The payload is a proposal (ADR-0003). Nothing in it counts towards a VAT Report 
 | `proposedVatRegime` | `domestic` · `domestic_reverse_charge` · `eu_acquisition_of_goods` · `eu_received_service` · `other` | Proposed VAT Regime. `other` leads to Manual Classification Required |
 | `reverseChargeCode` | string | Official Control Statement subject code for `domestic_reverse_charge`; otherwise `null` |
 | `originalDocumentNumber` | string | For a Credit Note, the number of the Document it corrects |
+| `partialClaim` | `{ confirmed, rateBreakdown, basis?, zeroConfirmed? }`, optional | Explicit human selection of separate supplies. Absence retains full-Document reporting; an unconfirmed selection never silently restores a full claim. Full source Rate Breakdown and totals remain unchanged. |
 | `czkConversion` | object, optional | Derived CZK rate breakdown/totals plus original currency, ČNB rate, quoted unit, actual fixing date and source. Printed amounts stay unchanged. |
+| `counterpartyLink` | object, optional | Server-validated existing Counterparty `id` and a `recorded` Party-shaped snapshot of its directory details when this Version was saved. Supplier/customer fields remain the Document’s own data. |
 | `sourceEvidence` | object, optional | Server-bound PDF references for this immutable Version: Source File/Document identity, original hash and oriented basis, original page range, `extractionVersionId`, original AI request, and per-field locations with `origin` and `originalValue`. |
 | `sourceLocations` | `SourceLocation[]`, optional | Unbound provider references. PDF/images use `{ fieldPath, kind: "page", page, x, y, width, height }`: PDF pages are 1-based within the supplied slice, images use page 1, and rectangles use a top-left origin on the oriented input with coordinates from 0 to 1. Workbooks use `{ fieldPath, kind: "workbook", sheetName, firstRow, lastRow, firstColumn, lastColumn }`: exact sheet names, absolute 1-based rows and columns. Only server-bound evidence may be used in review. |
 | `confidence` | `{ [fieldPath]: number }`, optional | The provider's confidence from 0 to 1, keyed by field path (`documentNumber`, `supplier.vatId`, `rateBreakdown.0.vatAmount`). Only for fields the provider reports on |
@@ -49,6 +51,53 @@ Review requests for an explicit Version load that Version's content basis. The v
 A **Party** is `{ name, ico, vatId, street, city, postalCode, country }`.
 
 Line items are not part of the MVP schema (#11).
+
+A directory link never copies values into `supplier` or `customer`. Explicitly copying directory details is a manual correction and creates a new Version. The current review compares the Document's Party against today's linked entry; a requested historical Version uses its recorded snapshot and findings. Directory edits do not rewrite Versions or stored VAT Reports. Legacy Versions without a link stay link-free. The server replaces caller-supplied `recorded` values and checks that the entry belongs to the Document's Company. Links retained only in older Versions still protect the directory entry from deletion.
+
+## Partial Claim
+
+`partialClaim` is human-authored metadata, never an AI proposal. Its optional
+`basis` records the confirmed full type, direction, regime, currency, Tax Point
+Date, Rate Breakdown and totals. PostgreSQL binds an initial selection to these
+inputs and invalidates confirmation after a relevant change. New AI cannot create
+selection metadata: insertion strips provider-authored choices and preserves a
+previous human choice as unconfirmed. Manual omission preserves the previous
+choice; an explicit `partialClaim: null` command returns to full amounts and is
+removed before immutable storage. The authenticated correction and approval audit
+points to the resulting Version. This optional command value is not a saved claim.
+
+Its `rateBreakdown` uses the same nullable rate/net/VAT representation as a human draft. `confirmed`
+records whether the preserved selection has been confirmed for the current source
+values; missing or false confirmation prevents contribution to reports. Adding this
+optional metadata leaves historical versions without it readable as full claims.
+
+The supported scope is an incoming domestic Document, excluding Credit Notes,
+with one complete selected row for each original supported VAT rate (21% or 12%).
+Selected amounts stay in the Document currency, must be nonnegative and no greater
+than that rate's full amounts, and keep net/VAT arithmetic within the existing
+two-haler tolerance. Full source arithmetic remains independently required; a
+gross-total warning does not become a blocking error. Either discrepancy prevents
+the per-rate Unclaimed Portion from being calculated. Foreign selections use the
+same stored fixing, quoted unit and integer conversion as the full Document; a
+currency-rounding difference is never added to the source-currency remainder.
+
+An all-zero selection additionally requires `zeroConfirmed: true`, set by a separate
+human confirmation. It remains recorded in the Version and report snapshot with no
+deduction contributor and no zero Control Statement row. Editing the selected
+amounts clears that checkbox. A relevant source change or new AI still requires
+renewed selection confirmation even for a previously confirmed zero. Unknown
+selection metadata (including statutory deduction methods or multiple periods) is
+refused. Statutory §75/§76, self-assessed and Credit Note Partial Claims remain
+outside this contract. An explicit return to full amounts writes
+`document.partial_claim_cleared` with the human actor and previous/new Versions;
+idempotent replay writes no duplicate decision.
+
+The full Document determines identification and Control Statement thresholds. The
+same selected amounts feed the VAT Return and Control Statement and therefore the
+existing shared XML, PDF and preview outputs. For full `12000.00 + 2520.00` and
+selected `6000.00 + 1260.00`, the report uses the selected values on Return line 40
+and Control Statement B.2 with `pomer=N`. This is not statutory proportional
+or reduced deduction. One Document still has one Reporting Period.
 
 ## Example
 
@@ -73,3 +122,7 @@ Line items are not part of the MVP schema (#11).
   "confidence": { "documentNumber": 0.98, "rateBreakdown.0.vatAmount": 0.95 }
 }
 ```
+
+## Earliest Claim Period
+
+Optional `claimEligibility` is non-AI accounting metadata: `{period, origin: "user" | "same_period", confirmed, basis}`. A User explicitly confirms a generated period; the accepted rule may establish the same period only when DUZP, issue date and the actual Source File Import Date all belong to it. The database binds `basis` to the then-current document type, Direction, VAT Regime, DUZP, issue date, Source File identity and Prague Import Date. No Source File means no invented Import Date. Changed decisive facts or AI replacement invalidate a prior human confirmation; immutable earlier Versions retain their original value and origin. The metadata is included in the additive review projection and locked-base inheritance alongside directory, Partial Claim and source evidence extensions. Missing eligibility is unresolved, not proof of a violation, and blocks approval/new preparation for ordinary incoming domestic claims. Deadline calculations belong to the separate deadline workflow.

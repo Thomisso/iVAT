@@ -744,7 +744,13 @@
     "invalid_country_code": "Zadejte dvoupísmenný kód země.",
     "counterparty_invalid_vat_id": "Zadejte DIČ s dvoupísmenným kódem země a 2 až 14 číslicemi nebo písmeny.",
     "review_warnings_changed": "Zkontrolujte nově zjištěná upozornění a výslovně schvalte tyto hodnoty.",
-    "review_context_changed": "Podklady revize se během přípravy změnily. Porovnejte aktuální údaje a zkuste to znovu."
+    "review_context_changed": "Podklady revize se během přípravy změnily. Porovnejte aktuální údaje a zkuste to znovu.",
+    "claim_eligibility_required": "Potvrďte nejdřívější období uplatnění; dostupné údaje zatím způsobilost nedokládají.",
+    "invalid_earliest_claim_period": "Vyberte existující období, které není před obdobím DUZP.",
+    "claimed_period_before_earliest": "Zvolené období uplatnění je před potvrzeným nejdřívějším obdobím.",
+    "deferred_claim_not_supported": "Společný odklad není pro tento režim podporován. Případ vyřešte ručně před novou přípravou výkazu.",
+    "claim_eligibility_unresolved": "Nejdříve vyřešte způsobilost uplatnění označených dokladů v připravenosti období.",
+    "claim_document_type_required": "Vyberte typ dokladu, aby bylo možné potvrdit způsobilost uplatnění."
   },
   "aiUsage": {
     "platformNav": "Využití AI na platformě",
@@ -1134,7 +1140,14 @@
       "direction_unknown": "Směr se nepodařilo určit podle identity firmy. Před schválením jej nastavte.",
       "currency_conversion_not_performed": "Kurz ČNB nebyl dostupný, proto nebylo možné vypočítat částky v CZK.",
       "manual_classification_required": "Tento režim DPH není podporován a vyžaduje ruční klasifikaci.",
-      "reverse_charge_code_required": "Zadejte oficiální kód předmětu plnění v režimu přenesení daňové povinnosti."
+      "reverse_charge_code_required": "Zadejte oficiální kód předmětu plnění v režimu přenesení daňové povinnosti.",
+      "counterparty_directory_difference": "Údaj protistrany na dokladu: „{documentValue}“; v adresáři: „{directoryValue}“.",
+      "partial_claim_invalid": "Doplňte a potvrďte platný kladný výběr v rozsahu celých částek. Podporován je tuzemský přijatý doklad v Kč s jednou sazbou.",
+      "claim_eligibility_required": "Potvrďte nejdřívější období uplatnění; dostupné údaje zatím způsobilost nedokládají.",
+      "invalid_earliest_claim_period": "Vyberte existující období, které není před obdobím DUZP.",
+      "claimed_period_before_earliest": "Zvolené období uplatnění je před potvrzeným nejdřívějším obdobím.",
+      "deferred_claim_not_supported": "Společný odklad není pro tento režim podporován. Případ vyřešte ručně před novou přípravou výkazu.",
+      "claim_document_type_required": "Vyberte typ dokladu, aby bylo možné potvrdit způsobilost uplatnění."
     },
     "noDocumentImage": "Tento doklad vznikl z řádků tabulky a nemá obraz dokladu.",
     "sections": {
@@ -1207,6 +1220,28 @@
     "aiReplacementWarning": "AI nahradí aktuální hodnoty a odebere případné schválení. Všechny předchozí verze zůstanou v historii. Úspěšný výsledek vyžaduje novou lidskou kontrolu a započítá se jako jedno úspěšné AI zpracování. Při selhání zůstanou poslední hodnoty a historie; schválení se automaticky neobnoví.",
     "aiReplacementConfirm": "Rozumím, že AI nahradí aktuální hodnoty a odebere schválení.",
     "aiReplacementStart": "Spustit nahrazení pomocí AI",
+    "preparedWarnings": "Upozornění pro tyto rozepsané hodnoty",
+    "approvePreparedWarnings": "Schválit tyto hodnoty s upozorněními",
+    "compareCurrent": "Porovnat aktuální údaje",
+    "compareVersion": "Aktuální verze {version}",
+    "submittedNotSaved": "Rozepsané hodnoty nebyly uloženy. Porovnejte je s aktuálními údaji níže.",
+    "comparisonField": "Pole",
+    "submittedValue": "Rozepsaná hodnota",
+    "currentValue": "Aktuální hodnota",
+    "directory": {
+      "title": "Adresář protistran",
+      "linkHint": "Propojte existující záznam. Údaje dokladu zůstávají vlastní.",
+      "selected": "Propojená protistrana",
+      "clear": "Zrušit propojení",
+      "search": "Hledat existující protistrany",
+      "searchAction": "Hledat v adresáři",
+      "choose": "Propojit {name}",
+      "empty": "Žádné odpovídající protistrany.",
+      "copy": "Převzít údaje z adresáře do dokladu",
+      "recorded": "Zaznamenané údaje adresáře",
+      "notRecorded": "Tato verze nemá zaznamenané propojení s adresářem.",
+      "open": "Otevřít propojenou protistranu"
+    },
     "sourceFor": "Předloha pro {field}",
     "sourcePage": "Strana originálu",
     "sourceZoom": "Přiblížení",
@@ -1216,16 +1251,35 @@
     "sourceManual": "Ručně upraveno",
     "sourceOriginalValue": "AI přečetla: {value}",
     "sourceZoomValue": "{percent}%",
-    "preparedWarnings": "Upozornění pro tyto rozepsané hodnoty",
-    "approvePreparedWarnings": "Schválit tyto hodnoty s upozorněními",
-    "compareCurrent": "Porovnat aktuální údaje",
-    "compareVersion": "Aktuální verze {version}",
-    "submittedNotSaved": "Rozepsané hodnoty nebyly uloženy. Porovnejte je s aktuálními údaji níže.",
-    "comparisonField": "Pole",
-    "submittedValue": "Rozepsaná hodnota",
-    "currentValue": "Aktuální hodnota",
     "sourceInspect": "Inspect",
-    "sourceInspectCrop": "Zvětšený výřez předlohy"
+    "sourceInspectCrop": "Zvětšený výřez předlohy",
+    "partialClaim": {
+      "title": "Částečné uplatnění",
+      "enable": "Uplatnit vybraná plnění",
+      "explanation": "Vyberte způsobilá samostatná plnění. Celé částky dokladu zůstávají zachované. Nejde o poměrný ani krácený odpočet.",
+      "net": "Uplatňovaný základ",
+      "vat": "Uplatňovaná DPH",
+      "reconfirmation": "Celý doklad se změnil. Porovnejte dosavadní výběr a znovu jej potvrďte, nebo jej vědomě vypněte.",
+      "confirm": "Potvrdit výběr pro tyto celé částky",
+      "unclaimed": "Neuplatněná část",
+      "unavailable": "Nelze vypočítat",
+      "confirmRate": "Potvrdit výběr se sazbou {rate}% pro tyto celé částky",
+      "previousSelection": "Dříve uložený výběr: {rate}% · základ {net}, DPH {vat}",
+      "rate": "Vybraná plnění se sazbou {rate}%",
+      "remainderRate": "Neuplatněno se sazbou {rate}%",
+      "addRate": "Přidat uplatňovanou sazbu",
+      "removeRate": "Odebrat uplatňovanou sazbu",
+      "zeroConfirm": "Potvrzuji nulový nárok na odpočet z tohoto dokladu."
+    },
+    "claimEligibility": {
+      "title": "Nejdřívější období uplatnění",
+      "period": "První přípustné období",
+      "user": "Potvrzeno uživatelem.",
+      "same_period": "Pravidlo stejného období DUZP, vystavení a importu.",
+      "unconfirmed": "Vyžaduje potvrzení",
+      "confirm": "Potvrzuji splnění podmínek pro vybrané období.",
+      "hint": "Datum importu je datum skutečného nahrání, nikoli důkaz dřívějšího doručení. Ruční doklad bez originálu vyžaduje potvrzení účetním."
+    }
   },
   "duplicateWarning": {
     "document_identity": "Možný duplikát: DIČ protistrany, číslo dokladu a směr se shodují se starším dokladem.",
@@ -1774,6 +1828,11 @@
     "pagination": "Stránky adresáře",
     "previous": "Předchozí",
     "next": "Další",
-    "page": "Stránka {page} z {total}"
+    "page": "Stránka {page} z {total}",
+    "linkedDocuments": "Navázané doklady",
+    "linkedCount": "Doklady: {count}",
+    "unnumberedDocument": "Doklad bez čísla",
+    "noLinkedDocuments": "Žádné navázané doklady.",
+    "documentPages": "Stránky navázaných dokladů"
   }
 }

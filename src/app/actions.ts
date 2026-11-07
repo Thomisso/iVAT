@@ -581,17 +581,35 @@ function payloadFromForm(formData: FormData): ExtractionPayload {
   const lines = [
     ...new Set([...formData.keys()].flatMap((key) => /^rateBreakdown\.(\d+)\./.exec(key)?.[1] ?? [])),
   ].sort((a, b) => Number(a) - Number(b));
+  const selectedLines = [...new Set([...formData.keys()].flatMap(key => /^partialClaim\.(\d+)\./.exec(key)?.[1] ?? []))]
+    .sort((a, b) => Number(a) - Number(b));
+  let basis: NonNullable<ExtractionPayload["partialClaim"]>["basis"];
+  let basisValid = true;
+  try { basis = optionalField(formData, "partialClaim.basis") ? JSON.parse(field(formData, "partialClaim.basis")) : undefined; }
+  catch { basisValid = false; }
+  let claimEligibility: ExtractionPayload["claimEligibility"];
+  try { claimEligibility = optionalField(formData, "claimEligibility") ? JSON.parse(field(formData, "claimEligibility")) : undefined; }
+  catch { claimEligibility = undefined; }
   return {
     schemaVersion: 1,
+    ...(claimEligibility ? { claimEligibility } : {}),
     documentType: optionalField(formData, "documentType") as ExtractionPayload["documentType"],
     documentNumber: optionalField(formData, "documentNumber"),
     issueDate: optionalField(formData, "issueDate"),
     taxPointDate: optionalField(formData, "taxPointDate"),
     dueDate: optionalField(formData, "dueDate"),
     direction: optionalField(formData, "direction") as ExtractionPayload["direction"],
+    ...(optionalField(formData, "counterpartyId") ? { counterpartyLink: { id: field(formData, "counterpartyId") } } : {}),
     supplier: partyFromForm(formData, "supplier"),
     customer: partyFromForm(formData, "customer"),
     currency: optionalField(formData, "currency"),
+    ...(field(formData, "partialClaim.mode") === "full" ? { partialClaim: null } : field(formData, "partialClaim.mode") === "selected" ? { partialClaim: {
+      confirmed: basisValid && field(formData, "partialClaim.confirmed") === "true",
+      zeroConfirmed: field(formData, "partialClaim.zeroConfirmed") === "true",
+      ...(basis ? { basis } : {}),
+      rateBreakdown: selectedLines.map(i => ({ rate: optionalField(formData, `partialClaim.${i}.rate`) === null ? null : Number(field(formData, `partialClaim.${i}.rate`).replace(",", ".")),
+        netAmount: optionalField(formData, `partialClaim.${i}.netAmount`), vatAmount: optionalField(formData, `partialClaim.${i}.vatAmount`) })),
+    } } : {}),
     sourceRateRows: lines.map((i) => Number(i)),
     rateBreakdown: lines.map((i) => ({
       rate: optionalField(formData, `rateBreakdown.${i}.rate`) === null ? null
@@ -656,7 +674,7 @@ export async function reviewDocumentAction(_state: DocumentReviewFormState, form
   const client = await requireUserClient();
   const companyId = field(formData, "companyId");
   const documentId = field(formData, "documentId");
-  const input = { companyId, documentId, basedOnVersion: Number(field(formData, "basedOnVersion")), requestId: field(formData, "requestId"), displayedBankAccountCheckId: optionalField(formData, "displayedBankAccountCheckId"), payload: payloadFromForm(formData) };
+  const input = { companyId, documentId, basedOnVersion: Number(field(formData, "basedOnVersion")), requestId: field(formData, "requestId"), displayedBankAccountCheckId: optionalField(formData, "displayedBankAccountCheckId"), displayedReviewContext: optionalField(formData, "displayedReviewContext") ?? undefined, payload: payloadFromForm(formData) };
   const values = Object.fromEntries([...formData.entries()].filter(([name, value]) => !name.startsWith("$") && typeof value === "string")) as Record<string, string>;
   if (field(formData, "intent") !== "approve") {
     const saved = await correctDocument(client, input, configuredExchangeRates(), configuredVatPayerRegistry());

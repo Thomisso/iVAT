@@ -569,14 +569,14 @@ isOneToOne: false
                   ]
                 },"extraction_version": {
                   Row: {
-                    "author_user_id": string | null,"company_id": string,"created_at": string,"document_id": string,"extraction_request_id": string | null,"findings": NonNullable<Json>,"id": string,"model": string | null,"organization_id": string,"payload": NonNullable<Json>,"provider": string | null,"version": number
+                    "author_user_id": string | null,"company_id": string,"counterparty_id": string | null,"created_at": string,"document_id": string,"extraction_request_id": string | null,"findings": NonNullable<Json>,"id": string,"model": string | null,"organization_id": string,"payload": NonNullable<Json>,"provider": string | null,"version": number
                   }
                   ComputedFields: never
                   Insert: {
-                    "author_user_id"?: string | null,"company_id": string,"created_at"?: string,"document_id": string,"extraction_request_id"?: string | null,"findings"?: NonNullable<Json>,"id"?: string,"model"?: string | null,"organization_id": string,"payload": NonNullable<Json>,"provider"?: string | null,"version": number
+                    "author_user_id"?: string | null,"company_id": string,"counterparty_id"?: string | null,"created_at"?: string,"document_id": string,"extraction_request_id"?: string | null,"findings"?: NonNullable<Json>,"id"?: string,"model"?: string | null,"organization_id": string,"payload": NonNullable<Json>,"provider"?: string | null,"version": number
                   }
                   Update: {
-                    "author_user_id"?: string | null,"company_id"?: string,"created_at"?: string,"document_id"?: string,"extraction_request_id"?: string | null,"findings"?: NonNullable<Json>,"id"?: string,"model"?: string | null,"organization_id"?: string,"payload"?: NonNullable<Json>,"provider"?: string | null,"version"?: number
+                    "author_user_id"?: string | null,"company_id"?: string,"counterparty_id"?: string | null,"created_at"?: string,"document_id"?: string,"extraction_request_id"?: string | null,"findings"?: NonNullable<Json>,"id"?: string,"model"?: string | null,"organization_id"?: string,"payload"?: NonNullable<Json>,"provider"?: string | null,"version"?: number
                   }
                   Relationships: [
                     {
@@ -1131,6 +1131,11 @@ isOneToOne: false
 "correct_document":
 { Args: { "based_on_version": number,"findings": Json,"payload": Json,"target_document_id": string }; Returns: number
                            },
+"counterparty_documents":
+{ Args: { "target_company_id": string,"target_counterparty_id": string }; Returns: {
+              "document_id": string,"document_number": string,"version": number
+            }[]
+                           },
 "create_ai_configuration":
 { Args: { "configuration_label": string,"provider_credential": string,"target_extract_model": string,"target_provider": string,"target_split_model": string }; Returns: string
                            },
@@ -1200,6 +1205,9 @@ isOneToOne: false
 { Args: { "target_export_id": string }; Returns: undefined
                            },
 "finalize_vat_report":
+{ Args: { "finalization_confirmed": boolean,"target_company_id": string,"target_period": string }; Returns: undefined
+                           },
+"finalize_vat_report_before_claim_eligibility":
 { Args: { "finalization_confirmed": boolean,"target_company_id": string,"target_period": string }; Returns: undefined
                            },
 "finish_mfa_disenrollment":
@@ -1339,6 +1347,9 @@ isOneToOne: false
               "max_source_file_bytes": number,"max_source_file_pages": number,"max_upload_batch_files": number
             }[]
                            },
+"prepare_document_counterparty":
+{ Args: { "candidate": Json,"target_company_id": string,"target_document_id": string }; Returns: Json
+                           },
 "prepare_document_source_attachment":
 { Args: { "target_company_id": string,"target_document_id": string,"target_source_file_id": string }; Returns: undefined
                            },
@@ -1380,6 +1391,9 @@ isOneToOne: false
                            },
 "replace_invitation":
 { Args: { "target_invitation_id": string }; Returns: string
+                           },
+"reporting_period_claim_issues":
+{ Args: { "target_company_id": string,"target_period": string }; Returns: Json
                            },
 "reprocess_document":
 { Args: { "replacement_confirmed"?: boolean,"target_document_id": string }; Returns: string
@@ -1428,6 +1442,9 @@ isOneToOne: false
 { Args: { "based_on_version": number,"findings": Json,"payload": Json,"request_id": string,"submitted_payload": Json,"target_document_id": string }; Returns: number
                            },
 "save_vat_report":
+{ Args: { "computed_result": Json,"expected_documents": Json,"target_company_id": string,"target_period": string }; Returns: string
+                           },
+"save_vat_report_before_claim_eligibility":
 { Args: { "computed_result": Json,"expected_documents": Json,"target_company_id": string,"target_period": string }; Returns: string
                            },
 "search_counterparties":
@@ -1518,6 +1535,9 @@ isOneToOne: false
 "update_document_reporting":
 { Args: { "new_claimed_reporting_period": string,"target_document_id": string }; Returns: undefined
                            },
+"update_document_reporting_before_claim_eligibility":
+{ Args: { "new_claimed_reporting_period": string,"target_document_id": string }; Returns: undefined
+                           },
 "upload_batch_deletion_refusal":
 { Args: { "target_batch_id": string }; Returns: string
                            },
@@ -1543,6 +1563,9 @@ isOneToOne: false
 { Args: { "target_company_id": string,"target_period": string }; Returns: Json
                            },
 "vat_report_documents":
+{ Args: { "target_company_id": string,"target_period": string }; Returns: Json
+                           },
+"vat_report_documents_before_claim_eligibility":
 { Args: { "target_company_id": string,"target_period": string }; Returns: Json
                            },
 "vat_report_draft_progress":

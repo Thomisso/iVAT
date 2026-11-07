@@ -1,3 +1,4 @@
+import { createConfirmedManualDocument, setOctoberImportFixture } from "./support/claim-eligibility";
 import { describe, expect, it } from "vitest";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { createCounterparty } from "@/application/counterparties";
@@ -5,7 +6,7 @@ import { finalizeVatReport, generateVatReport } from "@/application/vat-reports"
 import { getDocumentReview } from "@/application/document-review";
 import { refreshBankAccountCheck } from "@/application/bank-account-checks";
 import { listAuditEvents } from "@/application/audit";
-import { correctDocument, createManualDocument, getDocument, listDocuments, listExtractionVersions, saveAndApproveDocument } from "@/application/documents";
+import { correctDocument, getDocument, listDocuments, listExtractionVersions, saveAndApproveDocument } from "@/application/documents";
 import { fakeVatPayerRegistry } from "@/vat-registry/fake";
 import { administratorWithCompany, assignAiConfigurationFixture } from "./support/fixtures";
 import { uploadSourceFile } from "@/application/source-files";
@@ -14,7 +15,7 @@ import { testWorker } from "./support/worker";
 
 async function documentInReview(registry = fakeVatPayerRegistry()) {
   const user = await administratorWithCompany();
-  const created = await createManualDocument(user.client, { companyId: user.companyId, payload: SAMPLE_EXTRACTION }, undefined, registry);
+  const created = await createConfirmedManualDocument(user.client, { companyId: user.companyId, payload: SAMPLE_EXTRACTION }, undefined, registry);
   if (!created.ok) throw new Error(created.error);
   return { ...user, documentId: created.value.id };
 }
@@ -107,6 +108,7 @@ describe("atomic Document approval", () => {
     expect((await assignAiConfigurationFixture(document.client, worker.jobs, { companyId: document.companyId, provider: worker.ai })).ok).toBe(true);
     const uploaded = await uploadSourceFile(document.client, worker.jobs, { companyId: document.companyId, fileName: "receipt.png", bytes: fixtureFile("receipt.png") });
     if (!uploaded.ok) throw new Error(uploaded.error);
+  await setOctoberImportFixture(uploaded.value.id);
     expect(await worker.runJobs()).toEqual([]);
     const [item] = await listDocuments(document.client, document.companyId, uploaded.value.id);
     const [ai] = await listExtractionVersions(document.client, document.companyId, item.id);
