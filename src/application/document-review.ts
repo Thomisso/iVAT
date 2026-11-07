@@ -14,6 +14,8 @@ import {
 import { missingReportingPeriodFinding } from "./reporting-years";
 import { getSourceFile } from "./source-files";
 
+export type DocumentApprovalDecision = { mode: "automatic" | "human" | "unknown"; version: number | null; occurredAt: string; actorUserId: string | null };
+
 /**
  * Loads the review under the reader's identity. An explicit Version selects
  * its recorded findings, even when it is the latest Version. The default view
@@ -31,7 +33,7 @@ export async function getDocumentReview(
   ]);
   if (!company || !document) return null;
 
-  const [versions, duplicateWarnings, missingPeriod, role, reportingYears, file, locks, deferredClaimPeriods, sourceRows, observations] = await Promise.all([
+  const [versions, duplicateWarnings, missingPeriod, role, reportingYears, file, locks, deferredClaimPeriods, observations, decisions] = await Promise.all([
     listExtractionVersions(client, companyId, documentId),
     listDuplicateWarnings(client, companyId, documentId),
     missingReportingPeriodFinding(client, companyId, documentId),
@@ -40,9 +42,10 @@ export async function getDocumentReview(
     document.sourceFileId ? getSourceFile(client, companyId, document.sourceFileId) : null,
     documentPeriodLocks(client, companyId, [documentId]),
     listDeferredClaimPeriods(client, companyId, documentId),
-    document.rowSet ? readDocumentRows(client, companyId, documentId) : null,
     getCurrentDocumentReviewFindings(client, input),
+    client.rpc("document_approval_decisions", { target_document_id: document.id }),
   ]);
+  if (decisions.error) throw decisions.error;
   if (document.sourceFileId && !file) return null;
 
   const current = versions.at(-1);
@@ -53,6 +56,7 @@ export async function getDocumentReview(
   const currentFindings = matchingObservations ? observations.findings : current?.findings ?? [];
   const recorded = versions.find((version) => String(version.version) === requestedVersion);
   const shown = recorded ?? current;
+  const sourceRows = document.rowSet ? await readDocumentRows(client, companyId, documentId, shown?.version) : null;
   const viewingRecorded = recorded !== undefined;
   const shownFindings = viewingRecorded ? shown?.findings ?? [] : currentFindings;
   const shownWarningFindings = shownFindings.filter((finding) => finding.severity === "warning"
@@ -66,6 +70,7 @@ export async function getDocumentReview(
 
   return {
     company, document, versions, current, shown, viewingRecorded, shownFindings, shownWarningFindings,
+    approvalDecisions: decisions.data as unknown as DocumentApprovalDecision[],
     bankChecks, displayedReviewContext: observations.displayedReviewContext, currentCounterparty: matchingObservations ? observations.counterparty : null, file, sourceRows, duplicateWarnings, missingPeriod, role, lockedPeriod,
     deferredClaimPeriods, reporting, reportingYears,
     reviewing: document.status === "needs_review" && current !== undefined && !lockedPeriod,

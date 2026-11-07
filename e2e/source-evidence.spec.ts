@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { expectInspectInsideSource } from "./support/source-inspect";
 import { provisionAndLogIn } from "./support/accounts";
 import { addBrowserSourceEvidenceFixture } from "../tests/support/e2e";
 
@@ -43,6 +44,11 @@ test("a source occurrence on the second PDF page stays selected through field fo
   const crop = page.locator("[data-source-inspect-crop] canvas");
   await expect(crop).toBeVisible();
   await expect(originalPage).toHaveAttribute("data-original-page", "3");
+  await expectInspectInsideSource(page);
+  expect(await page.locator(".pdf-source-viewer .pdf-source-scroll").evaluate(element => {
+    element.scrollTop = 100; return element.scrollTop;
+  })).toBeGreaterThan(0);
+  await expectInspectInsideSource(page);
   expect(await crop.evaluate((element: HTMLCanvasElement) => {
     const data = element.getContext("2d")!.getImageData(0, 0, element.width, element.height).data;
     let printedPixels = 0;

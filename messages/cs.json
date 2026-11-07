@@ -1334,7 +1334,14 @@
     "requiredField": "Vyplňte toto pole.",
     "fullAmounts": "Plné částky",
     "confirmed": "Potvrzeno",
-    "selectionConfirmation": "Potvrzení výběru"
+    "selectionConfirmation": "Potvrzení výběru",
+    "approvalHistory": "Historie schválení",
+    "approvalAutomatic": "Automaticky schváleno podle nastavení společnosti",
+    "approvalHumanYou": "Schválili jste vy",
+    "approvalHuman": "Schválil uživatel",
+    "approvalUnknown": "Schválení je zaznamenáno; původní podrobnosti rozhodnutí nejsou známy",
+    "approvalVersion": "Verze {version}",
+    "approvalVersionUnknown": "Verze není zaznamenána"
   },
   "duplicateWarning": {
     "document_identity": "Možný duplikát: DIČ protistrany, číslo dokladu a směr se shodují se starším dokladem.",
@@ -1905,5 +1912,14 @@
     "unnumberedDocument": "Doklad bez čísla",
     "noLinkedDocuments": "Žádné navázané doklady.",
     "documentPages": "Stránky navázaných dokladů"
+  },
+  "automaticApproval": {
+    "title": "Automatické schvalování dokladů",
+    "intro": "Po úspěšném novém AI vytěžení automaticky schvalovat pouze způsobilé doklady bez chyb a upozornění a se všemi potřebnými ověřeními.",
+    "enabled": "Povolit automatické schvalování pro tuto společnost",
+    "hint": "Platí pouze pro nové úspěšné AI vytěžení. Zapnutí neschválí již vytěžené doklady; ruční úpravy ani nové kontroly účtu schválení nespustí.",
+    "save": "Uložit pravidla schvalování",
+    "saving": "Ukládám…",
+    "saved": "Nastavení automatického schvalování bylo uloženo."
   }
 }

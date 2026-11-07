@@ -1,4 +1,4 @@
-import { bindPdfSourceEvidence } from "./source-locations";
+import { bindSourceEvidence } from "./source-locations";
 import {
   AiProviderError,
   type AiInput,
@@ -19,11 +19,12 @@ import {
   type SourceFileFormat,
   type SourceFileStatus,
 } from "./source-files";
-import { assertWorkbookRanges, workbookRowsToText, workbookToText } from "./workbooks";
-import type { VatPayerRegistry } from "./vat-registry";
+import { assertWorkbookRanges, workbookRowsToText, workbookRows, workbookToText } from "./workbooks";
+import { vatRegistryCheckApplies, type VatPayerRegistry } from "./vat-registry";
 import { detectDocumentDirection } from "./direction-detection";
 import type { ExchangeRateProvider } from "./exchange-rates";
 import { prepareExtractionVersion } from "./extraction-preparation";
+import { deriveDocumentVatMapping } from "./vat-rules";
 import { createHash } from "node:crypto";
 import { buildCompanyDataArchive, type CompanyExportSnapshot } from "./company-data-export";
 import type { CompanyDataExportStatus } from "@/lib/company-data-export-status";
@@ -347,7 +348,7 @@ async function extractDocument(
 ) {
   const { data: document, error } = await system
     .from("document")
-    .select("id, organization_id, company_id, source_file_id, first_page, last_page, source_sheet, first_row, last_row, status, superseded_at, extraction_request_id, source_file (format, normalized_format, sha256)")
+    .select("id, organization_id, company_id, source_file_id, first_page, last_page, source_sheet, first_row, last_row, status, superseded_at, extraction_request_id, source_file (format, normalized_format, normalized_sha256, sha256)")
     .eq("id", documentId)
     .single();
   if (error) throw error;
@@ -423,14 +424,18 @@ async function extractDocument(
       });
       const { data: company, error: companyError } = await system
         .from("company")
-        .select("ico, vat_id")
+        .select("ico, vat_id, data_revision")
         .eq("id", document.company_id)
         .single();
       if (companyError) throw companyError;
-      const evidencePayload = bindPdfSourceEvidence(extractedPayload, {
+      const evidencePayload = bindSourceEvidence(extractedPayload, {
         sourceFileId, documentId: document.id, sha256: document.source_file!.sha256,
         requestId: document.extraction_request_id, format: processingFile.format, firstPage, lastPage,
+        workbookEvidence: input.workbookEvidence,
+        normalizedSha256: ["heic", "heif"].includes(document.source_file!.format)
+          && document.source_file!.normalized_format === "jpeg" ? document.source_file!.normalized_sha256 : undefined,
       });
+      let registryVerification: "checked" | "missing" | "not_applicable" = vatRegistryCheckApplies(evidencePayload) ? "missing" : "not_applicable";
       const prepared = await prepareExtractionVersion({
         ...evidencePayload,
         // Partial Claim is a human decision. Ignore even malformed provider
@@ -440,7 +445,13 @@ async function extractDocument(
           extractedPayload,
           { ico: company.ico, vatId: company.vat_id },
         ),
-      }, exchangeRates, vatRegistry);
+      }, exchangeRates, {
+        async check(vatId) {
+          const result = await vatRegistry.check(vatId);
+          registryVerification = result.outcome === "checked" ? "checked" : "missing";
+          return result;
+        },
+      });
       const metered = await system.rpc("record_ai_usage", {
         target_organization_id: document.organization_id,
         target_company_id: document.company_id,
@@ -455,14 +466,19 @@ async function extractDocument(
         target_job_id: document.id,
       });
       if (metered.error) throw metered.error;
-      const { error } = await system.rpc("record_ai_extraction", {
+      const findings = await prepared.findings();
+      const mapping = deriveDocumentVatMapping(prepared.payload);
+      const { error } = await system.rpc("record_ai_extraction_with_approval", {
         target_document_id: document.id,
         target_extraction_request_id: document.extraction_request_id,
         target_reservation_id: reservationId,
         provider: ai.name,
         model,
         payload: prepared.payload,
-        findings: await prepared.findings(),
+        findings,
+        expected_company_revision: company.data_revision,
+        assessment: { supportedMapping: mapping.vatReturnUnknownReason === null && mapping.controlStatementUnknownReason === null,
+          registryVerification, payload: prepared.payload },
       });
       if (error) throw error;
       completed = true;
@@ -494,7 +510,11 @@ function sourceFileInput(format: SourceFileFormat, bytes: Uint8Array, pageCount:
 
 /** The Document's own pages: a PDF of just its range, or the whole image. */
 async function documentInput(format: SourceFileFormat, bytes: Uint8Array, range: PageRange | RowRange): Promise<AiInput> {
-  if ("firstRow" in range) return textAiInput(format, workbookRowsToText(bytes, range));
+  if ("firstRow" in range) {
+    const { sheetName, firstRow, lastRow, firstColumn, lastColumn, headerRow } = workbookRows(bytes, range);
+    return { ...textAiInput(format, workbookRowsToText(bytes, range)),
+      workbookEvidence: { sheetName, firstRow, lastRow, firstColumn, lastColumn, headerRow } };
+  }
   if (format !== "pdf") return binaryAiInput(format, bytes, 1);
   return binaryAiInput(format, await pdfPages(bytes, range), range.lastPage - range.firstPage + 1);
 }
