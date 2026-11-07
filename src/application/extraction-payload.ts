@@ -1,4 +1,4 @@
-import { remapSourceField, type SourceEvidence, type SourcePageLocation } from "./source-locations";
+import { remapSourceField, type SourceEvidence, type SourceLocation } from "./source-locations";
 
 // The structured data an Extraction reads out of one Document: the payload of
 // an Extraction Version. Documented in docs/extraction-payload.md; change both
@@ -115,7 +115,7 @@ export type ExtractionPayload = {
    */
   confidence?: Record<string, number>;
   /** Unbound references returned by a provider; only server-bound evidence is usable in review. */
-  sourceLocations?: SourcePageLocation[];
+  sourceLocations?: SourceLocation[];
   sourceEvidence?: SourceEvidence;
   /** Submitted base row identities; validated and removed at immutable Version insertion. */
   sourceRateRows?: (number | null)[];

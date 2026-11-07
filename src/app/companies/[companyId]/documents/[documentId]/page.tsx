@@ -1,6 +1,8 @@
 import { ReviewWorkspace } from "./review-workspace";
 import { ReviewGuard } from "./review-guard";
 import { SourceEvidenceProvider } from "./source-evidence-context";
+import { WorkbookSourceViewer } from "./workbook-source-viewer";
+import { ImageSourceViewer } from "./image-source-viewer";
 import { PdfSourceViewer } from "./pdf-source-viewer";
 import { getDocumentReview, type DocumentApprovalDecision } from "@/application/document-review";
 import Link from "next/link";
@@ -174,7 +176,7 @@ export default async function DocumentReviewPage({
           ))}
         </header>
         <section className="review-original" role="region" aria-label={t("review.workspace.sourcePanel")}>
-          {file?.format === "pdf" && !document.rowSet ? <PdfSourceViewer href={contentUrl} label={file.fileName} firstPage={document.firstPage!} lastPage={document.lastPage!} /> : file ? <DocumentViewer label={file.fileName}>
+          {file?.format === "pdf" && !document.rowSet ? <PdfSourceViewer href={contentUrl} label={file.fileName} firstPage={document.firstPage!} lastPage={document.lastPage!} /> : document.rowSet && sourceRows && file ? <WorkbookSourceViewer rows={sourceRows} label={file.fileName} /> : file && !document.rowSet && (["png", "jpeg"].includes(file.format) || file.normalizedDerivative) ? <ImageSourceViewer href={contentUrl} label={file.fileName} /> : file ? <DocumentViewer label={file.fileName}>
             {document.rowSet ? (
               <div className="workbook-source">
                 <Notice>{t("review.noDocumentImage")}</Notice>

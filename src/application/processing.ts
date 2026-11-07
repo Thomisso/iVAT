@@ -1,4 +1,4 @@
-import { bindPdfSourceEvidence } from "./source-locations";
+import { bindSourceEvidence } from "./source-locations";
 import {
   AiProviderError,
   type AiInput,
@@ -19,7 +19,7 @@ import {
   type SourceFileFormat,
   type SourceFileStatus,
 } from "./source-files";
-import { assertWorkbookRanges, workbookRowsToText, workbookToText } from "./workbooks";
+import { assertWorkbookRanges, workbookRowsToText, workbookRows, workbookToText } from "./workbooks";
 import { vatRegistryCheckApplies, type VatPayerRegistry } from "./vat-registry";
 import { detectDocumentDirection } from "./direction-detection";
 import type { ExchangeRateProvider } from "./exchange-rates";
@@ -348,7 +348,7 @@ async function extractDocument(
 ) {
   const { data: document, error } = await system
     .from("document")
-    .select("id, organization_id, company_id, source_file_id, first_page, last_page, source_sheet, first_row, last_row, status, superseded_at, extraction_request_id, source_file (format, normalized_format, sha256)")
+    .select("id, organization_id, company_id, source_file_id, first_page, last_page, source_sheet, first_row, last_row, status, superseded_at, extraction_request_id, source_file (format, normalized_format, normalized_sha256, sha256)")
     .eq("id", documentId)
     .single();
   if (error) throw error;
@@ -428,9 +428,12 @@ async function extractDocument(
         .eq("id", document.company_id)
         .single();
       if (companyError) throw companyError;
-      const evidencePayload = bindPdfSourceEvidence(extractedPayload, {
+      const evidencePayload = bindSourceEvidence(extractedPayload, {
         sourceFileId, documentId: document.id, sha256: document.source_file!.sha256,
         requestId: document.extraction_request_id, format: processingFile.format, firstPage, lastPage,
+        workbookEvidence: input.workbookEvidence,
+        normalizedSha256: ["heic", "heif"].includes(document.source_file!.format)
+          && document.source_file!.normalized_format === "jpeg" ? document.source_file!.normalized_sha256 : undefined,
       });
       let registryVerification: "checked" | "missing" | "not_applicable" = vatRegistryCheckApplies(evidencePayload) ? "missing" : "not_applicable";
       const prepared = await prepareExtractionVersion({
@@ -507,7 +510,11 @@ function sourceFileInput(format: SourceFileFormat, bytes: Uint8Array, pageCount:
 
 /** The Document's own pages: a PDF of just its range, or the whole image. */
 async function documentInput(format: SourceFileFormat, bytes: Uint8Array, range: PageRange | RowRange): Promise<AiInput> {
-  if ("firstRow" in range) return textAiInput(format, workbookRowsToText(bytes, range));
+  if ("firstRow" in range) {
+    const { sheetName, firstRow, lastRow, firstColumn, lastColumn, headerRow } = workbookRows(bytes, range);
+    return { ...textAiInput(format, workbookRowsToText(bytes, range)),
+      workbookEvidence: { sheetName, firstRow, lastRow, firstColumn, lastColumn, headerRow } };
+  }
   if (format !== "pdf") return binaryAiInput(format, bytes, 1);
   return binaryAiInput(format, await pdfPages(bytes, range), range.lastPage - range.firstPage + 1);
 }

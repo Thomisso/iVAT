@@ -13,7 +13,7 @@ export function PdfSourceViewer({ href, label, firstPage, lastPage }: {
   const source = useSourceEvidence();
   const fieldLabel = useSourceFieldLabel();
   const evidence = source?.payload.sourceEvidence;
-  const range = evidence?.range ?? { firstPage, lastPage };
+  const range = evidence && "firstPage" in evidence.range ? evidence.range : { firstPage, lastPage };
   const url = source?.versionId ? `${href}?version=${source.version}` : href;
   const [loadedPdf, setPdf] = useState<{ url: string; document: PDFDocumentProxy } | null>(null);
   const pdf = loadedPdf?.url === url ? loadedPdf.document : null;
@@ -27,7 +27,8 @@ export function PdfSourceViewer({ href, label, firstPage, lastPage }: {
   const selected = source?.selectedField ? evidence?.fields[source.selectedField] : undefined;
   const [inspect, setInspect] = useState(false);
   const crop = useRef<HTMLCanvasElement>(null);
-  const selectedLocation = selected?.locations[source?.selectedLocation ?? 0];
+  const location = selected?.locations[source?.selectedLocation ?? 0];
+  const selectedLocation = location?.kind === "page" ? location : undefined;
   const selectedPage = selectedLocation?.page;
   const page = navigation.selection !== source?.selection && selectedPage !== undefined ? selectedPage : navigation.page;
   const renderKey = `${url}:${page}:${width}:${zoom}`;
@@ -121,7 +122,7 @@ export function PdfSourceViewer({ href, label, firstPage, lastPage }: {
       <div className="pdf-source-page" data-original-page={page} style={{ width: dimensions.width, height: dimensions.height }} aria-busy={!ready}>
         <canvas ref={canvas} role="img" aria-label={t("sourceRenderedPage", { page })} data-ready={ready} style={{ width: dimensions.width, height: dimensions.height }} />
         {ready && Object.entries(evidence?.fields ?? {}).flatMap(([field, reference]) => reference.locations.flatMap((location, index) =>
-          location.page === page ? [<button type="button" key={`${field}-${index}`} data-source-region={field}
+          location.kind === "page" && location.page === page ? [<button type="button" key={`${field}-${index}`} data-source-region={field}
             className={`pdf-source-region ${source?.selectedField === field && source.selectedLocation === index ? "is-active" : ""}`}
             aria-label={t("sourceFor", { field: fieldLabel(field) })} aria-pressed={source?.selectedField === field && source.selectedLocation === index}
             onClick={() => source?.selectField(field, true, index)}

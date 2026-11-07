@@ -55,6 +55,28 @@ describe("OpenAI provider", () => {
     });
   });
 
+  it("keeps image rectangles on the single oriented image input", async () => {
+    const sourceLocations = [{ fieldPath: "documentNumber", kind: "page", page: 1, x: 0.1, y: 0.2, width: 0.3, height: 0.05 }];
+    const baseUrl = await openAiStandIn((_request, _body, response) => {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({ model: "gpt-extract", status: "completed", output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify({ ...SAMPLE_EXTRACTION, sourceLocations }) }] }] }));
+    });
+    const provider = openAiProvider({ apiKey: "test-secret", splitModel: "gpt-split", extractModel: "gpt-extract", baseUrl });
+    await expect(provider.extract({ format: "jpeg", mediaType: "image/jpeg", bytes: new Uint8Array([255, 216, 255]), pageCount: 1 }))
+      .resolves.toMatchObject({ payload: { sourceLocations } });
+  });
+
+  it("ignores invented extra image pages even when the caller provides a larger page count", async () => {
+    const valid = { fieldPath: "documentNumber", kind: "page", page: 1, x: 0.1, y: 0.2, width: 0.3, height: 0.05 };
+    const baseUrl = await openAiStandIn((_request, _body, response) => {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({ model: "gpt-extract", status: "completed", output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify({ ...SAMPLE_EXTRACTION, sourceLocations: [valid, { ...valid, page: 2 }] }) }] }] }));
+    });
+    const provider = openAiProvider({ apiKey: "test-secret", splitModel: "gpt-split", extractModel: "gpt-extract", baseUrl });
+    await expect(provider.extract({ format: "png", mediaType: "image/png", bytes: new Uint8Array([137, 80, 78, 71]), pageCount: 2 }))
+      .resolves.toMatchObject({ payload: { sourceLocations: [valid] } });
+  });
+
   it.each([1, 2])("refuses a nullable human draft row in provider payload version %i", async (schemaVersion) => {
     const baseUrl = await openAiStandIn((_request, _body, response) => {
       response.writeHead(200, { "content-type": "application/json" });
