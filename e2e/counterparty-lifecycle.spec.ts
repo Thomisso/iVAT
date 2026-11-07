@@ -3,7 +3,7 @@ import { provisionAndLogIn } from "./support/accounts";
 import { browserUserClient } from "../tests/support/e2e";
 import { createCompany } from "../src/application/companies";
 import { SAMPLE_EXTRACTION } from "../src/ai/fake";
-import { createCounterparty, getCounterparty } from "../src/application/counterparties";
+import { archiveCounterparty, createCounterparty, getCounterparty, listCounterparties } from "../src/application/counterparties";
 import { correctDocument, createManualDocument, listExtractionVersions } from "../src/application/documents";
 import { fakeVatPayerRegistry } from "../src/vat-registry/fake";
 import { listMyOrganizations } from "../src/application/organizations";
@@ -98,4 +98,40 @@ test("historical links prevent deletion while archive preserves recorded Documen
   await expect(page.getByText("Archived Counterparty", { exact: true })).toHaveCount(0);
   expect(await listExtractionVersions(client, companyId, created.value.id)).toEqual(versions);
   expect((await getCounterparty(client, companyId, entry.value.id))?.archivedAt).toBeNull();
+});
+
+
+test("recovers an archived VAT ID collision when the submitted IČO is different", async ({ page, context, baseURL }) => {
+  if (!baseURL) throw new Error("base URL required");
+  await context.addCookies([{ name: "NEXT_LOCALE", value: "en", url: baseURL }]);
+  const run = crypto.randomUUID();
+  await provisionAndLogIn(page, { organizationName: `VAT recovery ${run}`, email: `vat-recovery-${run}@example.test`, password });
+  const client = await browserUserClient(await context.cookies());
+  const [organization] = await listMyOrganizations(client);
+  const company = await createCompany(client, { organizationId: organization.id, name: `VAT recovery ${run}`,
+    ico: "25596641", vatId: "CZ25596641", personType: "legal", streetName: "Vinohradská", houseNumber: "12", city: "Praha", postalCode: "12000", filingFrequency: "monthly", reportingYear: 2026 });
+  if (!company.ok) throw new Error(company.error);
+  const companyId = company.value.id;
+  const entry = await createCounterparty(client, { companyId, name: "Archived VAT supplier 233", vatId: "SK1234567890", supplier: true, customer: false });
+  if (!entry.ok) throw new Error(entry.error);
+  expect(await archiveCounterparty(client, { companyId, id: entry.value.id })).toEqual({ ok: true, value: null });
+  await page.goto(`/companies/${companyId}/counterparties/new`);
+  await page.getByLabel("Name", { exact: true }).fill("Preserve my VAT recovery input");
+  await page.getByLabel("IČO", { exact: true }).fill("27082440");
+  await page.getByLabel("VAT ID", { exact: true }).fill("SK1234567890");
+  await page.getByRole("checkbox", { name: "Supplier", exact: true }).check();
+  await page.getByRole("button", { name: "Save Counterparty", exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "A Counterparty with this IČO or VAT ID already exists" })).toBeVisible();
+  await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Preserve my VAT recovery input");
+  await expect(page.getByLabel("IČO", { exact: true })).toHaveValue("27082440");
+  await expect(page.getByLabel("VAT ID", { exact: true })).toHaveValue("SK1234567890");
+  await page.getByRole("link", { name: "Search archived Counterparties", exact: true }).click();
+  await expect(page.getByRole("link", { name: "Archived VAT supplier 233", exact: true })).toBeVisible({ timeout: 3000 });
+  await page.getByRole("link", { name: "Archived VAT supplier 233", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/counterparties/${entry.value.id}$`));
+  await expect(page.getByText("Archived Counterparty", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Restore Counterparty", exact: true }).click();
+  await expect(page.getByText("Archived Counterparty", { exact: true })).toHaveCount(0);
+  expect((await listCounterparties(client, companyId)).entries).toEqual([expect.objectContaining({ id: entry.value.id, ico: null, vatId: "SK1234567890" })]);
+  expect((await listCounterparties(client, companyId, { state: "archived" })).entries).toEqual([]);
 });
