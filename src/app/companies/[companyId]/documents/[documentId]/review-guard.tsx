@@ -4,9 +4,10 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/button";
+import { isInitialReviewDocument, listenToReviewTraversal } from "@/components/review-history-bridge";
 
 const DraftContext = createContext<{
-  register: (form: HTMLFormElement) => () => void;
+  register: (form: HTMLFormElement, discard: () => void) => () => void;
   settled: (saved: boolean) => void;
   request: (intent: () => void) => void;
 } | null>(null);
@@ -21,15 +22,25 @@ function snapshot(form: HTMLFormElement) {
     .map((input, index) => [input.name || input.id || index, input.value, input instanceof HTMLInputElement && ["checkbox", "radio"].includes(input.type) ? input.checked : null]));
 }
 
+// Only public Navigation API identities are used; Next owns history.state.
+type HistoryEntry = { key: string };
+type BrowserNavigation = EventTarget & {
+  currentEntry: HistoryEntry | null;
+  entries: () => HistoryEntry[];
+  traverseTo: (key: string) => { finished: Promise<unknown> };
+};
+
 export function ReviewGuard({ children }: { children: ReactNode }) {
   const t = useTranslations("review.departure");
   const router = useRouter();
   const form = useRef<HTMLFormElement | null>(null);
   const baseline = useRef("");
+  const discardDraft = useRef<(() => void) | null>(null);
   const dirty = useRef(false);
   const intent = useRef<(() => void) | null>(null);
   const trigger = useRef<HTMLElement | null>(null);
   const bypass = useRef(false);
+  const approvedUnload = useRef(false);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -44,7 +55,8 @@ export function ReviewGuard({ children }: { children: ReactNode }) {
     setFailed(false);
     setOpen(true);
   }, []);
-  const register = useCallback((element: HTMLFormElement) => {
+  const register = useCallback((element: HTMLFormElement, discard: () => void) => {
+    discardDraft.current = discard;
     form.current = element;
     baseline.current = snapshot(element);
     dirty.current = false;
@@ -61,7 +73,7 @@ export function ReviewGuard({ children }: { children: ReactNode }) {
       element.removeEventListener("input", update);
       element.removeEventListener("change", update);
       element.removeEventListener("click", update);
-      if (form.current === element) form.current = null;
+      if (form.current === element) { form.current = null; discardDraft.current = null; }
     };
   }, []);
   const settled = useCallback((saved: boolean) => {
@@ -75,6 +87,61 @@ export function ReviewGuard({ children }: { children: ReactNode }) {
     if (next) queueMicrotask(next);
   }, []);
   useEffect(() => {
+    const navigation = (window as Window & { navigation?: BrowserNavigation }).navigation;
+    if (!navigation?.currentEntry) {
+      // An imperative SPA redirect may bypass the root's incoming Link guard.
+      // Establish the document boundary only before this draft has changed.
+      if (!isInitialReviewDocument() && (!form.current || snapshot(form.current) === baseline.current) && form.current?.getAttribute("aria-busy") !== "true") location.replace(location.href);
+      return listenToReviewTraversal(() => {});
+    }
+    let source = navigation.currentEntry.key;
+    let restoring = false;
+    let destination: string | null = null;
+    let allowed: string | null = null;
+    const replay = (key: string) => {
+      if (!navigation.entries().some(entry => entry.key === key)) return;
+      allowed = key;
+      navigation.traverseTo(key).finished.catch(() => { if (allowed === key) allowed = null; });
+    };
+    const currentEntryChanged = (event: Event) => {
+      // A push/replace belongs to the rendered page. A traversal is only
+      // accepted below, after deciding whether Next may replace that page.
+      if ((event as Event & { navigationType: string }).navigationType !== "traverse" && !restoring) {
+        source = navigation.currentEntry?.key ?? source;
+      }
+    };
+    const stop = listenToReviewTraversal(event => {
+      const key = navigation.currentEntry?.key;
+      if (!key) return;
+      if (key === allowed) { allowed = null; source = key; return; }
+      allowed = null;
+      if (form.current) dirty.current = snapshot(form.current) !== baseline.current;
+      const busy = form.current?.getAttribute("aria-busy") === "true";
+      if (!restoring && !dirty.current && !busy) { source = key; return; }
+      event.stopImmediatePropagation();
+      if (key === source) {
+        restoring = false;
+        const target = destination;
+        destination = null;
+        if (target && !busy) request(() => replay(target));
+        return;
+      }
+      // A busy save keeps its existing departure intent. Otherwise the last
+      // real browser request wins, including a second Back during rollback.
+      if (!busy) destination = key;
+      restoring = true;
+      navigation.traverseTo(source).finished.catch(() => {
+        // A rapid traversal can supersede compensation. Its popstate will
+        // restore the same source; never authorize an unrelated destination.
+      });
+    });
+    navigation.addEventListener("currententrychange", currentEntryChanged);
+    return () => {
+      stop();
+      navigation.removeEventListener("currententrychange", currentEntryChanged);
+    };
+  }, [request]);
+  useEffect(() => {
     const click = (event: MouseEvent) => {
       if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[href]") : null;
@@ -83,10 +150,14 @@ export function ReviewGuard({ children }: { children: ReactNode }) {
       if (!["http:", "https:"].includes(destination.protocol)) return;
       if (destination.href === location.href || destination.pathname === location.pathname && destination.search === location.search && destination.hash) return;
       if (form.current) dirty.current = snapshot(form.current) !== baseline.current;
-      if (!dirty.current && form.current?.getAttribute("aria-busy") !== "true") return;
+      const nativeHistory = !(window as Window & { navigation?: unknown }).navigation;
+      if (!nativeHistory && !dirty.current && form.current?.getAttribute("aria-busy") !== "true") return;
       event.preventDefault();
       event.stopPropagation();
-      request(() => destination.origin === location.origin ? router.push(destination.pathname + destination.search + destination.hash) : location.assign(destination.href));
+      request(() => {
+        if (!nativeHistory && destination.origin === location.origin) router.push(destination.pathname + destination.search + destination.hash);
+        else { approvedUnload.current = true; location.assign(destination.href); }
+      });
     };
     const submit = (event: SubmitEvent) => {
       if (bypass.current || event.target === form.current || !(event.target instanceof HTMLFormElement)) return;
@@ -104,15 +175,19 @@ export function ReviewGuard({ children }: { children: ReactNode }) {
       });
     };
     const beforeUnload = (event: BeforeUnloadEvent) => {
+      if (approvedUnload.current) return;
       if (form.current) dirty.current = snapshot(form.current) !== baseline.current;
       if (!dirty.current && form.current?.getAttribute("aria-busy") !== "true") return;
       event.preventDefault();
       event.returnValue = "";
     };
+    const resumed = () => { approvedUnload.current = false; };
+    window.addEventListener("pageshow", resumed);
     document.addEventListener("click", click, true);
     document.addEventListener("submit", submit, true);
     window.addEventListener("beforeunload", beforeUnload);
     return () => {
+      window.removeEventListener("pageshow", resumed);
       document.removeEventListener("click", click, true);
       document.removeEventListener("submit", submit, true);
       window.removeEventListener("beforeunload", beforeUnload);
@@ -143,6 +218,7 @@ export function ReviewGuard({ children }: { children: ReactNode }) {
           if (save) { setSaving(true); current.requestSubmit(save); }
         }}>{t("save")}</Button>
         <Button disabled={saving} onClick={() => {
+          discardDraft.current?.();
           dirty.current = false;
           const next = intent.current;
           intent.current = null;

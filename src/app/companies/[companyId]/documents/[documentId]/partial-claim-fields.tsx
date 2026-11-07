@@ -70,9 +70,9 @@ export function PartialClaimFields({ payload, editable, values, rateRows }: { pa
       setBasis(claimBasis(current)); setConfirmed(true);
     }
   };
-  return <fieldset ref={ref}>
+  return <fieldset ref={ref} id="partial-claim" tabIndex={-1}>
     <legend>{t("partialClaim.title")}</legend>
-    <label><input type="checkbox" checked={enabled} disabled={!editable} onChange={event => activate(event.target.checked)} /> {t("partialClaim.enable")}</label>
+    <label><input id="partial-claim-enabled" type="checkbox" checked={enabled} disabled={!editable} onChange={event => activate(event.target.checked)} /> {t("partialClaim.enable")}</label>
     <input type="hidden" name="partialClaim.mode" value={enabled ? "selected" : payload.partialClaim ? "full" : "absent"} />
     {enabled && <>
       <p>{t("partialClaim.explanation")}</p>

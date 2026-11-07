@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getTranslations } from "next-intl/server";
+import { ReviewHistoryBridge } from "@/components/review-history-bridge";
 import "./globals.css";
 
 const geist = Geist({
@@ -25,6 +26,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geist.variable} ${geistMono.variable}`}
     >
       <body>
+        <ReviewHistoryBridge />
         <NextIntlClientProvider>{children}</NextIntlClientProvider>
       </body>
     </html>
