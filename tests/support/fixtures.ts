@@ -1,4 +1,5 @@
 import { setOctoberImportFixture } from "./claim-eligibility";
+import { createCounterparty, listCounterparties } from "@/application/counterparties";
 import { sourceSplitRequestFixture } from "./source-request";
 import {
   createCompany,
@@ -13,6 +14,16 @@ import { SAMPLE_EXTRACTION } from "@/ai/fake";
 import { selectUploadFiles } from "./files";
 import { provisionedUser } from "./clients";
 import { systemClient } from "./worker";
+
+/** Recovery fixtures test existing-identity approval, independently of directory creation. */
+export async function knownSupplierFixture(owner: { client: AppClient; companyId: string }) {
+  const party = SAMPLE_EXTRACTION.supplier;
+  const existing = await listCounterparties(owner.client, owner.companyId, { identifiers: { ico: party.ico!, vatId: party.vatId! } });
+  if (existing.total) return;
+  const created = await createCounterparty(owner.client, { companyId: owner.companyId, name: party.name!, ico: party.ico, vatId: party.vatId,
+    street: party.street!, city: party.city!, postalCode: party.postalCode!, countryCode: party.country!, supplier: true, customer: false });
+  if (!created.ok) throw new Error(created.error);
+}
 
 let icoCounter = 0;
 

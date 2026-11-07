@@ -7,7 +7,7 @@ The new acceptance uses real local Auth/RLS and existing public application comm
 | ID | Acceptance sources and distinct observable boundary |
 | --- | --- |
 | A01 | `e2e/review-workspace.spec.ts`: laptop comparison desk, resize/independent scrolling/mobile retained values. |
-| A02 | `e2e/review-workspace.spec.ts`, `e2e/czech-dates.spec.ts`, `e2e/partial-claim.spec.ts`: form order, Czech date/decimal entry, visible error focus; `tests/document-review-field-errors.test.ts` proves exact malformed monetary fields for both Save draft and Approve without saving corrections. |
+| A02 | `e2e/review-workspace.spec.ts`, `e2e/czech-dates.spec.ts`, `e2e/partial-claim.spec.ts`: form order, Czech date/decimal entry, visible error focus; `tests/document-review-field-errors.test.ts` proves every field-addressable manual parser refusal (money/rates/choices/dates/required DUZP/currency/countries/reverse-charge code), including mixed sparse-row errors, for both Save draft and Approve without saving corrections; original refusal precedence is retained. |
 | A03 | `tests/document-approval.test.ts`, `e2e/atomic-document-approval.spec.ts`, workspace pending/refusal cases: atomic current correction/approval, lock/conflict refusal and retained input. |
 | A04 | `tests/document-approval.test.ts`, `tests/document-counterparty-links.test.ts`, `tests/document-review-composition.test.ts`: changed warning/value/context consent, no partial save while paused. |
 | A05 | Approval/counterparty-link suites and composition: same-request replay, double submission, stale different request, one Version/directory identity/decision. |

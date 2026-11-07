@@ -6,7 +6,7 @@ import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { approveDocument, correctDocument, getDocument, listDocuments, listExtractionVersions, startManualDocumentReview, rejectDocument, restoreDocument, reprocessDocument, returnDocumentToReview, updateDocumentReporting, splitDocument, mergeDocuments, moveDocumentPage } from "@/application/documents";
 import { uploadSourceFile, readSourceFile } from "@/application/source-files";
 import { getCompanyAiProcessingAllowance } from "@/application/ai-processing-allowance";
-import { administratorWithCompany, companyMember, assignAiConfigurationFixture, companyDetails } from "./support/fixtures";
+import { knownSupplierFixture, administratorWithCompany, companyMember, assignAiConfigurationFixture, companyDetails } from "./support/fixtures";
 import { fixtureFile } from "./support/files";
 import { systemClient, testWorker } from "./support/worker";
 import { extractJob } from "@/application/processing";
@@ -19,8 +19,12 @@ import { promotedSuperAdministrator } from "./support/platform";
 import { resumePlatformAiProcessing } from "@/application/ai-configurations";
 import { exportCompanyData } from "@/application/company-deletion";
 import { unzipSync, strFromU8 } from "fflate";
+// Explicit human confirmation belongs only to the manual corrections below, never the fake AI.
+const REVIEWED_EXTRACTION = { ...SAMPLE_EXTRACTION, claimEligibility: { period: "2026-10", origin: "user" as const, confirmed: true } };
+
 async function unextractedDocument(status: "failed" | "waiting_for_platform" | "uploaded" | "waiting_for_allowance" | "processing" = "failed", administrator?: Awaited<ReturnType<typeof administratorWithCompany>>) {
   administrator ??= await administratorWithCompany();
+  await knownSupplierFixture(administrator);
   const uploaded = await uploadSourceFile(administrator.client, { async send() {} }, {
     companyId: administrator.companyId, fileName: "receipt.png", bytes: fixtureFile("receipt.png"),
   });
@@ -43,8 +47,8 @@ it.each(["failed", "waiting_for_platform", "uploaded", "waiting_for_allowance", 
   expect((await getDocument(user.client, input.companyId, input.documentId))?.status).toBe("needs_review");
   expect(await listExtractionVersions(user.client, input.companyId, input.documentId)).toEqual([]);
   expect(await correctDocument(user.client, { ...input, basedOnVersion: 0, payload: { ...SAMPLE_EXTRACTION, taxPointDate: null } }))
-    .toEqual({ ok: false, error: "tax_point_date_required" });
-  expect(await correctDocument(user.client, { ...input, basedOnVersion: 0, payload: SAMPLE_EXTRACTION }))
+    .toEqual({ ok: false, error: "tax_point_date_required", findings: [{ field: "taxPointDate", severity: "error", code: "tax_point_date_required" }] });
+  expect(await correctDocument(user.client, { ...input, basedOnVersion: 0, payload: REVIEWED_EXTRACTION }))
     .toEqual({ ok: true, value: { version: 1 } });
   expect((await listExtractionVersions(user.client, input.companyId, input.documentId))[0].author)
     .toEqual({ kind: "user", userId: user.userId });
@@ -67,7 +71,7 @@ it("excludes an unextracted Document with a reason, retains its original, and re
   expect((await readSourceFile(context.client, input.companyId, context.sourceFileId))?.bytes).toEqual(fixtureFile("receipt.png"));
   expect(await restoreDocument(context.client, input)).toEqual({ ok: true, value: null });
   expect((await getDocument(context.client, input.companyId, input.documentId))?.exclusion).toBeUndefined();
-  expect(await correctDocument(context.client, { ...input, basedOnVersion: 0, payload: SAMPLE_EXTRACTION })).toEqual({ ok: true, value: { version: 1 } });
+  expect(await correctDocument(context.client, { ...input, basedOnVersion: 0, payload: REVIEWED_EXTRACTION })).toEqual({ ok: true, value: { version: 1 } });
   expect(await approveDocument(context.client, { ...input, version: 1 })).toEqual({ ok: true, value: null });
 });
 
@@ -95,7 +99,7 @@ it.each([
   await started.promise;
   if (decision === "manual") {
     expect(await startManualDocumentReview(context.client, input)).toEqual({ ok: true, value: null });
-    expect(await correctDocument(context.client, { ...input, basedOnVersion: 0, payload: { ...SAMPLE_EXTRACTION, documentNumber: "HUMAN" } })).toEqual({ ok: true, value: { version: 1 } });
+    expect(await correctDocument(context.client, { ...input, basedOnVersion: 0, payload: { ...REVIEWED_EXTRACTION, documentNumber: "HUMAN" } })).toEqual({ ok: true, value: { version: 1 } });
     expect(await approveDocument(context.client, { ...input, version: 1 })).toEqual({ ok: true, value: null });
   } else {
     expect(await rejectDocument(context.client, { ...input, reason: "Personal receipt" })).toEqual({ ok: true, value: null });
@@ -126,7 +130,7 @@ it.each([true, false])("late AI failure (platform intervention %s) cannot roll b
   const running = worker.runJobsConcurrently();
   await started.promise;
   await startManualDocumentReview(context.client, input);
-  await correctDocument(context.client, { ...input, basedOnVersion: 0, payload: { ...SAMPLE_EXTRACTION, documentNumber: "HUMAN" } });
+  await correctDocument(context.client, { ...input, basedOnVersion: 0, payload: { ...REVIEWED_EXTRACTION, documentNumber: "HUMAN" } });
   expect(await reprocessDocument(context.client, worker.jobs, { ...input, confirmed: true })).toEqual({ ok: true, value: null });
   finish.release();
   await running;
@@ -178,8 +182,8 @@ it("preserves the first recovered User Version in a locked period but refuses it
   const document = await unextractedDocument("failed", context);
   const input = { companyId: context.companyId, documentId: document.documentId };
   expect(await startManualDocumentReview(context.client, input)).toEqual({ ok: true, value: null });
-  expect(await correctDocument(context.client, { ...input, basedOnVersion: 0, payload: SAMPLE_EXTRACTION })).toEqual({ ok: true, value: { version: 1 } });
-  expect(await correctDocument(context.client, { ...input, basedOnVersion: 1, payload: SAMPLE_EXTRACTION })).toEqual({ ok: false, error: "period_locked" });
+  expect(await correctDocument(context.client, { ...input, basedOnVersion: 0, payload: REVIEWED_EXTRACTION })).toEqual({ ok: true, value: { version: 1 } });
+  expect(await correctDocument(context.client, { ...input, basedOnVersion: 1, payload: REVIEWED_EXTRACTION })).toEqual({ ok: false, error: "period_locked" });
   expect(await approveDocument(context.client, { ...input, version: 1 })).toEqual({ ok: false, error: "period_locked" });
   expect(await rejectDocument(context.client, { ...input, reason: "Not business" })).toEqual({ ok: false, error: "period_locked" });
 });
@@ -199,7 +203,7 @@ it("a failed remediation dispatch cannot restore a wait over a later human takeo
   expect((await getDocument(context.client, input.companyId, input.documentId))?.status).toBe("waiting_for_platform");
   await expect(resumePlatformAiProcessing(operator.client, { async send() {
     await startManualDocumentReview(context.client, input);
-    await correctDocument(context.client, { ...input, basedOnVersion: 0, payload: SAMPLE_EXTRACTION });
+    await correctDocument(context.client, { ...input, basedOnVersion: 0, payload: REVIEWED_EXTRACTION });
     await reprocessDocument(context.client, worker.jobs, { ...input, confirmed: true });
     throw new Error("Lost broker acknowledgement");
   } }, { companyId: context.companyId })).rejects.toThrow("Lost broker acknowledgement");
@@ -231,7 +235,7 @@ it("an excluded Version in a locked period cannot be restored by command or dire
   const context = await unextractedDocument();
   const input = { companyId: context.companyId, documentId: context.documentId };
   await startManualDocumentReview(context.client, input);
-  await correctDocument(context.client, { ...input, basedOnVersion: 0, payload: SAMPLE_EXTRACTION });
+  await correctDocument(context.client, { ...input, basedOnVersion: 0, payload: REVIEWED_EXTRACTION });
   await rejectDocument(context.client, { ...input, reason: "Personal receipt" });
   const period = { companyId: context.companyId, period: "2026-10" };
   expect((await generateVatReport(context.client, period)).ok).toBe(true);
@@ -280,7 +284,7 @@ it("a worker releasing its reservation cannot deadlock a concurrent manual takeo
     expect(human).toEqual({ status: "fulfilled", value: { ok: true, value: null } });
     expect(workerCleanup).toMatchObject({ status: "fulfilled", value: { error: null } });
     expect((await getDocument(context.client, input.companyId, input.documentId))?.status).toBe("needs_review");
-    expect(await correctDocument(context.client, { ...input, basedOnVersion: 0, payload: SAMPLE_EXTRACTION })).toEqual({ ok: true, value: { version: 1 } });
+    expect(await correctDocument(context.client, { ...input, basedOnVersion: 0, payload: REVIEWED_EXTRACTION })).toEqual({ ok: true, value: { version: 1 } });
     expect(await approveDocument(context.client, { ...input, version: 1 })).toEqual({ ok: true, value: null });
     // Duplicate old cleanup must preserve the human terminal state too.
     expect((await system.rpc("release_ai_processing_reservation", { target_reservation_id: reservationId })).error).toBeNull();
@@ -312,9 +316,9 @@ it("concurrent correction and approval serialize into a stale-version refusal ra
   const context = await unextractedDocument();
   const input = { companyId: context.companyId, documentId: context.documentId };
   await startManualDocumentReview(context.client, input);
-  await correctDocument(context.client, { ...input, basedOnVersion: 0, payload: SAMPLE_EXTRACTION });
+  await correctDocument(context.client, { ...input, basedOnVersion: 0, payload: REVIEWED_EXTRACTION });
   const outcomes = await concurrentDocumentCommands(context.companyId,
-    "correct_document", () => correctDocument(context.client, { ...input, basedOnVersion: 1, payload: { ...SAMPLE_EXTRACTION, documentNumber: "CORRECTED" } }),
+    "correct_document", () => correctDocument(context.client, { ...input, basedOnVersion: 1, payload: { ...REVIEWED_EXTRACTION, documentNumber: "CORRECTED" } }),
     "approve_document", () => approveDocument(context.client, { ...input, version: 1 }),
   );
   expect(outcomes).toEqual([
@@ -372,7 +376,7 @@ it.each([
     move: () => moveDocumentPage(context.client, noJobs, { companyId: context.companyId, sourceDocumentId: left.id, targetDocumentId: right.id, page: 2 }),
   };
   const outcomes = await concurrentDocumentCommands(context.companyId,
-    "correct_document", () => correctDocument(context.client, { ...input, basedOnVersion: 1, payload: SAMPLE_EXTRACTION }),
+    "correct_document", () => correctDocument(context.client, { ...input, basedOnVersion: 1, payload: REVIEWED_EXTRACTION }),
     rpc, decisions[operation],
   );
   expect(outcomes).toEqual([
@@ -389,6 +393,7 @@ it.each([
 
 async function pageCorrectionDocuments(administrator?: Awaited<ReturnType<typeof administratorWithCompany>>) {
   administrator ??= await administratorWithCompany();
+  await knownSupplierFixture(administrator);
   const pdf = await PDFDocument.create();
   for (let page = 0; page < 4; page++) pdf.addPage();
   const uploaded = await uploadSourceFile(administrator.client, { async send() {} }, {
@@ -401,7 +406,7 @@ async function pageCorrectionDocuments(administrator?: Awaited<ReturnType<typeof
   for (const document of documents) {
     const input = { companyId: administrator.companyId, documentId: document.id };
     await startManualDocumentReview(administrator.client, input);
-    await correctDocument(administrator.client, { ...input, basedOnVersion: 0, payload: SAMPLE_EXTRACTION });
+    await correctDocument(administrator.client, { ...input, basedOnVersion: 0, payload: REVIEWED_EXTRACTION });
   }
   return { ...administrator, sourceFileId: uploaded.value.id, documents };
 }

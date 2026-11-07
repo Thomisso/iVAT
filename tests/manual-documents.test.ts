@@ -41,7 +41,7 @@ it("requires a real Tax Point Date on creation and every manual correction, incl
   const administrator = await administratorWithCompany();
   for (const [taxPointDate, error] of [[null, "tax_point_date_required"], ["2026-02-30", "invalid_date"]] as const) {
     expect(await createConfirmedManualDocument(administrator.client, { companyId: administrator.companyId, payload: { ...SAMPLE_EXTRACTION, taxPointDate } }))
-      .toEqual({ ok: false, error });
+      .toEqual({ ok: false, error, findings: [{ field: "taxPointDate", severity: "error", code: error }] });
     const direct = await administrator.client.rpc("create_manual_document", {
       target_company_id: administrator.companyId, payload: { ...SAMPLE_EXTRACTION, taxPointDate }, findings: [],
     });
@@ -52,7 +52,7 @@ it("requires a real Tax Point Date on creation and every manual correction, incl
   expect(await correctDocument(administrator.client, {
     companyId: administrator.companyId, documentId: created.value.id, basedOnVersion: 1,
     payload: { ...SAMPLE_EXTRACTION, taxPointDate: null },
-  })).toEqual({ ok: false, error: "tax_point_date_required" });
+  })).toEqual({ ok: false, error: "tax_point_date_required", findings: [{ field: "taxPointDate", severity: "error", code: "tax_point_date_required" }] });
   const directCorrection = await administrator.client.rpc("correct_document", {
     target_document_id: created.value.id, based_on_version: 1,
     payload: { ...SAMPLE_EXTRACTION, taxPointDate: null }, findings: [],

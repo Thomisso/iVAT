@@ -176,8 +176,8 @@ describe("atomic Document approval", () => {
 
   it("preserves drafts with valid DUZP and refuses missing or invalid DUZP", async () => {
     const document = await documentInReview();
-    expect(await correctDocument(document.client, { ...document, basedOnVersion: 1, payload: { ...SAMPLE_EXTRACTION, taxPointDate: null } })).toEqual({ ok: false, error: "tax_point_date_required" });
-    expect(await correctDocument(document.client, { ...document, basedOnVersion: 1, payload: { ...SAMPLE_EXTRACTION, taxPointDate: "2026-02-30" } })).toEqual({ ok: false, error: "invalid_date" });
+    expect(await correctDocument(document.client, { ...document, basedOnVersion: 1, payload: { ...SAMPLE_EXTRACTION, taxPointDate: null } })).toEqual({ ok: false, error: "tax_point_date_required", findings: [{ field: "taxPointDate", severity: "error", code: "tax_point_date_required" }] });
+    expect(await correctDocument(document.client, { ...document, basedOnVersion: 1, payload: { ...SAMPLE_EXTRACTION, taxPointDate: "2026-02-30" } })).toEqual({ ok: false, error: "invalid_date", findings: [{ field: "taxPointDate", severity: "error", code: "invalid_date" }] });
     expect(await correctDocument(document.client, { ...document, basedOnVersion: 1, payload: { ...SAMPLE_EXTRACTION, direction: null, documentNumber: null } }, undefined, fakeVatPayerRegistry())).toEqual({ ok: true, value: { version: 2 } });
     expect((await getDocument(document.client, document.companyId, document.documentId))?.status).toBe("needs_review");
   });
