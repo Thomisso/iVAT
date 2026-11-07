@@ -24,6 +24,8 @@ export type ReportDocument = {
   status: DocumentStatus;
   payload: ExtractionPayload | null;
   claimedReportingPeriod?: string | null;
+  importDate?: string | null;
+  sourceFileId?: string | null;
 };
 
 export type ReportingPeriodDocument = {

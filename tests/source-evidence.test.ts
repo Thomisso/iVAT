@@ -1,6 +1,7 @@
+import { createConfirmedManualDocument, setOctoberImportFixture } from "./support/claim-eligibility";
 import { fakeAiProvider } from "@/ai/fake";
 import { fakeVatPayerRegistry } from "@/vat-registry/fake";
-import { correctDocument, createManualDocument, readDocumentPages, reprocessDocument, saveAndApproveDocument } from "@/application/documents";
+import { correctDocument, readDocumentPages, reprocessDocument, saveAndApproveDocument } from "@/application/documents";
 import { writeFileSync } from "node:fs";
 import { sourceEvidencePdfFixture } from "./support/source-evidence";
 import { createServer } from "node:http";
@@ -64,6 +65,7 @@ it("loads PDF evidence bound to the second Document's original page after zero-r
     companyId: admin.companyId, fileName: "evidence-three-pages.pdf", bytes: sourceBytes,
   });
   if (!uploaded.ok) throw new Error(uploaded.error);
+  await setOctoberImportFixture(uploaded.value.id);
   expect(await worker.runJobs()).toEqual([]);
   const documents = await listDocuments(admin.client, admin.companyId, uploaded.value.id);
   const second = documents.find((document) => document.firstPage === 2);
@@ -124,6 +126,7 @@ it("retains only locked-base references with manual provenance and remapped dele
   if (!configured.ok) throw new Error(configured.error);
   const uploaded = await uploadSourceFile(admin.client, worker.jobs, { companyId: admin.companyId, fileName: "provenance.pdf", bytes: await sourceEvidencePdfFixture() });
   if (!uploaded.ok) throw new Error(uploaded.error);
+  await setOctoberImportFixture(uploaded.value.id);
   expect(await worker.runJobs()).toEqual([]);
   const [document] = await listDocuments(admin.client, admin.companyId, uploaded.value.id);
   const target = { companyId: admin.companyId, documentId: document.id };
@@ -171,6 +174,7 @@ it("keeps each manual and AI Version's own evidence and never backfills missing 
   if (!configured.ok) throw new Error(configured.error);
   const uploaded = await uploadSourceFile(admin.client, worker.jobs, { companyId: admin.companyId, fileName: "history.pdf", bytes: await sourceEvidencePdfFixture() });
   if (!uploaded.ok) throw new Error(uploaded.error);
+  await setOctoberImportFixture(uploaded.value.id);
   expect(await worker.runJobs()).toEqual([]);
   const [document] = await listDocuments(admin.client, admin.companyId, uploaded.value.id);
   const target = { companyId: admin.companyId, documentId: document.id };
@@ -190,7 +194,7 @@ it("keeps each manual and AI Version's own evidence and never backfills missing 
   expect((await getDocumentReview(admin.client, { ...target, requestedVersion: "3" }))!.shown!.payload).toEqual(approvedVersion.payload);
   expect(calls).toBe(2);
 
-  const manual = await createManualDocument(admin.client, { companyId: admin.companyId, payload: { ...SAMPLE_EXTRACTION, sourceEvidence: current.payload.sourceEvidence } }, undefined, fakeVatPayerRegistry());
+  const manual = await createConfirmedManualDocument(admin.client, { companyId: admin.companyId, payload: { ...SAMPLE_EXTRACTION, sourceEvidence: current.payload.sourceEvidence } }, undefined, fakeVatPayerRegistry());
   if (!manual.ok) throw new Error(manual.error);
   const noSource = { companyId: admin.companyId, documentId: manual.value.id };
   const manualReview = (await getDocumentReview(admin.client, noSource))!;
@@ -213,6 +217,7 @@ it("ignores invalid PDF locations while sound financial data remains approvable 
   if (!configured.ok) throw new Error(configured.error);
   const uploaded = await uploadSourceFile(admin.client, worker.jobs, { companyId: admin.companyId, fileName: "missing-locations.pdf", bytes: await sourceEvidencePdfFixture() });
   if (!uploaded.ok) throw new Error(uploaded.error);
+  await setOctoberImportFixture(uploaded.value.id);
   expect(await worker.runJobs()).toEqual([]);
   const [document] = await listDocuments(admin.client, admin.companyId, uploaded.value.id);
   const target = { companyId: admin.companyId, documentId: document.id };
@@ -232,6 +237,7 @@ it("reads original pages without a Version while refusing explicit nonexistent V
   if (!configured.ok) throw new Error(configured.error);
   const uploaded = await uploadSourceFile(admin.client, worker.jobs, { companyId: admin.companyId, fileName: "before-extraction.pdf", bytes: await sourceEvidencePdfFixture() });
   if (!uploaded.ok) throw new Error(uploaded.error);
+  await setOctoberImportFixture(uploaded.value.id);
   await worker.runNextJob();
   const documents = await listDocuments(admin.client, admin.companyId, uploaded.value.id);
   const second = documents.find(document => document.firstPage === 2)!;

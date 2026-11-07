@@ -109,3 +109,7 @@ or reduced deduction. One Document still has one Reporting Period.
   "confidence": { "documentNumber": 0.98, "rateBreakdown.0.vatAmount": 0.95 }
 }
 ```
+
+## Earliest Claim Period
+
+Optional `claimEligibility` is non-AI accounting metadata: `{period, origin: "user" | "same_period", confirmed, basis}`. A User explicitly confirms a generated period; the accepted rule may establish the same period only when DUZP, issue date and the actual Source File Import Date all belong to it. The database binds `basis` to the then-current document type, Direction, VAT Regime, DUZP, issue date, Source File identity and Prague Import Date. No Source File means no invented Import Date. Changed decisive facts or AI replacement invalidate a prior human confirmation; immutable earlier Versions retain their original value and origin. The metadata is included in the additive review projection and locked-base inheritance alongside directory, Partial Claim and source evidence extensions. Missing eligibility is unresolved, not proof of a violation, and blocks approval/new preparation for ordinary incoming domestic claims. Deadline calculations belong to the separate deadline workflow.
