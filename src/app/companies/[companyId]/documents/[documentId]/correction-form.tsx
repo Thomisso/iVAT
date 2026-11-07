@@ -463,7 +463,7 @@ export function CorrectionForm({
         </fieldset>
       )}
       <CounterpartyLinkSummary companyId={companyId} link={payload.counterpartyLink} />
-      {editable && <CounterpartyLinkFields companyId={companyId} initialId={state.values.counterpartyId ?? payload.counterpartyLink?.id ?? ""} initialName={currentCounterparty?.recorded?.name ?? payload.counterpartyLink?.recorded?.name} currentDirectory={currentCounterparty} />}
+      {editable && <CounterpartyLinkFields key={`counterparty-${version}`} companyId={companyId} initialMode={state.values.counterpartyLinkMode ?? (payload.counterpartyLink === null ? "unlinked" : undefined)} initialId={state.values.counterpartyId ?? payload.counterpartyLink?.id ?? (payload.counterpartyLink === null ? "" : currentCounterparty?.id ?? "")} initialName={currentCounterparty?.recorded?.name ?? payload.counterpartyLink?.recorded?.name} currentDirectory={currentCounterparty} />}
       {direction === "outgoing" ? [partyPanel("customer"), partyPanel("supplier")] : [partyPanel("supplier"), partyPanel("customer")]}
       <fieldset>
         <legend>{t("sections.payment")}</legend>

@@ -753,7 +753,8 @@
     "claim_eligibility_unresolved": "Resolve claim eligibility and filing deadlines for the flagged Documents before new preparation or XML export.",
     "claim_document_type_required": "Choose a Document type before confirming claim eligibility.",
     "claim_deadline_expired": "The claim filing deadline has expired. A new approval cannot establish timely filing.",
-    "claimed_period_after_deadline": "This period ends too late for an ordinary claim before the filing deadline. Choose an earlier eligible period."
+    "claimed_period_after_deadline": "This period ends too late for an ordinary claim before the filing deadline. Choose an earlier eligible period.",
+    "counterparty_resolution_required": "Resolve the Counterparty identity before approval. Select an existing entry, restore an archived match, or explicitly confirm creation without identifiers. Changed directory warnings must be reviewed."
   },
   "aiUsage": {
     "platformNav": "Platform AI usage",
@@ -1235,7 +1236,7 @@
     "currentValue": "Current value",
     "directory": {
       "title": "Counterparty Directory",
-      "linkHint": "Link an existing entry. The Document keeps its own details.",
+      "linkHint": "Unambiguous IČO or VAT ID matches link automatically. A new identity is created only with successful approval. The Document keeps its own details.",
       "selected": "Linked Counterparty",
       "clear": "Remove link",
       "search": "Search existing Counterparties",
@@ -1245,7 +1246,12 @@
       "copy": "Copy directory details to Document",
       "recorded": "Recorded directory details",
       "notRecorded": "No directory link is recorded for this Version.",
-      "open": "Open linked Counterparty"
+      "open": "Open linked Counterparty",
+      "unlinked": "The directory link was deliberately removed. Choose an entry before approving an existing identity.",
+      "automatic": "Use automatic matching",
+      "confirmWithoutIdentity": "Create a new Counterparty without IČO or VAT ID when approving this Document",
+      "findIdentity": "Find by IČO or VAT ID",
+      "archivedIdentity": "Find an archived identity"
     },
     "sourceFor": "Source for {field}",
     "sourcePage": "Original page",
