@@ -1,6 +1,6 @@
 import { halers, amount, assessedVat } from "./money";
 import { partialClaimRates } from "./partial-claim";
-import { convertedAmount } from "./exchange-rates";
+import { convertedAmount, documentCzkConversion } from "./exchange-rates";
 import type {
   CompanyDetails,
   ReportingYear,
@@ -44,8 +44,9 @@ function validDate(value: string | null): value is string {
 
 /**
  * Assigns a Document to the Company's Reporting Period of its Tax Point Date
- * (ADR-0012), or to an incoming Document's later Deferred Claim. Mirrors
- * `private.document_reporting_period` in the database.
+ * (ADR-0012), or to an incoming Document's recorded later Deferred Claim.
+ * Attribution preserves legacy assignments; eligibility for fresh preparation
+ * is checked separately rather than silently moving a claim to another period.
  */
 export function reportingPeriodForDocument(
   document: ReportingPeriodDocument,
@@ -62,8 +63,7 @@ export function reportingPeriodForDocument(
     claimedStart &&
     reportingPeriodForDate(claimedStart, reportingYears) ===
       document.claimedReportingPeriod &&
-    claimedStart > reportingPeriodStart(assigned)! &&
-    claimedStart <= `${Number(document.taxPointDate.slice(0, 4)) + 3}${document.taxPointDate.slice(4)}`
+    claimedStart > reportingPeriodStart(assigned)!
   ) {
     return document.claimedReportingPeriod;
   }
@@ -101,6 +101,8 @@ export type ExclusionReason =
   | "currency_conversion_required"
   | "incomplete_data";
 export type ComputedVatReport = {
+  /** Present on new saved reports; legacy snapshots remain readable. */
+  claimEvaluatedOn?: string;
   company: CompanyDetails;
   period: string;
   vatReturn: VatReturnLine[];
@@ -184,12 +186,7 @@ export function vatReportDocumentExclusion(document: ReportDocument): ExclusionR
   if (regime === "domestic_reverse_charge" && !/^\d{1,3}$/.test(p.reverseChargeCode ?? "")) {
     return "incomplete_data";
   }
-  if (
-    p.currency !== "CZK" &&
-    (!p.czkConversion ||
-      p.czkConversion.originalCurrency !== p.currency ||
-      p.czkConversion.rateDate > p.taxPointDate)
-  ) return "currency_conversion_required";
+  if (p.currency !== "CZK" && !documentCzkConversion(p)) return "currency_conversion_required";
   if (missingRequiredReportingVatId(p)) return "incomplete_data";
   return null;
 }
@@ -200,9 +197,8 @@ type CompleteExtractionPayload = Omit<ExtractionPayload, "rateBreakdown"> & { ra
 function reportingClaimRates(payload: ExtractionPayload): RateBreakdownLine[] | null {
   const selected = partialClaimRates(payload);
   if (!selected || payload.currency === "CZK") return selected;
-  const conversion = payload.czkConversion;
-  if (!conversion || conversion.originalCurrency !== payload.currency || !payload.taxPointDate
-    || conversion.rateDate > payload.taxPointDate) return null;
+  const conversion = documentCzkConversion(payload);
+  if (!conversion) return null;
   const converted = selected.map(line => ({
     rate: line.rate, netAmount: convertedAmount(line.netAmount, conversion), vatAmount: convertedAmount(line.vatAmount, conversion),
   }));

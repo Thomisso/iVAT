@@ -322,7 +322,7 @@ export function CorrectionForm({
           )}
           {date("taxPointDate")}
         </div>
-        <ClaimEligibilityFields key={`eligibility-${version}`} payload={payload} periods={claimPeriods} editable={editable} values={state.values} />
+        <ClaimEligibilityFields key={`eligibility-${version}`} payload={payload} periods={claimPeriods} editable={editable} values={state.values} error={findingMessage("claimEligibility")} />
         <details className="review-infrequent"><summary>{t("otherDetails")}</summary><div className="fields">
           {text("reverseChargeCode", payload.reverseChargeCode, "reverseChargeCode", { maxLength: 3 })}
           {date("issueDate")}{date("dueDate")}

@@ -750,8 +750,10 @@
     "invalid_earliest_claim_period": "Vyberte existující období, které není před obdobím DUZP.",
     "claimed_period_before_earliest": "Zvolené období uplatnění je před potvrzeným nejdřívějším obdobím.",
     "deferred_claim_not_supported": "Společný odklad není pro tento režim podporován. Případ vyřešte ručně před novou přípravou výkazu.",
-    "claim_eligibility_unresolved": "Nejdříve vyřešte způsobilost uplatnění označených dokladů v připravenosti období.",
-    "claim_document_type_required": "Vyberte typ dokladu, aby bylo možné potvrdit způsobilost uplatnění."
+    "claim_eligibility_unresolved": "Před novou přípravou nebo exportem XML vyřešte přípustnost uplatnění a lhůty podání označených dokladů.",
+    "claim_document_type_required": "Vyberte typ dokladu, aby bylo možné potvrdit způsobilost uplatnění.",
+    "claim_deadline_expired": "Lhůta pro uplatnění nároku podáním již uplynula. Nové schválení nemůže doložit včasné podání.",
+    "claimed_period_after_deadline": "Toto období končí příliš pozdě pro běžné uplatnění před koncem lhůty podání. Zvolte dřívější přípustné období."
   },
   "aiUsage": {
     "platformNav": "Využití AI na platformě",
@@ -1105,7 +1107,7 @@
       "title": "Zdaňovací období nároku na odpočet",
       "defaultPeriod": "Podle DUZP (bez odložení)",
       "claimedReportingPeriod": "Přesunout nárok na odpočet do období",
-      "claimedReportingPeriodHint": "Vyberte nezamčené pozdější období, nejvýše tři roky od DUZP.",
+      "claimedReportingPeriodHint": "Vyberte nezamčené pozdější období, které skončí včas pro podání do konce lhůty nároku.",
       "claimedReportingPeriodPlaceholder": "2026-12 nebo 2027-Q1",
       "save": "Uložit zdaňovací období",
       "saving": "Ukládání…"
@@ -1148,7 +1150,9 @@
       "invalid_earliest_claim_period": "Vyberte existující období, které není před obdobím DUZP.",
       "claimed_period_before_earliest": "Zvolené období uplatnění je před potvrzeným nejdřívějším obdobím.",
       "deferred_claim_not_supported": "Společný odklad není pro tento režim podporován. Případ vyřešte ručně před novou přípravou výkazu.",
-      "claim_document_type_required": "Vyberte typ dokladu, aby bylo možné potvrdit způsobilost uplatnění."
+      "claim_document_type_required": "Vyberte typ dokladu, aby bylo možné potvrdit způsobilost uplatnění.",
+      "claim_deadline_expired": "Lhůta pro uplatnění nároku podáním již uplynula. Nové schválení nemůže doložit včasné podání.",
+      "claimed_period_after_deadline": "Toto období končí příliš pozdě pro běžné uplatnění před koncem lhůty podání. Zvolte dřívější přípustné období."
     },
     "noDocumentImage": "Tento doklad vznikl z řádků tabulky a nemá obraz dokladu.",
     "sections": {
@@ -1738,7 +1742,11 @@
       "missing_currency": "K určení limitu v CZK je nutná měna.",
       "currency_conversion_required": "K určení limitu je nutný platný přepočet do CZK."
     },
-    "liveSummary": "Živý výpočet: {included} zahrnuto, {excluded} nezahrnuto."
+    "liveSummary": "Živý výpočet: {included} zahrnuto, {excluded} nezahrnuto.",
+    "claimLastFilingDate": "Nárok je nutné uplatnit podáním nejpozději: {date}",
+    "claimEvaluatedOn": "Rozhodné datum posouzení: {date}",
+    "claimLatestPeriod": "Poslední dostupné běžné období: {period}",
+    "claimFilingNote": "Příprava, finalizace ani export XML nejsou podáním přiznání. Uložené výkazy a archivní XML zachovávají své zaznamenané údaje."
   },
   "reportingWorkbook": {
     "columns": {

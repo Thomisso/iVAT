@@ -750,8 +750,10 @@
     "invalid_earliest_claim_period": "Choose a generated period on or after the Tax Point Date period.",
     "claimed_period_before_earliest": "The chosen claim period precedes the confirmed Earliest Claim Period.",
     "deferred_claim_not_supported": "Shared deferral is not supported for this regime. Resolve the Document manually before preparing a new report.",
-    "claim_eligibility_unresolved": "Resolve claim eligibility for the flagged Documents in period readiness before preparing a new report.",
-    "claim_document_type_required": "Choose a Document type before confirming claim eligibility."
+    "claim_eligibility_unresolved": "Resolve claim eligibility and filing deadlines for the flagged Documents before new preparation or XML export.",
+    "claim_document_type_required": "Choose a Document type before confirming claim eligibility.",
+    "claim_deadline_expired": "The claim filing deadline has expired. A new approval cannot establish timely filing.",
+    "claimed_period_after_deadline": "This period ends too late for an ordinary claim before the filing deadline. Choose an earlier eligible period."
   },
   "aiUsage": {
     "platformNav": "Platform AI usage",
@@ -1105,7 +1107,7 @@
       "title": "Input VAT Reporting Period",
       "defaultPeriod": "Tax Point Date period (no deferral)",
       "claimedReportingPeriod": "Move input VAT claim to",
-      "claimedReportingPeriodHint": "Choose an unlocked later period, at most three years after the Tax Point Date.",
+      "claimedReportingPeriodHint": "Choose an unlocked later period that can end before the claim filing deadline.",
       "claimedReportingPeriodPlaceholder": "2026-12 or 2027-Q1",
       "save": "Save Reporting Period",
       "saving": "Saving…"
@@ -1148,7 +1150,9 @@
       "invalid_earliest_claim_period": "Choose a generated period on or after the Tax Point Date period.",
       "claimed_period_before_earliest": "The chosen claim period precedes the confirmed Earliest Claim Period.",
       "deferred_claim_not_supported": "Shared deferral is not supported for this regime. Resolve the Document manually before preparing a new report.",
-      "claim_document_type_required": "Choose a Document type before confirming claim eligibility."
+      "claim_document_type_required": "Choose a Document type before confirming claim eligibility.",
+      "claim_deadline_expired": "The claim filing deadline has expired. A new approval cannot establish timely filing.",
+      "claimed_period_after_deadline": "This period ends too late for an ordinary claim before the filing deadline. Choose an earlier eligible period."
     },
     "noDocumentImage": "This Document came from spreadsheet rows and has no document image.",
     "sections": {
@@ -1738,7 +1742,11 @@
       "missing_currency": "The currency is required to determine the CZK threshold.",
       "currency_conversion_required": "A valid CZK conversion is required to determine the threshold."
     },
-    "liveSummary": "Live calculation: {included} included, {excluded} excluded."
+    "liveSummary": "Live calculation: {included} included, {excluded} excluded.",
+    "claimLastFilingDate": "Claim must be exercised by filing no later than: {date}",
+    "claimEvaluatedOn": "Assessed as of: {date}",
+    "claimLatestPeriod": "Latest available ordinary period: {period}",
+    "claimFilingNote": "Preparation, Finalization and XML export do not submit a return. Saved reports and archived XML retain their recorded data."
   },
   "reportingWorkbook": {
     "columns": {

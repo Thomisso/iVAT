@@ -1,3 +1,4 @@
+import { formatDate } from "@/lib/format-date";
 import { getTranslations } from "next-intl/server";
 import type { DocumentReporting } from "@/application/document-reporting";
 
@@ -8,6 +9,12 @@ export async function DocumentReportingSummary({ reporting, compact = false }: {
   return <div className={`document-reporting${compact ? " is-compact" : ""}`} role="group" aria-label={t("liveTitle")}>
     {!compact && <strong>{t("liveTitle")}</strong>}
     <p>{t("period", { period: reporting.period ?? t("unassigned") })}</p>
+    {!compact && reporting.claimDeadline && <>
+      <p>{t("claimLastFilingDate", { date: formatDate(reporting.claimDeadline.lastFilingDate) })}</p>
+      <p>{t("claimEvaluatedOn", { date: formatDate(reporting.claimDeadline.evaluatedOn) })}</p>
+      {reporting.claimDeadline.latestOrdinaryPeriod && <p>{t("claimLatestPeriod", { period: reporting.claimDeadline.latestOrdinaryPeriod })}</p>}
+      <p className="iv-muted">{t("claimFilingNote")}</p>
+    </>}
     <p><strong>{t(reporting.included ? "included" : "excluded")}</strong>
       {reporting.exclusionReason && <> · {t(`reasons.${reporting.exclusionReason}`)}</>}
       {reporting.exclusionDetail && <> {t(`details.${reporting.exclusionDetail}`)}</>}
