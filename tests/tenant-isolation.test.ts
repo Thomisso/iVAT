@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, inject, it } from "vitest";
+import { Client } from "pg";
 import { createCompany, getCompany, listMyCompanies } from "@/application/companies";
 import { listMyOrganizations } from "@/application/organizations";
 import {
@@ -20,6 +21,34 @@ import {
 describe("tenant isolation", () => {
   it("refuses Company discovery to an anonymous caller", async () => {
     await expect(listMyCompanies(anonymousClient())).rejects.toMatchObject({ code: "42501" });
+  });
+
+  it("returns false rather than null for invalid or foreign Company permission scopes", async () => {
+    const administrator = await administratorWithCompany("Permission owner");
+    const other = await administratorWithCompany("Foreign permission scope");
+    const { data } = await administrator.client.auth.getSession();
+    const claims = JSON.parse(Buffer.from(data.session!.access_token.split(".")[1], "base64url").toString());
+    const database = new Client({ connectionString: inject("databaseUrl") });
+    await database.connect();
+    try {
+      await database.query("begin read only");
+      await database.query("set local role authenticated");
+      await database.query("select set_config('request.jwt.claims', $1, true), set_config('statement_timeout', '8s', true)", [JSON.stringify(claims)]);
+      // Commands use IF NOT this predicate, so NULL must never evade a denial.
+      const allowed = async (companyId: string | null, organizationId: string | null) =>
+        (await database.query("select private.can_access_company($1::uuid, $2::uuid) as allowed", [companyId, organizationId])).rows[0].allowed;
+      expect(await allowed(administrator.companyId, administrator.organizationId)).toBe(true);
+      for (const [companyId, organizationId] of [
+        [null, null], [null, administrator.organizationId], [administrator.companyId, null],
+        [crypto.randomUUID(), administrator.organizationId],
+        [administrator.companyId, other.organizationId], [other.companyId, other.organizationId],
+      ]) {
+        expect(await allowed(companyId, organizationId)).toBe(false);
+      }
+    } finally {
+      await database.query("rollback");
+      await database.end();
+    }
   });
 
   it("hides another Organization and its Companies from the application layer", async () => {
