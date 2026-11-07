@@ -238,7 +238,7 @@ export default async function DocumentReviewPage({
               }
             />
           ) : document.status === "needs_review" && !lockedPeriod ? (
-            <CorrectionForm companyId={companyId} documentId={document.id} version={0} requestId={randomUUID()} displayedBankAccountCheckId={bankChecks.current?.id ?? null} decision={{ nextDocumentId: position.continuationDocumentId ?? "", queueQuery, returnTo: returnTo ?? "" }} payload={emptyDocumentPayload()} findings={[]} editable aiProposed={false} claimPeriods={reportingPeriodsOf(review.reportingYears)} reportingContext={<p>{t("documentReporting.period", { period: reporting.period ?? t("documentReporting.unassigned") })}</p>} />
+            <CorrectionForm key={document.id} companyId={companyId} documentId={document.id} version={0} requestId={randomUUID()} displayedBankAccountCheckId={bankChecks.current?.id ?? null} decision={{ nextDocumentId: position.continuationDocumentId ?? "", queueQuery, returnTo: returnTo ?? "" }} payload={emptyDocumentPayload()} findings={[]} editable aiProposed={false} claimPeriods={reportingPeriodsOf(review.reportingYears)} reportingContext={<p>{t("documentReporting.period", { period: reporting.period ?? t("documentReporting.unassigned") })}</p>} />
           ) : (
             <EmptyState icon="file" title={t("review.noExtraction")} />
           )}

@@ -1,3 +1,4 @@
+import { setOctoberImportFixture } from "./support/claim-eligibility";
 import { refreshBankAccountCheck, getDocumentBankAccountChecks } from "@/application/bank-account-checks";
 import { expect, it } from "vitest";
 import { getDocumentReview } from "@/application/document-review";
@@ -6,7 +7,7 @@ import { approveDocument, correctDocument, documentPeriodLocks, listDocuments, l
 import { getReportingPeriodReadiness } from "@/application/reporting-period-readiness";
 import { uploadSourceFile } from "@/application/source-files";
 import { finalizeVatReport, generateVatReport, getVatReport } from "@/application/vat-reports";
-import { administratorWithCompany, assignAiConfigurationFixture, companyMember } from "./support/fixtures";
+import { administratorWithCompany, assignAiConfigurationFixture, companyMember, knownSupplierFixture } from "./support/fixtures";
 import { fixtureFile } from "./support/files";
 import { testWorker } from "./support/worker";
 import { fakeVatPayerRegistry } from "@/vat-registry/fake";
@@ -16,12 +17,14 @@ import type { VatPayerRegistry } from "@/application/vat-registry";
 
 async function documentInBankReview(payload: ExtractionPayload = SAMPLE_EXTRACTION, registry: VatPayerRegistry = fakeVatPayerRegistry()) {
   const company = await administratorWithCompany();
+  await knownSupplierFixture(company);
   const worker = testWorker(fakeAiProvider({ extract: () => payload }), registry);
   await assignAiConfigurationFixture(company.client, worker.jobs, { companyId: company.companyId, provider: worker.ai });
   const upload = await uploadSourceFile(company.client, worker.jobs, {
     companyId: company.companyId, fileName: "receipt.png", bytes: fixtureFile("receipt.png"),
   });
   if (!upload.ok) throw new Error(upload.error);
+  await setOctoberImportFixture(upload.value.id);
   expect(await worker.runJobs()).toEqual([]);
   const [document] = await listDocuments(company.client, company.companyId, upload.value.id);
   return { company, document };
@@ -141,9 +144,10 @@ it("rechecks a corrected payment account and records an unpublished-account advi
 
 it("warns for an older missing-account Version without rewriting its stored findings", async () => {
   const { company, document } = await documentInBankReview();
+  const [original] = await listExtractionVersions(company.client, company.companyId, document.id);
   const older = await company.client.rpc("correct_document", {
     target_document_id: document.id, based_on_version: 1,
-    payload: { ...SAMPLE_EXTRACTION, payment: { ...SAMPLE_EXTRACTION.payment, bankAccount: null, iban: null } }, findings: [],
+    payload: { ...original.payload, payment: { ...original.payload.payment, bankAccount: null, iban: null } }, findings: [],
   });
   expect(older.error).toBeNull();
   const versions = await listExtractionVersions(company.client, company.companyId, document.id);
@@ -161,8 +165,9 @@ it("warns for an older missing-account Version without rewriting its stored find
 
 it("refreshes a legacy false warning in a locked Approved Document without changing accounting history", async () => {
   const { company, document } = await documentInBankReview();
+  const [original] = await listExtractionVersions(company.client, company.companyId, document.id);
   const legacy = await company.client.rpc("correct_document", {
-    target_document_id: document.id, based_on_version: 1, payload: SAMPLE_EXTRACTION,
+    target_document_id: document.id, based_on_version: 1, payload: original.payload,
     findings: [
       { field: "payment.bankAccount", severity: "warning", code: "unpublished_bank_account" },
       { field: "supplier.vatId", severity: "warning", code: "unreliable_vat_payer" },

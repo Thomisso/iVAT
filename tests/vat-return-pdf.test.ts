@@ -1,3 +1,4 @@
+import { createConfirmedManualDocument } from "./support/claim-eligibility";
 import { expect, it } from "vitest";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import {
@@ -9,7 +10,7 @@ import { createCompany, updateCompanyIdentity } from "@/application/companies";
 import { getVatReportExportHeader } from "@/application/epo-export-context";
 import { provisionedUser } from "./support/clients";
 import { SAMPLE_EXTRACTION } from "@/ai/fake";
-import { approveDocument, createManualDocument } from "@/application/documents";
+import { approveDocument } from "@/application/documents";
 import { listVatReportArtifacts, exportVatReport } from "@/application/epo-export";
 import { getCompanyFilingDefaults, saveCompanyFilingDefaults } from "@/application/company-filing-defaults";
 import { vatReturnPreviewData } from "@/application/vat-return-preview";
@@ -137,11 +138,11 @@ it("a Company User downloads the saved VAT Return snapshot as a PDF", async () =
   const company = await administratorWithCompany();
   const member = await companyMember(company);
   const input = { companyId: company.companyId, period: "2026-10" };
-  const approved = await createManualDocument(company.client, { companyId: company.companyId, payload: SAMPLE_EXTRACTION });
+  const approved = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload: SAMPLE_EXTRACTION });
   if (!approved.ok) throw new Error(approved.error);
   expect(await approveDocument(company.client, { companyId: company.companyId, documentId: approved.value.id, version: 1 })).toEqual({ ok: true, value: null });
   await generateVatReport(company.client, input);
-  const later = await createManualDocument(company.client, { companyId: company.companyId, payload: { ...SAMPLE_EXTRACTION, documentNumber: "AFTER-SNAPSHOT", rateBreakdown: [{ rate: 21, netAmount: "9000.00", vatAmount: "1890.00" }], totals: { netAmount: "9000.00", vatAmount: "1890.00", grossAmount: "10890.00" } } });
+  const later = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload: { ...SAMPLE_EXTRACTION, documentNumber: "AFTER-SNAPSHOT", rateBreakdown: [{ rate: 21, netAmount: "9000.00", vatAmount: "1890.00" }], totals: { netAmount: "9000.00", vatAmount: "1890.00", grossAmount: "10890.00" } } });
   if (!later.ok) throw new Error(later.error);
   expect(await approveDocument(company.client, { companyId: company.companyId, documentId: later.value.id, version: 1 })).toEqual({ ok: true, value: null });
   const result = await exportVatReturnPdf(member.client, input);
@@ -205,7 +206,7 @@ it.each([
     preparedOn: "2026-11-04", taxOffice: "451", economicActivity: "621000",
     signatoryFirstName: "Jana", signatoryLastName: "Nováková", signatoryCapacity: "jednatelka",
   } };
-  const created = await createManualDocument(company.client, { companyId: company.companyId, payload: {
+  const created = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload: {
     ...SAMPLE_EXTRACTION, documentType: example.net.startsWith("-") ? "credit_note" : "invoice",
     rateBreakdown: [{ rate: example.rate, netAmount: example.net, vatAmount: example.vat }],
     totals: { netAmount: example.net, vatAmount: example.vat, grossAmount: example.gross },

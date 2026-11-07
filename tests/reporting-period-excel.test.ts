@@ -1,10 +1,11 @@
+import { setOctoberImportFixture } from "./support/claim-eligibility";
 import { reportingWorkbookCopy } from "./support/reporting-workbook-copy";
 import * as XLSX from "xlsx";
 import { expect, inject, it } from "vitest";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { exportReportingPeriodWorkbook } from "@/application/reporting-period-excel";
 import { createCompany, setCurrentReportingYear } from "@/application/companies";
-import { approveDocument, listDocuments, returnDocumentToReview } from "@/application/documents";
+import { approveDocument, correctDocument, listDocuments, returnDocumentToReview } from "@/application/documents";
 import { uploadSourceFile } from "@/application/source-files";
 import {
   administratorWithCompany,
@@ -64,6 +65,7 @@ async function companyWithOverviewDocuments() {
       bytes: fixtureFile("receipt.png"),
     });
     if (!uploaded.ok) throw new Error(uploaded.error);
+    await setOctoberImportFixture(uploaded.value.id);
     expect(await worker.runJobs()).toEqual([]);
     const [document] = await listDocuments(administrator.client, administrator.companyId, uploaded.value.id);
     documentIds.push(document.id);
@@ -194,11 +196,16 @@ it("classifies a quarterly Company's Documents on VAT Return lines and Control S
   if (!uploaded.ok) throw new Error(uploaded.error);
   expect(await worker.runJobs()).toEqual([]);
   const [document] = await listDocuments(owner.client, created.value.id, uploaded.value.id);
-  expect(await approveDocument(owner.client, {
-    companyId: created.value.id,
-    documentId: document.id,
-    version: 1,
-  })).toEqual({ ok: true, value: null });
+  // Future-period AI cannot invent the human's earliest eligible period.
+  expect(await approveDocument(owner.client, { companyId: created.value.id, documentId: document.id, version: 1 }))
+    .toEqual({ ok: false, error: "claim_eligibility_required" });
+  expect(await correctDocument(owner.client, { companyId: created.value.id, documentId: document.id,
+    basedOnVersion: 1, payload: { ...SAMPLE_EXTRACTION, taxPointDate: "2027-02-10",
+      claimEligibility: { period: "2027-Q1", origin: "user", confirmed: true },
+    },
+  })).toEqual({ ok: true, value: { version: 2 } });
+  expect(await approveDocument(owner.client, { companyId: created.value.id, documentId: document.id, version: 2 }))
+    .toEqual({ ok: true, value: null });
 
   const result = await exportReportingPeriodWorkbook(owner.client, {
     companyId: created.value.id,
@@ -235,11 +242,16 @@ it("classifies a Document with the frequency of its own Reporting Year", async (
   if (!uploaded.ok) throw new Error(uploaded.error);
   expect(await worker.runJobs()).toEqual([]);
   const [document] = await listDocuments(company.client, company.companyId, uploaded.value.id);
-  expect(await approveDocument(company.client, {
-    companyId: company.companyId,
-    documentId: document.id,
-    version: 1,
-  })).toEqual({ ok: true, value: null });
+  // Future-period AI cannot invent the human's earliest eligible period.
+  expect(await approveDocument(company.client, { companyId: company.companyId, documentId: document.id, version: 1 }))
+    .toEqual({ ok: false, error: "claim_eligibility_required" });
+  expect(await correctDocument(company.client, { companyId: company.companyId, documentId: document.id,
+    basedOnVersion: 1, payload: { ...SAMPLE_EXTRACTION, taxPointDate: "2099-11-10",
+      claimEligibility: { period: "2099-Q4", origin: "user", confirmed: true },
+    },
+  })).toEqual({ ok: true, value: { version: 2 } });
+  expect(await approveDocument(company.client, { companyId: company.companyId, documentId: document.id, version: 2 }))
+    .toEqual({ ok: true, value: null });
 
   const result = await exportReportingPeriodWorkbook(company.client, {
     companyId: company.companyId,
