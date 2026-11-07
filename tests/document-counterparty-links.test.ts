@@ -328,6 +328,37 @@ it("requires a manual choice when the two identifiers resolve to different direc
   expect((await listCounterparties(company.client, company.companyId)).total).toBe(2);
 });
 
+it("serializes approval-time identity creation against an identifier UPDATE holding the Counterparty tuple", async () => {
+  const company = await administratorWithCompany();
+  const oldEntry = await createCounterparty(company.client, { companyId: company.companyId, name: "Original directory identity", ico: "25596641", vatId: "CZ25596641", supplier: true, customer: false });
+  if (!oldEntry.ok) throw new Error(oldEntry.error);
+  const created = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload: SAMPLE_EXTRACTION }, undefined, fakeVatPayerRegistry());
+  if (!created.ok) throw new Error(created.error);
+  const target = { companyId: company.companyId, documentId: created.value.id };
+  const input = { ...target, basedOnVersion: 1, requestId: crypto.randomUUID(), payload: (await getDocumentReview(company.client, target))!.current!.payload };
+  const party = SAMPLE_EXTRACTION.supplier;
+  const outcomes = await directoryIdentityDuringApproval(company.companyId,
+    hold => saveAndApproveDocument(company.client, input, undefined, { async check() {
+      await hold();
+      return { outcome: "checked", unreliable: false, publishedAccounts: ["123456789/0100"] };
+    } }),
+    () => updateCounterparty(company.client, { companyId: company.companyId, id: oldEntry.value.id, name: party.name!, ico: party.ico, vatId: party.vatId,
+      street: party.street!, city: party.city!, postalCode: party.postalCode!, countryCode: party.country!, supplier: true, customer: false }),
+    oldEntry.value.id,
+  );
+  expect(outcomes).toEqual([
+    { status: "fulfilled", value: { ok: true, value: { version: 2 } } },
+    { status: "fulfilled", value: { ok: false, error: "counterparty_identity_taken" } },
+  ]);
+  expect(await getCounterparty(company.client, company.companyId, oldEntry.value.id)).toMatchObject({ name: "Original directory identity", ico: "25596641", vatId: "CZ25596641" });
+  const review = await getDocumentReview(company.client, target);
+  expect(review).toMatchObject({ document: { status: "approved" }, current: { payload: { supplier: party, counterpartyLink: { recorded: { ico: "27082440", vatId: "CZ27082440" } } } } });
+  expect(review!.current!.payload.counterpartyLink!.id).not.toBe(oldEntry.value.id);
+  expect(await listExtractionVersions(company.client, company.companyId, target.documentId)).toHaveLength(2);
+  expect((await listCounterparties(company.client, company.companyId)).total).toBe(2);
+  expect((await listAuditEvents(company.client, company.organizationId)).filter(event => event.action === "document.approved")).toHaveLength(1);
+});
+
 it("links an existing Counterparty while preserving the Document's own Party and earlier Version", async () => {
   const company = await administratorWithCompany();
   const entry = await createCounterparty(company.client, { companyId: company.companyId, name: "Directory Supplier", supplier: true, customer: false });
