@@ -85,7 +85,7 @@ export function validSourcePageLocations(value: unknown, payload: ExtractionPayl
 export type SourceFieldEvidence = {
   origin: "ai" | "manual";
   originalValue: string | number;
-  locations: Omit<SourcePageLocation, "fieldPath">[];
+  locations: (Omit<SourcePageLocation, "fieldPath"> | Omit<SourceWorkbookLocation, "fieldPath">)[];
 };
 
 /** Identity and page basis supplied by the server, scoped by the containing immutable Version. */
@@ -96,8 +96,8 @@ export type SourceEvidence = {
   sourceSha256: string;
   documentId: string;
   originExtractionRequestId: string;
-  basis: { kind: "original"; format: "pdf"; sha256: string };
-  range: { firstPage: number; lastPage: number };
+  basis: { kind: "original"; format: "pdf" | "png" | "jpeg" | "xls" | "xlsx"; sha256: string } | { kind: "normalized"; format: "jpeg"; sha256: string };
+  range: { firstPage: number; lastPage: number } | WorkbookEvidenceRange;
   fields: Record<string, SourceFieldEvidence>;
 };
 
@@ -108,32 +108,38 @@ export function sourceFieldValue(payload: ExtractionPayload, field: string): str
 }
 
 /** Never carries a provider-selected identity or a prior AI Version's reference forward. */
-export function bindPdfSourceEvidence(payload: ExtractionPayload, source: {
+export function bindSourceEvidence(payload: ExtractionPayload, source: {
   sourceFileId: string; sha256: string; documentId: string; requestId: string;
-  format: string; firstPage: number; lastPage: number;
+  format: string; firstPage: number; lastPage: number; normalizedSha256?: string | null; workbookEvidence?: WorkbookEvidenceRange;
 }): ExtractionPayload {
   const clean = { ...payload };
   delete clean.sourceLocations;
   delete clean.sourceEvidence;
-  if (source.format !== "pdf") return clean;
+  if (source.format !== "pdf" && source.format !== "png" && source.format !== "jpeg" && source.format !== "xls" && source.format !== "xlsx") return clean;
   const fields: Record<string, SourceFieldEvidence> = {};
-  for (const location of validSourcePageLocations(payload.sourceLocations, payload, source.lastPage - source.firstPage + 1)) {
+  const locations = source.format === "xls" || source.format === "xlsx"
+    ? validSourceWorkbookLocations(payload.sourceLocations, payload, source.workbookEvidence)
+    : validSourcePageLocations(payload.sourceLocations, payload, source.format === "pdf" ? source.lastPage - source.firstPage + 1 : 1);
+  for (const location of locations) {
     // Direction is inferred against the Company's identity, rather than read from this box.
     if (location.fieldPath === "direction") continue;
     const originalValue = sourceFieldValue(payload, location.fieldPath);
     if (originalValue === null) continue;
     const field = fields[location.fieldPath] ??= { origin: "ai", originalValue, locations: [] };
-    field.locations.push({
+    if (location.kind === "page") field.locations.push({
       kind: "page", page: source.firstPage + location.page - 1,
       x: location.x, y: location.y, width: location.width, height: location.height,
     });
+    else field.locations.push({ kind: "workbook", sheetName: location.sheetName,
+      firstRow: location.firstRow, lastRow: location.lastRow, firstColumn: location.firstColumn, lastColumn: location.lastColumn });
   }
   if (!Object.keys(fields).length) return clean;
   return { ...clean, sourceEvidence: {
     schemaVersion: 1, sourceFileId: source.sourceFileId, sourceSha256: source.sha256,
     documentId: source.documentId, originExtractionRequestId: source.requestId,
-    basis: { kind: "original", format: "pdf", sha256: source.sha256 },
-    range: { firstPage: source.firstPage, lastPage: source.lastPage }, fields,
+    basis: source.normalizedSha256 ? { kind: "normalized", format: "jpeg", sha256: source.normalizedSha256 }
+      : { kind: "original", format: source.format, sha256: source.sha256 },
+    range: source.workbookEvidence ?? { firstPage: source.firstPage, lastPage: source.lastPage }, fields,
   } };
 }
 
