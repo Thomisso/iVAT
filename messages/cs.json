@@ -1089,7 +1089,7 @@
     "rejectedNote": "Zamítnuto. Doklad se do přiznání k DPH nezapočítá.",
     "notReviewableNote": "Doklad ještě není připravený ke kontrole.",
     "noExtraction": "Zatím nic nebylo vytěženo.",
-    "save": "Uložit opravy",
+    "save": "Uložit rozpracované",
     "approve": "Schválit verzi {version}",
     "reject": "Zamítnout",
     "returnToReview": "Vrátit ke kontrole",
@@ -1111,7 +1111,8 @@
       "claimedReportingPeriodHint": "Vyberte nezamčené pozdější období, které skončí včas pro podání do konce lhůty nároku.",
       "claimedReportingPeriodPlaceholder": "2026-12 nebo 2027-Q1",
       "save": "Uložit zdaňovací období",
-      "saving": "Ukládání…"
+      "saving": "Ukládání…",
+      "unavailable": "Období vykazování nelze v aktuálním stavu tohoto dokladu změnit. Neuložený výběr zůstává zachován, dokud ho nezahodíte."
     },
     "findings": {
       "rate_vat_amount_mismatch": "DPH neodpovídá základu a sazbě.",
@@ -1290,7 +1291,39 @@
       "unconfirmed": "Vyžaduje potvrzení",
       "confirm": "Potvrzuji splnění podmínek pro vybrané období.",
       "hint": "Datum importu je datum skutečného nahrání, nikoli důkaz dřívějšího doručení. Ruční doklad bez originálu vyžaduje potvrzení účetním."
-    }
+    },
+    "departure": {
+      "title": "Neuložené změny",
+      "explanation": "Před pokračováním uložte rozpracované údaje, zahoďte změny nebo zůstaňte na dokladu.",
+      "save": "Uložit rozpracované a pokračovat",
+      "discard": "Zahodit změny",
+      "stay": "Zůstat zde",
+      "notSaved": "Nepodařilo se uložit všechny změny. Zůstáváte na tomto dokladu. Zvolte zůstat a opravte zbývající změny.",
+      "reportingTitle": "Neuložené období vykazování",
+      "reportingExplanation": "Před schválením uložte změnu období vykazování, zahoďte změnu tohoto období, nebo zůstaňte. Vaše účetní opravy budou nadále zahrnuty do schválení.",
+      "reportingSave": "Uložit období vykazování a schválit",
+      "reportingDiscard": "Zahodit změnu období a schválit"
+    },
+    "workspace": {
+      "resize": "Změnit šířku předlohy a údajů",
+      "view": "Zobrazení revize",
+      "source": "Zobrazit předlohu",
+      "data": "Zobrazit údaje dokladu",
+      "sourcePanel": "Předloha",
+      "dataPanel": "Údaje dokladu",
+      "decisions": "Rozhodnutí o dokladu"
+    },
+    "rejectHint": "Doklad se vyřadí ze zpracování a výkazů DPH. Údaje a historie zůstanou zachované.",
+    "cancelDecision": "Zrušit",
+    "reportingContext": "Zařazení do výkazu",
+    "ownCompany": "Vlastní firma: {name}",
+    "otherDetails": "Další údaje dokladu",
+    "errorSummary": "Chyby k opravě",
+    "otherActions": "AI a další akce",
+    "requiredField": "Vyplňte toto pole.",
+    "fullAmounts": "Plné částky",
+    "confirmed": "Potvrzeno",
+    "selectionConfirmation": "Potvrzení výběru"
   },
   "duplicateWarning": {
     "document_identity": "Možný duplikát: DIČ protistrany, číslo dokladu a směr se shodují se starším dokladem.",

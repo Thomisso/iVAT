@@ -107,7 +107,7 @@ test("an administrator can turn an uploaded Source File into a traceable, export
   const documentNumber = `FV-E2E-${digits}`;
   await page.getByLabel("Document number", { exact: true }).fill(documentNumber);
   await page.getByLabel("Direction", { exact: true }).selectOption("incoming");
-  await page.getByRole("button", { name: "Save corrections" }).click();
+  await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByRole("button", { name: "Approve version 2" })).toBeEnabled();
   const documentId = new URL(documentUrl).pathname.split("/").at(-1);
   if (!documentId) throw new Error("Document id is missing");
@@ -251,7 +251,7 @@ test("an administrator can turn an uploaded Source File into a traceable, export
 
   await page.goto(documentUrl);
   await expect(page.getByText(/Reporting period 2026-10 is locked/)).toBeVisible();
-  await expect(page.getByRole("button", { name: "Save corrections" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Save draft" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Reject" })).toHaveCount(0);
 
   await page.goto(`${companyUrl}/vat-reports?period=2026-10`);
