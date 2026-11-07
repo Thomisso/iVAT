@@ -1,10 +1,11 @@
+import { createConfirmedManualDocument, setOctoberImportFixture } from "./support/claim-eligibility";
 import { uploadSourceFile } from "@/application/source-files";
 import { listDocuments } from "@/application/documents";
 import { fixtureFile } from "./support/files";
 import { testWorker } from "./support/worker";
 import { expect, it } from "vitest";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
-import { createManualDocument, saveAndApproveDocument, listExtractionVersions, returnDocumentToReview, correctDocument, approveDocument, getDocument } from "@/application/documents";
+import { saveAndApproveDocument, listExtractionVersions, returnDocumentToReview, correctDocument, approveDocument, getDocument } from "@/application/documents";
 import { generateVatReport, getVatReport, finalizeVatReport } from "@/application/vat-reports";
 import { getDocumentReview } from "@/application/document-review";
 import { fakeVatPayerRegistry } from "@/vat-registry/fake";
@@ -21,7 +22,7 @@ const registry = fakeVatPayerRegistry();
 it("a Company User saves and approves selected supplies while retaining full source history and the saved B.2 report", async () => {
   const company = await administratorWithCompany();
   const user = await companyMember(company);
-  const created = await createManualDocument(user.client, { companyId: company.companyId, payload: full }, undefined, registry);
+  const created = await createConfirmedManualDocument(user.client, { companyId: company.companyId, payload: full }, undefined, registry);
   if (!created.ok) throw new Error(created.error);
   const input = { companyId: company.companyId, documentId: created.value.id };
   expect(await saveAndApproveDocument(user.client, { ...input, basedOnVersion: 1, requestId: crypto.randomUUID(), payload: { ...full, partialClaim } }, undefined, registry))
@@ -52,7 +53,7 @@ it.each([
   { ...partialClaim, confirmed: false },
 ])("the database refuses an invalid selected claim even with forged empty findings (%j)", async (claim) => {
   const company = await administratorWithCompany();
-  const created = await createManualDocument(company.client, { companyId: company.companyId, payload: full }, undefined, registry);
+  const created = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload: full }, undefined, registry);
   if (!created.ok) throw new Error(created.error);
   const payload = { ...full, partialClaim: claim };
   const changed = await company.client.rpc("correct_document", { target_document_id: created.value.id, based_on_version: 1, payload, findings: [] });
@@ -66,7 +67,7 @@ it.each([
 
 it("preserves a prior selection after changed originals until human reconfirmation, and keeps the old report", async () => {
   const company = await administratorWithCompany();
-  const created = await createManualDocument(company.client, { companyId: company.companyId, payload: { ...full, partialClaim } }, undefined, registry);
+  const created = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload: { ...full, partialClaim } }, undefined, registry);
   if (!created.ok) throw new Error(created.error);
   const input = { companyId: company.companyId, documentId: created.value.id };
   expect(await approveDocument(company.client, { ...input, version: 1 })).toEqual({ ok: true, value: null });
@@ -102,6 +103,7 @@ it("AI cannot author a Partial Claim even when its returned payload contains hum
   expect((await assignAiConfigurationFixture(company.client, worker.jobs, { companyId: company.companyId, provider: worker.ai })).ok).toBe(true);
   const uploaded = await uploadSourceFile(company.client, worker.jobs, { companyId: company.companyId, fileName: "receipt.png", bytes: fixtureFile("receipt.png") });
   if (!uploaded.ok) throw new Error(uploaded.error);
+  await setOctoberImportFixture(uploaded.value.id);
   expect(await worker.runJobs()).toEqual([]);
   const [document] = await listDocuments(company.client, company.companyId, uploaded.value.id);
   const [version] = await listExtractionVersions(company.client, company.companyId, document.id);

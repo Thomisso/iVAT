@@ -1,3 +1,4 @@
+import { setOctoberImportFixture } from "./support/claim-eligibility";
 import { expect, it } from "vitest";
 import { listAuditEvents } from "@/application/audit";
 import {
@@ -14,6 +15,7 @@ import {
   reprocessDocument,
   splitDocument,
   updateDocumentReporting,
+  returnDocumentToReview,
 } from "@/application/documents";
 import { getCompany, updateCompanyIdentity } from "@/application/companies";
 import { uploadSourceFile } from "@/application/source-files";
@@ -52,6 +54,7 @@ async function lockedCompanyWithDocuments({
     bytes: fixtureFile("two-invoices.pdf"),
   });
   if (!upload.ok) throw new Error(upload.error);
+  await setOctoberImportFixture(upload.value.id);
   expect(await worker.runJobs()).toEqual([]);
   const documents = await listDocuments(company.client, company.companyId, upload.value.id);
   for (const document of documents) {
@@ -98,6 +101,7 @@ it("preserves a newly uploaded Document for review when Extraction discovers a l
     bytes: fixtureFile("receipt.png"),
   });
   if (!upload.ok) throw new Error(upload.error);
+  await setOctoberImportFixture(upload.value.id);
 
   expect(await worker.runJobs()).toEqual([]);
   const [document] = await listDocuments(company.client, company.companyId, upload.value.id);
@@ -329,6 +333,7 @@ it("keeps rejected Documents separate from warnings in the confirmation summary"
     bytes: fixtureFile("two-invoices.pdf"),
   });
   if (!upload.ok) throw new Error(upload.error);
+  await setOctoberImportFixture(upload.value.id);
   expect(await worker.runJobs()).toEqual([]);
   const documents = await listDocuments(company.client, company.companyId, upload.value.id);
   expect(await approveDocument(company.client, {
@@ -519,6 +524,7 @@ it("refuses moving a Document out of a locked Reporting Period", async () => {
 
 it("refuses moving a Document into a locked Reporting Period", async () => {
   const company = await lockedCompanyWithDocuments({ period: "2026-11" });
+  expect(await returnDocumentToReview(company.client, { companyId: company.companyId, documentId: company.documents[0].id })).toEqual({ ok: true, value: null });
   expect(await listDeferredClaimPeriods(company.client, company.companyId, company.documents[0].id)).toEqual(["2026-12"]);
   expect(
     await updateDocumentReporting(company.client, {

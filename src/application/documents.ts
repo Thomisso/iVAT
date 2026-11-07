@@ -21,6 +21,7 @@ import type { ExchangeRateProvider } from "./exchange-rates";
 import type { VatPayerRegistry } from "./vat-registry";
 import { prepareExtractionVersion, prepareManualExtractionPayload } from "./extraction-preparation";
 import { prepareDocumentReporting, type DocumentReporting } from "./document-reporting";
+import { ordinaryDomesticClaim } from "./claim-eligibility";
 import { randomUUID } from "node:crypto";
 import type { SourceRange } from "./ai-provider";
 
@@ -242,6 +243,7 @@ export async function listCompanyDocuments(
         id: d.id, status: d.status, extractionVersionId: d.extraction_version_id,
         payload: d.reporting_payload as unknown as ExtractionPayload | null,
         claimedReportingPeriod: d.claimed_reporting_period,
+        importDate: d.import_date, sourceFileId: d.source_file_id,
       }, reportingYears, filters.reportingPeriod === NO_REPORTING_PERIOD ? undefined : filters.reportingPeriod,
       (d.reporting_findings ?? []) as ValidationFinding[]);
       return {
@@ -521,10 +523,11 @@ export async function correctDocument(
  * counts towards VAT Reports (ADR-0003). `version` is the Extraction Version the
  * User reviewed; it is refused if a newer one has been recorded.
  */
+export type ClaimEligibilityError = "claim_document_type_required" | "claim_eligibility_required" | "invalid_earliest_claim_period" | "claimed_period_before_earliest" | "deferred_claim_not_supported";
 export async function approveDocument(
   client: AppClient,
   input: { companyId: string; documentId: string; version: number },
-): Promise<Result<null, "not_in_review" | "stale_version" | "direction_required" | "vat_regime_required" | "document_incomplete" | "document_validation_failed" | "counterparty_vat_id_required" | "currency_conversion_required" | "rate_breakdown_totals_mismatch" | "invalid_credit_note_amount" | "period_locked" | "forbidden">> {
+): Promise<Result<null, ClaimEligibilityError | "not_in_review" | "stale_version" | "direction_required" | "vat_regime_required" | "document_incomplete" | "document_validation_failed" | "counterparty_vat_id_required" | "currency_conversion_required" | "rate_breakdown_totals_mismatch" | "invalid_credit_note_amount" | "period_locked" | "forbidden">> {
   const document = await findDocumentId(client, input.companyId, input.documentId);
   if (!document) return { ok: false, error: "forbidden" };
   const { error } = await client.rpc("approve_document", {
@@ -532,6 +535,7 @@ export async function approveDocument(
     reviewed_version: input.version,
   });
   if (error) return refusal(error, [
+    "claim_document_type_required", "claim_eligibility_required", "invalid_earliest_claim_period", "claimed_period_before_earliest", "deferred_claim_not_supported",
     "not_in_review",
     "stale_version",
     "direction_required",
@@ -547,7 +551,7 @@ export async function approveDocument(
   return { ok: true, value: null };
 }
 
-export type SaveAndApproveDocumentError = CorrectDocumentError | "direction_required" | "vat_regime_required" | "document_incomplete" | "document_validation_failed" | "counterparty_vat_id_required" | "currency_conversion_required" | "rate_breakdown_totals_mismatch" | "invalid_credit_note_amount" | "review_context_changed";
+export type SaveAndApproveDocumentError = CorrectDocumentError | ClaimEligibilityError | "direction_required" | "vat_regime_required" | "document_incomplete" | "document_validation_failed" | "counterparty_vat_id_required" | "currency_conversion_required" | "rate_breakdown_totals_mismatch" | "invalid_credit_note_amount" | "review_context_changed";
 export type ReviewConfirmation = { id: string; findings: ValidationFinding[] };
 export type ReviewConflict = { version: number; status: DocumentStatus; payload: ExtractionPayload };
 export type SaveAndApproveDocumentResult = { ok: true; value: { version: number } }
@@ -618,7 +622,7 @@ export async function saveAndApproveDocument(
     saved = await client.rpc("save_and_approve_document", { ...fields, acknowledgement: pending.confirmationId });
   }
   const { data, error } = saved;
-  if (error) return documentReviewRefusal(client, input, refusal(error, ["not_in_review", "stale_version", "period_locked", "tax_point_date_required", "invalid_date", "direction_required", "vat_regime_required", "document_incomplete", "document_validation_failed", "counterparty_vat_id_required", "currency_conversion_required", "rate_breakdown_totals_mismatch", "invalid_credit_note_amount", "review_context_changed"]), findings);
+  if (error) return documentReviewRefusal(client, input, refusal(error, ["claim_document_type_required", "claim_eligibility_required", "invalid_earliest_claim_period", "claimed_period_before_earliest", "deferred_claim_not_supported", "not_in_review", "stale_version", "period_locked", "tax_point_date_required", "invalid_date", "direction_required", "vat_regime_required", "document_incomplete", "document_validation_failed", "counterparty_vat_id_required", "currency_conversion_required", "rate_breakdown_totals_mismatch", "invalid_credit_note_amount", "review_context_changed"]), findings);
   const result = data as { version: number } | { confirmationId: string; findings: ValidationFinding[] };
   return "confirmationId" in result
     ? { ok: false, error: "review_warnings_changed", confirmation: { id: result.confirmationId, findings: result.findings } }
@@ -677,7 +681,7 @@ export async function returnDocumentToReview(
   return { ok: true, value: null };
 }
 
-export type UpdateDocumentReportingError =
+export type UpdateDocumentReportingError = ClaimEligibilityError | "not_in_review"
   | "invalid_tax_point_date"
   | "invalid_reporting_period"
   | "claimed_period_not_later"
@@ -714,6 +718,7 @@ export async function updateDocumentReporting(
       "invalid_reporting_period",
       "claimed_period_not_later",
       "incoming_required",
+      "deferred_claim_not_supported", "not_in_review", "claim_eligibility_required", "invalid_earliest_claim_period", "claimed_period_before_earliest",
       "period_locked",
     ]);
   }
@@ -836,7 +841,7 @@ export async function listDeferredClaimPeriods(client: AppClient, companyId: str
   const versions = await listExtractionVersions(client, companyId, documentId);
   const payload = versions.at(-1)?.payload;
   const date = payload?.taxPointDate;
-  if (payload?.direction !== "incoming" || !date || !/^20\d{2}-\d{2}-\d{2}$/.test(date)) return [];
+  if (!payload || !ordinaryDomesticClaim(payload) || document.status !== "needs_review" || !date || !/^20\d{2}-\d{2}-\d{2}$/.test(date)) return [];
   const parsed = new Date(`${date}T00:00:00Z`);
   if (Number.isNaN(parsed.valueOf()) || parsed.toISOString().slice(0, 10) !== date) return [];
   const years = await listCompanyReportingYears(client, companyId);
@@ -845,7 +850,8 @@ export async function listDeferredClaimPeriods(client: AppClient, companyId: str
   const deadline = `${Number(date.slice(0, 4)) + 3}${date.slice(4)}`;
   const candidates = reportingPeriodsOf(years).filter((period) => {
     const start = reportingPeriodStart(period)!;
-    return start > reportingPeriodStart(source)! && start <= deadline;
+    const earliest = payload.claimEligibility?.confirmed ? reportingPeriodStart(payload.claimEligibility.period) : null;
+    return start > reportingPeriodStart(source)! && start <= deadline && (!earliest || start >= earliest);
   });
   if (!candidates.length) return [];
   const { data, error } = await client.from("period_lock").select("period").eq("company_id", companyId).in("period", candidates);

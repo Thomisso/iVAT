@@ -1,5 +1,6 @@
 import { loadStoredDocumentFindings, prepareDocumentReporting, type DocumentReporting } from "./document-reporting";
 import type { SourceFileStatus } from "./source-files";
+import type { ExtractionPayload } from "./extraction-payload";
 import type { AppClient, Result } from "./client";
 import { isUuid } from "./client";
 import {
@@ -79,6 +80,8 @@ export type ReportingPeriodReadinessSource = {
   status: ReportDocument["status"];
   extractionVersionId: string | null;
   claimedReportingPeriod: string | null;
+  claimEligibility?: ExtractionPayload["claimEligibility"] | null;
+  importDate?: string | null;
 };
 
 export type ReportingPeriodReadinessError =
@@ -156,6 +159,8 @@ function readinessSource(
     status: document.status,
     extractionVersionId: document.extractionVersionId,
     claimedReportingPeriod: document.claimedReportingPeriod ?? null,
+    claimEligibility: document.payload?.claimEligibility ?? null,
+    importDate: document.importDate ?? null,
   }));
 }
 
@@ -275,6 +280,7 @@ async function relevantDocuments(
       extractionVersionId: row.extraction_version_id,
       payload: row.payload as unknown as ReportDocument["payload"],
       claimedReportingPeriod: row.claimed_reporting_period,
+      importDate: overviews.find(document => document.id === row.id)?.importDate ?? null,
     })));
   }
   return {
@@ -338,6 +344,12 @@ export async function getReportingPeriodReadiness(
   };
   const blockers: ReadinessFinding[] = [];
   const warnings: ReadinessFinding[] = [];
+  const claimIssues = await client.rpc("reporting_period_claim_issues", { target_company_id: input.companyId, target_period: input.period });
+  if (claimIssues.error) throw claimIssues.error;
+  for (const issue of claimIssues.data as unknown as { documentId: string; code: string }[]) {
+    if (!documents.some(document => document.id === issue.documentId && document.findings.some(finding => finding.code === issue.code)))
+      blockers.push({ code: "error_finding", documentId: issue.documentId, findingCode: issue.code });
+  }
   for (const document of documents) {
     if (
       document.status === "uploaded"
