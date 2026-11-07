@@ -1,15 +1,16 @@
 import { createConfirmedManualDocument } from "./support/claim-eligibility";
-import { directoryIdentityDuringApproval, attemptHistoricalCounterpartyDelete } from "./support/counterparty-link-race";
+import { directoryIdentityDuringApproval, orderedDirectoryLinkRace } from "./support/counterparty-link-race";
 import { expect, it } from "vitest";
 import { SAMPLE_EXTRACTION } from "@/ai/fake";
-import { createCounterparty, updateCounterparty, listCounterpartyDocuments, listCounterparties } from "@/application/counterparties";
+import { archiveCounterparty, createCounterparty, deleteCounterparty, getCounterparty, restoreCounterparty, updateCounterparty, listCounterpartyDocuments, listCounterparties } from "@/application/counterparties";
 import { correctDocument, listExtractionVersions, saveAndApproveDocument } from "@/application/documents";
 import { getDocumentReview } from "@/application/document-review";
 import { fakeVatPayerRegistry } from "@/vat-registry/fake";
 import { createCompany } from "@/application/companies";
 import { generateVatReport, getVatReport, finalizeVatReport } from "@/application/vat-reports";
+import { promotedSuperAdministrator } from "./support/platform";
 import { listAuditEvents } from "@/application/audit";
-import { administratorWithCompany, companyDetails } from "./support/fixtures";
+import { administratorWithCompany, companyDetails, companyMember } from "./support/fixtures";
 
 it("automatically links an unambiguous normalized identity and approves without duplicating the Counterparty", async () => {
   const company = await administratorWithCompany();
@@ -148,6 +149,15 @@ it("keeps stored reports, approved Party fields and historical links unchanged a
   expect(await finalizeVatReport(company.client, { ...period, confirmed: true })).toEqual({ ok: true, value: null });
   const versions = await listExtractionVersions(company.client, company.companyId, created.value.id);
   expect((await updateCounterparty(company.client, { companyId: company.companyId, id: entry.value.id, name: "After finalization", supplier: true, customer: false })).ok).toBe(true);
+  for (const command of [archiveCounterparty, restoreCounterparty]) {
+    expect(await command(company.client, { companyId: company.companyId, id: entry.value.id })).toEqual({ ok: true, value: null });
+    expect(await listExtractionVersions(company.client, company.companyId, created.value.id)).toEqual(versions);
+    const unchangedReport = await getVatReport(company.client, company.companyId, period.period);
+    expect(unchangedReport?.result).toEqual(stored?.result);
+    expect(unchangedReport?.documents).toEqual(stored?.documents);
+    expect((await getDocumentReview(company.client, input))?.document.status).toBe("approved");
+    expect(await deleteCounterparty(company.client, { companyId: company.companyId, id: entry.value.id })).toEqual({ ok: false, error: "counterparty_in_use" });
+  }
   expect(await listExtractionVersions(company.client, company.companyId, created.value.id)).toEqual(versions);
   const report = await getVatReport(company.client, company.companyId, period.period);
   expect(report?.result).toEqual(stored?.result);
@@ -211,15 +221,25 @@ it("serializes a directory identifier update behind link approval without deadlo
   expect(current?.shownFindings).toContainEqual(expect.objectContaining({ field: "supplier.ico", code: "counterparty_directory_difference", params: { documentValue: "27082440", directoryValue: "12345679" } }));
 });
 
-it("protects a historical-only link from direct authenticated deletion and Version-reference rewriting", async () => {
+it.each(["current", "historical"] as const)("protects a %s link from public deletion and direct authenticated bypass", async link => {
   const company = await administratorWithCompany();
   const entry = await createCounterparty(company.client, { companyId: company.companyId, name: "Historical only", supplier: true, customer: false });
   if (!entry.ok) throw new Error(entry.error);
   const created = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload: { ...SAMPLE_EXTRACTION, counterpartyLink: { id: entry.value.id } } }, undefined, fakeVatPayerRegistry());
   if (!created.ok) throw new Error(created.error);
   const target = { companyId: company.companyId, documentId: created.value.id };
-  expect((await correctDocument(company.client, { ...target, basedOnVersion: 1, payload: SAMPLE_EXTRACTION }, undefined, fakeVatPayerRegistry())).ok).toBe(true);
-  expect(await attemptHistoricalCounterpartyDelete(entry.value.id, company.userId)).toEqual({ code: "23503" });
+  if (link === "historical") expect((await correctDocument(company.client, { ...target, basedOnVersion: 1, payload: SAMPLE_EXTRACTION }, undefined, fakeVatPayerRegistry())).ok).toBe(true);
+  const user = await companyMember(company);
+  const administrator = await companyMember(company, "administrator");
+  const superAdmin = await promotedSuperAdministrator("Referenced lifecycle operator");
+  for (const actor of [user, administrator, company, superAdmin]) {
+    expect(await deleteCounterparty(actor.client, { companyId: company.companyId, id: entry.value.id })).toEqual({ ok: false, error: "counterparty_in_use" });
+  }
+  const direct = await company.client.rpc("delete_counterparty", { target_company_id: company.companyId, target_counterparty_id: entry.value.id });
+  expect(direct.error).toMatchObject({ code: "P0001", hint: "counterparty_in_use" });
+  const bypass = await company.client.from("counterparty").delete().eq("id", entry.value.id);
+  expect(bypass.error?.code).toBe("42501");
+  expect((await getCounterparty(company.client, company.companyId, entry.value.id))?.name).toBe("Historical only");
   const rewrite = await company.client.from("extraction_version").update({ counterparty_id: null }).eq("document_id", created.value.id);
   expect(rewrite.error?.code).toBe("42501");
   expect((await listCounterpartyDocuments(company.client, company.companyId, entry.value.id)).entries).toEqual([{ documentId: created.value.id, version: 1, documentNumber: "FV-2026-0001" }]);
@@ -239,4 +259,59 @@ it("recomputes directory differences in a direct authenticated approval even whe
   expect(direct.data).toMatchObject({ confirmationId: expect.any(String), findings: expect.arrayContaining([expect.objectContaining({ code: "counterparty_directory_difference", params: { documentValue: SAMPLE_EXTRACTION.supplier.name, directoryValue: "Authoritative directory" } })]) });
   expect(await listExtractionVersions(company.client, company.companyId, created.value.id)).toHaveLength(1);
   expect((await getDocumentReview(company.client, { companyId: company.companyId, documentId: created.value.id }))?.document.status).toBe("needs_review");
+});
+
+
+it("preserves archived recorded links but requires explicit restore before a new Document can link", async () => {
+  const company = await administratorWithCompany();
+  const entry = await createCounterparty(company.client, { companyId: company.companyId, name: "Archived linked supplier", supplier: true, customer: false });
+  if (!entry.ok) throw new Error(entry.error);
+  const linked = { ...SAMPLE_EXTRACTION, counterpartyLink: { id: entry.value.id } };
+  const created = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload: linked }, undefined, fakeVatPayerRegistry());
+  if (!created.ok) throw new Error(created.error);
+  const before = await listExtractionVersions(company.client, company.companyId, created.value.id);
+  const target = { companyId: company.companyId, id: entry.value.id };
+  expect(await archiveCounterparty(company.client, target)).toEqual({ ok: true, value: null });
+  expect(await listExtractionVersions(company.client, company.companyId, created.value.id)).toEqual(before);
+  expect((await getDocumentReview(company.client, { companyId: company.companyId, documentId: created.value.id }))?.current?.payload)
+    .toMatchObject({ supplier: SAMPLE_EXTRACTION.supplier, counterpartyLink: { id: entry.value.id, recorded: { name: "Archived linked supplier" } } });
+  const other = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload: SAMPLE_EXTRACTION }, undefined, fakeVatPayerRegistry());
+  if (!other.ok) throw new Error(other.error);
+  const correction = { companyId: company.companyId, documentId: other.value.id, basedOnVersion: 1, payload: linked };
+  expect(await correctDocument(company.client, correction, undefined, fakeVatPayerRegistry())).toEqual({ ok: false, error: "forbidden" });
+  const direct = await company.client.rpc("save_document_review", { target_document_id: other.value.id, based_on_version: 1, request_id: crypto.randomUUID(), payload: linked, submitted_payload: linked, findings: [] });
+  expect(direct.error?.code).toBe("42501");
+  expect(await listExtractionVersions(company.client, company.companyId, other.value.id)).toHaveLength(1);
+  // Existing recorded linkage remains valid when the same Document saves a correction.
+  expect(await correctDocument(company.client, { ...correction, documentId: created.value.id, payload: { ...linked, documentNumber: "ARCHIVED-EDIT" } }, undefined, fakeVatPayerRegistry()))
+    .toEqual({ ok: true, value: { version: 2 } });
+  expect(await restoreCounterparty(company.client, target)).toEqual({ ok: true, value: null });
+  expect(await correctDocument(company.client, correction, undefined, fakeVatPayerRegistry())).toEqual({ ok: true, value: { version: 2 } });
+  expect((await listExtractionVersions(company.client, company.companyId, created.value.id))[0]).toEqual(before[0]);
+});
+
+it.each([
+  ["delete", "link"], ["delete", "lifecycle"], ["archive", "link"], ["archive", "lifecycle"],
+] as const)("serializes %s against a concurrent link when %s wins", async (operation, winner) => {
+  const company = await administratorWithCompany();
+  const entry = await createCounterparty(company.client, { companyId: company.companyId, name: "Race supplier", supplier: true, customer: false });
+  if (!entry.ok) throw new Error(entry.error);
+  const created = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload: SAMPLE_EXTRACTION }, undefined, fakeVatPayerRegistry());
+  if (!created.ok) throw new Error(created.error);
+  const target = { companyId: company.companyId, documentId: created.value.id };
+  const lifecycle = { query: `${operation}_counterparty`, run: () => (operation === "delete" ? deleteCounterparty : archiveCounterparty)(company.client, { companyId: company.companyId, id: entry.value.id }) };
+  const link = { query: "save_document_review", run: () => correctDocument(company.client, { ...target, basedOnVersion: 1, requestId: crypto.randomUUID(), payload: { ...SAMPLE_EXTRACTION, counterpartyLink: { id: entry.value.id } } }, undefined, fakeVatPayerRegistry()) };
+  const outcomes = await orderedDirectoryLinkRace(company.companyId, winner === "link" ? link : lifecycle, winner === "link" ? lifecycle : link);
+  const success = { status: "fulfilled", value: { ok: true, value: null } };
+  const linked = { status: "fulfilled", value: { ok: true, value: { version: 2 } } };
+  expect(outcomes).toEqual(winner === "link"
+    ? [linked, operation === "delete" ? { status: "fulfilled", value: { ok: false, error: "counterparty_in_use" } } : success]
+    : [success, { status: "fulfilled", value: { ok: false, error: "forbidden" } }]);
+  const versions = await listExtractionVersions(company.client, company.companyId, created.value.id);
+  expect(versions).toHaveLength(winner === "link" ? 2 : 1);
+  if (winner === "link") expect(versions[1].payload.counterpartyLink).toMatchObject({ id: entry.value.id, recorded: { name: "Race supplier" } });
+  else expect(versions[0].payload).not.toHaveProperty("counterpartyLink");
+  const remaining = await getCounterparty(company.client, company.companyId, entry.value.id);
+  if (operation === "delete" && winner === "lifecycle") expect(remaining).toBeNull();
+  else expect(remaining).toMatchObject({ archivedAt: operation === "archive" ? expect.any(String) : null });
 });
