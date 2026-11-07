@@ -639,3 +639,32 @@ export async function withBrowserClaimDate<T>(date: string, run: Parameters<type
   const environment = await browserFixtureEnvironment();
   return withClaimDate(environment.DATABASE_URL, date, run);
 }
+
+/** An actual Source File and worker Extraction for source-format browser review. */
+export async function addBrowserSourceFormatFixture(input: { companyId: string; cookies: { name: string; value: string }[] }) {
+  const { asSystemClient } = await import("@/application/client");
+  const { runJob } = await import("@/application/processing");
+  const { fakeAiProvider, SAMPLE_EXTRACTION } = await import("@/ai/fake");
+  const { fakeVatPayerRegistry } = await import("@/vat-registry/fake");
+  const { fakeExchangeRates } = await import("@/cnb/fake");
+  const sharp = (await import("sharp")).default;
+  await assignBrowserAiConfigurationFixture(input.companyId);
+  const client = await browserUserClient(input.cookies);
+  const queue: import("@/application/processing").ProcessingJob[] = [];
+  const jobs = { async send(job: import("@/application/processing").ProcessingJob) { queue.push(job); } };
+  const ai = fakeAiProvider({
+    split: () => [{ firstPage: 1, lastPage: 1 }],
+    extract: () => ({ ...SAMPLE_EXTRACTION, documentNumber: "IMAGE-240", sourceLocations: [
+      { fieldPath: "documentNumber", kind: "page", page: 1, x: 0.1, y: 0.1, width: 0.3, height: 0.05 },
+      { fieldPath: "rateBreakdown.0.vatAmount", kind: "page", page: 1, x: 0.7, y: 0.6, width: 0.2, height: 0.05 },
+    ] }),
+  });
+  const worker = { system: asSystemClient(await browserFixtureClient()), providers: { get: () => ai }, jobs,
+    vatRegistry: fakeVatPayerRegistry(), exchangeRates: fakeExchangeRates() };
+  const bytes = new Uint8Array(await sharp(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800"><rect width="600" height="800" fill="white"/><text x="60" y="110" font-size="20">IMAGE-240</text><text x="420" y="500" font-size="20">210.00</text></svg>')).png().toBuffer());
+  const uploaded = await uploadSourceFile(client, jobs, { companyId: input.companyId, fileName: "source-image.png", bytes });
+  if (!uploaded.ok) throw new Error(uploaded.error);
+  while (queue.length) await runJob(worker, queue.shift()!, { final: true });
+  const [document] = await listDocuments(client, input.companyId, uploaded.value.id);
+  return { documentId: document.id, sourceFileId: uploaded.value.id };
+}
