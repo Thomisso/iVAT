@@ -23,18 +23,24 @@ export function ReviewWorkspace({ children }: { children: ReactNode }) {
   const [view, setView] = useState("data");
   const [ratio, setRatio] = useState(50);
   const frame = useRef<HTMLElement>(null);
+  const divider = useRef<HTMLDivElement>(null);
   const [bounds, setBounds] = useState({ min: 30, max: 70 });
   const showData = useCallback(() => setView("data"), []);
   useEffect(() => {
-    if (!frame.current) return;
-    const observer = new ResizeObserver(([entry]) => {
-      const width = entry.contentRect.width - 12;
+    const element = frame.current;
+    const splitter = divider.current;
+    if (!element || !splitter) return;
+    const observer = new ResizeObserver(() => {
+      const style = getComputedStyle(element);
+      const width = element.clientWidth - Number.parseFloat(style.paddingLeft) - Number.parseFloat(style.paddingRight) - splitter.getBoundingClientRect().width;
+      if (width <= 0) return;
       const min = Math.min(50, 360 / width * 100);
       const max = Math.max(50, 100 - 420 / width * 100);
       setBounds({ min, max });
       setRatio(current => Math.min(max, Math.max(min, current)));
     });
-    observer.observe(frame.current);
+    observer.observe(element);
+    observer.observe(splitter);
     return () => observer.disconnect();
   }, []);
   useEffect(() => {
@@ -44,19 +50,23 @@ export function ReviewWorkspace({ children }: { children: ReactNode }) {
   }, [showData]);
   const adjust = (value: number) => setRatio(Math.min(bounds.max, Math.max(bounds.min, value)));
   return <WorkspaceContext value={{ target, showData, pending }}>
-    <main ref={frame} className="app-page app-page-wide review review-workspace" data-mobile-view={view} style={{ "--review-columns": `minmax(0, ${ratio}fr) 12px minmax(0, ${100 - ratio}fr)` } as CSSProperties}>
+    <main ref={frame} className="app-page app-page-wide review review-workspace" data-mobile-view={view} style={{ "--review-columns": `minmax(0, ${ratio}fr) var(--space-3) minmax(0, ${100 - ratio}fr)` } as CSSProperties}>
       {children}
       <div className="review-mobile-tabs" role="group" aria-label={t("view")}>
         <Button aria-pressed={view === "source"} onClick={() => setView("source")}>{t("source")}</Button>
         <Button aria-pressed={view === "data"} onClick={showData}>{t("data")}</Button>
       </div>
-      <div className="review-splitter" role="separator" tabIndex={0} aria-label={t("resize")} aria-orientation="vertical" aria-valuemin={Math.round(bounds.min)} aria-valuemax={Math.round(bounds.max)} aria-valuenow={Math.round(ratio)}
+      <div ref={divider} className="review-splitter" role="separator" tabIndex={0} aria-label={t("resize")} aria-orientation="vertical" aria-valuemin={Math.round(bounds.min)} aria-valuemax={Math.round(bounds.max)} aria-valuenow={Math.round(ratio)}
         onPointerDown={event => { event.preventDefault(); event.currentTarget.focus(); event.currentTarget.setPointerCapture(event.pointerId); }}
         onPointerMove={event => {
           if (!event.currentTarget.hasPointerCapture(event.pointerId) || !frame.current) return;
           const box = frame.current.getBoundingClientRect();
-          const padding = Number.parseFloat(getComputedStyle(frame.current).paddingLeft);
-          adjust((event.clientX - box.left - padding) / (box.width - padding * 2 - 12) * 100);
+          const style = getComputedStyle(frame.current);
+          const left = Number.parseFloat(style.paddingLeft);
+          const right = Number.parseFloat(style.paddingRight);
+          const dividerWidth = event.currentTarget.getBoundingClientRect().width;
+          const width = frame.current.clientWidth - left - right - dividerWidth;
+          if (width > 0) adjust((event.clientX - box.left - frame.current.clientLeft - left - dividerWidth / 2) / width * 100);
         }}
         onPointerUp={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}
         onKeyDown={event => {
