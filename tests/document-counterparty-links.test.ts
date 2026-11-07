@@ -195,3 +195,19 @@ it("protects a historical-only link from direct authenticated deletion and Versi
   expect(rewrite.error?.code).toBe("42501");
   expect((await listCounterpartyDocuments(company.client, company.companyId, entry.value.id)).entries).toEqual([{ documentId: created.value.id, version: 1, documentNumber: "FV-2026-0001" }]);
 });
+
+it("recomputes directory differences in a direct authenticated approval even when recorded details and findings are forged", async () => {
+  const company = await administratorWithCompany();
+  const entry = await createCounterparty(company.client, { companyId: company.companyId, name: "Authoritative directory", supplier: true, customer: false });
+  if (!entry.ok) throw new Error(entry.error);
+  const created = await createManualDocument(company.client, { companyId: company.companyId, payload: SAMPLE_EXTRACTION }, undefined, fakeVatPayerRegistry());
+  if (!created.ok) throw new Error(created.error);
+  const context = await company.client.rpc("document_review_context", { target_document_id: created.value.id, based_on_version: 1 });
+  expect(context.error).toBeNull();
+  const payload = { ...SAMPLE_EXTRACTION, counterpartyLink: { id: entry.value.id, recorded: SAMPLE_EXTRACTION.supplier } };
+  const direct = await company.client.rpc("save_and_approve_document", { target_document_id: created.value.id, based_on_version: 1, request_id: crypto.randomUUID(), payload, submitted_payload: payload, findings: [], expected_context: context.data });
+  expect(direct.error).toBeNull();
+  expect(direct.data).toMatchObject({ confirmationId: expect.any(String), findings: expect.arrayContaining([expect.objectContaining({ code: "counterparty_directory_difference", params: { documentValue: SAMPLE_EXTRACTION.supplier.name, directoryValue: "Authoritative directory" } })]) });
+  expect(await listExtractionVersions(company.client, company.companyId, created.value.id)).toHaveLength(1);
+  expect((await getDocumentReview(company.client, { companyId: company.companyId, documentId: created.value.id }))?.document.status).toBe("needs_review");
+});
