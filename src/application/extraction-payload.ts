@@ -1,3 +1,5 @@
+import { remapSourceField, type SourceEvidence, type SourcePageLocation } from "./source-locations";
+
 // The structured data an Extraction reads out of one Document: the payload of
 // an Extraction Version. Documented in docs/extraction-payload.md; change both
 // together, and bump `schemaVersion` when a change is not backwards compatible.
@@ -89,6 +91,11 @@ export type ExtractionPayload = {
    * and only for fields the provider reports on.
    */
   confidence?: Record<string, number>;
+  /** Unbound references returned by a provider; only server-bound evidence is usable in review. */
+  sourceLocations?: SourcePageLocation[];
+  sourceEvidence?: SourceEvidence;
+  /** Submitted base row identities; validated and removed at immutable Version insertion. */
+  sourceRateRows?: (number | null)[];
 };
 
 /** Nothing is inferred for a new manual Document, including its DUZP and Direction. */
@@ -152,22 +159,32 @@ export function isZeroRateBreakdownLine(line: Pick<DraftRateBreakdownLine, "netA
 }
 
 /** Prepares a new payload without changing the source or misattributing provider confidence. */
-export function omitZeroRateBreakdownRows(payload: ExtractionPayload): ExtractionPayload {
+export function omitZeroRateBreakdownRows(payload: ExtractionPayload, { omitEmpty = false }: { omitEmpty?: boolean } = {}): ExtractionPayload {
   const retained = payload.rateBreakdown.flatMap((line, index) =>
-    isZeroRateBreakdownLine(line) ? [] : [{ line, index }]);
+    isZeroRateBreakdownLine(line) || (omitEmpty && (line.rate === null || Number.isNaN(line.rate)) && !line.netAmount?.trim() && !line.vatAmount?.trim())
+      ? [] : [{ line, index }]);
   const newIndices = new Map(retained.map((entry, index) => [entry.index, index]));
   const confidence = payload.confidence
     ? Object.fromEntries(Object.entries(payload.confidence).flatMap(([field, value]) => {
-      const path = /^rateBreakdown\.(\d+)\.(.+)$/.exec(field);
-      if (!path) return [[field, value]];
-      const index = newIndices.get(Number(path[1]));
-      return index === undefined ? [] : [[`rateBreakdown.${index}.${path[2]}`, value]];
+      const mapped = remapSourceField(field, newIndices);
+      return mapped === null ? [] : [[mapped, value]];
     }))
     : undefined;
   return {
     ...payload,
     rateBreakdown: retained.map((entry) => entry.line),
     ...(confidence ? { confidence } : {}),
+    ...(payload.sourceRateRows ? { sourceRateRows: retained.map(({ index }) => payload.sourceRateRows?.[index] ?? null) } : {}),
+    ...(payload.sourceLocations ? { sourceLocations: payload.sourceLocations.flatMap((location) => {
+      const fieldPath = remapSourceField(location.fieldPath, newIndices);
+      return fieldPath === null ? [] : [{ ...location, fieldPath }];
+    }) } : {}),
+    ...(payload.sourceEvidence ? { sourceEvidence: { ...payload.sourceEvidence,
+      fields: Object.fromEntries(Object.entries(payload.sourceEvidence.fields).flatMap(([field, evidence]) => {
+        const mapped = remapSourceField(field, newIndices);
+        return mapped === null ? [] : [[mapped, evidence]];
+      })),
+    } } : {}),
     ...(payload.czkConversion ? {
       czkConversion: {
         ...payload.czkConversion,
@@ -192,14 +209,13 @@ export function normalizeExtractionPayload(payload: ExtractionPayload): Extracti
     supplier: party(payload.supplier),
     customer: party(payload.customer),
     rateBreakdown: payload.rateBreakdown
-      .filter((line) => !((line.rate === null || Number.isNaN(line.rate)) && !line.netAmount?.trim() && !line.vatAmount?.trim()))
       .map((line) => ({ ...line, netAmount: normalizeAmount(line.netAmount), vatAmount: normalizeAmount(line.vatAmount) })),
     totals: {
       netAmount: amount(payload.totals.netAmount),
       vatAmount: amount(payload.totals.vatAmount),
       grossAmount: amount(payload.totals.grossAmount),
     },
-  });
+  }, { omitEmpty: true });
   return normalized.rateBreakdown.some((line) => line.rate === null || line.netAmount === null || line.vatAmount === null)
     ? { ...normalized, schemaVersion: 2 }
     : normalized;

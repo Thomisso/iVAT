@@ -601,3 +601,34 @@ export async function addBrowserFailedExportAttemptFixture(companyId: string) {
     throw error;
   } finally { await database.end(); }
 }
+
+/** Real worker/public upload fixture for the PDF source-occurrence browser regression. */
+export async function addBrowserSourceEvidenceFixture(input: { companyId: string; cookies: { name: string; value: string }[]; withoutExtraction?: boolean }) {
+  const { asSystemClient } = await import("@/application/client");
+  const { runJob } = await import("@/application/processing");
+  const { fakeAiProvider, SAMPLE_EXTRACTION } = await import("@/ai/fake");
+  const { fakeVatPayerRegistry } = await import("@/vat-registry/fake");
+  const { fakeExchangeRates } = await import("@/cnb/fake");
+  const { sourceEvidencePdfFixture } = await import("./source-evidence");
+  await assignBrowserAiConfigurationFixture(input.companyId);
+  const client = await browserUserClient(input.cookies);
+  const queue: import("@/application/processing").ProcessingJob[] = [];
+  const jobs = { async send(job: import("@/application/processing").ProcessingJob) { queue.push(job); } };
+  const ai = fakeAiProvider({
+    split: () => [{ firstPage: 1, lastPage: 1 }, { firstPage: 2, lastPage: 3 }],
+    extract: () => ({ ...SAMPLE_EXTRACTION, documentNumber: "PDF-EVIDENCE", sourceLocations: [
+      { fieldPath: "documentNumber", kind: "page", page: 1, x: 0.1, y: 0.1, width: 0.3, height: 0.05 },
+      { fieldPath: "documentNumber", kind: "page", page: 2, x: 0.2, y: 0.2, width: 0.4, height: 0.07 },
+    ] }),
+  });
+  const worker = { system: asSystemClient(await browserFixtureClient()), providers: { get: () => ai }, jobs,
+    vatRegistry: fakeVatPayerRegistry(), exchangeRates: fakeExchangeRates() };
+  const uploaded = await uploadSourceFile(client, jobs, { companyId: input.companyId, fileName: "source-occurrences.pdf", bytes: await sourceEvidencePdfFixture() });
+  if (!uploaded.ok) throw new Error(uploaded.error);
+  if (input.withoutExtraction) await runJob(worker, queue.shift()!, { final: true });
+  else while (queue.length) await runJob(worker, queue.shift()!, { final: true });
+  const documents = await listDocuments(client, input.companyId, uploaded.value.id);
+  const second = documents.find(document => document.firstPage === 2);
+  if (!second) throw new Error("Second Document missing from browser fixture");
+  return second.id;
+}

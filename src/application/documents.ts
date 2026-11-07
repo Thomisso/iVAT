@@ -397,17 +397,26 @@ export async function readDocumentPages(
   client: AppClient,
   companyId: string,
   documentId: string,
+  requestedVersion?: number,
 ): Promise<{ fileName: string; mediaType: string; bytes: Uint8Array } | null> {
   const document = await getDocument(client, companyId, documentId);
   if (!document?.sourceFileId || document.firstPage === null || document.lastPage === null) return null;
+  const selected = requestedVersion === undefined ? undefined
+    : (await listExtractionVersions(client, companyId, documentId)).find((version) => version.version === requestedVersion);
+  if (requestedVersion !== undefined && !selected) return null;
   const stored = await readSourceFile(client, companyId, document.sourceFileId);
   if (!stored) return null;
   const { file, bytes } = stored;
   if (document.rowSet) return null;
+  const evidence = selected?.payload.sourceEvidence;
+  const bound = evidence?.documentId === document.id && evidence.sourceFileId === file.id
+    && evidence.sourceSha256 === file.sha256 && evidence.basis.sha256 === file.sha256
+    && evidence.extractionVersionId === selected?.id;
+  const range = bound ? evidence.range : { firstPage: document.firstPage, lastPage: document.lastPage };
   return {
     fileName: file.fileName,
     mediaType: SOURCE_FILE_MEDIA_TYPES[file.format],
-    bytes: file.format === "pdf" ? await pdfPages(bytes, { firstPage: document.firstPage, lastPage: document.lastPage }) : bytes,
+    bytes: file.format === "pdf" ? await pdfPages(bytes, range) : bytes,
   };
 }
 

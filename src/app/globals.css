@@ -2389,3 +2389,21 @@ select:disabled {
 .vat-pdf-thumbnail-link { display: block; width: 100%; margin: 0 0 var(--space-4); border: 1px solid var(--line-strong); background: var(--surface); }
 .vat-pdf-thumbnail-link:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 .vat-pdf-thumbnail { display: block; width: 100%; height: auto; aspect-ratio: 595 / 842; }
+
+/* Source evidence shares the canvas's oriented page coordinate system. */
+.pdf-source-viewer { display: block; padding: var(--space-4); position: sticky; }
+.pdf-source-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); }
+.pdf-source-toolbar label { display: flex; align-items: center; gap: var(--space-2); }
+.pdf-source-toolbar select { max-width: calc(var(--control-lg) * 3); padding: var(--space-1); }
+.pdf-source-scroll { width: 100%; max-height: 78vh; overflow: auto; }
+.pdf-source-page { position: relative; background: var(--paper); }
+.pdf-source-page canvas { display: block; }
+.pdf-source-region { position: absolute; border: 1px solid var(--ai-edge); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--ai-mark) 40%, transparent); cursor: pointer; padding: 0; }
+.pdf-source-region.is-active { background: color-mix(in srgb, var(--ai-mark) 60%, transparent); border-width: 2px; }
+.source-field { position: relative; min-width: 0; border-radius: var(--radius-sm); }
+.source-field.is-selected:not(:focus-visible) { outline: 2px solid var(--ai-edge); outline-offset: 3px; }
+.source-field-link { position: absolute; top: 0; right: 0; padding: calc(var(--space-1) / 2); border: 0; background: transparent; color: var(--ink-muted); cursor: pointer; }
+.source-manual { display: block; color: var(--ink-muted); }
+.pdf-source-inspect { position: absolute; right: var(--space-4); top: calc(var(--space-12) + var(--space-6)); width: min(calc(var(--control-lg) * 8), 80%); z-index: 3; padding: var(--space-2); border: 2px solid var(--ai-edge); border-radius: var(--radius-sm); background: var(--paper); box-shadow: var(--shadow-sm); pointer-events: none; }
+.pdf-source-inspect canvas { display: block; width: 100%; height: auto; }
+.pdf-source-toolbar button { display: inline-flex; align-items: center; gap: var(--space-1); padding: var(--space-1) var(--space-2); }
