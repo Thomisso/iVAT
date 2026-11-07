@@ -526,6 +526,63 @@ export async function approveDocument(
   return { ok: true, value: null };
 }
 
+export type SaveAndApproveDocumentError = CorrectDocumentError | "direction_required" | "vat_regime_required" | "document_incomplete" | "document_validation_failed" | "counterparty_vat_id_required" | "currency_conversion_required" | "rate_breakdown_totals_mismatch" | "invalid_credit_note_amount" | "review_context_changed";
+export type ReviewConfirmation = { id: string; findings: ValidationFinding[] };
+export type ReviewConflict = { version: number; status: DocumentStatus; payload: ExtractionPayload };
+export type SaveAndApproveDocumentResult = { ok: true; value: { version: number } }
+  | { ok: false; error: SaveAndApproveDocumentError; findings?: ValidationFinding[]; conflict?: ReviewConflict }
+  | { ok: false; error: "review_warnings_changed"; confirmation: ReviewConfirmation };
+
+async function documentReviewRefusal(client: AppClient, input: { companyId: string; documentId: string }, result: { ok: false; error: SaveAndApproveDocumentError }, findings?: ValidationFinding[]): Promise<SaveAndApproveDocumentResult> {
+  if (!["stale_version", "not_in_review", "review_context_changed", "period_locked"].includes(result.error)) return { ...result, findings };
+  const [document, version] = await Promise.all([
+    getDocument(client, input.companyId, input.documentId),
+    client.from("extraction_version").select("version, payload").eq("company_id", input.companyId).eq("document_id", input.documentId)
+      .order("version", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  if (version.error) throw version.error;
+  const current = version.data;
+  return { ...result, ...(findings ? { findings } : {}), ...(document && current ? { conflict: { version: current.version, status: document.status, payload: current.payload as ExtractionPayload } } : {}) };
+}
+
+/**
+ * Fresh preparation on every attempt; a database acknowledgement is valid only
+ * for the exact prepared data, findings and unchanged accounting context.
+ * External adapters supply observations as on creation/correction; PostgreSQL
+ * independently enforces authorization, locks and financial invariants.
+ */
+export async function saveAndApproveDocument(
+  client: AppClient,
+  input: { companyId: string; documentId: string; basedOnVersion: number; requestId: string; payload: ExtractionPayload; acknowledgement?: string },
+  exchangeRates: ExchangeRateProvider = unavailableExchangeRates,
+  vatRegistry: VatPayerRegistry = unavailableVatPayerRegistry,
+): Promise<SaveAndApproveDocumentResult> {
+  if (!isUuid(input.requestId) || (input.acknowledgement !== undefined && !isUuid(input.acknowledgement))) return { ok: false, error: "stale_version" };
+  const candidate = prepareManualExtractionPayload(input.payload);
+  if (!candidate.ok) return candidate;
+  const document = await findDocumentId(client, input.companyId, input.documentId);
+  if (!document) return { ok: false, error: "forbidden" };
+  const replay = await client.rpc("document_approval_result", {
+    target_document_id: document, request_id: input.requestId, submitted_payload: candidate.value, based_on_version: input.basedOnVersion,
+  });
+  if (replay.error) return documentReviewRefusal(client, input, refusal(replay.error, ["stale_version"]));
+  if (replay.data !== null) return { ok: true, value: { version: replay.data } };
+  const context = await client.rpc("document_review_context", { target_document_id: document, based_on_version: input.basedOnVersion });
+  if (context.error) return documentReviewRefusal(client, input, refusal(context.error, ["stale_version", "not_in_review"]));
+  const prepared = await prepareExtractionVersion(candidate.value, exchangeRates, vatRegistry);
+  const findings = await prepared.findings();
+  const { data, error } = await client.rpc("save_and_approve_document", {
+    target_document_id: document, based_on_version: input.basedOnVersion, request_id: input.requestId,
+    submitted_payload: candidate.value, payload: prepared.payload, findings,
+    expected_context: context.data, acknowledgement: input.acknowledgement,
+  });
+  if (error) return documentReviewRefusal(client, input, refusal(error, ["not_in_review", "stale_version", "period_locked", "tax_point_date_required", "invalid_date", "direction_required", "vat_regime_required", "document_incomplete", "document_validation_failed", "counterparty_vat_id_required", "currency_conversion_required", "rate_breakdown_totals_mismatch", "invalid_credit_note_amount", "review_context_changed"]), findings);
+  const result = data as { version: number } | { confirmationId: string; findings: ValidationFinding[] };
+  return "confirmationId" in result
+    ? { ok: false, error: "review_warnings_changed", confirmation: { id: result.confirmationId, findings: result.findings } }
+    : { ok: true, value: { version: result.version } };
+}
+
 /** Takes ownership of unfinished Extraction without requesting or consuming AI work. */
 export async function startManualDocumentReview(
   client: AppClient,
