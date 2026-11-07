@@ -20,9 +20,19 @@ function counterparty(row: Row): Counterparty {
     postalCode: row.postal_code, countryCode: row.country_code, supplier: row.supplier,
     customer: row.customer, archivedAt: row.archived_at };
 }
+function normalizedIdentifiers(input: Pick<CounterpartyInput, "ico" | "vatId">) {
+  return { ico: input.ico?.replace(/\s/g, "") || null,
+    vatId: input.vatId?.replace(/\s/g, "").toUpperCase() || null };
+}
+function validIco(value: string | null): value is string {
+  return value !== null && /^\d{8}$/.test(value);
+}
+function validVatId(value: string | null): value is string {
+  return value !== null && /^[A-Z]{2}[A-Z0-9]{2,14}$/.test(value);
+}
 function normalized(input: CounterpartyInput) {
-  return { name: input.name.trim(), ico: input.ico?.replace(/\s/g, "") || null,
-    vat_id: input.vatId?.replace(/\s/g, "").toUpperCase() || null,
+  const identifiers = normalizedIdentifiers(input);
+  return { name: input.name.trim(), ico: identifiers.ico, vat_id: identifiers.vatId,
     street: input.street?.trim() ?? "", city: input.city?.trim() ?? "",
     postal_code: input.postalCode?.trim() ?? "", country_code: input.countryCode?.trim().toUpperCase() ?? "",
     supplier: input.supplier, customer: input.customer };
@@ -30,8 +40,8 @@ function normalized(input: CounterpartyInput) {
 function invalid(input: ReturnType<typeof normalized>): CounterpartyError | null {
   if (!input.name) return "name_required";
   if (input.name.length > 255) return "name_too_long";
-  if (input.ico && !/^\d{8}$/.test(input.ico)) return "invalid_ico";
-  if (input.vat_id && !/^[A-Z]{2}[A-Z0-9]{2,14}$/.test(input.vat_id)) return "counterparty_invalid_vat_id";
+  if (input.ico && !validIco(input.ico)) return "invalid_ico";
+  if (input.vat_id && !validVatId(input.vat_id)) return "counterparty_invalid_vat_id";
   if (input.country_code && !/^[A-Z]{2}$/.test(input.country_code)) return "invalid_country_code";
   if (!input.supplier && !input.customer) return "counterparty_role_required";
   return null;
@@ -66,12 +76,11 @@ export async function listCounterparties(client: AppClient, companyId: string, i
   const pageSize = Number.isFinite(input.pageSize) ? Math.min(100, Math.max(1, Math.trunc(input.pageSize!))) : 50;
   if (!isUuid(companyId)) return { entries: [], total: 0, page, pageSize, pageCount: 1 };
   const from = (page - 1) * pageSize;
-  const ico = input.identifiers?.ico?.replace(/\s/g, "") ?? "";
-  const vatId = input.identifiers?.vatId?.replace(/\s/g, "").toUpperCase() ?? "";
+  const { ico, vatId } = normalizedIdentifiers(input.identifiers ?? {});
   // Only validated identifier characters enter PostgREST's OR expression.
   const identifiers = [
-    /^\d{8}$/.test(ico) ? `ico.eq.${ico}` : null,
-    /^[A-Z]{2}[A-Z0-9]{2,14}$/.test(vatId) ? `vat_id.eq.${vatId}` : null,
+    validIco(ico) ? `ico.eq.${ico}` : null,
+    validVatId(vatId) ? `vat_id.eq.${vatId}` : null,
   ].filter((value): value is string => value !== null);
   if (input.identifiers && identifiers.length === 0) return { entries: [], total: 0, page, pageSize, pageCount: 1 };
   let query = client.rpc("search_counterparties", {
