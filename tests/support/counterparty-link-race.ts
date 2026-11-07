@@ -6,7 +6,7 @@ type CompanyBarrier = {
   queue: (command: () => Promise<unknown>, query: string) => Promise<void>;
 };
 
-async function withCompanyBarrier(companyId: string, arrange: (barrier: CompanyBarrier) => Promise<void>) {
+async function withCompanyBarrier(companyId: string, arrange: (barrier: CompanyBarrier) => Promise<void>, heldCounterpartyId?: string) {
   const barrier = new Client({ connectionString: inject("databaseUrl") });
   const observer = new Client({ connectionString: inject("databaseUrl") });
   await barrier.connect();
@@ -31,6 +31,17 @@ async function withCompanyBarrier(companyId: string, arrange: (barrier: CompanyB
         throw new Error(`Public command did not reach the Company barrier: ${query}`);
       },
     });
+    if (heldCounterpartyId) {
+      // Establish the actual tuple -> Company overlap before releasing approval.
+      // NOWAIT must refuse: the real identifier UPDATE already owns this tuple.
+      await observer.query("begin");
+      try {
+        await observer.query("select 1 from public.counterparty where id = $1 for update nowait", [heldCounterpartyId]);
+        throw new Error("Identifier UPDATE did not hold the Counterparty tuple at the Company barrier");
+      } catch (error) {
+        if ((error as { code?: string }).code !== "55P03") throw error;
+      } finally { await observer.query("rollback"); }
+    }
     await barrier.query("commit");
     return await Promise.allSettled(pending);
   } finally {
@@ -46,11 +57,12 @@ export async function directoryIdentityDuringApproval(
   companyId: string,
   approve: (holdAfterPreparation: () => Promise<void>) => Promise<unknown>,
   update: () => Promise<unknown>,
+  heldCounterpartyId?: string,
 ) {
   return withCompanyBarrier(companyId, async barrier => {
     await barrier.queue(() => approve(barrier.hold), "save_and_approve_document");
-    await barrier.queue(update, "counterparty");
-  });
+    await barrier.queue(update, 'UPDATE "public"."counterparty"');
+  }, heldCounterpartyId);
 }
 
 /** Queue two real public commands at the existing Company serialization point. */
