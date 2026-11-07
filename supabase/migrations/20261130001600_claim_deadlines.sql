@@ -43,6 +43,12 @@ returns date language plpgsql stable security definer set search_path = '' as $$
 declare origin date; origin_period text; start_date date;
 begin
   if not private.ordinary_domestic_claim(candidate) then return null; end if;
+  -- Valid, explicitly confirmed zero records no deduction. Keep every original
+  -- selection/basis/arithmetic check before inspecting its zero amounts.
+  if candidate ? 'partialClaim' and private.document_partial_claim_valid(candidate) then
+    if not exists (select 1 from jsonb_array_elements(candidate #> '{partialClaim,rateBreakdown}') line
+      where (line ->> 'netAmount')::numeric <> 0 or (line ->> 'vatAmount')::numeric <> 0) then return null; end if;
+  end if;
   origin := (candidate ->> 'taxPointDate')::date;
   origin_period := private.reporting_period_for_date(target_company_id, origin);
   if origin_period is null then return null; end if;

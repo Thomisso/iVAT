@@ -1,5 +1,6 @@
 import { expect, it, inject } from "vitest";
 import { SAMPLE_EXTRACTION } from "@/ai/fake";
+import type { ExtractionPayload } from "@/application/extraction-payload";
 import { setCurrentReportingYear } from "@/application/companies";
 import { createManualDocument, approveDocument, getDocument } from "@/application/documents";
 import { fakeExchangeRates } from "@/cnb/fake";
@@ -288,5 +289,56 @@ it("records a confirmed zero choice after expiry without a fictitious deduction 
     expect(await getVatReport(user.client, user.companyId, "2025-05")).toEqual(originalReport);
     expect(await readVatReportArtifact(user.client, { companyId: user.companyId, artifactId: archived.value.artifactId })).toEqual(originalArtifact);
     expect(await getDocument(user.client, positive.companyId, positive.documentId)).toMatchObject({ status: "needs_review" });
+  });
+});
+
+it.each([
+  { name: "positive selection with the zero flag", partialClaim: { confirmed: true, zeroConfirmed: true,
+    rateBreakdown: [{ rate: 21, netAmount: "500.00", vatAmount: "105.00" }] }, finding: "claim_deadline_expired" },
+  { name: "unconfirmed zero", partialClaim: { confirmed: false, zeroConfirmed: true,
+    rateBreakdown: [{ rate: 21, netAmount: "0.00", vatAmount: "0.00" }] }, finding: "partial_claim_invalid" },
+  { name: "zero without explicit zero confirmation", partialClaim: { confirmed: true, zeroConfirmed: false,
+    rateBreakdown: [{ rate: 21, netAmount: "0.00", vatAmount: "0.00" }] }, finding: "partial_claim_invalid" },
+  { name: "stale zero", partialClaim: { confirmed: true, zeroConfirmed: true, basis: {
+    documentType: "invoice", direction: "incoming", currency: "CZK", proposedVatRegime: "domestic", taxPointDate: "2026-10-01",
+    rateBreakdown: [{ rate: 21, netAmount: "1000.00", vatAmount: "210.00" }], totals: { netAmount: "1000.00", vatAmount: "210.00", grossAmount: "1210.00" },
+  }, rateBreakdown: [{ rate: 21, netAmount: "0.00", vatAmount: "0.00" }] }, finding: "partial_claim_invalid" },
+  { name: "inconsistent original net amount", partialClaim: { confirmed: true, zeroConfirmed: true,
+    rateBreakdown: [{ rate: 21, netAmount: "0.00", vatAmount: "0.00" }] },
+    totals: { netAmount: "1500.00", vatAmount: "210.00", grossAmount: "1710.00" }, finding: "total_net_amount_mismatch" },
+] satisfies { name: string; partialClaim: NonNullable<ExtractionPayload["partialClaim"]>; totals?: ExtractionPayload["totals"]; finding: string }[])("does not use $name to bypass an expired claim or hide original findings", async ({ name, partialClaim, finding, ...changes }) => {
+  await withClaimDate(inject("databaseUrl"), "2028-01-01", async () => {
+    const { listDeferredClaimPeriods } = await import("@/application/documents");
+    const { getDocumentReview } = await import("@/application/document-review");
+    const user = await administratorWithCompany();
+    for (const year of [2025, 2027]) await setCurrentReportingYear(user.client, { companyId: user.companyId, year, filingFrequency: "monthly" });
+    const created = await createManualDocument(user.client, { companyId: user.companyId, payload: {
+      ...SAMPLE_EXTRACTION, documentNumber: name, taxPointDate: "2025-05-26", issueDate: "2025-05-26", ...changes,
+      claimEligibility: { period: "2025-05", origin: "user", confirmed: true },
+      partialClaim: { ...partialClaim, rateBreakdown: [...partialClaim.rateBreakdown] },
+    } }, fakeExchangeRates(), fakeVatPayerRegistry());
+    if (!created.ok) throw new Error(created.error);
+    const input = { companyId: user.companyId, documentId: created.value.id };
+    expect(await approveDocument(user.client, { ...input, version: 1 })).toMatchObject({ ok: false });
+    expect((await getDocumentReview(user.client, input))?.shownFindings).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: finding, severity: "error" }),
+      expect.objectContaining({ code: "claim_deadline_expired", severity: "error" }),
+    ]));
+    expect(await listDeferredClaimPeriods(user.client, input.companyId, input.documentId)).not.toContain("2027-12");
+    expect(await getDocument(user.client, input.companyId, input.documentId)).toMatchObject({ status: "needs_review" });
+  });
+});
+
+it("still requires predecessor earliest-period confirmation for an expired valid zero choice", async () => {
+  await withClaimDate(inject("databaseUrl"), "2028-01-01", async () => {
+    const user = await administratorWithCompany();
+    await setCurrentReportingYear(user.client, { companyId: user.companyId, year: 2025, filingFrequency: "monthly" });
+    const created = await createManualDocument(user.client, { companyId: user.companyId, payload: {
+      ...SAMPLE_EXTRACTION, taxPointDate: "2025-05-26", issueDate: "2025-05-26",
+      partialClaim: { confirmed: true, zeroConfirmed: true, rateBreakdown: [{ rate: 21, netAmount: "0.00", vatAmount: "0.00" }] },
+    } }, fakeExchangeRates(), fakeVatPayerRegistry());
+    if (!created.ok) throw new Error(created.error);
+    expect(await approveDocument(user.client, { companyId: user.companyId, documentId: created.value.id, version: 1 }))
+      .toEqual({ ok: false, error: "claim_eligibility_required" });
   });
 });
