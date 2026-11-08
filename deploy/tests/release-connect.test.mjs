@@ -175,11 +175,12 @@ test("the daily workflow streams its lock helper to a legacy host with either to
     const directory = await realpath(await mkdtemp(path.join(tmpdir(), "ivat-daily-lock-")));
     t.after(() => rm(directory, { recursive: true, force: true }));
     await mkdir(path.join(directory, "bin"));
+    await mkdir(path.join(directory, "stack/deploy/scripts"), { recursive: true });
     await writeFile(path.join(directory, "bin/ssh"), '#!/bin/sh\nexec sh -s\n', { mode: 0o755 });
     await writeFile(path.join(directory, "workflow.sh"), body);
     const toolPath = `${directory}/bin:${implementation === "busybox" ? "/opt/ivat-busybox:" : ""}/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`;
     const setup = 'mkdir -p /srv/stack/deploy/scripts; printf \'%s\\n\' \'#!/bin/sh\' \'set -eu\' \'test ! -e /srv/stack/deploy/scripts/backup-lock.sh\' \'if flock -n /tmp/ivat-backup.lock true; then exit 42; fi\' \'touch "$LOCK_TEST_DIRECTORY/daily-completed"\' > /srv/stack/deploy/scripts/backup-daily.sh; exec bash "$LOCK_TEST_DIRECTORY/workflow.sh"';
-    const result = spawnSync("docker", ["run", "--rm", "-e", `PATH=${toolPath}`, "-e", `LOCK_TEST_DIRECTORY=${directory}`, "-e", "ROSTI_SSH_KEY=TEST_ONLY_KEY", "-e", "ROSTI_SSH_KNOWN_HOSTS=TEST_ONLY_HOST", "-e", "ROSTI_SSH_HOST=localhost", "-e", "ROSTI_SSH_PORT=22", "-e", "ROSTI_SSH_USER=root", "-e", `GITHUB_STEP_SUMMARY=${directory}/summary`, "-v", `${directory}:${directory}`, "-v", `${process.cwd()}:/source:ro`, "-w", "/source", "ivat-release155-operator:verify", "-c", setup], { encoding: "utf8", timeout: 10000 });
+    const result = spawnSync("docker", ["run", "--rm", "--user", `${process.getuid()}:${process.getgid()}`, "-e", `PATH=${toolPath}`, "-e", `LOCK_TEST_DIRECTORY=${directory}`, "-e", "ROSTI_SSH_KEY=TEST_ONLY_KEY", "-e", "ROSTI_SSH_KNOWN_HOSTS=TEST_ONLY_HOST", "-e", "ROSTI_SSH_HOST=localhost", "-e", "ROSTI_SSH_PORT=22", "-e", "ROSTI_SSH_USER=root", "-e", `GITHUB_STEP_SUMMARY=${directory}/summary`, "-v", `${directory}:${directory}`, "-v", `${directory}/stack:/srv/stack`, "-v", `${process.cwd()}:/source:ro`, "-w", "/source", "ivat-release155-operator:verify", "-c", setup], { encoding: "utf8", timeout: 10000 });
     assert.equal(result.status, 0, result.stdout + result.stderr);
     await readFile(path.join(directory, "daily-completed"));
     assert.match(await readFile(path.join(directory, "summary"), "utf8"), /Daily backup completed/);
