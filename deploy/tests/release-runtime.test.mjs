@@ -15,6 +15,7 @@ import { spawnSimulation } from "./simulation-process.mjs";
 import { assertPublicApplicationAssets, requestPublicApplication } from "./public-application.mjs";
 
 const checkout = process.cwd();
+const hostPath = "/opt/ivat-busybox:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
 const probeMigration = "99999999990000_release_probe.sql";
 const docker = (...args) => execFileSync("docker", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 600000 }).trim();
 async function freePort() {
@@ -92,7 +93,7 @@ test("the real release command guards and upgrades a disposable production stack
   const sshContainer = "ivat-release156-ssh-check";
   let simulation;
   const common = ["compose", "--project-directory", stack, "--project-name", project, "--env-file", path.join(stack, ".env"), "-f", path.join(stack, "docker-compose.rosti.yml"), "-f", path.join(stack, "test-override.yml")];
-  const operator = (script, args = [], env = {}) => command(["run", "--rm", "--entrypoint", "bash", "-v", "/var/run/docker.sock:/var/run/docker.sock", "-v", `${directory}:${directory}`, "-v", `${source}:${source}:ro`, ...Object.entries(env).flatMap(([key, value]) => ["-e", `${key}=${value}`]), "ivat-release155-operator:verify", script, ...args]);
+  const operator = (script, args = [], env = {}) => command(["run", "--rm", "--entrypoint", "bash", "-e", `PATH=${hostPath}`, "-v", "/var/run/docker.sock:/var/run/docker.sock", "-v", `${directory}:${directory}`, "-v", `${source}:${source}:ro`, ...Object.entries(env).flatMap(([key, value]) => ["-e", `${key}=${value}`]), "ivat-release155-operator:verify", script, ...args]);
   try {
     const release = await prepareRuntimeReleaseSource(source);
     const { revision } = release;
@@ -148,7 +149,7 @@ test("the real release command guards and upgrades a disposable production stack
     let simulationLog = ""; simulation.child.stdout.on("data", chunk => { simulationLog += chunk; }); simulation.child.stderr.on("data", chunk => { simulationLog += chunk; });
     const deadline = Date.now() + 15000;
     while (!simulationLog.includes('"type":"listening"') && !simulationLog.includes('"event":"listening"')) { if (Date.now() > deadline) throw new Error("Simulation startup failed"); await new Promise(resolve => setTimeout(resolve, 100)); }
-    const deployEnv = { IVAT_DEPLOY_TEST_APP_IMAGE: "ivat-release155-upgrade:verify", IVAT_DISPOSABLE_COMPOSE_OVERRIDE: path.join(stack, "test-override.yml"), IVAT_DEPLOY_LOCK_FILE: path.join(stack, "backup.lock"), IVAT_DEPLOY_LOCK_TIMEOUT: "1", ROSTI_API_URL: `http://host.docker.internal:${apiPort}/rosti/api-n`, ROSTI_API_KEY: "test-provider-secret", IVAT_DEPLOY_PUBLIC_URL: `http://host.docker.internal:${httpPort}/login` };
+    const deployEnv = { PATH: hostPath, IVAT_DEPLOY_TEST_APP_IMAGE: "ivat-release155-upgrade:verify", IVAT_DISPOSABLE_COMPOSE_OVERRIDE: path.join(stack, "test-override.yml"), IVAT_DEPLOY_LOCK_FILE: path.join(stack, "backup.lock"), IVAT_DEPLOY_LOCK_TIMEOUT: "1", ROSTI_API_URL: `http://host.docker.internal:${apiPort}/rosti/api-n`, ROSTI_API_KEY: "test-provider-secret", IVAT_DEPLOY_PUBLIC_URL: `http://host.docker.internal:${httpPort}/login` };
     const deploy = (selected = bundle, overrides = {}) => operator(path.join(bundle, "deploy/scripts/deploy-release.sh"), [stack, selected, project], { ...deployEnv, ...overrides });
     console.log("Connect through real pinned SSH into the disposable host.");
     execFileSync("ssh-keygen", ["-q", "-t", "ed25519", "-N", "", "-f", path.join(directory, "client")]);
@@ -161,6 +162,9 @@ test("the real release command guards and upgrades a disposable production stack
       const socket = createConnection({ host: "127.0.0.1", port: sshPort });
       socket.once("connect", () => { socket.destroy(); resolve(true); }); socket.once("error", () => { socket.destroy(); resolve(false); });
     })) { if (Date.now() > sshDeadline) throw new Error("Disposable SSH host did not start."); await new Promise(resolve => setTimeout(resolve, 50)); }
+    await writeFile(path.join(directory, "known_hosts"), `[127.0.0.1]:${sshPort} ${hostKey}\n`);
+    const sshTools = execFileSync("ssh", ["-T", "-p", String(sshPort), "-i", path.join(directory, "client"), "-o", `UserKnownHostsFile=${path.join(directory, "known_hosts")}`, "-o", "GlobalKnownHostsFile=/dev/null", "-o", "StrictHostKeyChecking=yes", "-o", "BatchMode=yes", "-o", "IdentitiesOnly=yes", "root@127.0.0.1", "sh -c 'timeout --help 2>&1; flock --help 2>&1; true'"], { encoding: "utf8" });
+    assert.equal((sshTools.match(/BusyBox v/g) || []).length, 2, "actual SSH deployment shell must use both BusyBox timeout and flock");
     const connection = { archive: await readFile(releaseArchive), verified: release, event, stack, project, actor: "release-fixture", ssh: { host: "127.0.0.1", port: sshPort, user: "root", privateKey: await readFile(path.join(directory, "client"), "utf8"), knownHosts: `[127.0.0.1]:${sshPort} ${hostKey}` }, pollMs: 50, timeoutMs: 600000 };
     process.env.GHCR_TOKEN = "test-registry-secret"; process.env.ROSTI_API_KEY = "test-provider-secret";
     const checks = { repository: release.repository, revision, token: "test-github-secret", apiUrl: `http://127.0.0.1:${apiPort}/github`, timeoutMs: 1000, pollMs: 20 };
@@ -201,7 +205,7 @@ esac
 exec /usr/local/bin/docker "$@"
 `);
     await chmod(path.join(bin, "docker"), 0o755);
-    const failureEnv = { PATH: `${bin}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin` };
+    const failureEnv = { PATH: `${bin}:${hostPath}` };
     const retentionRefused = await deploy(bundle, { ...failureEnv, IVAT_TEST_DOCKER_FAILURE: "retention" });
     assert.notEqual(retentionRefused.status, 0);
     assert.match(retentionRefused.stderr, /at retain/);

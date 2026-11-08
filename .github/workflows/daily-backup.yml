@@ -21,6 +21,9 @@ jobs:
       group: rosti-production
       cancel-in-progress: false
     steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - name: Run the host daily backup through pinned SSH
         env:
           ROSTI_SSH_KEY: ${{ secrets.ROSTI_SSH_KEY }}
@@ -36,6 +39,14 @@ jobs:
           trap 'rm -rf "$ssh_dir"' EXIT
           printf '%s\n' "$ROSTI_SSH_KEY" > "$ssh_dir/key"
           printf '%s\n' "$ROSTI_SSH_KNOWN_HOSTS" > "$ssh_dir/known_hosts"
+          # Stream the reviewed lock helper, including before a new release
+          # has installed it on the host. No provider system files are changed.
+          printf '%s\n' 'set -eu' 'umask 077' > "$ssh_dir/backup-command"
+          cat deploy/scripts/backup-lock.sh >> "$ssh_dir/backup-command"
+          cat >> "$ssh_dir/backup-command" <<'HOST'
+          acquire_backup_lock /tmp/ivat-backup.lock 900 || { echo 'Daily backup lock unavailable.' >&2; exit 1; }
+          exec sh /srv/stack/deploy/scripts/backup-daily.sh
+          HOST
           # Host output stays in the private daily.log, as with the former cron
           # entry. Wait for a release or manual backup holding the lock.
           ssh -T -p "$ROSTI_SSH_PORT" -i "$ssh_dir/key" \
@@ -44,7 +55,7 @@ jobs:
             -o PasswordAuthentication=no -o KbdInteractiveAuthentication=no \
             -o ConnectTimeout=15 -o ServerAliveInterval=10 -o ServerAliveCountMax=3 \
             "$ROSTI_SSH_USER@$ROSTI_SSH_HOST" \
-            "sh -c 'flock -w 900 /tmp/ivat-backup.lock sh /srv/stack/deploy/scripts/backup-daily.sh >> /srv/stack/deploy/backups/daily.log 2>&1'" \
+            "sh -c 'exec sh -s >> /srv/stack/deploy/backups/daily.log 2>&1'" < "$ssh_dir/backup-command" \
             || { echo 'Daily backup failed or its outcome is unknown. Inspect /srv/stack/deploy/backups/daily.log on the Stack; releases refuse backups older than 26 hours.' >&2; exit 1; }
           echo 'Daily backup completed.'
           printf 'Daily backup completed on the Stack. Details: `/srv/stack/deploy/backups/daily.log`.\n' >> "$GITHUB_STEP_SUMMARY"
