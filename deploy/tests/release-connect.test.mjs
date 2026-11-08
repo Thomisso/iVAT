@@ -31,39 +31,80 @@ test("the downloaded archive must be the exact verified Release before transport
 
 test("the detached launcher records early failure and refuses duplicate attempt IDs", async t => {
   execFileSync("docker", ["build", "-q", "-f", "deploy/tests/operator.Dockerfile", "-t", "ivat-release155-operator:verify", "."], { stdio: "pipe" });
-  const directory = await realpath(await mkdtemp(path.join(tmpdir(), "ivat-launch-")));
-  t.after(() => rm(directory, { recursive: true, force: true }));
-  const bundle = path.join(directory, "bundle");
-  await mkdir(path.join(bundle, "deploy/scripts"), { recursive: true });
-  await copyFile("deploy/scripts/launch-release.sh", path.join(bundle, "deploy/scripts/launch-release.sh"));
-  await writeFile(path.join(bundle, "deploy/scripts/deploy-release.sh"), '#!/bin/bash\nread -r registry; read -r provider; [[ "$registry" == REGISTRY_PRIVATE && "$provider" == PROVIDER_PRIVATE ]] || exit 99\ntouch "$1/deploy/transports/$IVAT_DEPLOY_ATTEMPT_ID/credentials-received"\nsleep 0.1\nexit 17\n');
-  const fixtureUser = ["--user", `${process.getuid()}:${process.getgid()}`];
-  const launch = () => new Promise((resolve, reject) => {
-    const child = spawn("docker", ["run", "--rm", "-i", ...fixtureUser, "-v", `${directory}:${directory}`, "ivat-release155-operator:verify", "-c", 'bash "$1/deploy/scripts/launch-release.sh" start "$2" "$1" stack test-123 release-test || exit; while [ "$(cat "$2/deploy/transports/test-123/result")" = running ]; do sleep 0.1; done', "bash", bundle, directory]);
-    let output = "";
-    child.stdout.on("data", bytes => { output += bytes; }); child.stderr.on("data", bytes => { output += bytes; });
-    child.on("exit", status => resolve({ status, output }));
-    child.on("error", reject);
-    child.stdin.end("REGISTRY_PRIVATE\nPROVIDER_PRIVATE\n");
+  for (const implementation of ["gnu", "busybox"]) await t.test(implementation, async t => {
+    const directory = await realpath(await mkdtemp(path.join(tmpdir(), "ivat-launch-")));
+    t.after(() => rm(directory, { recursive: true, force: true }));
+    const bundle = path.join(directory, "bundle");
+    await mkdir(path.join(bundle, "deploy/scripts"), { recursive: true });
+    await copyFile("deploy/scripts/launch-release.sh", path.join(bundle, "deploy/scripts/launch-release.sh"));
+    await writeFile(path.join(bundle, "deploy/scripts/deploy-release.sh"), '#!/bin/bash\nread -r registry; read -r provider; [[ "$registry" == REGISTRY_PRIVATE && "$provider" == PROVIDER_PRIVATE ]] || exit 99\ntouch "$1/deploy/transports/$IVAT_DEPLOY_ATTEMPT_ID/credentials-received"\nsleep 0.1\nexit 17\n');
+    const bin = path.join(directory, "bin");
+    await mkdir(bin);
+    await writeFile(path.join(bin, "timeout"), `#!/bin/sh\nexec ${implementation === "busybox" ? "/bin/busybox timeout" : "/usr/bin/timeout"} "$@"\n`, { mode: 0o755 });
+    const fixturePath = ["-e", `PATH=${bin}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`];
+    const fixtureUser = ["--user", `${process.getuid()}:${process.getgid()}`];
+    const launch = () => new Promise((resolve, reject) => {
+      const child = spawn("docker", ["run", "--rm", "-i", ...fixtureUser, ...fixturePath, "-v", `${directory}:${directory}`, "ivat-release155-operator:verify", "-c", 'bash "$1/deploy/scripts/launch-release.sh" start "$2" "$1" stack test-123 release-test || exit; while [ "$(cat "$2/deploy/transports/test-123/result")" = running ]; do sleep 0.1; done', "bash", bundle, directory]);
+      let output = "";
+      child.stdout.on("data", bytes => { output += bytes; }); child.stderr.on("data", bytes => { output += bytes; });
+      child.on("exit", status => resolve({ status, output }));
+      child.on("error", reject);
+      child.stdin.end("REGISTRY_PRIVATE\nPROVIDER_PRIVATE\n");
+    });
+    const result = await launch();
+    assert.equal(result.status, 0, result.output);
+    const transport = path.join(directory, "deploy/transports/test-123");
+    let status;
+    for (let poll = 0; poll < 100; poll++) {
+      status = (await readFile(path.join(transport, "result"), "utf8")).trim();
+      if (status !== "running") break;
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    assert.equal(status, "failed");
+    await readFile(path.join(transport, "credentials-received"));
+    assert.doesNotMatch(result.output, /REGISTRY_PRIVATE|PROVIDER_PRIVATE/);
+    assert.notEqual((await launch()).status, 0);
+    assert.equal((await readFile(path.join(transport, "result"), "utf8")).trim(), "failed");
+    await assert.rejects(readFile(path.join(transport, "credentials")), { code: "ENOENT" });
+    await writeFile(path.join(directory, "test-input"), "REGISTRY_PRIVATE\nPROVIDER_PRIVATE\n", { mode: 0o600 });
+    const stress = execFileSync("docker", ["run", "--rm", ...fixtureUser, ...fixturePath, "-v", `${directory}:${directory}`, "ivat-release155-operator:verify", "-c", 'for i in $(seq 1 100); do bash "$1/deploy/scripts/launch-release.sh" start "$2" "$1" stack "race-$i" release-test < "$2/test-input" >/dev/null & done; wait; sleep 2; for i in $(seq 1 100); do test -f "$2/deploy/transports/race-$i/credentials-received" || exit 42; done', "bash", bundle, directory], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    assert.equal(stress, "");
   });
-  const result = await launch();
-  assert.equal(result.status, 0, result.output);
-  const transport = path.join(directory, "deploy/transports/test-123");
-  let status;
-  for (let poll = 0; poll < 100; poll++) {
-    status = (await readFile(path.join(transport, "result"), "utf8")).trim();
-    if (status !== "running") break;
-    await new Promise(resolve => setTimeout(resolve, 20));
-  }
-  assert.equal(status, "failed");
-  await readFile(path.join(transport, "credentials-received"));
-  assert.doesNotMatch(result.output, /REGISTRY_PRIVATE|PROVIDER_PRIVATE/);
-  assert.notEqual((await launch()).status, 0);
-  assert.equal((await readFile(path.join(transport, "result"), "utf8")).trim(), "failed");
-  await assert.rejects(readFile(path.join(transport, "credentials")), { code: "ENOENT" });
-  await writeFile(path.join(directory, "test-input"), "REGISTRY_PRIVATE\nPROVIDER_PRIVATE\n", { mode: 0o600 });
-  const stress = execFileSync("docker", ["run", "--rm", ...fixtureUser, "-v", `${directory}:${directory}`, "ivat-release155-operator:verify", "-c", 'for i in $(seq 1 100); do bash "$1/deploy/scripts/launch-release.sh" start "$2" "$1" stack "race-$i" release-test < "$2/test-input" >/dev/null & done; wait; sleep 2; for i in $(seq 1 100); do test -f "$2/deploy/transports/race-$i/credentials-received" || exit 42; done', "bash", bundle, directory], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
-  assert.equal(stress, "");
+});
+
+test("GNU and BusyBox deadlines deliver TERM and allow deployment cleanup to finish", async t => {
+  execFileSync("docker", ["build", "-q", "-f", "deploy/tests/operator.Dockerfile", "-t", "ivat-release155-operator:verify", "."], { stdio: "pipe" });
+  for (const implementation of ["gnu", "busybox"]) await t.test(implementation, async t => {
+    const directory = await realpath(await mkdtemp(path.join(tmpdir(), "ivat-launch-term-")));
+    t.after(() => rm(directory, { recursive: true, force: true }));
+    const scripts = path.join(directory, "bundle/deploy/scripts");
+    const transport = path.join(directory, "deploy/transports/term-test");
+    await mkdir(scripts, { recursive: true });
+    await mkdir(transport, { recursive: true });
+    const launcher = await readFile("deploy/scripts/launch-release.sh", "utf8");
+    assert.equal(launcher.split("2700 bash").length, 2, "accelerate only the host deadline");
+    await writeFile(path.join(scripts, "launch-release.sh"), launcher.replace("2700 bash", "1 bash"));
+    await writeFile(path.join(scripts, "deploy-release.sh"), `#!/bin/bash
+trap 'sleep 2; touch "$1/deploy/transports/term-test/cleanup-finished"; exit 143' TERM
+touch "$1/deploy/transports/term-test/started"
+while true; do sleep 0.1; done
+`);
+    const bin = path.join(directory, "bin");
+    await mkdir(bin);
+    await writeFile(path.join(bin, "timeout"), `#!/bin/sh\nexec ${implementation === "busybox" ? "/bin/busybox timeout" : "/usr/bin/timeout"} "$@"\n`, { mode: 0o755 });
+    const result = await new Promise((resolve, reject) => {
+      const child = spawn("docker", ["run", "--rm", "--user", `${process.getuid()}:${process.getgid()}`, "-e", `PATH=${bin}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`, "-v", `${directory}:${directory}`, "ivat-release155-operator:verify", path.join(scripts, "launch-release.sh"), "run", directory, path.join(directory, "bundle"), "stack", "term-test", "release-test"], { timeout: 20000 });
+      let output = "";
+      child.stdout.on("data", bytes => { output += bytes; });
+      child.stderr.on("data", bytes => { output += bytes; });
+      child.on("error", reject);
+      child.on("exit", status => resolve({ status, output }));
+    });
+    assert.notEqual(result.status, 0, result.output);
+    await readFile(path.join(transport, "started"));
+    await readFile(path.join(transport, "cleanup-finished"));
+    assert.equal((await readFile(path.join(transport, "result"), "utf8")).trim(), "failed");
+  });
 });
 
 test("GitHub HTTP evidence stand-in cannot authorize wrong, failed or incomplete main checks", async t => {
