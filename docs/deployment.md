@@ -405,7 +405,7 @@ contains the reviewed automation and foundation.
 Before enabling anything, review these concrete prerequisites together:
 
 1. Confirm Stack `931`, company `7895`, root `/srv/stack`, current `.env`,
-   host Bash, `flock`, `setsid`, GNU `timeout`, Docker Compose and free disk space.
+   host Bash, `flock`, `setsid`, `timeout` supporting `-s TERM`, Docker Compose and free disk space.
    Read the running database container's `com.docker.compose.project` label
    privately and retain that exact project name. Do not guess a new project.
 2. Verify the SSH endpoint and host key fingerprint against a trusted provider
@@ -487,7 +487,8 @@ cat deploy/verified-release.json
 inspection, and `needs-intervention` means migration cleanup cannot yet confirm
 that writes stopped. Transport `host.log` and per-phase logs stay private on
 the host; do not paste them or production configuration into Actions logs.
-The launcher has a 45-minute host deadline including lock wait. Its termination
+The launcher has a 45-minute host deadline including lock wait. It uses
+`timeout -s TERM`, supported by both BusyBox and GNU timeout. Its termination
 path lets the deployment command stop and inspect the migration container; it
 never force-kills uncertain cleanup merely to meet a deadline. The observer
 waits at most 50 minutes and the GitHub job at most 60. Uncertain cleanup can

@@ -46,7 +46,7 @@ case $operation in
     export GHCR_USER=$actor IVAT_DEPLOY_CREDENTIALS_STDIN=1 IVAT_DEPLOY_ATTEMPT_ID=$id
     # TERM invokes deploy-release's migration cleanup. Deliberately no KILL:
     # uncertain Docker state must retain the lock/marker for joint recovery.
-    timeout --signal=TERM 2700 bash "$bundle/deploy/scripts/deploy-release.sh" "$stack" "$bundle" "$project"
+    timeout -s TERM 2700 bash "$bundle/deploy/scripts/deploy-release.sh" "$stack" "$bundle" "$project"
     ;;
   status)
     [[ -f $transport/result ]] || { echo 'unknown'; exit 0; }
