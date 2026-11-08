@@ -59,6 +59,7 @@ describe("Company creation", () => {
       street: "Vinohradská 12",
       orientationNumber: null,
       aiProcessingEnabled: false,
+      automaticApprovalEnabled: false,
     });
     expect(await listCompanyReportingYears(client, result.value.id)).toEqual([
       { year: 2026, frequency: "monthly", firstMonth: 1 },

@@ -42,7 +42,7 @@ test("an undetermined VAT Regime stays empty after saving and blocks approval un
   await regime.selectOption("");
   await page.getByLabel("Direction", { exact: true }).selectOption("incoming");
   await page.getByLabel("Bank account", { exact: true }).fill("");
-  await page.getByRole("button", { name: "Save corrections", exact: true }).click();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByRole("button", { name: "Approve version 2", exact: true })).toBeVisible();
   await page.reload();
   await expect(regime).toHaveValue("");
@@ -53,7 +53,7 @@ test("an undetermined VAT Regime stays empty after saving and blocks approval un
   await expect(page.getByRole("link", { name: "1 blocker Document", exact: true })).toBeVisible();
   await page.goto(reviewUrl);
   await regime.selectOption("domestic");
-  await page.getByRole("button", { name: "Save corrections", exact: true }).click();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByRole("button", { name: "Approve version 3", exact: true })).toBeVisible();
   await expect(regime).not.toHaveAttribute("aria-invalid", "true");
   await expect(page.getByText("No payment account is entered. Check the payment details; you can still approve the Document.", { exact: true })).toBeVisible();
@@ -98,7 +98,7 @@ test("saved views preserve queue context while review decisions advance through 
 
   await page.getByLabel("Document number", { exact: true }).fill(`QUEUE-${Date.now()}`);
   await page.getByLabel("Direction", { exact: true }).selectOption("incoming");
-  await page.getByRole("button", { name: "Save corrections" }).click();
+  await page.getByRole("button", { name: "Save draft" }).click();
   const approve = page.getByRole("button", { name: "Approve version 2" });
   await expect(approve).toBeVisible();
   await approve.click();
@@ -138,7 +138,7 @@ test("historical empty rates stay hidden without moving findings, zero VAT or Cr
   await expect(conversion).toContainText("-2500.00");
   // This explicit correction also removes the historical foreign conversion, without a live rate request.
   await page.getByLabel("Currency", { exact: true }).fill("CZK");
-  await page.getByRole("button", { name: "Save corrections", exact: true }).click();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByRole("button", { name: "Approve version 3", exact: true })).toBeVisible();
   await expect(nets).toHaveCount(2);
   await page.getByRole("link", { name: /^Version 2:/ }).click();
@@ -170,7 +170,7 @@ test("Document returns restore the filtered selection after viewing and editing,
   await expect(page).toHaveURL(`${baseURL}${list}#document-${documentId}`);
   await page.getByRole("table", { name: "Documents" }).getByRole("link").first().click();
   await page.getByLabel("Direction", { exact: true }).selectOption("outgoing");
-  const save = page.getByRole("button", { name: "Save corrections", exact: true });
+  const save = page.getByRole("button", { name: "Save draft", exact: true });
   await expect(save).toBeEnabled();
   await save.click();
   await expect(page.getByRole("button", { name: "Approve version 2", exact: true })).toBeVisible();

@@ -1,6 +1,6 @@
 # Multi-ticket implementation
 
-Use this workflow when one spec is implemented through parallel tickets. Its completion criterion is one reviewable integration pull request whose child diffs and combined behavior have both passed review.
+Use this workflow when one spec is implemented through parallel tickets. Its completion criterion is one reviewable integration pull request whose child diffs and combined behavior have both passed review. Apply the [CLI process and evidence rules](cli-processes.md) to every implementation, review and verification step, including external skills; keep unproven required evidence outstanding.
 
 ## Reporting entry point
 
@@ -28,7 +28,7 @@ Parallel ticket worktrees run focused test files. They do not run competing full
 After all ticket merges and review fixes:
 
 1. Stop the ticket worktrees' Supabase stacks.
-2. On the integration branch, run `npm run test:serial`, `npm run typecheck`, `npm run lint`, `npm run build` and the relevant runtime/E2E checks.
+2. On the integration branch, run `npm run test:serial`, `npm run typecheck`, `npm run lint` and `npm run test:http`. The production HTTP runner supplies the actual production build and runtime checks, so a second identical `npm run build` is unnecessary. Retain the precise result and client-behavior limitations from that run.
 3. Review the combined diff against the full spec. Cross-ticket findings return to one fix branch and the final checks repeat on the resulting integration commit.
 4. Bind the actual final PR with `final-pr`, report the exact resulting revision through `final-checks` and `final-review`, complete `sync`, then use `final-handoff` for the actual ready transition. Follow the [final evidence commands](agent-tracking.md#final-checks-handoff-and-delivery); queued/partial synchronization or outdated/failed/missing gates refuse handoff. The final human PR merge closes its referenced implementation issues; shared reconciliation verifies the result and current closure before Hotovo. Tracking neither merges nor deploys.
 

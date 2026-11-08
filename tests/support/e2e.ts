@@ -1,3 +1,4 @@
+import { withClaimDate } from "./claim-clock";
 import { sourceSplitRequestFixture } from "./source-request";
 import fs from "node:fs/promises";
 import { asUserClient } from "@/application/client";
@@ -600,4 +601,95 @@ export async function addBrowserFailedExportAttemptFixture(companyId: string) {
     await database.query("rollback");
     throw error;
   } finally { await database.end(); }
+}
+
+/** Real worker/public upload fixture for the PDF source-occurrence browser regression. */
+export async function addBrowserSourceEvidenceFixture(input: { companyId: string; cookies: { name: string; value: string }[]; withoutExtraction?: boolean }) {
+  const { asSystemClient } = await import("@/application/client");
+  const { runJob } = await import("@/application/processing");
+  const { fakeAiProvider, SAMPLE_EXTRACTION } = await import("@/ai/fake");
+  const { fakeVatPayerRegistry } = await import("@/vat-registry/fake");
+  const { fakeExchangeRates } = await import("@/cnb/fake");
+  const { sourceEvidencePdfFixture } = await import("./source-evidence");
+  await assignBrowserAiConfigurationFixture(input.companyId);
+  const client = await browserUserClient(input.cookies);
+  const queue: import("@/application/processing").ProcessingJob[] = [];
+  const jobs = { async send(job: import("@/application/processing").ProcessingJob) { queue.push(job); } };
+  const ai = fakeAiProvider({
+    split: () => [{ firstPage: 1, lastPage: 1 }, { firstPage: 2, lastPage: 3 }],
+    extract: () => ({ ...SAMPLE_EXTRACTION, documentNumber: "PDF-EVIDENCE", sourceLocations: [
+      { fieldPath: "documentNumber", kind: "page", page: 1, x: 0.1, y: 0.1, width: 0.3, height: 0.05 },
+      { fieldPath: "documentNumber", kind: "page", page: 2, x: 0.2, y: 0.2, width: 0.4, height: 0.07 },
+    ] }),
+  });
+  const worker = { system: asSystemClient(await browserFixtureClient()), providers: { get: () => ai }, jobs,
+    vatRegistry: fakeVatPayerRegistry(), exchangeRates: fakeExchangeRates() };
+  const uploaded = await uploadSourceFile(client, jobs, { companyId: input.companyId, fileName: "source-occurrences.pdf", bytes: await sourceEvidencePdfFixture() });
+  if (!uploaded.ok) throw new Error(uploaded.error);
+  if (input.withoutExtraction) await runJob(worker, queue.shift()!, { final: true });
+  else while (queue.length) await runJob(worker, queue.shift()!, { final: true });
+  const documents = await listDocuments(client, input.companyId, uploaded.value.id);
+  const second = documents.find(document => document.firstPage === 2);
+  if (!second) throw new Error("Second Document missing from browser fixture");
+  return second.id;
+}
+
+/** Privileged external clock setup; browser actions retain real Auth/RLS. */
+export async function withBrowserClaimDate<T>(date: string, run: Parameters<typeof withClaimDate<T>>[2]) {
+  const environment = await browserFixtureEnvironment();
+  return withClaimDate(environment.DATABASE_URL, date, run);
+}
+
+/** An actual Source File and worker Extraction for source-format browser review. */
+export async function addBrowserSourceFormatFixture(input: { companyId: string; cookies: { name: string; value: string }[]; format?: "png" | "jpeg" | "heic" | "heif" | "xls" | "xlsx" }) {
+  const isWorkbook = input.format === "xls" || input.format === "xlsx";
+  const isHeic = input.format === "heic" || input.format === "heif";
+  const { asSystemClient } = await import("@/application/client");
+  const { runJob } = await import("@/application/processing");
+  const { fakeAiProvider, SAMPLE_EXTRACTION } = await import("@/ai/fake");
+  const { fakeVatPayerRegistry } = await import("@/vat-registry/fake");
+  const { fakeExchangeRates } = await import("@/cnb/fake");
+  const sharp = (await import("sharp")).default;
+  await assignBrowserAiConfigurationFixture(input.companyId);
+  const client = await browserUserClient(input.cookies);
+  const queue: import("@/application/processing").ProcessingJob[] = [];
+  const jobs = { async send(job: import("@/application/processing").ProcessingJob) { queue.push(job); } };
+  let generation = 0;
+  const ai = fakeAiProvider({
+    split: () => isWorkbook ? [{ sheetName: "Faktury říjen", firstRow: 7, lastRow: 7 }] : [{ firstPage: 1, lastPage: 1 }],
+    extract: () => { generation++; return { ...SAMPLE_EXTRACTION, documentNumber: isWorkbook ? "CELL-240" : "IMAGE-240", sourceLocations: isWorkbook ? [
+      { fieldPath: "documentNumber", kind: "workbook", sheetName: "Faktury říjen", firstRow: 7, lastRow: 7, firstColumn: generation === 1 ? 4 : 6, lastColumn: generation === 1 ? 4 : 6 },
+      { fieldPath: "rateBreakdown.0.vatAmount", kind: "workbook", sheetName: "Faktury říjen", firstRow: 7, lastRow: 7, firstColumn: 5, lastColumn: 5 },
+    ] : [
+      { fieldPath: "documentNumber", kind: "page", page: 1, x: 0.1, y: 0.1, width: 0.3, height: 0.05 },
+      { fieldPath: "rateBreakdown.0.vatAmount", kind: "page", page: 1, x: 0.7, y: 0.6, width: 0.2, height: 0.05 },
+    ] }; },
+  });
+  const worker = { system: asSystemClient(await browserFixtureClient()), providers: { get: () => ai }, jobs,
+    vatRegistry: fakeVatPayerRegistry(), exchangeRates: fakeExchangeRates() };
+  let bytes: Uint8Array = new Uint8Array(await sharp(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800"><rect width="600" height="800" fill="white"/><text x="60" y="110" font-size="20">IMAGE-240</text><text x="420" y="500" font-size="20">210.00</text></svg>')).toFormat(input.format === "jpeg" ? "jpeg" : "png").toBuffer());
+  if (isWorkbook) {
+    const XLSX = await import("xlsx");
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([["OTHER-SHEET"]]), "Other");
+    const sheet = XLSX.utils.aoa_to_sheet([]);
+    XLSX.utils.sheet_add_aoa(sheet, [["Number", "VAT", "Repeated number"], ["OTHER-DOCUMENT", "42.00", "OTHER-DOCUMENT"], ["CELL-240", "210.00", "CELL-240"]], { origin: "D5" });
+    sheet["!ref"] = "D5:F7";
+    XLSX.utils.book_append_sheet(workbook, sheet, "Faktury říjen");
+    bytes = new Uint8Array(XLSX.write(workbook, { type: "array", bookType: input.format === "xls" ? "xls" : "xlsx" }));
+  }
+  if (isHeic) bytes = heicFixture();
+  const uploaded = await uploadSourceFile(client, jobs, { companyId: input.companyId, fileName: isWorkbook ? `source-workbook.${input.format}` : `source-image.${input.format ?? "png"}`, bytes });
+  if (!uploaded.ok) throw new Error(uploaded.error);
+  while (queue.length) await runJob(worker, queue.shift()!, { final: true });
+  const [document] = await listDocuments(client, input.companyId, uploaded.value.id);
+  const source = (await getSourceFile(client, input.companyId, uploaded.value.id))!;
+  return { documentId: document.id, sourceFileId: uploaded.value.id, sourceSha256: source.sha256, normalizedSha256: source.normalizedDerivative?.sha256,
+    async reextract() {
+      const { reprocessDocument } = await import("@/application/documents");
+      const result = await reprocessDocument(client, jobs, { companyId: input.companyId, documentId: document.id, confirmed: true });
+      if (!result.ok) throw new Error(result.error);
+      while (queue.length) await runJob(worker, queue.shift()!, { final: true });
+    },
+  };
 }

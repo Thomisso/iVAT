@@ -502,7 +502,7 @@ test("combined VAT processing journey recovers uploads, reviews warnings and com
     }
     if (remaining === 3) {
       await page.getByLabel("Bank account", { exact: true }).fill("999999/0100");
-      await page.getByRole("button", { name: "Save corrections", exact: true }).click();
+      await page.getByRole("button", { name: "Save draft", exact: true }).click();
       await expect(page.getByText("The payment account is not published for this supplier in the VAT payer registry.", { exact: true })).toBeVisible();
     }
     const approve = page.getByRole("button", { name: remaining === 3 ? "Approve version 2" : "Approve version 1", exact: true });

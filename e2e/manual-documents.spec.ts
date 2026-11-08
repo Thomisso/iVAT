@@ -37,7 +37,7 @@ test("a manual Document survives partial saves and approval without a file or AI
   const rates = page.getByRole("group", { name: "Rate breakdown and totals", exact: true });
   await rates.getByRole("textbox", { name: "Rate (%)", exact: true }).fill("21");
   await rates.getByRole("textbox", { name: "Net", exact: true }).fill("100.00");
-  await page.getByRole("button", { name: "Save corrections", exact: true }).click();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByRole("button", { name: "Approve version 2", exact: true })).toBeVisible();
   await page.reload();
   await expect(rates.getByRole("textbox", { name: "Net", exact: true })).toHaveValue("100.00");
@@ -50,7 +50,7 @@ test("a manual Document survives partial saves and approval without a file or AI
   await page.getByLabel("Total net", { exact: true }).fill("8264.47");
   await page.getByLabel("Total VAT", { exact: true }).fill("1735.54");
   await page.getByLabel("Total incl. VAT", { exact: true }).fill("10000.01");
-  await page.getByRole("button", { name: "Save corrections", exact: true }).click();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByRole("button", { name: "Approve version 3", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Approve version 3", exact: true }).click();
   await expect(page.getByText("Enter the counterparty VAT ID required for this VAT Regime before approval.", { exact: true })).toBeVisible();
@@ -60,7 +60,7 @@ test("a manual Document survives partial saves and approval without a file or AI
   await rates.getByRole("textbox", { name: "Net", exact: true }).fill("8264.46");
   await page.getByLabel("Total net", { exact: true }).fill("8264.46");
   await page.getByLabel("Total incl. VAT", { exact: true }).fill("10000.00");
-  await page.getByRole("button", { name: "Save corrections", exact: true }).click();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByRole("button", { name: "Approve version 4", exact: true })).toBeVisible();
   for (const locale of ["cs", "en"] as const) {
     await context.addCookies([{ name: "NEXT_LOCALE", value: locale, url: baseURL }]);

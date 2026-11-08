@@ -1,3 +1,6 @@
+import { remapSourceField, type SourceEvidence, type SourceLocation } from "./source-locations";
+import type { ValidationFinding } from "./document-validation";
+
 // The structured data an Extraction reads out of one Document: the payload of
 // an Extraction Version. Documented in docs/extraction-payload.md; change both
 // together, and bump `schemaVersion` when a change is not backwards compatible.
@@ -61,7 +64,26 @@ export type CzkConversion = {
   totals: { netAmount: string | null; vatAmount: string | null; grossAmount: string | null };
 };
 
+/** A human selection of separate supplies; full source amounts remain unchanged. */
+export type ClaimBasis = Pick<ExtractionPayload, "documentType" | "direction" | "currency" | "proposedVatRegime" | "taxPointDate" | "rateBreakdown" | "totals">;
+
+export type PartialClaim = {
+  basis?: ClaimBasis;
+  confirmed: boolean;
+  /** An explicit human decision to keep this Document recorded without a deduction. */
+  zeroConfirmed?: boolean;
+  rateBreakdown: DraftRateBreakdownLine[];
+};
+
 export type ExtractionPayload = {
+  /** Human accounting confirmation or the accepted same-period rule; never AI authority. */
+  claimEligibility?: {
+    period: string;
+    origin: "user" | "same_period";
+    confirmed: boolean;
+    basis?: { documentType: DocumentType | null; direction: Direction | null; proposedVatRegime: VatRegime | null;
+      taxPointDate: string | null; issueDate: string | null; sourceFileId: string | null; importDate: string | null };
+  };
   schemaVersion: 1 | 2;
   documentType: DocumentType | null;
   documentNumber: string | null;
@@ -69,6 +91,8 @@ export type ExtractionPayload = {
   taxPointDate: string | null;
   dueDate: string | null;
   direction: Direction | null;
+  /** Existing directory identity and its then-current details; never replaces Party fields. */
+  counterpartyLink?: { id: string; recorded?: Party } | null;
   supplier: Party;
   customer: Party;
   /** ISO 4217, e.g. "CZK". */
@@ -81,6 +105,8 @@ export type ExtractionPayload = {
   reverseChargeCode: string | null;
   /** For a Credit Note: the number of the Document it corrects. */
   originalDocumentNumber: string | null;
+  /** Absent on legacy/full claims. AI must never create or confirm this choice. */
+  partialClaim?: PartialClaim | null;
   /** Derived CZK values; the printed currency and amounts above stay unchanged. */
   czkConversion?: CzkConversion;
   /**
@@ -89,6 +115,11 @@ export type ExtractionPayload = {
    * and only for fields the provider reports on.
    */
   confidence?: Record<string, number>;
+  /** Unbound references returned by a provider; only server-bound evidence is usable in review. */
+  sourceLocations?: SourceLocation[];
+  sourceEvidence?: SourceEvidence;
+  /** Submitted base row identities; validated and removed at immutable Version insertion. */
+  sourceRateRows?: (number | null)[];
 };
 
 /** Nothing is inferred for a new manual Document, including its DUZP and Direction. */
@@ -127,6 +158,20 @@ const isChoice = (choices: readonly string[], value: string | null) => value ===
 
 const AMOUNT = /^-?\d+\.\d{2}$/;
 
+/** Amount syntax failures, addressed to the caller's original Rate Breakdown rows. */
+function invalidAmountFields(payload: ExtractionPayload): string[] {
+  const fields: [string, string | null][] = [
+    ...payload.rateBreakdown.flatMap((line, index): [string, string | null][] => {
+      const row = payload.sourceRateRows?.[index] ?? index;
+      return [[`rateBreakdown.${row}.netAmount`, line.netAmount], [`rateBreakdown.${row}.vatAmount`, line.vatAmount]];
+    }),
+    ["totals.netAmount", payload.totals.netAmount],
+    ["totals.vatAmount", payload.totals.vatAmount],
+    ["totals.grossAmount", payload.totals.grossAmount],
+  ];
+  return fields.filter(([, value]) => value !== null && !AMOUNT.test(value)).map(([field]) => field);
+}
+
 /** Whether a value is an ISO date of a day that exists. */
 function isIsoDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -152,22 +197,32 @@ export function isZeroRateBreakdownLine(line: Pick<DraftRateBreakdownLine, "netA
 }
 
 /** Prepares a new payload without changing the source or misattributing provider confidence. */
-export function omitZeroRateBreakdownRows(payload: ExtractionPayload): ExtractionPayload {
+export function omitZeroRateBreakdownRows(payload: ExtractionPayload, { omitEmpty = false }: { omitEmpty?: boolean } = {}): ExtractionPayload {
   const retained = payload.rateBreakdown.flatMap((line, index) =>
-    isZeroRateBreakdownLine(line) ? [] : [{ line, index }]);
+    isZeroRateBreakdownLine(line) || (omitEmpty && (line.rate === null || Number.isNaN(line.rate)) && !line.netAmount?.trim() && !line.vatAmount?.trim())
+      ? [] : [{ line, index }]);
   const newIndices = new Map(retained.map((entry, index) => [entry.index, index]));
   const confidence = payload.confidence
     ? Object.fromEntries(Object.entries(payload.confidence).flatMap(([field, value]) => {
-      const path = /^rateBreakdown\.(\d+)\.(.+)$/.exec(field);
-      if (!path) return [[field, value]];
-      const index = newIndices.get(Number(path[1]));
-      return index === undefined ? [] : [[`rateBreakdown.${index}.${path[2]}`, value]];
+      const mapped = remapSourceField(field, newIndices);
+      return mapped === null ? [] : [[mapped, value]];
     }))
     : undefined;
   return {
     ...payload,
     rateBreakdown: retained.map((entry) => entry.line),
     ...(confidence ? { confidence } : {}),
+    ...(payload.sourceRateRows ? { sourceRateRows: retained.map(({ index }) => payload.sourceRateRows?.[index] ?? null) } : {}),
+    ...(payload.sourceLocations ? { sourceLocations: payload.sourceLocations.flatMap((location) => {
+      const fieldPath = remapSourceField(location.fieldPath, newIndices);
+      return fieldPath === null ? [] : [{ ...location, fieldPath }];
+    }) } : {}),
+    ...(payload.sourceEvidence ? { sourceEvidence: { ...payload.sourceEvidence,
+      fields: Object.fromEntries(Object.entries(payload.sourceEvidence.fields).flatMap(([field, evidence]) => {
+        const mapped = remapSourceField(field, newIndices);
+        return mapped === null ? [] : [[mapped, evidence]];
+      })),
+    } } : {}),
     ...(payload.czkConversion ? {
       czkConversion: {
         ...payload.czkConversion,
@@ -192,54 +247,77 @@ export function normalizeExtractionPayload(payload: ExtractionPayload): Extracti
     supplier: party(payload.supplier),
     customer: party(payload.customer),
     rateBreakdown: payload.rateBreakdown
-      .filter((line) => !((line.rate === null || Number.isNaN(line.rate)) && !line.netAmount?.trim() && !line.vatAmount?.trim()))
       .map((line) => ({ ...line, netAmount: normalizeAmount(line.netAmount), vatAmount: normalizeAmount(line.vatAmount) })),
+    ...(payload.partialClaim ? { partialClaim: {
+      ...payload.partialClaim,
+      rateBreakdown: payload.partialClaim.rateBreakdown.map(line => ({ ...line,
+        netAmount: normalizeAmount(line.netAmount), vatAmount: normalizeAmount(line.vatAmount),
+      })),
+    } } : {}),
     totals: {
       netAmount: amount(payload.totals.netAmount),
       vatAmount: amount(payload.totals.vatAmount),
       grossAmount: amount(payload.totals.grossAmount),
     },
-  });
+  }, { omitEmpty: true });
   return normalized.rateBreakdown.some((line) => line.rate === null || line.netAmount === null || line.vatAmount === null)
     ? { ...normalized, schemaVersion: 2 }
     : normalized;
 }
 
-/** The first convention a payload breaks, or null. Null fields are always allowed. */
-export function validateExtractionPayload(payload: ExtractionPayload, { draft = false }: { draft?: boolean } = {}): ExtractionPayloadError | null {
-  if (
-    ![1, 2].includes(payload.schemaVersion) ||
-    !isChoice(DOCUMENT_TYPES, payload.documentType) ||
-    !isChoice(DIRECTIONS, payload.direction) ||
-    !isChoice(VAT_REGIMES, payload.proposedVatRegime)
-  ) {
-    return "invalid_choice";
+type PayloadIssue = { field: string | null; code: ExtractionPayloadError };
+
+/** Ordered parser issues retain the existing refusal precedence and submitted row identities. */
+function extractionPayloadIssues(payload: ExtractionPayload, { draft = false }: { draft?: boolean } = {}): PayloadIssue[] {
+  const issues: PayloadIssue[] = [];
+  const add = (field: string | null, code: ExtractionPayloadError) => issues.push({ field, code });
+  // Schema metadata has no editable form field; do not invent a focus target.
+  if (![1, 2].includes(payload.schemaVersion)) add(null, "invalid_choice");
+  if (!isChoice(DOCUMENT_TYPES, payload.documentType)) add("documentType", "invalid_choice");
+  if (!isChoice(DIRECTIONS, payload.direction)) add("direction", "invalid_choice");
+  if (!isChoice(VAT_REGIMES, payload.proposedVatRegime)) add("proposedVatRegime", "invalid_choice");
+  for (const field of invalidAmountFields(payload)) add(field, "invalid_amount");
+  if (!draft || payload.schemaVersion === 1) {
+    payload.rateBreakdown.forEach((line, index) => {
+      const row = payload.sourceRateRows?.[index] ?? index;
+      if (line.netAmount === null) add(`rateBreakdown.${row}.netAmount`, "invalid_amount");
+      if (line.vatAmount === null) add(`rateBreakdown.${row}.vatAmount`, "invalid_amount");
+    });
   }
-  const amounts = [
-    ...payload.rateBreakdown.flatMap((line) => [line.netAmount, line.vatAmount]),
-    payload.totals.netAmount,
-    payload.totals.vatAmount,
-    payload.totals.grossAmount,
-  ];
-  if (amounts.some((amount) => amount !== null && !AMOUNT.test(amount))) return "invalid_amount";
-  if ((!draft || payload.schemaVersion === 1) && payload.rateBreakdown.some((line) => line.netAmount === null || line.vatAmount === null)) return "invalid_amount";
-  if (
-    !draft &&
-    payload.documentType === "credit_note"
-    && (amounts.some((amount) => amount !== null && Number(amount) > 0)
-      || !amounts.some((amount) => amount !== null && Number(amount) < 0))
-  ) return "invalid_credit_note_amount";
-  if (payload.rateBreakdown.some((line) => line.rate === null ? !draft || payload.schemaVersion === 1 : !Number.isFinite(line.rate) || line.rate < 0 || line.rate > 100)) {
-    return "invalid_rate";
+  const amounts = [...payload.rateBreakdown.flatMap(line => [line.netAmount, line.vatAmount]),
+    payload.totals.netAmount, payload.totals.vatAmount, payload.totals.grossAmount];
+  if (!draft && payload.documentType === "credit_note"
+    && (amounts.some(value => value !== null && Number(value) > 0)
+      || !amounts.some(value => value !== null && Number(value) < 0))) add(null, "invalid_credit_note_amount");
+  payload.rateBreakdown.forEach((line, index) => {
+    if (line.rate === null ? !draft || payload.schemaVersion === 1 : !Number.isFinite(line.rate) || line.rate < 0 || line.rate > 100) {
+      add(`rateBreakdown.${payload.sourceRateRows?.[index] ?? index}.rate`, "invalid_rate");
+    }
+  });
+  for (const field of ["issueDate", "taxPointDate", "dueDate"] as const) {
+    const value = payload[field];
+    if (value !== null && !isIsoDate(value)) add(field, "invalid_date");
   }
-  const dates = [payload.issueDate, payload.taxPointDate, payload.dueDate];
-  if (dates.some((date) => date !== null && !isIsoDate(date))) return "invalid_date";
-  if (payload.currency !== null && !/^[A-Z]{3}$/.test(payload.currency)) return "invalid_currency";
+  if (payload.currency !== null && !/^[A-Z]{3}$/.test(payload.currency)) add("currency", "invalid_currency");
   const reverseChargeCode = payload.reverseChargeCode ?? null;
-  if (reverseChargeCode !== null && !/^\d{1,3}$/.test(reverseChargeCode)) {
-    return "invalid_reverse_charge_code";
+  if (reverseChargeCode !== null && !/^\d{1,3}$/.test(reverseChargeCode)) add("reverseChargeCode", "invalid_reverse_charge_code");
+  for (const party of ["supplier", "customer"] as const) {
+    const country = payload[party].country;
+    if (country !== null && !/^[A-Z]{2}$/.test(country)) add(`${party}.country`, "invalid_country");
   }
-  const countries = [payload.supplier.country, payload.customer.country];
-  if (countries.some((country) => country !== null && !/^[A-Z]{2}$/.test(country))) return "invalid_country";
-  return null;
+  return issues;
+}
+
+/** The first convention a payload breaks, preserving draft and Credit Note semantics. */
+export function validateExtractionPayload(payload: ExtractionPayload, options: { draft?: boolean } = {}): ExtractionPayloadError | null {
+  return extractionPayloadIssues(payload, options)[0]?.code ?? null;
+}
+
+/** Every editable parser error for a manual submission; nullable unfinished draft fields stay allowed. */
+export function manualDocumentPayloadFindings(payload: ExtractionPayload): ValidationFinding[] {
+  const issues = extractionPayloadIssues(payload, { draft: true });
+  return [
+    ...(!payload.taxPointDate ? [{ field: "taxPointDate", severity: "error" as const, code: "tax_point_date_required" }] : []),
+    ...issues.flatMap(issue => issue.field === null || issue.field === "taxPointDate" && !payload.taxPointDate ? [] : [{ field: issue.field, severity: "error" as const, code: issue.code }]),
+  ];
 }

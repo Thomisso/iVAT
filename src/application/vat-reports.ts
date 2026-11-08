@@ -36,7 +36,7 @@ export type VatReport = {
   };
 };
 export type GenerateVatReportError =
-  "forbidden" | "company_setup_incomplete" | "invalid_reporting_period" | "stale_report" | "period_locked";
+  "forbidden" | "company_setup_incomplete" | "invalid_reporting_period" | "stale_report" | "period_locked" | "claim_eligibility_unresolved";
 
 export type PeriodLock = {
   id: string;
@@ -211,6 +211,9 @@ export async function generateVatReport(
   }
   const readiness = await getReportingPeriodReadiness(client, input);
   if (!readiness.ok) return readiness;
+  const eligibility = await client.rpc("reporting_period_claim_issues", { target_company_id: company.id, target_period: input.period });
+  if (eligibility.error) throw eligibility.error;
+  if (Array.isArray(eligibility.data) && eligibility.data.length) return { ok: false, error: "claim_eligibility_unresolved" };
   const reportingYears = await listCompanyReportingYears(client, company.id);
   const { data, error } = await client.rpc("vat_report_documents", {
     target_company_id: company.id,
@@ -248,6 +251,7 @@ export async function generateVatReport(
     computed_result: result as unknown as Json,
   });
   if (saved.error) {
+    if (saved.error.code === "P0001" && saved.error.hint === "claim_eligibility_unresolved") return { ok: false, error: "claim_eligibility_unresolved" };
     if (saved.error.code === "42501") return { ok: false, error: "forbidden" };
     if (saved.error.code === "P0001" && saved.error.hint === "stale_report")
       return { ok: false, error: "stale_report" };
