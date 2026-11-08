@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { execFileSync, spawn } from "node:child_process";
-import { copyFile, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
+import { copyFile, cp, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createServer } from "node:net";
@@ -104,6 +104,86 @@ while true; do sleep 0.1; done
     await readFile(path.join(transport, "started"));
     await readFile(path.join(transport, "cleanup-finished"));
     assert.equal((await readFile(path.join(transport, "result"), "utf8")).trim(), "failed");
+  });
+});
+
+test("deployment reaches bundle preflight with GNU and BusyBox host tools", async t => {
+  execFileSync("docker", ["build", "-q", "-f", "deploy/tests/operator.Dockerfile", "-t", "ivat-release155-operator:verify", "."], { stdio: "pipe" });
+  for (const implementation of ["gnu", "busybox"]) await t.test(implementation, async t => {
+    const directory = await realpath(await mkdtemp(path.join(tmpdir(), "ivat-lock-preflight-")));
+    t.after(() => rm(directory, { recursive: true, force: true }));
+    await mkdir(path.join(directory, "bundle/deploy"), { recursive: true });
+    await cp("deploy/scripts", path.join(directory, "bundle/deploy/scripts"), { recursive: true });
+    await writeFile(path.join(directory, "bundle/manifest.json"), "{}\n");
+    await mkdir(path.join(directory, "stack"));
+    await writeFile(path.join(directory, "stack/.env"), "");
+    await writeFile(path.join(directory, "stack/docker-compose.rosti.yml"), "");
+    const result = spawnSync("docker", ["run", "--rm", "-e", `PATH=${implementation === "busybox" ? "/opt/ivat-busybox:" : ""}/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`, "-v", `${directory}:${directory}`, "-v", `${process.cwd()}:/source:ro`, "ivat-release155-operator:verify", path.join(directory, "bundle/deploy/scripts/deploy-release.sh"), path.join(directory, "stack"), path.join(directory, "bundle"), "stack"], { encoding: "utf8" });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /Invalid release helper image/);
+    assert.doesNotMatch(result.stderr, /unrecognized option|Deployment lock unavailable/);
+  });
+});
+
+test("GNU and BusyBox lock retries refuse contention and retain ownership through TERM cleanup", async t => {
+  execFileSync("docker", ["build", "-q", "-f", "deploy/tests/operator.Dockerfile", "-t", "ivat-release155-operator:verify", "."], { stdio: "pipe" });
+  for (const implementation of ["gnu", "busybox"]) await t.test(implementation, async t => {
+    const directory = await realpath(await mkdtemp(path.join(tmpdir(), "ivat-shared-lock-")));
+    const holderName = `ivat-lock-${path.basename(directory).toLowerCase()}`;
+    let holder;
+    t.after(async () => {
+      spawnSync("docker", ["rm", "-f", holderName], { stdio: "ignore" });
+      if (holder && holder.exitCode === null) await new Promise(resolve => holder.once("close", resolve));
+      await rm(directory, { recursive: true, force: true });
+    });
+    const toolPath = `${implementation === "busybox" ? "/opt/ivat-busybox:" : ""}/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`;
+    const args = ["run", "--rm", "-e", `PATH=${toolPath}`, "-v", `${directory}:${directory}`, "-v", `${process.cwd()}:/source:ro`, "--entrypoint", "sh"];
+    const prefix = 'set -eu; . /source/deploy/scripts/backup-lock.sh; ';
+    const waitForFile = async name => {
+      const deadline = Date.now() + 10000;
+      for (;;) {
+        try { await readFile(path.join(directory, name)); return; } catch (error) { if (error.code !== "ENOENT") throw error; }
+        assert.ok(Date.now() < deadline, `Timed out waiting for ${name}`);
+        await new Promise(resolve => setTimeout(resolve, 20));
+      }
+    };
+    const heldScript = prefix + 'acquire_backup_lock "$1/lock" 5; touch "$1/held"; trap \'touch "$1/cleanup-started"; sleep 2; touch "$1/cleanup-finished"; exit 143\' TERM; while true; do sleep 0.1; done';
+    holder = spawn("docker", [...args, "--name", holderName, "ivat-release155-operator:verify", "-c", heldScript, "sh", directory], { stdio: "ignore" });
+    const holderExit = new Promise(resolve => holder.once("close", resolve));
+    await waitForFile("held");
+    const refused = spawnSync("docker", [...args, "ivat-release155-operator:verify", "-c", prefix + 'acquire_backup_lock "$1/lock" 1; touch "$1/should-not-enter"', "sh", directory], { encoding: "utf8", timeout: 10000 });
+    assert.equal(refused.status, 1, refused.stderr);
+    await assert.rejects(readFile(path.join(directory, "should-not-enter")), { code: "ENOENT" });
+    const waiter = spawn("docker", [...args, "ivat-release155-operator:verify", "-c", prefix + 'touch "$1/waiting"; acquire_backup_lock "$1/lock" 8; touch "$1/entered"', "sh", directory], { stdio: "ignore" });
+    const waiterExit = new Promise(resolve => waiter.once("close", resolve));
+    await waitForFile("waiting");
+    execFileSync("docker", ["kill", "--signal", "TERM", holderName], { stdio: "ignore" });
+    await waitForFile("cleanup-started");
+    await assert.rejects(readFile(path.join(directory, "entered")), { code: "ENOENT" });
+    assert.equal(await holderExit, 143);
+    await readFile(path.join(directory, "cleanup-finished"));
+    assert.equal(await waiterExit, 0);
+    await readFile(path.join(directory, "entered"));
+  });
+});
+
+test("the daily workflow streams its lock helper to a legacy host with either tool implementation", async t => {
+  execFileSync("docker", ["build", "-q", "-f", "deploy/tests/operator.Dockerfile", "-t", "ivat-release155-operator:verify", "."], { stdio: "pipe" });
+  const workflow = await readFile(".github/workflows/daily-backup.yml", "utf8");
+  const body = workflow.slice(workflow.indexOf("        run: |\n") + "        run: |\n".length).split("\n").map(line => line.replace(/^ {10}/, "")).join("\n");
+  for (const implementation of ["gnu", "busybox"]) await t.test(implementation, async t => {
+    const directory = await realpath(await mkdtemp(path.join(tmpdir(), "ivat-daily-lock-")));
+    t.after(() => rm(directory, { recursive: true, force: true }));
+    await mkdir(path.join(directory, "bin"));
+    await mkdir(path.join(directory, "stack/deploy/scripts"), { recursive: true });
+    await writeFile(path.join(directory, "bin/ssh"), '#!/bin/sh\nexec sh -s\n', { mode: 0o755 });
+    await writeFile(path.join(directory, "workflow.sh"), body);
+    const toolPath = `${directory}/bin:${implementation === "busybox" ? "/opt/ivat-busybox:" : ""}/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`;
+    const setup = 'mkdir -p /srv/stack/deploy/scripts; printf \'%s\\n\' \'#!/bin/sh\' \'set -eu\' \'test ! -e /srv/stack/deploy/scripts/backup-lock.sh\' \'if flock -n /tmp/ivat-backup.lock true; then exit 42; fi\' \'touch "$LOCK_TEST_DIRECTORY/daily-completed"\' > /srv/stack/deploy/scripts/backup-daily.sh; exec bash "$LOCK_TEST_DIRECTORY/workflow.sh"';
+    const result = spawnSync("docker", ["run", "--rm", "--user", `${process.getuid()}:${process.getgid()}`, "-e", `PATH=${toolPath}`, "-e", `LOCK_TEST_DIRECTORY=${directory}`, "-e", "ROSTI_SSH_KEY=TEST_ONLY_KEY", "-e", "ROSTI_SSH_KNOWN_HOSTS=TEST_ONLY_HOST", "-e", "ROSTI_SSH_HOST=localhost", "-e", "ROSTI_SSH_PORT=22", "-e", "ROSTI_SSH_USER=root", "-e", `GITHUB_STEP_SUMMARY=${directory}/summary`, "-v", `${directory}:${directory}`, "-v", `${directory}/stack:/srv/stack`, "-v", `${process.cwd()}:/source:ro`, "-w", "/source", "ivat-release155-operator:verify", "-c", setup], { encoding: "utf8", timeout: 10000 });
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    await readFile(path.join(directory, "daily-completed"));
+    assert.match(await readFile(path.join(directory, "summary"), "utf8"), /Daily backup completed/);
   });
 });
 

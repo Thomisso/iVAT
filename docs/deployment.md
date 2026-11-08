@@ -405,7 +405,7 @@ contains the reviewed automation and foundation.
 Before enabling anything, review these concrete prerequisites together:
 
 1. Confirm Stack `931`, company `7895`, root `/srv/stack`, current `.env`,
-   host Bash, `flock`, `setsid`, `timeout` supporting `-s TERM`, Docker Compose and free disk space.
+   host Bash, `flock` supporting `-n`, `setsid`, `timeout` supporting `-s TERM`, Docker Compose and free disk space.
    Read the running database container's `com.docker.compose.project` label
    privately and retain that exact project name. Do not guess a new project.
 2. Verify the SSH endpoint and host key fingerprint against a trusted provider
@@ -556,13 +556,17 @@ The schedule is the `Daily Roští backup` GitHub workflow
 (`.github/workflows/daily-backup.yml`) at 03:15 UTC. It uses the same pinned
 SSH secrets and variables as the deploy job, shares its `rosti-production`
 concurrency group and runs only while `ROSTI_DEPLOY_ENABLED` is `true`. On the
-host it runs:
+host it streams the reviewed `backup-lock.sh` helper and runs:
 
 ```bash
-flock -w 900 /tmp/ivat-backup.lock sh /srv/stack/deploy/scripts/backup-daily.sh >> /srv/stack/deploy/backups/daily.log 2>&1
+acquire_backup_lock /tmp/ivat-backup.lock 900
+exec sh /srv/stack/deploy/scripts/backup-daily.sh
 ```
 
-Host output stays in the private `daily.log`; the workflow reports only
+The helper waits with bounded `flock -n` retries, supported by BusyBox and
+util-linux, while descriptor 9 holds the same lock through command cleanup.
+Streaming it from the trusted workflow checkout also works before a release has
+installed the helper on the host. Host output stays in the private `daily.log`; the workflow reports only
 success or failure, and a failed scheduled run triggers GitHub's normal
 workflow-failure notification. For an explicitly requested run, use
 `gh workflow run daily-backup.yml --repo Thomisso/iVAT`, then identify the
@@ -583,7 +587,11 @@ For an independently requested manual backup, use the same lock; releases do
 not require this extra step:
 
 ```bash
-flock -w 900 /tmp/ivat-backup.lock env DEPLOY_ENV_FILE=.env sh deploy/scripts/backup.sh /srv/stack/deploy/backups
+(
+  . /srv/stack/deploy/scripts/backup-lock.sh
+  acquire_backup_lock /tmp/ivat-backup.lock 900 || exit 1
+  DEPLOY_ENV_FILE=.env sh deploy/scripts/backup.sh /srv/stack/deploy/backups
+)
 ```
 
 The private archive includes PostgreSQL data, database encryption keys, Storage
@@ -639,7 +647,8 @@ first, Roští API key second. Do not put either secret in command arguments,
 logs or shell history. Registry credentials are kept only in a private
 per-command temporary Docker configuration and removed on exit.
 
-The command acquires the same `/tmp/ivat-backup.lock` used by the daily backup
+The command uses the shared `backup-lock.sh` helper with bounded `flock -n`
+retries to acquire the same `/tmp/ivat-backup.lock` used by the daily backup
 job. Before stopping services, it validates the bundle, the newest completed
 daily archive and its image inventory (maximum age 26 hours), gzip integrity,
 and the installation's public build settings. It creates no additional
