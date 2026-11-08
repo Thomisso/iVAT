@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { execFileSync, spawn } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { access, chmod, cp, mkdir, mkdtemp, readFile, realpath, rm, utimes, writeFile } from "node:fs/promises";
 import { createConnection, createServer } from "node:net";
 import { createServer as createHttpServer } from "node:http";
@@ -163,8 +163,15 @@ test("the real release command guards and upgrades a disposable production stack
       socket.once("connect", () => { socket.destroy(); resolve(true); }); socket.once("error", () => { socket.destroy(); resolve(false); });
     })) { if (Date.now() > sshDeadline) throw new Error("Disposable SSH host did not start."); await new Promise(resolve => setTimeout(resolve, 50)); }
     await writeFile(path.join(directory, "known_hosts"), `[127.0.0.1]:${sshPort} ${hostKey}\n`);
-    const sshTools = execFileSync("ssh", ["-T", "-p", String(sshPort), "-i", path.join(directory, "client"), "-o", `UserKnownHostsFile=${path.join(directory, "known_hosts")}`, "-o", "GlobalKnownHostsFile=/dev/null", "-o", "StrictHostKeyChecking=yes", "-o", "BatchMode=yes", "-o", "IdentitiesOnly=yes", "root@127.0.0.1", "sh -c 'timeout --help 2>&1; flock --help 2>&1; true'"], { encoding: "utf8" });
-    assert.equal((sshTools.match(/BusyBox v/g) || []).length, 2, "actual SSH deployment shell must use both BusyBox timeout and flock");
+    let sshProbe;
+    do {
+      sshProbe = spawnSync("ssh", ["-T", "-p", String(sshPort), "-i", path.join(directory, "client"), "-o", `UserKnownHostsFile=${path.join(directory, "known_hosts")}`, "-o", "GlobalKnownHostsFile=/dev/null", "-o", "StrictHostKeyChecking=yes", "-o", "BatchMode=yes", "-o", "IdentitiesOnly=yes", "root@127.0.0.1", "sh -c 'timeout --help 2>&1; flock --help 2>&1; true'"], { encoding: "utf8", timeout: 3000 });
+      if (sshProbe.status === 0) break;
+      await new Promise(resolve => setTimeout(resolve, 100));
+    } while (Date.now() < sshDeadline);
+    assert.equal(sshProbe.status, 0, "Pinned SSH test host did not become ready: " + sshProbe.stderr);
+    assert.equal((sshProbe.stdout.match(/BusyBox v/g) || []).length, 2, "actual SSH deployment shell must use both BusyBox timeout and flock");
+    console.log("Verified BusyBox timeout and flock through the actual pinned SSH shell.");
     const connection = { archive: await readFile(releaseArchive), verified: release, event, stack, project, actor: "release-fixture", ssh: { host: "127.0.0.1", port: sshPort, user: "root", privateKey: await readFile(path.join(directory, "client"), "utf8"), knownHosts: `[127.0.0.1]:${sshPort} ${hostKey}` }, pollMs: 50, timeoutMs: 600000 };
     process.env.GHCR_TOKEN = "test-registry-secret"; process.env.ROSTI_API_KEY = "test-provider-secret";
     const checks = { repository: release.repository, revision, token: "test-github-secret", apiUrl: `http://127.0.0.1:${apiPort}/github`, timeoutMs: 1000, pollMs: 20 };
