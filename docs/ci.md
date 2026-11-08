@@ -10,7 +10,7 @@ fails its gate. No workflow-level path filter can leave a required check pending
 | --- | --- | --- |
 | docs | Only root README/AGENTS/CODING_STANDARDS/GLOSSARY Markdown or Markdown under `docs/` | Policy tests and migration-history guard; no dependency install, database, browser, or containers |
 | draft | Other changes on a draft PR | Policy, lockfile, migration history, typecheck and lint; no runtime stack |
-| full | Ready PR, `ci:full` label, unavailable/empty diff, or any main push | All original release-policy, database-types, serial application tests, lint, types, production build, browser journeys and self-hosted deployment checks |
+| full | Ready PR, `ci:full` label, unavailable/empty diff, or any main push | Release-policy, database-types, all three serial application-test shards, lint, types, production build, CLI production HTTP acceptance and self-hosted deployment checks |
 
 `ci:full` explicitly requests complete verification while an integration PR stays
 draft. Removing it returns a draft to its cheap profile. Publishing a PR as ready
@@ -56,23 +56,32 @@ No database files run concurrently over a shared mutable stack.
 
 ## Isolated test shards
 
-The `full` and `acceptance` jobs each run three shards on separate GitHub
-runners. Vitest splits files with `--shard=N/3` and keeps `test:serial`;
-Playwright splits files with the same flag and keeps one worker. Each shard
-starts its own Supabase stack. No mutable database, production build or test
-result is shared between runners. All files still run once; opt-in live-provider
+The `full` job runs three independent financial/application shards on separate
+GitHub runners. Vitest splits files with `--shard=N/3` and keeps `test:serial`.
+Each shard owns its Supabase stack. `fail-fast: false` retains sibling results
+and diagnostics if one fails. All application files still run once; live-provider
 contract tests remain opt-in.
 
-Both matrices use `fail-fast: false`, so one failed shard does not cancel its
-siblings or discard their diagnostics. The existing `check` and `e2e` gates
-consume the aggregate matrix results and fail if any shard fails or is
-cancelled. Browser trace artifacts include the shard number to avoid artifact
-name collisions. Every shard retains its `always()` database cleanup. The docs,
-draft, exact-main release evidence and PR cancellation policies are unchanged.
+The single `acceptance` job runs `npm run test:http`: one real production build,
+Next server, worker and isolated stack for the complete HTTP suite. It uses real
+Auth, native SSR cookies, public application commands/RLS and HTTP routes; the
+existing Postman ARES and local fake-provider seams keep external calls local.
+A loopback control around the existing real-Supabase gateway exercises private
+transport, bounded dependency failure, independent liveness and recovery.
+The suite also verifies anonymous/member/foreign authority, localized SSR,
+original/recorded bytes, immutable XML artifacts and stable download headers.
+It does not assert hydration, keyboard/focus, responsive layout or visual results.
 
-This trades additional runner setup for shorter elapsed time: dependency
-installation, database startup and production build happen independently for
-each shard. Do not interpret a shorter workflow as fewer runner minutes.
+The existing `check` and `e2e` gates consume actual prerequisite results and
+fail if their required jobs fail, cancel or unexpectedly skip. HTTP service logs
+are retained as `http-acceptance-logs` on failure. Every owned runtime retains
+its `always()` database cleanup, and the local runner also tears down its stack.
+The docs, draft, exact-main release evidence and PR cancellation policies remain.
+No default package command or CI job installs or launches a browser. Retained
+Playwright sources are historical inventory under [the execution policy](agents/cli-processes.md).
+
+The following timing records describe the earlier browser-based workflow and
+remain historical evidence; they are not instructions to execute it again.
 
 ### Failure at `21b66bb`
 

@@ -1,3 +1,5 @@
+import { setOctoberImportFixture } from "./support/claim-eligibility";
+import { createConfirmedManualDocument } from "./support/claim-eligibility";
 import { readFileSync } from "node:fs";
 import { PDFDocument } from "pdf-lib";
 import { Client as DatabaseClient } from "pg";
@@ -5,7 +7,6 @@ import { describe, expect, inject, it } from "vitest";
 import { listAuditEvents } from "@/application/audit";
 import {
   approveDocument,
-  createManualDocument,
   listDeferredClaimPeriods,
   correctDocument,
   getDocument,
@@ -50,6 +51,7 @@ async function documentInReview(extraction: ExtractionPayload = SAMPLE_EXTRACTIO
     bytes: fixtureFile("receipt.png"),
   });
   if (!uploaded.ok) throw new Error(uploaded.error);
+  await setOctoberImportFixture(uploaded.value.id);
   await worker.runJobs();
   const [document] = await listDocuments(admin.client, admin.companyId, uploaded.value.id);
   return { ...admin, worker, sourceFileId: uploaded.value.id, documentId: document.id };
@@ -212,7 +214,10 @@ describe("correcting a Document", () => {
       [1, { kind: "ai" }],
       [2, { kind: "user", userId }],
     ]);
-    expect(versions[0].payload).toEqual(SAMPLE_EXTRACTION);
+    expect(versions[0].payload).toEqual({ ...SAMPLE_EXTRACTION, claimEligibility: {
+      period: "2026-10", origin: "same_period", confirmed: true,
+      basis: { documentType: "invoice", direction: "incoming", proposedVatRegime: "domestic", taxPointDate: "2026-10-01", issueDate: "2026-10-01", sourceFileId: expect.any(String), importDate: "2026-10-10" },
+    } });
     expect(versions[1].payload).toEqual({ ...CORRECTED, confidence: undefined });
     expect(versions[1].payload).not.toHaveProperty("confidence");
   });
@@ -254,16 +259,16 @@ describe("correcting a Document", () => {
   });
 
   it.each([
-    ["an amount that is no number", { totals: { ...SAMPLE_EXTRACTION.totals, grossAmount: "1210 Kč" } }, "invalid_amount"],
-    ["a Rate Breakdown amount with three decimals", { rateBreakdown: [{ rate: 21, netAmount: "1000.005", vatAmount: "210.00" }] }, "invalid_amount"],
-    ["a negative VAT rate", { rateBreakdown: [{ rate: -21, netAmount: "1000.00", vatAmount: "210.00" }] }, "invalid_rate"],
-    ["a date that does not exist", { taxPointDate: "2026-02-30" }, "invalid_date"],
-    ["a currency that is not an ISO code", { currency: "Kč" }, "invalid_currency"],
-    ["a country that is not an ISO code", { supplier: { ...SAMPLE_EXTRACTION.supplier, country: "CZE" } }, "invalid_country"],
-    ["an unknown document type", { documentType: "invoic" as ExtractionPayload["documentType"] }, "invalid_choice"],
-    ["an unknown Direction", { direction: "sideways" as ExtractionPayload["direction"] }, "invalid_choice"],
-    ["an unknown VAT Regime", { proposedVatRegime: "export" as ExtractionPayload["proposedVatRegime"] }, "invalid_choice"],
-  ] satisfies [string, Partial<ExtractionPayload>, string][])("refuses %s", async (_case, change, error) => {
+    ["an amount that is no number", { totals: { ...SAMPLE_EXTRACTION.totals, grossAmount: "1210 Kč" } }, "invalid_amount", "totals.grossAmount"],
+    ["a Rate Breakdown amount with three decimals", { rateBreakdown: [{ rate: 21, netAmount: "1000.005", vatAmount: "210.00" }] }, "invalid_amount", "rateBreakdown.0.netAmount"],
+    ["a negative VAT rate", { rateBreakdown: [{ rate: -21, netAmount: "1000.00", vatAmount: "210.00" }] }, "invalid_rate", "rateBreakdown.0.rate"],
+    ["a date that does not exist", { taxPointDate: "2026-02-30" }, "invalid_date", "taxPointDate"],
+    ["a currency that is not an ISO code", { currency: "Kč" }, "invalid_currency", "currency"],
+    ["a country that is not an ISO code", { supplier: { ...SAMPLE_EXTRACTION.supplier, country: "CZE" } }, "invalid_country", "supplier.country"],
+    ["an unknown document type", { documentType: "invoic" as ExtractionPayload["documentType"] }, "invalid_choice", "documentType"],
+    ["an unknown Direction", { direction: "sideways" as ExtractionPayload["direction"] }, "invalid_choice", "direction"],
+    ["an unknown VAT Regime", { proposedVatRegime: "export" as ExtractionPayload["proposedVatRegime"] }, "invalid_choice", "proposedVatRegime"],
+  ] satisfies [string, Partial<ExtractionPayload>, string, string?][])("refuses %s", async (_case, change, error, field?: string) => {
     const { client, companyId, documentId } = await documentInReview();
 
     const result = await correctDocument(client, {
@@ -273,7 +278,9 @@ describe("correcting a Document", () => {
       payload: { ...SAMPLE_EXTRACTION, ...change },
     });
 
-    expect(result).toEqual({ ok: false, error });
+    expect(result).toEqual({ ok: false, error,
+      ...(field ? { findings: [{ field, severity: "error", code: error }] } : {}),
+    });
     expect(await listExtractionVersions(client, companyId, documentId)).toHaveLength(1);
   });
 
@@ -491,7 +498,7 @@ describe("approving and rejecting a Document", () => {
       rateBreakdown: [{ rate: 21, netAmount: "8264.46", vatAmount: "1735.54" }],
       totals: { netAmount: "8264.46", vatAmount: "1735.54", grossAmount: "10000.00" },
     };
-    const created = await createManualDocument(user.client, { companyId: administrator.companyId, payload });
+    const created = await createConfirmedManualDocument(user.client, { companyId: administrator.companyId, payload });
     if (!created.ok) throw new Error(created.error);
     const input = { companyId: administrator.companyId, documentId: created.value.id };
     expect((await listExtractionVersions(user.client, input.companyId, input.documentId))[0].findings)
@@ -521,12 +528,13 @@ describe("approving and rejecting a Document", () => {
     expect((await listExtractionVersions(document.client, document.companyId, document.documentId))[1].findings)
       .toEqual([{ field: "supplier.vatId", severity: "warning", code: "missing_supplier_vat_id" }]);
     expect(await approveDocument(document.client, { ...document, version: 2 })).toEqual({ ok: true, value: null });
+    const approvedVersions = await listExtractionVersions(document.client, document.companyId, document.documentId);
     const period = { companyId: document.companyId, period: "2026-10" };
     const readiness = await getReportingPeriodReadiness(document.client, period);
     expect(readiness.ok && readiness.value.ready).toBe(true);
     expect((await generateVatReport(document.client, period)).ok).toBe(true);
     expect(await finalizeVatReport(document.client, { ...period, confirmed: true })).toEqual({ ok: true, value: null });
-    expect(await listExtractionVersions(document.client, document.companyId, document.documentId)).toHaveLength(2);
+    expect(await listExtractionVersions(document.client, document.companyId, document.documentId)).toEqual(approvedVersions);
   });
 
   describe.each(["incoming", "outgoing"] as const)("%s domestic VAT ID boundary", (direction) => {
@@ -549,7 +557,7 @@ describe("approving and rejecting a Document", () => {
         rateBreakdown: [{ rate: 21, netAmount, vatAmount }],
         totals: { netAmount, vatAmount, grossAmount },
       };
-      const created = await createManualDocument(user.client, { companyId: administrator.companyId, payload }, fakeExchangeRates("25.00"));
+      const created = await createConfirmedManualDocument(user.client, { companyId: administrator.companyId, payload }, fakeExchangeRates("25.00"));
       if (!created.ok) throw new Error(created.error);
       const input = { companyId: administrator.companyId, documentId: created.value.id };
       const [version] = await listExtractionVersions(user.client, input.companyId, input.documentId);
@@ -576,7 +584,7 @@ describe("approving and rejecting a Document", () => {
   it.each(["domestic_reverse_charge", "eu_acquisition_of_goods", "eu_received_service"] as const)("retains the mandatory supplier VAT ID for %s below the ordinary threshold", async proposedVatRegime => {
     const administrator = await administratorWithCompany();
     const payload: ExtractionPayload = { ...SAMPLE_EXTRACTION, proposedVatRegime, reverseChargeCode: "4", supplier: { ...SAMPLE_EXTRACTION.supplier, vatId: null } };
-    const created = await createManualDocument(administrator.client, { companyId: administrator.companyId, payload });
+    const created = await createConfirmedManualDocument(administrator.client, { companyId: administrator.companyId, payload });
     if (!created.ok) throw new Error(created.error);
     expect(await approveDocument(administrator.client, { companyId: administrator.companyId, documentId: created.value.id, version: 1 }))
       .toEqual({ ok: false, error: "counterparty_vat_id_required" });
@@ -594,7 +602,7 @@ describe("approving and rejecting a Document", () => {
       supplier: SAMPLE_EXTRACTION.customer,
       customer: { ...SAMPLE_EXTRACTION.supplier, vatId: null },
     };
-    const created = await createManualDocument(user.client, { companyId: administrator.companyId, payload });
+    const created = await createConfirmedManualDocument(user.client, { companyId: administrator.companyId, payload });
     if (!created.ok) throw new Error(created.error);
     const input = { companyId: administrator.companyId, documentId: created.value.id };
     expect((await listExtractionVersions(user.client, input.companyId, input.documentId))[0].findings)
@@ -682,7 +690,7 @@ describe("approving and rejecting a Document", () => {
     expect(await finalizeVatReport(document.client, { ...period, confirmed: true }))
       .toEqual({ ok: false, error: "readiness_blocked" });
     expect(await listExtractionVersions(document.client, document.companyId, document.documentId))
-      .toHaveLength(2);
+      .toEqual(versions);
   });
 
   it("preserves an undetermined VAT Regime in review and refuses approval until it is supplied", async () => {
@@ -828,7 +836,7 @@ describe("approving and rejecting a Document", () => {
         companyId: document.companyId,
         targetType: "document",
         targetId: document.documentId,
-        payload: { version: 1 },
+        payload: { version: 2 },
       }),
     );
   });
@@ -1007,6 +1015,7 @@ describe("the Document list", () => {
         bytes: fixtureFile("receipt.png"),
       });
       if (!uploaded.ok) throw new Error(uploaded.error);
+  await setOctoberImportFixture(uploaded.value.id);
       sourceFileIds.push(uploaded.value.id);
     }
     await worker.runJobs();
@@ -1047,7 +1056,7 @@ describe("the Document list", () => {
         expect.objectContaining({
           id: purchase,
           status: "approved",
-          version: 2,
+          version: 3,
           documentNumber: "FP-1a",
           direction: "incoming",
           taxPointDate: "2026-10-01",
@@ -1150,6 +1159,7 @@ describe("the review workspace", () => {
       bytes: fixtureFile("two-invoices.pdf"),
     });
     if (!uploaded.ok) throw new Error(uploaded.error);
+  await setOctoberImportFixture(uploaded.value.id);
     await worker.runJobs();
     const [, second] = await listDocuments(client, companyId, uploaded.value.id);
 
@@ -1210,12 +1220,12 @@ it("offers only later generated periods for a Deferred Claim", async () => {
 });
 
 
-it("refuses a Deferred Claim more than three years after the Tax Point Date", async () => {
+it("refuses a generated Deferred Claim period after the entitlement filing deadline", async () => {
   const document = await documentInReview();
   const { setCurrentReportingYear } = await import("@/application/companies");
   await setCurrentReportingYear(document.client, { companyId: document.companyId, year: 2030, filingFrequency: "monthly" });
   expect(await updateDocumentReporting(document.client, { companyId: document.companyId, documentId: document.documentId, claimedReportingPeriod: "2030-01" }))
-    .toEqual({ ok: false, error: "invalid_reporting_period" });
+    .toEqual({ ok: false, error: "claimed_period_after_deadline" });
   expect(await listDeferredClaimPeriods(document.client, document.companyId, document.documentId)).not.toContain("2030-01");
 });
 

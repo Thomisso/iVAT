@@ -20,6 +20,16 @@ export function saveJournal(directory, journal) {
   try { fs.fsyncSync(parent); } finally { fs.closeSync(parent); }
 }
 
+function isLocalHost(host) {
+  if (host === os.hostname()) return true;
+  if (os.platform() !== "darwin" || typeof host !== "string") return false;
+  try {
+    const output = execFileSync("/usr/sbin/scutil", ["--get", "LocalHostName"], { encoding: "utf8", timeout: 1000, maxBuffer: 256, stdio: ["ignore", "pipe", "ignore"] });
+    const localName = output.replace(/\r?\n$/, "");
+    return /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/.test(localName) && host === `${localName}.local`;
+  } catch { return false; }
+}
+
 function lockOwner(directory) {
   let contents;
   try {
@@ -36,7 +46,7 @@ function lockOwner(directory) {
   }
   try {
     const owner = JSON.parse(contents);
-    if (!Number.isSafeInteger(owner.pid) || owner.pid <= 0 || owner.host !== os.hostname() || typeof owner.token !== "string") throw new Error("unknown owner");
+    if (!Number.isSafeInteger(owner.pid) || owner.pid <= 0 || !isLocalHost(owner.host) || typeof owner.token !== "string") throw new Error("unknown owner");
     return owner;
   } catch { throw new TrackerError("local_lock_unverified"); }
 }
@@ -53,6 +63,8 @@ function acquireLock(directory, depth = 0) {
   if (depth > 8) throw new TrackerError("local_lock_unverified");
   try { fs.mkdirSync(directory); }
   catch (error) {
+    // Another reclaimer can retire the parent before this election starts.
+    if (error.code === "ENOENT" && depth > 0) throw new TrackerError("local_run_busy");
     if (error.code !== "EEXIST") throw error;
     const previous = fs.lstatSync(directory);
     if (!previous.isDirectory() || previous.isSymbolicLink()) throw new TrackerError("local_lock_unverified");

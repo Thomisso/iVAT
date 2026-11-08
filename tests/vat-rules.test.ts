@@ -123,6 +123,23 @@ it("moves an incoming input VAT claim to the explicitly chosen later Reporting P
   ).toBe("2026-12");
 });
 
+it("preserves a recorded legacy Deferred Claim beyond the old three-year cutoff in report attribution", () => {
+  // Attribution retains saved accounting facts; fresh preparation separately
+  // checks whether the legacy claim can still be used.
+  const legacy = {
+    ...document({ taxPointDate: "2021-12-15", issueDate: "2021-12-15" }),
+    claimedReportingPeriod: "2026-10",
+  };
+  const report = computeVatReport(company, "2026-10", [legacy], [
+    { year: 2021, frequency: "monthly", firstMonth: 1 },
+    { year: 2026, frequency: "monthly", firstMonth: 1 },
+  ]);
+
+  expect(report.vatReturn.find((entry) => entry.line === "40")).toEqual({
+    line: "40", netAmount: "1000.00", vatAmount: "210.00", documentIds: ["doc-1"],
+  });
+});
+
 it.each([
   ["2026-12-15", "2026-12"],
   ["2027-01-15", "2027-Q1"],
@@ -535,4 +552,212 @@ it("returns contributors for summary values from the Rules Engine", () => {
     payable: ["sale", "doc-1"],
     excessDeduction: ["sale", "doc-1"],
   });
+});
+
+it("reports a human Partial Claim while retaining the whole Document's B.2 threshold", () => {
+  const selected = document({
+    rateBreakdown: [{ rate: 21, netAmount: "12000.00", vatAmount: "2520.00" }],
+    totals: { netAmount: "12000.00", vatAmount: "2520.00", grossAmount: "14520.00" },
+    ...{
+      partialClaim: {
+        confirmed: true,
+        rateBreakdown: [{ rate: 21, netAmount: "6000.00", vatAmount: "1260.00" }],
+      },
+    },
+  });
+
+  const report = computeVatReport(company, period, [selected]);
+
+  expect(report.vatReturn.find((line) => line.line === "40")).toEqual({
+    line: "40", netAmount: "6000.00", vatAmount: "1260.00", documentIds: ["doc-1"],
+  });
+  expect(report.totals).toEqual({
+    outputVat: "0.00", inputVat: "1260.00", payable: "0.00", excessDeduction: "1260.00",
+  });
+  expect(report.controlStatement).toEqual([expect.objectContaining({
+    section: "B.2",
+    rateBreakdown: [{ rate: 21, netAmount: "6000.00", vatAmount: "1260.00", documentIds: ["doc-1"] }],
+  })]);
+  expect(selected.payload).toMatchObject({
+    rateBreakdown: [{ rate: 21, netAmount: "12000.00", vatAmount: "2520.00" }],
+    totals: { netAmount: "12000.00", vatAmount: "2520.00", grossAmount: "14520.00" },
+  });
+});
+
+it("never restores the full claim while a preserved human selection awaits confirmation", () => {
+  const pending = document({
+    rateBreakdown: [{ rate: 21, netAmount: "12000.00", vatAmount: "2520.00" }],
+    totals: { netAmount: "12000.00", vatAmount: "2520.00", grossAmount: "14520.00" },
+    partialClaim: {
+      confirmed: false,
+      rateBreakdown: [{ rate: 21, netAmount: "6000.00", vatAmount: "1260.00" }],
+    },
+  });
+
+  const report = computeVatReport(company, period, [pending]);
+
+  expect(report.excludedDocuments).toEqual([{ documentId: "doc-1", reason: "incomplete_data" }]);
+  expect(report.totals.inputVat).toBe("0.00");
+  expect(report.controlStatement).toEqual([]);
+});
+
+it("reports selected separate supplies at both rates without changing the full amounts", () => {
+  const selected = document({
+    rateBreakdown: [
+      { rate: 21, netAmount: "12000.10", vatAmount: "2520.02" },
+      { rate: 12, netAmount: "2000.20", vatAmount: "240.02" },
+    ],
+    totals: { netAmount: "14000.30", vatAmount: "2760.04", grossAmount: "16760.34" },
+    partialClaim: { confirmed: true, rateBreakdown: [
+      { rate: 12, netAmount: "1000.10", vatAmount: "120.01" },
+      { rate: 21, netAmount: "6000.05", vatAmount: "1260.01" },
+    ] },
+  });
+  const report = computeVatReport(company, period, [selected]);
+  expect(report.excludedDocuments).toEqual([]);
+  expect(report.vatReturn.filter(line => line.documentIds.length)).toEqual([
+    { line: "40", netAmount: "6000.05", vatAmount: "1260.01", documentIds: ["doc-1"] },
+    { line: "41", netAmount: "1000.10", vatAmount: "120.01", documentIds: ["doc-1"] },
+  ]);
+  expect(report.controlStatement).toEqual([expect.objectContaining({ section: "B.2", rateBreakdown: [
+    { rate: 12, netAmount: "1000.10", vatAmount: "120.01", documentIds: ["doc-1"] },
+    { rate: 21, netAmount: "6000.05", vatAmount: "1260.01", documentIds: ["doc-1"] },
+  ] })]);
+  expect(report.totals.inputVat).toBe("1380.02");
+  expect(selected.payload?.totals).toEqual({ netAmount: "14000.30", vatAmount: "2760.04", grossAmount: "16760.34" });
+});
+
+it.each([
+  { name: "incomplete", rates: [{ rate: 21, netAmount: "6000.00", vatAmount: null }] },
+  { name: "over-full net", rates: [{ rate: 21, netAmount: "12000.01", vatAmount: "2520.00" }] },
+  { name: "over-full VAT", rates: [{ rate: 21, netAmount: "12000.00", vatAmount: "2520.01" }] },
+  { name: "negative", rates: [{ rate: 21, netAmount: "-6000.00", vatAmount: "-1260.00" }] },
+  { name: "unbalanced VAT", rates: [{ rate: 21, netAmount: "6000.00", vatAmount: "1200.00" }] },
+  { name: "VAT without any selected supply", rates: [{ rate: 21, netAmount: "0.00", vatAmount: "0.01" }] },
+  { name: "zero without explicit zero confirmation", rates: [{ rate: 21, netAmount: "0.00", vatAmount: "0.00" }] },
+  { name: "wrong rate", rates: [{ rate: 12, netAmount: "6000.00", vatAmount: "720.00" }] },
+  { name: "empty", rates: [] },
+  { name: "duplicate rate", rates: [
+    { rate: 21, netAmount: "3000.00", vatAmount: "630.00" },
+    { rate: 21, netAmount: "3000.00", vatAmount: "630.00" },
+  ] },
+])("excludes a $name human selection rather than contributing it or restoring the full claim", ({ rates }) => {
+  const selected = document({
+    rateBreakdown: [{ rate: 21, netAmount: "12000.00", vatAmount: "2520.00" }],
+    totals: { netAmount: "12000.00", vatAmount: "2520.00", grossAmount: "14520.00" },
+    partialClaim: { confirmed: true, rateBreakdown: rates },
+  });
+
+  const report = computeVatReport(company, period, [selected]);
+
+  expect(report.excludedDocuments).toEqual([{ documentId: "doc-1", reason: "incomplete_data" }]);
+  expect(report.totals.inputVat).toBe("0.00");
+  expect(report.controlStatement).toEqual([]);
+});
+
+it.each<{
+  name: string;
+  source: Partial<typeof SAMPLE_EXTRACTION>;
+}>([
+  { name: "outgoing", source: { direction: "outgoing" } },
+  { name: "Credit Note", source: { documentType: "credit_note", originalDocumentNumber: "ORIGINAL" } },
+  { name: "reverse charge", source: { proposedVatRegime: "domestic_reverse_charge", reverseChargeCode: "4" } },
+  { name: "self-assessed EU service", source: {
+    proposedVatRegime: "eu_received_service", supplier: { ...SAMPLE_EXTRACTION.supplier, vatId: "DE123456789", country: "DE" },
+  } },
+  { name: "self-assessed EU goods", source: {
+    proposedVatRegime: "eu_acquisition_of_goods", supplier: { ...SAMPLE_EXTRACTION.supplier, vatId: "DE123456789", country: "DE" },
+  } },
+  { name: "multiple rates", source: {
+    rateBreakdown: [
+      { rate: 21, netAmount: "12000.00", vatAmount: "2520.00" },
+      { rate: 12, netAmount: "1000.00", vatAmount: "120.00" },
+    ],
+    totals: { netAmount: "13000.00", vatAmount: "2640.00", grossAmount: "15640.00" },
+  } },
+])("excludes a Partial Claim on an unsupported or incomplete $name Document", ({ source }) => {
+  const selected = document({
+    rateBreakdown: [{ rate: 21, netAmount: "12000.00", vatAmount: "2520.00" }],
+    totals: { netAmount: "12000.00", vatAmount: "2520.00", grossAmount: "14520.00" },
+    ...source,
+    partialClaim: {
+      confirmed: true,
+      rateBreakdown: [{ rate: 21, netAmount: "6000.00", vatAmount: "1260.00" }],
+    },
+  });
+
+  const report = computeVatReport(company, period, [selected]);
+
+  expect(report.excludedDocuments).toEqual([{ documentId: "doc-1", reason: "incomplete_data" }]);
+  expect(report.totals).toEqual({
+    outputVat: "0.00", inputVat: "0.00", payable: "0.00", excessDeduction: "0.00",
+  });
+  expect(report.controlStatement).toEqual([]);
+});
+
+it.each<{
+  name: string;
+  source: Partial<typeof SAMPLE_EXTRACTION>;
+}>([
+  { name: "net total mismatch", source: { totals: { netAmount: "11900.00", vatAmount: "2520.00", grossAmount: "14420.00" } } },
+  { name: "VAT total mismatch", source: { totals: { netAmount: "12000.00", vatAmount: "2500.00", grossAmount: "14500.00" } } },
+  { name: "full-rate VAT mismatch", source: {
+    rateBreakdown: [{ rate: 21, netAmount: "12000.00", vatAmount: "2400.00" }],
+    totals: { netAmount: "12000.00", vatAmount: "2400.00", grossAmount: "14400.00" },
+  } },
+  { name: "missing full net total", source: { totals: { netAmount: null, vatAmount: "2520.00", grossAmount: "14520.00" } } },
+])("never hides a full Document's $name behind valid selected amounts", ({ source }) => {
+  const selected = document({
+    rateBreakdown: [{ rate: 21, netAmount: "12000.00", vatAmount: "2520.00" }],
+    totals: { netAmount: "12000.00", vatAmount: "2520.00", grossAmount: "14520.00" },
+    ...source,
+    partialClaim: {
+      confirmed: true,
+      rateBreakdown: [{ rate: 21, netAmount: "6000.00", vatAmount: "1260.00" }],
+    },
+  });
+
+  const report = computeVatReport(company, period, [selected]);
+
+  expect(report.excludedDocuments).toEqual([{ documentId: "doc-1", reason: "incomplete_data" }]);
+  expect(report.totals.inputVat).toBe("0.00");
+  expect(report.controlStatement).toEqual([]);
+});
+
+it.each([
+  "null",
+  '{"confirmed":true}',
+  '{"confirmed":true,"rateBreakdown":[null]}',
+  '{"confirmed":true,"rateBreakdown":[{"rate":21,"netAmount":6000.01,"vatAmount":"1260.00"}]}',
+  '{"confirmed":true,"method":"section75","rateBreakdown":[{"rate":21,"netAmount":"6000.00","vatAmount":"1260.00"}]}',
+  '{"confirmed":true,"method":"section76","rateBreakdown":[{"rate":21,"netAmount":"6000.00","vatAmount":"1260.00"}]}',
+  '{"confirmed":true,"periods":["2026-10","2026-11"],"rateBreakdown":[{"rate":21,"netAmount":"6000.00","vatAmount":"1260.00"}]}',
+])("excludes malformed saved selection metadata %s without restoring a full claim", (serialized) => {
+  const selected = document({
+    rateBreakdown: [{ rate: 21, netAmount: "12000.00", vatAmount: "2520.00" }],
+    totals: { netAmount: "12000.00", vatAmount: "2520.00", grossAmount: "14520.00" },
+    partialClaim: JSON.parse(serialized),
+  });
+
+  const report = computeVatReport(company, period, [selected]);
+
+  expect(report.excludedDocuments).toEqual([{ documentId: "doc-1", reason: "incomplete_data" }]);
+  expect(report.totals.inputVat).toBe("0.00");
+  expect(report.controlStatement).toEqual([]);
+});
+
+it("excludes a selection at an unsupported fractional VAT rate before financial arithmetic", () => {
+  const selected = document({
+    rateBreakdown: [{ rate: 12.5, netAmount: "12000.00", vatAmount: "1500.00" }],
+    totals: { netAmount: "12000.00", vatAmount: "1500.00", grossAmount: "13500.00" },
+    partialClaim: {
+      confirmed: true,
+      rateBreakdown: [{ rate: 12.5, netAmount: "6000.00", vatAmount: "750.00" }],
+    },
+  });
+
+  const report = computeVatReport(company, period, [selected]);
+
+  expect(report.excludedDocuments).toEqual([{ documentId: "doc-1", reason: "incomplete_data" }]);
+  expect(report.controlStatement).toEqual([]);
 });

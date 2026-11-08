@@ -1,3 +1,4 @@
+import { bindSourceEvidence } from "./source-locations";
 import {
   AiProviderError,
   type AiInput,
@@ -5,15 +6,10 @@ import {
   type AiProviderConfiguration,
   type PageRange,
   type RowRange,
-  providerResponseOf,
 } from "./ai-provider";
 import type { SystemClient } from "./client";
-import {
-  CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA,
-  validateDocument,
-} from "./document-validation";
+import { runAiProcessingAttempt, type AiProcessingProviderContext } from "./ai-processing-failures";
 import type { DocumentStatus } from "./documents";
-import { omitZeroRateBreakdownRows } from "./extraction-payload";
 import {
   pdfPages,
   SOURCE_FILE_BUCKET,
@@ -23,13 +19,12 @@ import {
   type SourceFileFormat,
   type SourceFileStatus,
 } from "./source-files";
-import { assertWorkbookRanges, workbookRowsToText, workbookToText } from "./workbooks";
-import {
-  vatRegistryFindings,
-  type VatPayerRegistry,
-} from "./vat-registry";
+import { assertWorkbookRanges, workbookRowsToText, workbookRows, workbookToText } from "./workbooks";
+import { vatRegistryCheckApplies, type VatPayerRegistry } from "./vat-registry";
 import { detectDocumentDirection } from "./direction-detection";
-import { applyCnbConversion, type ExchangeRateProvider } from "./exchange-rates";
+import type { ExchangeRateProvider } from "./exchange-rates";
+import { prepareExtractionVersion } from "./extraction-preparation";
+import { deriveDocumentVatMapping } from "./vat-rules";
 import { createHash } from "node:crypto";
 import { buildCompanyDataArchive, type CompanyExportSnapshot } from "./company-data-export";
 import type { CompanyDataExportStatus } from "@/lib/company-data-export-status";
@@ -138,12 +133,7 @@ async function completeCompanyExport(
   });
 }
 
-type ProviderAvailability = {
-  blocked: boolean;
-  provider: AiProvider | null;
-  configuration: AiProviderConfiguration | null;
-  configurationId: string | null;
-};
+type ProviderAvailability = AiProcessingProviderContext & { blocked: boolean };
 
 async function resolveAssignedAiConfiguration(
   system: SystemClient,
@@ -268,56 +258,6 @@ async function failOnFinalAttempt(attempt: Attempt, markFailed: () => Promise<vo
   }
 }
 
-async function recordPlatformIntervention(
-  system: SystemClient,
-  target: { kind: "source_file"; id: string; splitRequestId: string } | { kind: "document"; id: string; extractionRequestId: string },
-  error: AiProviderError,
-  availability: ProviderAvailability | undefined,
-  state: "waiting_for_platform" | "terminal" = "waiting_for_platform",
-) {
-  const recorded = await system.rpc("record_ai_processing_issue", {
-    target_split_request_id: target.kind === "source_file" ? target.splitRequestId : undefined,
-    target_kind: target.kind,
-    target_id: target.id,
-    target_extraction_request_id: target.kind === "document" ? target.extractionRequestId : undefined,
-    target_classification: error.classification,
-    target_state: state,
-    target_configuration_id: availability?.configurationId ?? error.configurationId ?? undefined,
-    target_provider: availability?.provider?.name ?? error.provider ?? undefined,
-  });
-  if (recorded.error) throw recorded.error;
-}
-
-/**
- * Stores the body a provider returned on a failed call so a SuperAdmin can see
- * why it failed. Best effort: a storage problem never replaces the failure.
- */
-async function recordFailedAiResponse(
-  system: SystemClient,
-  target: { kind: "source_file" | "document"; id: string; requestId: string },
-  error: unknown,
-  availability: ProviderAvailability | undefined,
-) {
-  const response = providerResponseOf(error);
-  const provider = availability?.provider?.name ?? (error instanceof AiProviderError ? error.provider : null);
-  if (response === null || !provider) return;
-  const configuration = availability?.configuration;
-  try {
-    const { error: recordError } = await system.rpc("record_ai_failed_response", {
-      target_kind: target.kind,
-      target_id: target.id,
-      target_request_id: target.requestId,
-      target_provider: provider,
-      target_model: (target.kind === "source_file" ? configuration?.splitModel : configuration?.extractModel) ?? undefined,
-      target_error: error instanceof Error ? error.message : String(error),
-      target_response: response,
-    });
-    if (recordError) throw recordError;
-  } catch (recordError) {
-    console.error(`[worker] could not record the failed AI response of ${target.kind} ${target.id}`, recordError);
-  }
-}
-
 async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId: string, attempt: Attempt) {
   const { data: file, error } = await system
     .from("source_file")
@@ -339,8 +279,12 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
       return data;
     };
     let availability: ProviderAvailability | undefined;
-    try {
-      await failOnFinalAttempt(attempt, () => moveStatus("failed", ["uploaded", "processing"]).then(() => undefined), async () => {
+    const continueDispatch = await runAiProcessingAttempt(system, {
+      target: { kind: "source_file", id: file.id, requestId: file.split_request_id },
+      attempt,
+      availability: () => availability,
+      markFailed: () => moveStatus("failed", ["uploaded", "processing"]).then(() => undefined),
+    }, async () => {
       availability = await providerAvailability(system, file.company_id, providers);
       if (availability.blocked) {
         await jobs.send(splitJob(file.id), { startAfterSeconds: BLOCKED_JOB_RECHECK_SECONDS });
@@ -377,24 +321,8 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
       if (metered.error) throw metered.error;
       const { error } = await system.rpc("record_split", { target_source_file_id: file.id, target_split_request_id: file.split_request_id, source_ranges: documents });
       if (error) throw error;
-      });
-    } catch (error) {
-      await recordFailedAiResponse(system, { kind: "source_file", id: file.id, requestId: file.split_request_id }, error, availability);
-      if (error instanceof AiProviderError && error.platformIntervention) {
-        await recordPlatformIntervention(system, { kind: "source_file", id: file.id, splitRequestId: file.split_request_id }, error, availability);
-        return;
-      }
-      if (error instanceof AiProviderError && (attempt.final || !error.transient)) {
-        await recordPlatformIntervention(system, { kind: "source_file", id: file.id, splitRequestId: file.split_request_id }, error, availability, "terminal");
-      } else if (attempt.final) {
-        await recordPlatformIntervention(system, { kind: "source_file", id: file.id, splitRequestId: file.split_request_id }, new AiProviderError(
-          "processing_failed",
-          "Source File processing failed",
-          { transient: false, classification: "processing_failed" },
-        ), availability, "terminal");
-      }
-      throw error;
-    }
+    });
+    if (!continueDispatch) return;
   }
 
   // Enqueues the Documents of the recorded Split, including when an earlier attempt recorded it.
@@ -420,7 +348,7 @@ async function extractDocument(
 ) {
   const { data: document, error } = await system
     .from("document")
-    .select("id, organization_id, company_id, source_file_id, first_page, last_page, source_sheet, first_row, last_row, status, superseded_at, extraction_request_id, source_file (format, normalized_format)")
+    .select("id, organization_id, company_id, source_file_id, first_page, last_page, source_sheet, first_row, last_row, status, superseded_at, extraction_request_id, source_file (format, normalized_format, normalized_sha256, sha256)")
     .eq("id", documentId)
     .single();
   if (error) throw error;
@@ -448,8 +376,12 @@ async function extractDocument(
   };
 
   let availability: ProviderAvailability | undefined;
-  try {
-    await failOnFinalAttempt(attempt, () => moveStatus("failed", ["uploaded", "processing"]).then(() => undefined), async () => {
+  await runAiProcessingAttempt(system, {
+    target: { kind: "document", id: document.id, requestId: document.extraction_request_id },
+    attempt,
+    availability: () => availability,
+    markFailed: () => moveStatus("failed", ["uploaded", "processing"]).then(() => undefined),
+  }, async () => {
     if (
       document.status === "waiting_for_platform"
       && !(await moveStatus("uploaded", ["waiting_for_platform"]))
@@ -492,19 +424,34 @@ async function extractDocument(
       });
       const { data: company, error: companyError } = await system
         .from("company")
-        .select("ico, vat_id")
+        .select("ico, vat_id, data_revision")
         .eq("id", document.company_id)
         .single();
       if (companyError) throw companyError;
-      const directedPayload = omitZeroRateBreakdownRows({
-        ...extractedPayload,
+      const evidencePayload = bindSourceEvidence(extractedPayload, {
+        sourceFileId, documentId: document.id, sha256: document.source_file!.sha256,
+        requestId: document.extraction_request_id, format: processingFile.format, firstPage, lastPage,
+        workbookEvidence: input.workbookEvidence,
+        normalizedSha256: ["heic", "heif"].includes(document.source_file!.format)
+          && document.source_file!.normalized_format === "jpeg" ? document.source_file!.normalized_sha256 : undefined,
+      });
+      let registryVerification: "checked" | "missing" | "not_applicable" = vatRegistryCheckApplies(evidencePayload) ? "missing" : "not_applicable";
+      const prepared = await prepareExtractionVersion({
+        ...evidencePayload,
+        // Partial Claim is a human decision. Ignore even malformed provider
+        // metadata before financial findings; PostgreSQL preserves prior choices.
+        partialClaim: undefined,
         direction: detectDocumentDirection(
           extractedPayload,
           { ico: company.ico, vatId: company.vat_id },
         ),
+      }, exchangeRates, {
+        async check(vatId) {
+          const result = await vatRegistry.check(vatId);
+          registryVerification = result.outcome === "checked" ? "checked" : "missing";
+          return result;
+        },
       });
-      const conversion = await applyCnbConversion(directedPayload, exchangeRates);
-      const payload = conversion.payload;
       const metered = await system.rpc("record_ai_usage", {
         target_organization_id: document.organization_id,
         target_company_id: document.company_id,
@@ -519,22 +466,19 @@ async function extractDocument(
         target_job_id: document.id,
       });
       if (metered.error) throw metered.error;
-      const findings = [
-        ...validateDocument(
-          payload,
-          CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA,
-        ),
-        ...(await vatRegistryFindings(vatRegistry, payload)),
-        ...conversion.findings,
-      ];
-      const { error } = await system.rpc("record_ai_extraction", {
+      const findings = await prepared.findings();
+      const mapping = deriveDocumentVatMapping(prepared.payload);
+      const { error } = await system.rpc("record_ai_extraction_with_approval", {
         target_document_id: document.id,
         target_extraction_request_id: document.extraction_request_id,
         target_reservation_id: reservationId,
         provider: ai.name,
         model,
-        payload,
+        payload: prepared.payload,
         findings,
+        expected_company_revision: company.data_revision,
+        assessment: { supportedMapping: mapping.vatReturnUnknownReason === null && mapping.controlStatementUnknownReason === null,
+          registryVerification, payload: prepared.payload },
       });
       if (error) throw error;
       completed = true;
@@ -546,24 +490,7 @@ async function extractDocument(
         if (released.error) throw released.error;
       }
     }
-    });
-  } catch (error) {
-    await recordFailedAiResponse(system, { kind: "document", id: document.id, requestId: document.extraction_request_id }, error, availability);
-    if (error instanceof AiProviderError && error.platformIntervention) {
-      await recordPlatformIntervention(system, { kind: "document", id: document.id, extractionRequestId: document.extraction_request_id }, error, availability);
-      return;
-    }
-    if (error instanceof AiProviderError && (attempt.final || !error.transient)) {
-      await recordPlatformIntervention(system, { kind: "document", id: document.id, extractionRequestId: document.extraction_request_id }, error, availability, "terminal");
-    } else if (attempt.final) {
-      await recordPlatformIntervention(system, { kind: "document", id: document.id, extractionRequestId: document.extraction_request_id }, new AiProviderError(
-        "processing_failed",
-        "Document processing failed",
-        { transient: false, classification: "processing_failed" },
-      ), availability, "terminal");
-    }
-    throw error;
-  }
+  });
 }
 
 function binaryAiInput(format: SourceFileFormat, bytes: Uint8Array, pageCount: number): AiInput {
@@ -583,7 +510,11 @@ function sourceFileInput(format: SourceFileFormat, bytes: Uint8Array, pageCount:
 
 /** The Document's own pages: a PDF of just its range, or the whole image. */
 async function documentInput(format: SourceFileFormat, bytes: Uint8Array, range: PageRange | RowRange): Promise<AiInput> {
-  if ("firstRow" in range) return textAiInput(format, workbookRowsToText(bytes, range));
+  if ("firstRow" in range) {
+    const { sheetName, firstRow, lastRow, firstColumn, lastColumn, headerRow } = workbookRows(bytes, range);
+    return { ...textAiInput(format, workbookRowsToText(bytes, range)),
+      workbookEvidence: { sheetName, firstRow, lastRow, firstColumn, lastColumn, headerRow } };
+  }
   if (format !== "pdf") return binaryAiInput(format, bytes, 1);
   return binaryAiInput(format, await pdfPages(bytes, range), range.lastPage - range.firstPage + 1);
 }

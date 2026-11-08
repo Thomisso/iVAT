@@ -1,6 +1,7 @@
+import { createConfirmedManualDocument } from "./support/claim-eligibility";
 import { reportingWorkbookCopy } from "./support/reporting-workbook-copy";
 import { expect, inject, it } from "vitest";
-import { approveDocument, correctDocument, createManualDocument, listCompanyDocuments, returnDocumentToReview } from "@/application/documents";
+import { approveDocument, saveAndApproveDocument, correctDocument, listCompanyDocuments, returnDocumentToReview } from "@/application/documents";
 import { administratorWithCompany } from "./support/fixtures";
 import { setLegacyDocumentApprovedFixture, setLegacyReadinessCountFixture } from "./support/legacy-document-approval";
 import { SYNTHETIC_EXCLUDED_PURCHASE } from "./support/truthful-inclusion";
@@ -18,7 +19,7 @@ import { fixtureFile } from "./support/files";
 
 it("does not label a historical Approved purchase as included when the live Rules Engine excludes its missing supplier identity", async () => {
   const company = await administratorWithCompany();
-  const created = await createManualDocument(company.client, { companyId: company.companyId, payload: SYNTHETIC_EXCLUDED_PURCHASE });
+  const created = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload: SYNTHETIC_EXCLUDED_PURCHASE });
   if (!created.ok) throw new Error(created.error);
   await setLegacyDocumentApprovedFixture(inject("databaseUrl"), created.value.id, [
     { field: "payment.bankAccount", severity: "warning", code: "missing_bank_account" },
@@ -51,7 +52,7 @@ it("does not label a historical Approved purchase as included when the live Rule
 
 it("keeps known Return mapping for a partial schema2 manual draft while explaining its unknown Control Statement threshold", async () => {
   const company = await administratorWithCompany();
-  const created = await createManualDocument(company.client, { companyId: company.companyId, payload: {
+  const created = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload: {
     ...SYNTHETIC_EXCLUDED_PURCHASE, schemaVersion: 2,
     rateBreakdown: [{ rate: 21, netAmount: "100.00", vatAmount: null }],
     totals: { netAmount: "100.00", vatAmount: null, grossAmount: null },
@@ -66,7 +67,7 @@ it("keeps known Return mapping for a partial schema2 manual draft while explaini
 
 it("keeps an Approved Document with only a bank advisory included even when it also appears on Attention", async () => {
   const company = await administratorWithCompany();
-  const created = await createManualDocument(company.client, { companyId: company.companyId, payload: {
+  const created = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload: {
     ...SYNTHETIC_EXCLUDED_PURCHASE, documentNumber: "SYNTHETIC-INCLUDED-ADVISORY",
     supplier: { ...SYNTHETIC_EXCLUDED_PURCHASE.supplier, vatId: "CZ27082440" },
   } }, undefined, { async check() { return { outcome: "checked", unreliable: false, publishedAccounts: [] }; } });
@@ -93,11 +94,18 @@ it("keeps an Approved Document with only a bank advisory included even when it a
 
 it("preserves intentional other-regime exclusion as an advisory rather than inventing a completeness blocker", async () => {
   const company = await administratorWithCompany();
-  const created = await createManualDocument(company.client, { companyId: company.companyId, payload: {
+  const created = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload: {
     ...SYNTHETIC_EXCLUDED_PURCHASE, documentNumber: "SYNTHETIC-OTHER", proposedVatRegime: "other",
   } });
   if (!created.ok) throw new Error(created.error);
-  expect(await approveDocument(company.client, { companyId: company.companyId, documentId: created.value.id, version: 1 })).toEqual({ ok: true, value: null });
+  const target = { companyId: company.companyId, documentId: created.value.id };
+  expect(await approveDocument(company.client, { ...target, version: 1 }))
+    .toEqual({ ok: false, error: "counterparty_resolution_required" });
+  const payload = { ...SYNTHETIC_EXCLUDED_PURCHASE, documentNumber: "SYNTHETIC-OTHER", proposedVatRegime: "other" as const };
+  expect(await saveAndApproveDocument(company.client, { ...target, basedOnVersion: 1,
+    requestId: crypto.randomUUID(), payload,
+    counterpartyCreationConsent: { direction: "incoming", party: payload.supplier },
+  })).toEqual({ ok: true, value: { version: 2 } });
   const [document] = await listCompanyDocuments(company.client, company.companyId);
   expect(document.reporting).toEqual(expect.objectContaining({
     included: false, exclusionReason: "manual_classification_required", blockingFindings: [],
@@ -110,7 +118,7 @@ it("preserves intentional other-regime exclusion as an advisory rather than inve
 it("refuses cached-zero Finalization and a concurrent live correction without rewriting the saved report or archived XML", async () => {
   const company = await administratorWithCompany();
   const period = { companyId: company.companyId, period: "2026-10" };
-  const created = await createManualDocument(company.client, { companyId: company.companyId, payload: SYNTHETIC_EXCLUDED_PURCHASE });
+  const created = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload: SYNTHETIC_EXCLUDED_PURCHASE });
   if (!created.ok) throw new Error(created.error);
   await setLegacyDocumentApprovedFixture(inject("databaseUrl"), created.value.id, [{ field: "payment.bankAccount", severity: "warning", code: "missing_bank_account" }]);
   expect((await generateVatReport(company.client, period)).ok).toBe(true);
@@ -158,7 +166,7 @@ it("combines unresolved Source and current Document blockers, then resolves them
   const period = { companyId: company.companyId, period: date.slice(0, 7) };
   expect((await setCurrentReportingYear(company.client, { companyId: company.companyId, filingFrequency: "monthly", year: Number(date.slice(0, 4)) })).ok).toBe(true);
   const payload = { ...SYNTHETIC_EXCLUDED_PURCHASE, taxPointDate: date };
-  const document = await createManualDocument(company.client, { companyId: company.companyId, payload });
+  const document = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload });
   if (!document.ok) throw new Error(document.error);
   await setLegacyDocumentApprovedFixture(inject("databaseUrl"), document.value.id, [
     { field: "payment.bankAccount", severity: "warning", code: "missing_bank_account" },

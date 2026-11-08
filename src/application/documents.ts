@@ -1,10 +1,9 @@
+import { getCurrentDocumentReviewFindings, prepareDocumentCounterparty } from "./document-review-findings";
 import { listCompanyReportingYears } from "./companies";
 import { reportingPeriodForDate, reportingPeriodsOf, reportingPeriodStart } from "./reporting-periods";
 import type { PostgrestError } from "@supabase/supabase-js";
 import { isUuid, type AppClient, type Result } from "./client";
 import {
-  normalizeExtractionPayload,
-  validateManualDocumentPayload,
   type Direction,
   type Party,
   type ExtractionPayload,
@@ -13,16 +12,17 @@ import {
 import { extractJob, type JobQueue } from "./processing";
 import { isReportingPeriod, NO_REPORTING_PERIOD, pragueDate } from "./reporting-periods";
 import {
-  CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA,
-  validateDocument,
   currentValidationFindings,
   type ValidationFinding,
 } from "./document-validation";
 import { pdfPages, readSourceFile, SOURCE_FILE_MEDIA_TYPES, prepareSourceFile, storeSourceFileObjects, type UploadSourceFileError } from "./source-files";
-import { assertWorkbookRanges, workbookToText, workbookRowsToText, type WorkbookRowSet } from "./workbooks";
-import { applyCnbConversion, type ExchangeRateProvider } from "./exchange-rates";
-import { vatRegistryFindings, type VatPayerRegistry } from "./vat-registry";
+import { assertWorkbookRanges, workbookToText, workbookRowsToText, workbookRows, type WorkbookRows, type WorkbookRowSet } from "./workbooks";
+import type { ExchangeRateProvider } from "./exchange-rates";
+import type { VatPayerRegistry } from "./vat-registry";
+import { prepareExtractionVersion, prepareManualExtractionPayload } from "./extraction-preparation";
 import { prepareDocumentReporting, type DocumentReporting } from "./document-reporting";
+import { currentBusinessDate } from "./business-date";
+import { claimDeadline, confirmedZeroClaim, firstOrdinaryFilingDate, ordinaryDomesticClaim } from "./claim-eligibility";
 import { randomUUID } from "node:crypto";
 import type { SourceRange } from "./ai-provider";
 
@@ -66,22 +66,15 @@ export async function createManualDocument(
   input: { companyId: string; payload: ExtractionPayload },
   exchangeRates: ExchangeRateProvider = unavailableExchangeRates,
   vatRegistry: VatPayerRegistry = unavailableVatPayerRegistry,
-): Promise<Result<{ id: string }, ManualDocumentPayloadError | "forbidden" | "period_locked">> {
+): Promise<{ ok: true; value: { id: string } } | { ok: false; error: ManualDocumentPayloadError | "forbidden" | "period_locked"; findings?: ValidationFinding[] }> {
   if (!isUuid(input.companyId)) return { ok: false, error: "forbidden" };
-  let payload = normalizeExtractionPayload(input.payload);
-  const invalid = validateManualDocumentPayload(payload);
-  if (invalid) return { ok: false, error: invalid };
-  delete payload.confidence;
-  const conversion = await applyCnbConversion(payload, exchangeRates);
-  payload = conversion.payload;
+  const candidate = prepareManualExtractionPayload(input.payload);
+  if (!candidate.ok) return candidate;
+  const prepared = await prepareExtractionVersion(candidate.value, exchangeRates, vatRegistry);
   const { data, error } = await client.rpc("create_manual_document", {
     target_company_id: input.companyId,
-    payload,
-    findings: [
-      ...validateDocument(payload, CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA),
-      ...(await vatRegistryFindings(vatRegistry, payload)),
-      ...conversion.findings,
-    ],
+    payload: prepared.payload,
+    findings: await prepared.findings(),
   });
   if (error) return refusal(error, ["period_locked", "tax_point_date_required", "invalid_date"]);
   return { ok: true, value: { id: data } };
@@ -223,7 +216,7 @@ export async function listCompanyDocuments(
   if (filters.sourceFileIds?.length === 0) return [];
   if (filters.documentIds?.length === 0) return [];
   const counterparty = filters.counterparty?.trim();
-  const reportingYears = await listCompanyReportingYears(client, companyId);
+  const [reportingYears, evaluatedOn] = await Promise.all([listCompanyReportingYears(client, companyId), currentBusinessDate(client)]);
   const documents: DocumentOverview[] = [];
   for (let from = 0; ; from += 1000) {
     let query = client
@@ -251,8 +244,9 @@ export async function listCompanyDocuments(
         id: d.id, status: d.status, extractionVersionId: d.extraction_version_id,
         payload: d.reporting_payload as unknown as ExtractionPayload | null,
         claimedReportingPeriod: d.claimed_reporting_period,
+        importDate: d.import_date, sourceFileId: d.source_file_id,
       }, reportingYears, filters.reportingPeriod === NO_REPORTING_PERIOD ? undefined : filters.reportingPeriod,
-      (d.reporting_findings ?? []) as ValidationFinding[]);
+      (d.reporting_findings ?? []) as ValidationFinding[], evaluatedOn);
       return {
         id: d.id,
         sourceFileId: d.source_file_id,
@@ -406,17 +400,26 @@ export async function readDocumentPages(
   client: AppClient,
   companyId: string,
   documentId: string,
+  requestedVersion?: number,
 ): Promise<{ fileName: string; mediaType: string; bytes: Uint8Array } | null> {
   const document = await getDocument(client, companyId, documentId);
   if (!document?.sourceFileId || document.firstPage === null || document.lastPage === null) return null;
+  const selected = requestedVersion === undefined ? undefined
+    : (await listExtractionVersions(client, companyId, documentId)).find((version) => version.version === requestedVersion);
+  if (requestedVersion !== undefined && !selected) return null;
   const stored = await readSourceFile(client, companyId, document.sourceFileId);
   if (!stored) return null;
   const { file, bytes } = stored;
   if (document.rowSet) return null;
+  const evidence = selected?.payload.sourceEvidence;
+  const bound = evidence?.documentId === document.id && evidence.sourceFileId === file.id
+    && evidence.sourceSha256 === file.sha256 && evidence.basis.sha256 === file.sha256
+    && evidence.extractionVersionId === selected?.id;
+  const range = bound && "firstPage" in evidence.range ? evidence.range : { firstPage: document.firstPage, lastPage: document.lastPage };
   return {
     fileName: file.fileName,
     mediaType: SOURCE_FILE_MEDIA_TYPES[file.format],
-    bytes: file.format === "pdf" ? await pdfPages(bytes, { firstPage: document.firstPage, lastPage: document.lastPage }) : bytes,
+    bytes: file.format === "pdf" ? await pdfPages(bytes, range) : bytes,
   };
 }
 
@@ -425,15 +428,25 @@ export async function readDocumentRows(
   client: AppClient,
   companyId: string,
   documentId: string,
-): Promise<(WorkbookRowSet & { fileName: string; text: string }) | null> {
+  requestedVersion?: number,
+): Promise<(WorkbookRows & { fileName: string; text: string }) | null> {
   const document = await getDocument(client, companyId, documentId);
   if (!document?.rowSet || !document.sourceFileId) return null;
+  const selected = requestedVersion === undefined ? undefined
+    : (await listExtractionVersions(client, companyId, documentId)).find(version => version.version === requestedVersion);
+  if (requestedVersion !== undefined && !selected) return null;
   const stored = await readSourceFile(client, companyId, document.sourceFileId);
   if (!stored) return null;
+  const evidence = selected?.payload.sourceEvidence;
+  const bound = evidence?.documentId === document.id && evidence.sourceFileId === stored.file.id
+    && evidence.sourceSha256 === stored.file.sha256 && evidence.basis.kind === "original"
+    && evidence.basis.format === stored.file.format && evidence.basis.sha256 === stored.file.sha256
+    && evidence.extractionVersionId === selected?.id && "firstRow" in evidence.range;
+  const range = bound && "firstRow" in evidence.range ? evidence.range : document.rowSet;
   return {
     fileName: stored.file.fileName,
-    ...document.rowSet,
-    text: workbookRowsToText(stored.bytes, document.rowSet),
+    ...workbookRows(stored.bytes, range),
+    text: workbookRowsToText(stored.bytes, range),
   };
 }
 
@@ -484,31 +497,35 @@ export async function correctDocument(
     companyId: string;
     documentId: string;
     basedOnVersion: number;
+    requestId?: string;
     payload: ExtractionPayload;
   },
   exchangeRates: ExchangeRateProvider = unavailableExchangeRates,
   vatRegistry: VatPayerRegistry = unavailableVatPayerRegistry,
-): Promise<Result<{ version: number }, CorrectDocumentError>> {
-  let payload = normalizeExtractionPayload(input.payload);
-  const invalid = validateManualDocumentPayload(payload);
-  if (invalid) return { ok: false, error: invalid };
+): Promise<{ ok: true; value: { version: number } } | { ok: false; error: CorrectDocumentError; findings?: ValidationFinding[]; conflict?: ReviewConflict }> {
+  if (input.requestId !== undefined && !isUuid(input.requestId)) return { ok: false, error: "stale_version" };
+  const candidate = prepareManualExtractionPayload(input.payload);
+  if (!candidate.ok) return candidate;
   const document = await findDocumentId(client, input.companyId, input.documentId);
   if (!document) return { ok: false, error: "forbidden" };
-  delete payload.confidence;
-  const conversion = await applyCnbConversion(payload, exchangeRates);
-  payload = conversion.payload;
+  if (input.requestId) {
+    const replay = await client.rpc("document_approval_result", { target_document_id: document, request_id: input.requestId,
+      submitted_payload: candidate.value, based_on_version: input.basedOnVersion, operation_kind: "draft" });
+    if (replay.error) return documentReviewRefusal(client, input, refusal(replay.error, ["stale_version"]));
+    if (replay.data !== null) return { ok: true, value: { version: replay.data } };
+  }
+  const directory = await prepareDocumentCounterparty(client, input.companyId, document, candidate.value);
+  if (!directory.ok) return directory;
+  const prepared = await prepareExtractionVersion(directory.value.payload, exchangeRates, vatRegistry);
 
-  const { data: version, error } = await client.rpc("correct_document", {
-    target_document_id: document,
-    based_on_version: input.basedOnVersion,
-    payload,
-    findings: [
-      ...validateDocument(payload, CZECH_DOCUMENT_VALIDATION_REFERENCE_DATA),
-      ...(await vatRegistryFindings(vatRegistry, payload)),
-      ...conversion.findings,
-    ],
-  });
-  if (error) return refusal(error, ["not_in_review", "stale_version", "period_locked", "tax_point_date_required", "invalid_date"]);
+  const fields = { target_document_id: document, based_on_version: input.basedOnVersion, payload: prepared.payload, findings: [...await prepared.findings(), ...directory.value.findings] };
+  const { data: version, error } = input.requestId
+    ? await client.rpc("save_document_review", { ...fields, request_id: input.requestId, submitted_payload: candidate.value })
+    : await client.rpc("correct_document", fields);
+  if (error) {
+    const result = refusal(error, ["not_in_review", "stale_version", "period_locked", "tax_point_date_required", "invalid_date"]);
+    return input.requestId ? documentReviewRefusal(client, input, result) : result;
+  }
   return { ok: true, value: { version } };
 }
 
@@ -517,10 +534,15 @@ export async function correctDocument(
  * counts towards VAT Reports (ADR-0003). `version` is the Extraction Version the
  * User reviewed; it is refused if a newer one has been recorded.
  */
+const CLAIM_ELIGIBILITY_ERRORS = [
+  "claimed_period_after_deadline", "claim_deadline_expired", "claim_document_type_required",
+  "claim_eligibility_required", "invalid_earliest_claim_period", "claimed_period_before_earliest", "deferred_claim_not_supported",
+] as const;
+export type ClaimEligibilityError = (typeof CLAIM_ELIGIBILITY_ERRORS)[number];
 export async function approveDocument(
   client: AppClient,
   input: { companyId: string; documentId: string; version: number },
-): Promise<Result<null, "not_in_review" | "stale_version" | "direction_required" | "vat_regime_required" | "document_incomplete" | "document_validation_failed" | "counterparty_vat_id_required" | "currency_conversion_required" | "rate_breakdown_totals_mismatch" | "invalid_credit_note_amount" | "period_locked" | "forbidden">> {
+): Promise<Result<null, ClaimEligibilityError | "counterparty_resolution_required" | "not_in_review" | "stale_version" | "direction_required" | "vat_regime_required" | "document_incomplete" | "document_validation_failed" | "counterparty_vat_id_required" | "currency_conversion_required" | "rate_breakdown_totals_mismatch" | "invalid_credit_note_amount" | "period_locked" | "forbidden">> {
   const document = await findDocumentId(client, input.companyId, input.documentId);
   if (!document) return { ok: false, error: "forbidden" };
   const { error } = await client.rpc("approve_document", {
@@ -528,6 +550,7 @@ export async function approveDocument(
     reviewed_version: input.version,
   });
   if (error) return refusal(error, [
+    "counterparty_resolution_required", ...CLAIM_ELIGIBILITY_ERRORS,
     "not_in_review",
     "stale_version",
     "direction_required",
@@ -541,6 +564,86 @@ export async function approveDocument(
     "period_locked",
   ]);
   return { ok: true, value: null };
+}
+
+export type SaveAndApproveDocumentError = CorrectDocumentError | ClaimEligibilityError | "counterparty_resolution_required" | "direction_required" | "vat_regime_required" | "document_incomplete" | "document_validation_failed" | "counterparty_vat_id_required" | "currency_conversion_required" | "rate_breakdown_totals_mismatch" | "invalid_credit_note_amount" | "review_context_changed";
+export type CounterpartyCreationConsent = { direction: Direction; party: Party };
+export type ReviewConfirmation = { id: string; findings: ValidationFinding[] };
+export type ReviewConflict = { version: number; status: DocumentStatus; payload: ExtractionPayload };
+export type SaveAndApproveDocumentResult = { ok: true; value: { version: number } }
+  | { ok: false; error: SaveAndApproveDocumentError; findings?: ValidationFinding[]; conflict?: ReviewConflict }
+  | { ok: false; error: "review_warnings_changed"; confirmation: ReviewConfirmation };
+
+async function documentReviewRefusal<E extends SaveAndApproveDocumentError>(client: AppClient, input: { companyId: string; documentId: string }, result: { ok: false; error: E }, findings?: ValidationFinding[]): Promise<{ ok: false; error: E; findings?: ValidationFinding[]; conflict?: ReviewConflict }> {
+  if (!["stale_version", "not_in_review", "review_context_changed", "period_locked"].includes(result.error)) return { ...result, findings };
+  const [document, version] = await Promise.all([
+    getDocument(client, input.companyId, input.documentId),
+    client.from("extraction_version").select("version, payload").eq("company_id", input.companyId).eq("document_id", input.documentId)
+      .order("version", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  if (version.error) throw version.error;
+  const current = version.data;
+  return { ...result, ...(findings ? { findings } : {}), ...(document && current ? { conflict: { version: current.version, status: document.status, payload: current.payload as ExtractionPayload } } : {}) };
+}
+
+function warningIdentity(findings: ValidationFinding[]) {
+  return JSON.stringify(findings.filter((finding) => finding.severity === "warning")
+    .map((finding) => JSON.stringify(Object.entries(finding).sort(([left], [right]) => left.localeCompare(right)))).sort());
+}
+
+/**
+ * Fresh preparation on every attempt; a database acknowledgement is valid only
+ * for the exact prepared data, findings and unchanged accounting context.
+ * External adapters supply observations as on creation/correction; PostgreSQL
+ * independently enforces authorization, locks and financial invariants.
+ */
+export async function saveAndApproveDocument(
+  client: AppClient,
+  input: { companyId: string; documentId: string; basedOnVersion: number; requestId: string; payload: ExtractionPayload; counterpartyCreationConsent?: CounterpartyCreationConsent; acknowledgement?: string; displayedBankAccountCheckId?: string | null; displayedReviewContext?: string },
+  exchangeRates: ExchangeRateProvider = unavailableExchangeRates,
+  vatRegistry: VatPayerRegistry = unavailableVatPayerRegistry,
+): Promise<SaveAndApproveDocumentResult> {
+  if (!isUuid(input.requestId) || (input.acknowledgement !== undefined && !isUuid(input.acknowledgement))) return { ok: false, error: "stale_version" };
+  const candidate = prepareManualExtractionPayload(input.payload);
+  if (!candidate.ok) return candidate;
+  const submittedPayload = input.counterpartyCreationConsent ? { ...candidate.value, counterpartyCreationConsent: input.counterpartyCreationConsent } : candidate.value;
+  const document = await findDocumentId(client, input.companyId, input.documentId);
+  if (!document) return { ok: false, error: "forbidden" };
+  const replay = await client.rpc("document_approval_result", {
+    target_document_id: document, request_id: input.requestId, submitted_payload: submittedPayload, based_on_version: input.basedOnVersion,
+  });
+  if (replay.error) return documentReviewRefusal(client, input, refusal(replay.error, ["stale_version"]));
+  if (replay.data !== null) return { ok: true, value: { version: replay.data } };
+  const context = await client.rpc("document_review_context", { target_document_id: document, based_on_version: input.basedOnVersion });
+  if (context.error) return documentReviewRefusal(client, input, refusal(context.error, ["stale_version", "not_in_review"]));
+  // Same query/projection as the actual current review; immutable Version
+  // findings alone can differ after a dated Bank Account Check.
+  const visible = await getCurrentDocumentReviewFindings(client, input);
+  const directory = await prepareDocumentCounterparty(client, input.companyId, document, candidate.value);
+  if (!directory.ok) return directory;
+  const prepared = await prepareExtractionVersion(directory.value.payload, exchangeRates, vatRegistry);
+  const findings = [...await prepared.findings(), ...directory.value.findings];
+  const fields = {
+    target_document_id: document, based_on_version: input.basedOnVersion, request_id: input.requestId,
+    submitted_payload: submittedPayload, payload: prepared.payload, findings,
+    expected_context: context.data,
+  };
+  let saved = await client.rpc("save_and_approve_document", { ...fields, acknowledgement: input.acknowledgement });
+  const pending = saved.data as { confirmationId?: string; findings: ValidationFinding[]; unchanged?: boolean } | null;
+  if (!saved.error && pending?.confirmationId && pending.unchanged && !input.acknowledgement
+    && (input.displayedReviewContext === undefined || input.displayedReviewContext === visible.displayedReviewContext)
+    && (input.displayedBankAccountCheckId === undefined || input.displayedBankAccountCheckId === (visible.current?.id ?? null))
+    && warningIdentity(pending.findings) === warningIdentity(visible.findings)) {
+    // These unchanged warnings are already visible. Confirm the opaque receipt,
+    // with the original context checked again against any intervening change.
+    saved = await client.rpc("save_and_approve_document", { ...fields, acknowledgement: pending.confirmationId });
+  }
+  const { data, error } = saved;
+  if (error) return documentReviewRefusal(client, input, refusal(error, ["counterparty_resolution_required", ...CLAIM_ELIGIBILITY_ERRORS, "not_in_review", "stale_version", "period_locked", "tax_point_date_required", "invalid_date", "direction_required", "vat_regime_required", "document_incomplete", "document_validation_failed", "counterparty_vat_id_required", "currency_conversion_required", "rate_breakdown_totals_mismatch", "invalid_credit_note_amount", "review_context_changed"]), findings);
+  const result = data as { version: number } | { confirmationId: string; findings: ValidationFinding[] };
+  return "confirmationId" in result
+    ? { ok: false, error: "review_warnings_changed", confirmation: { id: result.confirmationId, findings: result.findings } }
+    : { ok: true, value: { version: result.version } };
 }
 
 /** Takes ownership of unfinished Extraction without requesting or consuming AI work. */
@@ -595,7 +698,7 @@ export async function returnDocumentToReview(
   return { ok: true, value: null };
 }
 
-export type UpdateDocumentReportingError =
+export type UpdateDocumentReportingError = ClaimEligibilityError | "not_in_review"
   | "invalid_tax_point_date"
   | "invalid_reporting_period"
   | "claimed_period_not_later"
@@ -632,6 +735,7 @@ export async function updateDocumentReporting(
       "invalid_reporting_period",
       "claimed_period_not_later",
       "incoming_required",
+      ...CLAIM_ELIGIBILITY_ERRORS, "not_in_review",
       "period_locked",
     ]);
   }
@@ -747,23 +851,26 @@ export async function moveDocumentPage(
   return { ok: true, value: null };
 }
 
-/** Selectable Deferred Claims for the current incoming Extraction, including only unlocked generated periods within three years. */
+/** Unlocked generated periods that can support an ordinary claim before its filing deadline. */
 export async function listDeferredClaimPeriods(client: AppClient, companyId: string, documentId: string): Promise<string[]> {
   const document = await getDocument(client, companyId, documentId);
   if (!document) return [];
   const versions = await listExtractionVersions(client, companyId, documentId);
   const payload = versions.at(-1)?.payload;
   const date = payload?.taxPointDate;
-  if (payload?.direction !== "incoming" || !date || !/^20\d{2}-\d{2}-\d{2}$/.test(date)) return [];
+  if (!payload || !ordinaryDomesticClaim(payload) || document.status !== "needs_review" || !date || !/^20\d{2}-\d{2}-\d{2}$/.test(date)) return [];
   const parsed = new Date(`${date}T00:00:00Z`);
   if (Number.isNaN(parsed.valueOf()) || parsed.toISOString().slice(0, 10) !== date) return [];
   const years = await listCompanyReportingYears(client, companyId);
   const source = reportingPeriodForDate(date, years);
   if (!source) return [];
-  const deadline = `${Number(date.slice(0, 4)) + 3}${date.slice(4)}`;
+  const deadline = claimDeadline(payload, years, await currentBusinessDate(client));
+  const zero = confirmedZeroClaim(payload);
+  if (!zero && (!deadline || deadline.evaluatedOn > deadline.lastFilingDate)) return [];
   const candidates = reportingPeriodsOf(years).filter((period) => {
     const start = reportingPeriodStart(period)!;
-    return start > reportingPeriodStart(source)! && start <= deadline;
+    const earliest = payload.claimEligibility?.confirmed ? reportingPeriodStart(payload.claimEligibility.period) : null;
+    return start > reportingPeriodStart(source)! && (zero || firstOrdinaryFilingDate(period)! <= deadline!.lastFilingDate) && (!earliest || start >= earliest);
   });
   if (!candidates.length) return [];
   const { data, error } = await client.from("period_lock").select("period").eq("company_id", companyId).in("period", candidates);

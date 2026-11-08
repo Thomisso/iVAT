@@ -1,9 +1,10 @@
+import { createConfirmedManualDocument } from "./support/claim-eligibility";
 import { expect, it } from "vitest";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { approveDocument, reprocessDocument, correctDocument, startManualDocumentReview, readDocumentRows, attachDocumentSource, createManualDocument, getDocument, listDocuments, listExtractionVersions, readDocumentPages, rejectDocument, returnDocumentToReview } from "@/application/documents";
 import { getSourceFile, readSourceFile } from "@/application/source-files";
 import { getCompanyAiProcessingAllowance, setCompanyAiProcessingAllowance } from "@/application/ai-processing-allowance";
-import { administratorWithCompany, assignAiConfigurationFixture, companyMember } from "./support/fixtures";
+import { administratorWithCompany, assignAiConfigurationFixture, companyMember, knownSupplierFixture } from "./support/fixtures";
 import { fixtureFile, multiSheetWorkbookFile, heicFixture } from "./support/files";
 import { testWorker } from "./support/worker";
 import { AiProviderError } from "@/application/ai-provider";
@@ -19,7 +20,8 @@ import { unzipSync } from "fflate";
 
 it("attaches a real original to the same Approved manual Document without changing values, history or successful AI usage", async () => {
   const company = await administratorWithCompany();
-  const manual = await createManualDocument(company.client, { companyId: company.companyId, payload: { ...SAMPLE_EXTRACTION, documentNumber: "MANUAL-PRESERVED" } });
+  await knownSupplierFixture(company);
+  const manual = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload: { ...SAMPLE_EXTRACTION, documentNumber: "MANUAL-PRESERVED" } });
   if (!manual.ok) throw new Error(manual.error);
   const input = { companyId: company.companyId, documentId: manual.value.id };
   expect(await approveDocument(company.client, { ...input, version: 1 })).toEqual({ ok: true, value: null });
@@ -40,7 +42,8 @@ it("attaches a real original to the same Approved manual Document without changi
 
 async function manualWithSource(approved = true) {
   const company = await administratorWithCompany();
-  const manual = await createManualDocument(company.client, { companyId: company.companyId, payload: { ...SAMPLE_EXTRACTION, documentNumber: "MANUAL-PRESERVED" } });
+  await knownSupplierFixture(company);
+  const manual = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload: { ...SAMPLE_EXTRACTION, documentNumber: "MANUAL-PRESERVED" } });
   if (!manual.ok) throw new Error(manual.error);
   const input = { companyId: company.companyId, documentId: manual.value.id };
   if (approved) await approveDocument(company.client, { ...input, version: 1 });
@@ -57,7 +60,7 @@ it.each(["xlsx", "xls"] as const)("attaches actual %s rows without inventing a p
   expect(await attachDocumentSource(context.client, { ...input, range: { sheetName: "Issued", firstRow: 2, lastRow: 4 } })).toEqual({ ok: false, error: "invalid_workbook_ranges" });
   const attached = await attachDocumentSource(context.client, { ...input, range: { sheetName: "Issued", firstRow: 2, lastRow: 3 } });
   expect(attached.ok).toBe(true);
-  expect(await readDocumentRows(context.client, input.companyId, input.documentId)).toMatchObject({ sheetName: "Issued", firstRow: 2, lastRow: 3, text: '[Sheet "Issued"]\n1\tDocument number\tGross amount\n2\tISSUED-1\t484\n3\tISSUED-2\t605' });
+  expect(await readDocumentRows(context.client, input.companyId, input.documentId)).toMatchObject({ sheetName: "Issued", firstRow: 2, lastRow: 3, text: '[Sheet "Issued"]\n[Columns]\tA\tB\n1\tDocument number\tGross amount\n2\tISSUED-1\t484\n3\tISSUED-2\t605' });
   expect(await getDocument(context.client, input.companyId, input.documentId)).toMatchObject({ id: input.documentId, hasDocumentImage: false, status: "needs_review" });
   expect((await listExtractionVersions(context.client, input.companyId, input.documentId)).map(v => v.author.kind)).toEqual(["user"]);
 });
@@ -88,7 +91,17 @@ it("a Company User confirmed AI replaces the current values with a new immutable
   expect(after.slice(0, 1)).toEqual(before);
   expect(after.map(v => [v.version, v.author.kind, v.payload.documentNumber])).toEqual([[1, "user", "MANUAL-PRESERVED"], [2, "ai", "AI-REPLACEMENT"]]);
   expect(await getCompanyAiProcessingAllowance(context.client, context.companyId)).toMatchObject({ ok: true, value: { used: 1 } });
-  expect(await approveDocument(user.client, { ...context, version: 2 })).toEqual({ ok: true, value: null });
+  // Replacement must not reuse a human eligibility choice made for the old values/source.
+  expect(await approveDocument(user.client, { ...context, version: 2 }))
+    .toEqual({ ok: false, error: "claim_eligibility_required" });
+  expect(after[1].payload.claimEligibility).toMatchObject({ origin: "user", confirmed: false });
+  expect(await correctDocument(user.client, { ...context, basedOnVersion: 2, payload: {
+    ...after[1].payload, claimEligibility: { period: "2026-10", origin: "user", confirmed: true },
+  } })).toEqual({ ok: true, value: { version: 3 } });
+  expect(await approveDocument(user.client, { ...context, version: 3 })).toEqual({ ok: true, value: null });
+  const reviewedVersions = await listExtractionVersions(user.client, context.companyId, context.documentId);
+  expect(reviewedVersions.slice(0, 2)).toEqual(after);
+  expect(reviewedVersions[2].author).toEqual({ kind: "user", userId: user.userId });
   expect(await saveCompanyFilingDefaults(context.client, {
     companyId: context.companyId, taxOffice: "451", territorialOffice: "2003", economicActivity: "621000",
     signatoryFirstName: "Jana", signatoryLastName: "Nováková", signatoryCapacity: "jednatelka",
@@ -113,7 +126,7 @@ it("a Company User confirmed AI replaces the current values with a new immutable
   expect(await getVatReport(user.client, period.companyId, period.period)).toEqual(snapshot);
   expect((await generateVatReport(user.client, period)).ok).toBe(true);
   expect((await getVatReport(user.client, period.companyId, period.period))?.finalization.rejectedDocumentCount).toBe(1);
-  expect(await listExtractionVersions(user.client, context.companyId, context.documentId)).toEqual(after);
+  expect(await listExtractionVersions(user.client, context.companyId, context.documentId)).toEqual(reviewedVersions);
   expect((await readSourceFile(user.client, context.companyId, context.sourceFileId))?.bytes).toEqual(fixtureFile("receipt.png"));
   expect((await readVatReportArtifact(user.client, { companyId: context.companyId, artifactId: archived.value.artifactId }))?.bytes).toEqual(archived.value.bytes);
   const exported = await exportCompanyData(context.client, worker.jobs, { companyId: context.companyId });
@@ -160,9 +173,15 @@ it("serializes concurrent attachment attempts and forbids a foreign actor before
 
 it("refuses attachment and confirmed replacement under a Period Lock and preserves the archived report", async () => {
   const context = await manualWithSource();
-  const manual = await createManualDocument(context.client, { companyId: context.companyId, payload: { ...SAMPLE_EXTRACTION, documentNumber: "UNATTACHED" } });
+  expect(await returnDocumentToReview(context.client, context)).toEqual({ ok: true, value: null });
+  expect(await correctDocument(context.client, { ...context, basedOnVersion: 1, payload: {
+    ...SAMPLE_EXTRACTION, documentNumber: "MANUAL-PRESERVED",
+    claimEligibility: { period: "2026-10", origin: "user", confirmed: true },
+  } })).toEqual({ ok: true, value: { version: 2 } });
+  expect(await approveDocument(context.client, { ...context, version: 2 })).toEqual({ ok: true, value: null });
+  const manual = await createConfirmedManualDocument(context.client, { companyId: context.companyId, payload: { ...SAMPLE_EXTRACTION, documentNumber: "UNATTACHED" } });
   if (!manual.ok) throw new Error(manual.error);
-  await approveDocument(context.client, { companyId: context.companyId, documentId: manual.value.id, version: 1 });
+  expect(await approveDocument(context.client, { companyId: context.companyId, documentId: manual.value.id, version: 1 })).toEqual({ ok: true, value: null });
   const period = { companyId: context.companyId, period: "2026-10" };
   expect((await generateVatReport(context.client, period)).ok).toBe(true);
   expect(await finalizeVatReport(context.client, { ...period, confirmed: true })).toEqual({ ok: true, value: null });
@@ -201,8 +220,8 @@ it.each(["success", "failure"] as const)("late replacement %s cannot overwrite n
   await reprocessDocument(context.client, worker.jobs, { ...context, confirmed: true });
   const running = worker.runJobsConcurrently(); await started.promise;
   expect(await startManualDocumentReview(context.client, context)).toEqual({ ok: true, value: null });
-  expect(await correctDocument(context.client, { ...context, basedOnVersion: 1, payload: { ...SAMPLE_EXTRACTION, documentNumber: "NEW-HUMAN" } })).toEqual({ ok: true, value: { version: 2 } });
-  await approveDocument(context.client, { ...context, version: 2 }); finish.release(); await running;
+  expect(await correctDocument(context.client, { ...context, basedOnVersion: 1, payload: { ...SAMPLE_EXTRACTION, documentNumber: "NEW-HUMAN", claimEligibility: { period: "2026-10", origin: "user", confirmed: true } } })).toEqual({ ok: true, value: { version: 2 } });
+  expect(await approveDocument(context.client, { ...context, version: 2 })).toEqual({ ok: true, value: null }); finish.release(); await running;
   expect((await getDocument(context.client, context.companyId, context.documentId))?.status).toBe("approved");
   expect((await listExtractionVersions(context.client, context.companyId, context.documentId)).map(v => [v.author.kind, v.payload.documentNumber])).toEqual([["user", "MANUAL-PRESERVED"], ["user", "NEW-HUMAN"]]);
   expect(await getCompanyAiProcessingAllowance(context.client, context.companyId)).toMatchObject({ ok: true, value: { used: 0 } });
@@ -214,8 +233,8 @@ it.each(["cancelled", "newer-human", "completed"] as const)("a lost queue acknow
   const result = await reprocessDocument(context.client, { async send(job) {
     if (outcome === "newer-human") {
       await startManualDocumentReview(context.client, context);
-      await correctDocument(context.client, { ...context, basedOnVersion: 1, payload: { ...SAMPLE_EXTRACTION, documentNumber: "NEWER" } });
-      await approveDocument(context.client, { ...context, version: 2 });
+      await correctDocument(context.client, { ...context, basedOnVersion: 1, payload: { ...SAMPLE_EXTRACTION, documentNumber: "NEWER", claimEligibility: { period: "2026-10", origin: "user", confirmed: true } } });
+      expect(await approveDocument(context.client, { ...context, version: 2 })).toEqual({ ok: true, value: null });
     } else if (outcome === "completed") { await worker.jobs.send(job); await worker.runJobs(); }
     throw new Error("Lost acknowledgement");
   } }, { ...context, confirmed: true });
@@ -244,7 +263,7 @@ it("a confirmed workbook replacement sends only the actual selected rows and hea
   const input = { companyId: context.companyId, documentId: created.value.id };
   await attachDocumentSource(context.client, { ...input, fileName: "actual.xlsx", bytes: multiSheetWorkbookFile("xlsx"), range: { sheetName: "Issued", firstRow: 3, lastRow: 3 } });
   const worker = testWorker(fakeAiProvider({ split: () => { throw new Error("Attachment must not Split"); }, extract: received => {
-    expect(received.text).toBe('[Sheet "Issued"]\n1\tDocument number\tGross amount\n3\tISSUED-2\t605');
+    expect(received.text).toBe('[Sheet "Issued"]\n[Columns]\tA\tB\n1\tDocument number\tGross amount\n3\tISSUED-2\t605');
     expect(new TextDecoder().decode(received.bytes)).toBe(received.text);
     return SAMPLE_EXTRACTION;
   } }));
@@ -260,7 +279,7 @@ it("a failed old dispatch cannot cancel a newer confirmed retry request", async 
   await assignAiConfigurationFixture(context.client, worker.jobs, { companyId: context.companyId, provider: worker.ai });
   expect(await reprocessDocument(context.client, { async send() {
     await startManualDocumentReview(context.client, context);
-    await correctDocument(context.client, { ...context, basedOnVersion: 1, payload: { ...SAMPLE_EXTRACTION, documentNumber: "NEWER" } });
+    await correctDocument(context.client, { ...context, basedOnVersion: 1, payload: { ...SAMPLE_EXTRACTION, documentNumber: "NEWER", claimEligibility: { period: "2026-10", origin: "user", confirmed: true } } });
     expect(await reprocessDocument(context.client, worker.jobs, { ...context, confirmed: true })).toEqual({ ok: true, value: null });
     throw new Error("Old acknowledgement failed");
   } }, { ...context, confirmed: true })).toEqual({ ok: false, error: "processing_dispatch_failed" });
@@ -289,10 +308,10 @@ it.each([null, [], { firstPage: 0, lastPage: 1 }, { firstPage: 1, lastPage: 2 },
 
 it("one remaining allowance cannot withdraw two manual approvals through concurrent confirmed requests", async () => {
   const context = await manualWithSource(); const worker = testWorker();
-  const second = await createManualDocument(context.client, { companyId: context.companyId, payload: { ...SAMPLE_EXTRACTION, documentNumber: "SECOND" } });
+  const second = await createConfirmedManualDocument(context.client, { companyId: context.companyId, payload: { ...SAMPLE_EXTRACTION, documentNumber: "SECOND" } });
   if (!second.ok) throw new Error(second.error);
   const secondInput = { companyId: context.companyId, documentId: second.value.id };
-  await approveDocument(context.client, { ...secondInput, version: 1 });
+  expect(await approveDocument(context.client, { ...secondInput, version: 1 })).toEqual({ ok: true, value: null });
   await attachDocumentSource(context.client, { ...secondInput, fileName: "receipt.png", bytes: fixtureFile("receipt.png") });
   await assignAiConfigurationFixture(context.client, worker.jobs, { companyId: context.companyId, provider: worker.ai });
   const operator = await promotedSuperAdministrator("Concurrent manual allowance", "manual-source-capacity");

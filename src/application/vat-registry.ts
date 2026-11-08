@@ -23,6 +23,11 @@ const warning = (field: string, code: string): ValidationFinding => ({
   code,
 });
 
+/** The existing ADIS preparation checks Czech supplier VAT IDs only. */
+export function vatRegistryCheckApplies(payload: ExtractionPayload): boolean {
+  return /^CZ\d{8,10}$/.test(payload.supplier.vatId ?? "");
+}
+
 /** Registry warnings for one freshly extracted Document. */
 export async function vatRegistryFindings(
   registry: VatPayerRegistry,
@@ -36,11 +41,11 @@ export async function vatRegistryFindings(
       ? [warning(account.field, "unrecognized_payment_account")]
       : [];
   const vatId = payload.supplier.vatId;
-  if (!vatId || !/^CZ\d{8,10}$/.test(vatId)) return accountFindings;
+  if (!vatRegistryCheckApplies(payload)) return accountFindings;
 
   let check: VatPayerRegistryCheck;
   try {
-    check = await registry.check(vatId);
+    check = await registry.check(vatId!);
   } catch {
     check = { outcome: "unavailable" };
   }

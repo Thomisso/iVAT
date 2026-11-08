@@ -1,3 +1,4 @@
+import { setOctoberImportFixture } from "./support/claim-eligibility";
 import { createHash } from "node:crypto";
 import { strFromU8, unzipSync } from "fflate";
 import { expect, it } from "vitest";
@@ -393,6 +394,7 @@ it("retains an Approved Document and its Period Lock after the Company is soft-d
     bytes: fixtureFile("receipt.png"),
   });
   if (!uploaded.ok) throw new Error(uploaded.error);
+  await setOctoberImportFixture(uploaded.value.id);
   expect(await worker.runJobs()).toEqual([]);
   const [document] = await listDocuments(
     company.client,

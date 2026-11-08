@@ -311,14 +311,14 @@ isOneToOne: false
                   ]
                 },"company": {
                   Row: {
-                    "ai_processing_allowance": number | null,"ai_processing_enabled": boolean,"ai_provider": string | null,"ai_region": string | null,"city": string,"created_at": string,"created_by": string | null,"data_revision": number,"deleted_at": string | null,"deleted_by": string | null,"first_name": string | null,"house_number": string | null,"ico": string,"id": string,"last_name": string | null,"name": string,"organization_id": string,"orientation_number": string | null,"person_type": Database["public"]['Enums']["person_type"],"postal_code": string,"street": string,"street_name": string | null,"vat_id": string
+                    "ai_processing_allowance": number | null,"ai_processing_enabled": boolean,"ai_provider": string | null,"ai_region": string | null,"automatic_approval_enabled": boolean,"city": string,"created_at": string,"created_by": string | null,"data_revision": number,"deleted_at": string | null,"deleted_by": string | null,"first_name": string | null,"house_number": string | null,"ico": string,"id": string,"last_name": string | null,"name": string,"organization_id": string,"orientation_number": string | null,"person_type": Database["public"]['Enums']["person_type"],"postal_code": string,"street": string,"street_name": string | null,"vat_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "ai_processing_allowance"?: number | null,"ai_processing_enabled"?: boolean,"ai_provider"?: string | null,"ai_region"?: string | null,"city": string,"created_at"?: string,"created_by"?: string | null,"data_revision"?: number,"deleted_at"?: string | null,"deleted_by"?: string | null,"first_name"?: string | null,"house_number"?: string | null,"ico": string,"id"?: string,"last_name"?: string | null,"name": string,"organization_id": string,"orientation_number"?: string | null,"person_type"?: Database["public"]['Enums']["person_type"],"postal_code": string,"street": string,"street_name"?: string | null,"vat_id": string
+                    "ai_processing_allowance"?: number | null,"ai_processing_enabled"?: boolean,"ai_provider"?: string | null,"ai_region"?: string | null,"automatic_approval_enabled"?: boolean,"city": string,"created_at"?: string,"created_by"?: string | null,"data_revision"?: number,"deleted_at"?: string | null,"deleted_by"?: string | null,"first_name"?: string | null,"house_number"?: string | null,"ico": string,"id"?: string,"last_name"?: string | null,"name": string,"organization_id": string,"orientation_number"?: string | null,"person_type"?: Database["public"]['Enums']["person_type"],"postal_code": string,"street": string,"street_name"?: string | null,"vat_id": string
                   }
                   Update: {
-                    "ai_processing_allowance"?: number | null,"ai_processing_enabled"?: boolean,"ai_provider"?: string | null,"ai_region"?: string | null,"city"?: string,"created_at"?: string,"created_by"?: string | null,"data_revision"?: number,"deleted_at"?: string | null,"deleted_by"?: string | null,"first_name"?: string | null,"house_number"?: string | null,"ico"?: string,"id"?: string,"last_name"?: string | null,"name"?: string,"organization_id"?: string,"orientation_number"?: string | null,"person_type"?: Database["public"]['Enums']["person_type"],"postal_code"?: string,"street"?: string,"street_name"?: string | null,"vat_id"?: string
+                    "ai_processing_allowance"?: number | null,"ai_processing_enabled"?: boolean,"ai_provider"?: string | null,"ai_region"?: string | null,"automatic_approval_enabled"?: boolean,"city"?: string,"created_at"?: string,"created_by"?: string | null,"data_revision"?: number,"deleted_at"?: string | null,"deleted_by"?: string | null,"first_name"?: string | null,"house_number"?: string | null,"ico"?: string,"id"?: string,"last_name"?: string | null,"name"?: string,"organization_id"?: string,"orientation_number"?: string | null,"person_type"?: Database["public"]['Enums']["person_type"],"postal_code"?: string,"street"?: string,"street_name"?: string | null,"vat_id"?: string
                   }
                   Relationships: [
                     {
@@ -415,6 +415,32 @@ isOneToOne: false
       referencedColumns: ["id","organization_id"]
     }
                   ]
+                },"counterparty": {
+                  Row: {
+                    "archived_at": string | null,"city": string,"company_id": string,"country_code": string,"created_at": string,"customer": boolean,"ico": string | null,"id": string,"name": string,"organization_id": string,"postal_code": string,"street": string,"supplier": boolean,"vat_id": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "archived_at"?: string | null,"city"?: string,"company_id": string,"country_code"?: string,"created_at"?: string,"customer"?: boolean,"ico"?: string | null,"id"?: string,"name": string,"organization_id": string,"postal_code"?: string,"street"?: string,"supplier"?: boolean,"vat_id"?: string | null
+                  }
+                  Update: {
+                    "archived_at"?: string | null,"city"?: string,"company_id"?: string,"country_code"?: string,"created_at"?: string,"customer"?: boolean,"ico"?: string | null,"id"?: string,"name"?: string,"organization_id"?: string,"postal_code"?: string,"street"?: string,"supplier"?: boolean,"vat_id"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "counterparty_company_id_organization_id_fkey"
+      columns: ["company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "company"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "counterparty_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organization"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"document": {
                   Row: {
                     "claimed_reporting_period": string | null,"company_id": string,"created_at": string,"excluded_at": string | null,"excluded_by": string | null,"exclusion_reason": string | null,"extraction_request_id": string,"extraction_requested_at": string | null,"first_page": number | null,"first_row": number | null,"has_document_image": boolean,"id": string,"last_page": number | null,"last_row": number | null,"organization_id": string,"source_file_id": string | null,"source_sheet": string | null,"status": Database["public"]['Enums']["document_status"],"superseded_at": string | null
@@ -441,16 +467,116 @@ isOneToOne: false
       referencedColumns: ["id","company_id","organization_id"]
     }
                   ]
-                },"extraction_version": {
+                },"document_approval_receipt": {
                   Row: {
-                    "author_user_id": string | null,"company_id": string,"created_at": string,"document_id": string,"extraction_request_id": string | null,"findings": NonNullable<Json>,"id": string,"model": string | null,"organization_id": string,"payload": NonNullable<Json>,"provider": string | null,"version": number
+                    "actor_user_id": string,"based_on_version": number,"company_id": string,"created_at": string,"document_id": string,"operation_kind": string,"organization_id": string,"request_id": string,"submitted_payload": NonNullable<Json>,"version": number
                   }
                   ComputedFields: never
                   Insert: {
-                    "author_user_id"?: string | null,"company_id": string,"created_at"?: string,"document_id": string,"extraction_request_id"?: string | null,"findings"?: NonNullable<Json>,"id"?: string,"model"?: string | null,"organization_id": string,"payload": NonNullable<Json>,"provider"?: string | null,"version": number
+                    "actor_user_id": string,"based_on_version": number,"company_id": string,"created_at"?: string,"document_id": string,"operation_kind": string,"organization_id": string,"request_id": string,"submitted_payload": NonNullable<Json>,"version": number
                   }
                   Update: {
-                    "author_user_id"?: string | null,"company_id"?: string,"created_at"?: string,"document_id"?: string,"extraction_request_id"?: string | null,"findings"?: NonNullable<Json>,"id"?: string,"model"?: string | null,"organization_id"?: string,"payload"?: NonNullable<Json>,"provider"?: string | null,"version"?: number
+                    "actor_user_id"?: string,"based_on_version"?: number,"company_id"?: string,"created_at"?: string,"document_id"?: string,"operation_kind"?: string,"organization_id"?: string,"request_id"?: string,"submitted_payload"?: NonNullable<Json>,"version"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "document_approval_receipt_company_id_fkey"
+      columns: ["company_id"]
+isOneToOne: false
+      referencedRelation: "company"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "document_approval_receipt_document_id_fkey"
+      columns: ["document_id"]
+isOneToOne: false
+      referencedRelation: "document"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "document_approval_receipt_document_id_fkey"
+      columns: ["document_id"]
+isOneToOne: false
+      referencedRelation: "document_duplicate_warning"
+      referencedColumns: ["document_id"]
+    },{
+      foreignKeyName: "document_approval_receipt_document_id_fkey"
+      columns: ["document_id"]
+isOneToOne: false
+      referencedRelation: "document_overview"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "document_approval_receipt_document_id_fkey"
+      columns: ["document_id"]
+isOneToOne: false
+      referencedRelation: "vat_report_document"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "document_approval_receipt_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organization"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"document_review_confirmation": {
+                  Row: {
+                    "actor_user_id": string,"company_id": string,"context": NonNullable<Json>,"created_at": string,"document_id": string,"findings": NonNullable<Json>,"id": string,"organization_id": string,"payload": NonNullable<Json>
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "actor_user_id": string,"company_id": string,"context": NonNullable<Json>,"created_at"?: string,"document_id": string,"findings": NonNullable<Json>,"id"?: string,"organization_id": string,"payload": NonNullable<Json>
+                  }
+                  Update: {
+                    "actor_user_id"?: string,"company_id"?: string,"context"?: NonNullable<Json>,"created_at"?: string,"document_id"?: string,"findings"?: NonNullable<Json>,"id"?: string,"organization_id"?: string,"payload"?: NonNullable<Json>
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "document_review_confirmation_company_id_fkey"
+      columns: ["company_id"]
+isOneToOne: false
+      referencedRelation: "company"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "document_review_confirmation_document_id_fkey"
+      columns: ["document_id"]
+isOneToOne: false
+      referencedRelation: "document"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "document_review_confirmation_document_id_fkey"
+      columns: ["document_id"]
+isOneToOne: false
+      referencedRelation: "document_duplicate_warning"
+      referencedColumns: ["document_id"]
+    },{
+      foreignKeyName: "document_review_confirmation_document_id_fkey"
+      columns: ["document_id"]
+isOneToOne: false
+      referencedRelation: "document_overview"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "document_review_confirmation_document_id_fkey"
+      columns: ["document_id"]
+isOneToOne: false
+      referencedRelation: "vat_report_document"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "document_review_confirmation_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organization"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"extraction_version": {
+                  Row: {
+                    "author_user_id": string | null,"company_id": string,"counterparty_id": string | null,"created_at": string,"document_id": string,"extraction_request_id": string | null,"findings": NonNullable<Json>,"id": string,"model": string | null,"organization_id": string,"payload": NonNullable<Json>,"provider": string | null,"version": number
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "author_user_id"?: string | null,"company_id": string,"counterparty_id"?: string | null,"created_at"?: string,"document_id": string,"extraction_request_id"?: string | null,"findings"?: NonNullable<Json>,"id"?: string,"model"?: string | null,"organization_id": string,"payload": NonNullable<Json>,"provider"?: string | null,"version": number
+                  }
+                  Update: {
+                    "author_user_id"?: string | null,"company_id"?: string,"counterparty_id"?: string | null,"created_at"?: string,"document_id"?: string,"extraction_request_id"?: string | null,"findings"?: NonNullable<Json>,"id"?: string,"model"?: string | null,"organization_id"?: string,"payload"?: NonNullable<Json>,"provider"?: string | null,"version"?: number
                   }
                   Relationships: [
                     {
@@ -903,6 +1029,9 @@ isOneToOne: false
 "approve_document":
 { Args: { "reviewed_version": number,"target_document_id": string }; Returns: undefined
                            },
+"archive_counterparty":
+{ Args: { "target_company_id": string,"target_counterparty_id": string }; Returns: undefined
+                           },
 "assign_company_ai_configuration":
 { Args: { "target_company_id": string,"target_configuration_id": string }; Returns: undefined
                            },
@@ -1005,6 +1134,11 @@ isOneToOne: false
 "correct_document":
 { Args: { "based_on_version": number,"findings": Json,"payload": Json,"target_document_id": string }; Returns: number
                            },
+"counterparty_documents":
+{ Args: { "target_company_id": string,"target_counterparty_id": string }; Returns: {
+              "document_id": string,"document_number": string,"version": number
+            }[]
+                           },
 "create_ai_configuration":
 { Args: { "configuration_label": string,"provider_credential": string,"target_extract_model": string,"target_provider": string,"target_split_model": string }; Returns: string
                            },
@@ -1013,6 +1147,9 @@ isOneToOne: false
                            },
 "create_company_identity":
 { Args: { "company_city": string,"company_first_name": string,"company_house_number": string,"company_ico": string,"company_last_name": string,"company_name": string,"company_orientation_number": string,"company_person_type": Database["public"]['Enums']["person_type"],"company_postal_code": string,"company_street_name": string,"company_vat_id": string,"target_organization_id": string }; Returns: string
+                           },
+"create_counterparty":
+{ Args: { "counterparty_city": string,"counterparty_country_code": string,"counterparty_customer": boolean,"counterparty_ico": string,"counterparty_name": string,"counterparty_postal_code": string,"counterparty_street": string,"counterparty_supplier": boolean,"counterparty_vat_id": string,"target_company_id": string }; Returns: string
                            },
 "create_draft_vat_report_artifact":
 { Args: { "target_company_id": string,"target_file_name": string,"target_format": string,"target_report_generated_at": string,"target_resolved_details": Json,"target_schema_version": string,"target_serializer_version": string,"target_vat_report_id": string,"target_xml_base64": string }; Returns: string
@@ -1028,6 +1165,9 @@ isOneToOne: false
                            },
 "create_password_recovery_request":
 { Args: { "target_email": string }; Returns: string
+                           },
+"current_business_date":
+{ Args: Record<PropertyKey, never>; Returns: string
                            },
 "current_company_role":
 { Args: { "target_company_id": string }; Returns: Database["public"]['Enums']["membership_role"]
@@ -1049,6 +1189,9 @@ isOneToOne: false
 "delete_company_reporting_year":
 { Args: { "target_company_id": string,"target_year": number }; Returns: undefined
                            },
+"delete_counterparty":
+{ Args: { "target_company_id": string,"target_counterparty_id": string }; Returns: undefined
+                           },
 "delete_upload_batch":
 { Args: { "target_batch_id": string }; Returns: (string)[]
                            },
@@ -1058,6 +1201,15 @@ isOneToOne: false
 "dismiss_upload_notification":
 { Args: { "target_notification_id": string }; Returns: undefined
                            },
+"document_approval_decisions":
+{ Args: { "target_document_id": string }; Returns: Json
+                           },
+"document_approval_result":
+{ Args: { "based_on_version": number,"operation_kind"?: string,"request_id": string,"submitted_payload": Json,"target_document_id": string }; Returns: number
+                           },
+"document_review_context":
+{ Args: { "based_on_version": number,"target_document_id": string }; Returns: Json
+                           },
 "exclude_source_file":
 { Args: { "exclusion_reason": string,"target_source_file_id": string }; Returns: undefined
                            },
@@ -1065,6 +1217,9 @@ isOneToOne: false
 { Args: { "target_export_id": string }; Returns: undefined
                            },
 "finalize_vat_report":
+{ Args: { "finalization_confirmed": boolean,"target_company_id": string,"target_period": string }; Returns: undefined
+                           },
+"finalize_vat_report_before_claim_eligibility":
 { Args: { "finalization_confirmed": boolean,"target_company_id": string,"target_period": string }; Returns: undefined
                            },
 "finish_mfa_disenrollment":
@@ -1204,6 +1359,9 @@ isOneToOne: false
               "max_source_file_bytes": number,"max_source_file_pages": number,"max_upload_batch_files": number
             }[]
                            },
+"prepare_document_counterparty":
+{ Args: { "candidate": Json,"target_company_id": string,"target_document_id": string }; Returns: Json
+                           },
 "prepare_document_source_attachment":
 { Args: { "target_company_id": string,"target_document_id": string,"target_source_file_id": string }; Returns: undefined
                            },
@@ -1212,6 +1370,9 @@ isOneToOne: false
                            },
 "record_ai_extraction":
 { Args: { "findings": Json,"model": string,"payload": Json,"provider": string,"target_document_id": string,"target_extraction_request_id": string,"target_reservation_id": string }; Returns: undefined
+                           },
+"record_ai_extraction_with_approval":
+{ Args: { "assessment": Json,"expected_company_revision": number,"findings": Json,"model": string,"payload": Json,"provider": string,"target_document_id": string,"target_extraction_request_id": string,"target_reservation_id": string }; Returns: undefined
                            },
 "record_ai_failed_response":
 { Args: { "target_error": string,"target_id": string,"target_kind": Database["public"]['Enums']["ai_processing_target_kind"],"target_model"?: string,"target_provider": string,"target_request_id": string,"target_response": string }; Returns: undefined
@@ -1246,6 +1407,9 @@ isOneToOne: false
 "replace_invitation":
 { Args: { "target_invitation_id": string }; Returns: string
                            },
+"reporting_period_claim_issues":
+{ Args: { "target_company_id": string,"target_period": string }; Returns: Json
+                           },
 "reprocess_document":
 { Args: { "replacement_confirmed"?: boolean,"target_document_id": string }; Returns: string
                            },
@@ -1262,6 +1426,9 @@ isOneToOne: false
                            },
 "restore_ai_processing_allowance_wait":
 { Args: { "target_company_id": string,"target_document_ids": (string)[] }; Returns: undefined
+                           },
+"restore_counterparty":
+{ Args: { "target_company_id": string,"target_counterparty_id": string }; Returns: undefined
                            },
 "restore_document":
 { Args: { "target_document_id": string }; Returns: undefined
@@ -1286,9 +1453,41 @@ isOneToOne: false
 "return_document_to_review":
 { Args: { "target_document_id": string }; Returns: undefined
                            },
+"save_and_approve_document":
+{ Args: { "acknowledgement"?: string,"based_on_version": number,"expected_context": Json,"findings": Json,"payload": Json,"request_id": string,"submitted_payload": Json,"target_document_id": string }; Returns: Json
+                           },
+"save_document_review":
+{ Args: { "based_on_version": number,"findings": Json,"payload": Json,"request_id": string,"submitted_payload": Json,"target_document_id": string }; Returns: number
+                           },
 "save_vat_report":
 { Args: { "computed_result": Json,"expected_documents": Json,"target_company_id": string,"target_period": string }; Returns: string
                            },
+"save_vat_report_before_claim_eligibility":
+{ Args: { "computed_result": Json,"expected_documents": Json,"target_company_id": string,"target_period": string }; Returns: string
+                           },
+"search_counterparties":
+{ Args: { "directory_role"?: string,"directory_state"?: string,"search_text"?: string,"target_company_id": string }; Returns: {
+              "archived_at": string | null,
+"city": string,
+"company_id": string,
+"country_code": string,
+"created_at": string,
+"customer": boolean,
+"ico": string | null,
+"id": string,
+"name": string,
+"organization_id": string,
+"postal_code": string,
+"street": string,
+"supplier": boolean,
+"vat_id": string | null
+            }[]
+                          SetofOptions: {
+        from: "*"
+        to: "counterparty"
+        isOneToOne: false
+        isSetofReturn: true
+      } },
 "set_ai_model_prices":
 { Args: { "prices": Json,"target_configuration_id": string }; Returns: undefined
                            },
@@ -1296,6 +1495,9 @@ isOneToOne: false
 { Args: { "target_allowance": number,"target_company_id": string }; Returns: {
               "document_id": string
             }[]
+                           },
+"set_company_automatic_approval":
+{ Args: { "enabled": boolean,"target_company_id": string }; Returns: undefined
                            },
 "set_company_filing_defaults":
 { Args: { "epo_address_confirmed": boolean,"new_economic_activity"?: string,"new_email": string,"new_epo_city": string,"new_epo_house_number": string,"new_epo_orientation_number": string,"new_epo_postal_code": string,"new_epo_street_name": string,"new_phone": string,"new_signatory_capacity": string,"new_signatory_first_name": string,"new_signatory_last_name": string,"new_tax_office": string,"new_territorial_office"?: string,"target_company_id": string }; Returns: undefined
@@ -1354,6 +1556,9 @@ isOneToOne: false
 "update_document_reporting":
 { Args: { "new_claimed_reporting_period": string,"target_document_id": string }; Returns: undefined
                            },
+"update_document_reporting_before_claim_eligibility":
+{ Args: { "new_claimed_reporting_period": string,"target_document_id": string }; Returns: undefined
+                           },
 "upload_batch_deletion_refusal":
 { Args: { "target_batch_id": string }; Returns: string
                            },
@@ -1379,6 +1584,9 @@ isOneToOne: false
 { Args: { "target_company_id": string,"target_period": string }; Returns: Json
                            },
 "vat_report_documents":
+{ Args: { "target_company_id": string,"target_period": string }; Returns: Json
+                           },
+"vat_report_documents_before_claim_eligibility":
 { Args: { "target_company_id": string,"target_period": string }; Returns: Json
                            },
 "vat_report_draft_progress":

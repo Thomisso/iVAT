@@ -63,15 +63,20 @@ test("explicit full verification on a draft supplies complete review evidence", 
 });
 
 
-test("all application and browser shards keep independent stacks and aggregate into required gates", async () => {
+test("all financial application shards and the production HTTP suite keep independent stacks and required gates", async () => {
   const { readFileSync } = await import("node:fs");
   const ci = readFileSync(new URL("../../.github/workflows/ci.yml", import.meta.url), "utf8");
   for (const name of ["full", "acceptance"]) {
     const job = ci.split(`\n  ${name}:\n`)[1].split(/\n  [a-z-]+:\n/)[0];
-    assert.match(job, /fail-fast: false/);
-    assert.match(job, /shard: \[1, 2, 3\]/);
+    if (name === "full") {
+      assert.match(job, /fail-fast: false/);
+      assert.match(job, /shard: \[1, 2, 3\]/);
+      assert.match(job, /--shard=\$\{\{ matrix.shard \}\}\/3/);
+    } else {
+      assert.doesNotMatch(job, /matrix:/);
+      assert.match(job, /run: npm run test:http/);
+    }
     assert.match(job, /runs-on: ubuntu-latest/);
-    assert.match(job, /--shard=\$\{\{ matrix.shard \}\}\/3/);
     assert.match(job, /if: always\(\)/);
     assert.match(job, /npm run db:stop -- --no-backup/);
     // Supabase's fixed ports overlap Linux's automatic port allocation range.
@@ -90,7 +95,8 @@ test("all application and browser shards keep independent stacks and aggregate i
   assert.match(ci, /FULL_RESULT: \$\{\{ needs.full.result \}\}/);
   assert.match(ci, /needs: \[profile, acceptance\]/);
   assert.match(ci, /FULL_RESULT: \$\{\{ needs.acceptance.result \}\}/);
-  assert.match(ci, /name: playwright-traces-\$\{\{ matrix.shard \}\}/);
+  assert.match(ci, /name: http-acceptance-logs/);
+  assert.doesNotMatch(ci, /playwright|chromium|agent-browser|browser_eval/i);
   assert.match(ci, /if: failure\(\) && steps\.supabase\.outcome == 'failure'/);
   assert.match(ci, /sudo ss -tanp/);
 });

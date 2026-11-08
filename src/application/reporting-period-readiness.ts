@@ -1,5 +1,7 @@
+import { currentBusinessDate } from "./business-date";
 import { loadStoredDocumentFindings, prepareDocumentReporting, type DocumentReporting } from "./document-reporting";
 import type { SourceFileStatus } from "./source-files";
+import type { ExtractionPayload } from "./extraction-payload";
 import type { AppClient, Result } from "./client";
 import { isUuid } from "./client";
 import {
@@ -11,6 +13,7 @@ import type { ValidationFinding } from "./document-validation";
 import { listCompanyDocuments } from "./documents";
 import {
   isReportingPeriod,
+  NO_REPORTING_PERIOD,
   reportingPeriodForDate,
   reportingPeriodGapFinding,
   reportingPeriodsOf,
@@ -79,6 +82,8 @@ export type ReportingPeriodReadinessSource = {
   status: ReportDocument["status"];
   extractionVersionId: string | null;
   claimedReportingPeriod: string | null;
+  claimEligibility?: ExtractionPayload["claimEligibility"] | null;
+  importDate?: string | null;
 };
 
 export type ReportingPeriodReadinessError =
@@ -156,6 +161,8 @@ function readinessSource(
     status: document.status,
     extractionVersionId: document.extractionVersionId,
     claimedReportingPeriod: document.claimedReportingPeriod ?? null,
+    claimEligibility: document.payload?.claimEligibility ?? null,
+    importDate: document.importDate ?? null,
   }));
 }
 
@@ -249,7 +256,9 @@ async function relevantDocuments(
   if (error) throw error;
   const assigned = data as unknown as ReportDocument[];
   const assignedIds = new Set(assigned.map((document) => document.id));
-  const overviews = await listCompanyDocuments(client, companyId);
+  // Assigned Documents already came from the complete report projection.
+  // Fetch only the unassigned work whose Import Date may block this period.
+  const overviews = await listCompanyDocuments(client, companyId, { reportingPeriod: NO_REPORTING_PERIOD });
   // A Document without a Reporting Period still blocks the readiness of the
   // period of its Import Date, so unfinished work is not overlooked. It does
   // not join that period's VAT Report.
@@ -275,6 +284,7 @@ async function relevantDocuments(
       extractionVersionId: row.extraction_version_id,
       payload: row.payload as unknown as ReportDocument["payload"],
       claimedReportingPeriod: row.claimed_reporting_period,
+      importDate: overviews.find(document => document.id === row.id)?.importDate ?? null,
     })));
   }
   return {
@@ -294,9 +304,10 @@ export async function getReportingPeriodReadiness(
   }
   const company = await getCompany(client, input.companyId);
   if (!company) return { ok: false, error: "forbidden" };
-  const [frequency, reportingYears] = await Promise.all([
+  const [frequency, reportingYears, evaluatedOn] = await Promise.all([
     getReportingPeriodFrequency(client, input.companyId, input.period),
     listCompanyReportingYears(client, input.companyId),
+    currentBusinessDate(client),
   ]);
   if (
     frequency === null ||
@@ -322,7 +333,7 @@ export async function getReportingPeriodReadiness(
     const reporting = prepareDocumentReporting(document, reportingYears, input.period, [
       ...(document.extractionVersionId ? byVersion.get(document.extractionVersionId) ?? [] : []),
       ...(gap ? [gap] : []),
-    ]);
+    ], evaluatedOn);
     return {
       ...document,
       reporting,
@@ -338,6 +349,12 @@ export async function getReportingPeriodReadiness(
   };
   const blockers: ReadinessFinding[] = [];
   const warnings: ReadinessFinding[] = [];
+  const claimIssues = await client.rpc("reporting_period_claim_issues", { target_company_id: input.companyId, target_period: input.period });
+  if (claimIssues.error) throw claimIssues.error;
+  for (const issue of claimIssues.data as unknown as { documentId: string; code: string }[]) {
+    if (!documents.some(document => document.id === issue.documentId && document.findings.some(finding => finding.code === issue.code)))
+      blockers.push({ code: "error_finding", documentId: issue.documentId, findingCode: issue.code });
+  }
   for (const document of documents) {
     if (
       document.status === "uploaded"

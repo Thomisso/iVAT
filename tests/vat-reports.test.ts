@@ -1,9 +1,12 @@
+import { setOctoberImportFixture } from "./support/claim-eligibility";
 import { expect, it } from "vitest";
 import { generateVatReport, getVatReport } from "@/application/vat-reports";
 import {
   approveDocument,
   listDocuments,
   updateDocumentReporting,
+  correctDocument,
+  returnDocumentToReview,
 } from "@/application/documents";
 import {
   createCompanyIdentity,
@@ -14,6 +17,7 @@ import { listAuditEvents } from "@/application/audit";
 import { uploadSourceFile } from "@/application/source-files";
 import {
   administratorWithCompany,
+  knownSupplierFixture,
   assignAiConfigurationFixture as enableAiProcessing,
   companyDetails,
   companyMember,
@@ -23,9 +27,11 @@ import { provisionedUser } from "./support/clients";
 import { fixtureFile } from "./support/files";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { testWorker } from "./support/worker";
+import { withSupabaseRequestDiagnostics } from "./support/request-failure-diagnostics";
 
 async function companyWithReportDocuments() {
   const admin = await administratorWithCompany();
+  await knownSupplierFixture(admin);
   const worker = testWorker();
   await enableAiProcessing(admin.client, worker.jobs, {
     companyId: admin.companyId,
@@ -37,6 +43,7 @@ async function companyWithReportDocuments() {
     bytes: fixtureFile("two-invoices.pdf"),
   });
   if (!file.ok) throw new Error(file.error);
+  await setOctoberImportFixture(file.value.id);
   expect(await worker.runJobs()).toEqual([]);
   const documents = await listDocuments(
     admin.client,
@@ -103,8 +110,9 @@ it("a Company User generates a stored draft, with exclusions, source versions an
 
 it("includes a late-imported incoming Document in its Tax Point Date's period, or in its later Deferred Claim", async () => {
   const admin = await administratorWithCompany();
+  await knownSupplierFixture(admin);
   const worker = testWorker(fakeAiProvider({
-    extract: () => ({ ...SAMPLE_EXTRACTION, direction: "incoming", taxPointDate: "2026-09-15" }),
+    extract: () => ({ ...SAMPLE_EXTRACTION, direction: "incoming", taxPointDate: "2026-09-15", issueDate: "2026-09-15" }),
   }));
   await enableAiProcessing(admin.client, worker.jobs, {
     companyId: admin.companyId,
@@ -116,12 +124,16 @@ it("includes a late-imported incoming Document in its Tax Point Date's period, o
     bytes: fixtureFile("receipt.png"),
   });
   if (!file.ok) throw new Error(file.error);
+  await setOctoberImportFixture(file.value.id);
   expect(await worker.runJobs()).toEqual([]);
   const [document] = await listDocuments(admin.client, admin.companyId, file.value.id);
+  expect(await correctDocument(admin.client, { companyId: admin.companyId, documentId: document.id, basedOnVersion: 1,
+    payload: { ...SAMPLE_EXTRACTION, taxPointDate: "2026-09-15", issueDate: "2026-09-15", claimEligibility: { period: "2026-09", origin: "user", confirmed: true } },
+  })).toMatchObject({ ok: true, value: { version: 2 } });
   expect(await approveDocument(admin.client, {
     companyId: admin.companyId,
     documentId: document.id,
-    version: 1,
+    version: 2,
   })).toEqual({ ok: true, value: null });
   const inputVatDocuments = async (period: string) => {
     const generated = await generateVatReport(admin.client, { companyId: admin.companyId, period });
@@ -132,7 +144,7 @@ it("includes a late-imported incoming Document in its Tax Point Date's period, o
 
   expect(await inputVatDocuments("2026-09")).toEqual([document.id]);
   expect(await inputVatDocuments("2026-10")).toEqual([]);
-
+  expect(await returnDocumentToReview(admin.client, { companyId: admin.companyId, documentId: document.id })).toEqual({ ok: true, value: null });
   expect(
     await updateDocumentReporting(admin.client, {
       companyId: admin.companyId,
@@ -140,6 +152,7 @@ it("includes a late-imported incoming Document in its Tax Point Date's period, o
       claimedReportingPeriod: "2026-12",
     }),
   ).toEqual({ ok: true, value: null });
+  expect(await approveDocument(admin.client, { companyId: admin.companyId, documentId: document.id, version: 2 })).toEqual({ ok: true, value: null });
   expect(await inputVatDocuments("2026-09")).toEqual([]);
   expect(await inputVatDocuments("2026-12")).toEqual([document.id]);
 });
@@ -156,6 +169,12 @@ it("generates quarterly Reporting Periods when the Company's Reporting Year beco
       reportingYear: 2026,
     }),
   ).toEqual({ ok: true, value: null });
+
+  expect(await returnDocumentToReview(company.client, { companyId: company.companyId, documentId: company.documents[0].id })).toEqual({ ok: true, value: null });
+  expect(await correctDocument(company.client, { companyId: company.companyId, documentId: company.documents[0].id, basedOnVersion: 1,
+    payload: { ...SAMPLE_EXTRACTION, claimEligibility: { period: "2026-Q4", origin: "user", confirmed: true } },
+  })).toMatchObject({ ok: true, value: { version: 2 } });
+  expect(await approveDocument(company.client, { companyId: company.companyId, documentId: company.documents[0].id, version: 2 })).toEqual({ ok: true, value: null });
 
   expect(
     await generateVatReport(company.client, {
@@ -327,13 +346,20 @@ it("a malformed AI date cannot block generation from valid Documents", async () 
 });
 
 it("generates from more Documents than the API row cap without losing exclusions", async () => {
-  const a = await companyWithManyReportDocuments(1001);
-  const generated = await generateVatReport(a.client, {
-    companyId: a.companyId,
-    period: "2026-10",
+  await withSupabaseRequestDiagnostics(async (setPhase) => {
+    const a = await companyWithManyReportDocuments(1001);
+    setPhase("generation");
+    const generated = await generateVatReport(a.client, {
+      companyId: a.companyId,
+      period: "2026-10",
+    });
+    expect(generated.ok).toBe(true);
+    setPhase("readback_assertions");
+    const report = (await getVatReport(a.client, a.companyId, "2026-10"))!;
+    expect(report.documents).toHaveLength(1001);
+    expect(report.documents.map(document => document.id).toSorted()).toEqual(a.documentIds.toSorted());
+    expect(report.documents.map(document => document.importDate)).toEqual(Array(1001).fill("2026-10-10"));
+    expect(report.result.excludedDocuments).toHaveLength(1001);
+    expect(report.result.excludedDocuments.map(document => document.reason)).toEqual(Array(1001).fill("not_approved"));
   });
-  expect(generated.ok).toBe(true);
-  const report = (await getVatReport(a.client, a.companyId, "2026-10"))!;
-  expect(report.documents).toHaveLength(1001);
-  expect(report.result.excludedDocuments).toHaveLength(1001);
 }, 60000);

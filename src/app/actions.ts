@@ -42,7 +42,10 @@ import {
 import { cancelInvitation, changeMembershipRole, completeInvitationOnboarding, generateInvitationLink, getInvitationOnboarding, inviteMember, removeMembership, replaceInvitationLink } from "@/application/memberships";
 import { configuredInvitationUrls, invitationAuthentication, invitationMailer } from "@/lib/invitations";
 import {
-  approveDocument,
+  saveAndApproveDocument,
+  type ReviewConfirmation,
+  type CounterpartyCreationConsent,
+  type ReviewConflict,
   attachDocumentSource,
   correctDocument,
   createManualDocument,
@@ -56,6 +59,7 @@ import {
   splitDocument,
   updateDocumentReporting,
 } from "@/application/documents";
+import type { ValidationFinding } from "@/application/document-validation";
 import type { ExtractionPayload, Party } from "@/application/extraction-payload";
 import { retrySplit, uploadSourceFile } from "@/application/source-files";
 import {
@@ -96,7 +100,7 @@ import { safeCompanyReturnTo } from "@/application/return-context";
  * messages, plus the submitted values so a refused form keeps its input
  * (React resets forms after an action). Passwords are never echoed back.
  */
-export type FormState = { error: string | null; values: Record<string, string> };
+export type FormState = { error: string | null; values: Record<string, string>; findings?: ValidationFinding[] };
 
 const field = (formData: FormData, name: string) => String(formData.get(name) ?? "");
 
@@ -578,17 +582,36 @@ function payloadFromForm(formData: FormData): ExtractionPayload {
   const lines = [
     ...new Set([...formData.keys()].flatMap((key) => /^rateBreakdown\.(\d+)\./.exec(key)?.[1] ?? [])),
   ].sort((a, b) => Number(a) - Number(b));
+  const selectedLines = [...new Set([...formData.keys()].flatMap(key => /^partialClaim\.(\d+)\./.exec(key)?.[1] ?? []))]
+    .sort((a, b) => Number(a) - Number(b));
+  let basis: NonNullable<ExtractionPayload["partialClaim"]>["basis"];
+  let basisValid = true;
+  try { basis = optionalField(formData, "partialClaim.basis") ? JSON.parse(field(formData, "partialClaim.basis")) : undefined; }
+  catch { basisValid = false; }
+  let claimEligibility: ExtractionPayload["claimEligibility"];
+  try { claimEligibility = optionalField(formData, "claimEligibility") ? JSON.parse(field(formData, "claimEligibility")) : undefined; }
+  catch { claimEligibility = undefined; }
   return {
     schemaVersion: 1,
+    ...(claimEligibility ? { claimEligibility } : {}),
     documentType: optionalField(formData, "documentType") as ExtractionPayload["documentType"],
     documentNumber: optionalField(formData, "documentNumber"),
     issueDate: optionalField(formData, "issueDate"),
     taxPointDate: optionalField(formData, "taxPointDate"),
     dueDate: optionalField(formData, "dueDate"),
     direction: optionalField(formData, "direction") as ExtractionPayload["direction"],
+    ...(optionalField(formData, "counterpartyId") ? { counterpartyLink: { id: field(formData, "counterpartyId") } } : field(formData, "counterpartyLinkMode") === "unlinked" ? { counterpartyLink: null } : {}),
     supplier: partyFromForm(formData, "supplier"),
     customer: partyFromForm(formData, "customer"),
     currency: optionalField(formData, "currency"),
+    ...(field(formData, "partialClaim.mode") === "full" ? { partialClaim: null } : field(formData, "partialClaim.mode") === "selected" ? { partialClaim: {
+      confirmed: basisValid && field(formData, "partialClaim.confirmed") === "true",
+      zeroConfirmed: field(formData, "partialClaim.zeroConfirmed") === "true",
+      ...(basis ? { basis } : {}),
+      rateBreakdown: selectedLines.map(i => ({ rate: optionalField(formData, `partialClaim.${i}.rate`) === null ? null : Number(field(formData, `partialClaim.${i}.rate`).replace(",", ".")),
+        netAmount: optionalField(formData, `partialClaim.${i}.netAmount`), vatAmount: optionalField(formData, `partialClaim.${i}.vatAmount`) })),
+    } } : {}),
+    sourceRateRows: lines.map((i) => Number(i)),
     rateBreakdown: lines.map((i) => ({
       rate: optionalField(formData, `rateBreakdown.${i}.rate`) === null ? null
         : Number(field(formData, `rateBreakdown.${i}.rate`).replace(",", ".")),
@@ -627,7 +650,7 @@ export async function correctDocumentAction(_state: FormState, formData: FormDat
     const values = [...formData.entries()].filter(
       ([name, value]) => !name.startsWith("$") && typeof value === "string",
     );
-    return { error: result.error, values: Object.fromEntries(values) as Record<string, string> };
+    return { error: result.error, values: Object.fromEntries(values) as Record<string, string>, findings: result.findings };
   }
   refresh();
   return { error: null, values: {} };
@@ -640,20 +663,46 @@ export async function createManualDocumentAction(_state: FormState, formData: Fo
   }, configuredExchangeRates(), configuredVatPayerRegistry());
   if (!result.ok) return {
     error: result.error,
+    findings: result.findings,
     values: Object.fromEntries([...formData.entries()].filter(([name, value]) => !name.startsWith("$") && typeof value === "string")) as Record<string, string>,
   };
   redirect(`/companies/${companyId}/documents/${result.value.id}`);
 }
 
-export async function approveDocumentAction(_state: FormState, formData: FormData): Promise<FormState> {
+export type DocumentReviewFormState = FormState & { findings?: ValidationFinding[]; confirmation?: ReviewConfirmation; conflict?: ReviewConflict; savedVersion?: number };
+
+/** Consent records the Party actually confirmed, rather than a reusable flag. */
+function counterpartyCreationConsentFromForm(formData: FormData): CounterpartyCreationConsent | undefined {
+  const raw = optionalField(formData, "counterpartyCreationConsent");
+  if (!raw) return undefined;
+  try {
+    const consent = JSON.parse(raw);
+    if (!consent || !["incoming", "outgoing"].includes(consent.direction) || !consent.party || typeof consent.party !== "object") return undefined;
+    const fields = ["name", "ico", "vatId", "street", "city", "postalCode", "country"] as const;
+    if (!fields.every(key => consent.party[key] === null || typeof consent.party[key] === "string")) return undefined;
+    return { direction: consent.direction, party: Object.fromEntries(fields.map(key => [key, consent.party[key]])) as Party };
+  } catch { return undefined; }
+}
+
+/** Both submit buttons send the same current fields; only successful approval advances the queue. */
+export async function reviewDocumentAction(_state: DocumentReviewFormState, formData: FormData): Promise<DocumentReviewFormState> {
+  const client = await requireUserClient();
   const companyId = field(formData, "companyId");
   const documentId = field(formData, "documentId");
-  const result = await approveDocument(await requireUserClient(), {
-    companyId,
-    documentId,
-    version: Number(field(formData, "version")),
-  });
-  if (!result.ok) return settled(result);
+  const input = { companyId, documentId, basedOnVersion: Number(field(formData, "basedOnVersion")), requestId: field(formData, "requestId"), displayedBankAccountCheckId: optionalField(formData, "displayedBankAccountCheckId"), displayedReviewContext: optionalField(formData, "displayedReviewContext") ?? undefined, payload: payloadFromForm(formData) };
+  const values = Object.fromEntries([...formData.entries()].filter(([name, value]) => !name.startsWith("$") && typeof value === "string")) as Record<string, string>;
+  if (field(formData, "intent") !== "approve") {
+    const saved = await correctDocument(client, input, configuredExchangeRates(), configuredVatPayerRegistry());
+    if (!saved.ok) return { error: saved.error, values, findings: saved.findings, conflict: saved.conflict };
+    refresh();
+    return { error: null, values: {}, savedVersion: saved.value.version };
+  }
+  const result = await saveAndApproveDocument(client, {
+    ...input, counterpartyCreationConsent: counterpartyCreationConsentFromForm(formData), requestId: field(formData, "requestId"), acknowledgement: optionalField(formData, "acknowledgement") ?? undefined,
+  }, configuredExchangeRates(), configuredVatPayerRegistry());
+  if (!result.ok) return result.error === "review_warnings_changed"
+    ? { error: result.error, values, confirmation: result.confirmation, findings: result.confirmation.findings }
+    : { error: result.error, values, findings: result.findings, conflict: result.conflict };
   redirectAfterDocumentDecision(formData, companyId, documentId);
 }
 
@@ -690,10 +739,12 @@ function redirectAfterDocumentDecision(formData: FormData, companyId: string, do
   redirect(documentDecisionHref(companyId, { documentId, nextDocumentId: field(formData, "nextDocumentId"), queueQuery: field(formData, "queueQuery"), returnTo: field(formData, "returnTo") }));
 }
 
+export type ReportingAssignmentFormState = FormState & { savedReportingPeriod?: string | null };
+
 export async function updateDocumentReportingAction(
   _state: FormState,
   formData: FormData,
-): Promise<FormState> {
+): Promise<ReportingAssignmentFormState> {
   const result = await updateDocumentReporting(await requireUserClient(), {
     companyId: field(formData, "companyId"),
     documentId: field(formData, "documentId"),
@@ -703,7 +754,7 @@ export async function updateDocumentReportingAction(
     return refused(result.error, formData, ["claimedReportingPeriod"]);
   }
   refresh();
-  return { error: null, values: {} };
+  return { error: null, values: {}, savedReportingPeriod: optionalField(formData, "claimedReportingPeriod") };
 }
 
 export async function setLocaleAction(formData: FormData): Promise<void> {

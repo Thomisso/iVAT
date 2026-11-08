@@ -1,0 +1,151 @@
+import type { ExtractionPayload } from "./extraction-payload";
+
+/** An unbound provider reference on the oriented PDF or image input, before server source binding. */
+export type SourcePageLocation = {
+  fieldPath: string;
+  kind: "page";
+  page: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+export type SourceWorkbookLocation = {
+  fieldPath: string;
+  kind: "workbook";
+  sheetName: string;
+  firstRow: number;
+  lastRow: number;
+  firstColumn: number;
+  lastColumn: number;
+};
+
+export type WorkbookEvidenceRange = {
+  sheetName: string; firstRow: number; lastRow: number;
+  firstColumn: number; lastColumn: number; headerRow: number;
+};
+
+export type SourceLocation = SourcePageLocation | SourceWorkbookLocation;
+
+const SCALAR_FIELDS = new Set([
+  "documentType", "documentNumber", "issueDate", "taxPointDate", "dueDate", "direction", "currency",
+  "proposedVatRegime", "reverseChargeCode", "originalDocumentNumber",
+  ...["supplier", "customer"].flatMap((party) =>
+    ["name", "ico", "vatId", "street", "city", "postalCode", "country"].map((field) => `${party}.${field}`)),
+  ...["netAmount", "vatAmount", "grossAmount"].map((field) => `totals.${field}`),
+  ...["variableSymbol", "bankAccount", "iban"].map((field) => `payment.${field}`),
+]);
+function supportedField(field: string, payload: ExtractionPayload): boolean {
+  const rateField = /^rateBreakdown\.(0|[1-9]\d*)\.(rate|netAmount|vatAmount)$/.exec(field);
+  return SCALAR_FIELDS.has(field) || !!(rateField && Number(rateField[1]) < payload.rateBreakdown.length);
+}
+
+/** Only rows and columns actually supplied to this extraction can be referenced. */
+export function validSourceWorkbookLocations(value: unknown, payload: ExtractionPayload, range?: WorkbookEvidenceRange): SourceWorkbookLocation[] {
+  if (!Array.isArray(value) || !range) return [];
+  const keys = new Set(["fieldPath", "kind", "sheetName", "firstRow", "lastRow", "firstColumn", "lastColumn"]);
+  return value.flatMap((entry): SourceWorkbookLocation[] => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry) || Object.keys(entry).some((key) => !keys.has(key))) return [];
+    const location = entry as SourceWorkbookLocation;
+    if (typeof location.fieldPath !== "string" || !supportedField(location.fieldPath, payload)
+      || location.kind !== "workbook" || location.sheetName !== range.sheetName
+      || ![location.firstRow, location.lastRow, location.firstColumn, location.lastColumn].every(Number.isSafeInteger)
+      || location.firstRow > location.lastRow || location.firstColumn > location.lastColumn
+      || location.firstColumn < range.firstColumn || location.lastColumn > range.lastColumn
+      || !((location.firstRow >= range.firstRow && location.lastRow <= range.lastRow)
+        || (location.firstRow === range.headerRow && location.lastRow === range.headerRow))) return [];
+    return [{ fieldPath: location.fieldPath, kind: "workbook", sheetName: location.sheetName,
+      firstRow: location.firstRow, lastRow: location.lastRow, firstColumn: location.firstColumn, lastColumn: location.lastColumn }];
+  });
+}
+
+const LOCATION_KEYS = new Set(["fieldPath", "kind", "page", "x", "y", "width", "height"]);
+
+/** Missing or invalid evidence is informational; it never invalidates financial values. */
+export function validSourcePageLocations(value: unknown, payload: ExtractionPayload, pageCount: number): SourcePageLocation[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry): SourcePageLocation[] => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)
+      || Object.keys(entry).some((key) => !LOCATION_KEYS.has(key))) return [];
+    const location = entry as SourcePageLocation;
+    if (typeof location.fieldPath !== "string" || location.kind !== "page"
+      || !Number.isInteger(location.page) || location.page < 1 || location.page > pageCount
+      || ![location.x, location.y, location.width, location.height].every((coordinate) => typeof coordinate === "number" && Number.isFinite(coordinate))
+      || location.x < 0 || location.y < 0 || location.width <= 0 || location.height <= 0
+      || location.x + location.width > 1 || location.y + location.height > 1) return [];
+    if (!supportedField(location.fieldPath, payload)) return [];
+    return [{
+      fieldPath: location.fieldPath, kind: "page", page: location.page,
+      x: location.x, y: location.y, width: location.width, height: location.height,
+    }];
+  });
+}
+
+export type SourceFieldEvidence = {
+  origin: "ai" | "manual";
+  originalValue: string | number;
+  locations: (Omit<SourcePageLocation, "fieldPath"> | Omit<SourceWorkbookLocation, "fieldPath">)[];
+};
+
+/** Identity and page basis supplied by the server, scoped by the containing immutable Version. */
+export type SourceEvidence = {
+  schemaVersion: 1;
+  extractionVersionId?: string;
+  sourceFileId: string;
+  sourceSha256: string;
+  documentId: string;
+  originExtractionRequestId: string;
+  basis: { kind: "original"; format: "pdf" | "png" | "jpeg" | "xls" | "xlsx"; sha256: string } | { kind: "normalized"; format: "jpeg"; sha256: string };
+  range: { firstPage: number; lastPage: number } | WorkbookEvidenceRange;
+  fields: Record<string, SourceFieldEvidence>;
+};
+
+export function sourceFieldValue(payload: ExtractionPayload, field: string): string | number | null {
+  const value = field.split(".").reduce<unknown>((value, key) =>
+    value && typeof value === "object" ? (value as Record<string, unknown>)[key] : null, payload);
+  return typeof value === "string" || typeof value === "number" ? value : null;
+}
+
+/** Never carries a provider-selected identity or a prior AI Version's reference forward. */
+export function bindSourceEvidence(payload: ExtractionPayload, source: {
+  sourceFileId: string; sha256: string; documentId: string; requestId: string;
+  format: string; firstPage: number; lastPage: number; normalizedSha256?: string | null; workbookEvidence?: WorkbookEvidenceRange;
+}): ExtractionPayload {
+  const clean = { ...payload };
+  delete clean.sourceLocations;
+  delete clean.sourceEvidence;
+  if (source.format !== "pdf" && source.format !== "png" && source.format !== "jpeg" && source.format !== "xls" && source.format !== "xlsx") return clean;
+  const fields: Record<string, SourceFieldEvidence> = {};
+  const locations = source.format === "xls" || source.format === "xlsx"
+    ? validSourceWorkbookLocations(payload.sourceLocations, payload, source.workbookEvidence)
+    : validSourcePageLocations(payload.sourceLocations, payload, source.format === "pdf" ? source.lastPage - source.firstPage + 1 : 1);
+  for (const location of locations) {
+    // Direction is inferred against the Company's identity, rather than read from this box.
+    if (location.fieldPath === "direction") continue;
+    const originalValue = sourceFieldValue(payload, location.fieldPath);
+    if (originalValue === null) continue;
+    const field = fields[location.fieldPath] ??= { origin: "ai", originalValue, locations: [] };
+    if (location.kind === "page") field.locations.push({
+      kind: "page", page: source.firstPage + location.page - 1,
+      x: location.x, y: location.y, width: location.width, height: location.height,
+    });
+    else field.locations.push({ kind: "workbook", sheetName: location.sheetName,
+      firstRow: location.firstRow, lastRow: location.lastRow, firstColumn: location.firstColumn, lastColumn: location.lastColumn });
+  }
+  if (!Object.keys(fields).length) return clean;
+  return { ...clean, sourceEvidence: {
+    schemaVersion: 1, sourceFileId: source.sourceFileId, sourceSha256: source.sha256,
+    documentId: source.documentId, originExtractionRequestId: source.requestId,
+    basis: source.normalizedSha256 ? { kind: "normalized", format: "jpeg", sha256: source.normalizedSha256 }
+      : { kind: "original", format: source.format, sha256: source.sha256 },
+    range: source.workbookEvidence ?? { firstPage: source.firstPage, lastPage: source.lastPage }, fields,
+  } };
+}
+
+export function remapSourceField(field: string, indices: Map<number, number>): string | null {
+  const path = /^rateBreakdown\.(\d+)\.(.+)$/.exec(field);
+  if (!path) return field;
+  const index = indices.get(Number(path[1]));
+  return index === undefined ? null : `rateBreakdown.${index}.${path[2]}`;
+}
