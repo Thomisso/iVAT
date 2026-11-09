@@ -4,7 +4,7 @@
 const http = require("http");
 const KEY = "github-agent:snapshot";
 const seed = () => ({ repository: "simulation-owner/agent-tracking", nextComment: 1000,
-  comments: {}, dispatches: [], requests: [], failure: null, items: {}, workflows: [],
+  comments: {}, dispatches: [], requests: [], failure: null, items: {}, workflows: [], assignees: {},
   fields: [{ id: "PVTSSF_status", name: "Status", dataType: "SINGLE_SELECT", options: [
     { id: "status_todo", name: "Todo", color: "GRAY", description: "" },
     { id: "status_working", name: "In Progress", color: "YELLOW", description: "" },
@@ -86,9 +86,12 @@ http.createServer(async (request, response) => {
   const parent = new RegExp(`^${base}/issues/(\\d+)/parent$`).exec(url.pathname);
   if (parent && request.method === "GET") return Number(parent[1]) === 7 ? finish(200, issue(8, state.repository)) : finish(404, { message: "Not Found" });
   const selected = new RegExp(`^${base}/issues/(\\d+)$`).exec(url.pathname);
-  if (selected && request.method === "GET") return finish(200, issue(Number(selected[1]), state.repository));
+  if (selected && request.method === "GET") return finish(200, { ...issue(Number(selected[1]), state.repository), assignees: (state.assignees[selected[1]] || []).map(login => ({ login })) });
   const assignees = new RegExp(`^${base}/issues/(\\d+)/assignees$`).exec(url.pathname);
-  if (assignees && request.method === "POST") return finish(201, { ...issue(Number(assignees[1]), state.repository), assignees: request.body.assignees.map(login => ({ login })) });
+  if (assignees && request.method === "POST") {
+    state.assignees[assignees[1]] = [...new Set([...(state.assignees[assignees[1]] || []), ...request.body.assignees])];
+    return finish(201, { ...issue(Number(assignees[1]), state.repository), assignees: state.assignees[assignees[1]].map(login => ({ login })) });
+  }
   if (call === `POST ${base}/actions/workflows/agent-tracking.yml/dispatches`) {
     if (typeof request.body?.ref !== "string" || typeof request.body?.inputs?.event !== "string") return finish(422, { message: "Workflow ref and string event input are required" });
     state.dispatches.push({ ref: request.body.ref, event: request.body.inputs.event });

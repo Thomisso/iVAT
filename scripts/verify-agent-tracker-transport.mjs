@@ -136,13 +136,17 @@ try {
   assert.equal(published.remote.publishedRevision, 2);
   assert.equal(published.local.pending.length, 0);
   assert.equal(published.remote.tickets[7].stateAt, "2026-11-04T12:01:00.000Z");
+  const repairCursor = (await api("__state")).requests.length;
   result = await command("repair", ["--wait-seconds", "0"]);
   assert.equal(result.code, 1);
   event = (await api("__state")).dispatches.at(-1).event;
   result = await worker(event);
   assert.equal(result.code, 0, result.stderr);
   assert.equal((await command("sync", ["--wait-seconds", "0"])).code, 0);
-  assert.ok((await api("__state")).requests.some(request => request.operation === "TrackerItemFields"), "real gh exercised field readback");
+  state = await api("__state");
+  assert.ok(state.requests.some(request => request.operation === "TrackerItemFields"), "real gh exercised field readback");
+  const repairEffects = state.requests.slice(repairCursor).filter(request => ["TrackerAddItem", "TrackerSetFields"].includes(request.operation) || request.path.endsWith("/assignees") || request.method === "POST" && request.path.endsWith("/issues/7/comments") || request.method === "PATCH" && request.path === `/repos/${state.repository}/issues/comments/${state.comments[7][0].id}`);
+  assert.deepEqual(repairEffects, [], "unchanged repair acknowledges without repeated external projection writes");
 
   for (const path of ["/issues/7/sub_issues", "/issues/7/dependencies/blocked_by"]) assert.ok((await api("__state")).requests.some(request => request.method === "GET" && request.path.endsWith(path)), `real gh verified first-claim facts ${path}`);
 
@@ -182,7 +186,7 @@ try {
   assert.ok(state.requests.some(request => request.operation === "TrackerCreateField"));
   assert.ok(state.requests.some(request => request.path.endsWith("/issues/9001/comments") && request.method === "POST"));
   assert.match(proxyLog, /api\.github\.com/);
-  console.log(JSON.stringify({ ok: true, transport: "real gh and tracker CLI/worker over Postman HTTPS proxy", cases: ["untrusted CA refusal", "setup", "repeat setup", "doctor", "native workflow refusal and explicit removal", "permission refusal", "HTML failure sanitation", "durable dispatch and real worker", "partial projection retry", "duplicate worker receipt", "GraphQL rejection classification", "create persisted before failed response", "retry without duplicate registry", "GraphQL merged result after REST field removal"], fields: state.fields.length, requests: state.requests.length }));
+  console.log(JSON.stringify({ ok: true, transport: "real gh and tracker CLI/worker over Postman HTTPS proxy", cases: ["untrusted CA refusal", "setup", "repeat setup", "doctor", "native workflow refusal and explicit removal", "permission refusal", "HTML failure sanitation", "durable dispatch and real worker", "partial projection retry", "duplicate worker receipt", "unchanged repair skips projection mutations", "GraphQL rejection classification", "create persisted before failed response", "retry without duplicate registry", "GraphQL merged result after REST field removal"], fields: state.fields.length, requests: state.requests.length }));
 } finally {
   try { process.kill(-proxy.pid, "SIGINT"); } catch { /* Already stopped. */ }
   await new Promise(resolve => { const timeout = setTimeout(resolve, 3000); proxy.once("exit", () => { clearTimeout(timeout); resolve(); }); });

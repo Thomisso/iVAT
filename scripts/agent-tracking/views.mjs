@@ -22,7 +22,8 @@ export function reconcileViews(github, config, state) {
     if (!view && matches.length > 1) throw new TrackerError("project_view_ambiguous");
     view ??= matches[0];
     if (!view) view = github.graph(`mutation TrackerCreateView($input:CreateProjectV2ViewInput!){createProjectV2View(input:$input){view:projectV2View{${viewFields}}}}`, { input: { projectId: config.project.id, name, layout, configuration: { visibleFieldIds } } }).createProjectV2View.view;
-    github.graph(`mutation TrackerUpdateView($input:UpdateProjectV2ViewInput!){updateProjectV2View(input:$input){view:projectV2View{id}}}`, { input: { viewId: view.id, name, layout, filter, configuration: { visibleFieldIds } } });
+    const actualFields = view.configuration?.visibleFields.nodes.map(field => field.id) ?? [];
+    if (view.name !== name || view.layout !== layout || view.filter !== filter || actualFields.length !== visibleFieldIds.length || actualFields.some((id, index) => id !== visibleFieldIds[index])) github.graph(`mutation TrackerUpdateView($input:UpdateProjectV2ViewInput!){updateProjectV2View(input:$input){view:projectV2View{id}}}`, { input: { viewId: view.id, name, layout, filter, configuration: { visibleFieldIds } } });
     state.views[key] = { id: view.id, name, layout, filter };
   }
   const actual = readViews(github, config);
