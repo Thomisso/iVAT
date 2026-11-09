@@ -22,15 +22,21 @@ on:
 permissions:
   contents: read
 
-# Every registry/Project writer, including future observers, uses this group.
-# Wakeups may be reordered; the worker always reads the current registry.
+# Keep at most one running and one newest pending automatic wakeup per kind.
+# Every explicit command retains its own workflow and acknowledgement. Activity
+# cannot displace fact reconciliation; both keep their existing schedule.
 concurrency:
-  group: agent-tracking-${{ github.repository }}
+  group: agent-tracking-wakeup-${{ github.repository }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || (github.event.schedule == '*/5 * * * *' && 'activity' || 'facts') }}
   cancel-in-progress: false
-  queue: max
 
 jobs:
   publish:
+    # Every registry/Project writer retains the same non-cancelling queue.
+    # Surviving passive wakeups always read current facts when admitted.
+    concurrency:
+      group: agent-tracking-${{ github.repository }}
+      cancel-in-progress: false
+      queue: max
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
