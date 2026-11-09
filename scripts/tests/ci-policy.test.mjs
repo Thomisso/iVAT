@@ -19,18 +19,6 @@ test("draft commits are cheap, ready transitions and ready updates get full chec
   assert.equal(classifyChanges({ event: "push", draft: true, files: [] }), "full");
 });
 
-test("stable gate rejects a failed, cancelled, or unexpectedly skipped prerequisite", async () => {
-  const { verificationPassed } = await import("../ci-policy.mjs");
-  assert.equal(verificationPassed("docs", { quick: "success", full: "skipped" }), true);
-  assert.equal(verificationPassed("draft", { quick: "success", full: "skipped" }), true);
-  assert.equal(verificationPassed("full", { quick: "success", full: "success" }), true);
-  for (const result of ["failure", "cancelled", "skipped", undefined]) {
-    assert.equal(verificationPassed("full", { quick: "success", full: result }), false);
-    assert.equal(verificationPassed("docs", { quick: result, full: "skipped" }), false);
-  }
-  assert.equal(verificationPassed(undefined, { quick: "success", full: "skipped" }), false);
-});
-
 test("workflows run ready transitions, preserve required names and only cancel obsolete PR runs", async () => {
   const { readFileSync } = await import("node:fs");
   for (const filename of ["ci.yml", "deployment-check.yml"]) {
@@ -55,13 +43,11 @@ test("workflows run ready transitions, preserve required names and only cancel o
   assert.match(release, /group: rosti-production\n      cancel-in-progress: false/);
 });
 
-
 test("explicit full verification on a draft supplies complete review evidence", () => {
   assert.equal(classifyChanges({ event: "pull_request", draft: true, fullVerification: true, files: ["src/app/page.tsx"] }), "full");
   assert.equal(classifyChanges({ event: "pull_request", draft: true, fullVerification: true, files: ["README.md"] }), "full");
   assert.equal(classifyChanges({ event: "pull_request", draft: true, fullVerification: false, files: ["src/app/page.tsx"] }), "draft");
 });
-
 
 test("all financial application shards and the production HTTP suite keep independent stacks and required gates", async () => {
   const { readFileSync } = await import("node:fs");
@@ -91,8 +77,6 @@ test("all financial application shards and the production HTTP suite keep indepe
       assert.ok(port >= Number(reservation[1]) && port <= Number(reservation[2]), `Supabase port ${port} must be reserved`);
     }
   }
-  assert.match(ci, /FULL_RESULT: \$\{\{ needs.full.result \}\}/);
-  assert.match(ci, /FULL_RESULT: \$\{\{ needs.acceptance.result \}\}/);
   assert.match(ci, /name: http-acceptance-logs/);
   assert.doesNotMatch(ci, /playwright|chromium|agent-browser|browser_eval/i);
   assert.match(ci, /if: failure\(\) && steps\.supabase\.outcome == 'failure'/);
@@ -101,13 +85,19 @@ test("all financial application shards and the production HTTP suite keep indepe
 
 // Read the configured execution graph without depending on job identifiers.
 // These workflows use one-line needs (a scalar or inline list).
-async function ciJobs() {
+async function ciJobs(filename = "ci.yml") {
   const { readFileSync } = await import("node:fs");
-  const source = readFileSync(new URL("../../.github/workflows/ci.yml", import.meta.url), "utf8");
+  const source = readFileSync(new URL(`../../.github/workflows/${filename}`, import.meta.url), "utf8");
   return [...source.split("\njobs:\n")[1].matchAll(/^  ([a-z][a-z0-9-]*):\n([\s\S]*?)(?=^  [a-z][a-z0-9-]*:|$(?![\s\S]))/gm)].map(([, id, body]) => {
     const needs = body.match(/^    needs: (.+)$/m)?.[1] ?? "";
     return { id, body, needs: needs.replace(/[\[\] ]/g, "").split(",").filter(Boolean) };
   });
+}
+
+function publishedOutputs(jobs, plan) {
+  const classifier = jobs.find(job => job.body.includes("run: node scripts/ci-policy.mjs\n"));
+  const publication = { profile: plan.profile, plan: JSON.stringify(plan), ...Object.fromEntries(Object.entries(plan.scopes).map(([scope, required]) => [scope, String(required)])) };
+  return Object.fromEntries([...classifier.body.matchAll(/^      ([A-Za-z]+): \$\{\{ steps\.[a-z-]+\.outputs\.([A-Za-z]+) \}\}$/gm)].map(([, name, source]) => [name, publication[source]]));
 }
 
 function dependsOn(jobs, job, prerequisite) {
@@ -155,6 +145,7 @@ test("full verification executes shared checks once and HTTP owns the equivalent
     "deploy/tests/release-runtime.test.mjs",
     "node scripts/verify-agent-tracker-transport.mjs",
     "npm run db:types",
+    "scripts/tests/application-shards.test.mjs",
     "npm run typecheck",
     "npm run lint",
   ]) {
@@ -169,68 +160,85 @@ test("full verification executes shared checks once and HTTP owns the equivalent
   assert.match(deployment, /run: docker compose .* build/);
 });
 
-test("stable gates require every selected parallel result, including cheap code checks", async () => {
-  const { verificationPassed } = await import("../ci-policy.mjs");
-  const full = { quick: ["success", "success"], common: "success", full: "success" };
-  assert.equal(verificationPassed("full", full), true);
-  assert.equal(verificationPassed("draft", { ...full, full: "skipped" }), true);
-  assert.equal(verificationPassed("docs", { ...full, common: "skipped", full: "skipped" }), true);
-  for (const result of ["failure", "cancelled", "skipped", undefined]) {
-    assert.equal(verificationPassed("full", { ...full, quick: ["success", result] }), false);
-    assert.equal(verificationPassed("full", { ...full, common: result }), false);
-    assert.equal(verificationPassed("draft", { ...full, common: result, full: "skipped" }), false);
-  }
-  assert.equal(verificationPassed("full", { ...full, quick: [] }), false);
-  assert.equal(verificationPassed("docs", { ...full, common: "success", full: "skipped" }), false);
-});
-
 test("configured stable gates reject every failed, cancelled, missing or skipped selected job through the CLI", async () => {
   const { spawnSync } = await import("node:child_process");
-  const jobs = await ciJobs();
-  const gates = jobs.filter(job => job.body.includes("run: node scripts/ci-policy.mjs gate"));
-  const covered = new Set();
-  for (const gate of gates) {
-    const environment = Object.fromEntries([...gate.body.matchAll(/^          ([A-Z_]+): (.+)$/gm)].map(([, key, value]) => [key, value.replace(/^'|'$/g, "")]));
-    const references = [...new Set(Object.values(environment).flatMap(value => [...value.matchAll(/needs\.([a-z-]+)\.result/g)].map(match => match[1])))];
-    for (const reference of references) {
-      assert.ok(gate.needs.includes(reference), `${gate.id} must await its published prerequisite ${reference}`);
-      covered.add(reference);
-    }
-    const run = (profile, changes = {}) => {
-      const results = Object.fromEntries(jobs.map(job => [job.id,
-        (/^    if: needs\.profile\.outputs\.profile == 'full'$/m.test(job.body) && profile !== "full")
-        || (/^    if: needs\.profile\.outputs\.profile != 'docs'$/m.test(job.body) && profile === "docs") ? "skipped" : "success",
-      ]));
-      Object.assign(results, changes);
-      const env = Object.fromEntries(Object.entries(environment).map(([key, value]) => [key, value
-        .replace(/\$\{\{ needs\.[a-z-]+\.outputs\.profile \}\}/g, profile)
-        .replace(/\$\{\{ needs\.([a-z-]+)\.result \}\}/g, (_, id) => results[id] ?? ""),
-      ]));
-      return spawnSync(process.execPath, [new URL("../ci-policy.mjs", import.meta.url).pathname, "gate"], { encoding: "utf8", env: { PATH: process.env.PATH, ...env } });
-    };
-    for (const profile of ["docs", "draft", "full"]) {
-      const result = run(profile);
-      assert.equal(result.status, 0, `${gate.id}/${profile}: ${result.stderr}`);
-    }
-    for (const reference of references) {
-      for (const outcome of ["failure", "cancelled", "skipped", undefined]) {
-        const result = run("full", { [reference]: outcome });
-        assert.equal(result.status, 1, `${gate.id} must refuse ${reference}=${outcome}`);
+  const { verificationPlan } = await import("../ci-policy.mjs");
+  const cases = [
+    { event: "pull_request", files: ["README.md"] },
+    { event: "pull_request", draft: true, files: ["src/app/page.tsx"] },
+    { event: "pull_request", draft: true, files: ["scripts/agent-tracker.mjs"] },
+    { event: "pull_request", draft: true, files: ["deploy/scripts/release-policy.mjs"] },
+    { event: "pull_request", files: ["src/app/page.tsx"] },
+    { event: "push", files: ["README.md"] },
+  ];
+  for (const workflow of ["ci.yml", "deployment-check.yml"]) {
+    const jobs = await ciJobs(workflow);
+    const gates = jobs.filter(job => job.body.includes("run: node scripts/ci-policy.mjs gate"));
+    const covered = new Set();
+    for (const gate of gates) {
+      const environment = Object.fromEntries([...gate.body.matchAll(/^          ([A-Z_]+): (.+)$/gm)].map(([, key, value]) => [key, value.replace(/^'|'$/g, "")]));
+      const references = [...new Set(Object.values(environment).flatMap(value => [...value.matchAll(/needs\.([a-z-]+)\.result/g)].map(match => match[1])))];
+      for (const reference of references) {
+        assert.ok(gate.needs.includes(reference), `${gate.id} awaits its published prerequisite ${reference}`);
+        covered.add(reference);
+      }
+      const run = (input, changes = {}) => {
+        const plan = verificationPlan(input);
+        const outputs = publishedOutputs(jobs, plan);
+        const results = Object.fromEntries(jobs.map(job => {
+          const scope = job.body.match(/^    if: needs\.profile\.outputs\.([A-Za-z]+) == 'true'$/m)?.[1];
+          return [job.id, scope && outputs[scope] !== "true" ? "skipped" : "success"];
+        }));
+        Object.assign(results, changes);
+        const env = Object.fromEntries(Object.entries(environment).map(([key, value]) => [key, value
+          .replace(/\$\{\{ needs\.[a-z-]+\.outputs\.([A-Za-z]+) \}\}/g, (_, output) => outputs[output] ?? "")
+          .replace(/\$\{\{ needs\.([a-z-]+)\.result \}\}/g, (_, id) => results[id] ?? ""),
+        ]));
+        return spawnSync(process.execPath, [new URL("../ci-policy.mjs", import.meta.url).pathname, "gate"], { encoding: "utf8", env: { PATH: process.env.PATH, ...env } });
+      };
+      for (const input of cases) {
+        const result = run(input);
+        assert.equal(result.status, 0, `${workflow}/${gate.id}/${JSON.stringify(input)}: ${result.stderr}`);
+      }
+      for (const reference of references) {
+        for (const outcome of ["failure", "cancelled", "skipped", undefined]) {
+          const result = run({ event: "push", files: [] }, { [reference]: outcome });
+          assert.equal(result.status, 1, `${workflow}/${gate.id} refuses ${reference}=${outcome}`);
+        }
       }
     }
-  }
-  for (const job of jobs.filter(job => !gates.includes(job))) {
-    assert.ok(covered.has(job.id), `${job.id} must contribute actual result evidence to a stable gate`);
+    for (const job of jobs.filter(job => !gates.includes(job))) {
+      assert.ok(covered.has(job.id), `${workflow}/${job.id} contributes actual result evidence to a stable gate`);
+    }
   }
 });
 
-test("the gate CLI refuses incomplete or malformed parallel-result publication", async () => {
-  const { spawnSync } = await import("node:child_process");
-  for (const publication of ["[", "[]", "null", "{}", '\"success\"']) {
-    const result = spawnSync(process.execPath, [new URL("../ci-policy.mjs", import.meta.url).pathname, "gate"], {
-      encoding: "utf8",
-      env: { PATH: process.env.PATH, PROFILE: "full", QUICK_RESULTS: publication, COMMON_RESULT: "success", FULL_RESULT: "success" },
-    });
-    assert.equal(result.status, 1, `invalid parallel results: ${publication}`);
+test("configured jobs consume actual published scopes for documentation, drafts and complete ready application verification", async () => {
+  const { verificationPlan } = await import("../ci-policy.mjs");
+  const cases = [
+    [{ event: "pull_request", draft: true, files: ["README.md"] }, [], [], "docs draft"],
+    [{ event: "pull_request", files: ["README.md"] }, [], [], "docs ready"],
+    [{ event: "pull_request", draft: true, files: ["src/app/page.tsx"] }, ["common"], [], "app draft"],
+    [{ event: "pull_request", draft: true, files: ["scripts/agent-tracker.mjs"] }, ["common", "tracker"], [], "tracker draft"],
+    [{ event: "pull_request", draft: true, files: ["deploy/scripts/release-policy.mjs"] }, ["common", "release"], [], "release draft"],
+    [{ event: "pull_request", draft: true, files: [".github/workflows/ci.yml"] }, ["common", "tracker", "release"], [], "CI draft"],
+    [{ event: "pull_request", files: ["src/app/page.tsx"] }, ["common", "full", "acceptance"], ["runtime"], "app ready"],
+    [{ event: "pull_request", draft: true, fullVerification: true, files: ["README.md"] }, ["tracker", "common", "release", "full", "acceptance"], ["runtime"], "override"],
+    [{ event: "push", files: ["README.md"] }, ["tracker", "common", "release", "full", "acceptance"], ["runtime"], "main docs stays full"],
+  ];
+  for (const [workflow, expectedIndex] of [["ci.yml", 1], ["deployment-check.yml", 2]]) {
+    const jobs = await ciJobs(workflow);
+    for (const entry of cases) {
+      const [input, , , description] = entry;
+      const outputs = publishedOutputs(jobs, verificationPlan(input));
+      const selected = jobs.filter(job => !job.body.includes("run: node scripts/ci-policy.mjs gate") && !job.body.includes("run: node scripts/ci-policy.mjs\n")).filter(job => {
+        const condition = job.body.match(/^    if: (.+)$/m)?.[1];
+        if (!condition) return true;
+        const scope = condition.match(/^needs\.profile\.outputs\.([A-Za-z]+) == 'true'$/)?.[1];
+        assert.ok(scope, `workflow condition must consume a published scope: ${condition}`);
+        return outputs[scope] === "true";
+      }).map(job => job.id);
+      assert.deepEqual(selected.sort(), [...entry[expectedIndex]].sort(), `${workflow}/${description}`);
+    }
   }
 });
