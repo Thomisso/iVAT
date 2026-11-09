@@ -12,6 +12,10 @@ const endpoint = rawEndpoint.split("?")[0];
 const page = Number(new URLSearchParams(rawEndpoint.split("?")[1]).get("page") ?? 1);
 const input = args.includes("--input") ? JSON.parse(fs.readFileSync(0, "utf8")) : {};
 const operation = endpoint === "graphql" ? input.query.match(/(?:query|mutation)\s+(\w+)/)?.[1] : `${method} ${endpoint}`;
+if (endpoint === "graphql" ? input.query.startsWith("mutation ") : method !== "GET") {
+  remote.requests ??= [];
+  remote.requests.push({ operation, method, endpoint, input });
+}
 const injected = remote.failure?.remaining > 0 && operation === remote.failure.match ? { ...remote.failure } : null;
 if (injected) {
   remote.failure.remaining--;
@@ -159,9 +163,9 @@ if (endpoint === "graphql") {
   response = (remote.dependencies?.[number] ?? remote.issues?.[number]?.blockers ?? []).slice((page - 1) * 100, page * 100);
 } else if (/^repos\/example\/project\/issues\/\d+$/.test(endpoint) && remote.issues?.[endpoint.split("/")[4]]) {
   const issue = remote.issues[endpoint.split("/")[4]];
-  response = { ...issue, node_id: issue.id, html_url: issue.url, state: issue.state.toLowerCase() };
+  response = { ...issue, node_id: issue.id, html_url: issue.url, state: issue.state.toLowerCase(), assignees: ((Number(issue.number) === 201 ? remote.assignees : remote.extraAssignees?.[issue.number]) ?? []).map(login => ({ login })) };
 } else if (endpoint === "repos/example/project/issues/201") {
-  response = { number: 201, node_id: "I_201", title: "A real issue", html_url: "https://github.com/example/project/issues/201", state: "open" };
+  response = { number: 201, node_id: "I_201", title: "A real issue", html_url: "https://github.com/example/project/issues/201", state: "open", assignees: (remote.assignees ?? []).map(login => ({ login })) };
 } else if (endpoint === "repos/example/project/issues/201/parent") {
   response = parent(endpoint.split("/")[4]);
 } else if (/^repos\/example\/project\/git\/commits\/[a-f0-9]{40}$/.test(endpoint)) {
@@ -197,7 +201,7 @@ if (endpoint === "graphql") {
   process.exit(0);
 } else if (/^repos\/[^/]+\/[^/]+\/issues\/\d+$/.test(endpoint) && remote.foreignIssues?.[`${endpoint.split("/").slice(1, 3).join("/")}#${endpoint.split("/")[4]}`]) {
   const issue = remote.foreignIssues[`${endpoint.split("/").slice(1, 3).join("/")}#${endpoint.split("/")[4]}`];
-  response = { ...issue, node_id: issue.id, html_url: issue.url, state: issue.state.toLowerCase() };
+  response = { ...issue, node_id: issue.id, html_url: issue.url, state: issue.state.toLowerCase(), assignees: ((Number(issue.number) === 201 ? remote.assignees : remote.extraAssignees?.[issue.number]) ?? []).map(login => ({ login })) };
 } else if (endpoint === "repos/other/repository/issues/200/comments") {
   remote.foreignComments ??= [];
   if (method === "POST") remote.foreignComments.push({ id: 9200, body: input.body });
@@ -206,7 +210,7 @@ if (endpoint === "graphql") {
   remote.foreignComments[0].body = input.body; response = remote.foreignComments[0];
 } else if (/^repos\/example\/project\/issues\/\d+$/.test(endpoint)) {
   const number = Number(endpoint.split("/")[4]);
-  response = { number, node_id: `I_${number}`, title: `Ticket ${number}`, body: remote.issueBodies?.[number] ?? "", html_url: `https://github.com/example/project/issues/${number}`, state: "open" };
+  response = { number, node_id: `I_${number}`, title: `Ticket ${number}`, body: remote.issueBodies?.[number] ?? "", html_url: `https://github.com/example/project/issues/${number}`, state: "open", assignees: (remote.extraAssignees?.[number] ?? []).map(login => ({ login })) };
 } else if (/^repos\/example\/project\/issues\/\d+\/parent$/.test(endpoint)) {
   response = parent(endpoint.split("/")[4]);
 } else if (/^repos\/example\/project\/issues\/\d+\/assignees$/.test(endpoint)) {

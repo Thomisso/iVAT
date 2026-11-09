@@ -216,6 +216,8 @@ test("receipt compaction preserves the latest unacknowledged owned outcome and e
     for (let index = 0; index < 40; index++) state.receipts[`past-repair-${index}`] = { state: "published", type: "repair", revision: 2 };
     state.receipts["unverified-repair"] = { state: "pending", type: "repair", revision: 2 };
     remote.registry = `<!-- ivat-agent-tracker:registry:v1 -->\n\n\`\`\`json\n${JSON.stringify(state)}\n\`\`\`\n`;
+    // A genuine discrepancy keeps this a partial repair when unchanged fields are skipped.
+    remote.items.I_201.values.status = { singleSelectOptionId: "manual-status" };
     remote.failure = { match: "TrackerSetFields", phase: "before", remaining: 1 };
     remote.deferDispatch = false;
   });
