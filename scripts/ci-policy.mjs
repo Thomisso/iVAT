@@ -13,18 +13,28 @@ export function classifyChanges({ event, draft = false, fullVerification = false
 }
 
 export function verificationPassed(profile, results) {
+  const quick = Array.isArray(results.quick) ? results.quick : [results.quick];
   return ["docs", "draft", "full"].includes(profile)
-    && results.quick === "success"
+    && quick.length > 0 && quick.every(result => result === "success")
+    && (!Object.hasOwn(results, "common") || results.common === (profile === "docs" ? "skipped" : "success"))
     && results.full === (profile === "full" ? "success" : "skipped");
 }
 
 if (process.argv[2] === "gate") {
-  const passed = verificationPassed(process.env.PROFILE, {
-    quick: process.env.QUICK_RESULT,
-    full: process.env.FULL_RESULT,
-  });
+  let passed = false;
+  try {
+    const results = {
+      quick: process.env.QUICK_RESULTS === undefined ? process.env.QUICK_RESULT : JSON.parse(process.env.QUICK_RESULTS),
+      full: process.env.FULL_RESULT,
+    };
+    if (Object.hasOwn(process.env, "COMMON_RESULT")) results.common = process.env.COMMON_RESULT;
+    passed = (process.env.QUICK_RESULTS === undefined || Array.isArray(results.quick))
+      && verificationPassed(process.env.PROFILE, results);
+  } catch {
+    // Malformed or incomplete result publication is failed verification.
+  }
   if (!passed) {
-    console.error("Required verification did not succeed", process.env.PROFILE, process.env.QUICK_RESULT, process.env.FULL_RESULT);
+    console.error("Required verification did not succeed", process.env.PROFILE, process.env.QUICK_RESULTS ?? process.env.QUICK_RESULT, process.env.COMMON_RESULT, process.env.FULL_RESULT);
     process.exitCode = 1;
   }
 } else if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
