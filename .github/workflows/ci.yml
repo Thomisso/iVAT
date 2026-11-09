@@ -21,6 +21,12 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       profile: ${{ steps.profile.outputs.profile }}
+      plan: ${{ steps.profile.outputs.plan }}
+      common: ${{ steps.profile.outputs.common }}
+      tracker: ${{ steps.profile.outputs.tracker }}
+      release: ${{ steps.profile.outputs.release }}
+      application: ${{ steps.profile.outputs.application }}
+      http: ${{ steps.profile.outputs.http }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -29,7 +35,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: node --test scripts/tests/ci-policy.test.mjs scripts/tests/http-acceptance-policy.test.mjs
+      - run: node --test scripts/tests/ci-policy.test.mjs scripts/tests/ci-scopes.test.mjs scripts/tests/http-acceptance-policy.test.mjs
       - id: profile
         run: node scripts/ci-policy.mjs
       - name: Migrations already on main are unchanged
@@ -46,6 +52,7 @@ jobs:
 
   tracker:
     needs: profile
+    if: needs.profile.outputs.tracker == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -54,10 +61,18 @@ jobs:
           node-version: 22
       - name: Agent tracker command behavior
         run: npm run test:agent-tracker
+      - name: Install Postman CLI for tracker transport
+        timeout-minutes: 5
+        run: |
+          npm install --global postman-cli@1.73.0
+          postman --version
+      - name: Agent tracker through real gh and controlled GitHub HTTP
+        timeout-minutes: 5
+        run: node scripts/verify-agent-tracker-transport.mjs
 
   common:
     needs: profile
-    if: needs.profile.outputs.profile != 'docs'
+    if: needs.profile.outputs.common == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -73,25 +88,26 @@ jobs:
           npm install --package-lock-only --ignore-scripts
           git diff --exit-code package-lock.json
 
+      - run: npm run typecheck
+      - run: npm run lint
+
+  release:
+    needs: profile
+    if: needs.profile.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
       - name: Install Postman CLI for release dependency simulations
-        if: needs.profile.outputs.profile == 'full'
         timeout-minutes: 5
         run: |
           npm install --global postman-cli@1.73.0
           postman --version
-
       - name: Release policy, bundle integrity, transport and host preflight
-        if: needs.profile.outputs.profile == 'full'
         timeout-minutes: 5
         run: node --test scripts/tests/release-identity.test.mjs deploy/tests/release-prepare.test.mjs deploy/tests/release-host.test.mjs deploy/tests/release-connect.test.mjs deploy/tests/release-runtime.test.mjs
-
-      - name: Agent tracker through real gh and controlled GitHub HTTP
-        if: needs.profile.outputs.profile == 'full'
-        timeout-minutes: 5
-        run: node scripts/verify-agent-tracker-transport.mjs
-
-      - run: npm run typecheck
-      - run: npm run lint
 
   full:
     strategy:
@@ -99,7 +115,7 @@ jobs:
       matrix:
         shard: [1, 2, 3]
     needs: profile
-    if: needs.profile.outputs.profile == 'full'
+    if: needs.profile.outputs.application == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Reserve Supabase ports before network setup
@@ -140,7 +156,7 @@ jobs:
 
   acceptance:
     needs: profile
-    if: needs.profile.outputs.profile == 'full'
+    if: needs.profile.outputs.http == 'true'
     runs-on: ubuntu-latest
     # One actual production HTTP suite owns one isolated stack.
     # The three financial application-test shards above remain independent.
@@ -174,7 +190,7 @@ jobs:
 
   check:
     if: always()
-    needs: [profile, tracker, common, full]
+    needs: [profile, tracker, release, common, full]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -183,10 +199,9 @@ jobs:
           node-version: 22
       - run: node scripts/ci-policy.mjs gate
         env:
-          PROFILE: ${{ needs.profile.outputs.profile }}
-          QUICK_RESULTS: '["${{ needs.profile.result }}", "${{ needs.tracker.result }}"]'
-          COMMON_RESULT: ${{ needs.common.result }}
-          FULL_RESULT: ${{ needs.full.result }}
+          PLAN: ${{ needs.profile.outputs.plan }}
+          GATE: check
+          RESULTS: '{"policy": "${{ needs.profile.result }}", "tracker": "${{ needs.tracker.result }}", "trackerTransport": "${{ needs.tracker.result }}", "release": "${{ needs.release.result }}", "common": "${{ needs.common.result }}", "application": "${{ needs.full.result }}"}'
 
   e2e:
     if: always()
@@ -199,7 +214,6 @@ jobs:
           node-version: 22
       - run: node scripts/ci-policy.mjs gate
         env:
-          PROFILE: ${{ needs.profile.outputs.profile }}
-          QUICK_RESULT: ${{ needs.profile.result }}
-          COMMON_RESULT: ${{ needs.common.result }}
-          FULL_RESULT: ${{ needs.acceptance.result }}
+          PLAN: ${{ needs.profile.outputs.plan }}
+          GATE: e2e
+          RESULTS: '{"policy": "${{ needs.profile.result }}", "common": "${{ needs.common.result }}", "http": "${{ needs.acceptance.result }}"}'

@@ -1,75 +1,93 @@
-# CI profiles and measurement
+# CI scopes and measurement
 
-Both `CI` and `Deployment verification` run for every PR revision, ready/draft
-transition, label change, and main push. They always report the existing stable
-`check`, `e2e`, and `self-hosted` gates, including when runtime work is omitted.
-A failed or cancelled prerequisite, an unexpected skip, or a failed classifier
-fails its gate. No workflow-level path filter can leave a required check pending.
+Both `CI` and `Deployment verification` report the established `check`, `e2e`
+and `self-hosted` gates for PR revisions, ready/draft transitions, label changes
+and main pushes. Workflow-level path filters cannot leave a required gate
+pending. Event filtering and reuse of readiness evidence are separate work.
 
-| Profile | Selection | Verification |
-| --- | --- | --- |
-| docs | Only root README/AGENTS/CODING_STANDARDS/GLOSSARY Markdown or Markdown under `docs/` | Policy tests, migration-history guard and tracker command behavior; no dependency install, database, browser, or containers |
-| draft | Other changes on a draft PR | Policy, tracker command behavior, lockfile, migration history, typecheck and lint; no runtime stack |
-| full | Ready PR, `ci:full` label, unavailable/empty diff, or any main push | Release-policy, database-types, all three serial application-test shards, lint, types, production build, CLI production HTTP acceptance and self-hosted deployment checks |
+`scripts/ci-policy.mjs` is the shared policy boundary. It publishes one versioned
+plan containing a display profile, explicit required scopes and a technical
+reason for every scope. Workflow conditions use that plan's published scope
+outputs; final gates consume the same serialized plan and actual job results.
+Neither workflow maintains an independent path allowlist.
 
-`ci:full` explicitly requests complete verification while an integration PR stays
-draft. Removing it returns a draft to its cheap profile. Publishing a PR as ready
-and every later commit trigger complete checks automatically. Runtime assets,
-dependencies, migrations, workflow changes, design assets, and unknown paths are
-never classified as documentation. The classifier reads the complete Git merge
-base diff, without a changed-file API page limit.
+| Change | Required verification |
+| --- | --- |
+| Pure documentation PR | Policy/HTTP-runner policy tests and migration-history guard; no dependency install, tracker suite, application database or image build |
+| Ordinary application draft | Common fast checks: lockfile consistency, shard allocation regression, typecheck and lint |
+| Tracker tooling draft | Common checks, complete tracker command suite and real-gh controlled HTTP transport |
+| Release tooling draft | Common checks and release policy, identity, bundle, transport, host and runtime suite |
+| Ready non-documentation PR | Common checks, complete application shards, production HTTP acceptance and production-image/runtime verification; infrastructure suites when their inputs changed |
+| Full override, uncertain impact or broad shared inputs | Every scope, including tracker and release suites, even on a draft |
+| Any main push or non-PR event | Every scope; main/release activation remains conservative |
 
-PR concurrency groups contain both workflow name and PR number: a newer run
-cancels obsolete work for the same PR only. Main runs each have their own group,
-so the exact commit needed for release evidence remains verifiable. The separate
-production deploy concurrency group remains non-cancelling. Disposable Supabase
-and Compose stacks have `always()` cleanup steps. Cancellation never targets a
-human's stack.
+Known documentation is root README/AGENTS/CODING_STANDARDS/GLOSSARY Markdown or
+Markdown under `docs/`. Classification uses the complete PR base-to-head
+merge-base diff. NUL-separated paths preserve unusual filenames; renames are
+expanded into deletion/addition so the old path cannot hide a dependency. A
+last documentation commit cannot hide earlier application changes. Missing or
+malformed metadata, unavailable revisions, an empty diff and unknown paths
+request every scope. `ci:full` also requests every scope.
 
-Release policy is unchanged: successful **main-push** runs of both workflows for
-the exact release revision are required. A docs/draft PR run, cancelled run,
-skipped runtime job, or successful different revision cannot supply that evidence.
-Main always uses the full profile. No scheduled workflow was introduced.
+Tracker inputs include its command/modules, all tracker tests and support,
+`.github/agent-tracking.json`, the tracker workflow, its transport runner, and
+both mocks and simulations under `github-agent`. Release inputs include the
+`deploy/` tooling/test tree, release-identity writer/tests, release/backup
+workflows and the `github-release`, `release-flow` and `rosti-deployment` mocks
+and simulations. CI/deployment workflows and verification policy/tests are
+known shared verification inputs: they invalidate both infrastructure
+exemptions while retaining readiness-controlled application stacks on drafts.
+Mixed changes take the union of their required infrastructure scopes.
 
-## Scheduling and shared execution owners
+Broad shared inputs take precedence over exemptions. Package/lockfile and
+Node/npm/toolchain configuration, Next/TypeScript/ESLint/Vitest configuration,
+Supabase configuration/migrations, shared `src/lib/`, authority/worker entrypoints,
+application Docker/Compose/environment inputs and database/gateway/proxy
+container configuration force every scope. New unrecognized dependencies also
+fail closed until explicitly classified. Ordinary application files never
+reduce the complete application suite at readiness.
 
-The fast `profile` job runs policy tests, classifies the complete change and
-checks migration history. After it succeeds, tracker command behavior, common
-checks, all three application shards and production HTTP acceptance can start
-independently. Application jobs never wait for tracker completion or the common
-checks. The current docs/draft/full selection remains unchanged; tracker command
-behavior still runs for every profile at this foundational stage. Later
-change-aware infrastructure selection is separate work under #254.
+## Scheduling and stable gates
 
-For draft/full verification, `common` owns lockfile consistency, typecheck and
-lint once. Full verification additionally runs the complete release-policy,
-bundle/transport/host suite and real-gh tracker transport once in that job.
-Database-type verification runs only on application shard 1, using its existing
-isolated stack. All three shards retain their complete serial application-test
-inventory and unconditional cleanup; no extra database stack is introduced.
+Fast `profile` selection precedes independent tracker, release, common,
+application-shard and production-HTTP branches. Application jobs never wait for
+tracker, release or common completion. Tracker owns its command suite and real-gh
+transport once; release owns its complete tooling suite once. Their controlled
+HTTP boundaries retain the existing pinned Postman CLI installation.
 
-The production HTTP runner owns the single plain application build. The former
-plain build in each application shard is removed because the HTTP runner builds
-and runs that same application revision in production mode. Deployment
-verification still builds and exercises the actual production Docker images as
-distinct packaging evidence. No passing build artifact is transferred between
-jobs and no earlier revision's build result is reused.
+For non-documentation verification, `common` owns lockfile consistency, shard
+allocation regression, typecheck and lint once. Database-type verification runs
+only on application shard 1 using its already-required isolated stack. All
+three shards retain the complete application inventory, serial execution within
+each shard and unconditional cleanup. Production HTTP acceptance owns the single
+plain application build; production Docker images remain separate packaging
+and runtime evidence. No prior build/test result is reused.
 
-`check` requires the profile, tracker command suite, common checks and all
-application shards. `e2e` requires the profile, common checks and HTTP acceptance.
-Both gates run after any prerequisite outcome and reject failed, cancelled,
-missing or unexpectedly skipped selected work. Common checks are explicitly
-skipped only for docs; application/runtime work is skipped only for docs/draft.
-The separate `self-hosted` gate keeps its production-runtime prerequisites.
+`check` validates policy, common, tracker/transport, release and application
+results. `e2e` validates policy, common and HTTP results; `self-hosted` validates
+policy and deployment runtime. Every selected scope must report success. Every
+inapplicable scope must explicitly report skipped. Failure, cancellation,
+missing results, unexpected skips or malformed plans fail the gate. Logs explain
+the profile, each scope's requirement/reason and its actual result.
 
-This graph adds a tracker job's checkout/Node setup and, on full runs, one
-common job's checkout/Node setup/dependency install. Full CI now has five
-`npm ci` owners (common, three shards, HTTP), compared with four before; common
-checks no longer execute three times and the four plain application builds
-become one. The real Actions run must measure this replacement setup overhead,
-actual suite start/overlap, shared-check/build counts, queue time and summed
-runner time before any elapsed-time or cost saving is claimed. Local policy
-checks establish the configured execution contract, not measured concurrency.
+PR concurrency groups contain workflow identity and PR number, cancelling only
+superseded work in that same PR/workflow. Main runs keep separate groups and
+production deployment remains non-cancelling. Disposable stacks retain
+`always()` cleanup. These workflows never target a human's local stack.
+
+Release approval is unchanged: successful **main-push** runs of both workflows
+for the exact release revision are required. Scoped PR gates, intentional
+inapplicability, cancelled runs and successful different revisions cannot
+supply full release evidence. Main still selects all scopes. Selective main and
+release verification must be activated together by the later release work.
+
+Local policy/CLI/workflow-contract checks establish selection and gate behavior,
+including complete diffs and refused prerequisites. They do not establish real
+Actions scheduling or achieved savings. The bounded Actions acceptance remains
+outstanding while GitHub refuses jobs before execution for the account's
+payments/spending limit. No zero-cost or successful runtime result is inferred
+from that refusal. Measure actual overlap, setup/build counts, queue/wall time,
+started runner time and per-job rounded minutes when execution is available.
 
 ## Fixture costs
 
