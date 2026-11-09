@@ -1,3 +1,4 @@
+import { publishRemote } from "./support/agent-tracker-state.mjs";
 import assert from "node:assert/strict";
 import { spawnSync, execFileSync } from "node:child_process";
 import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -17,12 +18,13 @@ function repository(t) {
   mkdirSync(bin);
   copyFileSync(new URL("support/agent-tracker-gh.mjs", import.meta.url), path.join(bin, "gh"));
   chmodSync(path.join(bin, "gh"), 0o755);
+  copyFileSync(new URL("support/agent-tracker-state.mjs", import.meta.url), path.join(bin, "agent-tracker-state.mjs"));
   const remote = path.join(directory, "github.json");
-  writeFileSync(remote, JSON.stringify({ project: { id: "PVT_test", title: "Agent work", url: "https://github.com/users/example/projects/1" }, fields: [{ id: "status", name: "Status", dataType: "SINGLE_SELECT", options: [] }, { id: "parent", name: "Parent issue", dataType: "PARENT_ISSUE" }, { id: "title", name: "Title", dataType: "TITLE" }] }));
+  publishRemote(remote, { project: { id: "PVT_test", title: "Agent work", url: "https://github.com/users/example/projects/1" }, fields: [{ id: "status", name: "Status", dataType: "SINGLE_SELECT", options: [] }, { id: "parent", name: "Parent issue", dataType: "PARENT_ISSUE" }, { id: "title", name: "Title", dataType: "TITLE" }] });
   return {
     directory,
     remote: () => JSON.parse(readFileSync(remote, "utf8")),
-    updateRemote: update => { const state = JSON.parse(readFileSync(remote, "utf8")); update(state); writeFileSync(remote, JSON.stringify(state)); },
+    updateRemote: update => { const state = JSON.parse(readFileSync(remote, "utf8")); update(state); publishRemote(remote, state); },
     run: (...args) => spawnSync(process.execPath, [command, ...args], { cwd: directory, encoding: "utf8", env: { ...process.env, GH_TOKEN: "synthetic-actions-credential", PATH: `${bin}${path.delimiter}${process.env.PATH}`, TRACKER_FAKE_GITHUB: remote, TRACKER_COMMAND: command } }),
     worker: event => spawnSync(process.execPath, [command, "worker"], { cwd: directory, encoding: "utf8", env: { ...process.env, GH_TOKEN: "synthetic-actions-credential", PATH: `${bin}${path.delimiter}${process.env.PATH}`, TRACKER_FAKE_GITHUB: remote, TRACKER_COMMAND: command, GITHUB_ACTIONS: "true", GITHUB_JOB: "publish", GITHUB_WORKFLOW_REF: "example/project/.github/workflows/agent-tracking.yml@refs/heads/main", GITHUB_ACTOR: "maintainer", TRACKER_EVENT: JSON.stringify(event) } }),
   };
