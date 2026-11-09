@@ -102,6 +102,50 @@ Each shard owns its Supabase stack. `fail-fast: false` retains sibling results
 and diagnostics if one fails. All application files still run once; live-provider
 contract tests remain opt-in.
 
+### Measured application allocation
+
+`vitest.config.ts` configures Vitest's public `BaseSequencer` extension in
+`scripts/application-test-sequencer.ts`. `--shard=N/3` distributes the current
+Vitest-discovered inventory by longest measured file first, assigning each file
+to the lightest shard. Relative paths break equal-duration ties; the lowest
+shard index breaks equal-load ties. Discovery order and absolute checkout paths
+do not affect the result. The timing file is a weight source, never an inclusion
+list: new, renamed and unmeasured files receive the recorded median duration
+(currently 5,500 ms) and remain selected exactly once. Unsharded commands still
+select the complete inventory. File execution stays serial, with the same three
+isolated stacks and unconditional teardown.
+
+The versioned `scripts/application-test-timings.json` records 111 emitted file
+durations from successful [CI run 42476395666, attempt 2](https://github.com/Thomisso/iVAT/actions/runs/42476395666/attempts/2),
+revision `7997422a307cda3bbcc66e39030810b637c4aa65`, on `ubuntu-latest`.
+The complete current inventory contains 117 files. Five live-provider contract
+files and the opt-in OpenAI simulation file did not emit timings in that run;
+they retain their existing opt-in skip behavior and receive the fallback weight.
+No application tests, assertions or large-data scenarios were removed.
+
+| Allocation | Shard 1 | Shard 2 | Shard 3 |
+| --- | ---: | ---: | ---: |
+| Recorded file-duration sums | 172.360 s | 409.877 s | 199.395 s |
+| Weighted projection for the same 111 measured files | 260.545 s | 260.545 s | 260.542 s |
+| Weighted projection including six fallback weights | 271.545 s | 271.545 s | 271.542 s |
+
+These are sums of file durations, not application-step wall time or billed
+runner time. The projections do not establish a measured critical-path saving;
+checkout, dependency install, Supabase startup, file import/worker overhead,
+cleanup and per-job rounding still require the bounded real full CI comparison.
+No additional stack or dependency install is introduced by allocation. The
+common job runs `node --test scripts/tests/application-shards.test.mjs` once
+after its existing install. It checks an actual small serial runner fixture,
+complete non-overlapping discovered selection, discovery-order independence,
+and new/renamed path fallback without starting application databases.
+
+When refreshing weights, retain the actual successful run, attempt, revision,
+runner and source job for each measured file. Keep skipped/unmeasured files in
+the discovered inventory rather than inventing zero durations or deleting them.
+Re-run the focused allocation check and update the comparison against the same
+inputs; reuse an applicable full verification instead of launching repeated
+full suites solely to benchmark allocation.
+
 The single `acceptance` job runs `npm run test:http`: one real production build,
 Next server, worker and isolated stack for the complete HTTP suite. It uses real
 Auth, native SSR cookies, public application commands/RLS and HTTP routes; the
