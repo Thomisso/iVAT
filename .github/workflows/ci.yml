@@ -66,6 +66,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Application shard coverage and measured allocation
+        run: node --test scripts/tests/application-shards.test.mjs
       - name: package-lock.json matches package.json
         run: |
           npm install --package-lock-only --ignore-scripts
