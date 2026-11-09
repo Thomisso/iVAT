@@ -30,18 +30,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: node --test scripts/tests/ci-policy.test.mjs scripts/tests/http-acceptance-policy.test.mjs
-      - name: Agent tracker command behavior
-        run: npm run test:agent-tracker
       - id: profile
         run: node scripts/ci-policy.mjs
-
-      - run: npm ci
-        if: steps.profile.outputs.profile == 'draft'
-      - name: package-lock.json matches package.json
-        if: steps.profile.outputs.profile == 'draft'
-        run: |
-          npm install --package-lock-only --ignore-scripts
-          git diff --exit-code package-lock.json
       - name: Migrations already on main are unchanged
         if: github.event_name == 'pull_request'
         env:
@@ -53,10 +43,53 @@ jobs:
             echo "$changed"
             exit 1
           fi
+
+  tracker:
+    needs: profile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Agent tracker command behavior
+        run: npm run test:agent-tracker
+
+  common:
+    needs: profile
+    if: needs.profile.outputs.profile != 'docs'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: package-lock.json matches package.json
+        run: |
+          npm install --package-lock-only --ignore-scripts
+          git diff --exit-code package-lock.json
+
+      - name: Install Postman CLI for release dependency simulations
+        if: needs.profile.outputs.profile == 'full'
+        timeout-minutes: 5
+        run: |
+          npm install --global postman-cli@1.73.0
+          postman --version
+
+      - name: Release policy, bundle integrity, transport and host preflight
+        if: needs.profile.outputs.profile == 'full'
+        timeout-minutes: 5
+        run: node --test scripts/tests/release-identity.test.mjs deploy/tests/release-prepare.test.mjs deploy/tests/release-host.test.mjs deploy/tests/release-connect.test.mjs deploy/tests/release-runtime.test.mjs
+
+      - name: Agent tracker through real gh and controlled GitHub HTTP
+        if: needs.profile.outputs.profile == 'full'
+        timeout-minutes: 5
+        run: node scripts/verify-agent-tracker-transport.mjs
+
       - run: npm run typecheck
-        if: steps.profile.outputs.profile == 'draft'
       - run: npm run lint
-        if: steps.profile.outputs.profile == 'draft'
 
   full:
     strategy:
@@ -80,25 +113,6 @@ jobs:
           cache: npm
       - run: npm ci
 
-      - name: package-lock.json matches package.json
-        run: |
-          npm install --package-lock-only --ignore-scripts
-          git diff --exit-code package-lock.json
-
-      - name: Install Postman CLI for release dependency simulations
-        timeout-minutes: 5
-        run: |
-          npm install --global postman-cli@1.73.0
-          postman --version
-
-      - name: Release policy, bundle integrity, transport and host preflight
-        timeout-minutes: 5
-        run: node --test scripts/tests/release-identity.test.mjs deploy/tests/release-prepare.test.mjs deploy/tests/release-host.test.mjs deploy/tests/release-connect.test.mjs deploy/tests/release-runtime.test.mjs
-
-      - name: Agent tracker through real gh and controlled GitHub HTTP
-        timeout-minutes: 5
-        run: node scripts/verify-agent-tracker-transport.mjs
-
       - name: Start local Supabase
         id: supabase
         run: npm run db:start -- --profile=e2e
@@ -109,16 +123,15 @@ jobs:
           sudo ss -tanp '( sport >= :54320 and sport <= :54329 )'
           docker ps -a --format '{{.Names}} {{.Status}} {{.Ports}}'
 
+      # Shard 1 owns this shared check using its already-required database.
       - name: Generated database types match the migrations
+        if: matrix.shard == 1
         run: |
           npm run db:types
           git diff --exit-code src/lib/database.types.ts
 
-      - run: npm run typecheck
-      - run: npm run lint
       # Each shard owns its runner/database; files within it remain serial.
       - run: npm run test:serial -- --shard=${{ matrix.shard }}/3
-      - run: npm run build
       - name: Stop the disposable database
         if: always()
         run: npm run db:stop -- --no-backup
@@ -159,7 +172,7 @@ jobs:
 
   check:
     if: always()
-    needs: [profile, full]
+    needs: [profile, tracker, common, full]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -169,12 +182,13 @@ jobs:
       - run: node scripts/ci-policy.mjs gate
         env:
           PROFILE: ${{ needs.profile.outputs.profile }}
-          QUICK_RESULT: ${{ needs.profile.result }}
+          QUICK_RESULTS: '["${{ needs.profile.result }}", "${{ needs.tracker.result }}"]'
+          COMMON_RESULT: ${{ needs.common.result }}
           FULL_RESULT: ${{ needs.full.result }}
 
   e2e:
     if: always()
-    needs: [profile, acceptance]
+    needs: [profile, common, acceptance]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -185,4 +199,5 @@ jobs:
         env:
           PROFILE: ${{ needs.profile.outputs.profile }}
           QUICK_RESULT: ${{ needs.profile.result }}
+          COMMON_RESULT: ${{ needs.common.result }}
           FULL_RESULT: ${{ needs.acceptance.result }}
