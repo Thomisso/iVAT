@@ -1,0 +1,564 @@
+{
+  "repository": "Thomisso/iVAT",
+  "run": 42476395666,
+  "attempt": 2,
+  "revision": "7997422a307cda3bbcc66e39030810b637c4aa65",
+  "runner": "ubuntu-latest",
+  "samples": [
+    {
+      "file": "tests/processing.test.ts",
+      "milliseconds": 11345.0,
+      "job": 128724286897
+    },
+    {
+      "file": "tests/memberships.test.ts",
+      "milliseconds": 8847.0,
+      "job": 128724286897
+    },
+    {
+      "file": "tests/counterparties.test.ts",
+      "milliseconds": 11794.0,
+      "job": 128724286897
+    },
+    {
+      "file": "tests/document-approval.test.ts",
+      "milliseconds": 8106.0,
+      "job": 128724286897
+    },
+    {
+      "file": "tests/manual-documents.test.ts",
+      "milliseconds": 5859.0,
+      "job": 128724286897
+    },
+    {
+      "file": "tests/tenant-isolation.test.ts",
+      "milliseconds": 9106.0,
+      "job": 128724286897
+    },
+    {
+      "file": "tests/truthful-inclusion.test.ts",
+      "milliseconds": 2896.0,
+      "job": 128724286897
+    },
+    {
+      "file": "tests/source-files.test.ts",
+      "milliseconds": 7734.0,
+      "job": 128724286897
+    },
+    {
+      "file": "tests/vat-report-progress.test.ts",
+      "milliseconds": 7379.0,
+      "job": 128724286897
+    },
+    {
+      "file": "tests/vat-reports.test.ts",
+      "milliseconds": 15358.0,
+      "job": 128724286897
+    },
+    {
+      "file": "tests/reporting-years.test.ts",
+      "milliseconds": 3236.0,
+      "job": 128724286897
+    },
+    {
+      "file": "tests/ai-usage.test.ts",
+      "milliseconds": 6028.0,
+      "job": 128724286897
+    },
+    {
+      "file": "tests/document-review-field-errors.test.ts",
+      "milliseconds": 17449.0,
+      "job": 128724286897
+    },
+    {
+      "file": "tests/password-recovery.test.ts",
+      "milliseconds": 4828.0,
+      "job": 128724286897
+    },
+    {
+      "file": "tests/password-change.test.ts",
+      "milliseconds": 5644.0,
+      "job": 128724286897
+    },
+    {
+      "file": "tests/company-filing-defaults.test.ts",
+      "milliseconds": 5500.0,
+      "job": 128724286897
+    },
+    {
+      "file": "tests/epo-artifacts.test.ts",
+      "milliseconds": 11830.0,
+      "job": 128724286897
+    },
+    {
+      "file": "tests/extraction-preparation.test.ts",
+      "milliseconds": 2551.0,
+      "job": 128724286897
+    },
+    {
+      "file": "tests/document-validation.test.ts",
+      "milliseconds": 8.0,
+      "job": 128724286897
+    },
+    {
+      "file": "tests/vat-report-document-access.test.ts",
+      "milliseconds": 6550.0,
+      "job": 128724286897
+    },
+    {
+      "file": "tests/epo-xml.test.ts",
+      "milliseconds": 195.0,
+      "job": 128724286897
+    },
+    {
+      "file": "tests/extraction-evaluation.test.ts",
+      "milliseconds": 19.0,
+      "job": 128724286897
+    },
+    {
+      "file": "tests/superadmin-members.test.ts",
+      "milliseconds": 5552.0,
+      "job": 128724286897
+    },
+    {
+      "file": "tests/return-to-review.test.ts",
+      "milliseconds": 3891.0,
+      "job": 128724286897
+    },
+    {
+      "file": "tests/company-deletion-form.test.ts",
+      "milliseconds": 41.0,
+      "job": 128724286897
+    },
+    {
+      "file": "tests/storage-listing.test.ts",
+      "milliseconds": 3254.0,
+      "job": 128724286897
+    },
+    {
+      "file": "tests/duplicate-warnings.test.ts",
+      "milliseconds": 2657.0,
+      "job": 128724286897
+    },
+    {
+      "file": "tests/auth-templates.test.ts",
+      "milliseconds": 3766.0,
+      "job": 128724286897
+    },
+    {
+      "file": "tests/source-upload-concurrency.test.ts",
+      "milliseconds": 570.0,
+      "job": 128724286897
+    },
+    {
+      "file": "tests/document-queue.test.ts",
+      "milliseconds": 6.0,
+      "job": 128724286897
+    },
+    {
+      "file": "tests/adis-vat-registry.test.ts",
+      "milliseconds": 24.0,
+      "job": 128724286897
+    },
+    {
+      "file": "tests/ai-model-contraction.test.ts",
+      "milliseconds": 34.0,
+      "job": 128724286897
+    },
+    {
+      "file": "tests/direction-detection.test.ts",
+      "milliseconds": 5.0,
+      "job": 128724286897
+    },
+    {
+      "file": "tests/route-responses.test.ts",
+      "milliseconds": 23.0,
+      "job": 128724286897
+    },
+    {
+      "file": "tests/extraction-schema.test.ts",
+      "milliseconds": 4.0,
+      "job": 128724286897
+    },
+    {
+      "file": "tests/messages.test.ts",
+      "milliseconds": 271.0,
+      "job": 128724286897
+    },
+    {
+      "file": "tests/review.test.ts",
+      "milliseconds": 38728.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/automatic-approval.test.ts",
+      "milliseconds": 24046.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/source-recovery.test.ts",
+      "milliseconds": 28215.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/manual-source-ai.test.ts",
+      "milliseconds": 17068.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/document-recovery.test.ts",
+      "milliseconds": 17480.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/mfa-replacement.test.ts",
+      "milliseconds": 29728.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/vat-rules.test.ts",
+      "milliseconds": 41.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/partial-claims.test.ts",
+      "milliseconds": 17067.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/invitations-lifecycle.test.ts",
+      "milliseconds": 19379.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/source-formats.test.ts",
+      "milliseconds": 11907.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/bank-advisories.test.ts",
+      "milliseconds": 17502.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/control-statement-pdf.test.ts",
+      "milliseconds": 24660.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/source-evidence.test.ts",
+      "milliseconds": 5494.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/platform-tenant-history.test.ts",
+      "milliseconds": 9474.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/final-export-progress.test.ts",
+      "milliseconds": 8752.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/ai-configurations.test.ts",
+      "milliseconds": 8691.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/openai.test.ts",
+      "milliseconds": 143.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/access-management.test.ts",
+      "milliseconds": 9055.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/recovery-transport.test.ts",
+      "milliseconds": 8109.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/upload-batch-deletion.test.ts",
+      "milliseconds": 9464.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/superadmin-tenant-access.test.ts",
+      "milliseconds": 13221.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/split-correction.test.ts",
+      "milliseconds": 5520.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/companies.test.ts",
+      "milliseconds": 23245.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/security-return.test.ts",
+      "milliseconds": 23181.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/document-review-composition.test.ts",
+      "milliseconds": 2711.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/vat-processing-wizard.test.ts",
+      "milliseconds": 4756.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/mfa.test.ts",
+      "milliseconds": 12664.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/upload-batch-manifests.test.ts",
+      "milliseconds": 6070.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/upload-batch-date-filters.test.ts",
+      "milliseconds": 4325.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/return-context.test.ts",
+      "milliseconds": 11.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/ares.test.ts",
+      "milliseconds": 37.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/auth-callback-route.test.ts",
+      "milliseconds": 16.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/company-context.test.ts",
+      "milliseconds": 8097.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/company-data-export-form.test.ts",
+      "milliseconds": 46.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/login-errors.test.ts",
+      "milliseconds": 928.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/company-export-polling.test.ts",
+      "milliseconds": 8.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/czech-dates.test.ts",
+      "milliseconds": 7.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/cnb-rates.test.ts",
+      "milliseconds": 31.0,
+      "job": 128724286766
+    },
+    {
+      "file": "tests/platform-administration.test.ts",
+      "milliseconds": 17695.0,
+      "job": 128724286806
+    },
+    {
+      "file": "tests/document-counterparty-links.test.ts",
+      "milliseconds": 11605.0,
+      "job": 128724286806
+    },
+    {
+      "file": "tests/claim-deadlines.test.ts",
+      "milliseconds": 12434.0,
+      "job": 128724286806
+    },
+    {
+      "file": "tests/ai-processing-allowance.test.ts",
+      "milliseconds": 7802.0,
+      "job": 128724286806
+    },
+    {
+      "file": "tests/upload-batches.test.ts",
+      "milliseconds": 9997.0,
+      "job": 128724286806
+    },
+    {
+      "file": "tests/period-lock.test.ts",
+      "milliseconds": 13451.0,
+      "job": 128724286806
+    },
+    {
+      "file": "tests/company-deletion.test.ts",
+      "milliseconds": 5606.0,
+      "job": 128724286806
+    },
+    {
+      "file": "tests/epo-export.test.ts",
+      "milliseconds": 10624.0,
+      "job": 128724286806
+    },
+    {
+      "file": "tests/claim-period.test.ts",
+      "milliseconds": 8696.0,
+      "job": 128724286806
+    },
+    {
+      "file": "tests/vat-return-pdf.test.ts",
+      "milliseconds": 7069.0,
+      "job": 128724286806
+    },
+    {
+      "file": "tests/ai-platform-interventions.test.ts",
+      "milliseconds": 6099.0,
+      "job": 128724286806
+    },
+    {
+      "file": "tests/workbook-recovery.test.ts",
+      "milliseconds": 10955.0,
+      "job": 128724286806
+    },
+    {
+      "file": "tests/internal-supabase-transport.test.ts",
+      "milliseconds": 31804.0,
+      "job": 128724286806
+    },
+    {
+      "file": "tests/reporting-period-readiness.test.ts",
+      "milliseconds": 9971.0,
+      "job": 128724286806
+    },
+    {
+      "file": "tests/anthropic.test.ts",
+      "milliseconds": 80.0,
+      "job": 128724286806
+    },
+    {
+      "file": "tests/final-epo-artifacts.test.ts",
+      "milliseconds": 4367.0,
+      "job": 128724286806
+    },
+    {
+      "file": "tests/reporting-year-management.test.ts",
+      "milliseconds": 4133.0,
+      "job": 128724286806
+    },
+    {
+      "file": "tests/reporting-period-excel.test.ts",
+      "milliseconds": 3042.0,
+      "job": 128724286806
+    },
+    {
+      "file": "tests/audit.test.ts",
+      "milliseconds": 5543.0,
+      "job": 128724286806
+    },
+    {
+      "file": "tests/bootstrap-superadmin.test.ts",
+      "milliseconds": 4117.0,
+      "job": 128724286806
+    },
+    {
+      "file": "tests/partial-claim-report.test.ts",
+      "milliseconds": 1260.0,
+      "job": 128724286806
+    },
+    {
+      "file": "tests/vat-registry.test.ts",
+      "milliseconds": 6.0,
+      "job": 128724286806
+    },
+    {
+      "file": "tests/sign-up.test.ts",
+      "milliseconds": 1640.0,
+      "job": 128724286806
+    },
+    {
+      "file": "tests/document-review-initial-save.test.ts",
+      "milliseconds": 902.0,
+      "job": 128724286806
+    },
+    {
+      "file": "tests/ai-processing-failures.test.ts",
+      "milliseconds": 6849.0,
+      "job": 128724286806
+    },
+    {
+      "file": "tests/operational-problems.test.ts",
+      "milliseconds": 9.0,
+      "job": 128724286806
+    },
+    {
+      "file": "tests/date-input.test.ts",
+      "milliseconds": 61.0,
+      "job": 128724286806
+    },
+    {
+      "file": "tests/period-filters.test.ts",
+      "milliseconds": 1392.0,
+      "job": 128724286806
+    },
+    {
+      "file": "tests/deterministic-provider-selection.test.ts",
+      "milliseconds": 496.0,
+      "job": 128724286806
+    },
+    {
+      "file": "tests/ui.test.ts",
+      "milliseconds": 16.0,
+      "job": 128724286806
+    },
+    {
+      "file": "tests/document-review.test.ts",
+      "milliseconds": 726.0,
+      "job": 128724286806
+    },
+    {
+      "file": "tests/currency-conversion.test.ts",
+      "milliseconds": 4.0,
+      "job": 128724286806
+    },
+    {
+      "file": "tests/workbooks.test.ts",
+      "milliseconds": 25.0,
+      "job": 128724286806
+    },
+    {
+      "file": "tests/refresh-while.test.ts",
+      "milliseconds": 17.0,
+      "job": 128724286806
+    },
+    {
+      "file": "tests/app-shell.test.ts",
+      "milliseconds": 15.0,
+      "job": 128724286806
+    },
+    {
+      "file": "tests/eslint-guardrails.test.ts",
+      "milliseconds": 884.0,
+      "job": 128724286806
+    },
+    {
+      "file": "tests/invitation-urls.test.ts",
+      "milliseconds": 3.0,
+      "job": 128724286806
+    }
+  ]
+}
