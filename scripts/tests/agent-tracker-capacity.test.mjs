@@ -22,7 +22,8 @@ function pendingPublication(t, bytes) {
   const revision = repo.git("rev-parse", "feat/ticket");
   execute(repo, "review", "--issue", "201", "--base", revision, "--revision", revision, "--checks", proof, "--result", "Implementation retained for review");
   execute(repo, "review-result", "--issue", "201", "--reviewer", "independent-reviewer", "--revision", revision, "--standards", "pass", "--spec", "pass", "--findings", "[]", "--independence", "Independent review of fixture implementation", "--result", "Reviewed evidence retained");
-  repo.updateRemote(remote => { remote.deferDispatch = true; remote.failure = { match: "TrackerSetFields", phase: "before", remaining: 1 }; });
+  // Unchanged fields are skipped; failed comment readback still makes publication unverified.
+  repo.updateRemote(remote => { remote.deferDispatch = true; remote.failure = { match: "GET repos/example/project/issues/201/comments", phase: "before", remaining: 1 }; });
   assert.equal(resultJson(repo.run("repair")).error, "publication_pending");
   const event = JSON.parse(repo.remote().dispatches.at(-1));
   assert.equal(repo.worker(event).status, 1);
