@@ -8,8 +8,8 @@ fails its gate. No workflow-level path filter can leave a required check pending
 
 | Profile | Selection | Verification |
 | --- | --- | --- |
-| docs | Only root README/AGENTS/CODING_STANDARDS/GLOSSARY Markdown or Markdown under `docs/` | Policy tests and migration-history guard; no dependency install, database, browser, or containers |
-| draft | Other changes on a draft PR | Policy, lockfile, migration history, typecheck and lint; no runtime stack |
+| docs | Only root README/AGENTS/CODING_STANDARDS/GLOSSARY Markdown or Markdown under `docs/` | Policy tests, migration-history guard and tracker command behavior; no dependency install, database, browser, or containers |
+| draft | Other changes on a draft PR | Policy, tracker command behavior, lockfile, migration history, typecheck and lint; no runtime stack |
 | full | Ready PR, `ci:full` label, unavailable/empty diff, or any main push | Release-policy, database-types, all three serial application-test shards, lint, types, production build, CLI production HTTP acceptance and self-hosted deployment checks |
 
 `ci:full` explicitly requests complete verification while an integration PR stays
@@ -30,6 +30,46 @@ Release policy is unchanged: successful **main-push** runs of both workflows for
 the exact release revision are required. A docs/draft PR run, cancelled run,
 skipped runtime job, or successful different revision cannot supply that evidence.
 Main always uses the full profile. No scheduled workflow was introduced.
+
+## Scheduling and shared execution owners
+
+The fast `profile` job runs policy tests, classifies the complete change and
+checks migration history. After it succeeds, tracker command behavior, common
+checks, all three application shards and production HTTP acceptance can start
+independently. Application jobs never wait for tracker completion or the common
+checks. The current docs/draft/full selection remains unchanged; tracker command
+behavior still runs for every profile at this foundational stage. Later
+change-aware infrastructure selection is separate work under #254.
+
+For draft/full verification, `common` owns lockfile consistency, typecheck and
+lint once. Full verification additionally runs the complete release-policy,
+bundle/transport/host suite and real-gh tracker transport once in that job.
+Database-type verification runs only on application shard 1, using its existing
+isolated stack. All three shards retain their complete serial application-test
+inventory and unconditional cleanup; no extra database stack is introduced.
+
+The production HTTP runner owns the single plain application build. The former
+plain build in each application shard is removed because the HTTP runner builds
+and runs that same application revision in production mode. Deployment
+verification still builds and exercises the actual production Docker images as
+distinct packaging evidence. No passing build artifact is transferred between
+jobs and no earlier revision's build result is reused.
+
+`check` requires the profile, tracker command suite, common checks and all
+application shards. `e2e` requires the profile, common checks and HTTP acceptance.
+Both gates run after any prerequisite outcome and reject failed, cancelled,
+missing or unexpectedly skipped selected work. Common checks are explicitly
+skipped only for docs; application/runtime work is skipped only for docs/draft.
+The separate `self-hosted` gate keeps its production-runtime prerequisites.
+
+This graph adds a tracker job's checkout/Node setup and, on full runs, one
+common job's checkout/Node setup/dependency install. Full CI now has five
+`npm ci` owners (common, three shards, HTTP), compared with four before; common
+checks no longer execute three times and the four plain application builds
+become one. The real Actions run must measure this replacement setup overhead,
+actual suite start/overlap, shared-check/build counts, queue time and summed
+runner time before any elapsed-time or cost saving is claimed. Local policy
+checks establish the configured execution contract, not measured concurrency.
 
 ## Fixture costs
 
