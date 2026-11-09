@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import fs from "node:fs";
+import { publishRemote } from "./agent-tracker-state.mjs";
 import { execFileSync, spawnSync } from "node:child_process";
 const file = process.env.TRACKER_FAKE_GITHUB;
 const remote = JSON.parse(fs.readFileSync(file, "utf8"));
+const initialState = JSON.stringify(remote);
 const args = process.argv.slice(2);
 const method = args.includes("--method") ? args[args.indexOf("--method") + 1] : "GET";
 const rawEndpoint = args[args.indexOf("api") + 1];
@@ -13,7 +15,7 @@ const operation = endpoint === "graphql" ? input.query.match(/(?:query|mutation)
 const injected = remote.failure?.remaining > 0 && operation === remote.failure.match ? { ...remote.failure } : null;
 if (injected) {
   remote.failure.remaining--;
-  fs.writeFileSync(file, JSON.stringify(remote));
+  publishRemote(file, remote);
   if (injected.phase === "before") { console.error("simulated connection failure"); process.exit(1); }
 }
 let response;
@@ -70,7 +72,7 @@ if (endpoint === "graphql") {
       remote.views ??= [];
       const view = { id: `view-${remote.views.length}`, ...value, filter: "", configuration: { visibleFields: { nodes: value.configuration.visibleFieldIds.map(id => ({ id })) } }, groupByFields: { nodes: [] }, verticalGroupByFields: { nodes: value.layout === "BOARD_LAYOUT" ? [{ id: "status" }] : [] } };
       remote.views.push(view);
-      if (remote.failNextViewCreate) { delete remote.failNextViewCreate; fs.writeFileSync(file, JSON.stringify(remote)); console.error("network unavailable after create"); process.exit(1); }
+      if (remote.failNextViewCreate) { delete remote.failNextViewCreate; publishRemote(file, remote); console.error("network unavailable after create"); process.exit(1); }
       response = { createProjectV2View: { view } }; break;
     }
     case "TrackerUpdateView": {
@@ -185,7 +187,7 @@ if (endpoint === "graphql") {
 } else if (endpoint === "repos/example/project/actions/workflows/agent-tracking.yml/dispatches") {
   remote.dispatches ??= [];
   remote.dispatches.push(input.inputs.event);
-  fs.writeFileSync(file, JSON.stringify(remote));
+  publishRemote(file, remote);
   const worker = remote.deferDispatch ? { status: 0 } : spawnSync(process.execPath, [process.env.TRACKER_COMMAND, "worker"], {
     cwd: process.cwd(), encoding: "utf8", env: { ...process.env, GITHUB_ACTIONS: "true", GITHUB_JOB: "publish", GITHUB_WORKFLOW_REF: "example/project/.github/workflows/agent-tracking.yml@refs/heads/main", GITHUB_ACTOR: "maintainer", TRACKER_EVENT: input.inputs.event },
   });
@@ -219,6 +221,7 @@ if (endpoint === "graphql") {
   const comment = Object.values(remote.comments).flat().find(comment => comment.id === Number(endpoint.split("/").at(-1)));
   comment.body = input.body; response = comment;
 } else throw new Error(`Unmodelled REST operation ${method} ${endpoint}`);
-fs.writeFileSync(file, JSON.stringify(remote));
+// Read-only requests must not republish a snapshot taken before a concurrent write.
+if (JSON.stringify(remote) !== initialState) publishRemote(file, remote);
 if (injected?.phase === "after") { console.error("simulated connection failure after remote effect"); process.exit(1); }
 console.log(JSON.stringify(response));

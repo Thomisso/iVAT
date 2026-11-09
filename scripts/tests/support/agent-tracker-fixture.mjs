@@ -1,3 +1,4 @@
+import { publishRemote } from "./agent-tracker-state.mjs";
 import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import os from "node:os";
@@ -12,8 +13,9 @@ export function trackerFixture(t, { nodeImports = [], captureOutput = false } = 
   mkdirSync(bin);
   copyFileSync(new URL("agent-tracker-gh.mjs", import.meta.url), path.join(bin, "gh"));
   chmodSync(path.join(bin, "gh"), 0o755);
+  copyFileSync(new URL("agent-tracker-state.mjs", import.meta.url), path.join(bin, "agent-tracker-state.mjs"));
   const remote = path.join(root, "github.json");
-  writeFileSync(remote, JSON.stringify({ project: { id: "PVT_test", title: "Agent work", url: "https://github.com/users/example/projects/1" }, fields: [{ id: "status", name: "Status", dataType: "SINGLE_SELECT", options: [] }, { id: "parent", name: "Parent issue", dataType: "PARENT_ISSUE" }, { id: "title", name: "Title", dataType: "TITLE" }] }));
+  publishRemote(remote, { project: { id: "PVT_test", title: "Agent work", url: "https://github.com/users/example/projects/1" }, fields: [{ id: "status", name: "Status", dataType: "SINGLE_SELECT", options: [] }, { id: "parent", name: "Parent issue", dataType: "PARENT_ISSUE" }, { id: "title", name: "Title", dataType: "TITLE" }] });
   const clock = path.join(root, "clock");
   const environment = { ...process.env, GH_TOKEN: "synthetic-actions-credential", NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ""} --import=${new URL("agent-tracker-clock.mjs", import.meta.url).pathname}${nodeImports.map(url => ` --import=${url}`).join("")}`, TRACKER_CLOCK_FILE: clock, PATH: `${bin}${path.delimiter}${process.env.PATH}`, TRACKER_FAKE_GITHUB: remote, TRACKER_COMMAND: command };
   function checkout(directory) {
@@ -33,7 +35,7 @@ export function trackerFixture(t, { nodeImports = [], captureOutput = false } = 
       worker: (event, workerEnvironment = {}) => spawnSync(process.execPath, [command, "worker"], { cwd: directory, encoding: "utf8", env: { ...environment, GITHUB_ACTIONS: "true", GITHUB_JOB: "publish", GITHUB_WORKFLOW_REF: "example/project/.github/workflows/agent-tracking.yml@refs/heads/main", GITHUB_ACTOR: "maintainer", TRACKER_EVENT: event ? JSON.stringify(event) : "", ...workerEnvironment } }),
       setup() { return this.run("setup", "--repo", "example/project", "--owner", "example", "--project-number", "1", "--registry-issue", "99"); },
       remote: () => JSON.parse(readFileSync(remote, "utf8")),
-      updateRemote: update => { const state = JSON.parse(readFileSync(remote, "utf8")); update(state); writeFileSync(remote, JSON.stringify(state)); },
+      updateRemote: update => { const state = JSON.parse(readFileSync(remote, "utf8")); update(state); publishRemote(remote, state); },
     };
   }
   const primary = checkout(path.join(root, "primary"));
