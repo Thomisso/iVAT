@@ -302,7 +302,11 @@ requests a separate **Release candidate verification** run at that stable tag
 and waits up to 60 minutes for its complete successful attempt. This run calls
 the same reusable **CI** and **Deployment verification** jobs with every scope
 required by `verificationPlan`, including all application shards, production
-HTTP acceptance and the actual AMD64 production-image build/runtime. A green
+HTTP acceptance and the actual AMD64 production-image build/runtime. Ordinary
+main pushes select scopes from the verified complete before/after
+impact: docs-only pushes omit application/database/image stacks, and known
+non-deployment tooling changes omit Docker runtime. Missing/ambiguous ranges,
+shared inputs and explicit full requests still require every scope. A green
 scoped/docs main aggregate is insufficient. Candidate verification has only
 contents/Actions/PR read permission; it has no registry publication, provider
 credentials, SSH or deployment job.

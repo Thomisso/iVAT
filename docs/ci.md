@@ -15,17 +15,23 @@ Neither workflow maintains an independent path allowlist.
 
 | Change | Required verification |
 | --- | --- |
-| Pure documentation PR | Policy/HTTP-runner policy tests and migration-history guard; no dependency install, tracker suite, application database or image build |
+| Pure documentation PR or verified main push | Cheap policy/HTTP-runner policy tests, plus the PR migration-history guard when applicable; no dependency install, tracker suite, application database or image build |
 | Ordinary application draft | Common fast checks: lockfile consistency, shard allocation regression, typecheck and lint |
 | Tracker tooling draft | Common checks, complete tracker command suite and real-gh controlled HTTP transport |
 | Release tooling draft | Common checks and release policy, identity, bundle, transport, host and runtime suite |
-| Ready non-documentation PR | Common checks, complete application shards, production HTTP acceptance and production-image/runtime verification; infrastructure suites when their inputs changed |
+| Ready non-documentation PR or verified non-documentation main push | Common checks, complete application shards and production HTTP acceptance; tracker/release suites and production-image/runtime verification when their inputs changed |
 | Full override, uncertain impact or broad shared inputs | Every scope, including tracker and release suites, even on a draft |
-| Any main push or non-PR event | Every scope; main/release activation remains conservative |
+| Release candidate, default reusable verification or other non-PR/non-push event | Every scope; candidate full verification takes precedence over docs/push exemptions |
 
 Known documentation is root README/AGENTS/CODING_STANDARDS/GLOSSARY Markdown or
 Markdown under `docs/`. Classification uses the complete PR base-to-head
-merge-base diff. NUL-separated paths preserve unusual filenames; renames are
+merge-base diff. Main pushes use the entire before/after range after verifying
+both full commit identities and available commit objects, before ancestry, the
+actual checked HEAD against event after and `GITHUB_SHA`, and agreement of the
+event/runner main ref. Missing or malformed inputs, force pushes, branch creation
+or deletion, unavailable objects, non-ancestor ranges or checkout disagreement
+force every scope. Push commit-list truncation cannot narrow this Git diff.
+NUL-separated paths preserve unusual filenames; renames are
 expanded into deletion/addition so the old path cannot hide a dependency. A
 last documentation commit cannot hide earlier application changes. Missing or
 malformed metadata, unavailable revisions, an empty diff and unknown paths
@@ -47,7 +53,22 @@ Supabase configuration/migrations, shared `src/lib/`, authority/worker entrypoin
 application Docker/Compose/environment inputs and database/gateway/proxy
 container configuration force every scope. New unrecognized dependencies also
 fail closed until explicitly classified. Ordinary application files never
-reduce the complete application suite at readiness.
+reduce the complete application suite at readiness or on a non-documentation
+main push.
+
+Deployment selection includes all application source/assets/messages/email,
+worker source, the complete application-test/support/fixture tree used by runtime
+acceptance, the `deploy/` source/configuration/test tree, release-identity writer
+and verification workflow/policy inputs. Shared runtime/dependency/toolchain
+inputs and unknown paths force every scope. Tracker-only changes and separate
+release simulation, identity-test or backup-workflow changes omit Docker runtime
+when no deployment/shared input changed. Drafts defer known deployment work until
+readiness; an explicit full override or uncertainty requires it immediately.
+Every required production-image/runtime job still builds and boots the actual
+container and unconditionally tears it down. Its reason is published as
+`deployment-input:<path>`, `deployment-inputs-unchanged`, a draft deferral or the
+conservative/full-override reason. Both workflows and their stable gates consume
+that same policy; no workflow-level path filter can silently omit a gate.
 
 ## Scheduling and stable gates
 
@@ -117,9 +138,15 @@ stable-check identity, readiness reuse and cancellation still need bounded real
 Actions metadata; earlier billing refusals supplied no execution evidence, and
 no live scheduling/reuse savings are claimed here.
 
-Main still selects every scope. Production release preparation now requests a
+Ordinary main verification now follows the verified complete push impact.
+Production release preparation requests a
 separate exact-candidate verification run, reusing these workflows through
-`workflow_call` with an explicit full-scope input. Release proof binds the
+`workflow_call` with an explicit full-scope input. Reusable workflows inherit the
+caller's event name; their `candidate-full` input defaults to true only for
+reusable calls. Ordinary PR/push events retain the selective policy. An explicit
+false input supports selective non-candidate reuse, but its cheap/scoped results
+cannot satisfy the actual full-job/step candidate evidence validator. Both
+production-candidate callers explicitly require true. Release proof binds the
 candidate's source/tree/tag, current target, public build inputs, platform and
 policy, plus the actual completed run/attempt, successful suite steps and
 unexpired digest-verified artifact. A green scoped main aggregate cannot approve
@@ -127,8 +154,10 @@ a release. The opted-in PR acceptance caller exercises the same full producer
 before dispatch registration and retains raw API head and checked merge SHA
 separately; its acceptance purpose cannot authorize publication/deployment.
 See [release proof, activation and interruption recovery](deployment.md#release-checks-and-automation).
-Selective main activation remains separate work; these changes do not make main
-checks selective or claim successful live candidate execution.
+The selective main policy and candidate proof validation are delivered together.
+The verification-policy fingerprint includes `scripts/ci-policy.mjs` and both
+workflows, so this selection change invalidates prior PR and candidate policy
+proofs. No successful live candidate execution is claimed from source checks.
 
 Local policy/CLI/workflow-contract checks establish selection and gate behavior,
 including complete diffs and refused prerequisites. They do not establish real
@@ -228,7 +257,7 @@ The existing `check` and `e2e` gates consume actual prerequisite results and
 fail if their required jobs fail, cancel or unexpectedly skip. HTTP service logs
 are retained as `http-acceptance-logs` on failure. Every owned runtime retains
 its `always()` database cleanup, and the local runner also tears down its stack.
-The docs, draft, exact-main release evidence and PR cancellation policies remain.
+The docs, draft, exact-candidate release evidence and PR cancellation policies remain.
 No default package command or CI job installs or launches a browser. Retained
 Playwright sources are historical inventory under [the execution policy](agents/cli-processes.md).
 
