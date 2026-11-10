@@ -128,3 +128,31 @@ or reduced deduction. One Document still has one Reporting Period.
 ## Earliest Claim Period
 
 Optional `claimEligibility` is non-AI accounting metadata: `{period, origin: "user" | "same_period", confirmed, basis}`. A User explicitly confirms a generated period; the accepted rule may establish the same period only when DUZP, issue date and the actual Source File Import Date all belong to it. The database binds `basis` to the then-current document type, Direction, VAT Regime, DUZP, issue date, Source File identity and Prague Import Date. No Source File means no invented Import Date. Changed decisive facts or AI replacement invalidate a prior human confirmation; immutable earlier Versions retain their original value and origin. The metadata is included in the additive review projection and locked-base inheritance alongside directory, Partial Claim and source evidence extensions. Missing eligibility is unresolved, not proof of a violation, and blocks approval/new preparation for ordinary incoming domestic claims. Deadline calculations belong to the separate deadline workflow.
+
+## PDF Extraction page basis (#253)
+
+PDF Extraction sends full, oriented CropBox pages as numbered PNG images in a
+single request, while retaining PDF format/page count for location validation and
+original Source File identity for evidence. Split still sends the native PDF.
+The server uses 144 DPI with no content trimming, preserving blank margins and
+aspect ratio. Relative image pages `1..N` map to the Document's original range.
+Poppler output dimensions must agree with the visible page intersection,
+rotation and UserUnit; disagreement fails rather than publishing a guessed
+transform. Rendering does not establish semantic accuracy of AI locations.
+
+The worker requires `pdftoppm` (production image: `poppler-utils` and `fonts-liberation` for unembedded standard PDF fonts). Application
+limits are 100 pages, 8 million pixels per page, 100 million pixels per Document,
+3 MiB PNG per page and 18 MiB PNG total, before base64 encoding. A page side is
+limited to 8000 pixels, or 2000 when sending more than 20 pages. Pages render
+sequentially; each subprocess has at most 30 seconds within a 60-second render
+budget and bounded output buffers. Private temporary PDF files are removed on
+success or failure. These bounds limit raster allocation and retained images;
+process/container memory limits still govern the renderer's other allocations.
+No automatic downsampling, native-PDF fallback or paid historical backfill occurs.
+Rendering errors use the existing technical-failure path without a successful
+Extraction Version or consumed successful AI Processing Allowance.
+
+Transport formats follow the official [OpenAI image input contract](https://developers.openai.com/api/docs/guides/images-vision)
+and [Anthropic vision contract](https://platform.claude.com/docs/en/build-with-claude/vision).
+The original Source File and immutable Extraction Versions remain unchanged;
+explicit reprocessing creates a new version through the existing worker flow.

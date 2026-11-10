@@ -1,3 +1,5 @@
+import { sourceEvidencePdfFixture } from "./support/source-evidence";
+import { pdfPages } from "@/application/source-files";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
 import { OpenAiProviderError, openAiProvider } from "@/ai/openai";
@@ -40,7 +42,7 @@ describe("OpenAI provider", () => {
       }));
     });
     const provider = openAiProvider({ apiKey: "test-secret", splitModel: "gpt-split", extractModel: "gpt-extract", baseUrl });
-    await expect(provider.extract({ format: "pdf", mediaType: "application/pdf", bytes: new Uint8Array([37, 80, 68, 70]), pageCount: 2 }))
+    await expect(provider.extract({ format: "pdf", mediaType: "application/pdf", bytes: await pdfPages(await sourceEvidencePdfFixture(), { firstPage: 1, lastPage: 2 }), pageCount: 2 }))
       .resolves.toMatchObject({ payload: { documentNumber: "FV-2026-0001", sourceLocations } });
     expect(requestBody).toMatchObject({
       input: [{ content: expect.arrayContaining([expect.objectContaining({ type: "input_text", text: expect.stringMatching(/sourceLocations[\s\S]*oriented[\s\S]*1-based/) })]) }],

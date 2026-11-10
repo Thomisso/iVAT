@@ -1,3 +1,4 @@
+import { prepareExtractionInput } from "@/application/pdf-extraction";
 import {
   AiProviderError,
   withProviderResponse,
@@ -48,13 +49,13 @@ export class AnthropicProviderError extends AiProviderError {
 }
 
 function nativeContent(input: AiInput) {
-  if (input.text !== undefined) return { type: "text", text: input.text };
-  const source = {
-    type: "base64",
-    media_type: input.mediaType,
-    data: Buffer.from(input.bytes).toString("base64"),
-  };
-  return input.format === "pdf" ? { type: "document", source } : { type: "image", source };
+  if (input.pageImages) return input.pageImages.flatMap((page, index) => [
+    { type: "text", text: `Page ${index + 1} of ${input.pageCount} (full oriented page, ${page.width} x ${page.height} pixels).` },
+    { type: "image", source: { type: "base64", media_type: page.mediaType, data: Buffer.from(page.bytes).toString("base64") } },
+  ]);
+  if (input.text !== undefined) return [{ type: "text", text: input.text }];
+  const source = { type: "base64", media_type: input.mediaType, data: Buffer.from(input.bytes).toString("base64") };
+  return [input.format === "pdf" ? { type: "document", source } : { type: "image", source }];
 }
 
 async function structuredMessage(
@@ -76,7 +77,7 @@ async function structuredMessage(
       body: JSON.stringify({
         model,
         max_tokens: 4096,
-        messages: [{ role: "user", content: [nativeContent(input), { type: "text", text: prompt }] }],
+        messages: [{ role: "user", content: [...nativeContent(input), { type: "text", text: prompt }] }],
         output_config: { format: { type: "json_schema", schema } },
       }),
     });
@@ -164,6 +165,7 @@ export function anthropicAiProvider(options: AnthropicAiProviderOptions): AiProv
       };
     },
     async extract(input) {
+      input = await prepareExtractionInput(input);
       const result = await structuredMessage(
         options,
         options.extractModel,
