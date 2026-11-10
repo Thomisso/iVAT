@@ -7,8 +7,10 @@ The application is at `https://app.ivat.cz`; the public Supabase API is at
 `https://api.ivat.cz`. DNS stays at WEDOS with DNSSEC. AI uses the existing
 platform-owned provider configurations.
 
-For the actual Stack identity, deployed revisions, DNS/TLS incident, verification
-results and backup locations, see the [2026-10-30 deployment record](deployments/2026-10-30-rosti-pilot.md).
+Keep the actual Stack identity, SSH connection details, deployed revisions,
+verification results and backup inventory in protected operator records outside
+Git. The [private deployment record notice](deployments/2026-10-30-rosti-pilot.md)
+explains the separation from this reusable procedure.
 
 This is a pilot exception to ADR-0002's original managed Supabase choice.
 Roští manages its hosting infrastructure; we maintain the application images,
