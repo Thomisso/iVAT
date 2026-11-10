@@ -9,20 +9,15 @@
 //
 // After `start`, the stack's URL and keys are written to .env.local.
 
-import { execFileSync, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
+import { pipeline } from "node:stream/promises";
+import { redactedCliStream } from "./cli-output.mjs";
+import { localSupabaseContext, readSupabaseStatus } from "./supabase-status.mjs";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-const git = (...args) => execFileSync("git", args, { encoding: "utf8" }).trim();
-
-const root = git("rev-parse", "--show-toplevel");
-const dotenv = path.join(root, ".env");
-if (fs.existsSync(dotenv)) process.loadEnvFile(dotenv);
-const supabaseEnv = { ...process.env };
-const isLinkedWorktree =
-  fs.realpathSync(path.resolve(root, git("rev-parse", "--git-dir"))) !==
-  fs.realpathSync(path.resolve(root, git("rev-parse", "--git-common-dir")));
+const { root, env: supabaseEnv, isLinkedWorktree, generatedWorkdir } = localSupabaseContext();
 
 // Services a worktree stack doesn't need; they only cost memory and start-up time.
 const WORKTREE_DISABLED_SECTIONS = new Set(["studio", "analytics", "edge_runtime"]);
@@ -53,7 +48,7 @@ function expandServiceProfile(rawArgs) {
 }
 
 function worktreeSlot() {
-  if (process.env.SUPABASE_SLOT) return Number(process.env.SUPABASE_SLOT);
+  if (supabaseEnv.SUPABASE_SLOT) return Number(supabaseEnv.SUPABASE_SLOT);
   return 1 + (createHash("sha256").update(root).digest().readUInt32BE(0) % 99);
 }
 
@@ -100,8 +95,8 @@ function prepareWorktreeWorkdir(slot) {
       if (header) section = header[1];
       if (/^project_id = /.test(line)) return `project_id = "ivat-wt${slot}"`;
       if (WORKTREE_DISABLED_SECTIONS.has(section) && /^enabled = true/.test(line)) return "enabled = false";
-      if (/^additional_redirect_urls = \[$/.test(line) && process.env.SUPABASE_E2E_REDIRECT_URL) {
-        return `${line}\n  ${JSON.stringify(process.env.SUPABASE_E2E_REDIRECT_URL)},`;
+      if (/^additional_redirect_urls = \[$/.test(line) && supabaseEnv.SUPABASE_E2E_REDIRECT_URL) {
+        return `${line}\n  ${JSON.stringify(supabaseEnv.SUPABASE_E2E_REDIRECT_URL)},`;
       }
       return line.replace(
         /^((?:port|shadow_port|inspector_port|smtp_port|pop3_port) = )(\d+)/,
@@ -121,30 +116,39 @@ try {
   console.error(error instanceof Error ? error.message : error);
   process.exit(1);
 }
-const generatedWorkdir = path.join(root, ".supabase-worktree");
 const shouldPrepareWorkdir = args[0] === "start" || !fs.existsSync(path.join(generatedWorkdir, "supabase", "config.toml"));
 const workdirArgs = isLinkedWorktree
   ? ["--workdir", shouldPrepareWorkdir ? prepareWorktreeWorkdir(worktreeSlot()) : generatedWorkdir]
   : [];
 
-const { status } = spawnSync(supabase, [...args, ...workdirArgs], {
-  stdio: "inherit",
+const child = spawn(supabase, [...args, ...workdirArgs], {
+  stdio: ["inherit", "pipe", "pipe"],
   cwd: root,
   env: supabaseEnv,
 });
-if (status !== 0) process.exit(status ?? 1);
+const closed = new Promise((resolve) => {
+  child.once("error", (error) => {
+    console.error(`Supabase CLI could not start (${error.code ?? "unknown"})`);
+  });
+  child.once("close", (status, signal) => resolve({ status, signal }));
+});
+await Promise.all([
+  pipeline(child.stdout, redactedCliStream(), process.stdout, { end: false }),
+  pipeline(child.stderr, redactedCliStream(), process.stderr, { end: false }),
+]);
+const { status, signal } = await closed;
+if (signal) process.kill(process.pid, signal);
+if (status !== 0) process.exit(status !== null && status > 0 ? status : 1);
 
-if (args[0] === "start") writeEnvLocal();
+if (args[0] === "start") {
+  try { writeEnvLocal(); } catch (error) {
+    console.error(error.message);
+    process.exitCode = 1;
+  }
+}
 
 function writeEnvLocal() {
-  const stack = JSON.parse(
-    execFileSync(supabase, ["status", "-o", "json", ...workdirArgs], {
-      cwd: root,
-      env: supabaseEnv,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    }),
-  );
+  const stack = readSupabaseStatus({ cwd: root, env: supabaseEnv });
   const configurationFile = path.join(isLinkedWorktree ? generatedWorkdir : root, "supabase", "config.toml");
   const smtpSection = fs.readFileSync(configurationFile, "utf8").match(/\[local_smtp\]([^]*?)(?=\n\[|$)/)?.[1];
   const smtpPort = smtpSection?.match(/^smtp_port = (\d+)/m)?.[1];
