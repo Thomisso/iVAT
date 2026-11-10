@@ -115,7 +115,10 @@ for (const interruption of ["dispatch", "projection"]) {
         remote.failure = { match: "POST repos/example/project/actions/workflows/agent-tracking.yml/dispatches", phase: "after", remaining: 1 };
       } else remote.failure = { match: "TrackerSetFields", phase: "after", remaining: 1 };
     });
-    assert.equal(resultJson(repo.finalize()).error, "publication_pending");
+    const interrupted = resultJson(repo.finalize());
+    assert.equal(interrupted.error, "publication_pending");
+    assert.equal(interrupted.finalization.step, "final-pr");
+    assert.equal(interrupted.finalization.state, "running");
     const original = JSON.parse(repo.remote().dispatches[0]);
     assert.equal(original.type, "final-pr");
     repo.updateRemote(remote => { remote.deferDispatch = false; });
@@ -150,4 +153,45 @@ test("evidence inputs cannot override the attempt issue or revision through revi
   repo.updateRemote(remote => { remote.dispatches = []; });
   assert.equal(resultJson(repo.finalize()).error, "finalization_evidence_invalid");
   assert.equal(repo.remote().dispatches.length, 0);
+});
+
+test("a manual binding change between processes cannot send saved evidence or readiness to another PR", t => {
+  const repo = prepare(t);
+  repo.updateRemote(remote => { remote.deferDispatch = true; remote.dispatches = []; });
+  assert.equal(resultJson(repo.finalize()).error, "publication_pending");
+  const event = JSON.parse(repo.remote().dispatches[0]);
+  assert.equal(repo.worker(event).status, 0);
+  repo.updateRemote(remote => {
+    remote.deferDispatch = false;
+    remote.pulls[301] = { ...remote.pulls[300], number: 301, node_id: "PR_301", html_url: "https://github.com/example/project/pull/301" };
+  });
+  execute(repo, "sync");
+  execute(repo, "final-pr", "--issue", "201", "--pr", "301", "--result", "Different deliberate binding");
+  const result = resultJson(repo.run("finalize", "--issue", "201"));
+  assert.equal(result.error, "final_pr_changed");
+  assert.equal(repo.remote().pulls[300].draft, true);
+  assert.equal(repo.remote().pulls[301].draft, true);
+  assert.equal(execute(repo, "show").remote.tickets[201].final.checks, undefined);
+});
+
+
+test("an abruptly killed controller resumes the same saved event under the recovered local lock", async t => {
+  const repo = prepare(t);
+  repo.updateRemote(remote => { remote.deferDispatch = true; remote.dispatches = []; });
+  const child = repo.spawn("finalize", "--issue", "201", "--pr", "300", "--revision", repo.revision, "--evidence-file", repo.file, "--wait-seconds", "600");
+  const exited = new Promise(resolve => child.once("close", resolve));
+  t.after(async () => { child.kill("SIGKILL"); await exited; });
+  const deadline = Date.now() + 10000;
+  while (!repo.remote().dispatches.length) {
+    assert.ok(Date.now() < deadline, "controller saved and dispatched its first event");
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  const original = JSON.parse(repo.remote().dispatches[0]);
+  child.kill("SIGKILL"); await exited;
+  repo.updateRemote(remote => { remote.deferDispatch = false; });
+  execute(repo, "finalize", "--issue", "201");
+  const bindings = repo.remote().dispatches.map(JSON.parse).filter(event => event.type === "final-pr");
+  assert.deepEqual([...new Set(bindings.map(event => event.id))], [original.id]);
+  assert.ok(bindings.every(event => event.at === original.at));
+  assert.equal(repo.remote().readyTransitions, 1);
 });
