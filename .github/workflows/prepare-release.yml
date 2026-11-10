@@ -11,10 +11,10 @@ jobs:
   verify:
     if: github.event.release.draft == false && github.event.release.prerelease == false
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 70
     permissions:
       contents: read
-      actions: read
+      actions: write
     outputs:
       revision: ${{ steps.release.outputs.revision }}
       tag: ${{ steps.release.outputs.tag }}
@@ -29,11 +29,21 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-      - name: Verify stable Release and exact main CI evidence
+      - name: Request and verify complete exact-candidate evidence
         id: release
         env:
           GH_TOKEN: ${{ github.token }}
+          ROSTI_PUBLIC_SUPABASE_URL: ${{ vars.ROSTI_PUBLIC_SUPABASE_URL }}
+          ROSTI_PUBLIC_SUPABASE_KEY: ${{ vars.ROSTI_PUBLIC_SUPABASE_KEY }}
         run: node deploy/scripts/prepare-release.mjs verify "$RUNNER_TEMP/verified-release.json"
+      - name: Retain interrupted candidate request for inspection and resume
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: candidate-request-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/verified-release.json.request.json
+          if-no-files-found: ignore
+          retention-days: 30
       - uses: actions/upload-artifact@v7
         with:
           name: verified-rosti-release-${{ github.run_id }}-${{ github.run_attempt }}
@@ -47,10 +57,12 @@ jobs:
     timeout-minutes: 40
     permissions:
       contents: read
+      actions: read
       packages: write
     outputs:
       artifact-name: rosti-release-${{ needs.verify.outputs.revision }}-${{ github.run_id }}-${{ github.run_attempt }}
     env:
+      GH_TOKEN: ${{ github.token }}
       ROSTI_PUBLIC_SUPABASE_URL: ${{ vars.ROSTI_PUBLIC_SUPABASE_URL }}
       ROSTI_PUBLIC_SUPABASE_KEY: ${{ vars.ROSTI_PUBLIC_SUPABASE_KEY }}
     steps:
@@ -107,6 +119,7 @@ jobs:
       cancel-in-progress: false
     permissions:
       contents: read
+      actions: read
       packages: read
     steps:
       - uses: actions/checkout@v7
@@ -124,6 +137,12 @@ jobs:
         with:
           name: ${{ needs.prepare.outputs.artifact-name }}
           path: ${{ runner.temp }}/prepared
+      - name: Confirm candidate refs and public inputs before any production connection
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ROSTI_PUBLIC_SUPABASE_URL: ${{ vars.ROSTI_PUBLIC_SUPABASE_URL }}
+          ROSTI_PUBLIC_SUPABASE_KEY: ${{ vars.ROSTI_PUBLIC_SUPABASE_KEY }}
+        run: node deploy/scripts/prepare-release.mjs confirm "$RUNNER_TEMP/verified/verified-release.json"
       - name: Deploy the exact prepared release through pinned SSH
         env:
           GHCR_TOKEN: ${{ github.token }}

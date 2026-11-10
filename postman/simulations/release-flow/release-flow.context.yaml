@@ -1,7 +1,28 @@
 purpose:
-  stands_in_for: GitHub exact-main-push workflow evidence and Roští Compose storage/readback HTTP dependencies of the real release flow.
+  stands_in_for: GitHub legacy exact-main-push and complete candidate workflow/attempt/artifact evidence and Roští Compose storage/readback HTTP dependencies of the real release flow.
   unblocks: Verify Release authorization, real SSH transport and disposable Compose upgrades without live services or production credentials.
 assumptions:
+  - id: candidate-http-caller-refusals
+    status: supported
+    claim: Against this local stand-in, the real candidate caller dispatches the exact tagged request, inspects exact run/attempt/jobs/artifact paths, verifies downloaded ZIP bytes and refuses changed targets, tampered bytes and provider errors.
+    reason: The focused release-evidence test invokes the actual HTTP caller, and simulation request logs show the workflow, attempt-scoped jobs and archive download paths. This establishes the caller against the model, not live GitHub permissions or Actions provenance.
+    verification: On 2026-11-10 the eight focused candidate tests passed in the release-258-development fingerprint, including the existing Postman release-flow simulation. Separate loopback HTTP and real publication-CLI regressions prove a later rerun or expired/deleted artifact cannot preserve an old approval; no real image was published.
+    source: deploy/tests/release-evidence.test.mjs; scripts/tests/release-identity.test.mjs; deploy/scripts/release-evidence.mjs; postman/mocks/github-release/default.js
+    updated_at: "2026-11-10"
+  - id: candidate-evidence-api-contract
+    status: supported
+    claim: The modelled GitHub contract exposes workflow dispatch, exact run and attempt readback, attempt-scoped jobs, run artifacts with digest/expiry, redirect download and commit/tree identity.
+    reason: Current primary GitHub REST documentation describes the consumed fields and paths. The existing owner-discovery limitation is retained; this is a contract-derived local mock.
+    verification: Read the workflow runs, jobs, artifacts and workflow event documentation on 2026-11-09. No live dispatch, source copy, credential transfer or provider write was performed.
+    source: https://docs.github.com/en/rest/actions/workflow-runs?apiVersion=2026-03-10; https://docs.github.com/en/rest/actions/workflow-jobs?apiVersion=2026-03-10; https://docs.github.com/en/rest/actions/artifacts?apiVersion=2026-03-10; postman/mocks/github-release/default.js
+    updated_at: "2026-11-10"
+  - id: candidate-live-workflow-provenance
+    status: unknown
+    claim: The reusable full candidate workflow produces the exact referenced-workflow/job/step/artifact provenance consumed by the validator on real GitHub Actions.
+    reason: Local source and controlled HTTP checks cannot establish actual Actions execution or provider provenance details. GitHub currently refuses new jobs before steps for account payment/spending limits.
+    verification: No new candidate Actions run or actual application/image-runtime execution is claimed. The opt-in PR workflow_call path can exercise the producer before workflow_dispatch registration; complete live proof remains required when the provider executes the authorized bounded run.
+    source: .github/workflows/release-verification.yml; .github/workflows/release-verification-acceptance.yml; deploy/scripts/release-evidence.mjs; docs/deployment.md
+    updated_at: "2026-11-10"
   - id: runtime-identity-matches-prepared-bundle
     status: unknown
     claim: The revised disposable host/SSH fixture installs a versioned image built from the complete tagged source represented by its validated bundle, and its compiled login and runtime generator report that same identity.
@@ -45,6 +66,10 @@ assumptions:
     source: deploy/tests/release-runtime.test.mjs; deploy/scripts/connect-release.mjs; deploy/scripts/launch-release.sh; postman/simulations/release-flow/release-flow.sim.yaml
     updated_at: "2026-10-30"
 fingerprints:
+  - id: release-258-development
+    date: "2026-11-10"
+    commit: f1045fd5777241a17cac5fcab78453a5ec8595ef with dirty ticket 258 candidate-verification implementation
+    cli: Postman CLI 1.73.0
   - id: release-162-runtime-fixture-development
     date: "2026-10-30"
     commit: 707fa4ca7fc3da2b64ba6e1b99d1b2318fba1f98 with dirty ticket 162 runtime fixture correction

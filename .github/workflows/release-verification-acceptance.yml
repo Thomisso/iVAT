@@ -1,0 +1,16 @@
+name: Release verification acceptance
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  acceptance:
+    # An explicit opt-in executes the same full producer before a dispatch
+    # workflow is registered on main. Its PR proof cannot approve a release.
+    if: contains(github.event.pull_request.labels.*.name, 'ci:release-proof') && (github.event.action != 'labeled' || github.event.label.name == 'ci:release-proof')
+    uses: ./.github/workflows/release-verification.yml

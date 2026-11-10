@@ -1,0 +1,97 @@
+name: Release candidate verification
+run-name: Release verification ${{ inputs.requestId }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate:
+        description: Exact candidate request JSON produced by the release CLI
+        type: string
+        required: true
+      requestId:
+        description: Candidate request UUID
+        type: string
+        required: true
+  workflow_call:
+    inputs:
+      candidate:
+        type: string
+        default: ''
+      requestId:
+        type: string
+        default: ''
+
+# This workflow only verifies. It has no registry publication, deployment,
+# provider secret, SSH or production writer path.
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  identity:
+    name: Resolve candidate inputs
+    runs-on: ubuntu-latest
+    outputs:
+      candidate: ${{ steps.identity.outputs.candidate }}
+      public-build: ${{ steps.identity.outputs.public-build }}
+      tag: ${{ steps.identity.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - id: identity
+        env:
+          CANDIDATE: ${{ inputs.candidate }}
+          REQUEST_ID: ${{ inputs.requestId }}
+        run: node deploy/scripts/release-evidence.mjs identity "$RUNNER_TEMP/candidate-request.json"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-verification-request-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/candidate-request.json
+          if-no-files-found: error
+          retention-days: 30
+
+  application:
+    needs: identity
+    uses: ./.github/workflows/ci.yml
+    with:
+      candidate-full: true
+
+  deployment:
+    needs: identity
+    uses: ./.github/workflows/deployment-check.yml
+    with:
+      candidate-full: true
+      release-tag: ${{ needs.identity.outputs.tag }}
+      public-build: ${{ needs.identity.outputs.public-build }}
+
+  evidence:
+    name: Publish candidate evidence
+    if: always()
+    needs: [identity, application, deployment]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Refuse incomplete verification and retain exact inputs
+        env:
+          CANDIDATE: ${{ needs.identity.outputs.candidate }}
+          REQUEST_ID: ${{ inputs.requestId }}
+          APPLICATION_RESULT: ${{ needs.application.result }}
+          DEPLOYMENT_RESULT: ${{ needs.deployment.result }}
+        run: node deploy/scripts/release-evidence.mjs produce "$RUNNER_TEMP/release-evidence.json"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-verification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/release-evidence.json
+          if-no-files-found: error
+          retention-days: 30

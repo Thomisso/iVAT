@@ -24,7 +24,7 @@ test("workflows run ready transitions, preserve required names and only cancel o
   for (const filename of ["ci.yml", "deployment-check.yml"]) {
     const workflow = readFileSync(new URL(`../../.github/workflows/${filename}`, import.meta.url), "utf8");
     assert.match(workflow, /types: \[opened, synchronize, reopened, ready_for_review, converted_to_draft, labeled, unlabeled\]/);
-    assert.match(workflow, /group: \$\{\{ github.workflow \}\}-\$\{\{ github.event.pull_request.number \|\| github.run_id \}\}/);
+    assert.match(workflow, /group: (?:ci|deployment)-\$\{\{ github.workflow \}\}-\$\{\{ github.event.pull_request.number \|\| github.run_id \}\}/);
     assert.match(workflow, /cancel-in-progress: \$\{\{ github.event_name == 'pull_request' \}\}/);
     assert.match(workflow, /branches: \[main\]/);
     assert.match(workflow, /if: always\(\)/);
@@ -157,7 +157,7 @@ test("full verification executes shared checks once and HTTP owns the equivalent
   const http = readFileSync(new URL("../e2e.mjs", import.meta.url), "utf8");
   assert.match(http, /Build production application.*command\("npm", \["run", "build"\]/);
   const deployment = readFileSync(new URL("../../.github/workflows/deployment-check.yml", import.meta.url), "utf8");
-  assert.match(deployment, /run: docker compose .* build/);
+  assert.match(deployment, /run: node deploy\/scripts\/release-evidence\.mjs build-runtime/);
 });
 
 test("configured stable gates reject every failed, cancelled, missing or skipped selected job through the CLI", async () => {

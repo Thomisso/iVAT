@@ -75,11 +75,18 @@ superseded work in that same PR/workflow. Main runs keep separate groups and
 production deployment remains non-cancelling. Disposable stacks retain
 `always()` cleanup. These workflows never target a human's local stack.
 
-Release approval is unchanged: successful **main-push** runs of both workflows
-for the exact release revision are required. Scoped PR gates, intentional
-inapplicability, cancelled runs and successful different revisions cannot
-supply full release evidence. Main still selects all scopes. Selective main and
-release verification must be activated together by the later release work.
+Main still selects every scope. Production release preparation now requests a
+separate exact-candidate verification run, reusing these workflows through
+`workflow_call` with an explicit full-scope input. Release proof binds the
+candidate's source/tree/tag, current target, public build inputs, platform and
+policy, plus the actual completed run/attempt, successful suite steps and
+unexpired digest-verified artifact. A green scoped main aggregate cannot approve
+a release. The opted-in PR acceptance caller exercises the same full producer
+before dispatch registration and retains raw API head and checked merge SHA
+separately; its acceptance purpose cannot authorize publication/deployment.
+See [release proof, activation and interruption recovery](deployment.md#release-checks-and-automation).
+Selective main activation remains separate work; these changes do not make main
+checks selective or claim successful live candidate execution.
 
 Local policy/CLI/workflow-contract checks establish selection and gate behavior,
 including complete diffs and refused prerequisites. They do not establish real
