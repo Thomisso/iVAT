@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import fs from "node:fs";
+import { publishRemote } from "./agent-tracker-state.mjs";
 import { execFileSync, spawnSync } from "node:child_process";
 const file = process.env.TRACKER_FAKE_GITHUB;
 const remote = JSON.parse(fs.readFileSync(file, "utf8"));
+const initialState = JSON.stringify(remote);
 const args = process.argv.slice(2);
 const method = args.includes("--method") ? args[args.indexOf("--method") + 1] : "GET";
 const rawEndpoint = args[args.indexOf("api") + 1];
@@ -10,10 +12,14 @@ const endpoint = rawEndpoint.split("?")[0];
 const page = Number(new URLSearchParams(rawEndpoint.split("?")[1]).get("page") ?? 1);
 const input = args.includes("--input") ? JSON.parse(fs.readFileSync(0, "utf8")) : {};
 const operation = endpoint === "graphql" ? input.query.match(/(?:query|mutation)\s+(\w+)/)?.[1] : `${method} ${endpoint}`;
+if (endpoint === "graphql" ? input.query.startsWith("mutation ") : method !== "GET") {
+  remote.requests ??= [];
+  remote.requests.push({ operation, method, endpoint, input });
+}
 const injected = remote.failure?.remaining > 0 && operation === remote.failure.match ? { ...remote.failure } : null;
 if (injected) {
   remote.failure.remaining--;
-  fs.writeFileSync(file, JSON.stringify(remote));
+  publishRemote(file, remote);
   if (injected.phase === "before") { console.error("simulated connection failure"); process.exit(1); }
 }
 let response;
@@ -31,8 +37,18 @@ if (endpoint === "graphql") {
   const value = variables.input ?? {};
   switch (operation) {
     case "TrackerItemFields": {
+      if (remote.itemFieldsResponse) {
+        console.log(JSON.stringify(remote.itemFieldsResponse.body));
+        console.error(remote.itemFieldsResponse.stderr ?? "gh: controlled GraphQL failure");
+        process.exit(1);
+      }
       const item = Object.values(remote.items).find(item => item.id === variables.id);
-      if (!item) { response = { node: null }; break; }
+      if (!item) {
+        const message = `Could not resolve to a node with the global id of '${variables.id}'.`;
+        console.log(JSON.stringify({ data: { node: null }, errors: [{ type: "NOT_FOUND", path: ["node"], locations: [{ line: 1, column: 16 }], message }] }));
+        console.error(`gh: ${message}`);
+        process.exit(1);
+      }
       response = { node: { fieldValues: { nodes: Object.entries(item.values).filter(([,value]) => value !== null).map(([id, value]) => ({ field: { id }, ...(value.singleSelectOptionId ? { optionId: value.singleSelectOptionId } : { text: value.text }) })), pageInfo: { hasNextPage: false } } } }; break;
     }
     case "TrackerReady": {
@@ -70,7 +86,7 @@ if (endpoint === "graphql") {
       remote.views ??= [];
       const view = { id: `view-${remote.views.length}`, ...value, filter: "", configuration: { visibleFields: { nodes: value.configuration.visibleFieldIds.map(id => ({ id })) } }, groupByFields: { nodes: [] }, verticalGroupByFields: { nodes: value.layout === "BOARD_LAYOUT" ? [{ id: "status" }] : [] } };
       remote.views.push(view);
-      if (remote.failNextViewCreate) { delete remote.failNextViewCreate; fs.writeFileSync(file, JSON.stringify(remote)); console.error("network unavailable after create"); process.exit(1); }
+      if (remote.failNextViewCreate) { delete remote.failNextViewCreate; publishRemote(file, remote); console.error("network unavailable after create"); process.exit(1); }
       response = { createProjectV2View: { view } }; break;
     }
     case "TrackerUpdateView": {
@@ -157,9 +173,9 @@ if (endpoint === "graphql") {
   response = (remote.dependencies?.[number] ?? remote.issues?.[number]?.blockers ?? []).slice((page - 1) * 100, page * 100);
 } else if (/^repos\/example\/project\/issues\/\d+$/.test(endpoint) && remote.issues?.[endpoint.split("/")[4]]) {
   const issue = remote.issues[endpoint.split("/")[4]];
-  response = { ...issue, node_id: issue.id, html_url: issue.url, state: issue.state.toLowerCase() };
+  response = { ...issue, node_id: issue.id, html_url: issue.url, state: issue.state.toLowerCase(), assignees: ((Number(issue.number) === 201 ? remote.assignees : remote.extraAssignees?.[issue.number]) ?? []).map(login => ({ login })) };
 } else if (endpoint === "repos/example/project/issues/201") {
-  response = { number: 201, node_id: "I_201", title: "A real issue", html_url: "https://github.com/example/project/issues/201", state: "open" };
+  response = { number: 201, node_id: "I_201", title: "A real issue", html_url: "https://github.com/example/project/issues/201", state: "open", assignees: (remote.assignees ?? []).map(login => ({ login })) };
 } else if (endpoint === "repos/example/project/issues/201/parent") {
   response = parent(endpoint.split("/")[4]);
 } else if (/^repos\/example\/project\/git\/commits\/[a-f0-9]{40}$/.test(endpoint)) {
@@ -185,7 +201,7 @@ if (endpoint === "graphql") {
 } else if (endpoint === "repos/example/project/actions/workflows/agent-tracking.yml/dispatches") {
   remote.dispatches ??= [];
   remote.dispatches.push(input.inputs.event);
-  fs.writeFileSync(file, JSON.stringify(remote));
+  publishRemote(file, remote);
   const worker = remote.deferDispatch ? { status: 0 } : spawnSync(process.execPath, [process.env.TRACKER_COMMAND, "worker"], {
     cwd: process.cwd(), encoding: "utf8", env: { ...process.env, GITHUB_ACTIONS: "true", GITHUB_JOB: "publish", GITHUB_WORKFLOW_REF: "example/project/.github/workflows/agent-tracking.yml@refs/heads/main", GITHUB_ACTOR: "maintainer", TRACKER_EVENT: input.inputs.event },
   });
@@ -195,7 +211,7 @@ if (endpoint === "graphql") {
   process.exit(0);
 } else if (/^repos\/[^/]+\/[^/]+\/issues\/\d+$/.test(endpoint) && remote.foreignIssues?.[`${endpoint.split("/").slice(1, 3).join("/")}#${endpoint.split("/")[4]}`]) {
   const issue = remote.foreignIssues[`${endpoint.split("/").slice(1, 3).join("/")}#${endpoint.split("/")[4]}`];
-  response = { ...issue, node_id: issue.id, html_url: issue.url, state: issue.state.toLowerCase() };
+  response = { ...issue, node_id: issue.id, html_url: issue.url, state: issue.state.toLowerCase(), assignees: ((Number(issue.number) === 201 ? remote.assignees : remote.extraAssignees?.[issue.number]) ?? []).map(login => ({ login })) };
 } else if (endpoint === "repos/other/repository/issues/200/comments") {
   remote.foreignComments ??= [];
   if (method === "POST") remote.foreignComments.push({ id: 9200, body: input.body });
@@ -204,7 +220,7 @@ if (endpoint === "graphql") {
   remote.foreignComments[0].body = input.body; response = remote.foreignComments[0];
 } else if (/^repos\/example\/project\/issues\/\d+$/.test(endpoint)) {
   const number = Number(endpoint.split("/")[4]);
-  response = { number, node_id: `I_${number}`, title: `Ticket ${number}`, body: remote.issueBodies?.[number] ?? "", html_url: `https://github.com/example/project/issues/${number}`, state: "open" };
+  response = { number, node_id: `I_${number}`, title: `Ticket ${number}`, body: remote.issueBodies?.[number] ?? "", html_url: `https://github.com/example/project/issues/${number}`, state: "open", assignees: (remote.extraAssignees?.[number] ?? []).map(login => ({ login })) };
 } else if (/^repos\/example\/project\/issues\/\d+\/parent$/.test(endpoint)) {
   response = parent(endpoint.split("/")[4]);
 } else if (/^repos\/example\/project\/issues\/\d+\/assignees$/.test(endpoint)) {
@@ -219,6 +235,7 @@ if (endpoint === "graphql") {
   const comment = Object.values(remote.comments).flat().find(comment => comment.id === Number(endpoint.split("/").at(-1)));
   comment.body = input.body; response = comment;
 } else throw new Error(`Unmodelled REST operation ${method} ${endpoint}`);
-fs.writeFileSync(file, JSON.stringify(remote));
+// Read-only requests must not republish a snapshot taken before a concurrent write.
+if (JSON.stringify(remote) !== initialState) publishRemote(file, remote);
 if (injected?.phase === "after") { console.error("simulated connection failure after remote effect"); process.exit(1); }
 console.log(JSON.stringify(response));

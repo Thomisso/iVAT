@@ -1,35 +1,172 @@
-# CI profiles and measurement
+# CI scopes and measurement
 
-Both `CI` and `Deployment verification` run for every PR revision, ready/draft
-transition, label change, and main push. They always report the existing stable
-`check`, `e2e`, and `self-hosted` gates, including when runtime work is omitted.
-A failed or cancelled prerequisite, an unexpected skip, or a failed classifier
-fails its gate. No workflow-level path filter can leave a required check pending.
+Both `CI` and `Deployment verification` report the established `check`, `e2e`
+and `self-hosted` gates for content changes, ready/draft transitions, the
+`ci:full` override and main pushes. Unrelated PR labels run only cheap policy
+selection and use separate administrative check names; they cannot replace an
+existing stable gate with a skipped success. Workflow-level path filters cannot
+leave a required gate pending.
 
-| Profile | Selection | Verification |
-| --- | --- | --- |
-| docs | Only root README/AGENTS/CODING_STANDARDS/GLOSSARY Markdown or Markdown under `docs/` | Policy tests and migration-history guard; no dependency install, database, browser, or containers |
-| draft | Other changes on a draft PR | Policy, lockfile, migration history, typecheck and lint; no runtime stack |
-| full | Ready PR, `ci:full` label, unavailable/empty diff, or any main push | Release-policy, database-types, all three serial application-test shards, lint, types, production build, CLI production HTTP acceptance and self-hosted deployment checks |
+`scripts/ci-policy.mjs` is the shared policy boundary. It publishes one versioned
+plan containing a display profile, explicit required scopes and a technical
+reason for every scope. Workflow conditions use that plan's published scope
+outputs; final gates consume the same serialized plan and actual job results.
+Neither workflow maintains an independent path allowlist.
 
-`ci:full` explicitly requests complete verification while an integration PR stays
-draft. Removing it returns a draft to its cheap profile. Publishing a PR as ready
-and every later commit trigger complete checks automatically. Runtime assets,
-dependencies, migrations, workflow changes, design assets, and unknown paths are
-never classified as documentation. The classifier reads the complete Git merge
-base diff, without a changed-file API page limit.
+| Change | Required verification |
+| --- | --- |
+| Pure documentation PR or verified main push | Cheap policy/HTTP-runner policy tests, plus the PR migration-history guard when applicable; no dependency install, tracker suite, application database or image build |
+| Ordinary application draft | Common fast checks: lockfile consistency, shard allocation regression, typecheck and lint |
+| Tracker tooling draft | Common checks, complete tracker command suite and real-gh controlled HTTP transport |
+| Release tooling draft | Common checks and release policy, identity, bundle, transport, host and runtime suite |
+| Ready non-documentation PR or verified non-documentation main push | Common checks, complete application shards and production HTTP acceptance; tracker/release suites and production-image/runtime verification when their inputs changed |
+| Full override, uncertain impact or broad shared inputs | Every scope, including tracker and release suites, even on a draft |
+| Release candidate, default reusable verification or other non-PR/non-push event | Every scope; candidate full verification takes precedence over docs/push exemptions |
 
-PR concurrency groups contain both workflow name and PR number: a newer run
-cancels obsolete work for the same PR only. Main runs each have their own group,
-so the exact commit needed for release evidence remains verifiable. The separate
-production deploy concurrency group remains non-cancelling. Disposable Supabase
-and Compose stacks have `always()` cleanup steps. Cancellation never targets a
-human's stack.
+Known documentation is root README/AGENTS/CODING_STANDARDS/GLOSSARY Markdown or
+Markdown under `docs/`. Classification uses the complete PR base-to-head
+merge-base diff. Main pushes use the entire before/after range after verifying
+both full commit identities and available commit objects, before ancestry, the
+actual checked HEAD against event after and `GITHUB_SHA`, and agreement of the
+event/runner main ref. Missing or malformed inputs, force pushes, branch creation
+or deletion, unavailable objects, non-ancestor ranges or checkout disagreement
+force every scope. Push commit-list truncation cannot narrow this Git diff.
+NUL-separated paths preserve unusual filenames; renames are
+expanded into deletion/addition so the old path cannot hide a dependency. A
+last documentation commit cannot hide earlier application changes. Missing or
+malformed metadata, unavailable revisions, an empty diff and unknown paths
+request every scope. `ci:full` also requests every scope.
 
-Release policy is unchanged: successful **main-push** runs of both workflows for
-the exact release revision are required. A docs/draft PR run, cancelled run,
-skipped runtime job, or successful different revision cannot supply that evidence.
-Main always uses the full profile. No scheduled workflow was introduced.
+Tracker inputs include its command/modules, all tracker tests and support,
+`.github/agent-tracking.json`, the tracker workflow, its transport runner, and
+both mocks and simulations under `github-agent`. Release inputs include the
+`deploy/` tooling/test tree, release-identity writer/tests, release/backup
+workflows and the `github-release`, `release-flow` and `rosti-deployment` mocks
+and simulations. CI/deployment workflows and verification policy/tests are
+known shared verification inputs: they invalidate both infrastructure
+exemptions while retaining readiness-controlled application stacks on drafts.
+Mixed changes take the union of their required infrastructure scopes.
+
+Broad shared inputs take precedence over exemptions. Package/lockfile and
+Node/npm/toolchain configuration, Next/TypeScript/ESLint/Vitest configuration,
+Supabase configuration/migrations, shared `src/lib/`, authority/worker entrypoints,
+application Docker/Compose/environment inputs and database/gateway/proxy
+container configuration force every scope. New unrecognized dependencies also
+fail closed until explicitly classified. Ordinary application files never
+reduce the complete application suite at readiness or on a non-documentation
+main push.
+
+Deployment selection includes all application source/assets/messages/email,
+worker source, the complete application-test/support/fixture tree used by runtime
+acceptance, the `deploy/` source/configuration/test tree, release-identity writer
+and verification workflow/policy inputs. Shared runtime/dependency/toolchain
+inputs and unknown paths force every scope. Tracker-only changes and separate
+release simulation, identity-test or backup-workflow changes omit Docker runtime
+when no deployment/shared input changed. Drafts defer known deployment work until
+readiness; an explicit full override or uncertainty requires it immediately.
+Every required production-image/runtime job still builds and boots the actual
+container and unconditionally tears it down. Its reason is published as
+`deployment-input:<path>`, `deployment-inputs-unchanged`, a draft deferral or the
+conservative/full-override reason. Both workflows and their stable gates consume
+that same policy; no workflow-level path filter can silently omit a gate.
+
+## Scheduling and stable gates
+
+Fast `profile` selection precedes independent tracker, release, common,
+application-shard and production-HTTP branches. Application jobs never wait for
+tracker, release or common completion. Tracker owns its command suite and real-gh
+transport once; release owns its complete tooling suite once. Their controlled
+HTTP boundaries retain the existing pinned Postman CLI installation.
+
+For non-documentation verification, `common` owns lockfile consistency, shard
+allocation regression, typecheck and lint once. Database-type verification runs
+only on application shard 1 using its already-required isolated stack. All
+three shards retain the complete application inventory, serial execution within
+each shard and unconditional cleanup. Production HTTP acceptance owns the single
+plain application build; production Docker images remain separate packaging
+and runtime evidence. Readiness may reuse verified full PR evidence as described below.
+
+`check` validates policy, common, tracker/transport, release and application
+results. `e2e` validates policy, common and HTTP results; `self-hosted` validates
+policy and deployment runtime. Every selected scope must report success. Every
+inapplicable scope must explicitly report skipped. Failure, cancellation,
+missing results, unexpected skips or malformed plans fail the gate. Logs explain
+the profile, each scope's requirement/reason and its actual result.
+
+PR concurrency groups contain workflow identity and PR number, cancelling only
+superseded work in that same PR/workflow. Unrelated labels have a separate run
+identity and do not cancel useful verification in progress. Main runs keep separate groups and
+production deployment remains non-cancelling. Disposable stacks retain
+`always()` cleanup. These workflows never target a human's local stack.
+
+## PR events and readiness evidence
+
+Adding `ci:full` requests every scope, including on a draft or documentation PR.
+Removing it recomputes the ordinary scope for the current complete diff and
+readiness state. Other labels select no expensive work. Content events remain
+native `pull_request`/`push` checks; manual dispatch is never substituted for an
+eligible required PR check.
+
+A fresh successful full PR run publishes a small `pr-verification-<attempt>`
+artifact with its plan, actual results, repository/PR/workflow, head revision,
+actual checked merge revision, target branch/tip, policy digest and run attempt.
+The head reported by Actions is retained separately from the checked test merge.
+There is no application build or mutable database cache in this artifact.
+
+Only `ready_for_review` may select reuse. Both selection and each stable gate
+read current PR/target metadata and corroborate the original source run,
+attempt-specific jobs and unexpired artifact, including its archive digest.
+Every originally selected job must have actually completed successfully; omitted
+jobs must match explicit policy inapplicability. The source must be a completed,
+successful native PR run with fresh full proof, the same immutable checkout,
+head, current target and policy, and a superset of the required scopes. An
+aggregate green result or skipped expensive jobs is insufficient. Reused runs
+do not publish fresh proof; repeated readiness retains the original source.
+
+Missing/expired/malformed artifacts, unavailable API data, changed scope/policy,
+head/merge/target changes, changed source attempts, failed/cancelled/incomplete work and
+ambiguous publication select fresh verification. If evidence changes after
+selection, the gate fails closed. Discovery is bounded to 100 runs for the same head
+and at most ten matching PR runs; truncated listings or unavailable proof cause
+a fresh run. Artifacts expire after seven days. Gates log the original run and
+attempt when accepting reuse. Existing exact-revision final-handoff and review
+requirements remain in force.
+
+These CLI/HTTP fixture checks prove local selection, archive integrity,
+provenance refusal and gate behavior. Actual GitHub label scheduling, unchanged
+stable-check identity, readiness reuse and cancellation still need bounded real
+Actions metadata; earlier billing refusals supplied no execution evidence, and
+no live scheduling/reuse savings are claimed here.
+
+Ordinary main verification now follows the verified complete push impact.
+Production release preparation requests a
+separate exact-candidate verification run, reusing these workflows through
+`workflow_call` with an explicit full-scope input. Reusable workflows inherit the
+caller's event name; their `candidate-full` input defaults to true only for
+reusable calls. Ordinary PR/push events retain the selective policy. An explicit
+false input supports selective non-candidate reuse, but its cheap/scoped results
+cannot satisfy the actual full-job/step candidate evidence validator. Both
+production-candidate callers explicitly require true. Release proof binds the
+candidate's source/tree/tag, current target, public build inputs, platform and
+policy, plus the actual completed run/attempt, successful suite steps and
+unexpired digest-verified artifact. A green scoped main aggregate cannot approve
+a release. The opted-in PR acceptance caller exercises the same full producer
+before dispatch registration and retains raw API head and checked merge SHA
+separately; its acceptance purpose cannot authorize publication/deployment.
+See [release proof, activation and interruption recovery](deployment.md#release-checks-and-automation).
+The selective main policy and candidate proof validation are delivered together.
+The verification-policy fingerprint includes `scripts/ci-policy.mjs` and both
+workflows, so this selection change invalidates prior PR and candidate policy
+proofs. No successful live candidate execution is claimed from source checks.
+
+Local policy/CLI/workflow-contract checks establish selection and gate behavior,
+including complete diffs and refused prerequisites. They do not establish real
+Actions scheduling or achieved savings. The bounded Actions acceptance remains
+outstanding for these candidate changes. Earlier account payment/spending
+refusals occurred before execution; subsequent unrelated CI startup does not
+establish candidate acceptance. No zero-cost or successful runtime result is inferred
+from that refusal. Measure actual overlap, setup/build counts, queue/wall time,
+started runner time and per-job rounded minutes when execution is available.
 
 ## Fixture costs
 
@@ -62,6 +199,50 @@ Each shard owns its Supabase stack. `fail-fast: false` retains sibling results
 and diagnostics if one fails. All application files still run once; live-provider
 contract tests remain opt-in.
 
+### Measured application allocation
+
+`vitest.config.ts` configures Vitest's public `BaseSequencer` extension in
+`scripts/application-test-sequencer.ts`. `--shard=N/3` distributes the current
+Vitest-discovered inventory by longest measured file first, assigning each file
+to the lightest shard. Relative paths break equal-duration ties; the lowest
+shard index breaks equal-load ties. Discovery order and absolute checkout paths
+do not affect the result. The timing file is a weight source, never an inclusion
+list: new, renamed and unmeasured files receive the recorded median duration
+(currently 5,500 ms) and remain selected exactly once. Unsharded commands still
+select the complete inventory. File execution stays serial, with the same three
+isolated stacks and unconditional teardown.
+
+The versioned `scripts/application-test-timings.json` records 111 emitted file
+durations from successful [CI run 42476395666, attempt 2](https://github.com/Thomisso/iVAT/actions/runs/42476395666/attempts/2),
+revision `7997422a307cda3bbcc66e39030810b637c4aa65`, on `ubuntu-latest`.
+The complete current inventory contains 117 files. Five live-provider contract
+files and the opt-in OpenAI simulation file did not emit timings in that run;
+they retain their existing opt-in skip behavior and receive the fallback weight.
+No application tests, assertions or large-data scenarios were removed.
+
+| Allocation | Shard 1 | Shard 2 | Shard 3 |
+| --- | ---: | ---: | ---: |
+| Recorded file-duration sums | 172.360 s | 409.877 s | 199.395 s |
+| Weighted projection for the same 111 measured files | 260.545 s | 260.545 s | 260.542 s |
+| Weighted projection including six fallback weights | 271.545 s | 271.545 s | 271.542 s |
+
+These are sums of file durations, not application-step wall time or billed
+runner time. The projections do not establish a measured critical-path saving;
+checkout, dependency install, Supabase startup, file import/worker overhead,
+cleanup and per-job rounding still require the bounded real full CI comparison.
+No additional stack or dependency install is introduced by allocation. The
+common job runs `node --test scripts/tests/application-shards.test.mjs` once
+after its existing install. It checks an actual small serial runner fixture,
+complete non-overlapping discovered selection, discovery-order independence,
+and new/renamed path fallback without starting application databases.
+
+When refreshing weights, retain the actual successful run, attempt, revision,
+runner and source job for each measured file. Keep skipped/unmeasured files in
+the discovered inventory rather than inventing zero durations or deleting them.
+Re-run the focused allocation check and update the comparison against the same
+inputs; reuse an applicable full verification instead of launching repeated
+full suites solely to benchmark allocation.
+
 The single `acceptance` job runs `npm run test:http`: one real production build,
 Next server, worker and isolated stack for the complete HTTP suite. It uses real
 Auth, native SSR cookies, public application commands/RLS and HTTP routes; the
@@ -76,7 +257,7 @@ The existing `check` and `e2e` gates consume actual prerequisite results and
 fail if their required jobs fail, cancel or unexpectedly skip. HTTP service logs
 are retained as `http-acceptance-logs` on failure. Every owned runtime retains
 its `always()` database cleanup, and the local runner also tears down its stack.
-The docs, draft, exact-main release evidence and PR cancellation policies remain.
+The docs, draft, exact-candidate release evidence and PR cancellation policies remain.
 No default package command or CI job installs or launches a browser. Retained
 Playwright sources are historical inventory under [the execution policy](agents/cli-processes.md).
 
@@ -168,36 +349,120 @@ the lockfile. No binary/test-result reuse, Docker cache, browser cache, or Next.
 artifact reuse is claimed: baseline measurements do not establish enough benefit
 to justify changing build provenance or sharing environment-specific artifacts.
 
-## Reproduction and evidence
+## Development, readiness and release evidence
 
-Local commands:
+Use the ticket's isolated worktree for focused checks while implementing. For
+this timing/reporting boundary the focused command is:
 
-```bash
-node --test scripts/tests/ci-policy.test.mjs
-node --test --test-name-pattern='workflow evidence|exact|main' deploy/tests/release-prepare.test.mjs
-npm run db:start
-npx vitest run tests/memberships.test.ts tests/platform-administration.test.ts tests/superadmin-tenant-access.test.ts tests/storage-listing.test.ts tests/period-lock.test.ts tests/vat-reports.test.ts tests/reporting-period-readiness.test.ts
-npm run test:serial
-npm run typecheck
-npm run lint
-npm run build
-npm run test:e2e
+```sh
+node --test scripts/tests/ci-timings.test.mjs scripts/tests/ci-pr-evidence.test.mjs
 ```
 
-Run the full serial suite once after ticket integration, not concurrently in
-every ticket worktree. Read-only timing extraction records revision, runner
-labels, conclusion, queue estimate, wall time, summed job time and step times:
+For application changes, select relevant application files against that
+worktree's real Auth/Postgres/RLS; the [README testing procedure](../README.md#testing)
+describes the supported HTTP boundary. Keep the full application inventory;
+focused checks provide iteration feedback, not final readiness. After all ticket
+merges, the integration owner follows the [single final-check boundary](agents/implementation-workflow.md#test-budget):
+the serial application suite, typecheck, lint and production HTTP acceptance on
+the exact integrated revision, plus distinct production-image/runtime checks
+when applicable. HTTP acceptance owns the plain production build. Preserve
+independent review of the resulting tip, stop owned services and keep the human
+checkout untouched through the [worktree lifecycle](../README.md#worktree-lifecycle).
 
-```bash
-node scripts/ci-timings.mjs 41110237322 41110237242 41106273866
+Use native PR content events for relevant CI. `ci:full` requests early full work;
+readiness reuses proof only under the exact identity/current-target rules above.
+Main follows its complete verified push range; scoped green main checks do not
+approve a release. Follow the [release preparation procedure](deployment.md)
+for the exact candidate and current public build inputs. A failed, interrupted,
+wrong-revision or incomplete candidate remains unapproved: preserve its request
+and run identity, inspect the actual failure and resume through the existing
+collector after correction. Do not substitute manual success or skipped work.
+Tracker publication/recovery uses the [shared journal and serialized writer](agents/agent-tracking.md#stop-resume-and-explicit-recovery),
+including the same pending event identity after provider refusal.
+
+### Read-only timing collection
+
+Use the existing authorized `gh` session; `GH_REPO=OWNER/REPO` selects another
+repository. No dispatch, rerun, billing access or credential setup is performed.
+The command prints one JSON report per requested run, collecting every attempt
+and every jobs page, including failed and cancelled work:
+
+```sh
+node scripts/ci-timings.mjs 42473990714 42473990692 > /tmp/ivat-ci-baseline.json
 ```
 
-The queue estimate is workflow creation to first job start; scheduling delays
-between dependent jobs are included in workflow wall time. Summed job intervals
-are runner seconds, not developer waiting time or billable rounded minutes.
-Record cache hit/miss from job logs separately; elapsed timings cannot establish
-cache state. Compare like runner classes and record revision and application
-changes. Treat cancelled/failed runs separately from successful full verification.
+Each attempt keeps provider creation/start/update times, job and step start/end,
+runner identities/labels, queue estimate, execution wall, summed actual runner
+intervals and estimated per-job rounded minutes. Initial queue is attempt
+creation to first actually started job; per-job creation-to-start is a separate
+scheduling estimate. Execution wall includes dependency gaps and overlap, while
+summed runner intervals include setup, cleanup, failed and cancelled execution.
+Totals sum runner use across attempts; lifecycle elapsed includes retry gaps
+and provider updates, and is not execution wall. Rounded minutes assume each
+actually started job rounds up with a one-minute minimum, before any pricing,
+allowance or runner multipliers. Actual billing remains unavailable.
+
+Skipped/no-runner jobs are excluded even when GitHub assigns apparent start/end
+timestamps. A confirmed pre-run billing refusal is separate from execution;
+its annotation may name payments **or** spending limits without identifying
+which. Missing/reversed intervals or unfinished work retain partial observed
+sums and null complete totals. Missing jobs pages, wrong attempts, duplicate
+jobs or a run changing during collection refuse the report. Missing logs,
+annotations or artifacts leave the affected evidence explicitly unavailable.
+
+Scope/reasons observed in successful classifier logs are labelled
+`log-observed`. Full PR/candidate artifacts are digest-checked and corroborated
+through the existing evidence validators as `corroborated-record`. This is a
+record of the original run, not current readiness/release approval. Recorded
+checked revision, API head, policy and historical target stay separate from a
+freshly observed current target. A checkout log can establish the checked merge
+when no artifact exists; absent checkout/target evidence stays unknown. Never
+fill a historical tested target from today's PR metadata. Generic cancellation
+keeps an unknown cause; an explicit human/concurrency annotation is required to
+identify human/superseded cancellation. Failed test output, startup errors and
+propagated gate failures are distinct observations, not proof of product blame.
+
+`observedWork` counts executed named checks/builds and repeated steps. Plain
+builds hidden inside HTTP acceptance are counted only when its available log
+actually reports `next build`; unavailable logs make these counts lower bounds.
+Raw setup and teardown steps remain visible. Cache/image observations come from
+logs when available; equal `ubuntu-latest` labels alone do not pin equal images
+or cache warmth.
+
+### Bounded comparison and maintained results
+
+The [November 9 audit](ci-workflow-audit-2026-11-09.md) preserves the historical
+100 CI plus 100 deployment-run window, including earlier attempts. Its 45.43
+runner hours and 3,240 estimated rounded job minutes are observations, not an
+invoice. The current HTTP baseline is CI42473990714 (25:51 wall, 48:59 summed
+runner time, 54 estimated minutes) plus deployment42473990692 (6:19 wall,
+8 estimated minutes). Older browser executions remain historical evidence and
+cannot establish a comparable HTTP saving.
+
+Maintain exact-revision acceptance and timing results in
+[integration PR #262](https://github.com/Thomisso/iVAT/pull/262), with raw API/CLI
+JSON retained as local evidence or artifacts. Prepare source/runbook changes
+before final checks. Updating that PR's evidence after real Actions completion
+does not require a new source commit that would invalidate the checked revision.
+Any code correction still requires new applicable checks and review.
+
+Reuse a bounded set of eligible executions: docs PR and actual docs main push;
+application draft followed by full readiness; relevant tracker/deployment inputs
+showing actual overlap and image teardown; and exact full candidate verification
+even at a documentation tip. Reuse one applicable execution across assertions;
+a dispatch cannot substitute for an eligible required-check event. Preserve
+all failed/refused/cancelled attempts, setup/cache mode, runner class/image,
+complete relevant inputs, repeated work, target/policy, queue/wall/runner time
+and rounded estimates. Confirm ordinary application scope omits unrelated
+tracker/deployment work. A full-override run cannot demonstrate cheap scoped
+paths; local policy/CLI fixtures and shard-balance projections are not measured
+Actions savings. Compare equivalent inputs and include replacement-job setup
+before claiming net savings. About one minute for docs and a few minutes for
+draft are target budgets, not queue guarantees. Mark unavailable real scenarios
+and remaining bottlenecks outstanding; use no repeated benchmark reruns merely
+to obtain a favourable number.
+
+### Earlier historical measurements
 
 Baseline on revision `58048c1cfd14e30c0c188a81782eb8e3b53c1f78`:
 

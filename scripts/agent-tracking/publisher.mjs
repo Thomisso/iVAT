@@ -10,18 +10,21 @@ import { validateConfig } from "./config.mjs";
 import { receiptOwnershipMatches } from "./recovery.mjs";
 import { compactReceipts } from "./receipts.mjs";
 
-function setFields(github, config, itemId, record) {
+function setFields(github, config, itemId, record, observed) {
   const values = { status: record.status ?? null, activity: record.activity ?? null, ...Object.fromEntries(Object.keys(textFields).map(key => [key, record[key] ?? null])) };
+  const expected = projectionValues(config, record);
   const variables = {};
   const definitions = [];
   const operations = [];
   for (const [index, [key, value]] of Object.entries(values).entries()) {
+    if (JSON.stringify(observed[config.fields[key].id]) === JSON.stringify(expected[config.fields[key].id])) continue;
     const field = config.fields[key];
     const clearing = value === null || value === "";
     definitions.push(`$input${index}:${clearing ? "ClearProjectV2ItemFieldValueInput" : "UpdateProjectV2ItemFieldValueInput"}!`);
     variables[`input${index}`] = { projectId: config.project.id, itemId, fieldId: field.id, ...(clearing ? {} : { value: field.options ? { singleSelectOptionId: field.options[value] } : { text: String(value) } }) };
     operations.push(`f${index}:${clearing ? "clearProjectV2ItemFieldValue" : "updateProjectV2ItemFieldValue"}(input:$input${index}){projectV2Item{id}}`);
   }
+  if (!operations.length) return;
   github.graph(`mutation TrackerSetFields(${definitions.join(",")}){${operations.join(" ")}}`, variables);
 }
 
@@ -29,22 +32,28 @@ function projectionValues(config, record) {
   return Object.fromEntries(Object.entries(config.fields).map(([key, field]) => [field.id, record[key] == null || record[key] === "" ? null : field.options ? { singleSelectOptionId: field.options[record[key]] } : { text: String(record[key]) }]));
 }
 
+function readItemFields(github, config, itemId) {
+  if (!itemId) return null;
+  const node = github.projectItemFields(itemId);
+  if (!node?.fieldValues) return null;
+  if (node.fieldValues.pageInfo.hasNextPage) throw new TrackerError("project_item_fields_exceed_limit");
+  const observed = Object.fromEntries(Object.values(config.fields).map(field => [field.id, null]));
+  for (const value of node.fieldValues.nodes) if (Object.hasOwn(observed, value.field?.id)) observed[value.field.id] = value.optionId ? { singleSelectOptionId: value.optionId } : { text: value.text };
+  return observed;
+}
+
 // Called against the last acknowledged canonical records, before applying a new
 // event. Its diagnostics become durable with that intent before restoration.
 function detectManualConflicts(state, github, config) {
   let changed = false;
   for (const record of Object.values(state.tickets).filter(record => record.projectItemId)) {
-    const node = github.graph(`query TrackerItemFields($id:ID!){node(id:$id){... on ProjectV2Item{fieldValues(first:100){nodes{... on ProjectV2ItemFieldTextValue{text field{... on ProjectV2Field{id}}} ... on ProjectV2ItemFieldSingleSelectValue{optionId field{... on ProjectV2SingleSelectField{id}}}} pageInfo{hasNextPage}}}}}`, { id: record.projectItemId }).node;
-    if (!node?.fieldValues) {
+    const observed = readItemFields(github, config, record.projectItemId);
+    if (!observed) {
       record.manualConflict = { at: new Date().toISOString(), fields: [], kind: "membership_missing", result: "The previously acknowledged Project item is missing; restoring membership from canonical evidence. Field values could not be observed." };
       record.revision = state.revision + 1; changed = true;
       continue;
     }
-    const actual = node.fieldValues;
-    if (actual.pageInfo.hasNextPage) throw new TrackerError("project_item_fields_exceed_limit");
     const expected = projectionValues(config, record);
-    const observed = Object.fromEntries(Object.values(config.fields).map(field => [field.id, null]));
-    for (const value of actual.nodes) if (Object.hasOwn(observed, value.field?.id)) observed[value.field.id] = value.optionId ? { singleSelectOptionId: value.optionId } : { text: value.text };
     const fields = Object.entries(config.fields).filter(([, field]) => JSON.stringify(observed[field.id]) !== JSON.stringify(expected[field.id])).map(([key]) => key);
     if (fields.length) {
       record.manualConflict = { at: new Date().toISOString(), fields, result: "Unsupported Project field edit; restoring verified tracker evidence. Use explicit control commands to change implementation." };
@@ -55,11 +64,19 @@ function detectManualConflicts(state, github, config) {
 }
 
 export function publishTicket(github, config, record, state = { tickets: {} }) {
-  const itemId = github.graph(`mutation TrackerAddItem($input:AddProjectV2ItemByIdInput!){addProjectV2ItemById(input:$input){item{id}}}`, { input: { projectId: config.project.id, contentId: record.nodeId } }).addProjectV2ItemById.item.id;
-  record.projectItemId = itemId;
+  let observed = readItemFields(github, config, record.projectItemId);
+  if (!observed) {
+    record.projectItemId = github.graph(`mutation TrackerAddItem($input:AddProjectV2ItemByIdInput!){addProjectV2ItemById(input:$input){item{id}}}`, { input: { projectId: config.project.id, contentId: record.nodeId } }).addProjectV2ItemById.item.id;
+    // An earlier add may have succeeded before its response was lost.
+    observed = readItemFields(github, config, record.projectItemId);
+    if (!observed) throw new TrackerError("project_membership_unverified");
+  }
   delete record.projectionHash;
-  if (record.account) github.request(`repos/${record.repository ?? config.repository}/issues/${record.number}/assignees`, { method: "POST", body: { assignees: [record.account] } });
-  setFields(github, config, itemId, record);
+  if (record.account) {
+    const issue = github.request(`repos/${record.repository ?? config.repository}/issues/${record.number}`);
+    if (!issue.assignees?.some(assignee => assignee.login.toLowerCase() === record.account.toLowerCase())) github.request(`repos/${record.repository ?? config.repository}/issues/${record.number}/assignees`, { method: "POST", body: { assignees: [record.account] } });
+  }
+  setFields(github, config, record.projectItemId, record, observed);
   const marker = `<!-- ivat-agent-tracker:ticket:${config.project.id} -->`;
   const comments = github.pages(`repos/${record.repository ?? config.repository}/issues/${record.number}/comments`).filter(comment => comment.body.startsWith(marker));
   if (comments.length > 1) throw new TrackerError("ticket_comment_ambiguous");
@@ -69,8 +86,8 @@ export function publishTicket(github, config, record, state = { tickets: {} }) {
   const fallbackChildren = Object.values(state.tickets).filter(child => child.parentSource === "fallback" && child.parent === record.number && (child.parentRepository ?? config.repository).toLowerCase() === (record.repository ?? config.repository).toLowerCase());
   const fallbackOverview = fallbackChildren.length ? `\nThe native Parent issue filter excludes text-only fallback relationships. These tracked issues remain accessible below and in the table with its filter cleared:\n${fallbackChildren.map(child => `- Tracker fallback (opening Part of declaration): [${child.repository ?? config.repository}#${child.number}](${child.url})`).join("\n")}\n` : "";
   const body = record.role === "specification" ? `${marker}\n\nAgent tracking: [Project](${config.project.url})\n\nSpecification context. Inspect the Agent specification table with native Parent issue filter \`parent-issue:"${record.repository ?? config.repository}#${record.number}"\`.\n${fallbackOverview}${conflict}${renderFinal(record)}` : `${marker}\n\nAgent tracking: [Project](${config.project.url})\n\n- Run: ${record.runId}; generation ${record.generation}; revision ${record.revision}\n- Agent: ${record.agent}\n- Branch: ${record.branch} (${record.workingRevision})\n- Phase: ${record.status}\n- Activity: ${record.activity}\n- State observed (UTC): ${record.stateAt}\n- Activity observed (UTC): ${record.activityAt ?? "not verified"}\n- Activity provenance: ${record.activityObservation ? JSON.stringify(record.activityObservation) : "not verified"}\n- Latest result: ${record.result}\n${recovery}${parentDiagnostic}${conflict}${record.cancellation ? `- Cancellation evidence: ${JSON.stringify(record.cancellation)}\n` : ""}${record.review ? `- Review evidence: ${JSON.stringify(record.review)}\n` : ""}${record.integration ? `- Integration evidence: ${JSON.stringify(record.integration)}\n` : ""}${record.blockage ? `- Blockage: ${JSON.stringify(record.blockage)}\n` : ""}${record.dependencies ? `- Dependencies: ${JSON.stringify(record.dependencies)}\n` : ""}${renderFinal(record)}${record.delivery && !record.summary ? `- Delivery evidence: ${JSON.stringify(record.delivery)}\n` : ""}`;
-  if (comments.length) github.request(`repos/${record.repository ?? config.repository}/issues/comments/${comments[0].id}`, { method: "PATCH", body: { body } });
-  else github.request(`repos/${record.repository ?? config.repository}/issues/${record.number}/comments`, { method: "POST", body: { body } });
+  if (comments.length && comments[0].body !== body) github.request(`repos/${record.repository ?? config.repository}/issues/comments/${comments[0].id}`, { method: "PATCH", body: { body } });
+  else if (!comments.length) github.request(`repos/${record.repository ?? config.repository}/issues/${record.number}/comments`, { method: "POST", body: { body } });
 
 }
 

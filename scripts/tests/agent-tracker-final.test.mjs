@@ -518,3 +518,37 @@ test("inconsistent GraphQL merged PR identity cannot establish delivered impleme
   assert.equal(resultJson(reconciliation).error, "final_pr_facts_changed");
   assert.notEqual(execute(repo, "show").remote.tickets[201].status, "done");
 });
+
+test("a closure burst publishes each changed parent and child once and rereads a queued reopen", t => {
+  const repo = prepare(t);
+  evidenceComplete(repo);
+  mergeDelivery(repo, [200, 201]);
+  repo.updateRemote(remote => { remote.requests = []; });
+  for (const run of [601, 602, 603, 604]) {
+    const result = repo.worker(null, { GITHUB_EVENT_NAME: "issues", GITHUB_RUN_ID: String(run) });
+    assert.equal(result.status, 0, result.stderr);
+  }
+  let state = execute(repo, "show").remote;
+  assert.equal(state.tickets[200].status, "done");
+  assert.equal(state.tickets[201].status, "done");
+  let requests = repo.remote().requests;
+  assert.equal(requests.filter(request => request.operation === "TrackerSetFields").length, 2);
+  assert.equal(requests.filter(request => request.method === "PATCH" && request.endpoint !== "repos/example/project/issues/comments/900").length, 2);
+  assert.equal(requests.filter(request => request.operation === "TrackerAddItem").length, 0);
+
+  // The wakeup was queued for the closure; execution must use the later reopen.
+  repo.updateRemote(remote => {
+    remote.issues[201].state = "OPEN";
+    remote.finalMerges[201].state = "OPEN";
+    remote.finalMerges[201].timelineItems.nodes = [{ __typename: "ReopenedEvent" }];
+    remote.requests = [];
+  });
+  const queued = repo.worker(null, { GITHUB_EVENT_NAME: "issues", GITHUB_RUN_ID: "605" });
+  assert.equal(queued.status, 0, queued.stderr);
+  state = execute(repo, "show").remote;
+  assert.equal(state.tickets[201].status, "integrated");
+  assert.equal(state.tickets[201].delivery.current, false);
+  assert.equal(state.tickets[200].delivery.current, false);
+  requests = repo.remote().requests;
+  assert.equal(requests.filter(request => request.operation === "TrackerSetFields").length, 2);
+});

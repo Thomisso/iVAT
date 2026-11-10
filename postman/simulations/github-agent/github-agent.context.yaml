@@ -72,7 +72,25 @@ assumptions:
     verification: On 2026-11-05 all fourteen existing transport scenarios passed after extending the consumed first-entry API subset. The verifier explicitly observed GET sub_issues and dependencies/blocked_by for issue 7; public CLI regressions separately exercise nonempty blockers, body/native-child specifications and qualified retained parents. These synthetic outcomes do not establish provider scheduling or live permissions.
     source: https://docs.github.com/en/rest/issues/sub-issues#list-sub-issues; https://docs.github.com/en/rest/issues/issue-dependencies#list-dependencies-an-issue-is-blocked-by; scripts/verify-agent-tracker-transport.mjs; scripts/tests/agent-tracker-entry.test.mjs; postman/mocks/github-agent/default.js
     updated_at: "2026-11-05"
+  - id: unchanged-projection-skips-mutations
+    status: supported
+    claim: Against this stand-in, the actual gh/controller/worker acknowledges an unchanged repair without repeating Project membership/field, issue-assignee or maintained-comment mutations.
+    reason: Publication reads actual fields, assignees and comment bodies before selecting effects. The transport verifier observes requests through real gh and asserts zero projection mutations for an acknowledged unchanged repair. The mock stores issue assignees as provider state rather than returning an empty list after every write.
+    verification: On 2026-11-09, the new unchanged-repair assertion first failed because the stand-in did not retain assignees. After correcting that storage model, the complete existing transport verifier plus this assertion passed on agent-tracking-246-differential-publication. The complete verifier passed again after merging the reviewed fixture fix on agent-tracking-246-integrated-fixture. Public CLI regressions separately establish duplicate passive wakeups, closure bursts, queued reopen, lost field responses, owned stop identity and missing membership/comment/view repairs. This HTTP run does not exercise discovery/view effects or real Actions queue coalescing; controller-owned live acceptance remains required for provider scheduling and permissions.
+    source: scripts/verify-agent-tracker-transport.mjs; scripts/tests/agent-tracker-publication.test.mjs; scripts/tests/agent-tracker-final.test.mjs; postman/mocks/github-agent/default.js
+    updated_at: "2026-11-09"
+  - id: deleted-item-node-error-repair
+    status: supported
+    claim: A deleted acknowledged Project item is repaired when GitHub returns data.node null with one NOT_FOUND error at the root node path; unrelated item-read failures remain refusals.
+    reason: Controller-supplied provider evidence on 2026-11-10 showed real gh exits one for this deleted-node response, so the earlier null-without-errors model concealed a failure before durable reconciliation intent. The dedicated Project-item reader now owns its fixed query and accepts only that narrow absence response, while permission diagnostics retain precedence and other GraphQL calls retain their existing behavior.
+    verification: On the agent-tracking-254-deleted-node fingerprint, the public CLI missing-membership test first failed with the realistic response and then passed after the boundary correction. The public refusal matrix retains canonical evidence and an unacknowledged intent for permission, mixed, wrong-path, non-null, malformed and transient failures, then publishes the same envelope after resolution. The real gh/controller/worker verifier passed through the local HTTPS proxy: permission/mixed/wrong-path item errors refused without altering canonical state, then deleting the stored item returned the provider-shaped error and retrying the same original event restored one new item and one maintained comment with the original phase and timestamp. No live credential, Project mutation or Actions run was used by this worker; root-owned live retry remains separate.
+    source: scripts/agent-tracking/github.mjs; scripts/agent-tracking/publisher.mjs; scripts/tests/agent-tracker-publication.test.mjs; scripts/verify-agent-tracker-transport.mjs; postman/mocks/github-agent/default.js; controller read-only deleted-node GraphQL evidence from the specification 254 implementation session on 2026-11-10
+    updated_at: "2026-11-10"
 fingerprints:
+  - id: agent-tracking-254-deleted-node
+    date: "2026-11-10"
+    commit: 9b5e04603e81ef7697ab6126d638132c89c78b36 with dirty final review nullable deleted-item read correction and realistic transport fixtures
+    cli: Postman CLI 1.73.0; gh 2.101.0; Node 22.22.3
   - id: agent-tracking-201-development
     date: "2026-11-04"
     commit: 21b66bb with dirty ticket 201 controller/worker implementation and externally prepared simulation artifacts
@@ -111,4 +129,12 @@ fingerprints:
   - id: agent-tracking-200-entry-retention
     date: "2026-11-05"
     commit: edb5d9936dc3c8036119cd230179e5cb55f773ee with final-review direct-entry and retained-parent fixes
+    cli: Postman CLI 1.73.0; gh 2.101.0; Node 22.22.3
+  - id: agent-tracking-246-differential-publication
+    date: "2026-11-09"
+    commit: 7997422a307cda3bbcc66e39030810b637c4aa65 with dirty ticket 246 differential publication, passive workflow coalescing and real-gh unchanged-repair assertion/model
+    cli: Postman CLI 1.73.0; gh 2.101.0; Node 22.22.3
+  - id: agent-tracking-246-integrated-fixture
+    date: "2026-11-09"
+    commit: e6326b38b6638cbfda0b5f1c850f498eb0941148 with dirty ticket 246 differential publication, passive workflow coalescing and real-gh unchanged-repair assertion/model; reviewed ticket 255 fixture changes integrated
     cli: Postman CLI 1.73.0; gh 2.101.0; Node 22.22.3

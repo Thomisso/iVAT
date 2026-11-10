@@ -1,6 +1,17 @@
 name: Deployment verification
 
 on:
+  workflow_call:
+    inputs:
+      candidate-full:
+        type: boolean
+        default: true
+      release-tag:
+        type: string
+        default: v0.0.0
+      public-build:
+        type: string
+        default: ''
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, labeled, unlabeled]
   push:
@@ -8,10 +19,12 @@ on:
 
 permissions:
   contents: read
+  actions: read
+  pull-requests: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: deployment-${{ github.workflow }}-${{ (!(!inputs['candidate-full'] && github.event_name == 'pull_request' && (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'ci:full' ) && github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && !(!inputs['candidate-full'] && github.event_name == 'pull_request' && (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'ci:full') }}
 
 jobs:
   profile:
@@ -19,6 +32,10 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       profile: ${{ steps.profile.outputs.profile }}
+      plan: ${{ steps.profile.outputs.plan }}
+      run: ${{ steps.selection.outputs.run }}
+      reuse: ${{ steps.selection.outputs.reuse }}
+      deployment: ${{ steps.selection.outputs.deployment }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -26,13 +43,23 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-      - run: node --test scripts/tests/ci-policy.test.mjs
+      - run: node --test scripts/tests/ci-policy.test.mjs scripts/tests/ci-scopes.test.mjs scripts/tests/ci-main.test.mjs scripts/tests/ci-pr-events.test.mjs scripts/tests/ci-pr-evidence.test.mjs
       - id: profile
+        name: Select verification plan
+        env:
+          CI_CANDIDATE_FULL: ${{ inputs['candidate-full'] }}
         run: node scripts/ci-policy.mjs
+      - id: selection
+        run: node scripts/ci-pr-evidence.mjs select
+        env:
+          CI_CANDIDATE_FULL: ${{ inputs['candidate-full'] }}
+          PLAN: ${{ steps.profile.outputs.plan }}
+          GH_TOKEN: ${{ github.token }}
+          PR_WORKFLOW_FILE: deployment-check.yml
 
   runtime:
     needs: profile
-    if: needs.profile.outputs.profile == 'full'
+    if: needs.profile.outputs.deployment == 'true'
 
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -41,7 +68,8 @@ jobs:
       HTTP_BIND: 127.0.0.1:3180
       AI_PROVIDER: fake
       # A disposable test identity verifies the actual production build path.
-      IVAT_RELEASE_TAG: v0.0.0
+      IVAT_RELEASE_TAG: ${{ inputs.release-tag || 'v0.0.0' }}
+      DOCKER_DEFAULT_PLATFORM: linux/amd64
       IVAT_RELEASE_REVISION: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v7
@@ -53,7 +81,9 @@ jobs:
       - name: Generate disposable deployment credentials
         run: node deploy/scripts/init.mjs
       - name: Build the production images
-        run: docker compose --env-file .env.rosti -f docker-compose.rosti.yml build
+        env:
+          CANDIDATE_PUBLIC_BUILD: ${{ inputs.public-build }}
+        run: node deploy/scripts/release-evidence.mjs build-runtime
       - name: Boot the production runtime with local-only test access
         run: docker compose --env-file .env.rosti -f docker-compose.rosti.yml -f deploy/tests/compose.yml up -d --wait --wait-timeout 240
       - name: Re-running migrations preserves the deployment
@@ -66,12 +96,12 @@ jobs:
         run: |
           curl --fail --silent --show-error -H 'Host: app.ivat.cz' --output "$RUNNER_TEMP/ivat-login.html" http://127.0.0.1:3180/login
           grep -Fq 'Přihlášení' "$RUNNER_TEMP/ivat-login.html"
-          grep -Fq 'Verze v0.0.0' "$RUNNER_TEMP/ivat-login.html"
+          grep -Fq "Verze $IVAT_RELEASE_TAG" "$RUNNER_TEMP/ivat-login.html"
           grep -Fq "Revize $GITHUB_SHA" "$RUNNER_TEMP/ivat-login.html"
           node --input-type=module -e 'import{assertPublicApplicationAssets}from"./deploy/tests/public-application.mjs";await assertPublicApplicationAssets("http://127.0.0.1:3180",process.cwd())'
       - name: Runtime source retains the same immutable generator identity
         run: |
-          docker compose --env-file .env.rosti -f docker-compose.rosti.yml exec -T -e EXPECTED_REVISION="$GITHUB_SHA" web node_modules/.bin/tsx -e 'import{xmlGeneratorVersion}from"./src/lib/release-identity";if(xmlGeneratorVersion!=="v0.0.0+"+process.env.EXPECTED_REVISION)throw new Error("Generator identity differs from the tested build")'
+          docker compose --env-file .env.rosti -f docker-compose.rosti.yml exec -T -e EXPECTED_REVISION="$GITHUB_SHA" -e EXPECTED_TAG="$IVAT_RELEASE_TAG" web node_modules/.bin/tsx -e 'import{xmlGeneratorVersion}from"./src/lib/release-identity";if(xmlGeneratorVersion!==process.env.EXPECTED_TAG+"+"+process.env.EXPECTED_REVISION)throw new Error("Generator identity differs from the tested build")'
       - name: EPO schema and XML runtime assets in the production image
         run: |
           docker compose --env-file .env.rosti -f docker-compose.rosti.yml exec -T web node_modules/.bin/tsx -e 'import fs from "node:fs";import{validateEpoXml}from"./src/application/epo-xml";validateEpoXml(fs.readFileSync(0,"utf8"),"dphdp3").then(valid=>{if(!valid)process.exit(1)})' < tests/fixtures/epo/domestic-dphdp3.xml
@@ -83,7 +113,8 @@ jobs:
         run: docker compose --env-file .env.rosti -f docker-compose.rosti.yml -f deploy/tests/compose.yml down
 
   self-hosted:
-    if: always()
+    name: ${{ (!inputs['candidate-full'] && github.event_name == 'pull_request' && (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'ci:full') && 'Administrative label (self-hosted)' || 'self-hosted' }}
+    if: ${{ always() && !(!inputs['candidate-full'] && github.event_name == 'pull_request' && (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'ci:full') }}
     needs: [profile, runtime]
     runs-on: ubuntu-latest
     steps:
@@ -91,8 +122,36 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-      - run: node scripts/ci-policy.mjs gate
+      - name: Enforce verification gate
+        run: node scripts/ci-policy.mjs gate
         env:
-          PROFILE: ${{ needs.profile.outputs.profile }}
-          QUICK_RESULT: ${{ needs.profile.result }}
-          FULL_RESULT: ${{ needs.runtime.result }}
+          PLAN: ${{ needs.profile.outputs.plan }}
+          PR_REUSE: ${{ needs.profile.outputs.reuse }}
+          GH_TOKEN: ${{ github.token }}
+          PR_WORKFLOW_FILE: deployment-check.yml
+          GATE: self-hosted
+          RESULTS: '{"policy": "${{ needs.profile.result }}", "deployment": "${{ needs.runtime.result }}"}'
+
+  pr-evidence:
+    name: PR verification evidence
+    if: ${{ always() && !inputs['candidate-full'] && github.event_name == 'pull_request' && needs.profile.outputs.reuse == '' && needs.profile.outputs.deployment == 'true' && needs.self-hosted.result == 'success' }}
+    needs: [profile, runtime, self-hosted]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: node scripts/ci-pr-evidence.mjs record
+        env:
+          PLAN: ${{ needs.profile.outputs.plan }}
+          RESULTS: '{"policy": "${{ needs.profile.result }}", "deployment": "${{ needs.runtime.result }}"}'
+          PR_REUSE: ${{ needs.profile.outputs.reuse }}
+          GH_TOKEN: ${{ github.token }}
+          PR_WORKFLOW_FILE: deployment-check.yml
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pr-verification-${{ github.run_attempt }}
+          path: pr-verification.json
+          retention-days: 7
+          if-no-files-found: error
