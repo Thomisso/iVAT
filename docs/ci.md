@@ -349,36 +349,120 @@ the lockfile. No binary/test-result reuse, Docker cache, browser cache, or Next.
 artifact reuse is claimed: baseline measurements do not establish enough benefit
 to justify changing build provenance or sharing environment-specific artifacts.
 
-## Reproduction and evidence
+## Development, readiness and release evidence
 
-Local commands:
+Use the ticket's isolated worktree for focused checks while implementing. For
+this timing/reporting boundary the focused command is:
 
-```bash
-node --test scripts/tests/ci-policy.test.mjs
-node --test --test-name-pattern='workflow evidence|exact|main' deploy/tests/release-prepare.test.mjs
-npm run db:start
-npx vitest run tests/memberships.test.ts tests/platform-administration.test.ts tests/superadmin-tenant-access.test.ts tests/storage-listing.test.ts tests/period-lock.test.ts tests/vat-reports.test.ts tests/reporting-period-readiness.test.ts
-npm run test:serial
-npm run typecheck
-npm run lint
-npm run build
-npm run test:e2e
+```sh
+node --test scripts/tests/ci-timings.test.mjs scripts/tests/ci-pr-evidence.test.mjs
 ```
 
-Run the full serial suite once after ticket integration, not concurrently in
-every ticket worktree. Read-only timing extraction records revision, runner
-labels, conclusion, queue estimate, wall time, summed job time and step times:
+For application changes, select relevant application files against that
+worktree's real Auth/Postgres/RLS; the [README testing procedure](../README.md#testing)
+describes the supported HTTP boundary. Keep the full application inventory;
+focused checks provide iteration feedback, not final readiness. After all ticket
+merges, the integration owner follows the [single final-check boundary](agents/implementation-workflow.md#test-budget):
+the serial application suite, typecheck, lint and production HTTP acceptance on
+the exact integrated revision, plus distinct production-image/runtime checks
+when applicable. HTTP acceptance owns the plain production build. Preserve
+independent review of the resulting tip, stop owned services and keep the human
+checkout untouched through the [worktree lifecycle](../README.md#worktree-lifecycle).
 
-```bash
-node scripts/ci-timings.mjs 41110237322 41110237242 41106273866
+Use native PR content events for relevant CI. `ci:full` requests early full work;
+readiness reuses proof only under the exact identity/current-target rules above.
+Main follows its complete verified push range; scoped green main checks do not
+approve a release. Follow the [release preparation procedure](deployment.md)
+for the exact candidate and current public build inputs. A failed, interrupted,
+wrong-revision or incomplete candidate remains unapproved: preserve its request
+and run identity, inspect the actual failure and resume through the existing
+collector after correction. Do not substitute manual success or skipped work.
+Tracker publication/recovery uses the [shared journal and serialized writer](agents/agent-tracking.md#stop-resume-and-explicit-recovery),
+including the same pending event identity after provider refusal.
+
+### Read-only timing collection
+
+Use the existing authorized `gh` session; `GH_REPO=OWNER/REPO` selects another
+repository. No dispatch, rerun, billing access or credential setup is performed.
+The command prints one JSON report per requested run, collecting every attempt
+and every jobs page, including failed and cancelled work:
+
+```sh
+node scripts/ci-timings.mjs 42473990714 42473990692 > /tmp/ivat-ci-baseline.json
 ```
 
-The queue estimate is workflow creation to first job start; scheduling delays
-between dependent jobs are included in workflow wall time. Summed job intervals
-are runner seconds, not developer waiting time or billable rounded minutes.
-Record cache hit/miss from job logs separately; elapsed timings cannot establish
-cache state. Compare like runner classes and record revision and application
-changes. Treat cancelled/failed runs separately from successful full verification.
+Each attempt keeps provider creation/start/update times, job and step start/end,
+runner identities/labels, queue estimate, execution wall, summed actual runner
+intervals and estimated per-job rounded minutes. Initial queue is attempt
+creation to first actually started job; per-job creation-to-start is a separate
+scheduling estimate. Execution wall includes dependency gaps and overlap, while
+summed runner intervals include setup, cleanup, failed and cancelled execution.
+Totals sum runner use across attempts; lifecycle elapsed includes retry gaps
+and provider updates, and is not execution wall. Rounded minutes assume each
+actually started job rounds up with a one-minute minimum, before any pricing,
+allowance or runner multipliers. Actual billing remains unavailable.
+
+Skipped/no-runner jobs are excluded even when GitHub assigns apparent start/end
+timestamps. A confirmed pre-run billing refusal is separate from execution;
+its annotation may name payments **or** spending limits without identifying
+which. Missing/reversed intervals or unfinished work retain partial observed
+sums and null complete totals. Missing jobs pages, wrong attempts, duplicate
+jobs or a run changing during collection refuse the report. Missing logs,
+annotations or artifacts leave the affected evidence explicitly unavailable.
+
+Scope/reasons observed in successful classifier logs are labelled
+`log-observed`. Full PR/candidate artifacts are digest-checked and corroborated
+through the existing evidence validators as `corroborated-record`. This is a
+record of the original run, not current readiness/release approval. Recorded
+checked revision, API head, policy and historical target stay separate from a
+freshly observed current target. A checkout log can establish the checked merge
+when no artifact exists; absent checkout/target evidence stays unknown. Never
+fill a historical tested target from today's PR metadata. Generic cancellation
+keeps an unknown cause; an explicit human/concurrency annotation is required to
+identify human/superseded cancellation. Failed test output, startup errors and
+propagated gate failures are distinct observations, not proof of product blame.
+
+`observedWork` counts executed named checks/builds and repeated steps. Plain
+builds hidden inside HTTP acceptance are counted only when its available log
+actually reports `next build`; unavailable logs make these counts lower bounds.
+Raw setup and teardown steps remain visible. Cache/image observations come from
+logs when available; equal `ubuntu-latest` labels alone do not pin equal images
+or cache warmth.
+
+### Bounded comparison and maintained results
+
+The [November 9 audit](ci-workflow-audit-2026-11-09.md) preserves the historical
+100 CI plus 100 deployment-run window, including earlier attempts. Its 45.43
+runner hours and 3,240 estimated rounded job minutes are observations, not an
+invoice. The current HTTP baseline is CI42473990714 (25:51 wall, 48:59 summed
+runner time, 54 estimated minutes) plus deployment42473990692 (6:19 wall,
+8 estimated minutes). Older browser executions remain historical evidence and
+cannot establish a comparable HTTP saving.
+
+Maintain exact-revision acceptance and timing results in
+[integration PR #262](https://github.com/Thomisso/iVAT/pull/262), with raw API/CLI
+JSON retained as local evidence or artifacts. Prepare source/runbook changes
+before final checks. Updating that PR's evidence after real Actions completion
+does not require a new source commit that would invalidate the checked revision.
+Any code correction still requires new applicable checks and review.
+
+Reuse a bounded set of eligible executions: docs PR and actual docs main push;
+application draft followed by full readiness; relevant tracker/deployment inputs
+showing actual overlap and image teardown; and exact full candidate verification
+even at a documentation tip. Reuse one applicable execution across assertions;
+a dispatch cannot substitute for an eligible required-check event. Preserve
+all failed/refused/cancelled attempts, setup/cache mode, runner class/image,
+complete relevant inputs, repeated work, target/policy, queue/wall/runner time
+and rounded estimates. Confirm ordinary application scope omits unrelated
+tracker/deployment work. A full-override run cannot demonstrate cheap scoped
+paths; local policy/CLI fixtures and shard-balance projections are not measured
+Actions savings. Compare equivalent inputs and include replacement-job setup
+before claiming net savings. About one minute for docs and a few minutes for
+draft are target budgets, not queue guarantees. Mark unavailable real scenarios
+and remaining bottlenecks outstanding; use no repeated benchmark reruns merely
+to obtain a favourable number.
+
+### Earlier historical measurements
 
 Baseline on revision `58048c1cfd14e30c0c188a81782eb8e3b53c1f78`:
 
