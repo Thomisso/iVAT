@@ -187,7 +187,21 @@ Publish only technical progress and necessary repository references. Never pass 
 
 The specification's maintained overview shows native/fallback child counts separately from shared checks, combined Standards/Spec review and the actual final PR state. An untracked, cancelled or unintegrated child prevents final specification handoff. Integrated totals alone never establish whole-specification readiness. The same final commands cover standalone work without an integration branch. Foreign parent issues retain their qualified identity and original links as context only; this repository's controller does not publish child counts or final gates for another repository, and never substitutes a same-number local specification.
 
-Bind the actual final PR, then attest observed checks and independent combined review on its exact resulting revision:
+For normal final preparation, save the already observed check and independent review evidence in a local JSON file and use the resumable command:
+
+```sh
+npm run agent:track -- finalize --issue ISSUE_OR_SPEC --pr FINAL_PR --revision EXACT_SHA --evidence-file FINAL_EVIDENCE_JSON
+# Continue the same attempt after interruption or publication_pending:
+npm run agent:track -- finalize --issue ISSUE_OR_SPEC
+```
+
+The evidence file has exactly four top-level keys: `revision` (the same SHA as `--revision`), `result` (the controller's technical attestation), `checks` and `review`. `checks` uses the array of `{name, status, evidence}` objects shown below, including every applicable required name from `.github/agent-tracking.json`. Keep each actual `passed`, `failed` or `outstanding` result. `review` contains `reviewer`, `standards`, `spec`, `findings`, `independence` and `evidence`, with the same values and limits as `final-review` below. The file supplies existing evidence; the command runs no checks and performs no review.
+
+`finalize` first checks the expected PR revision, confirms `final-pr`, then publishes checks and review, synchronizes and uses the ordinary `final-handoff` gate. Every new stage checks current PR facts; guarded envelopes also bind the writer to the expected revision and PR identity. A revision mismatch reports expected/actual SHA and the blocked step. Saved inputs and stage UUIDs/times live in the protected shared journal. The same atomic save that consumes a real receipt checkpoints that stage, so process restart, partial publication or a lost ready response reuses the original event. Resume needs no evidence file; supplying it again requires identical inputs. `sync` may settle pending receipts but never starts later stages by itself. Use `status` for cached outcomes and `show --local` when the full saved attempt is needed.
+
+A terminal rejection stays rejected. Resolve pending events through `sync`, obtain applicable evidence for the actual final revision, then explicitly submit a replacement with all the original command arguments plus `--new-attempt`. The previous attempt remains recorded. Changing PR, revision, evidence or controlling generation never silently replaces an attempt. Required checks, independent review, default-target ancestry, readiness compensation and actual merge/issue-closure evidence remain enforced. The command prepares readiness only. Use its matching Actions writer version on the configured `codeRef`; an older writer rejects guarded envelopes rather than falling back to unguarded publication.
+
+The lower-level commands remain available through the same command/outbox/writer boundary. Bind the actual final PR, then attest observed checks and independent combined review on its exact resulting revision:
 
 ```sh
 npm run agent:track -- final-pr --issue ISSUE_OR_SPEC --pr FINAL_PR --result 'Final PR opened for the resulting change'
