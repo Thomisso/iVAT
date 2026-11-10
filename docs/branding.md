@@ -1,9 +1,9 @@
 # Brand and authentication frame
 
-The original six-page [logo and login reference](../design-system/design_v2/iVAT%20%E2%80%93%20logo%20a%20p%C5%99ihla%C5%A1ovac%C3%AD%20obrazovka.pdf)
-is carried from the published `docs/qa-v5-requirements` branch. Pages 1/2/4 govern
-the mark, light desktop login and light mobile login. Page 6 is the workspace
-reference for the separate shared-workspace styling ticket.
+The five-page public [logo and login reference](../design-system/design_v2/iVAT%20%E2%80%93%20logo%20a%20p%C5%99ihla%C5%A1ovac%C3%AD%20obrazovka.pdf)
+contains the mark, light desktop login and light mobile login on pages 1/2/4.
+The original account-specific workspace page is kept only in protected operator
+records; it is excluded from the public reference.
 
 The PDF contains raster artwork. `src/lib/brand-art.ts` reconstructs its rounded
 blue iV tile, yellow slanted mark and outlined wordmark as small, font-independent
@@ -33,7 +33,7 @@ reference comparison and actual-size icon inspection complement those assertions
 
 ## Shared workspaces
 
-Page 6 extends the identity into Company, Organization and Platform work. Legacy
+The shared workspace extends the identity into Company, Organization and Platform work. Legacy
 shell colour aliases now resolve to the same ink/accent/canvas tokens, with a pale
 sidebar, white work areas and flat neutral borders. The existing Geist roles stay;
 page headings use a restrained 24-28px scale and shared responsive 24-40px gutters.
