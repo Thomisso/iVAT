@@ -26,7 +26,9 @@ When starting or reporting implementation work, use the shared tracker commands 
 
 ## Working copy
 
-Build a ticket in its own git worktree (`git worktree add ../iVAT-<ticket> -b <branch>`, then `npm ci` and `npm run db:start`). The main checkout's database, dev server and branch belong to the human working there; a worktree gets its own Supabase stack, so `db:reset` and tests touch only yours. See "Git worktrees" in `README.md`. Run its dev server on a free port (`npm run dev -- -p 3100`).
+Build each implementation ticket in its own branch and git worktree, normally a sibling directory `../iVAT-<ticket>`. The main checkout's branch, database and dev server belong to the human working there. Worktrees share this repository's Git history; application services and databases require separate setup.
+
+When creating or resuming a ticket, starting its services, handing off work or removing its environment, follow the [worktree lifecycle](README.md#worktree-lifecycle). Report the worktree path, branch and actual local URL to the user; report a URL as pending until the server is ready. Stop owned services when no longer needed, preserve work required for review/resumption, and remove safely disposable worktrees after delivery.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

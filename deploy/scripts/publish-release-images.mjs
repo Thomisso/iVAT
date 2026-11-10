@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { assertReleaseEvidenceInputs, confirmCandidate } from "./release-evidence.mjs";
 import { assertPublicBuild } from "./release-bundle.mjs";
 
 const builds = {
@@ -19,6 +20,8 @@ async function main() {
       release.repository !== process.env.GITHUB_REPOSITORY?.toLowerCase()) throw new Error("Checkout does not match the verified release.");
   const publicBuild = { supabaseUrl: process.env.ROSTI_PUBLIC_SUPABASE_URL, publishableKey: process.env.ROSTI_PUBLIC_SUPABASE_KEY };
   assertPublicBuild(publicBuild);
+  const candidate = assertReleaseEvidenceInputs(release, publicBuild);
+  await confirmCandidate({ candidate, receipt: release.verification.receipt, token: process.env.GH_TOKEN, apiUrl: process.env.GITHUB_API_URL });
   const run = process.env.GITHUB_RUN_ID;
   const attempt = process.env.GITHUB_RUN_ATTEMPT;
   if (!/^[1-9]\d*$/.test(run) || !/^[1-9]\d*$/.test(attempt)) throw new Error("GitHub run identity is required for retained image tags.");

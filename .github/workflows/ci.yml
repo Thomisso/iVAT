@@ -1,6 +1,11 @@
 name: CI
 
 on:
+  workflow_call:
+    inputs:
+      candidate-full:
+        type: boolean
+        default: true
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, labeled, unlabeled]
   push:
@@ -8,12 +13,14 @@ on:
 
 permissions:
   contents: read
+  actions: read
+  pull-requests: read
 
 # Only PR revisions supersede each other. Main evidence and release preparation
 # must remain available for their exact commit, even after a newer main push.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ci-${{ github.workflow }}-${{ (!(!inputs['candidate-full'] && github.event_name == 'pull_request' && (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'ci:full' ) && github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && !(!inputs['candidate-full'] && github.event_name == 'pull_request' && (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'ci:full') }}
 
 jobs:
   profile:
@@ -21,6 +28,14 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       profile: ${{ steps.profile.outputs.profile }}
+      plan: ${{ steps.profile.outputs.plan }}
+      run: ${{ steps.selection.outputs.run }}
+      reuse: ${{ steps.selection.outputs.reuse }}
+      common: ${{ steps.selection.outputs.common }}
+      tracker: ${{ steps.selection.outputs.tracker }}
+      release: ${{ steps.selection.outputs.release }}
+      application: ${{ steps.selection.outputs.application }}
+      http: ${{ steps.selection.outputs.http }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -29,19 +44,19 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: node --test scripts/tests/ci-policy.test.mjs scripts/tests/http-acceptance-policy.test.mjs
-      - name: Agent tracker command behavior
-        run: npm run test:agent-tracker
+      - run: node --test scripts/tests/ci-policy.test.mjs scripts/tests/ci-scopes.test.mjs scripts/tests/ci-main.test.mjs scripts/tests/ci-pr-events.test.mjs scripts/tests/ci-pr-evidence.test.mjs scripts/tests/ci-timings.test.mjs scripts/tests/http-acceptance-policy.test.mjs
       - id: profile
+        name: Select verification plan
+        env:
+          CI_CANDIDATE_FULL: ${{ inputs['candidate-full'] }}
         run: node scripts/ci-policy.mjs
-
-      - run: npm ci
-        if: steps.profile.outputs.profile == 'draft'
-      - name: package-lock.json matches package.json
-        if: steps.profile.outputs.profile == 'draft'
-        run: |
-          npm install --package-lock-only --ignore-scripts
-          git diff --exit-code package-lock.json
+      - id: selection
+        run: node scripts/ci-pr-evidence.mjs select
+        env:
+          CI_CANDIDATE_FULL: ${{ inputs['candidate-full'] }}
+          PLAN: ${{ steps.profile.outputs.plan }}
+          GH_TOKEN: ${{ github.token }}
+          PR_WORKFLOW_FILE: ci.yml
       - name: Migrations already on main are unchanged
         if: github.event_name == 'pull_request'
         env:
@@ -53,10 +68,67 @@ jobs:
             echo "$changed"
             exit 1
           fi
-      - run: npm run typecheck
-        if: steps.profile.outputs.profile == 'draft'
-      - run: npm run lint
-        if: steps.profile.outputs.profile == 'draft'
+
+  tracker:
+    needs: profile
+    if: needs.profile.outputs.tracker == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Agent tracker command behavior
+        run: npm run test:agent-tracker
+      - name: Install Postman CLI for tracker transport
+        timeout-minutes: 5
+        run: |
+          npm install --global postman-cli@1.73.0
+          postman --version
+      - name: Agent tracker through real gh and controlled GitHub HTTP
+        timeout-minutes: 5
+        run: node scripts/verify-agent-tracker-transport.mjs
+
+  common:
+    needs: profile
+    if: needs.profile.outputs.common == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Application shard coverage and measured allocation
+        run: node --test scripts/tests/application-shards.test.mjs
+      - name: package-lock.json matches package.json
+        run: |
+          npm install --package-lock-only --ignore-scripts
+          git diff --exit-code package-lock.json
+
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+
+  release:
+    needs: profile
+    if: needs.profile.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Install Postman CLI for release dependency simulations
+        timeout-minutes: 5
+        run: |
+          npm install --global postman-cli@1.73.0
+          postman --version
+      - name: Release policy, bundle integrity, transport and host preflight
+        timeout-minutes: 5
+        run: node --test scripts/tests/release-identity.test.mjs deploy/tests/release-prepare.test.mjs deploy/tests/release-evidence.test.mjs deploy/tests/release-host.test.mjs deploy/tests/release-connect.test.mjs deploy/tests/release-runtime.test.mjs
 
   full:
     strategy:
@@ -64,7 +136,7 @@ jobs:
       matrix:
         shard: [1, 2, 3]
     needs: profile
-    if: needs.profile.outputs.profile == 'full'
+    if: needs.profile.outputs.application == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Reserve Supabase ports before network setup
@@ -80,25 +152,6 @@ jobs:
           cache: npm
       - run: npm ci
 
-      - name: package-lock.json matches package.json
-        run: |
-          npm install --package-lock-only --ignore-scripts
-          git diff --exit-code package-lock.json
-
-      - name: Install Postman CLI for release dependency simulations
-        timeout-minutes: 5
-        run: |
-          npm install --global postman-cli@1.73.0
-          postman --version
-
-      - name: Release policy, bundle integrity, transport and host preflight
-        timeout-minutes: 5
-        run: node --test scripts/tests/release-identity.test.mjs deploy/tests/release-prepare.test.mjs deploy/tests/release-host.test.mjs deploy/tests/release-connect.test.mjs deploy/tests/release-runtime.test.mjs
-
-      - name: Agent tracker through real gh and controlled GitHub HTTP
-        timeout-minutes: 5
-        run: node scripts/verify-agent-tracker-transport.mjs
-
       - name: Start local Supabase
         id: supabase
         run: npm run db:start -- --profile=e2e
@@ -109,23 +162,23 @@ jobs:
           sudo ss -tanp '( sport >= :54320 and sport <= :54329 )'
           docker ps -a --format '{{.Names}} {{.Status}} {{.Ports}}'
 
+      # Shard 1 owns this shared check using its already-required database.
       - name: Generated database types match the migrations
+        if: matrix.shard == 1
         run: |
           npm run db:types
           git diff --exit-code src/lib/database.types.ts
 
-      - run: npm run typecheck
-      - run: npm run lint
       # Each shard owns its runner/database; files within it remain serial.
-      - run: npm run test:serial -- --shard=${{ matrix.shard }}/3
-      - run: npm run build
+      - name: Complete application shard
+        run: npm run test:serial -- --shard=${{ matrix.shard }}/3
       - name: Stop the disposable database
         if: always()
         run: npm run db:stop -- --no-backup
 
   acceptance:
     needs: profile
-    if: needs.profile.outputs.profile == 'full'
+    if: needs.profile.outputs.http == 'true'
     runs-on: ubuntu-latest
     # One actual production HTTP suite owns one isolated stack.
     # The three financial application-test shards above remain independent.
@@ -145,7 +198,8 @@ jobs:
         run: |
           npm install --global postman-cli@1.73.0
           postman --version
-      - run: npm run test:http
+      - name: Production HTTP acceptance
+        run: npm run test:http
       - name: Upload HTTP acceptance service logs
         if: failure()
         uses: actions/upload-artifact@v7
@@ -158,31 +212,65 @@ jobs:
         run: npm run db:stop -- --no-backup
 
   check:
-    if: always()
-    needs: [profile, full]
+    name: ${{ (!inputs['candidate-full'] && github.event_name == 'pull_request' && (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'ci:full') && 'Administrative label (check)' || 'check' }}
+    if: ${{ always() && !(!inputs['candidate-full'] && github.event_name == 'pull_request' && (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'ci:full') }}
+    needs: [profile, tracker, release, common, full]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-      - run: node scripts/ci-policy.mjs gate
+      - name: Enforce verification gate
+        run: node scripts/ci-policy.mjs gate
         env:
-          PROFILE: ${{ needs.profile.outputs.profile }}
-          QUICK_RESULT: ${{ needs.profile.result }}
-          FULL_RESULT: ${{ needs.full.result }}
+          PLAN: ${{ needs.profile.outputs.plan }}
+          PR_REUSE: ${{ needs.profile.outputs.reuse }}
+          GH_TOKEN: ${{ github.token }}
+          PR_WORKFLOW_FILE: ci.yml
+          GATE: check
+          RESULTS: '{"policy": "${{ needs.profile.result }}", "tracker": "${{ needs.tracker.result }}", "trackerTransport": "${{ needs.tracker.result }}", "release": "${{ needs.release.result }}", "common": "${{ needs.common.result }}", "application": "${{ needs.full.result }}"}'
 
   e2e:
-    if: always()
-    needs: [profile, acceptance]
+    name: ${{ (!inputs['candidate-full'] && github.event_name == 'pull_request' && (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'ci:full') && 'Administrative label (e2e)' || 'e2e' }}
+    if: ${{ always() && !(!inputs['candidate-full'] && github.event_name == 'pull_request' && (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'ci:full') }}
+    needs: [profile, common, acceptance]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-      - run: node scripts/ci-policy.mjs gate
+      - name: Enforce verification gate
+        run: node scripts/ci-policy.mjs gate
         env:
-          PROFILE: ${{ needs.profile.outputs.profile }}
-          QUICK_RESULT: ${{ needs.profile.result }}
-          FULL_RESULT: ${{ needs.acceptance.result }}
+          PLAN: ${{ needs.profile.outputs.plan }}
+          PR_REUSE: ${{ needs.profile.outputs.reuse }}
+          GH_TOKEN: ${{ github.token }}
+          PR_WORKFLOW_FILE: ci.yml
+          GATE: e2e
+          RESULTS: '{"policy": "${{ needs.profile.result }}", "common": "${{ needs.common.result }}", "http": "${{ needs.acceptance.result }}"}'
+
+  pr-evidence:
+    name: PR verification evidence
+    if: ${{ always() && !inputs['candidate-full'] && github.event_name == 'pull_request' && needs.profile.outputs.reuse == '' && needs.profile.outputs.application == 'true' && needs.check.result == 'success' && needs.e2e.result == 'success' }}
+    needs: [profile, tracker, release, common, full, acceptance, check, e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: node scripts/ci-pr-evidence.mjs record
+        env:
+          PLAN: ${{ needs.profile.outputs.plan }}
+          RESULTS: '{"policy": "${{ needs.profile.result }}", "tracker": "${{ needs.tracker.result }}", "trackerTransport": "${{ needs.tracker.result }}", "release": "${{ needs.release.result }}", "common": "${{ needs.common.result }}", "application": "${{ needs.full.result }}", "http": "${{ needs.acceptance.result }}"}'
+          PR_REUSE: ${{ needs.profile.outputs.reuse }}
+          GH_TOKEN: ${{ github.token }}
+          PR_WORKFLOW_FILE: ci.yml
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pr-verification-${{ github.run_attempt }}
+          path: pr-verification.json
+          retention-days: 7
+          if-no-files-found: error
