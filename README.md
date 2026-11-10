@@ -152,6 +152,15 @@ Git worktrees are separate working directories of the same repository: they shar
 
 All `db:*` scripts go through `scripts/supabase.mjs`. In the main checkout it uses `supabase/config.toml` as is. A linked git worktree gets its own stack instead: a separate database, ports shifted by 100 × a slot derived from the worktree path, and no Studio, Mailpit, analytics or edge runtime. Parallel worktrees can reset and test their databases independently. If two worktrees land on the same slot, set `SUPABASE_SLOT` (1–99) for one of them. This database isolation comes from the project scripts, not Git itself.
 
+Supabase wrapper output is redacted on both stdout and stderr, including failed
+commands. Service URLs and process results remain available; credential values
+are replaced with `[REDACTED]`. Oversized output lines are omitted rather than
+partially exposing credentials. This also applies to `status -o json`: use
+`scripts/supabase-status.mjs`'s `readSupabaseStatus()` inside trusted local tooling
+when it needs actual credentials. It captures status privately with safe errors;
+there is no public raw-output option. Startup still writes the actual values to
+the owning checkout's ignored `.env.local`.
+
 ### Worktree lifecycle
 
 1. **Create or resume.** Inspect `git worktree list` and the intended worktree's status before reusing it. For a new ticket, create a branch from its intended target (the integration tip for a child ticket), for example `git worktree add ../iVAT-253 -b fix/pdf-boxes-253 <base>`. Run `npm ci` there; start its Supabase stack with `npm run db:start` when the work needs a database. Preserve existing changes and keep the human's checkout and services untouched.
