@@ -5,20 +5,22 @@ import { remoteCommit, remoteAncestor, finalMerge, verifyIntegration, verifyRevi
 export const finalCommands = ["final-pr", "final-checks", "final-review", "final-handoff", "cancel", "reverse"];
 export function buildFinalPayload(command, options) {
   const common = { issue: Number(options.issue), result: options.result };
+  const expectedPr = options.pr ? { expectedPullRequest: Number(options.pr) } : {};
   if (command === "cancel") return { ...common, reason: options.reason };
   if (command === "reverse") return { ...common, reason: options.reason, deliveryPr: Number(options["delivery-pr"]), reversalPr: Number(options["reversal-pr"]), evidence: options.evidence };
   if (command === "final-pr") return { ...common, pullRequest: Number(options.pr), ...(options.revision ? { expectedRevision: options.revision } : {}) };
-  if (command === "final-checks") return { ...common, revision: options.revision, checks: parse(options.checks) };
-  if (command === "final-review") return { ...common, revision: options.revision, reviewer: options.reviewer, standards: options.standards, spec: options.spec, findings: parse(options.findings), independence: options.independence, evidence: options.evidence };
-  return { ...common, ...(options.revision ? { expectedRevision: options.revision } : {}) };
+  if (command === "final-checks") return { ...common, ...expectedPr, revision: options.revision, checks: parse(options.checks) };
+  if (command === "final-review") return { ...common, ...expectedPr, revision: options.revision, reviewer: options.reviewer, standards: options.standards, spec: options.spec, findings: parse(options.findings), independence: options.independence, evidence: options.evidence };
+  return { ...common, ...expectedPr, ...(options.revision ? { expectedRevision: options.revision } : {}) };
 }
 function parse(value) { try { return JSON.parse(value); } catch { throw new TrackerError("event_invalid"); } }
 export function validateFinal(event, text) {
   const p = event.payload;
-  const extra = { "final-pr": ["pullRequest", "expectedRevision"], "final-checks": ["revision", "checks"], "final-review": ["revision", "reviewer", "standards", "spec", "findings", "independence", "evidence"], "final-handoff": ["expectedRevision"], "cancel": ["reason"], "reverse": ["reason", "deliveryPr", "reversalPr", "evidence"] }[event.type];
+  const extra = { "final-pr": ["pullRequest", "expectedRevision"], "final-checks": ["revision", "checks", "expectedPullRequest"], "final-review": ["revision", "reviewer", "standards", "spec", "findings", "independence", "evidence", "expectedPullRequest"], "final-handoff": ["expectedRevision", "expectedPullRequest"], "cancel": ["reason"], "reverse": ["reason", "deliveryPr", "reversalPr", "evidence"] }[event.type];
   if (!extra || Object.keys(p).some(key => !["issue", "result", ...extra].includes(key)) || !Number.isSafeInteger(p.issue) || p.issue <= 0 || (event.type === "final-pr" && (!Number.isSafeInteger(p.pullRequest) || p.pullRequest <= 0))) throw new TrackerError("event_invalid");
   text(p.result);
   if (p.expectedRevision !== undefined && !/^[a-f0-9]{40}$/.test(p.expectedRevision)) throw new TrackerError("event_invalid");
+  if (p.expectedPullRequest !== undefined && (!Number.isSafeInteger(p.expectedPullRequest) || p.expectedPullRequest <= 0)) throw new TrackerError("event_invalid");
   if (["cancel", "reverse"].includes(event.type)) text(p.reason);
   if (event.type === "reverse") {
     text(p.evidence, 500);
@@ -161,6 +163,7 @@ export function applyFinal(state, event, { github, config }) {
   } else {
     const f = record.final;
     if (!f || f.runId !== event.runId || f.generation !== event.generation) throw new TrackerError("final_pr_required");
+    if (p.expectedPullRequest && p.expectedPullRequest !== f.pullRequest.number) throw new TrackerError("final_pr_changed");
     const pr = readFinalPullRequest(github, config, f.pullRequest.number);
     if (event.type === "final-checks" || event.type === "final-review") {
       if (p.revision !== (pr.mergeCommit ?? pr.revision) || p.revision !== f.revision) throw new TrackerError("final_revision_changed");

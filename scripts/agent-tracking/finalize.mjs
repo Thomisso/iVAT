@@ -7,7 +7,7 @@ import { validateEvent } from "./events.mjs";
 
 const steps = ["final-pr", "final-checks", "final-review", "final-handoff"];
 
-function stepOptions(attempt, step, options) {
+function stepOptions(attempt, options) {
   return {
     issue: String(attempt.issue), pr: String(attempt.pr), revision: attempt.revision,
     result: attempt.evidence.result, checks: JSON.stringify(attempt.evidence.checks),
@@ -35,7 +35,7 @@ function createAttempt(options, journal) {
     || Object.keys(evidence).some(key => !["revision", "result", "checks", "review"].includes(key))
     || Object.keys(evidence.review).some(key => !["reviewer", "standards", "spec", "findings", "independence", "evidence"].includes(key))) throw new TrackerError("finalization_evidence_invalid");
   const attempt = { id: randomUUID(), issue, pr, revision, evidence, run: { ...journal.run }, at: new Date().toISOString(), state: "running", steps: {} };
-  for (const step of steps) validateEvent({ id: attempt.id, type: step, ...journal.run, sequence: journal.nextSequence, at: attempt.at, payload: buildFinalPayload(step, stepOptions(attempt, step, options)) });
+  for (const step of steps) validateEvent({ id: attempt.id, type: step, ...journal.run, sequence: journal.nextSequence, at: attempt.at, payload: buildFinalPayload(step, stepOptions(attempt, options)) });
   return attempt;
 }
 
@@ -68,20 +68,29 @@ export function finalize(github, config, journal, save, options, execute) {
     error.finalization = { issue, pr: attempt.pr, step, state: "rejected", nextStep: "new-attempt" };
     throw error;
   };
-  requireNotRejected();
-  execute("sync", options);
-  requireNotRejected();
-  for (const step of steps) {
-    if (attempt.steps[step]?.state === "published") continue;
-    expectedRevision(github, config, attempt, step);
-    execute(step, stepOptions(attempt, step, options), event => {
-      attempt.steps[step] = { id: event.id, at: event.at, state: "pending" };
-    });
+  let phase = steps.find(step => attempt.steps[step]?.state !== "published") ?? "complete";
+  try {
+    requireNotRejected();
+    execute("sync", options);
+    requireNotRejected();
+    for (const step of steps) {
+      if (attempt.steps[step]?.state === "published") continue;
+      phase = step;
+      expectedRevision(github, config, attempt, step);
+      execute(step, stepOptions(attempt, options), event => {
+        attempt.steps[step] = { id: event.id, at: event.at, state: "pending" };
+      });
+    }
+    expectedRevision(github, config, attempt, "complete");
+    attempt.state = "complete";
+    save();
+    return { ok: true, finalization: { id: attempt.id, issue, pr: attempt.pr, revision: attempt.revision, state: attempt.state } };
+  } catch (error) {
+    if (error instanceof TrackerError && !error.finalization) {
+      error.finalization = { issue, pr: attempt.pr, step: phase, state: attempt.state, expectedRevision: attempt.revision, nextStep: attempt.state === "rejected" ? "new-attempt" : "finalize" };
+    }
+    throw error;
   }
-  expectedRevision(github, config, attempt, "complete");
-  attempt.state = "complete";
-  save();
-  return { ok: true, finalization: { id: attempt.id, issue, pr: attempt.pr, revision: attempt.revision, state: attempt.state } };
 }
 
 // Called inside the same atomic journal save which consumes the real receipt.
