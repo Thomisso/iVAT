@@ -10,8 +10,10 @@ import { lifecycleCommands, buildLifecyclePayload } from "./lifecycle.mjs";
 import { validateConfig } from "./config.mjs";
 import { synchronize as sync, quarantineRun } from "./outbox.mjs";
 import { collectLocalFacts } from "./recovery.mjs";
+import { readStatus } from "./status.mjs";
 
 export function runCommand(command, github, config, options) {
+  if (command === "status") return readStatus(config, options);
   return withJournal(config, (journal, save) => {
     if (command === "show") return options.local ? { ok: true, local: journal } : { ok: true, local: journal, remote: readRegistry(github, config).state };
     if (command === "sync") return sync(github, config, journal, save, options);

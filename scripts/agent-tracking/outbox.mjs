@@ -17,6 +17,7 @@ function observe(github, config, journal, save) {
   const known = journal.lastObserved ?? journal.lastConfirmed;
   if (known && (state.revision < known.revision || state.generation < known.generation || state.publishedRevision < known.publishedRevision || (state.owner && known.owner && state.owner.generation === known.owner.generation && state.owner.runId === known.owner.runId && state.owner.sequence < known.owner.sequence))) throw new TrackerError("registry_snapshot_stale");
   journal.lastObserved = state;
+  journal.lastObservedAt = new Date().toISOString();
   save();
   return state;
 }
@@ -48,7 +49,10 @@ function consumeReceipt(journal, event, state, save) {
   }
   journal.pending.shift();
   journal.publishedRevision = state.publishedRevision;
-  if (projectionSynchronized(state)) journal.lastConfirmed = state;
+  if (projectionSynchronized(state)) {
+    journal.lastConfirmed = state;
+    journal.lastConfirmedAt = journal.lastObservedAt;
+  }
   delete journal.publicationError;
   save();
   return true;
@@ -77,12 +81,15 @@ export function synchronize(github, config, journal, save, options = {}) {
         save();
       }
       const deadline = Date.now() + seconds * 1000;
+      let interval = 1000;
       for (;;) {
         let state;
         try { state = observe(github, config, journal, save); } catch { throw new TrackerError("publication_pending"); }
         if (consumeReceipt(journal, event, state, save)) break;
-        if (Date.now() >= deadline) throw new TrackerError("publication_pending");
-        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1000);
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) throw new TrackerError("publication_pending");
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Math.min(interval, remaining));
+        interval = Math.min(interval * 2, 5000);
       }
     }
     const state = observe(github, config, journal, save);
@@ -96,6 +103,7 @@ export function synchronize(github, config, journal, save, options = {}) {
       continue;
     }
     journal.lastConfirmed = state;
+    journal.lastConfirmedAt = journal.lastObservedAt;
     journal.publishedRevision = state.publishedRevision;
     save();
     return { ok: true, synchronized: true, revision: state.revision, publishedRevision: state.publishedRevision, pending: journal.pending.length, ownership: journal.run ? "current" : state.owner ? "not_owned" : "inactive", run: journal.run };
