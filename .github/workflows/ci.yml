@@ -1,6 +1,11 @@
 name: CI
 
 on:
+  workflow_call:
+    inputs:
+      candidate-full:
+        type: boolean
+        default: false
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, labeled, unlabeled]
   push:
@@ -14,8 +19,8 @@ permissions:
 # Only PR revisions supersede each other. Main evidence and release preparation
 # must remain available for their exact commit, even after a newer main push.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ (!(github.event_name == 'pull_request' && (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'ci:full' ) && github.event.pull_request.number) || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' && !(github.event_name == 'pull_request' && (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'ci:full') }}
+  group: ci-${{ github.workflow }}-${{ (!(!inputs['candidate-full'] && github.event_name == 'pull_request' && (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'ci:full' ) && github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && !(!inputs['candidate-full'] && github.event_name == 'pull_request' && (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'ci:full') }}
 
 jobs:
   profile:
@@ -41,10 +46,14 @@ jobs:
           cache: npm
       - run: node --test scripts/tests/ci-policy.test.mjs scripts/tests/ci-scopes.test.mjs scripts/tests/ci-pr-events.test.mjs scripts/tests/ci-pr-evidence.test.mjs scripts/tests/http-acceptance-policy.test.mjs
       - id: profile
+        name: Select verification plan
+        env:
+          CI_CANDIDATE_FULL: ${{ inputs['candidate-full'] }}
         run: node scripts/ci-policy.mjs
       - id: selection
         run: node scripts/ci-pr-evidence.mjs select
         env:
+          CI_CANDIDATE_FULL: ${{ inputs['candidate-full'] }}
           PLAN: ${{ steps.profile.outputs.plan }}
           GH_TOKEN: ${{ github.token }}
           PR_WORKFLOW_FILE: ci.yml
@@ -98,8 +107,10 @@ jobs:
           npm install --package-lock-only --ignore-scripts
           git diff --exit-code package-lock.json
 
-      - run: npm run typecheck
-      - run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
 
   release:
     needs: profile
@@ -117,7 +128,7 @@ jobs:
           postman --version
       - name: Release policy, bundle integrity, transport and host preflight
         timeout-minutes: 5
-        run: node --test scripts/tests/release-identity.test.mjs deploy/tests/release-prepare.test.mjs deploy/tests/release-host.test.mjs deploy/tests/release-connect.test.mjs deploy/tests/release-runtime.test.mjs
+        run: node --test scripts/tests/release-identity.test.mjs deploy/tests/release-prepare.test.mjs deploy/tests/release-evidence.test.mjs deploy/tests/release-host.test.mjs deploy/tests/release-connect.test.mjs deploy/tests/release-runtime.test.mjs
 
   full:
     strategy:
@@ -159,7 +170,8 @@ jobs:
           git diff --exit-code src/lib/database.types.ts
 
       # Each shard owns its runner/database; files within it remain serial.
-      - run: npm run test:serial -- --shard=${{ matrix.shard }}/3
+      - name: Complete application shard
+        run: npm run test:serial -- --shard=${{ matrix.shard }}/3
       - name: Stop the disposable database
         if: always()
         run: npm run db:stop -- --no-backup
@@ -186,7 +198,8 @@ jobs:
         run: |
           npm install --global postman-cli@1.73.0
           postman --version
-      - run: npm run test:http
+      - name: Production HTTP acceptance
+        run: npm run test:http
       - name: Upload HTTP acceptance service logs
         if: failure()
         uses: actions/upload-artifact@v7
@@ -199,8 +212,8 @@ jobs:
         run: npm run db:stop -- --no-backup
 
   check:
-    name: ${{ (github.event_name == 'pull_request' && (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'ci:full') && 'Administrative label (check)' || 'check' }}
-    if: ${{ always() && !(github.event_name == 'pull_request' && (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'ci:full') }}
+    name: ${{ (!inputs['candidate-full'] && github.event_name == 'pull_request' && (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'ci:full') && 'Administrative label (check)' || 'check' }}
+    if: ${{ always() && !(!inputs['candidate-full'] && github.event_name == 'pull_request' && (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'ci:full') }}
     needs: [profile, tracker, release, common, full]
     runs-on: ubuntu-latest
     steps:
@@ -208,7 +221,8 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-      - run: node scripts/ci-policy.mjs gate
+      - name: Enforce verification gate
+        run: node scripts/ci-policy.mjs gate
         env:
           PLAN: ${{ needs.profile.outputs.plan }}
           PR_REUSE: ${{ needs.profile.outputs.reuse }}
@@ -218,8 +232,8 @@ jobs:
           RESULTS: '{"policy": "${{ needs.profile.result }}", "tracker": "${{ needs.tracker.result }}", "trackerTransport": "${{ needs.tracker.result }}", "release": "${{ needs.release.result }}", "common": "${{ needs.common.result }}", "application": "${{ needs.full.result }}"}'
 
   e2e:
-    name: ${{ (github.event_name == 'pull_request' && (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'ci:full') && 'Administrative label (e2e)' || 'e2e' }}
-    if: ${{ always() && !(github.event_name == 'pull_request' && (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'ci:full') }}
+    name: ${{ (!inputs['candidate-full'] && github.event_name == 'pull_request' && (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'ci:full') && 'Administrative label (e2e)' || 'e2e' }}
+    if: ${{ always() && !(!inputs['candidate-full'] && github.event_name == 'pull_request' && (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'ci:full') }}
     needs: [profile, common, acceptance]
     runs-on: ubuntu-latest
     steps:
@@ -227,7 +241,8 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-      - run: node scripts/ci-policy.mjs gate
+      - name: Enforce verification gate
+        run: node scripts/ci-policy.mjs gate
         env:
           PLAN: ${{ needs.profile.outputs.plan }}
           PR_REUSE: ${{ needs.profile.outputs.reuse }}
@@ -238,7 +253,7 @@ jobs:
 
   pr-evidence:
     name: PR verification evidence
-    if: ${{ always() && github.event_name == 'pull_request' && needs.profile.outputs.reuse == '' && needs.profile.outputs.application == 'true' && needs.check.result == 'success' && needs.e2e.result == 'success' }}
+    if: ${{ always() && !inputs['candidate-full'] && github.event_name == 'pull_request' && needs.profile.outputs.reuse == '' && needs.profile.outputs.application == 'true' && needs.check.result == 'success' && needs.e2e.result == 'success' }}
     needs: [profile, tracker, release, common, full, acceptance, check, e2e]
     runs-on: ubuntu-latest
     steps:
