@@ -11,8 +11,10 @@ import { lifecycleCommands, buildLifecyclePayload } from "./lifecycle.mjs";
 import { validateConfig } from "./config.mjs";
 import { synchronize as sync, quarantineRun } from "./outbox.mjs";
 import { collectLocalFacts } from "./recovery.mjs";
+import { readStatus } from "./status.mjs";
 
 export function runCommand(command, github, config, options) {
+  if (command === "status") return readStatus(config, options);
   return withJournal(config, (journal, save) => command === "finalize"
     ? finalize(github, config, journal, save, options, (step, inputs, queued) => runLockedCommand(step, github, config, inputs, journal, save, queued))
     : runLockedCommand(command, github, config, options, journal, save));
