@@ -22,7 +22,7 @@ Use an existing authorized CLI session, resource identifier and credential from 
 
 If an operation has no supported non-GUI interface, report its exact missing capability and the existing credential/resource input needed to proceed. Continue independent work. Do not invent an API, bypass authentication or MFA, direct someone to a console, or ask them to perform a GUI step. Missing permissions and missing provider features remain explicit limitations; they are not successful configuration or evidence.
 
-Use `gh` and the shared serialized tracker for GitHub operations, as documented in [agent-tracking.md](agent-tracking.md). In particular, verify native Project columns by API readback and planned issue references by API before merge; actual PR-caused issue closure remains the delivery criterion. An unexposed repository checkbox is not a required preflight observation.
+Use `gh` and the shared serialized tracker for GitHub operations, as documented in [agent-tracking.md](agent-tracking.md). In particular, verify native Project columns by API readback and planned issue references by API before merge; actual PR-caused issue closure remains the delivery criterion. Use the [one-time repository issue-closing setup record](agent-tracking.md#repository-automatic-issue-closing); an unverified setting is not a repeated implementation preflight gate.
 
 For provider-specific setup and operations, follow the CLI/API paths and capability boundaries in [deployment.md](../deployment.md) and [google-sign-in.md](../google-sign-in.md). Those processes consume existing credentials; they do not require creating credentials through a browser.
 
