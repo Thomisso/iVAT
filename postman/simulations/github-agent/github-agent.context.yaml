@@ -86,6 +86,13 @@ assumptions:
     verification: On the agent-tracking-254-deleted-node fingerprint, the public CLI missing-membership test first failed with the realistic response and then passed after the boundary correction. The public refusal matrix retains canonical evidence and an unacknowledged intent for permission, mixed, wrong-path, non-null, malformed and transient failures, then publishes the same envelope after resolution. The real gh/controller/worker verifier passed through the local HTTPS proxy: permission/mixed/wrong-path item errors refused without altering canonical state, then deleting the stored item returned the provider-shaped error and retrying the same original event restored one new item and one maintained comment with the original phase and timestamp. No live credential, Project mutation or Actions run was used by this worker; root-owned live retry remains separate.
     source: scripts/agent-tracking/github.mjs; scripts/agent-tracking/publisher.mjs; scripts/tests/agent-tracker-publication.test.mjs; scripts/verify-agent-tracker-transport.mjs; postman/mocks/github-agent/default.js; controller read-only deleted-node GraphQL evidence from the specification 254 implementation session on 2026-11-10
     updated_at: "2026-11-10"
+  - id: tooling-264-existing-wire-scenarios
+    status: supported
+    claim: The updated tracker CLI and worker pass the existing foundation transport scenarios against the local GitHub stand-in.
+    reason: The real gh executable used an isolated synthetic credential and per-process proxy CA; the verifier asserted caller outcomes and observed api.github.com requests in the Postman proxy log. This establishes compatibility with the modelled transport subset, not live provider scheduling or the new guarded finalize protocol over HTTP.
+    verification: On 2026-11-10 the complete verifier passed at clean candidate 9e46cda21fda08e06f45dec370552892c46feee1, fingerprint agent-tooling-264-preflight. Its summary reported 17 scenarios, 11 fields and 27 captured requests, covering permission and TLS refusals, partial publication, original envelope retry, deleted-item repair, unchanged projection effects and corroborated GraphQL merged results. The new finalize orchestration and expected-revision guards are covered separately by public CLI process tests with the controlled gh boundary; this wire run does not claim to exercise them. The production codeRef requires the updated worker before accepting those guarded envelopes.
+    source: scripts/verify-agent-tracker-transport.mjs; scripts/tests/agent-tracker-finalize.test.mjs; postman/mocks/github-agent/default.js; https://github.com/Thomisso/iVAT/pull/263
+    updated_at: "2026-11-10"
 fingerprints:
   - id: agent-tracking-254-deleted-node
     date: "2026-11-10"
@@ -137,4 +144,9 @@ fingerprints:
   - id: agent-tracking-246-integrated-fixture
     date: "2026-11-09"
     commit: e6326b38b6638cbfda0b5f1c850f498eb0941148 with dirty ticket 246 differential publication, passive workflow coalescing and real-gh unchanged-repair assertion/model; reviewed ticket 255 fixture changes integrated
+    cli: Postman CLI 1.73.0; gh 2.101.0; Node 22.22.3
+
+  - id: agent-tooling-264-preflight
+    date: "2026-11-10"
+    commit: 9e46cda21fda08e06f45dec370552892c46feee1 (clean complete tooling candidate before integration evidence note)
     cli: Postman CLI 1.73.0; gh 2.101.0; Node 22.22.3
