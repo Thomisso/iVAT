@@ -1,3 +1,4 @@
+import { finalize } from "./finalize.mjs";
 import { buildActivityPayload } from "./activity.mjs";
 import { finalCommands, buildFinalPayload } from "./finalization.mjs";
 import { randomUUID } from "node:crypto";
@@ -12,7 +13,12 @@ import { synchronize as sync, quarantineRun } from "./outbox.mjs";
 import { collectLocalFacts } from "./recovery.mjs";
 
 export function runCommand(command, github, config, options) {
-  return withJournal(config, (journal, save) => {
+  return withJournal(config, (journal, save) => command === "finalize"
+    ? finalize(github, config, journal, save, options, (step, inputs, queued) => runLockedCommand(step, github, config, inputs, journal, save, queued))
+    : runLockedCommand(command, github, config, options, journal, save));
+}
+
+function runLockedCommand(command, github, config, options, journal, save, queued) {
     if (command === "show") return options.local ? { ok: true, local: journal } : { ok: true, local: journal, remote: readRegistry(github, config).state };
     if (command === "sync") return sync(github, config, journal, save, options);
     if (command === "final-handoff" && (journal.pending.length || !projectionSynchronized(readRegistry(github, config).state))) throw new TrackerError("synchronization_required");
@@ -77,11 +83,11 @@ export function runCommand(command, github, config, options) {
       journal.nextSequence = 1;
     }
     journal.pending.push(event);
+    queued?.(event);
     if (event.type === "stop") journal.stopRequested = event.id;
     if (!["start", "restart", "takeover", "repair", "reconcile", "discover", "observe-activity"].includes(event.type)) journal.nextSequence++;
     save();
     const result = sync(github, config, journal, save, options);
     const outcome = journal.lastConfirmed?.receipts[event.id]?.outcome;
     return outcome ? { ...result, outcome } : result;
-  });
 }
