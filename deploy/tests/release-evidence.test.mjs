@@ -107,7 +107,7 @@ test("malformed candidate identities cannot approve even matching self-asserted 
   assert.throws(() => validateCandidateEvidence(unknown, { ...expected, unknownInput: true }), /candidate|Candidate/);
 });
 
-test("the release HTTP caller verifies the exact completed attempt and artifact bytes before approval", async t => {
+test("the release HTTP caller resolves canonical annotated tags and verifies the exact completed attempt and artifact bytes", async t => {
   const value = validEvidence();
   const directory = await mkdtemp(path.join(tmpdir(), "ivat-candidate-http-"));
   t.after(() => rm(directory, { recursive: true, force: true }));
@@ -118,6 +118,8 @@ test("the release HTTP caller verifies the exact completed attempt and artifact 
   const requests = [];
   let artifacts = [value.artifact];
   let target = revision;
+  let source = revision;
+  let sourceTree = expected.sourceTree;
   let dispatched;
   let broken = false;
   let origin;
@@ -132,7 +134,9 @@ test("the release HTTP caller verifies the exact completed attempt and artifact 
     }
     let body;
     if (pathname.endsWith("/commits/heads/main")) body = { sha: target };
-    else if (pathname.endsWith("/commits/tags/v0.2.0")) body = { sha: revision, commit: { tree: { sha: expected.sourceTree } } };
+    // GitHub resolves the annotated tag to its commit through the full ref.
+    else if (pathname.endsWith("/commits/refs/tags/v0.2.0")) body = { sha: source, commit: { tree: { sha: sourceTree } } };
+    else if (pathname.endsWith("/commits/tags/v0.2.0")) { response.writeHead(422); return response.end(JSON.stringify({ message: "No commit found for SHA: tags/v0.2.0" })); }
     else if (pathname.endsWith("/workflows/release-verification.yml/runs")) body = { total_count: 1, workflow_runs: [value.run] };
     else if (pathname.endsWith("/runs/20/attempts/1/jobs")) body = { total_count: value.jobs.length, jobs: value.jobs };
     else if (pathname.endsWith("/runs/20/artifacts")) body = { total_count: artifacts.length, artifacts };
@@ -152,7 +156,8 @@ test("the release HTTP caller verifies the exact completed attempt and artifact 
   const receipt = await waitForCandidateVerification({ ...options, runId });
   assert.equal(receipt.artifactId, 30);
   assert.ok(requests.some(item => item.path.endsWith("/commits/heads%2Fmain")));
-  assert.ok(requests.some(item => item.path.endsWith("/commits/tags%2Fv0.2.0")));
+  assert.ok(requests.some(item => item.path.endsWith("/commits/refs%2Ftags%2Fv0.2.0")));
+  assert.ok(requests.every(item => !item.path.includes("/commits/tags%2F")));
   assert.ok(requests.some(item => item.path.includes("/attempts/1/jobs?per_page=100&page=1")));
   assert.equal(requests.find(item => item.path === "/download").authorization, undefined);
   await confirmCandidate({ ...options, receipt });
@@ -170,7 +175,12 @@ test("the release HTTP caller verifies the exact completed attempt and artifact 
   value.run.conclusion = "success";
   broken = true;
   await assert.rejects(waitForCandidateVerification(options), /digest/i);
-  broken = false; target = "f".repeat(40);
+  broken = false;
+  source = "f".repeat(40);
+  await assert.rejects(confirmCandidate({ ...options, receipt }), /tag or source changed/i);
+  source = revision; sourceTree = "f".repeat(40);
+  await assert.rejects(waitForCandidateVerification(options), /tag or source changed/i);
+  sourceTree = expected.sourceTree; target = "f".repeat(40);
   await assert.rejects(waitForCandidateVerification(options), /target/i);
 });
 
@@ -227,7 +237,7 @@ test("candidate selection binds tagged source, current target, policy and exact 
   assert.throws(() => createCandidate(options), /policy/);
 });
 
-test("pre-main reusable PR proof validates its checked merge separately from its raw head and cannot authorize release", async () => {
+test("pre-main reusable PR proof confirms its exact source revision separately from its checked merge and cannot authorize release", async t => {
   const value = validEvidence();
   const candidate = { ...expected, purpose: "acceptance", acceptanceRunId: 20, runHead: "f".repeat(40), sourceRef: "refs/pull/12/merge" };
   Object.assign(value.proof, candidate);
@@ -237,9 +247,27 @@ test("pre-main reusable PR proof validates its checked merge separately from its
   value.run.referenced_workflows = ["ci.yml", "deployment-check.yml", "release-verification.yml"].map(file => ({ path: `thomisso/ivat/.github/workflows/${file}@${candidate.sourceRef}`, sha: revision }));
   value.artifact.workflow_run.head_sha = candidate.runHead;
   for (const job of value.jobs) job.head_sha = candidate.runHead;
-  assert.equal(validateCandidateEvidence(value, candidate).runId, 20);
+  const receipt = validateCandidateEvidence(value, candidate);
+  assert.equal(receipt.runId, 20);
   assert.throws(() => validateCandidateEvidence(value, expected), /candidate|Candidate/);
   await assert.rejects(dispatchCandidateVerification({ candidate, token: "test" }), /Acceptance/);
+  const requests = [];
+  const server = createServer((request, response) => {
+    requests.push(request.url);
+    const pathname = decodeURIComponent(new URL(request.url, "http://local.test").pathname);
+    let body;
+    if (pathname.endsWith("/commits/heads/main")) body = { sha: candidate.targetRevision };
+    else if (pathname.endsWith(`/commits/${candidate.revision}`)) body = { sha: candidate.revision, commit: { tree: { sha: candidate.sourceTree } } };
+    else if (pathname.endsWith("/runs/20/artifacts")) body = { total_count: 1, artifacts: [value.artifact] };
+    else if (pathname.endsWith("/runs/20") || pathname.endsWith("/runs/20/attempts/1")) body = value.run;
+    else { response.writeHead(422); return response.end(); }
+    response.writeHead(200, { "content-type": "application/json" }); response.end(JSON.stringify(body));
+  });
+  await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  await confirmCandidate({ candidate, receipt, token: "disposable-test-token", apiUrl: `http://127.0.0.1:${server.address().port}` });
+  assert.ok(requests.some(route => route.endsWith(`/commits/${candidate.revision}`)));
+  assert.ok(requests.every(route => !route.includes("/commits/refs%2F")));
 });
 
 test("the real candidate HTTP caller consumes the existing Postman release simulation and refuses provider/archive failures", async t => {
@@ -269,8 +297,15 @@ test("the real candidate HTTP caller consumes the existing Postman release simul
   };
   const options = { candidate: expected, token: "PRIVATE_TEST_TOKEN", apiUrl, timeoutMs: 1000, pollMs: 1 };
   await control("success");
+  const shortTag = await fetch(`${apiUrl}/repos/thomisso/ivat/commits/tags%2Fv0.2.0`, { headers: { Authorization: "Bearer disposable-test-token" } });
+  assert.equal(shortTag.status, 422);
+  const taggedCommit = await fetch(`${apiUrl}/repos/thomisso/ivat/commits/refs%2Ftags%2Fv0.2.0`, { headers: { Authorization: "Bearer disposable-test-token" } });
+  assert.equal(taggedCommit.status, 200);
+  assert.deepEqual(await taggedCommit.json(), { sha: revision, commit: { tree: { sha: expected.sourceTree } } });
   await dispatchCandidateVerification(options);
-  assert.equal((await waitForCandidateVerification(options)).artifactId, 30);
+  const receipt = await waitForCandidateVerification(options);
+  assert.equal(receipt.artifactId, 30);
+  await confirmCandidate({ ...options, receipt });
   for (const behavior of ["wrong-target", "tampered", "forbidden", "html", "malformed"]) {
     await control(behavior);
     await assert.rejects(waitForCandidateVerification(options), error => {
@@ -280,6 +315,7 @@ test("the real candidate HTTP caller consumes the existing Postman release simul
   assert.match(log, /release-verification\.yml/);
   assert.match(log, /attempts\/1\/jobs/);
   assert.match(log, /candidate-archive/);
+  assert.match(log, /commits\/refs%2Ftags%2Fv0\.2\.0/);
 });
 
 

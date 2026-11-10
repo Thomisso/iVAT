@@ -29,7 +29,10 @@ http.createServer((request, response) => {
     if (url.pathname === "/candidate-archive") { response.writeHead(200); return response.end(Buffer.from(behavior === "tampered" ? "dGFtcGVyZWQ=" : archiveBase64, "base64")); }
     if (!request.headers.authorization) return json(response, 401, { message: "Unauthorized" });
     if (decodeURIComponent(url.pathname).endsWith("/commits/heads/main")) return json(response, 200, { sha: behavior === "wrong-target" ? "f".repeat(40) : candidate.targetRevision });
-    if (decodeURIComponent(url.pathname).endsWith(`/commits/tags/${candidate.tag}`)) return json(response, 200, { sha: candidate.revision, commit: { tree: { sha: candidate.sourceTree } } });
+    if (decodeURIComponent(url.pathname).endsWith(`/commits/tags/${candidate.tag}`)) return json(response, 422, { message: `No commit found for SHA: tags/${candidate.tag}` });
+    const sourceRef = candidate.purpose === "release" ? candidate.sourceRef : candidate.revision;
+    // Get a commit peels annotated tags when the full refs/tags namespace is used.
+    if (decodeURIComponent(url.pathname).endsWith(`/commits/${sourceRef}`)) return json(response, 200, { sha: candidate.revision, commit: { tree: { sha: candidate.sourceTree } } });
     if (url.pathname.endsWith("/workflows/release-verification.yml/runs")) return json(response, 200, { total_count: 1, workflow_runs: [evidence.run] });
     if (/\/runs\/20(?:\/attempts\/1)?$/.test(url.pathname)) return json(response, 200, evidence.run);
     if (url.pathname.endsWith("/runs/20/attempts/1/jobs")) return json(response, 200, { total_count: evidence.jobs.length, jobs: evidence.jobs });
