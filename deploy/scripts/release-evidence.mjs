@@ -182,7 +182,7 @@ function githubClient({ repository, token, apiUrl = "https://api.github.com", de
 
 async function assertCurrentCandidate(client, candidate) {
   const target = await client.json(`/commits/${encodeURIComponent("heads/main")}`);
-  const sourceRef = candidate.purpose === "release" ? `tags/${candidate.tag}` : candidate.revision;
+  const sourceRef = candidate.purpose === "release" ? candidate.sourceRef : candidate.revision;
   const source = await client.json(`/commits/${encodeURIComponent(sourceRef)}`);
   if (target?.sha !== candidate.targetRevision) throw new Error("Candidate verification target changed; select and verify current inputs again.");
   if (source?.sha !== candidate.revision || source.commit?.tree?.sha !== candidate.sourceTree) throw new Error("Candidate verification tag or source changed.");
