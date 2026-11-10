@@ -78,6 +78,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Install PDF renderer for host application checks
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils
       - name: Generate disposable deployment credentials
         run: node deploy/scripts/init.mjs
       - name: Build the production images
@@ -90,6 +92,7 @@ jobs:
         run: docker compose --env-file .env.rosti -f docker-compose.rosti.yml run --rm --no-deps migrate
       - name: Application behavior against self-hosted Supabase
         run: |
+          docker compose --env-file .env.rosti -f docker-compose.rosti.yml exec -T worker node --import tsx --input-type=module < deploy/tests/verify-pdf-extraction.mjs
           docker compose --env-file .env.rosti -f docker-compose.rosti.yml stop worker
           npx vitest run --config deploy/tests/vitest.config.ts tests/processing.test.ts tests/source-files.test.ts tests/ai-configurations.test.ts
       - name: Production web through the reverse proxy

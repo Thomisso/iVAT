@@ -178,6 +178,10 @@ Agent processes follow the [CLI-only execution policy](AGENTS.md#agent-execution
 
 ## Testing
 
+PDF Extraction requires Poppler (`pdftoppm`) on the worker and test host. Install
+`poppler` with Homebrew on macOS or `poppler-utils` with apt on Debian/Ubuntu.
+The production Docker image and CI application/HTTP runners install it explicitly.
+
 Tests exercise the application layer as real users against the local Postgres with RLS enabled, per the seams in the requirements' Testing Decisions. Background jobs run synchronously through the worker's own handler (`testWorker` in `tests/support/worker.ts`), against a scripted fake AI provider. Tests create their own users and Organizations, so they need no reset between runs:
 
 ```bash

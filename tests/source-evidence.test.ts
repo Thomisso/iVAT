@@ -1,3 +1,5 @@
+import { PDFDocument } from "pdf-lib";
+import { getCompanyAiProcessingAllowance } from "@/application/ai-processing-allowance";
 import { createConfirmedManualDocument, setOctoberImportFixture } from "./support/claim-eligibility";
 import { createCounterparty } from "@/application/counterparties";
 import { fakeAiProvider } from "@/ai/fake";
@@ -102,6 +104,12 @@ it("loads PDF evidence bound to the second Document's original page after zero-r
   }));
   expect(await readDocumentPages(admin.client, admin.companyId, second.id, 999)).toBeNull();
   expect(extractionRequests).toHaveLength(2);
+  const content = (extractionRequests[1].input as { content: { type: string; image_url?: string; text?: string }[] }[])[0].content;
+  expect(content.filter(item => item.type === "input_image")).toHaveLength(2);
+  expect(content.some(item => item.type === "input_file")).toBe(false);
+  expect(content.filter(item => item.type === "input_text").map(item => item.text)).toEqual(expect.arrayContaining([
+    expect.stringContaining("Page 1 of 2"), expect.stringContaining("Page 2 of 2"),
+  ]));
   expect(extractionRequests[1]).toMatchObject({
     text: { format: { schema: { required: expect.arrayContaining(["sourceLocations"]), properties: { sourceLocations: { type: "array" } } } } },
   });
@@ -253,4 +261,30 @@ it("reads original pages without a Version while refusing explicit nonexistent V
   if (process.env.IVAT_239_PREVIEW_FIXTURE) writeFileSync(process.env.IVAT_239_PREVIEW_FIXTURE, JSON.stringify({
     email: admin.email, password: "correct-horse-battery", companyId: admin.companyId, documentId: second.id,
   }));
+});
+
+it.each(["oversized", "renderer_unavailable"])("fails Extraction safely when PDF is %s", async (scenario) => {
+  let calls = 0;
+  const worker = testWorker(fakeAiProvider({ extract: () => { calls++; return SAMPLE_EXTRACTION; } }));
+  const admin = await administratorWithCompany();
+  const configured = await assignAiConfigurationFixture(admin.client, worker.jobs, { companyId: admin.companyId, provider: worker.ai });
+  if (!configured.ok) throw new Error(configured.error);
+  const pdf = await PDFDocument.create();
+  pdf.addPage(scenario === "oversized" ? [10_000, 10_000] : [600, 800]);
+  const uploaded = await uploadSourceFile(admin.client, worker.jobs, { companyId: admin.companyId, fileName: "render-failure.pdf", bytes: await pdf.save() });
+  if (!uploaded.ok) throw new Error(uploaded.error);
+  await worker.runNextJob(); // Split is unchanged; the failure belongs to Extraction.
+  const originalPath = process.env.PATH;
+  let errors: unknown[];
+  try {
+    if (scenario === "renderer_unavailable") process.env.PATH = "/nonexistent-ivat-test-path";
+    errors = await worker.runJobs();
+  } finally { process.env.PATH = originalPath; }
+  expect(errors).toHaveLength(1);
+  expect(errors[0]).toMatchObject({ code: scenario === "oversized" ? "pdf_render_limit" : "pdf_render_failed" });
+  expect(calls).toBe(0);
+  const [document] = await listDocuments(admin.client, admin.companyId, uploaded.value.id);
+  expect(document.status).toBe("failed");
+  expect((await getDocumentReview(admin.client, { companyId: admin.companyId, documentId: document.id }))!.shown).toBeUndefined();
+  expect(await getCompanyAiProcessingAllowance(admin.client, admin.companyId)).toMatchObject({ ok: true, value: { used: 0 } });
 });

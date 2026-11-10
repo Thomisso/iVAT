@@ -64,6 +64,16 @@ const server = http.createServer(async (request, response) => {
       JSON.stringify({ error: { message: `Missing ${nativeType}` } }),
     );
   }
+  if (schemaName === "ivat_extraction") {
+    const images = content.filter(item => item.type === "input_image");
+    const labels = content.filter(item => item.type === "input_text");
+    if (images.length !== 3 || content.some(item => item.type === "input_file") ||
+        !images.every(item => item.image_url.startsWith("data:image/png;base64,iVBORw0KGgo")) ||
+        ![1, 2, 3].every(page => labels.some(item => item.text.startsWith(`Page ${page} of 3 `)))) {
+      response.writeHead(400, JSON_HEADERS);
+      return response.end(JSON.stringify({ error: { message: "Expected three numbered full-page PNG images" } }));
+    }
+  }
   const value =
     schemaName === "ivat_split"
       ? { documents: [{ firstPage: 1, lastPage: 1 }] }

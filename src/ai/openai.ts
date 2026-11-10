@@ -1,3 +1,4 @@
+import { prepareExtractionInput } from "@/application/pdf-extraction";
 import {
   AiProviderError,
   withProviderResponse,
@@ -48,20 +49,15 @@ export class OpenAiProviderError extends AiProviderError {
 }
 
 function nativeContent(input: AiInput) {
-  if (input.text !== undefined) return { type: "input_text", text: input.text };
+  if (input.pageImages) return input.pageImages.flatMap((page, index) => [
+    { type: "input_text", text: `Page ${index + 1} of ${input.pageCount} (full oriented page, ${page.width} x ${page.height} pixels).` },
+    { type: "input_image", image_url: `data:${page.mediaType};base64,${Buffer.from(page.bytes).toString("base64")}`, detail: "high" },
+  ]);
+  if (input.text !== undefined) return [{ type: "input_text", text: input.text }];
   const base64 = Buffer.from(input.bytes).toString("base64");
-  if (input.format === "pdf") {
-    return {
-      type: "input_file",
-      filename: "source-file.pdf",
-      file_data: `data:${input.mediaType};base64,${base64}`,
-    };
-  }
-  return {
-    type: "input_image",
-    image_url: `data:${input.mediaType};base64,${base64}`,
-    detail: "high",
-  };
+  if (input.format === "pdf") return [{ type: "input_file", filename: "source-file.pdf",
+    file_data: `data:${input.mediaType};base64,${base64}` }];
+  return [{ type: "input_image", image_url: `data:${input.mediaType};base64,${base64}`, detail: "high" }];
 }
 
 async function structuredResponse(
@@ -85,7 +81,7 @@ async function structuredResponse(
         store: false,
         input: [{
           role: "user",
-          content: [nativeContent(input), { type: "input_text", text: prompt }],
+          content: [...nativeContent(input), { type: "input_text", text: prompt }],
         }],
         text: { format: { type: "json_schema", name: schemaName, strict: true, schema } },
       }),
@@ -174,6 +170,7 @@ export function openAiProvider(options: OpenAiProviderOptions): AiProvider {
       };
     },
     async extract(input) {
+      input = await prepareExtractionInput(input);
       const result = await structuredResponse(
         options,
         options.extractModel,
