@@ -44,7 +44,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: node --test scripts/tests/ci-policy.test.mjs scripts/tests/ci-scopes.test.mjs scripts/tests/ci-main.test.mjs scripts/tests/ci-pr-events.test.mjs scripts/tests/ci-pr-evidence.test.mjs scripts/tests/http-acceptance-policy.test.mjs
+      - run: node --test scripts/tests/ci-policy.test.mjs scripts/tests/ci-scopes.test.mjs scripts/tests/ci-main.test.mjs scripts/tests/ci-pr-events.test.mjs scripts/tests/ci-pr-evidence.test.mjs scripts/tests/ci-timings.test.mjs scripts/tests/http-acceptance-policy.test.mjs
       - id: profile
         name: Select verification plan
         env:
