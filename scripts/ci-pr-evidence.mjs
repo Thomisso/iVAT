@@ -32,15 +32,14 @@ export function recordPrEvidence({ context, plan, results, reused = false }) {
   return { kind: "ivat-pr-verification-v1", fresh: true, context, plan, results };
 }
 
-export function reusablePrEvidence({ context, plan, proof, run, jobs, jobAttempt, artifact }) {
+// Corroborate a recorded run without asserting applicability to today's PR.
+export function recordedPrEvidence({ proof, run, jobs, jobAttempt, artifact }) {
   try {
-    if (!validContext(context) || proof?.kind !== "ivat-pr-verification-v1" || proof.fresh !== true || !validContext(proof.context)) return false;
-    const source = proof.context;
-    if (source.runId === context.runId || Object.keys(context).some(key => !["runId", "runAttempt"].includes(key) && source[key] !== context[key])) return false;
+    if (proof?.kind !== "ivat-pr-verification-v1" || proof.fresh !== true || !validContext(proof.context)) return false;
+    const context = proof.context;
+    const source = context;
     const contract = workflows[context.workflow];
     if (proof.plan?.profile !== "full" || !contract.gates.every(gate => verificationPassed(proof.plan, gate, proof.results))) return false;
-    if (!contract.gates.every(gate => verificationPassed(plan, gate, { policy: "success", ...Object.fromEntries(Object.entries(plan.scopes).map(([scope, required]) => [scope, required ? "success" : "skipped"])) }))) return false;
-    if (Object.keys(contract.scopes).some(scope => plan.scopes[scope] && !proof.plan.scopes[scope])) return false;
     if (run?.id !== source.runId || run.run_attempt !== source.runAttempt || run.workflow_id !== source.workflowId || run.event !== "pull_request"
       || run.status !== "completed" || run.conclusion !== "success" || run.path?.split("@")[0] !== `.github/workflows/${context.workflow}`
       || ![context.head, context.checked].includes(run.head_sha) || run.repository?.full_name?.toLowerCase() !== context.repository
@@ -55,6 +54,18 @@ export function reusablePrEvidence({ context, plan, proof, run, jobs, jobAttempt
       if (matches.length !== 1 || matches[0].run_id !== source.runId
         || matches[0].head_sha !== run.head_sha || matches[0].status !== "completed" || matches[0].conclusion !== conclusion) return false;
     }
+    return true;
+  } catch { return false; }
+}
+
+export function reusablePrEvidence({ context, plan, proof, run, jobs, jobAttempt, artifact }) {
+  try {
+    if (!validContext(context) || !recordedPrEvidence({ proof, run, jobs, jobAttempt, artifact })) return false;
+    const source = proof.context;
+    if (source.runId === context.runId || Object.keys(context).some(key => !["runId", "runAttempt"].includes(key) && source[key] !== context[key])) return false;
+    const contract = workflows[context.workflow];
+    if (!contract.gates.every(gate => verificationPassed(plan, gate, { policy: "success", ...Object.fromEntries(Object.entries(plan.scopes).map(([scope, required]) => [scope, required ? "success" : "skipped"])) }))) return false;
+    if (Object.keys(contract.scopes).some(scope => plan.scopes[scope] && !proof.plan.scopes[scope])) return false;
     return true;
   } catch { return false; }
 }
