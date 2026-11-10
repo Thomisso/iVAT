@@ -84,3 +84,37 @@ test("unchanged facts still repair missing membership, assignees, comments and v
   execute(repo, "reconcile");
   assert.deepEqual(mutations(repo).map(request => request.operation), []);
 });
+
+test("item read failures preserve canonical evidence and retry the same reconciliation without inventing missing membership", t => {
+  const repo = begin(t);
+  repo.updateRemote(remote => { remote.deferDispatch = true; });
+  assert.equal(resultJson(repo.run("reconcile")).error, "publication_pending");
+  const event = JSON.parse(repo.remote().dispatches.at(-1));
+  const before = execute(repo, "show").remote;
+  const missing = { type: "NOT_FOUND", path: ["node"], message: "Could not resolve to a node with the global id of 'item-I_201'." };
+  const samples = [
+    [{ data: { node: null }, errors: [{ type: "FORBIDDEN", path: ["node"], message: "Resource not accessible by integration" }] }, "gh: Forbidden", "github_permission_denied"],
+    [{ data: { node: null }, errors: [missing, { type: "INTERNAL", path: ["node"], message: "Temporarily unavailable" }] }, "gh: Temporarily unavailable", "github_request_rejected"],
+    [{ data: { node: null }, errors: [{ ...missing, path: ["node", "fieldValues"] }] }, "gh: Could not resolve field", "github_request_rejected"],
+    [{ data: { node: {} }, errors: [missing] }, "gh: Could not resolve field", "github_request_rejected"],
+    [{ data: {}, errors: [missing] }, "gh: Could not resolve field", "github_request_rejected"],
+    [{ data: { node: null }, errors: [{ type: "INTERNAL", path: ["node"], message: "Temporarily unavailable" }] }, "gh: Temporarily unavailable", "github_request_rejected"],
+    [{ data: { node: null }, errors: [missing] }, "gh: HTTP 403: Forbidden", "github_permission_denied"],
+    [{ data: { node: null } }, "gh: connection reset", "github_connection_failed"],
+  ];
+  for (const [body, stderr, error] of samples) {
+    repo.updateRemote(remote => { remote.itemFieldsResponse = { body, stderr }; remote.requests = []; });
+    const result = repo.worker(event);
+    assert.equal(result.status, 1);
+    assert.equal(resultJson(result).error, error);
+    assert.deepEqual(execute(repo, "show").remote, before, "failed field read cannot acknowledge intent or overwrite canonical evidence");
+    assert.deepEqual(mutations(repo), [], "a field-read error cannot start membership repair");
+  }
+  repo.updateRemote(remote => { delete remote.itemFieldsResponse; remote.deferDispatch = false; });
+  execute(repo, "sync");
+  assert.deepEqual(JSON.parse(repo.remote().dispatches.at(-1)), event);
+  const after = execute(repo, "show").remote;
+  assert.equal(after.receipts[event.id].state, "published");
+  assert.equal(after.tickets[201].projectItemId, before.tickets[201].projectItemId);
+  assert.equal(after.tickets[201].manualConflict, before.tickets[201].manualConflict);
+});
