@@ -40,16 +40,23 @@ test("published application images receive the verified release identity, not am
   git("add", ".");
   git("-c", "user.name=Release test", "-c", "user.email=release@example.test", "commit", "-m", "Tested revision");
   const revision = git("rev-parse", "HEAD");
-  git("tag", "v0.3.0"); git("update-ref", "refs/remotes/origin/main", revision);
+  git("-c", "user.name=Release test", "-c", "user.email=release@example.test", "tag", "-a", "v0.3.0", "-m", "Annotated release");
+  git("update-ref", "refs/remotes/origin/main", revision);
   const publicBuild = { supabaseUrl: "https://api.ivat.cz", publishableKey: "sb_publishable_test" };
   const candidate = createCandidate({ repository: "thomisso/ivat", revision, tag: "v0.3.0", publicBuild, directory });
   writeFileSync(path.join(directory, "verified.json"), JSON.stringify({ repository: "thomisso/ivat", revision, tag: "v0.3.0", releaseId: 162, verification: { candidate,
     receipt: { runId: 20, runAttempt: 1, artifactId: 30, artifactDigest: `sha256:${"e".repeat(64)}` } } }));
   let latestAttempt = 1;
+  const requests = [];
   const server = createServer((request, response) => {
-    let body = { sha: revision, commit: { tree: { sha: candidate.sourceTree } } };
-    if (request.url.includes("/actions/runs/20/artifacts")) body = { total_count: 1, artifacts: [{ id: 30, name: "release-verification-20-1", expired: false, expires_at: "2099-01-01T00:00:00Z", digest: `sha256:${"e".repeat(64)}`, workflow_run: { id: 20, repository_id: 99, head_repository_id: 99, head_sha: revision } }] };
+    requests.push(request.url);
+    const pathname = decodeURIComponent(new URL(request.url, "http://local.test").pathname);
+    let body;
+    if (pathname.endsWith("/commits/tags/v0.3.0")) { response.writeHead(422); return response.end(JSON.stringify({ message: "No commit found for SHA: tags/v0.3.0" })); }
+    if (pathname.endsWith("/commits/heads/main") || pathname.endsWith("/commits/refs/tags/v0.3.0")) body = { sha: revision, commit: { tree: { sha: candidate.sourceTree } } };
+    else if (request.url.includes("/actions/runs/20/artifacts")) body = { total_count: 1, artifacts: [{ id: 30, name: "release-verification-20-1", expired: false, expires_at: "2099-01-01T00:00:00Z", digest: `sha256:${"e".repeat(64)}`, workflow_run: { id: 20, repository_id: 99, head_repository_id: 99, head_sha: revision } }] };
     else if (request.url.includes("/actions/runs/20")) body = { id: 20, run_attempt: latestAttempt, event: "workflow_dispatch", head_sha: revision, path: ".github/workflows/release-verification.yml", repository: { id: 99, full_name: "Thomisso/iVAT" }, head_repository: { id: 99, full_name: "Thomisso/iVAT" }, display_title: `Release verification ${candidate.requestId}`, status: "completed", conclusion: "success", created_at: candidate.requestedAt, run_started_at: candidate.requestedAt, referenced_workflows: ["ci.yml", "deployment-check.yml"].map(file => ({ path: `thomisso/ivat/.github/workflows/${file}@${candidate.sourceRef}`, sha: revision })) };
+    else { response.writeHead(501); return response.end(); }
     response.writeHead(200, { "content-type": "application/json" }); response.end(JSON.stringify(body));
   });
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
@@ -74,6 +81,8 @@ fs.writeFileSync(args[args.indexOf('--metadata-file') + 1], JSON.stringify({ 'co
     cwd: directory, env: { ...process.env, PATH: `${directory}${path.delimiter}${process.env.PATH}`, GH_TOKEN: "disposable-test-token", GITHUB_API_URL: `http://127.0.0.1:${server.address().port}`,
       GITHUB_REPOSITORY: "Thomisso/iVAT", GITHUB_RUN_ID: "162", GITHUB_RUN_ATTEMPT: "1", ROSTI_PUBLIC_SUPABASE_URL: publicBuild.supabaseUrl, ROSTI_PUBLIC_SUPABASE_KEY: publicBuild.publishableKey },
   }), /attempt changed/);
+  assert.ok(requests.some(route => route.endsWith("/commits/refs%2Ftags%2Fv0.3.0")));
+  assert.ok(requests.every(route => !route.includes("/commits/tags%2F")));
   const calls = readFileSync(path.join(directory, "docker-calls.jsonl"), "utf8").trim().split("\n").map(JSON.parse);
   assert.equal(calls.length, 4, "a stale receipt cannot start another image publication");
   const app = calls.find(args => args.includes("Dockerfile"));
