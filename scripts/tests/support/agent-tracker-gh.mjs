@@ -37,8 +37,18 @@ if (endpoint === "graphql") {
   const value = variables.input ?? {};
   switch (operation) {
     case "TrackerItemFields": {
+      if (remote.itemFieldsResponse) {
+        console.log(JSON.stringify(remote.itemFieldsResponse.body));
+        console.error(remote.itemFieldsResponse.stderr ?? "gh: controlled GraphQL failure");
+        process.exit(1);
+      }
       const item = Object.values(remote.items).find(item => item.id === variables.id);
-      if (!item) { response = { node: null }; break; }
+      if (!item) {
+        const message = `Could not resolve to a node with the global id of '${variables.id}'.`;
+        console.log(JSON.stringify({ data: { node: null }, errors: [{ type: "NOT_FOUND", path: ["node"], locations: [{ line: 1, column: 16 }], message }] }));
+        console.error(`gh: ${message}`);
+        process.exit(1);
+      }
       response = { node: { fieldValues: { nodes: Object.entries(item.values).filter(([,value]) => value !== null).map(([id, value]) => ({ field: { id }, ...(value.singleSelectOptionId ? { optionId: value.singleSelectOptionId } : { text: value.text }) })), pageInfo: { hasNextPage: false } } } }; break;
     }
     case "TrackerReady": {
