@@ -23,13 +23,13 @@ http.createServer((request, response) => {
     const { candidate, evidence, archiveBase64, downloadUrl } = candidateState;
     if (request.method === "POST" && url.pathname.endsWith("/workflows/release-verification.yml/dispatches")) {
       if (request.body.ref !== candidate.tag || request.body.inputs?.candidate !== JSON.stringify(candidate) || request.body.inputs?.requestId !== candidate.requestId) return json(response, 422, { message: "Invalid candidate request" });
-      response.writeHead(204); return response.end();
+      return json(response, 200, { workflow_run_id: 20, run_url: "https://api.github.com/repos/thomisso/ivat/actions/runs/20", html_url: "https://github.com/thomisso/ivat/actions/runs/20" });
     }
     if (request.method !== "GET") return json(response, 501, { message: "Endpoint not modelled" });
     if (url.pathname === "/candidate-archive") { response.writeHead(200); return response.end(Buffer.from(behavior === "tampered" ? "dGFtcGVyZWQ=" : archiveBase64, "base64")); }
     if (!request.headers.authorization) return json(response, 401, { message: "Unauthorized" });
-    if (url.pathname.endsWith("/commits/main")) return json(response, 200, { sha: behavior === "wrong-target" ? "f".repeat(40) : candidate.targetRevision });
-    if (url.pathname.endsWith(`/commits/${candidate.tag}`)) return json(response, 200, { sha: candidate.revision, commit: { tree: { sha: candidate.sourceTree } } });
+    if (decodeURIComponent(url.pathname).endsWith("/commits/heads/main")) return json(response, 200, { sha: behavior === "wrong-target" ? "f".repeat(40) : candidate.targetRevision });
+    if (decodeURIComponent(url.pathname).endsWith(`/commits/tags/${candidate.tag}`)) return json(response, 200, { sha: candidate.revision, commit: { tree: { sha: candidate.sourceTree } } });
     if (url.pathname.endsWith("/workflows/release-verification.yml/runs")) return json(response, 200, { total_count: 1, workflow_runs: [evidence.run] });
     if (/\/runs\/20(?:\/attempts\/1)?$/.test(url.pathname)) return json(response, 200, evidence.run);
     if (url.pathname.endsWith("/runs/20/attempts/1/jobs")) return json(response, 200, { total_count: evidence.jobs.length, jobs: evidence.jobs });

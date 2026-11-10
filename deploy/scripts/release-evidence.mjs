@@ -116,7 +116,7 @@ async function boundedBytes(response) {
 }
 
 function githubClient({ repository, token, apiUrl = "https://api.github.com", deadline }) {
-  if (!token) throw new Error("GH_TOKEN with Actions read/write permission is required for candidate verification.");
+  if (!token) throw new Error("GH_TOKEN is required for GitHub candidate verification.");
   const base = new URL(apiUrl);
   if (base.username || base.password || base.search || base.hash ||
       (base.protocol !== "https:" && !(base.protocol === "http:" && base.hostname === "127.0.0.1"))) throw new Error("Invalid candidate verification API origin.");
@@ -179,21 +179,23 @@ function githubClient({ repository, token, apiUrl = "https://api.github.com", de
 }
 
 async function assertCurrentCandidate(client, candidate) {
-  const target = await client.json("/commits/main");
-  const source = await client.json(`/commits/${candidate.purpose === "release" ? candidate.tag : candidate.revision}`);
+  const target = await client.json(`/commits/${encodeURIComponent("heads/main")}`);
+  const sourceRef = candidate.purpose === "release" ? `tags/${candidate.tag}` : candidate.revision;
+  const source = await client.json(`/commits/${encodeURIComponent(sourceRef)}`);
   if (target?.sha !== candidate.targetRevision) throw new Error("Candidate verification target changed; select and verify current inputs again.");
   if (source?.sha !== candidate.revision || source.commit?.tree?.sha !== candidate.sourceTree) throw new Error("Candidate verification tag or source changed.");
 }
 
-export async function waitForCandidateVerification({ candidate, token, apiUrl, timeoutMs = 60 * 60_000, pollMs = 10_000 }) {
+export async function waitForCandidateVerification({ candidate, token, apiUrl, runId, timeoutMs = 60 * 60_000, pollMs = 10_000 }) {
   assertCandidate(candidate);
   const deadline = Date.now() + timeoutMs;
   const client = githubClient({ repository: candidate.repository, token, apiUrl, deadline });
   await assertCurrentCandidate(client, candidate);
   while (Date.now() < deadline) {
-    const runs = candidate.purpose === "acceptance" ? [await client.json(`/actions/runs/${candidate.acceptanceRunId}`)] :
+    const runs = candidate.purpose === "acceptance" || positive(runId) ? [await client.json(`/actions/runs/${candidate.purpose === "acceptance" ? candidate.acceptanceRunId : runId}`)] :
       await client.list(`/actions/workflows/${CANDIDATE_WORKFLOW}/runs`, "workflow_runs", { head_sha: candidate.revision, event: "workflow_dispatch" });
     const matches = candidate.purpose === "acceptance" ? runs : runs.filter(run => run.display_title === `Release verification ${candidate.requestId}`);
+    if (positive(runId) && matches.length !== 1) throw new Error("Dispatched candidate verification identity differs from its request.");
     if (matches.length > 1) throw new Error("Ambiguous candidate verification request; inspect its runs before retrying.");
     if (matches.length) {
       const latest = await client.json(`/actions/runs/${matches[0].id}`);
@@ -228,9 +230,11 @@ export async function dispatchCandidateVerification({ candidate, token, apiUrl }
   if (candidate.purpose !== "release") throw new Error("Acceptance evidence cannot request production release verification.");
   const client = githubClient({ repository: candidate.repository, token, apiUrl, deadline: Date.now() + 30_000 });
   await assertCurrentCandidate(client, candidate);
-  await client.json(`/actions/workflows/${CANDIDATE_WORKFLOW}/dispatches`, {
+  const acknowledgement = await client.json(`/actions/workflows/${CANDIDATE_WORKFLOW}/dispatches`, {
     method: "POST", body: { ref: candidate.tag, inputs: { candidate: JSON.stringify(candidate), requestId: candidate.requestId } },
   });
+  if (!positive(acknowledgement?.workflow_run_id)) throw new Error("Missing candidate dispatch run identity; preserve the request and inspect before retrying.");
+  return acknowledgement.workflow_run_id;
 }
 
 function candidatePlan(candidate) {

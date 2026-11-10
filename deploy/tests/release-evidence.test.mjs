@@ -107,16 +107,16 @@ test("the release HTTP caller verifies the exact completed attempt and artifact 
   let origin;
   const server = createServer((request, response) => {
     requests.push({ path: request.url, authorization: request.headers.authorization });
-    const pathname = new URL(request.url, origin).pathname;
+    const pathname = decodeURIComponent(new URL(request.url, origin).pathname);
     if (pathname.endsWith("/workflows/release-verification.yml/dispatches")) {
       const chunks = [];
       request.on("data", chunk => chunks.push(chunk));
-      request.on("end", () => { dispatched = JSON.parse(Buffer.concat(chunks)); response.writeHead(204); response.end(); });
+      request.on("end", () => { dispatched = JSON.parse(Buffer.concat(chunks)); response.writeHead(200, { "content-type": "application/json" }); response.end(JSON.stringify({ workflow_run_id: 20, run_url: `${origin}/repos/thomisso/ivat/actions/runs/20`, html_url: "https://github.com/thomisso/ivat/actions/runs/20" })); });
       return;
     }
     let body;
-    if (pathname.endsWith("/commits/main")) body = { sha: target };
-    else if (pathname.endsWith("/commits/v0.2.0")) body = { sha: revision, commit: { tree: { sha: expected.sourceTree } } };
+    if (pathname.endsWith("/commits/heads/main")) body = { sha: target };
+    else if (pathname.endsWith("/commits/tags/v0.2.0")) body = { sha: revision, commit: { tree: { sha: expected.sourceTree } } };
     else if (pathname.endsWith("/workflows/release-verification.yml/runs")) body = { total_count: 1, workflow_runs: [value.run] };
     else if (pathname.endsWith("/runs/20/attempts/1/jobs")) body = { total_count: value.jobs.length, jobs: value.jobs };
     else if (pathname.endsWith("/runs/20/artifacts")) body = { total_count: artifacts.length, artifacts };
@@ -130,10 +130,13 @@ test("the release HTTP caller verifies the exact completed attempt and artifact 
   t.after(() => new Promise(resolve => server.close(resolve)));
   origin = `http://127.0.0.1:${server.address().port}`;
   const options = { candidate: expected, token: "disposable-test-token", apiUrl: origin, timeoutMs: 1000, pollMs: 1 };
-  await dispatchCandidateVerification(options);
+  const runId = await dispatchCandidateVerification(options);
+  assert.equal(runId, 20);
   assert.deepEqual(dispatched, { ref: "v0.2.0", inputs: { candidate: JSON.stringify(expected), requestId: expected.requestId } });
-  const receipt = await waitForCandidateVerification(options);
+  const receipt = await waitForCandidateVerification({ ...options, runId });
   assert.equal(receipt.artifactId, 30);
+  assert.ok(requests.some(item => item.path.endsWith("/commits/heads%2Fmain")));
+  assert.ok(requests.some(item => item.path.endsWith("/commits/tags%2Fv0.2.0")));
   assert.ok(requests.some(item => item.path.includes("/attempts/1/jobs?per_page=100&page=1")));
   assert.equal(requests.find(item => item.path === "/download").authorization, undefined);
   await confirmCandidate({ ...options, receipt });

@@ -13,8 +13,8 @@ assumptions:
     status: supported
     claim: The modelled GitHub contract exposes workflow dispatch, exact run and attempt readback, attempt-scoped jobs, run artifacts with digest/expiry, redirect download and commit/tree identity.
     reason: Current primary GitHub REST documentation describes the consumed fields and paths. The existing owner-discovery limitation is retained; this is a contract-derived local mock.
-    verification: Read the workflow runs, jobs, artifacts and workflow event documentation on 2026-11-09. No live dispatch, source copy, credential transfer or provider write was performed.
-    source: https://docs.github.com/en/rest/actions/workflow-runs?apiVersion=2026-03-10; https://docs.github.com/en/rest/actions/workflow-jobs?apiVersion=2026-03-10; https://docs.github.com/en/rest/actions/artifacts?apiVersion=2026-03-10; postman/mocks/github-release/default.js
+    verification: Read the workflow runs, jobs, artifacts and workflow event documentation on 2026-11-09. Rechecked dispatch, commit identity and nested-workflow permissions on 2026-11-10: the pinned dispatch contract returns HTTP 200 with workflow_run_id, which the caller validates before lookup. No live dispatch, source copy, credential transfer or provider write was performed.
+    source: https://docs.github.com/en/rest/actions/workflow-runs?apiVersion=2026-03-10; https://docs.github.com/en/rest/actions/workflow-jobs?apiVersion=2026-03-10; https://docs.github.com/en/rest/actions/artifacts?apiVersion=2026-03-10; https://docs.github.com/en/rest/actions/workflows?apiVersion=2026-03-10#create-a-workflow-dispatch-event; https://docs.github.com/en/rest/commits/commits?apiVersion=2026-03-10#get-a-commit; postman/mocks/github-release/default.js
     updated_at: "2026-11-10"
   - id: candidate-live-workflow-provenance
     status: unknown
