@@ -7,6 +7,11 @@ writes this checkout's actual keys to ignored `.env.local`. Use the supported
 `bootstrap:superadmin` command with an explicit identity instead of personal SQL
 snippets. New commits should use the maintainer's GitHub no-reply email.
 
+The removed local API-key values were also embedded as public defaults in the
+distributed Supabase CLI. Removing those defaults does not by itself require
+credential rotation or a database restart. Rotation applies to installation-specific
+secrets that were exposed; keep local stacks restricted to trusted access.
+
 ## One-time history cutover
 
 Content cleanup on a branch does not remove the original values from Git
