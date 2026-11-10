@@ -1,3 +1,5 @@
+import { sourceEvidencePdfFixture } from "./support/source-evidence";
+import { pdfPages } from "@/application/source-files";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
 import { AnthropicProviderError, anthropicAiProvider } from "@/ai/anthropic";
@@ -27,7 +29,7 @@ async function anthropicStandIn(
 
 describe("Anthropic AI provider", () => {
   it("discards unsupported PDF locations without losing valid financial values", async () => {
-    const valid = { fieldPath: "rateBreakdown.0.vatAmount", kind: "page", page: 1, x: 0.6, y: 0.7, width: 0.2, height: 0.05 };
+    const valid = { fieldPath: "rateBreakdown.0.vatAmount", kind: "page", page: 2, x: 0.6, y: 0.7, width: 0.2, height: 0.05 };
     let requestBody: unknown;
     const baseUrl = await anthropicStandIn((_request, body, response) => {
       requestBody = body;
@@ -41,7 +43,7 @@ describe("Anthropic AI provider", () => {
             valid, null, "rectangle",
             { ...valid, fieldPath: "companyId" },
             { ...valid, fieldPath: "rateBreakdown.9.vatAmount" },
-            { ...valid, page: 2 }, { ...valid, page: 0 }, { ...valid, page: 1.5 },
+            { ...valid, page: 3 }, { ...valid, page: 0 }, { ...valid, page: 1.5 },
             { ...valid, x: -0.1 }, { ...valid, x: 0.9 },
             { ...valid, width: 0 }, { ...valid, height: "0.05" },
             { ...valid, kind: "workbook" },
@@ -51,8 +53,14 @@ describe("Anthropic AI provider", () => {
       }));
     });
     const provider = anthropicAiProvider({ apiKey: "test-secret", splitModel: "claude-split", extractModel: "claude-extract", baseUrl });
-    const extraction = await provider.extract({ format: "pdf", mediaType: "application/pdf", bytes: new Uint8Array([37, 80, 68, 70]), pageCount: 1 });
+    const extraction = await provider.extract({ format: "pdf", mediaType: "application/pdf", bytes: await pdfPages(await sourceEvidencePdfFixture(), { firstPage: 1, lastPage: 2 }), pageCount: 2 });
     expect(extraction.payload).toEqual({ ...SAMPLE_EXTRACTION, sourceLocations: [valid] });
+    const content = (requestBody as { messages: { content: { type: string; text?: string; source?: { data: string } }[] }[] }).messages[0].content;
+    expect(content.map(item => item.type)).toEqual(["text", "image", "text", "image", "text"]);
+    expect(content[0].text).toContain("Page 1 of 2");
+    expect(content[2].text).toContain("Page 2 of 2");
+    expect(Buffer.from(content[1].source!.data, "base64").subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+    expect(content[1].source!.data).not.toEqual(content[3].source!.data);
     expect(requestBody).toMatchObject({
       output_config: { format: { schema: { required: expect.arrayContaining(["sourceLocations"]) } } },
     });

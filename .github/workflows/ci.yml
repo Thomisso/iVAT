@@ -157,6 +157,9 @@ jobs:
           cache: npm
       - run: npm ci
 
+      - name: Install PDF renderer
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils
+
       - name: Start local Supabase
         id: supabase
         run: npm run db:start -- --profile=e2e
@@ -203,6 +206,8 @@ jobs:
         run: |
           npm install --global postman-cli@1.73.0
           postman --version
+      - name: Install PDF renderer
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils
       - name: Production HTTP acceptance
         run: npm run test:http
       - name: Upload HTTP acceptance service logs

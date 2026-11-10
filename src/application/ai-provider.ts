@@ -3,12 +3,16 @@ import type { ExtractionPayload } from "./extraction-payload";
 import type { SourceFileFormat } from "./source-files";
 import type { WorkbookRowSet } from "./workbooks";
 
+export type PdfPageImage = { mediaType: "image/png"; bytes: Uint8Array; width: number; height: number };
+
 /** Content sent to an AI provider: a whole Source File for Split, one Document's pages for Extract. */
 export type AiInput = {
   format: SourceFileFormat;
   mediaType: string;
   bytes: Uint8Array;
   pageCount: number;
+  /** Full oriented PDF pages in relative page order, prepared by the server for Extraction. */
+  pageImages?: PdfPageImage[];
   /** Present when `bytes` is the row-numbered textual representation of a workbook. */
   text?: string;
   /** Populated worksheet bounds, for validating a spreadsheet Split. */
@@ -100,8 +104,8 @@ export function providerResponseOf(error: unknown): string | null {
 }
 
 /**
- * An AI provider adapter (ADR-0004). Implementations send PDFs and images
- * natively and throw on technical failures; the job retries and finally marks
+ * An AI provider adapter (ADR-0004). Split sends PDFs natively; Extraction
+ * uses full-page raster derivatives. Technical failures throw; the job retries and finally marks
  * the Source File or Document Failed.
  */
 export interface AiProvider {
