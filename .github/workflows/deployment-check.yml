@@ -78,6 +78,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Install PDF renderer for host application checks
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils
       - name: Generate disposable deployment credentials
         run: node deploy/scripts/init.mjs
       - name: Build the production images

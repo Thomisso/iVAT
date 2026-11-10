@@ -1,3 +1,4 @@
+import { prepareExtractionInput } from "./pdf-extraction";
 import { bindSourceEvidence } from "./source-locations";
 import {
   AiProviderError,
@@ -516,5 +517,5 @@ async function documentInput(format: SourceFileFormat, bytes: Uint8Array, range:
       workbookEvidence: { sheetName, firstRow, lastRow, firstColumn, lastColumn, headerRow } };
   }
   if (format !== "pdf") return binaryAiInput(format, bytes, 1);
-  return binaryAiInput(format, await pdfPages(bytes, range), range.lastPage - range.firstPage + 1);
+  return prepareExtractionInput(binaryAiInput(format, await pdfPages(bytes, range), range.lastPage - range.firstPage + 1));
 }
