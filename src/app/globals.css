@@ -1224,7 +1224,7 @@ select:disabled {
   }
 }
 
-/* Shared operational frame: design_v2 page 6. Existing navigation stays intact. */
+/* Shared operational frame for Company, Organization and Platform work. */
 .company-skip-link {
   position: fixed;
   z-index: 100;
