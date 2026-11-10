@@ -17,7 +17,7 @@ const trackerInput = file => /^scripts\/(agent-tracker\.mjs|agent-tracking\/|ver
 const releaseInput = file => /^deploy\//.test(file)
   || ["Dockerfile", "docker-compose.rosti.yml", ".dockerignore", "scripts/write-release-identity.mjs", "scripts/tests/release-identity.test.mjs", ".github/workflows/prepare-release.yml", ".github/workflows/daily-backup.yml"].includes(file)
   || /^postman\/(mocks|simulations)\/(github-release|release-flow|rosti-deployment)\//.test(file);
-const verificationInput = file => [".github/workflows/ci.yml", ".github/workflows/deployment-check.yml", "scripts/ci-policy.mjs", "scripts/ci-timings.mjs"].includes(file)
+const verificationInput = file => [".github/workflows/ci.yml", ".github/workflows/deployment-check.yml", "scripts/ci-policy.mjs", "scripts/ci-pr-evidence.mjs", "scripts/ci-timings.mjs"].includes(file)
   || /^scripts\/tests\/(ci-[^/]*|http-acceptance-policy)\.test\.mjs$/.test(file);
 const applicationInput = file => /^(src|worker|tests|public|messages|emails)\//.test(file);
 
@@ -85,6 +85,14 @@ if (process.argv[2] === "gate") {
   try {
     const plan = JSON.parse(process.env.PLAN);
     const results = JSON.parse(process.env.RESULTS);
+    if (process.env.PR_REUSE) {
+      // A separate CLI process corroborates GitHub evidence at gate use. The
+      // policy remains the single authority over scopes and actual outcomes.
+      const prior = JSON.parse(execFileSync(process.execPath, [new URL("./ci-pr-evidence.mjs", import.meta.url).pathname, "validate"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
+      if (!Array.isArray(prior.scopes) || !prior.scopes.length || prior.scopes.some(scope => !scopeNames.includes(scope) || !plan.scopes[scope] || (Object.hasOwn(results, scope) && results[scope] !== "skipped"))) throw new Error("Invalid reused results");
+      for (const scope of prior.scopes) if (Object.hasOwn(results, scope)) results[scope] = "success";
+      console.log(`Reused fresh verification from ${prior.source}`);
+    }
     passed = verificationPassed(plan, process.env.GATE, results);
     if (validPlan(plan) && Object.hasOwn(gateScopes, process.env.GATE)) {
       console.log(`Verification profile: ${plan.profile} (${plan.reason}); gate: ${process.env.GATE}`);
@@ -109,7 +117,7 @@ if (process.argv[2] === "gate") {
       const pr = event.pull_request;
       if (typeof pr.draft !== "boolean" || !Array.isArray(pr.labels) || pr.labels.some(label => typeof label?.name !== "string")) throw new Error("Incomplete PR metadata");
       draft = pr.draft;
-      fullVerification = pr.labels.some(label => label.name === "ci:full");
+      fullVerification = pr.labels.some(label => label.name.toLowerCase() === "ci:full");
       const { base, head } = pr;
       if (!/^[a-f0-9]{40}$/.test(base.sha) || !/^[a-f0-9]{40}$/.test(head.sha)) throw new Error("Incomplete PR revisions");
       // NUL separation keeps unusual filenames unambiguous. Read the complete
