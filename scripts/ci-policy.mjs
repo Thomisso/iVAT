@@ -20,11 +20,16 @@ const releaseInput = file => /^deploy\//.test(file)
 const verificationInput = file => [".github/workflows/ci.yml", ".github/workflows/deployment-check.yml", "scripts/ci-policy.mjs", "scripts/ci-pr-evidence.mjs", "scripts/ci-timings.mjs"].includes(file)
   || /^scripts\/tests\/(ci-[^/]*|http-acceptance-policy)\.test\.mjs$/.test(file);
 const applicationInput = file => /^(src|worker|tests|public|messages|emails)\//.test(file);
+// Production image sources and the complete runtime-acceptance dependency tree.
+// Shared/toolchain and unknown inputs are handled conservatively above this set.
+const deploymentInput = file => applicationInput(file) || /^deploy\//.test(file)
+  || file === "scripts/write-release-identity.mjs"
+  || verificationInput(file);
 
 export function verificationPlan({ event, draft = false, fullVerification = false, files, complete = true }) {
   let conservative;
-  if (event !== "pull_request") conservative = "conservative-non-pr";
-  else if (fullVerification) conservative = "full-override";
+  if (fullVerification === true) conservative = "full-override";
+  else if (!["pull_request", "push"].includes(event)) conservative = "conservative-non-pr";
   else if (typeof draft !== "boolean" || typeof fullVerification !== "boolean" || complete !== true || !Array.isArray(files) || files.some(file => typeof file !== "string" || !file.length)) conservative = "incomplete-diff";
   else if (!files.length) conservative = "empty-diff";
   else {
@@ -40,20 +45,21 @@ export function verificationPlan({ event, draft = false, fullVerification = fals
   };
   const tracker = files.find(file => trackerInput(file) || verificationInput(file));
   const release = files.find(file => releaseInput(file) || verificationInput(file));
+  const deployment = files.find(deploymentInput);
   const inputReason = (file, kind) => file ? `${verificationInput(file) ? "verification" : kind}-input:${file}` : `${kind}-inputs-unchanged`;
   const code = !files.every(documentation);
-  const ready = code && !draft;
+  const ready = code && (event === "push" || !draft);
   const applicationReason = !code ? "application-inputs-unchanged" : ready ? "ready-application-change" : "draft-awaiting-readiness";
   return {
     version: 1,
     profile: !code ? "docs" : ready ? "full" : "draft",
     reason: !code ? "documentation-only" : ready ? "ready-change" : "draft-change",
-    scopes: { common: code, tracker: Boolean(tracker), trackerTransport: Boolean(tracker), release: Boolean(release), application: ready, http: ready, deployment: ready },
+    scopes: { common: code, tracker: Boolean(tracker), trackerTransport: Boolean(tracker), release: Boolean(release), application: ready, http: ready, deployment: ready && Boolean(deployment) },
     reasons: {
       common: code ? "code-checks" : "documentation-only",
       tracker: inputReason(tracker, "tracker"), trackerTransport: inputReason(tracker, "tracker"), release: inputReason(release, "release"),
       application: applicationReason, http: applicationReason,
-      deployment: !code ? "documentation-only" : ready ? "conservative-ready-deployment" : "draft-awaiting-readiness",
+      deployment: !deployment ? "deployment-inputs-unchanged" : ready ? `deployment-input:${deployment}` : "draft-awaiting-readiness",
     },
   };
 }
@@ -124,6 +130,17 @@ if (process.argv[2] === "gate") {
       // merge-base diff, without the changed-file API's page/size limits.
       // Expanding renames into deletion/addition retains both dependency paths.
       files = execFileSync("git", ["diff", "--name-only", "--no-renames", "-z", `${base.sha}...${head.sha}`], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).split("\0").filter(Boolean);
+      complete = true;
+    } else if (process.env.GITHUB_EVENT_NAME === "push") {
+      const { before, after } = event;
+      if (![before, after].every(revision => typeof revision === "string" && /^[a-f0-9]{40}$/.test(revision))
+        || event.ref !== "refs/heads/main" || process.env.GITHUB_REF !== event.ref
+        || process.env.GITHUB_SHA !== after || event.forced !== false || event.deleted !== false || event.created === true) throw new Error("Uncertain main push metadata");
+      const git = (...args) => execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+      if (git("rev-parse", "HEAD") !== after || [before, after].some(revision => git("cat-file", "-t", revision) !== "commit")) throw new Error("Push checkout or commit objects differ");
+      git("merge-base", "--is-ancestor", before, after);
+      // Use the whole verified push range, never HEAD^ or the final commit.
+      files = execFileSync("git", ["diff", "--name-only", "--no-renames", "-z", before, after], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).split("\0").filter(Boolean);
       complete = true;
     }
   } catch {
