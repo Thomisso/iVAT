@@ -131,7 +131,10 @@ async function currentPrContext(environment, event) {
   const pr = event.pull_request;
   const git = (...args) => execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
   const checked = git("rev-parse", "HEAD");
-  const parents = git("show", "-s", "--format=%P", checked).split(" ");
+  // Read the immutable commit object's headers. History-walking formats such
+  // as %P hide parents at the default depth-one checkout's shallow boundary.
+  const headers = git("cat-file", "commit", checked).split("\n\n", 1)[0];
+  const parents = [...headers.matchAll(/^parent ([a-f0-9]{40})$/gm)].map(match => match[1]);
   if (checked !== environment.GITHUB_SHA || parents.length !== 2 || !parents.includes(pr.base.sha) || !parents.includes(pr.head.sha)) throw new Error("Checked PR merge differs from event inputs");
   const repository = environment.GITHUB_REPOSITORY?.toLowerCase();
   const workflow = environment.PR_WORKFLOW_FILE;

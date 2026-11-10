@@ -148,7 +148,7 @@ async function cli(command, environment, directory) {
   });
 }
 
-test("public select/record/gate CLIs reuse an actual checked merge, rerun on uncertainty, and fail closed when the current target changes", async t => {
+test("public select/record/gate CLIs preserve actual merge identity in a depth-one checkout and fail closed when applicability changes", async t => {
   const fs = await import("node:fs"); const os = await import("node:os"); const path = await import("node:path");
   const { execFileSync } = await import("node:child_process");
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "ivat-pr-cli-"));
@@ -164,6 +164,14 @@ test("public select/record/gate CLIs reuse an actual checked merge, rerun on unc
   const head = git("rev-parse", "HEAD");
   git("checkout", "main"); fs.writeFileSync(path.join(directory, "README.md"), "Target advance"); git("add", "."); git("commit", "-m", "Target");
   const base = git("rev-parse", "HEAD"); git("merge", "--no-ff", "feature", "-m", "Test merge"); const checked = git("rev-parse", "HEAD");
+  // Match the default actions/checkout history used by evidence publication
+  // and stable gates, rather than relying on the classifier's full checkout.
+  const checkout = fs.mkdtempSync(path.join(os.tmpdir(), "ivat-pr-shallow-"));
+  t.after(() => fs.rmSync(checkout, { recursive: true, force: true }));
+  const { pathToFileURL } = await import("node:url");
+  execFileSync("git", ["clone", "--depth", "1", pathToFileURL(directory).href, checkout], { stdio: "pipe" });
+  assert.equal(execFileSync("git", ["rev-parse", "--is-shallow-repository"], { cwd: checkout, encoding: "utf8" }).trim(), "true");
+  assert.equal(execFileSync("git", ["show", "-s", "--format=%P", "HEAD"], { cwd: checkout, encoding: "utf8" }).trim(), "");
   const value = fixture();
   for (const context of [value.context, value.proof.context]) Object.assign(context, { head, checked, targetSha: base });
   value.run.head_sha = head; value.artifact.workflow_run.head_sha = head; for (const job of value.jobs) job.head_sha = head;
@@ -173,25 +181,25 @@ test("public select/record/gate CLIs reuse an actual checked merge, rerun on unc
   const event = { action: "labeled", label: { name: "ci:full" }, repository: { full_name: "acme/ivat" }, pull_request: pr };
   fs.writeFileSync(eventFile, JSON.stringify(event)); fs.writeFileSync(output, "");
   const environment = { GH_TOKEN: "synthetic", GITHUB_API_URL: api.apiUrl, GITHUB_EVENT_NAME: "pull_request", GITHUB_REPOSITORY: "acme/ivat", GITHUB_EVENT_PATH: eventFile, GITHUB_OUTPUT: output, GITHUB_SHA: checked, GITHUB_RUN_ID: "20", GITHUB_RUN_ATTEMPT: "1", PR_WORKFLOW_FILE: "ci.yml", PLAN: JSON.stringify(value.proof.plan), RESULTS: JSON.stringify(value.proof.results) };
-  const recorded = await cli("record", environment, directory);
+  const recorded = await cli("record", environment, checkout);
   assert.equal(recorded.status, 0, recorded.stderr);
-  api.refresh(JSON.parse(fs.readFileSync(path.join(directory, "pr-verification.json"), "utf8")));
+  api.refresh(JSON.parse(fs.readFileSync(path.join(checkout, "pr-verification.json"), "utf8")));
   value.currentDraft = false; value.currentFull = false;
   event.action = "ready_for_review"; event.pull_request.draft = false; event.pull_request.labels = []; delete event.label;
   fs.writeFileSync(eventFile, JSON.stringify(event)); environment.GITHUB_RUN_ID = "21"; environment.PLAN = JSON.stringify(value.plan);
   const selection = async () => {
-    fs.writeFileSync(output, ""); const result = await cli("select", environment, directory); assert.equal(result.status, 0, result.stderr);
+    fs.writeFileSync(output, ""); const result = await cli("select", environment, checkout); assert.equal(result.status, 0, result.stderr);
     return Object.fromEntries(fs.readFileSync(output, "utf8").trim().split("\n").map(line => { const index = line.indexOf("="); return [line.slice(0, index), line.slice(index + 1)]; }));
   };
   const chosen = await selection();
   assert.equal(chosen.application, "false"); assert.deepEqual(JSON.parse(chosen.reuse), { runId: 20, runAttempt: 1, artifactId: 42 });
   const skipped = { policy: "success", common: "skipped", tracker: "skipped", trackerTransport: "skipped", release: "skipped", application: "skipped" };
   environment.GATE = "check"; environment.RESULTS = JSON.stringify(skipped); environment.PR_REUSE = chosen.reuse;
-  const passed = await cli("gate", environment, directory); assert.equal(passed.status, 0, passed.stderr); assert.match(passed.stdout, /Reused fresh verification.*\/runs\/20\/attempts\/1/);
-  const mixed = await cli("gate", { ...environment, RESULTS: JSON.stringify({ ...skipped, application: "failure" }) }, directory); assert.equal(mixed.status, 1);
+  const passed = await cli("gate", environment, checkout); assert.equal(passed.status, 0, passed.stderr); assert.match(passed.stdout, /Reused fresh verification.*\/runs\/20\/attempts\/1/);
+  const mixed = await cli("gate", { ...environment, RESULTS: JSON.stringify({ ...skipped, application: "failure" }) }, checkout); assert.equal(mixed.status, 1);
   value.liveTarget = "f".repeat(40);
   const changed = await selection(); assert.equal(changed.application, "true"); assert.equal(changed.reuse, "");
-  const refused = await cli("gate", environment, directory); assert.equal(refused.status, 1);
+  const refused = await cli("gate", environment, checkout); assert.equal(refused.status, 1);
   delete value.liveTarget;
   value.currentFull = true;
   assert.equal((await selection()).reuse, "", "a newly requested full override invalidates the older scope selection");
@@ -202,5 +210,5 @@ test("public select/record/gate CLIs reuse an actual checked merge, rerun on unc
   value.liveHead = "f".repeat(40);
   assert.equal((await selection()).application, "true"); delete value.liveHead;
   value.httpFailure = 403; assert.equal((await selection()).reuse, ""); delete value.httpFailure;
-  const chain = await cli("record", environment, directory); assert.equal(chain.status, 1);
+  const chain = await cli("record", environment, checkout); assert.equal(chain.status, 1);
 });
