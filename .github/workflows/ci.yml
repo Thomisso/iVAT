@@ -8,12 +8,14 @@ on:
 
 permissions:
   contents: read
+  actions: read
+  pull-requests: read
 
 # Only PR revisions supersede each other. Main evidence and release preparation
 # must remain available for their exact commit, even after a newer main push.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ci-${{ github.workflow }}-${{ (!(github.event_name == 'pull_request' && (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'ci:full' ) && github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && !(github.event_name == 'pull_request' && (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'ci:full') }}
 
 jobs:
   profile:
@@ -22,11 +24,13 @@ jobs:
     outputs:
       profile: ${{ steps.profile.outputs.profile }}
       plan: ${{ steps.profile.outputs.plan }}
-      common: ${{ steps.profile.outputs.common }}
-      tracker: ${{ steps.profile.outputs.tracker }}
-      release: ${{ steps.profile.outputs.release }}
-      application: ${{ steps.profile.outputs.application }}
-      http: ${{ steps.profile.outputs.http }}
+      run: ${{ steps.selection.outputs.run }}
+      reuse: ${{ steps.selection.outputs.reuse }}
+      common: ${{ steps.selection.outputs.common }}
+      tracker: ${{ steps.selection.outputs.tracker }}
+      release: ${{ steps.selection.outputs.release }}
+      application: ${{ steps.selection.outputs.application }}
+      http: ${{ steps.selection.outputs.http }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -35,9 +39,15 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: node --test scripts/tests/ci-policy.test.mjs scripts/tests/ci-scopes.test.mjs scripts/tests/http-acceptance-policy.test.mjs
+      - run: node --test scripts/tests/ci-policy.test.mjs scripts/tests/ci-scopes.test.mjs scripts/tests/ci-pr-events.test.mjs scripts/tests/ci-pr-evidence.test.mjs scripts/tests/http-acceptance-policy.test.mjs
       - id: profile
         run: node scripts/ci-policy.mjs
+      - id: selection
+        run: node scripts/ci-pr-evidence.mjs select
+        env:
+          PLAN: ${{ steps.profile.outputs.plan }}
+          GH_TOKEN: ${{ github.token }}
+          PR_WORKFLOW_FILE: ci.yml
       - name: Migrations already on main are unchanged
         if: github.event_name == 'pull_request'
         env:
@@ -189,7 +199,8 @@ jobs:
         run: npm run db:stop -- --no-backup
 
   check:
-    if: always()
+    name: ${{ (github.event_name == 'pull_request' && (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'ci:full') && 'Administrative label (check)' || 'check' }}
+    if: ${{ always() && !(github.event_name == 'pull_request' && (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'ci:full') }}
     needs: [profile, tracker, release, common, full]
     runs-on: ubuntu-latest
     steps:
@@ -200,11 +211,15 @@ jobs:
       - run: node scripts/ci-policy.mjs gate
         env:
           PLAN: ${{ needs.profile.outputs.plan }}
+          PR_REUSE: ${{ needs.profile.outputs.reuse }}
+          GH_TOKEN: ${{ github.token }}
+          PR_WORKFLOW_FILE: ci.yml
           GATE: check
           RESULTS: '{"policy": "${{ needs.profile.result }}", "tracker": "${{ needs.tracker.result }}", "trackerTransport": "${{ needs.tracker.result }}", "release": "${{ needs.release.result }}", "common": "${{ needs.common.result }}", "application": "${{ needs.full.result }}"}'
 
   e2e:
-    if: always()
+    name: ${{ (github.event_name == 'pull_request' && (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'ci:full') && 'Administrative label (e2e)' || 'e2e' }}
+    if: ${{ always() && !(github.event_name == 'pull_request' && (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'ci:full') }}
     needs: [profile, common, acceptance]
     runs-on: ubuntu-latest
     steps:
@@ -215,5 +230,32 @@ jobs:
       - run: node scripts/ci-policy.mjs gate
         env:
           PLAN: ${{ needs.profile.outputs.plan }}
+          PR_REUSE: ${{ needs.profile.outputs.reuse }}
+          GH_TOKEN: ${{ github.token }}
+          PR_WORKFLOW_FILE: ci.yml
           GATE: e2e
           RESULTS: '{"policy": "${{ needs.profile.result }}", "common": "${{ needs.common.result }}", "http": "${{ needs.acceptance.result }}"}'
+
+  pr-evidence:
+    name: PR verification evidence
+    if: ${{ always() && github.event_name == 'pull_request' && needs.profile.outputs.reuse == '' && needs.profile.outputs.application == 'true' && needs.check.result == 'success' && needs.e2e.result == 'success' }}
+    needs: [profile, tracker, release, common, full, acceptance, check, e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: node scripts/ci-pr-evidence.mjs record
+        env:
+          PLAN: ${{ needs.profile.outputs.plan }}
+          RESULTS: '{"policy": "${{ needs.profile.result }}", "tracker": "${{ needs.tracker.result }}", "trackerTransport": "${{ needs.tracker.result }}", "release": "${{ needs.release.result }}", "common": "${{ needs.common.result }}", "application": "${{ needs.full.result }}", "http": "${{ needs.acceptance.result }}"}'
+          PR_REUSE: ${{ needs.profile.outputs.reuse }}
+          GH_TOKEN: ${{ github.token }}
+          PR_WORKFLOW_FILE: ci.yml
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pr-verification-${{ github.run_attempt }}
+          path: pr-verification.json
+          retention-days: 7
+          if-no-files-found: error
