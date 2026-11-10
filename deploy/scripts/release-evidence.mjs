@@ -45,12 +45,14 @@ export function assertCandidate(candidate) {
 }
 
 function assertRun(run, expected) {
+  // GitHub created_at has second precision; compare the request at that precision.
+  const requestedSecond = Math.floor(Date.parse(expected.requestedAt) / 1000) * 1000;
   if (!positive(run?.id) || !positive(run.run_attempt) || run.event !== (expected.purpose === "release" ? "workflow_dispatch" : "pull_request") ||
       run.head_sha !== expected.runHead || run.path !== `.github/workflows/${expected.purpose === "release" ? CANDIDATE_WORKFLOW : "release-verification-acceptance.yml"}` ||
       run.repository?.full_name?.toLowerCase() !== expected.repository || !positive(run.repository.id) ||
       run.head_repository?.full_name?.toLowerCase() !== expected.repository || run.head_repository.id !== run.repository.id ||
       (expected.purpose === "release" ? run.display_title !== `Release verification ${expected.requestId}` : run.id !== expected.acceptanceRunId) || !successful(run) ||
-      !timestamp(run.run_started_at) || !timestamp(run.created_at) || (expected.purpose === "release" && Date.parse(run.created_at) < Date.parse(expected.requestedAt))) {
+      !timestamp(run.run_started_at) || !timestamp(run.created_at) || (expected.purpose === "release" && Date.parse(run.created_at) < requestedSecond)) {
     throw new Error("Invalid or incomplete candidate verification run.");
   }
   for (const file of ["ci.yml", "deployment-check.yml", ...(expected.purpose === "acceptance" ? [CANDIDATE_WORKFLOW] : [])]) {

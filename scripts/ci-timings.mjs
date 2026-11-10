@@ -1,6 +1,7 @@
 // Read-only GitHub evidence: node scripts/ci-timings.mjs RUN_ID...
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { stripVTControlCharacters } from "node:util";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -96,7 +97,8 @@ function describeJob(job, root) {
   let log = "";
   let logAvailable = false;
   if (execution === "started") {
-    try { log = command(["api", `${root}/actions/jobs/${job.id}/logs`]); logAvailable = true; }
+    // Capture provider ANSI output, then strip terminal controls before parsing or reporting.
+    try { log = stripVTControlCharacters(command(["api", `${root}/actions/jobs/${job.id}/logs`, "--allow-escape-sequences"])); logAvailable = true; }
     catch { /* Logs can expire or require additional access. Keep facts unknown. */ }
   }
   const checkoutRevisions = [...new Set([...log.matchAll(/\[command\][^\n]*git log -1 --format=%H\r?\n(?:[^\n]*?Z )?([a-f0-9]{40})(?:\r?\n|$)/g)].map(match => match[1]))];
