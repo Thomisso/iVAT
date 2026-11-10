@@ -92,6 +92,7 @@ jobs:
         run: docker compose --env-file .env.rosti -f docker-compose.rosti.yml run --rm --no-deps migrate
       - name: Application behavior against self-hosted Supabase
         run: |
+          docker compose --env-file .env.rosti -f docker-compose.rosti.yml exec -T worker node --import tsx deploy/scripts/verify-pdf-extraction.ts
           docker compose --env-file .env.rosti -f docker-compose.rosti.yml stop worker
           npx vitest run --config deploy/tests/vitest.config.ts tests/processing.test.ts tests/source-files.test.ts tests/ai-configurations.test.ts
       - name: Production web through the reverse proxy
