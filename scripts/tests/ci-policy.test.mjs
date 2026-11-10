@@ -8,7 +8,7 @@ test("only known documentation paths can avoid runtime verification", () => {
     assert.equal(classifyChanges({ event: "pull_request", files: ["README.md", file] }), "full", file);
   }
   assert.equal(classifyChanges({ event: "pull_request", draft: true, files: [] }), "full");
-  assert.equal(classifyChanges({ event: "push", files: ["README.md"] }), "full");
+  assert.equal(classifyChanges({ event: "push", files: ["README.md"] }), "docs");
 });
 
 test("draft commits are cheap, ready transitions and ready updates get full checks", () => {
@@ -246,7 +246,7 @@ test("configured jobs consume actual published scopes for documentation, drafts 
     [{ event: "pull_request", draft: true, files: [".github/workflows/ci.yml"] }, ["common", "tracker", "release"], [], "CI draft"],
     [{ event: "pull_request", files: ["src/app/page.tsx"] }, ["common", "full", "acceptance"], ["runtime"], "app ready"],
     [{ event: "pull_request", draft: true, fullVerification: true, files: ["README.md"] }, ["tracker", "common", "release", "full", "acceptance"], ["runtime"], "override"],
-    [{ event: "push", files: ["README.md"] }, ["tracker", "common", "release", "full", "acceptance"], ["runtime"], "main docs stays full"],
+    [{ event: "push", files: ["README.md"] }, [], [], "verified main docs"],
   ];
   for (const [workflow, expectedIndex] of [["ci.yml", 1], ["deployment-check.yml", 2]]) {
     const jobs = await ciJobs(workflow);
