@@ -304,7 +304,7 @@ the same reusable **CI** and **Deployment verification** jobs with every scope
 required by `verificationPlan`, including all application shards, production
 HTTP acceptance and the actual AMD64 production-image build/runtime. A green
 scoped/docs main aggregate is insufficient. Candidate verification has only
-contents/Actions read permission; it has no registry publication, provider
+contents/Actions/PR read permission; it has no registry publication, provider
 credentials, SSH or deployment job.
 
 The request binds repository, exact revision and source tree, stable tag,
@@ -448,9 +448,10 @@ ZIP digest, workflow/revision, raw run head, checked source, target and attempt.
 This produces a non-deployable acceptance receipt. Neither workflow_dispatch nor
 this acceptance run substitutes for the normal PR/push required-check event.
 The November 2026 source/local checks do not establish real Actions execution:
-GitHub currently refuses new jobs before any step for account payment/spending
-limits. Full candidate Actions, actual image/runtime acceptance and activation
-remain outstanding until the provider executes the authorized bounded run.
+Earlier account payment/spending refusals occurred before any step and supplied
+no execution evidence. Subsequent unrelated CI startup does not establish this
+candidate path. Full candidate Actions, actual image/runtime acceptance and
+activation remain outstanding until the authorized bounded run succeeds.
 
 The deployment verification workflow boots the self-hosted services and
 reuses Application integration tests, in addition to the existing CI checks.

@@ -19,10 +19,12 @@ on:
 
 permissions:
   contents: read
+  actions: read
+  pull-requests: read
 
 concurrency:
-  group: deployment-${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: deployment-${{ github.workflow }}-${{ (!(!inputs['candidate-full'] && github.event_name == 'pull_request' && (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'ci:full' ) && github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && !(!inputs['candidate-full'] && github.event_name == 'pull_request' && (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'ci:full') }}
 
 jobs:
   profile:
@@ -31,7 +33,9 @@ jobs:
     outputs:
       profile: ${{ steps.profile.outputs.profile }}
       plan: ${{ steps.profile.outputs.plan }}
-      deployment: ${{ steps.profile.outputs.deployment }}
+      run: ${{ steps.selection.outputs.run }}
+      reuse: ${{ steps.selection.outputs.reuse }}
+      deployment: ${{ steps.selection.outputs.deployment }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -39,12 +43,19 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-      - run: node --test scripts/tests/ci-policy.test.mjs scripts/tests/ci-scopes.test.mjs
+      - run: node --test scripts/tests/ci-policy.test.mjs scripts/tests/ci-scopes.test.mjs scripts/tests/ci-pr-events.test.mjs scripts/tests/ci-pr-evidence.test.mjs
       - id: profile
         name: Select verification plan
         env:
-          CI_CANDIDATE_FULL: ${{ inputs.candidate-full }}
+          CI_CANDIDATE_FULL: ${{ inputs['candidate-full'] }}
         run: node scripts/ci-policy.mjs
+      - id: selection
+        run: node scripts/ci-pr-evidence.mjs select
+        env:
+          CI_CANDIDATE_FULL: ${{ inputs['candidate-full'] }}
+          PLAN: ${{ steps.profile.outputs.plan }}
+          GH_TOKEN: ${{ github.token }}
+          PR_WORKFLOW_FILE: deployment-check.yml
 
   runtime:
     needs: profile
@@ -102,7 +113,8 @@ jobs:
         run: docker compose --env-file .env.rosti -f docker-compose.rosti.yml -f deploy/tests/compose.yml down
 
   self-hosted:
-    if: always()
+    name: ${{ (!inputs['candidate-full'] && github.event_name == 'pull_request' && (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'ci:full') && 'Administrative label (self-hosted)' || 'self-hosted' }}
+    if: ${{ always() && !(!inputs['candidate-full'] && github.event_name == 'pull_request' && (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'ci:full') }}
     needs: [profile, runtime]
     runs-on: ubuntu-latest
     steps:
@@ -114,5 +126,32 @@ jobs:
         run: node scripts/ci-policy.mjs gate
         env:
           PLAN: ${{ needs.profile.outputs.plan }}
+          PR_REUSE: ${{ needs.profile.outputs.reuse }}
+          GH_TOKEN: ${{ github.token }}
+          PR_WORKFLOW_FILE: deployment-check.yml
           GATE: self-hosted
           RESULTS: '{"policy": "${{ needs.profile.result }}", "deployment": "${{ needs.runtime.result }}"}'
+
+  pr-evidence:
+    name: PR verification evidence
+    if: ${{ always() && !inputs['candidate-full'] && github.event_name == 'pull_request' && needs.profile.outputs.reuse == '' && needs.profile.outputs.deployment == 'true' && needs.self-hosted.result == 'success' }}
+    needs: [profile, runtime, self-hosted]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: node scripts/ci-pr-evidence.mjs record
+        env:
+          PLAN: ${{ needs.profile.outputs.plan }}
+          RESULTS: '{"policy": "${{ needs.profile.result }}", "deployment": "${{ needs.runtime.result }}"}'
+          PR_REUSE: ${{ needs.profile.outputs.reuse }}
+          GH_TOKEN: ${{ github.token }}
+          PR_WORKFLOW_FILE: deployment-check.yml
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pr-verification-${{ github.run_attempt }}
+          path: pr-verification.json
+          retention-days: 7
+          if-no-files-found: error
