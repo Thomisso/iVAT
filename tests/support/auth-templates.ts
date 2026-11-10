@@ -1,5 +1,6 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { inject } from "vitest";
+import { startOwningStackAgain } from "../../scripts/auth-startup.mjs";
 
 /** Probe templates through the real Auth container of this test stack only. */
 export function nativeAuthTemplateFixture(name: "recovery" | "magic_link") {
@@ -14,6 +15,5 @@ export function nativeAuthTemplateFixture(name: "recovery" | "magic_link") {
 
 /** Run the actual existing-stack startup path; suppress its private local keys. */
 export function startOwningStackAgainFixture() {
-  const started = spawnSync(process.execPath, ["scripts/supabase.mjs", "start", "--profile=e2e"], { stdio: "ignore", timeout: 20_000 });
-  if (started.status !== 0) throw new Error("Owning stack repeated startup failed");
+  startOwningStackAgain();
 }

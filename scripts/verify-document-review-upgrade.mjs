@@ -6,6 +6,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { Client } from "pg";
+import { readSupabaseStatus } from "./supabase-status.mjs";
 
 const BASELINE = "5e60cba61410dc80fc48f9c03a2de1f1342b30aa";
 const BOUNDARY = "20261129090000";
@@ -20,7 +21,7 @@ assert.notEqual(fs.realpathSync(git("rev-parse", "--git-dir")), fs.realpathSync(
 assert.match(fs.readFileSync(".env", "utf8"), new RegExp(`^SUPABASE_SLOT=${slot}$`, "m"));
 const config = fs.readFileSync(".supabase-worktree/supabase/config.toml", "utf8");
 assert.match(config, new RegExp(`^project_id = "ivat-wt${slot}"$`, "m"));
-const status = JSON.parse(execFileSync(process.execPath, ["scripts/supabase.mjs", "status", "-o", "json"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
+const status = readSupabaseStatus();
 assert.equal(status.API_URL, `http://127.0.0.1:${54321 + 100 * slot}`);
 const dbUrl = new URL(status.DB_URL);
 assert.equal(dbUrl.hostname, "127.0.0.1");
@@ -37,7 +38,8 @@ const currentPackage = JSON.parse(fs.readFileSync("package.json", "utf8"));
 for (const field of ["dependencies", "devDependencies", "optionalDependencies", "overrides", "engines"]) {
   assert.deepEqual(currentPackage[field], baselinePackage[field], `Baseline dependency compatibility drift: ${field}`);
 }
-for (const file of ["package-lock.json", "vitest.config.ts", "tests/support/global-setup.ts"]) {
+// Both fixture configs below supply their own globalSetup through the protected context.
+for (const file of ["package-lock.json", "vitest.config.ts"]) {
   assert.equal(git("show", `${BASELINE}:${file}`), fs.readFileSync(file, "utf8").trim(), `Baseline dependency/setup drift: ${file}`);
 }
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), "ivat-242-upgrade-"));

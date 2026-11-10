@@ -150,7 +150,19 @@ the local Supabase CLI environment.
 
 Git worktrees are separate working directories of the same repository: they share history and branches, while each has its own checked-out files and uncommitted changes. iVAT requires one branch and worktree per implementation ticket to isolate simultaneous human and agent work. Sibling directories such as `../iVAT-253` are the project convention, not a Git requirement. Changes in a ticket worktree appear in the main checkout only when its checked-out revision incorporates them.
 
-All `db:*` scripts go through `scripts/supabase.mjs`. In the main checkout it uses `supabase/config.toml` as is. A linked git worktree gets its own stack instead: a separate database, ports shifted by 100 × a slot derived from the worktree path, and no Studio, Mailpit, analytics or edge runtime. Parallel worktrees can reset and test their databases independently. If two worktrees land on the same slot, set `SUPABASE_SLOT` (1–99) for one of them. This database isolation comes from the project scripts, not Git itself.
+Database scripts share checkout selection through `localSupabaseContext()` in `scripts/supabase-status.mjs`. Public CLI operations go through `scripts/supabase.mjs`; `db:types` captures generated source privately for its intended file instead. In the main checkout they use `supabase/config.toml` as is. A linked git worktree gets its own stack instead: a separate database, ports shifted by 100 × a slot derived from the worktree path, and no Studio, Mailpit, analytics or edge runtime. Parallel worktrees can reset and test their databases independently. If two worktrees land on the same slot, set `SUPABASE_SLOT` (1–99) for one of them. This database isolation comes from the project scripts, not Git itself.
+
+Supabase wrapper output is redacted on both stdout and stderr, including failed
+commands. Service URLs and process results remain available; credential values
+are replaced with `[REDACTED]`. Oversized output lines are omitted rather than
+partially exposing credentials. This also applies to `status -o json`: use
+`scripts/supabase-status.mjs`'s `readSupabaseStatus()` inside trusted local tooling
+when it needs actual credentials. It captures status privately with safe errors;
+there is no public raw-output option. `db:types` uses the same private checkout
+context to write unredacted schema text to `src/lib/database.types.ts`, preserving
+fields such as `api_key` while keeping stdout private and stderr redacted even
+on failure. Startup still writes the actual values to the owning checkout's
+ignored `.env.local`.
 
 ### Worktree lifecycle
 
