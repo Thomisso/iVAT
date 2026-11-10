@@ -47,6 +47,8 @@ The [iVAT Agent implementation Project](https://github.com/users/Thomisso/projec
 
 ## Implementation closure
 
+Repository automatic issue-closing configuration and its verification record belong to [tracker setup](agent-tracking.md#repository-automatic-issue-closing). Implementation uses that setup record and the final PR evidence below.
+
 Code issues stay open while their branch is under review. Put `Closes #<number>` in the pull request body so GitHub closes them when the pull request merges. A multi-ticket integration pull request names the spec and every completed child ticket. Research, triage and other work without a code merge is resolved by commenting and closing the issue directly. Such closure is not delivered implementation. Both implementation flows bind/report final revision checks and independent review, synchronize and use `final-handoff` for PR readiness. Only shared evidence-backed reconciliation of actual final merge/current closure publishes Hotovo. See [final handoff and delivery](agent-tracking.md#final-checks-handoff-and-delivery). Explicit `cancel` requires a reason and publishes Zrušeno; stop/interruption preserves phase. Project field edits cannot control work. Reopening and explicitly registered reversals invalidate obsolete delivery through [the shared reconciliation procedure](agent-tracking.md#cancellation-manual-conflicts-and-reversed-delivery), without launching agents.
 
 ## When a skill says "publish to the issue tracker"
