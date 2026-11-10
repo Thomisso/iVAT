@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { PDFDocument, PDFName, PDFNumber, StandardFonts, degrees } from "pdf-lib";
 import sharp from "sharp";
-import { prepareExtractionInput } from "../../src/application/pdf-extraction";
+import { createRequire } from "node:module";
+import path from "node:path";
+
+const load = createRequire(path.join(process.cwd(), "package.json"));
+const { prepareExtractionInput } = load("./src/application/pdf-extraction.ts");
 
 /** Runs inside the production worker image, without credentials or database writes. */
 async function main() {
@@ -16,11 +20,11 @@ async function main() {
   }
   const bytes = await pdf.save();
   const input = await prepareExtractionInput({ format: "pdf", mediaType: "application/pdf", bytes, pageCount: 4 });
-  assert.deepEqual(input.pageImages!.map(page => [page.width, page.height]), [
+  assert.deepEqual(input.pageImages.map(page => [page.width, page.height]), [
     [400, 200], [400, 800], [200, 100], [200, 400],
   ]);
   assert.deepEqual(input.bytes, bytes);
-  for (const image of input.pageImages!) {
+  for (const image of input.pageImages) {
     const data = await sharp(image.bytes).removeAlpha().raw().toBuffer();
     assert.ok(data.some(value => value < 100), "Expected rasterized text ink in the production image");
   }
