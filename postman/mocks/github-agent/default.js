@@ -4,7 +4,7 @@
 const http = require("http");
 const KEY = "github-agent:snapshot";
 const seed = () => ({ repository: "simulation-owner/agent-tracking", nextComment: 1000,
-  comments: {}, dispatches: [], requests: [], failure: null, items: {}, workflows: [], assignees: {},
+  comments: {}, dispatches: [], requests: [], failure: null, items: {}, nextItem: 1, workflows: [], assignees: {},
   fields: [{ id: "PVTSSF_status", name: "Status", dataType: "SINGLE_SELECT", options: [
     { id: "status_todo", name: "Todo", color: "GRAY", description: "" },
     { id: "status_working", name: "In Progress", color: "YELLOW", description: "" },
@@ -22,6 +22,7 @@ const issue = (number, repository) => ({ id: 10000 + number, node_id: `I_simulat
   body: "Synthetic transport fixture; no private Documents.", labels: [{ name: "ready-for-agent" }], assignees: [],
 });
 const fail = (response, failure) => {
+  if (failure.mode === "graphql-response") return json(response, 200, failure.body);
   if (failure.mode === "graphql-validation") return json(response, 200, { errors: [{ type: "UNPROCESSABLE", message: "Name cannot have a reserved value" }] });
   if (failure.mode === "disconnect") return response.destroy();
   if (failure.mode === "html") {
@@ -37,6 +38,7 @@ http.createServer(async (request, response) => {
     if (request.body.reset) state = seed();
     if (request.body.repository) state.repository = request.body.repository;
     if (request.body.failure !== undefined) state.failure = request.body.failure;
+    if (request.body.removeItem) for (const [key, item] of Object.entries(state.items)) if (item.id === request.body.removeItem) delete state.items[key];
     if (request.body.workflows !== undefined) state.workflows = request.body.workflows;
     if (request.body.mergeFacts !== undefined) state.mergeFacts = request.body.mergeFacts;
     await pm.state.set(KEY, state);
@@ -123,12 +125,12 @@ http.createServer(async (request, response) => {
     }
     if (operation === "TrackerAddItem") {
       const content = v.contentId || v.content;
-      state.items[content] ||= { id: `PVTI_${Object.keys(state.items).length + 1}`, content: { id: content }, fields: {} };
+      state.items[content] ||= { id: `PVTI_${state.nextItem++}`, content: { id: content }, fields: {} };
       return finish(200, { data: { addProjectV2ItemById: { item: state.items[content] } } });
     }
     if (operation === "TrackerItemFields") {
       const item = Object.values(state.items).find(item => item.id === v.id);
-      if (!item) return finish(200, { data: { node: null } });
+      if (!item) return finish(200, { data: { node: null }, errors: [{ type: "NOT_FOUND", path: ["node"], message: `Could not resolve to a node with the global id of '${v.id}'.` }] });
       const nodes = Object.entries(item.fields).map(([id, value]) => ({ field: { id }, ...(value.singleSelectOptionId ? { optionId: value.singleSelectOptionId } : { text: value.text }) }));
       return finish(200, { data: { node: { fieldValues: { nodes, pageInfo: { hasNextPage: false } } } } });
     }

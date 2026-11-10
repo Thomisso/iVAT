@@ -34,7 +34,7 @@ function projectionValues(config, record) {
 
 function readItemFields(github, config, itemId) {
   if (!itemId) return null;
-  const node = github.graph(`query TrackerItemFields($id:ID!){node(id:$id){... on ProjectV2Item{fieldValues(first:100){nodes{... on ProjectV2ItemFieldTextValue{text field{... on ProjectV2Field{id}}} ... on ProjectV2ItemFieldSingleSelectValue{optionId field{... on ProjectV2SingleSelectField{id}}}} pageInfo{hasNextPage}}}}}`, { id: itemId }).node;
+  const node = github.projectItemFields(itemId);
   if (!node?.fieldValues) return null;
   if (node.fieldValues.pageInfo.hasNextPage) throw new TrackerError("project_item_fields_exceed_limit");
   const observed = Object.fromEntries(Object.values(config.fields).map(field => [field.id, null]));
