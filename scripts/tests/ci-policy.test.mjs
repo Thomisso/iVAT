@@ -24,7 +24,7 @@ test("workflows run ready transitions, preserve required names and only cancel o
   for (const filename of ["ci.yml", "deployment-check.yml"]) {
     const workflow = readFileSync(new URL(`../../.github/workflows/${filename}`, import.meta.url), "utf8");
     assert.match(workflow, /types: \[opened, synchronize, reopened, ready_for_review, converted_to_draft, labeled, unlabeled\]/);
-    const evaluate = (template, github) => template.replace(/\$\{\{ (.*?) \}\}/g, (_, expression) => String(Function("github", `return (${expression})`)(github)));
+    const evaluate = (template, github, inputs = {}) => template.replace(/\$\{\{ (.*?) \}\}/g, (_, expression) => String(Function("github", "inputs", "always", `return (${expression})`)(github, inputs, () => true)));
     const concurrency = workflow.split("concurrency:\n")[1].split("\njobs:")[0];
     const group = concurrency.match(/^  group: (.+)$/m)[1];
     const cancellation = concurrency.match(/^  cancel-in-progress: (.+)$/m)[1];
@@ -35,11 +35,15 @@ test("workflows run ready transitions, preserve required names and only cancel o
     for (const action of ["labeled", "unlabeled"]) {
       const administrative = { ...ready, event: { ...ready.event, action, label: { name: "needs-info" } } };
       assert.equal(evaluate(cancellation, administrative), "false");
+      assert.equal(evaluate(cancellation, administrative, { "candidate-full": true }), "true");
       for (const gate of ["check", "e2e", "self-hosted"]) {
         const name = workflow.split(`\n  ${gate}:\n`)[1]?.match(/^    name: (.+)$/m)?.[1];
         if (!name) continue;
         assert.equal(evaluate(name, ready), gate);
         assert.notEqual(evaluate(name, administrative), gate, "administrative skips must not replace stable gates");
+        assert.equal(evaluate(name, administrative, { "candidate-full": true }), gate, "candidate acceptance retains its actual required gate");
+        const predicate = workflow.split(`\n  ${gate}:\n`)[1].match(/^    if: (.+)$/m)[1];
+        assert.equal(evaluate(predicate, administrative, { "candidate-full": true }), "true", "candidate acceptance cannot skip a selected gate");
       }
       assert.notEqual(evaluate(group, administrative), evaluate(group, ready));
       assert.equal(evaluate(cancellation, { ...administrative, event: { ...administrative.event, label: { name: "ci:full" } } }), "true");
@@ -175,7 +179,7 @@ test("full verification executes shared checks once and HTTP owns the equivalent
   const http = readFileSync(new URL("../e2e.mjs", import.meta.url), "utf8");
   assert.match(http, /Build production application.*command\("npm", \["run", "build"\]/);
   const deployment = readFileSync(new URL("../../.github/workflows/deployment-check.yml", import.meta.url), "utf8");
-  assert.match(deployment, /run: docker compose .* build/);
+  assert.match(deployment, /run: node deploy\/scripts\/release-evidence\.mjs build-runtime/);
 });
 
 test("configured stable gates reject every failed, cancelled, missing or skipped selected job through the CLI", async () => {

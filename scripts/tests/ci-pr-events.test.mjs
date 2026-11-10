@@ -35,6 +35,16 @@ test("selection CLI suppresses unrelated label work without publishing a new sta
   assert.match(publication, /^run=false$/m);
   assert.match(publication, /^application=false$/m);
   assert.match(publication, /^reuse=$/m);
+  // A deliberately invoked candidate caller must execute the full plan even
+  // when its inherited event was the ci:release-proof label, never reuse PR proof.
+  writeFileSync(eventFile, JSON.stringify({ action: "labeled", label: { name: "ci:release-proof" } })); writeFileSync(output, "");
+  const candidatePlan = verificationPlan({ event: "pull_request", fullVerification: true });
+  const candidate = spawnSync(process.execPath, [new URL("../ci-pr-evidence.mjs", import.meta.url).pathname, "select"], { encoding: "utf8", env: { PATH: process.env.PATH, PLAN: JSON.stringify(candidatePlan), CI_CANDIDATE_FULL: "true", GITHUB_EVENT_NAME: "pull_request", GITHUB_EVENT_PATH: eventFile, GITHUB_OUTPUT: output } });
+  assert.equal(candidate.status, 0, candidate.stderr);
+  assert.match(readFileSync(output, "utf8"), /^run=true$/m);
+  assert.match(readFileSync(output, "utf8"), /^application=true$/m);
+  assert.match(readFileSync(output, "utf8"), /^tracker=true$/m);
+  assert.match(readFileSync(output, "utf8"), /^reuse=$/m);
   // ci:full removal returns an ordinary application draft to fast feedback.
   writeFileSync(eventFile, JSON.stringify({ action: "unlabeled", label: { name: "ci:full" } })); writeFileSync(output, "");
   const draft = verificationPlan({ event: "pull_request", draft: true, files: ["src/app/page.tsx"] });
