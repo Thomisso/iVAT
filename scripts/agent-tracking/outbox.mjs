@@ -1,3 +1,4 @@
+import { checkpointFinalization } from "./finalize.mjs";
 import { randomUUID } from "node:crypto";
 import { TrackerError } from "./github.mjs";
 import { readRegistry, projectionSynchronized } from "./state.mjs";
@@ -26,6 +27,7 @@ function consumeReceipt(journal, event, state, save) {
   const receipt = state.receipts[event.id];
   if (!receipt) return false;
   if (receipt.state === "rejected") {
+    checkpointFinalization(journal, event, receipt);
     journal.pending.shift();
     journal.rejected.push({ id: event.id, error: receipt.error });
     if (event.type === "stop") delete journal.stopRequested;
@@ -38,6 +40,7 @@ function consumeReceipt(journal, event, state, save) {
     throw new TrackerError("run_superseded");
   }
   if (receipt.state !== "published") return false;
+  checkpointFinalization(journal, event, receipt);
   if (["start", "restart", "takeover"].includes(event.type)) {
     journal.run = { runId: event.runId, generation: receipt.generation };
     journal.controllerAccount = state.owner.account;

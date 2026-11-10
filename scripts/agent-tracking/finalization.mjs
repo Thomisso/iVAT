@@ -5,19 +5,22 @@ import { remoteCommit, remoteAncestor, finalMerge, verifyIntegration, verifyRevi
 export const finalCommands = ["final-pr", "final-checks", "final-review", "final-handoff", "cancel", "reverse"];
 export function buildFinalPayload(command, options) {
   const common = { issue: Number(options.issue), result: options.result };
+  const expectedPr = options.pr ? { expectedPullRequest: Number(options.pr) } : {};
   if (command === "cancel") return { ...common, reason: options.reason };
   if (command === "reverse") return { ...common, reason: options.reason, deliveryPr: Number(options["delivery-pr"]), reversalPr: Number(options["reversal-pr"]), evidence: options.evidence };
-  if (command === "final-pr") return { ...common, pullRequest: Number(options.pr) };
-  if (command === "final-checks") return { ...common, revision: options.revision, checks: parse(options.checks) };
-  if (command === "final-review") return { ...common, revision: options.revision, reviewer: options.reviewer, standards: options.standards, spec: options.spec, findings: parse(options.findings), independence: options.independence, evidence: options.evidence };
-  return common;
+  if (command === "final-pr") return { ...common, pullRequest: Number(options.pr), ...(options.revision ? { expectedRevision: options.revision } : {}) };
+  if (command === "final-checks") return { ...common, ...expectedPr, revision: options.revision, checks: parse(options.checks) };
+  if (command === "final-review") return { ...common, ...expectedPr, revision: options.revision, reviewer: options.reviewer, standards: options.standards, spec: options.spec, findings: parse(options.findings), independence: options.independence, evidence: options.evidence };
+  return { ...common, ...expectedPr, ...(options.revision ? { expectedRevision: options.revision } : {}) };
 }
 function parse(value) { try { return JSON.parse(value); } catch { throw new TrackerError("event_invalid"); } }
 export function validateFinal(event, text) {
   const p = event.payload;
-  const extra = { "final-pr": ["pullRequest"], "final-checks": ["revision", "checks"], "final-review": ["revision", "reviewer", "standards", "spec", "findings", "independence", "evidence"], "final-handoff": [], "cancel": ["reason"], "reverse": ["reason", "deliveryPr", "reversalPr", "evidence"] }[event.type];
+  const extra = { "final-pr": ["pullRequest", "expectedRevision"], "final-checks": ["revision", "checks", "expectedPullRequest"], "final-review": ["revision", "reviewer", "standards", "spec", "findings", "independence", "evidence", "expectedPullRequest"], "final-handoff": ["expectedRevision", "expectedPullRequest"], "cancel": ["reason"], "reverse": ["reason", "deliveryPr", "reversalPr", "evidence"] }[event.type];
   if (!extra || Object.keys(p).some(key => !["issue", "result", ...extra].includes(key)) || !Number.isSafeInteger(p.issue) || p.issue <= 0 || (event.type === "final-pr" && (!Number.isSafeInteger(p.pullRequest) || p.pullRequest <= 0))) throw new TrackerError("event_invalid");
   text(p.result);
+  if (p.expectedRevision !== undefined && !/^[a-f0-9]{40}$/.test(p.expectedRevision)) throw new TrackerError("event_invalid");
+  if (p.expectedPullRequest !== undefined && (!Number.isSafeInteger(p.expectedPullRequest) || p.expectedPullRequest <= 0)) throw new TrackerError("event_invalid");
   if (["cancel", "reverse"].includes(event.type)) text(p.reason);
   if (event.type === "reverse") {
     text(p.evidence, 500);
@@ -38,7 +41,7 @@ export function validateFinal(event, text) {
     if ((p.standards === "fail" || p.spec === "fail") && !p.findings.length) throw new TrackerError("review_findings_required");
   }
 }
-function readPr(github, config, number, { allowChangedTarget = false } = {}) {
+export function readFinalPullRequest(github, config, number, { allowChangedTarget = false } = {}) {
   const pr = github.request(`repos/${config.repository}/pulls/${number}`);
   const repository = github.request(`repos/${config.repository}`);
   if (pr.base.repo.full_name !== config.repository || pr.head.repo?.full_name !== config.repository || (!allowChangedTarget && pr.base.ref !== repository.default_branch)) throw new TrackerError("final_pr_target_invalid");
@@ -141,9 +144,9 @@ export function applyFinal(state, event, { github, config }) {
     if (record.final?.handoff?.state === "pending") record.final.handoff.state = "cancelled";
   } else if (event.type === "reverse") {
     if ((record.final?.pullRequest.number ?? record.delivery?.number) !== p.deliveryPr) throw new TrackerError("delivery_reference_mismatch");
-    const original = readPr(github, config, p.deliveryPr);
+    const original = readFinalPullRequest(github, config, p.deliveryPr);
     if (original.state !== "merged") throw new TrackerError("final_merge_required");
-    const reversal = readPr(github, config, p.reversalPr);
+    const reversal = readFinalPullRequest(github, config, p.reversalPr);
     if (reversal.mergeCommit === original.mergeCommit) throw new TrackerError("reversal_reference_invalid");
     if (reversal.state === "closed") throw new TrackerError("reversal_not_merged");
     record.reversal = { deliveryPr: p.deliveryPr, pullRequest: reversal, reason: p.reason, evidence: p.evidence, at: event.at, attestation: p.result, runId: event.runId, generation: event.generation, state: "pending" };
@@ -151,7 +154,8 @@ export function applyFinal(state, event, { github, config }) {
   } else if (event.type === "final-pr") {
     if (record.cancellation) throw new TrackerError("implementation_cancelled");
     if (record.reversal && record.reversal.deliveryPr !== p.pullRequest) { record.lastReversal = record.reversal; delete record.reversal; }
-    const pr = readPr(github, config, p.pullRequest);
+    const pr = readFinalPullRequest(github, config, p.pullRequest);
+    if (p.expectedRevision && p.expectedRevision !== pr.revision) throw new TrackerError("final_revision_changed");
     record.final = { ...record.final, branch: pr.branch, runId: event.runId, generation: event.generation };
     refreshPr(record.final, pr, github, config);
     record.pullRequest = pr.url;
@@ -159,7 +163,8 @@ export function applyFinal(state, event, { github, config }) {
   } else {
     const f = record.final;
     if (!f || f.runId !== event.runId || f.generation !== event.generation) throw new TrackerError("final_pr_required");
-    const pr = readPr(github, config, f.pullRequest.number);
+    if (p.expectedPullRequest && p.expectedPullRequest !== f.pullRequest.number) throw new TrackerError("final_pr_changed");
+    const pr = readFinalPullRequest(github, config, f.pullRequest.number);
     if (event.type === "final-checks" || event.type === "final-review") {
       if (p.revision !== (pr.mergeCommit ?? pr.revision) || p.revision !== f.revision) throw new TrackerError("final_revision_changed");
       if (event.type === "final-checks") {
@@ -175,6 +180,7 @@ export function applyFinal(state, event, { github, config }) {
       f.pullRequest = pr;
       updateSummary(state, record, github, config);
     } else {
+      if (p.expectedRevision && p.expectedRevision !== pr.revision) throw new TrackerError("final_revision_changed");
       if (!projectionSynchronized(state)) throw new TrackerError("synchronization_required");
       if (pr.revision !== f.revision || pr.branch !== f.branch) throw new TrackerError("final_revision_changed");
       if (!["draft", "ready"].includes(pr.state)) throw new TrackerError("final_pr_open_required");
@@ -204,7 +210,7 @@ function verifyHandoffTarget(github, config, handoff) {
 }
 function restoreDraft(github, config, pr) {
   github.graph(`mutation TrackerRestoreDraft($input:ConvertPullRequestToDraftInput!){convertPullRequestToDraft(input:$input){pullRequest{id isDraft}}}`, { input: { pullRequestId: pr.nodeId } });
-  const restored = readPr(github, config, pr.number, { allowChangedTarget: true });
+  const restored = readFinalPullRequest(github, config, pr.number, { allowChangedTarget: true });
   if (restored.nodeId !== pr.nodeId || restored.state !== "draft") throw new TrackerError("github_draft_restore_unverified");
   return restored;
 }
@@ -222,7 +228,7 @@ export function finishFinalHandoffs(state, github, config, persist) {
     try {
       if (!owned()) throw new TrackerError("run_superseded");
       if (!bound()) throw new TrackerError("final_handoff_superseded");
-      const pr = readPr(github, config, handoff.pullRequest);
+      const pr = readFinalPullRequest(github, config, handoff.pullRequest);
       if (!sameHandoffPr(pr, handoff)) throw new TrackerError("final_revision_changed");
       if (!["draft", "ready"].includes(pr.state)) throw new TrackerError("final_pr_open_required");
       requireFinalGate(state, record, github, config);
@@ -239,7 +245,7 @@ export function finishFinalHandoffs(state, github, config, persist) {
       }
       // This read is checked for both a fresh mutation and an already-ready
       // retry. Never assign an unchecked final read to an acknowledged handoff.
-      const actual = readPr(github, config, handoff.pullRequest);
+      const actual = readFinalPullRequest(github, config, handoff.pullRequest);
       if (!sameHandoffPr(actual, handoff)) throw new TrackerError("final_revision_changed");
       if (actual.state !== "ready") throw new TrackerError("final_ready_unverified");
       verifyHandoffTarget(github, config, handoff);
@@ -248,7 +254,7 @@ export function finishFinalHandoffs(state, github, config, persist) {
     } catch (error) {
       if (!(error instanceof TrackerError) || error.code.startsWith("github_")) throw error;
       if (handoff.effectAttempted && owned() && bound()) {
-        let actual = readPr(github, config, handoff.pullRequest, { allowChangedTarget: true });
+        let actual = readFinalPullRequest(github, config, handoff.pullRequest, { allowChangedTarget: true });
         if (actual.nodeId !== handoff.nodeId) throw new TrackerError("github_ready_identity_unverified");
         if (actual.state === "ready") actual = restoreDraft(github, config, actual);
         refreshPr(f, actual, github, config);
@@ -293,7 +299,7 @@ export function reconcileFinalFacts(state, github, config, at) {
   // explicitly registered reversal before evaluating its specification gate.
   for (const record of Object.values(state.tickets).filter(record => record.reversal)) {
     try {
-      const reversal = readPr(github, config, record.reversal.pullRequest.number);
+      const reversal = readFinalPullRequest(github, config, record.reversal.pullRequest.number);
       record.reversal.pullRequest = reversal;
       if (reversal.state === "merged" && reversal.mergeCommit) {
         remoteAncestor(github, config, reversal.mergeCommit, remoteCommit(github, config, reversal.target).sha);
@@ -310,7 +316,7 @@ export function reconcileFinalFacts(state, github, config, at) {
 
   for (const record of Object.values(state.tickets).filter(record => record.final)) {
     const f = record.final;
-    const pr = readPr(github, config, f.pullRequest.number);
+    const pr = readFinalPullRequest(github, config, f.pullRequest.number);
     refreshPr(f, pr, github, config);
     updateSummary(state, record, github, config);
     let refusal;

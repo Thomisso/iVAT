@@ -10,7 +10,7 @@ try {
   for (let index = 0; index < args.length; index++) {
     if (!args[index].startsWith("--")) throw new TrackerError("arguments_invalid");
     const key = args[index].slice(2);
-    if (["disable-native-workflows", "local", "recover"].includes(key)) options[key] = true;
+    if (["disable-native-workflows", "local", "recover", "new-attempt"].includes(key)) options[key] = true;
     else {
       if (args[index + 1] === undefined || args[index + 1].startsWith("--")) throw new TrackerError("arguments_invalid");
       options[key] = args[++index];
@@ -42,6 +42,6 @@ try {
   console.log(JSON.stringify(result));
   if (result.ok === false) process.exitCode = 1;
 } catch (error) {
-  console.error(JSON.stringify({ ok: false, error: error instanceof TrackerError ? error.code : "tracker_failed" }));
+  console.error(JSON.stringify({ ok: false, error: error instanceof TrackerError ? error.code : "tracker_failed", ...(error instanceof TrackerError && error.finalization ? { finalization: error.finalization } : {}) }));
   process.exitCode = 1;
 }
