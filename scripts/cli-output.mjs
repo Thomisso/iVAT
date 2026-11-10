@@ -7,8 +7,8 @@ export function redactCliOutput(text) {
   return stripVTControlCharacters(text)
     .replace(/\bsb_(?:publishable|secret)_[A-Za-z0-9_-]+/g, "[REDACTED]")
     .replace(/\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*/g, "[REDACTED]")
-    .replace(/\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@]+@/gi, "$1[REDACTED]@")
-    .replace(/(\b(?:(?:NEXT_PUBLIC_)?SUPABASE_)?(?:S3_PROTOCOL_ACCESS_KEY_(?:ID|SECRET)|PUBLISHABLE(?:[_ ]KEY)?|SECRET(?:[_ ]KEY)?|API[_ ]KEY|ANON(?:[_ ]KEY)?|SERVICE[_ -]ROLE(?:[_ ]KEY)?|JWT(?:[_ ]SECRET)?|ACCESS[_ ]KEY(?:[_ ]ID)?|(?:DB|DATABASE|POSTGRES|PG|SMTP)[_ ]?(?:PASSWORD|PASS)|(?:ACCESS|REFRESH|AUTH)[_ ]TOKEN|(?:CLIENT|SIGNING)[_ ]SECRET|PASSWORD|TOKEN|AUTHORIZATION|SMTP_PASS)["']?\s*[:=│|]\s*)("[^"\r\n]*"|'[^'\r\n]*'|[^\s,│|};]+)/gi,
+    .replace(/\b([a-z][a-z0-9+.-]*:\/\/)[^\s"'<>]+@/gi, "$1[REDACTED]@")
+    .replace(/(\b(?:(?:NEXT_PUBLIC_)?SUPABASE_)?(?:S3_PROTOCOL_ACCESS_KEY_(?:ID|SECRET)|PUBLISHABLE(?:[_ ]KEY)?|SECRET(?:[_ ]KEY)?|API[_ ]KEY|ANON(?:[_ ]KEY)?|SERVICE[_ -]ROLE(?:[_ ]KEY)?|JWT(?:[_ ]SECRET)?|ACCESS[_ ]KEY(?:[_ ]ID)?|(?:DB|DATABASE|POSTGRES|PG|SMTP)[_ ]?(?:PASSWORD|PASS)|(?:ACCESS|REFRESH|AUTH)[_ ]TOKEN|(?:CLIENT|SIGNING)[_ ]SECRET|PASSWORD|TOKEN|AUTHORIZATION|SMTP_PASS)["']?\s*[:=│|]\s*)("(?:\\.|[^"\\\r\n])*"|'(?:\\.|[^'\\\r\n])*'|[^\r\n]+)/gi,
       (_match, prefix, value) => `${prefix}${value.startsWith('"') ? '"[REDACTED]"' : value.startsWith("'") ? "'[REDACTED]'" : "[REDACTED]"}`);
 }
 

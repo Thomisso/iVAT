@@ -40,7 +40,7 @@ test("public Supabase output redacts both streams and preserves failed-command d
 test("current CLI JSON, env and boxed-table credentials are redacted while service addresses survive", t => {
   const jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJmaXh0dXJlIn0.syntheticSignature";
   const output = [
-    JSON.stringify({ JWT_SECRET: "opaque-signing-secret", S3_PROTOCOL_ACCESS_KEY_ID: "opaque-s3-id", S3_PROTOCOL_ACCESS_KEY_SECRET: "opaque-s3-secret", API_URL: "http://127.0.0.1:54321" }),
+    JSON.stringify({ JWT_SECRET: 'opaque-signing-"quoted"-secret', S3_PROTOCOL_ACCESS_KEY_ID: "opaque-s3-id", S3_PROTOCOL_ACCESS_KEY_SECRET: "opaque-s3-secret", API_URL: "http://127.0.0.1:54321" }),
     'SERVICE_ROLE_KEY="opaque-service-key"',
     "│ Access Key │ opaque-table-key │",
     "anon key: " + jwt,
@@ -50,7 +50,7 @@ test("current CLI JSON, env and boxed-table credentials are redacted while servi
   const f = fixture(t, `process.stdout.write(${JSON.stringify(output)});`);
   const result = f.run();
   assert.equal(result.status, 0);
-  assert.doesNotMatch(result.stdout + result.stderr, /opaque-|syntheticSignature|sb_secret_|ansisuffix/);
+  assert.doesNotMatch(result.stdout + result.stderr, /opaque-|quoted|syntheticSignature|sb_secret_|ansisuffix/);
   assert.match(result.stdout, /http:\/\/127\.0\.0\.1:54321/);
   assert.match(result.stdout, /127\.0\.0\.1:54322\/postgres/);
 });
@@ -137,4 +137,13 @@ test("provider-style token and database-password labels cannot leak opaque crede
   assert.equal(result.status, 2);
   assert.equal(result.stderr.includes("opaque-"), false);
   assert.match(result.stderr, /SUPABASE_ACCESS_TOKEN/);
+});
+
+test("complete authorization/password values and URL userinfo are hidden even when they contain spaces or slashes", t => {
+  const output = 'Authorization: Bearer synthetic-opaque-token\nPassword: synthetic password with spaces,commas}suffix|pipe-suffix\npostgresql://local:synthetic/password@127.0.0.1:5432/postgres\n';
+  const f = fixture(t, `process.stderr.write(${JSON.stringify(output)});process.exit(3);`);
+  const result = f.run();
+  assert.equal(result.status, 3);
+  assert.equal(/synthetic|password with|commas|suffix/.test(result.stderr), false);
+  assert.match(result.stderr, /127\.0\.0\.1:5432\/postgres/);
 });
