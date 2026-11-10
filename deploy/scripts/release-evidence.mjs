@@ -55,9 +55,13 @@ function assertRun(run, expected) {
       !timestamp(run.run_started_at) || !timestamp(run.created_at) || (expected.purpose === "release" && Date.parse(run.created_at) < requestedSecond)) {
     throw new Error("Invalid or incomplete candidate verification run.");
   }
-  for (const file of ["ci.yml", "deployment-check.yml", ...(expected.purpose === "acceptance" ? [CANDIDATE_WORKFLOW] : [])]) {
-    const references = run.referenced_workflows?.filter(item => item.path?.toLowerCase() === `${expected.repository}/.github/workflows/${file}@${expected.sourceRef}`);
-    if (references?.length !== 1 || references[0].sha !== expected.revision) throw new Error("Candidate verification used different workflow source.");
+  const files = ["ci.yml", "deployment-check.yml", ...(expected.purpose === "acceptance" ? [CANDIDATE_WORKFLOW] : [])];
+  const prefix = `${expected.repository}/.github/workflows/`;
+  if (!Array.isArray(run.referenced_workflows) || run.referenced_workflows.length !== files.length) throw new Error("Candidate verification used different workflow source.");
+  for (const file of files) {
+    const references = run.referenced_workflows.filter(item => typeof item?.path === "string" &&
+      item.path.slice(0, prefix.length).toLowerCase() === prefix && item.path.slice(prefix.length) === `${file}@${expected.revision}`);
+    if (references.length !== 1 || references[0].sha !== expected.revision || references[0].ref !== expected.sourceRef) throw new Error("Candidate verification used different workflow source.");
   }
 }
 function assertArtifact(artifact, run, expected, now = Date.now()) {

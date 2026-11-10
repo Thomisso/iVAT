@@ -279,7 +279,7 @@ test("candidate timing scope requires the existing full job-and-step validator",
   };
   const run = { ...provider.attempts[1], id: 20, run_attempt: 1, repository: { id: 99, full_name: "Thomisso/iVAT" }, head_repository: { id: 99, full_name: "Thomisso/iVAT" }, head_sha: revision,
     path: ".github/workflows/release-verification.yml", event: "workflow_dispatch", display_title: `Release verification ${expected.requestId}`, run_started_at: "2026-11-09T12:01:00Z", created_at: "2026-11-09T12:01:00Z",
-    referenced_workflows: ["ci.yml", "deployment-check.yml"].map(file => ({ path: `thomisso/ivat/.github/workflows/${file}@refs/tags/v0.2.0`, sha: revision })) };
+    referenced_workflows: ["ci.yml", "deployment-check.yml"].map(file => ({ path: `Thomisso/iVAT/.github/workflows/${file}@${revision}`, sha: revision, ref: expected.sourceRef })) };
   const scopes = { common: true, tracker: true, trackerTransport: true, release: true, application: true, http: true, deployment: true };
   const proof = { ...expected, runId: 20, runAttempt: 1, plan: { version: 1, profile: "full", reason: "full-override", scopes, reasons: Object.fromEntries(Object.keys(scopes).map(scope => [scope, "full-override"])) }, results: { application: "success", deployment: "success" } };
   const jobs = Object.entries(steps).map(([name, names], index) => ({ ...provider.jobs[1][0], id: 900000 + index, run_id: 20, run_attempt: 1, head_sha: revision, name: `Verification / ${name}`, started_at: "2026-11-09T12:02:00Z", completed_at: "2026-11-09T12:10:00Z", steps: names.map(name => ({ name, status: "completed", conclusion: "success", started_at: "2026-11-09T12:02:00Z", completed_at: "2026-11-09T12:10:00Z" })) }));
