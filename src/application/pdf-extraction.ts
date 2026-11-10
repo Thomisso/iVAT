@@ -32,6 +32,7 @@ export async function prepareExtractionInput(input: AiInput): Promise<AiInput> {
     const pages = pdf.getPages();
     if (pages.length !== input.pageCount || !pages.length || pages.length > limits.pages) throw failure("pdf_render_limit");
     let totalPixels = 0;
+    let normalizedUnits = false;
     const dimensions = pages.map(page => {
       const media = page.getMediaBox(), crop = page.getCropBox();
       const width = Math.min(media.x + media.width, crop.x + crop.width) - Math.max(media.x, crop.x);
@@ -47,18 +48,24 @@ export async function prepareExtractionInput(input: AiInput): Promise<AiInput> {
       const sideLimit = pages.length > 20 ? 2000 : 8000;
       if (![w, h].every(Number.isSafeInteger) || Math.max(w, h) > sideLimit
         || w * h > limits.pixelsPerPage || totalPixels > limits.totalPixels) throw failure("pdf_render_limit");
-      return { width: w, height: h };
+      // Poppler ignores UserUnit on supported runtimes. Normalize only the
+      // private derivative and apply its physical scale explicitly per page.
+      if (userUnit !== 1) {
+        page.node.set(PDFName.of("UserUnit"), PDFNumber.of(1));
+        normalizedUnits = true;
+      }
+      return { width: w, height: h, dpi: limits.dpi * userUnit };
     });
     directory = await mkdtemp(path.join(tmpdir(), "ivat-pdf-extraction-"));
     const file = path.join(directory, "input.pdf");
-    await writeFile(file, input.bytes, { mode: 0o600 });
+    await writeFile(file, normalizedUnits ? await pdf.save() : input.bytes, { mode: 0o600 });
     const pageImages: PdfPageImage[] = [];
     let totalBytes = 0;
     for (let i = 0; i < pages.length; i++) {
       const timeout = Math.min(30_000, deadline - Date.now());
       if (timeout <= 0) throw failure("pdf_render_limit");
       const { stdout } = await execute("pdftoppm", ["-f", String(i + 1), "-l", String(i + 1),
-        "-singlefile", "-r", String(limits.dpi), "-cropbox", "-png", file], {
+        "-singlefile", "-r", String(dimensions[i].dpi), "-cropbox", "-png", file], {
         encoding: "buffer", maxBuffer: limits.bytesPerPage, timeout, killSignal: "SIGKILL",
       });
       if (stdout.length < 24 || !stdout.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) throw failure("pdf_render_failed");
