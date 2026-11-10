@@ -28,6 +28,23 @@ The visual language for the iVAT app: tokens, usage rules and reference componen
 - Marker ochre (`ai`, `ai-soft`, `ai-mark`, `ai-edge`) is reserved for AI-proposed, unconfirmed content. Primary actions are always `accent`.
 - Text pairs meet 4.5:1 and control edges 3:1 in both themes; keep it that way when adding tokens.
 
+## Incremental CSS token lint
+
+`npm run lint` runs the CSS token CLI regressions, checks application styles, then runs ESLint. Both draft and full CI use this same lint command. PostCSS parses every tracked or untracked, non-ignored `src/**/*.css` file, including CSS Modules. Reference CSS outside `src/`, inline styles and CSS-in-JS are outside this check.
+
+Only new or changed declarations are checked. The comparison counts declarations by their enclosing selectors/at-rules, property, value and `!important`; unchanged historical declarations remain allowed even when nearby CSS changes. A new selector, changed media query, changed value or extra duplicate is checked. The base comes from the PR event's base SHA or a push event's `before` SHA; local and other workflow runs use the merge-base of `origin/main` and `HEAD`. CI fetches complete history. An unavailable or malformed base fails with a diagnostic rather than assuming there were no changes. To choose a different comparison explicitly, run `node scripts/lint-css-tokens.mjs --base <commit-or-ref>` from the repository root.
+
+The initial scope is deliberately small:
+
+| Declaration family | Checked literals and replacements |
+| --- | --- |
+| `margin`, `padding`, their physical/logical longhands, `gap`, `row-gap`, `column-gap` | Pixel lengths matching `spacing.tokens` in `tokens.json` (4, 8, 12, 16, 20, 24, 32, 48px), including negative lengths and equivalent `rem` values at a 16px root. Negative replacements use `calc(-1 * var(--space-N))`. Lengths inside `calc()`, `clamp()` and variable fallbacks are included. |
+| `color`, properties ending in `-color`, `background`, `background-image`, border shorthands (including physical/logical sides), `outline`, `box-shadow`, `text-shadow`, `fill`, `stroke` | Hex colors (3/4/6/8 digits), `white`/`black` and `rgb()`/`rgba()` colors which match an existing `color.tokens` value from either theme. The diagnostic suggests a matching token. Other color syntaxes, such as HSL or `color()`, are outside this first scope. |
+
+Custom property definitions are allowed. Zero, percentages, unitless values, `auto`, `currentColor`, `transparent`, URLs, quoted strings, dimensions without a matching token and uncovered properties (for example width, font size or outline offset) pass. There is no blanket numeric ban. A declaration needing a literal for a documented reason may have an immediately preceding `/* token-lint-exception: concrete reason */` comment; it applies to that declaration only, and an empty reason fails. Keep exceptions specific and review their reason with the change.
+
+For example, use `margin: 0 0 var(--space-4)` and `background: var(--surface)` in place of `margin: 0 0 16px` and `background: #fff`. A suggested color token is a lookup aid: shared literal values can have several semantic tokens, and the author/reviewer must choose the correct role. Passing `var(...)` alone does not prove color semantics, contrast or focus behavior. Action-blue focus with a 3 CSS px outline and 3 CSS px offset still needs the review and behavioral evidence described in `docs/design/visual-direction.md` and the repository's CLI evidence policy; this check makes no visual or browser-behavior claim.
+
 ## Brand book
 
 iVAT is a document ERP for Czech VAT payers and the accounting offices that serve them. People drop invoices and receipts in; AI splits them into Documents, reads their data and proposes a VAT Regime; a human approves; iVAT produces the VAT Return and Control Statement for the Reporting Period.
