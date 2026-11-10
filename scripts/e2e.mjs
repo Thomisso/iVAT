@@ -6,6 +6,7 @@ import { createServer as createNetServer } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { readSupabaseStatus } from "./supabase-status.mjs";
 
 let baseUrl = process.env.IVAT_HTTP_BASE_URL;
 const cliArguments = process.argv.slice(2);
@@ -185,11 +186,7 @@ async function main() {
   await phase("Stop existing database", () => command("npm", ["run", "db:stop", "--", "--no-backup"]));
   databaseOwned = true;
   await phase("Start acceptance database", () => command("npm", ["run", "db:start", "--", "--profile=e2e"]));
-  const localStack = JSON.parse(execFileSync(
-    process.execPath,
-    ["scripts/supabase.mjs", "status", "-o", "json"],
-    { cwd: process.cwd(), env: environment, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
-  ));
+  const localStack = readSupabaseStatus({ env: environment });
   environment.MAILPIT_URL = localStack.MAILPIT_URL;
   const smtpPort = fs.readFileSync(".env.local", "utf8").match(/^SMTP_PORT=(\d+)$/m)?.[1];
   if (!smtpPort) throw new Error("Local invitation SMTP capture is not configured");
