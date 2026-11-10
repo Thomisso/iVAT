@@ -50,6 +50,21 @@ test("complete exact candidate evidence retains the successful run, attempt and 
   assert.deepEqual(validateCandidateEvidence(validEvidence(), expected), { runId: 20, runAttempt: 1, artifactId: 30, artifactDigest: `sha256:${"e".repeat(64)}` });
 });
 
+test("exact candidate evidence accepts a run created in the request's same second", () => {
+  const value = validEvidence();
+  const candidate = { ...expected, requestedAt: "2026-11-09T12:01:00.900Z" };
+  value.proof.requestedAt = candidate.requestedAt;
+  assert.deepEqual(validateCandidateEvidence(value, candidate), { runId: 20, runAttempt: 1, artifactId: 30, artifactDigest: `sha256:${"e".repeat(64)}` });
+});
+
+test("exact candidate evidence refuses a run created in an earlier second than its request", () => {
+  const value = validEvidence();
+  const candidate = { ...expected, requestedAt: "2026-11-09T12:01:00.900Z" };
+  value.proof.requestedAt = candidate.requestedAt;
+  value.run.created_at = "2026-11-09T12:00:59Z";
+  assert.throws(() => validateCandidateEvidence(value, candidate), /Invalid or incomplete candidate verification run/);
+});
+
 test("candidate verification refuses wrong provenance and every incomplete required execution", () => {
   const changes = [
     value => { value.run.repository.full_name = "other/ivat"; },
