@@ -53,8 +53,9 @@ async function main() {
     // Persist before dispatch. A lost response is ambiguous: resume this request
     // instead of dispatching another expensive verification blindly.
     await writeFile(args[0] + ".request.json", JSON.stringify({ candidate, releaseId: release.releaseId }, null, 2) + "\n", { flag: "wx", mode: 0o600 });
-    await dispatchCandidateVerification({ candidate, token: process.env.GH_TOKEN, apiUrl: process.env.GITHUB_API_URL });
-    const receipt = await waitForCandidateVerification({ candidate, token: process.env.GH_TOKEN, apiUrl: process.env.GITHUB_API_URL });
+    const runId = await dispatchCandidateVerification({ candidate, token: process.env.GH_TOKEN, apiUrl: process.env.GITHUB_API_URL });
+    console.log(`Requested candidate verification run ${runId}; request ${candidate.requestId}.`);
+    const receipt = await waitForCandidateVerification({ candidate, runId, token: process.env.GH_TOKEN, apiUrl: process.env.GITHUB_API_URL });
     await writeFile(args[0], JSON.stringify({ repository, revision, ...release, verification: { candidate, receipt } }, null, 2) + "\n", { flag: "wx" });
     if (process.env.GITHUB_OUTPUT) await appendFile(process.env.GITHUB_OUTPUT, `revision=${revision}\ntag=${release.tag}\n`);
     console.log(`Verified ${release.tag} at ${revision}; complete candidate run ${receipt.runId}, attempt ${receipt.runAttempt}.`);
