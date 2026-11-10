@@ -1,6 +1,11 @@
 name: CI
 
 on:
+  workflow_call:
+    inputs:
+      candidate-full:
+        type: boolean
+        default: false
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, labeled, unlabeled]
   push:
@@ -12,7 +17,7 @@ permissions:
 # Only PR revisions supersede each other. Main evidence and release preparation
 # must remain available for their exact commit, even after a newer main push.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -37,6 +42,9 @@ jobs:
           cache: npm
       - run: node --test scripts/tests/ci-policy.test.mjs scripts/tests/ci-scopes.test.mjs scripts/tests/http-acceptance-policy.test.mjs
       - id: profile
+        name: Select verification plan
+        env:
+          CI_CANDIDATE_FULL: ${{ inputs.candidate-full }}
         run: node scripts/ci-policy.mjs
       - name: Migrations already on main are unchanged
         if: github.event_name == 'pull_request'
@@ -88,8 +96,10 @@ jobs:
           npm install --package-lock-only --ignore-scripts
           git diff --exit-code package-lock.json
 
-      - run: npm run typecheck
-      - run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
 
   release:
     needs: profile
@@ -107,7 +117,7 @@ jobs:
           postman --version
       - name: Release policy, bundle integrity, transport and host preflight
         timeout-minutes: 5
-        run: node --test scripts/tests/release-identity.test.mjs deploy/tests/release-prepare.test.mjs deploy/tests/release-host.test.mjs deploy/tests/release-connect.test.mjs deploy/tests/release-runtime.test.mjs
+        run: node --test scripts/tests/release-identity.test.mjs deploy/tests/release-prepare.test.mjs deploy/tests/release-evidence.test.mjs deploy/tests/release-host.test.mjs deploy/tests/release-connect.test.mjs deploy/tests/release-runtime.test.mjs
 
   full:
     strategy:
@@ -149,7 +159,8 @@ jobs:
           git diff --exit-code src/lib/database.types.ts
 
       # Each shard owns its runner/database; files within it remain serial.
-      - run: npm run test:serial -- --shard=${{ matrix.shard }}/3
+      - name: Complete application shard
+        run: npm run test:serial -- --shard=${{ matrix.shard }}/3
       - name: Stop the disposable database
         if: always()
         run: npm run db:stop -- --no-backup
@@ -176,7 +187,8 @@ jobs:
         run: |
           npm install --global postman-cli@1.73.0
           postman --version
-      - run: npm run test:http
+      - name: Production HTTP acceptance
+        run: npm run test:http
       - name: Upload HTTP acceptance service logs
         if: failure()
         uses: actions/upload-artifact@v7
@@ -197,7 +209,8 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-      - run: node scripts/ci-policy.mjs gate
+      - name: Enforce verification gate
+        run: node scripts/ci-policy.mjs gate
         env:
           PLAN: ${{ needs.profile.outputs.plan }}
           GATE: check
@@ -212,7 +225,8 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-      - run: node scripts/ci-policy.mjs gate
+      - name: Enforce verification gate
+        run: node scripts/ci-policy.mjs gate
         env:
           PLAN: ${{ needs.profile.outputs.plan }}
           GATE: e2e

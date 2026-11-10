@@ -298,10 +298,42 @@ Do not move or reuse a published version tag.
 
 The **Release Roští pilot** workflow first resolves the tag to its exact
 commit, including annotated tags, and checks that it belongs to `main`. It
-waits up to 35 minutes for successful **CI** and **Deployment verification**
-runs produced by a push of that exact commit to `main`. A successful test of a
-different commit or a pull-request merge is insufficient. Failed checks stop
-preparation; unfinished or missing checks time out with an explanation.
+requests a separate **Release candidate verification** run at that stable tag
+and waits up to 60 minutes for its complete successful attempt. This run calls
+the same reusable **CI** and **Deployment verification** jobs with every scope
+required by `verificationPlan`, including all application shards, production
+HTTP acceptance and the actual AMD64 production-image build/runtime. A green
+scoped/docs main aggregate is insufficient. Candidate verification has only
+contents/Actions read permission; it has no registry publication, provider
+credentials, SSH or deployment job.
+
+The request binds repository, exact revision and source tree, stable tag,
+current main target, verification-policy digest, public build configuration and
+`linux/amd64`. The image/runtime check builds with the exact selected public
+URL/key and release identity while using disposable local runtime credentials.
+The preparation caller checks the completed run and exact attempt, referenced
+workflow revisions, every required job and execution step, and the named
+`release-verification-RUN-ATTEMPT` artifact. It verifies the downloaded ZIP's
+SHA-256 against GitHub's artifact digest, rejects expired or incomplete
+artifacts, and rechecks the tag and current target after download. Missing,
+failed, cancelled, skipped, wrong-repository, different-source, stale-target or
+changed-policy/input evidence stops preparation. There is no aggregate fallback.
+Publication and the production connection confirm unchanged refs and public
+inputs again, and require fresh API readback of that same successful completed
+attempt and existing, unexpired artifact ID/digest. The unchanged immutable
+artifact digest preserves the suite proof already inspected. A rerun, including
+a later successful attempt, or a deleted/expired/replaced artifact invalidates
+the old receipt and requires complete evidence collection again. Re-run all candidate jobs after a failure; a partial rerun cannot
+borrow successful suites from an earlier attempt.
+
+`release-verification.yml` must be registered on the default branch before
+GitHub can dispatch it, and the selected tag must contain the reusable verifier
+and current policy. Do not merge partial production code to register a workflow.
+The separate opt-in PR acceptance path below exercises the complete producer
+before activation. GitHub documents the [default-branch dispatch prerequisite](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_dispatch),
+[attempt-scoped jobs](https://docs.github.com/en/rest/actions/workflow-jobs?apiVersion=2026-03-10#list-jobs-for-a-workflow-run-attempt)
+and [artifact metadata/download](https://docs.github.com/en/rest/actions/artifacts?apiVersion=2026-03-10).
+Their contract is not evidence that a particular run executed.
 
 The preparation job builds the application, database, gateway and proxy
 explicitly for `linux/amd64` and publishes them to the repository's private
@@ -371,10 +403,54 @@ not enable it. After the separate activation review, publishing a stable
 Release runs verification, preparation and deployment automatically. A green
 preparation job alone does not establish a deployed release.
 
-If preparation fails, read the failed step, correct the reported CI or public
-configuration problem, and re-run the failed jobs. Each new build attempt
-retains its own image tags and artifact, so an existing release's content is
-not silently replaced.
+If preparation fails or is interrupted, inspect the preparation and candidate
+run/attempt before retrying. The preparation run retains
+`candidate-request-RUN-ATTEMPT`, containing `verified-release.json.request.json`,
+even when candidate verification is unfinished. Download that exact artifact
+with `gh run download PREPARATION_RUN --pattern 'candidate-request-*' --dir PRIVATE_DIRECTORY`.
+From the trusted policy checkout with the selected tag and current main fetched,
+resume the same request without another dispatch:
+
+```bash
+node deploy/scripts/prepare-release.mjs resume PRIVATE_DIRECTORY/verified-release.json.request.json PRIVATE_DIRECTORY/verified-release.json
+```
+
+Use the existing `GH_TOKEN` session with Actions read permission. Resume checks
+the same source, tag, target, policy and complete attempt. A lost dispatch
+response remains ambiguous; absence of a run is not permission for an automatic
+duplicate dispatch. Resolve the observed request/run state first. If the target
+or policy changed, select and fully verify current inputs through a new release
+preparation attempt. Each new image-build attempt retains distinct tags and an
+artifact; an existing release's content is not silently replaced.
+
+### Pre-main candidate acceptance
+
+The `Release verification acceptance` workflow is opt-in through the
+`ci:release-proof` PR label. It calls `release-verification.yml` through
+`workflow_call`, so it does not require dispatch registration. It exercises the
+same full application/image-runtime producer on the PR's checked merge commit,
+retaining the raw API PR head separately. Its request has `purpose: acceptance`,
+the caller run ID and the exact PR merge ref; production preparation,
+publication and deployment reject that purpose. No production secret is passed.
+This label can start substantial verification and should be used for the bounded
+acceptance run, not routine PR events.
+
+After that complete run, download its exact
+`release-verification-request-RUN-ATTEMPT` artifact and validate with the current
+CLI/API session:
+
+```bash
+node deploy/scripts/release-evidence.mjs inspect-acceptance PRIVATE_DIRECTORY/candidate-request.json
+```
+
+The same evidence validator requires actual successful suites and verifies the
+ZIP digest, workflow/revision, raw run head, checked source, target and attempt.
+This produces a non-deployable acceptance receipt. Neither workflow_dispatch nor
+this acceptance run substitutes for the normal PR/push required-check event.
+The November 2026 source/local checks do not establish real Actions execution:
+GitHub currently refuses new jobs before any step for account payment/spending
+limits. Full candidate Actions, actual image/runtime acceptance and activation
+remain outstanding until the provider executes the authorized bounded run.
 
 The deployment verification workflow boots the self-hosted services and
 reuses Application integration tests, in addition to the existing CI checks.

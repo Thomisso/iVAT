@@ -121,7 +121,7 @@ if (process.argv[2] === "gate") {
   } catch {
     // Unavailable or malformed event/revision data has uncertain impact.
   }
-  const plan = verificationPlan({ event: process.env.GITHUB_EVENT_NAME, draft, fullVerification, files, complete });
+  const plan = verificationPlan({ event: process.env.GITHUB_EVENT_NAME, draft, fullVerification: fullVerification || process.env.CI_CANDIDATE_FULL === "true", files, complete });
   fs.appendFileSync(process.env.GITHUB_OUTPUT, `profile=${plan.profile}\nplan=${JSON.stringify(plan)}\n${Object.entries(plan.scopes).map(([scope, required]) => `${scope}=${required}`).join("\n")}\n`);
   console.log(`Verification profile: ${plan.profile} (${plan.reason})`);
   for (const scope of scopeNames) console.log(`${scope}: ${plan.scopes[scope] ? "required" : "not applicable"} (${plan.reasons[scope]})`);
