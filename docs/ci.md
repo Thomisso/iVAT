@@ -1,9 +1,11 @@
 # CI scopes and measurement
 
 Both `CI` and `Deployment verification` report the established `check`, `e2e`
-and `self-hosted` gates for PR revisions, ready/draft transitions, label changes
-and main pushes. Workflow-level path filters cannot leave a required gate
-pending. Event filtering and reuse of readiness evidence are separate work.
+and `self-hosted` gates for content changes, ready/draft transitions, the
+`ci:full` override and main pushes. Unrelated PR labels run only cheap policy
+selection and use separate administrative check names; they cannot replace an
+existing stable gate with a skipped success. Workflow-level path filters cannot
+leave a required gate pending.
 
 `scripts/ci-policy.mjs` is the shared policy boundary. It publishes one versioned
 plan containing a display profile, explicit required scopes and a technical
@@ -61,7 +63,7 @@ only on application shard 1 using its already-required isolated stack. All
 three shards retain the complete application inventory, serial execution within
 each shard and unconditional cleanup. Production HTTP acceptance owns the single
 plain application build; production Docker images remain separate packaging
-and runtime evidence. No prior build/test result is reused.
+and runtime evidence. Readiness may reuse verified full PR evidence as described below.
 
 `check` validates policy, common, tracker/transport, release and application
 results. `e2e` validates policy, common and HTTP results; `self-hosted` validates
@@ -71,9 +73,49 @@ missing results, unexpected skips or malformed plans fail the gate. Logs explain
 the profile, each scope's requirement/reason and its actual result.
 
 PR concurrency groups contain workflow identity and PR number, cancelling only
-superseded work in that same PR/workflow. Main runs keep separate groups and
+superseded work in that same PR/workflow. Unrelated labels have a separate run
+identity and do not cancel useful verification in progress. Main runs keep separate groups and
 production deployment remains non-cancelling. Disposable stacks retain
 `always()` cleanup. These workflows never target a human's local stack.
+
+## PR events and readiness evidence
+
+Adding `ci:full` requests every scope, including on a draft or documentation PR.
+Removing it recomputes the ordinary scope for the current complete diff and
+readiness state. Other labels select no expensive work. Content events remain
+native `pull_request`/`push` checks; manual dispatch is never substituted for an
+eligible required PR check.
+
+A fresh successful full PR run publishes a small `pr-verification-<attempt>`
+artifact with its plan, actual results, repository/PR/workflow, head revision,
+actual checked merge revision, target branch/tip, policy digest and run attempt.
+The head reported by Actions is retained separately from the checked test merge.
+There is no application build or mutable database cache in this artifact.
+
+Only `ready_for_review` may select reuse. Both selection and each stable gate
+read current PR/target metadata and corroborate the original source run,
+attempt-specific jobs and unexpired artifact, including its archive digest.
+Every originally selected job must have actually completed successfully; omitted
+jobs must match explicit policy inapplicability. The source must be a completed,
+successful native PR run with fresh full proof, the same immutable checkout,
+head, current target and policy, and a superset of the required scopes. An
+aggregate green result or skipped expensive jobs is insufficient. Reused runs
+do not publish fresh proof; repeated readiness retains the original source.
+
+Missing/expired/malformed artifacts, unavailable API data, changed scope/policy,
+head/merge/target changes, changed source attempts, failed/cancelled/incomplete work and
+ambiguous publication select fresh verification. If evidence changes after
+selection, the gate fails closed. Discovery is bounded to 100 runs for the same head
+and at most ten matching PR runs; truncated listings or unavailable proof cause
+a fresh run. Artifacts expire after seven days. Gates log the original run and
+attempt when accepting reuse. Existing exact-revision final-handoff and review
+requirements remain in force.
+
+These CLI/HTTP fixture checks prove local selection, archive integrity,
+provenance refusal and gate behavior. Actual GitHub label scheduling, unchanged
+stable-check identity, readiness reuse and cancellation still need bounded real
+Actions metadata; earlier billing refusals supplied no execution evidence, and
+no live scheduling/reuse savings are claimed here.
 
 Main still selects every scope. Production release preparation now requests a
 separate exact-candidate verification run, reusing these workflows through
@@ -91,8 +133,9 @@ checks selective or claim successful live candidate execution.
 Local policy/CLI/workflow-contract checks establish selection and gate behavior,
 including complete diffs and refused prerequisites. They do not establish real
 Actions scheduling or achieved savings. The bounded Actions acceptance remains
-outstanding while GitHub refuses jobs before execution for the account's
-payments/spending limit. No zero-cost or successful runtime result is inferred
+outstanding for these candidate changes. Earlier account payment/spending
+refusals occurred before execution; subsequent unrelated CI startup does not
+establish candidate acceptance. No zero-cost or successful runtime result is inferred
 from that refusal. Measure actual overlap, setup/build counts, queue/wall time,
 started runner time and per-job rounded minutes when execution is available.
 

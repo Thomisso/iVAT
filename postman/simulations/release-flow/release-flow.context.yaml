@@ -19,7 +19,7 @@ assumptions:
   - id: candidate-live-workflow-provenance
     status: unknown
     claim: The reusable full candidate workflow produces the exact referenced-workflow/job/step/artifact provenance consumed by the validator on real GitHub Actions.
-    reason: Local source and controlled HTTP checks cannot establish actual Actions execution or provider provenance details. GitHub currently refuses new jobs before steps for account payment/spending limits.
+    reason: Local source and controlled HTTP checks cannot establish actual Actions execution or provider provenance details. Earlier account payment/spending refusals occurred before steps; later unrelated CI startup does not establish this candidate path.
     verification: No new candidate Actions run or actual application/image-runtime execution is claimed. The opt-in PR workflow_call path can exercise the producer before workflow_dispatch registration; complete live proof remains required when the provider executes the authorized bounded run.
     source: .github/workflows/release-verification.yml; .github/workflows/release-verification-acceptance.yml; deploy/scripts/release-evidence.mjs; docs/deployment.md
     updated_at: "2026-11-10"

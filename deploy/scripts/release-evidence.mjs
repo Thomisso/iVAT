@@ -212,7 +212,8 @@ export async function waitForCandidateVerification({ candidate, token, apiUrl, t
         // Corroborate the current attempt and ref facts again after downloading:
         // a rerun or moved target cannot inherit an earlier success.
         const current = await client.json(`/actions/runs/${run.id}`);
-        if (current.run_attempt !== run.run_attempt || !successful(current)) throw new Error("Candidate verification attempt changed.");
+        if (current.id !== run.id || current.run_attempt !== run.run_attempt || !successful(current)) throw new Error("Candidate verification attempt changed.");
+        assertRun(current, candidate);
         await assertCurrentCandidate(client, candidate);
         return receipt;
       }
