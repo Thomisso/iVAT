@@ -28,13 +28,13 @@ test("ordinary application readiness adds the complete application and HTTP scop
     assert.equal(plan.profile, draft ? "draft" : "full");
     assert.equal(plan.reason, draft ? "draft-change" : "ready-change");
     assert.equal(plan.reasons.application, draft ? "draft-awaiting-readiness" : "ready-application-change");
-    assert.equal(plan.reasons.deployment, draft ? "draft-awaiting-readiness" : "conservative-ready-deployment");
+    assert.equal(plan.reasons.deployment, draft ? "draft-awaiting-readiness" : "deployment-input:src/app/page.tsx");
   }
 });
 
 test("uncertain impact, full overrides and broad shared inputs require every scope even on drafts", () => {
   const cases = [
-    [{ event: "push", files: ["README.md"] }, "conservative-non-pr"],
+    [{ event: "push", files: ["README.md"], complete: false }, "incomplete-diff"],
     [{ event: "release", files: ["README.md"] }, "conservative-non-pr"],
     [{ fullVerification: true, files: ["README.md"] }, "full-override"],
     [{ files: [] }, "empty-diff"],
@@ -199,5 +199,26 @@ test("malformed PR event metadata is incomplete impact rather than a cheap selec
     assert.equal(plan.reason, "incomplete-diff");
     assert.equal(plan.scopes.application, true);
     assert.equal(plan.scopes.tracker, true);
+  }
+});
+
+test("ready infrastructure changes retain full application coverage while deployment follows its complete runtime inputs", () => {
+  for (const event of ["pull_request", "push"]) {
+    for (const file of ["scripts/agent-tracker.mjs", "postman/mocks/github-agent/default.js", ".github/agent-tracking.json", "scripts/tests/release-identity.test.mjs", "postman/mocks/github-release/default.js", ".github/workflows/daily-backup.yml"]) {
+      const plan = policy.verificationPlan({ event, files: [file] });
+      assert.equal(plan.scopes.application, true, file);
+      assert.equal(plan.scopes.http, true, file);
+      assert.equal(plan.scopes.deployment, false, file);
+      assert.equal(plan.reasons.deployment, "deployment-inputs-unchanged", file);
+    }
+    for (const file of ["src/application/vat-reports.ts", "src/app/page.tsx", "worker/handlers/process.ts", "messages/cs.json", "emails/invitation.tsx", "public/logo.svg", "tests/support/fixtures.ts", "tests/fixtures/epo/example.xml", "deploy/tests/global-setup.ts", "deploy/scripts/init.mjs", "scripts/write-release-identity.mjs", ".github/workflows/ci.yml"]) {
+      const plan = policy.verificationPlan({ event, files: [file] });
+      assert.equal(plan.scopes.deployment, true, file);
+      assert.equal(plan.reasons.deployment, `deployment-input:${file}`, file);
+    }
+  }
+  for (const event of ["workflow_call", "workflow_dispatch", "release", "unknown"]) {
+    const plan = policy.verificationPlan({ event, files: ["README.md"] });
+    assert.ok(Object.values(plan.scopes).every(Boolean), event);
   }
 });

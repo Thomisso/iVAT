@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawnSimulation } from "./simulation-process.mjs";
 import { createHash } from "node:crypto";
+import { verificationPlan } from "../../scripts/ci-policy.mjs";
 import { validateCandidateEvidence, waitForCandidateVerification, dispatchCandidateVerification, createCandidate, assertCandidateSource, produceCandidateEvidence, assertReleaseEvidenceInputs, confirmCandidate } from "../scripts/release-evidence.mjs";
 
 test("a green scoped main aggregate is insufficient production release evidence", () => {
@@ -37,9 +38,9 @@ function validEvidence() {
     path: ".github/workflows/release-verification.yml", event: "workflow_dispatch", display_title: `Release verification ${expected.requestId}`,
     status: "completed", conclusion: "success", run_started_at: "2026-11-09T12:01:00Z", created_at: "2026-11-09T12:01:00Z",
     referenced_workflows: ["ci.yml", "deployment-check.yml"].map(file => ({ path: `thomisso/ivat/.github/workflows/${file}@refs/tags/v0.2.0`, sha: revision })) };
-  const proof = { ...expected, runId: 20, runAttempt: 1, plan: { version: 1, profile: "full", reason: "conservative-non-pr",
+  const proof = { ...expected, runId: 20, runAttempt: 1, plan: { version: 1, profile: "full", reason: "full-override",
     scopes: { common: true, tracker: true, trackerTransport: true, release: true, application: true, http: true, deployment: true },
-    reasons: { common: "conservative-non-pr", tracker: "conservative-non-pr", trackerTransport: "conservative-non-pr", release: "conservative-non-pr", application: "conservative-non-pr", http: "conservative-non-pr", deployment: "conservative-non-pr" } }, results: { application: "success", deployment: "success" } };
+    reasons: { common: "full-override", tracker: "full-override", trackerTransport: "full-override", release: "full-override", application: "full-override", http: "full-override", deployment: "full-override" } }, results: { application: "success", deployment: "success" } };
   const jobs = Object.entries(stepNames).map(([name, steps], index) => ({ id: index + 100, run_id: 20, head_sha: revision, name: `Verification / ${name}`, status: "completed", conclusion: "success", started_at: "2026-11-09T12:02:00Z", completed_at: "2026-11-09T12:10:00Z", steps: steps.map(name => ({ name, status: "completed", conclusion: "success", started_at: "2026-11-09T12:02:00Z", completed_at: "2026-11-09T12:10:00Z" })) }));
   const artifact = { id: 30, name: "release-verification-20-1", expired: false, expires_at: "2099-12-01T00:00:00Z", digest: `sha256:${"e".repeat(64)}`, workflow_run: { id: 20, repository_id: 99, head_repository_id: 99, head_sha: revision } };
   return { run, proof, jobs, artifact };
@@ -264,4 +265,12 @@ test("the real candidate HTTP caller consumes the existing Postman release simul
   assert.match(log, /release-verification\.yml/);
   assert.match(log, /attempts\/1\/jobs/);
   assert.match(log, /candidate-archive/);
+});
+
+
+test("a valid cheap docs-main plan cannot replace full candidate execution proof", () => {
+  const value = validEvidence();
+  value.proof.plan = verificationPlan({ event: "push", files: ["README.md"] });
+  value.proof.results = { application: "skipped", deployment: "skipped" };
+  assert.throws(() => validateCandidateEvidence(value, expected), /scope|policy|inputs/);
 });
