@@ -7,6 +7,7 @@ import { createServer as createHttpServer } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { parseEnv } from "node:util";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { createReleaseBundle, validateReleaseBundle } from "../scripts/release-bundle.mjs";
 import { deployPreparedRelease } from "../scripts/connect-release.mjs";
 import { waitForRequiredChecks } from "../scripts/prepare-release.mjs";
@@ -60,7 +61,9 @@ async function prepareRuntimeReleaseSource(source) {
   git("config", "user.email", "release@example.test");
   // Fetch the actual committed application tree, without copying credentials,
   // build output, or unrelated files from the working checkout.
-  git("fetch", "--no-tags", checkout, "HEAD");
+  // Only HEAD is needed. Explicit depth also accepts a shallow Actions source
+  // instead of silently rejecting its ref because shallow roots would change.
+  git("fetch", "--depth=1", "--no-tags", checkout, "HEAD");
   git("reset", "--hard", "FETCH_HEAD");
   await writeFile(path.join(source, "supabase/migrations", probeMigration), "select pg_sleep(5); create table public.ivat_release_probe (value text); insert into public.ivat_release_probe values ('upgrade-completed');\n");
   git("add", `supabase/migrations/${probeMigration}`);
@@ -79,8 +82,30 @@ test("the runtime release fixture tags the complete application source it builds
   const git = (...args) => execFileSync("git", args, { cwd: source, encoding: "utf8", stdio: "pipe" }).trim();
   assert.equal(resolveReleaseRevision(release.tag, release.revision, source), release.revision);
   assert.equal(git("status", "--porcelain"), "");
+  const committedRevision = execFileSync("git", ["rev-parse", "HEAD"], { cwd: checkout, encoding: "utf8" }).trim();
+  assert.equal(git("rev-parse", `${release.revision}^`), committedRevision);
+  assert.equal(git("diff", "--name-only", committedRevision, release.revision), `supabase/migrations/${probeMigration}`);
+  await assert.rejects(access(path.join(source, ".env.local")), { code: "ENOENT" });
   assert.equal(await readFile(path.join(source, "src/application/epo-xml.ts"), "utf8"), await readFile(path.join(checkout, "src/application/epo-xml.ts"), "utf8"));
   assert.match(git("show", `${release.revision}:supabase/migrations/${probeMigration}`), /pg_sleep\(5\).*upgrade-completed/);
+});
+
+test("the runtime release source command works from a depth-one checkout without copying private files", async t => {
+  const directory = await mkdtemp(path.join(tmpdir(), "ivat-release-shallow-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const shallow = path.join(directory, "checkout");
+  execFileSync("git", ["clone", "--depth=1", "--no-tags", pathToFileURL(checkout).href, shallow], { stdio: "pipe" });
+  assert.equal(execFileSync("git", ["rev-parse", "--is-shallow-repository"], { cwd: shallow, encoding: "utf8" }).trim(), "true");
+  await writeFile(path.join(shallow, ".env.local"), "RELEASE_FIXTURE_PRIVATE_VALUE=must-stay-in-checkout\n");
+  const environment = { ...process.env, IVAT_RELEASE_RUNTIME_TEST: "" };
+  // The child is a separate test command, not a worker of this Node test run.
+  delete environment.NODE_TEST_CONTEXT;
+  const result = spawnSync(process.execPath, ["--test", "--test-reporter=tap", "--test-name-pattern=^the runtime release fixture tags the complete application source it builds$", fileURLToPath(import.meta.url)], {
+    cwd: shallow, encoding: "utf8", timeout: 30_000,
+    env: environment,
+  });
+  assert.equal(result.status, 0, `${result.error ?? ""}\n${result.stdout}\n${result.stderr}`);
+  assert.match(result.stdout, /# pass 1\n/);
 });
 
 test("the real release command guards and upgrades a disposable production stack", { skip: process.env.IVAT_RELEASE_RUNTIME_TEST !== "1", timeout: 1800000 }, async () => {
