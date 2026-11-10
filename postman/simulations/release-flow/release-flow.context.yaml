@@ -9,6 +9,13 @@ assumptions:
     verification: On 2026-11-10 the eight focused candidate tests passed in the release-258-development fingerprint, including the existing Postman release-flow simulation. Separate loopback HTTP and real publication-CLI regressions prove a later rerun or expired/deleted artifact cannot preserve an old approval; no real image was published. Repeated on 2026-11-10 in the release-254-final-fix fingerprint: all eleven focused candidate tests passed, including the simulation request-log assertions and public-validator same-second acceptance and earlier-second refusal regressions. This repeated local evidence does not establish live GitHub execution.
     source: deploy/tests/release-evidence.test.mjs; scripts/tests/release-identity.test.mjs; deploy/scripts/release-evidence.mjs; postman/mocks/github-release/default.js
     updated_at: "2026-11-10"
+  - id: canonical-annotated-tag-commit-lookup
+    status: supported
+    claim: The observed annotated release tag resolves to its peeled commit through the complete refs/tags namespace; the short tags/ commit path is not a valid substitute.
+    reason: Controller-supplied read-only GitHub observations on 2026-11-10 show the existing v0.4.2 tag is annotated, commits/tags%2Fv0.4.2 returns HTTP 422, and commits/refs%2Ftags%2Fv0.4.2 returns the expected commit. The local model now retains that distinction instead of accepting the short path.
+    verification: In the release-254-canonical-tag-fix fingerprint, the public HTTP regression first failed with HTTP 422 and then passed after using the validated candidate sourceRef. Dispatch, collection and confirmation pass against canonical tag responses while moved tags, changed trees and target drift remain refused. The Postman simulation asserts short-path 422, canonical peeled commit/tree response and successful real caller confirmation; its request log includes the canonical route. The publication CLI fixture uses a local annotated Git tag and strict HTTP routes with only a Docker stub, and acceptance confirmation continues to fetch its exact revision. No live API or Actions execution was performed by this worker.
+    source: deploy/scripts/release-evidence.mjs; deploy/tests/release-evidence.test.mjs; scripts/tests/release-identity.test.mjs; postman/mocks/github-release/default.js; https://api.github.com/repos/Thomisso/iVAT/commits/refs%2Ftags%2Fv0.4.2; https://api.github.com/repos/Thomisso/iVAT/git/ref/tags/v0.4.2
+    updated_at: "2026-11-10"
   - id: candidate-evidence-api-contract
     status: supported
     claim: The modelled GitHub contract exposes workflow dispatch, exact run and attempt readback, attempt-scoped jobs, run artifacts with digest/expiry, redirect download and commit/tree identity.
@@ -66,6 +73,10 @@ assumptions:
     source: deploy/tests/release-runtime.test.mjs; deploy/scripts/connect-release.mjs; deploy/scripts/launch-release.sh; postman/simulations/release-flow/release-flow.sim.yaml
     updated_at: "2026-10-30"
 fingerprints:
+  - id: release-254-canonical-tag-fix
+    date: "2026-11-10"
+    commit: 71b990e39f716a2a2990265497addbc54d74c6e5 with dirty final review canonical tag lookup fix
+    cli: Postman CLI 1.73.0
   - id: release-254-final-fix
     date: "2026-11-10"
     commit: f7c4ff12063da9ef3ba1643843ecaba3cd53f630 with dirty final review timestamp-precision fix
