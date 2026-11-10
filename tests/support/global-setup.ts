@@ -1,4 +1,4 @@
-import { execSync } from "node:child_process";
+import { readSupabaseStatus } from "../../scripts/supabase-status.mjs";
 import type { TestProject } from "vitest/node";
 
 declare module "vitest" {
@@ -16,9 +16,7 @@ export default function setup(project: TestProject) {
   // Its URL and keys are read from the running CLI instance.
   let status: Record<string, string>;
   try {
-    status = JSON.parse(
-      execSync("node scripts/supabase.mjs status -o json", { stdio: ["ignore", "pipe", "ignore"] }).toString(),
-    );
+    status = readSupabaseStatus();
   } catch {
     throw new Error("Local Supabase is not running. Start it with `npm run db:start`.");
   }
