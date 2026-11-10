@@ -23,11 +23,18 @@ assumptions:
     verification: Read the workflow runs, jobs, artifacts and workflow event documentation on 2026-11-09. Rechecked dispatch, commit identity and nested-workflow permissions on 2026-11-10: the pinned dispatch contract returns HTTP 200 with workflow_run_id, which the caller validates before lookup. No live dispatch, source copy, credential transfer or provider write was performed.
     source: https://docs.github.com/en/rest/actions/workflow-runs?apiVersion=2026-03-10; https://docs.github.com/en/rest/actions/workflow-jobs?apiVersion=2026-03-10; https://docs.github.com/en/rest/actions/artifacts?apiVersion=2026-03-10; https://docs.github.com/en/rest/actions/workflows?apiVersion=2026-03-10#create-a-workflow-dispatch-event; https://docs.github.com/en/rest/commits/commits?apiVersion=2026-03-10#get-a-commit; postman/mocks/github-release/default.js
     updated_at: "2026-11-10"
+  - id: immutable-reusable-workflow-reference-triples
+    status: supported
+    claim: The observed candidate run and attempt report each reusable workflow as its repository/file path at the resolved SHA, a matching sha field and a separate original ref.
+    reason: Controller-supplied real GitHub run and attempt metadata on 2026-11-10 use path@SHA plus sha and ref. The earlier path@ref-only fixture was inconsistent with that observed response and caused the collector to refuse a completed candidate. The validator now corroborates all three fields and the exact required workflow inventory; it does not infer a ref or accept contradictory metadata.
+    verification: In the release-254-workflow-triples fingerprint the public HTTP collector first reproduced the source refusal with provider-shaped metadata, then passed after strict triple validation. Public validator regressions refuse missing, duplicate, unexpected and wrong repository/file/path-SHA/sha/ref values, including the old path@ref form. Public collection and near-use confirmation refuse a changed separate ref; the Postman HTTP scenario and publication CLI consume the same canonical shape. Actual recollection of the original successful run with the independently reviewed consumer remains controller-owned and outstanding here; no new dispatch or Actions run was performed by this worker.
+    source: deploy/scripts/release-evidence.mjs; deploy/tests/release-evidence.test.mjs; scripts/tests/release-identity.test.mjs; scripts/tests/ci-timings.test.mjs; controller-captured candidate run and attempt 42793084071 from the specification 254 implementation session on 2026-11-10
+    updated_at: "2026-11-10"
   - id: candidate-live-workflow-provenance
     status: unknown
     claim: The reusable full candidate workflow produces the exact referenced-workflow/job/step/artifact provenance consumed by the validator on real GitHub Actions.
     reason: Local source and controlled HTTP checks cannot establish actual Actions execution or provider provenance details. Earlier account payment/spending refusals occurred before steps; later unrelated CI startup does not establish this candidate path.
-    verification: No new candidate Actions run or actual application/image-runtime execution is claimed. The opt-in PR workflow_call path can exercise the producer before workflow_dispatch registration; complete live proof remains required when the provider executes the authorized bounded run.
+    verification: No new candidate Actions run or actual application/image-runtime execution is claimed. The opt-in PR workflow_call path can exercise the producer before workflow_dispatch registration; complete live proof remains required when the provider executes the authorized bounded run. Later controller evidence on 2026-11-10 captured successful candidate run 42793084071 with all required jobs and its artifact, but the original collector refused its actual reusable-workflow reference shape. That provider counterexample is recorded above; corrected read-only recollection and confirmation remain pending independent review, so this record does not yet claim a completed live collector pass.
     source: .github/workflows/release-verification.yml; .github/workflows/release-verification-acceptance.yml; deploy/scripts/release-evidence.mjs; docs/deployment.md
     updated_at: "2026-11-10"
   - id: runtime-identity-matches-prepared-bundle
@@ -73,6 +80,10 @@ assumptions:
     source: deploy/tests/release-runtime.test.mjs; deploy/scripts/connect-release.mjs; deploy/scripts/launch-release.sh; postman/simulations/release-flow/release-flow.sim.yaml
     updated_at: "2026-10-30"
 fingerprints:
+  - id: release-254-workflow-triples
+    date: "2026-11-10"
+    commit: 3116c2f04805ce2c816738450a25e998c570a759 with dirty final review canonical reusable-workflow reference corroboration and provider-shaped fixtures
+    cli: Postman CLI 1.73.0
   - id: release-254-canonical-tag-fix
     date: "2026-11-10"
     commit: 71b990e39f716a2a2990265497addbc54d74c6e5 with dirty final review canonical tag lookup fix
