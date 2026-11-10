@@ -37,7 +37,7 @@ function validEvidence() {
   const run = { id: 20, run_attempt: 1, repository: { full_name: "Thomisso/iVAT", id: 99 }, head_repository: { full_name: "Thomisso/iVAT", id: 99 }, head_sha: revision,
     path: ".github/workflows/release-verification.yml", event: "workflow_dispatch", display_title: `Release verification ${expected.requestId}`,
     status: "completed", conclusion: "success", run_started_at: "2026-11-09T12:01:00Z", created_at: "2026-11-09T12:01:00Z",
-    referenced_workflows: ["ci.yml", "deployment-check.yml"].map(file => ({ path: `thomisso/ivat/.github/workflows/${file}@refs/tags/v0.2.0`, sha: revision })) };
+    referenced_workflows: ["ci.yml", "deployment-check.yml"].map(file => ({ path: `Thomisso/iVAT/.github/workflows/${file}@${revision}`, sha: revision, ref: expected.sourceRef })) };
   const proof = { ...expected, runId: 20, runAttempt: 1, plan: { version: 1, profile: "full", reason: "full-override",
     scopes: { common: true, tracker: true, trackerTransport: true, release: true, application: true, http: true, deployment: true },
     reasons: { common: "full-override", tracker: "full-override", trackerTransport: "full-override", release: "full-override", application: "full-override", http: "full-override", deployment: "full-override" } }, results: { application: "success", deployment: "success" } };
@@ -95,6 +95,34 @@ test("candidate verification refuses wrong provenance and every incomplete requi
       (target === "run" ? value.run : target === "job" ? value.jobs[7] : value.jobs[7].steps[0]).conclusion = status;
       assert.throws(() => validateCandidateEvidence(value, expected), /candidate|Candidate/);
     }
+  }
+});
+
+test("candidate evidence refuses missing, duplicate or contradictory immutable workflow source triples", () => {
+  const changes = [
+    value => { delete value.run.referenced_workflows; },
+    value => { value.run.referenced_workflows = null; },
+    value => { value.run.referenced_workflows.pop(); },
+    value => { value.run.referenced_workflows.push({ ...value.run.referenced_workflows[0] }); },
+    value => { value.run.referenced_workflows[1] = { ...value.run.referenced_workflows[0] }; },
+    value => { value.run.referenced_workflows.push({ path: `thomisso/ivat/.github/workflows/other.yml@${revision}`, sha: revision, ref: expected.sourceRef }); },
+  ];
+  for (const index of [0, 1]) {
+    for (const change of [
+      item => { item.path = item.path.replace("Thomisso/iVAT/", "other/ivat/"); },
+      item => { item.path = item.path.replace(".yml@", "-other.yml@"); },
+      item => { item.path = item.path.replace(revision, "f".repeat(40)); },
+      item => { item.sha = "f".repeat(40); },
+      item => { item.ref = "refs/tags/v0.9.9"; },
+      item => { item.path = item.path.replace(revision, expected.sourceRef); },
+      item => { delete item.path; },
+      item => { delete item.sha; },
+      item => { delete item.ref; },
+    ]) changes.push(value => change(value.run.referenced_workflows[index]));
+  }
+  for (const change of changes) {
+    const value = validEvidence(); change(value);
+    assert.throws(() => validateCandidateEvidence(value, expected), /different workflow source/);
   }
 });
 
@@ -161,6 +189,10 @@ test("the release HTTP caller resolves canonical annotated tags and verifies the
   assert.ok(requests.some(item => item.path.includes("/attempts/1/jobs?per_page=100&page=1")));
   assert.equal(requests.find(item => item.path === "/download").authorization, undefined);
   await confirmCandidate({ ...options, receipt });
+  value.run.referenced_workflows[0].ref = "refs/tags/v0.9.9";
+  await assert.rejects(confirmCandidate({ ...options, receipt }), /different workflow source/);
+  await assert.rejects(waitForCandidateVerification(options), /different workflow source/);
+  value.run.referenced_workflows[0].ref = expected.sourceRef;
   value.run.run_attempt = 2;
   await assert.rejects(confirmCandidate({ ...options, receipt }), /attempt/i);
   value.run.run_attempt = 1;
@@ -244,7 +276,7 @@ test("pre-main reusable PR proof confirms its exact source revision separately f
   value.proof.plan.reason = "full-override";
   for (const key of Object.keys(value.proof.plan.reasons)) value.proof.plan.reasons[key] = "full-override";
   Object.assign(value.run, { head_sha: candidate.runHead, event: "pull_request", path: ".github/workflows/release-verification-acceptance.yml" });
-  value.run.referenced_workflows = ["ci.yml", "deployment-check.yml", "release-verification.yml"].map(file => ({ path: `thomisso/ivat/.github/workflows/${file}@${candidate.sourceRef}`, sha: revision }));
+  value.run.referenced_workflows = ["ci.yml", "deployment-check.yml", "release-verification.yml"].map(file => ({ path: `Thomisso/iVAT/.github/workflows/${file}@${revision}`, sha: revision, ref: candidate.sourceRef }));
   value.artifact.workflow_run.head_sha = candidate.runHead;
   for (const job of value.jobs) job.head_sha = candidate.runHead;
   const receipt = validateCandidateEvidence(value, candidate);
@@ -268,6 +300,8 @@ test("pre-main reusable PR proof confirms its exact source revision separately f
   await confirmCandidate({ candidate, receipt, token: "disposable-test-token", apiUrl: `http://127.0.0.1:${server.address().port}` });
   assert.ok(requests.some(route => route.endsWith(`/commits/${candidate.revision}`)));
   assert.ok(requests.every(route => !route.includes("/commits/refs%2F")));
+  value.run.referenced_workflows[2].ref = "refs/pull/13/merge";
+  await assert.rejects(confirmCandidate({ candidate, receipt, token: "disposable-test-token", apiUrl: `http://127.0.0.1:${server.address().port}` }), /different workflow source/);
 });
 
 test("the real candidate HTTP caller consumes the existing Postman release simulation and refuses provider/archive failures", async t => {
@@ -306,6 +340,11 @@ test("the real candidate HTTP caller consumes the existing Postman release simul
   const receipt = await waitForCandidateVerification(options);
   assert.equal(receipt.artifactId, 30);
   await confirmCandidate({ ...options, receipt });
+  evidence.run.referenced_workflows[0].ref = "refs/tags/v0.9.9";
+  await control("success");
+  await assert.rejects(waitForCandidateVerification(options), /different workflow source/);
+  await assert.rejects(confirmCandidate({ ...options, receipt }), /different workflow source/);
+  evidence.run.referenced_workflows[0].ref = expected.sourceRef;
   for (const behavior of ["wrong-target", "tampered", "forbidden", "html", "malformed"]) {
     await control(behavior);
     await assert.rejects(waitForCandidateVerification(options), error => {
