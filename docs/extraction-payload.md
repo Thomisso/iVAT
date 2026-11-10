@@ -140,7 +140,7 @@ Poppler output dimensions must agree with the visible page intersection,
 rotation and UserUnit; disagreement fails rather than publishing a guessed
 transform. Rendering does not establish semantic accuracy of AI locations.
 
-The worker requires `pdftoppm` (production image: `poppler-utils`). Application
+The worker requires `pdftoppm` (production image: `poppler-utils` and `fonts-liberation` for unembedded standard PDF fonts). Application
 limits are 100 pages, 8 million pixels per page, 100 million pixels per Document,
 3 MiB PNG per page and 18 MiB PNG total, before base64 encoding. A page side is
 limited to 8000 pixels, or 2000 when sending more than 20 pages. Pages render
