@@ -184,3 +184,46 @@ test("a partially written replacement journal cannot tear a concurrent status sn
   assert.equal(await exited, 0, stderr);
   assert.equal(execute(repo, "status").confirmed.revision, before.confirmed.revision);
 });
+
+function handoffFixture(t) {
+  const repo = trackerFixture(t);
+  const revision = repo.git("rev-parse", "feat/ticket");
+  repo.updateRemote(remote => {
+    remote.issues = { 201: { id: "I_201", number: 201, title: "Implementation", url: "https://github.com/example/project/issues/201", state: "OPEN", labels: ["ready-for-agent"], body: "", parent: null, subIssues: { totalCount: 0 }, repository: { nameWithOwner: "example/project" } } };
+    remote.pulls = { 300: { number: 300, node_id: "PR_300", html_url: "https://github.com/example/project/pull/300", state: "open", draft: true, merged: false, merged_at: null, head: { ref: "feat/ticket", sha: revision, repo: { full_name: "example/project" } }, base: { ref: "main", repo: { full_name: "example/project" } } } };
+  });
+  assert.equal(repo.setup().status, 0);
+  execute(repo, "start", "--run", "refused-status-run");
+  execute(repo, "claim", "--issue", "201", "--agent", "worker", "--branch", "feat/ticket");
+  execute(repo, "review", "--issue", "201", "--base", revision, "--revision", revision, "--checks", "Synthetic focused checks", "--result", "Implementation complete");
+  execute(repo, "review-result", "--issue", "201", "--reviewer", "ticket-reviewer", "--revision", revision, "--standards", "pass", "--spec", "pass", "--findings", "[]", "--independence", "Independent ticket, base and diff review", "--result", "Review complete");
+  execute(repo, "final-pr", "--issue", "201", "--pr", "300", "--result", "PR bound");
+  const checks = ["focused", "typecheck", "lint", "runtime"].map(name => ({ name, status: "passed", evidence: "Synthetic check evidence" }));
+  execute(repo, "final-checks", "--issue", "201", "--revision", revision, "--checks", JSON.stringify(checks), "--result", "Checks reported");
+  execute(repo, "final-review", "--issue", "201", "--revision", revision, "--reviewer", "combined-reviewer", "--standards", "pass", "--spec", "pass", "--findings", "[]", "--independence", "Independent combined spec, base and diff review", "--evidence", "Synthetic review evidence", "--result", "Review reported");
+  return { ...repo, revision };
+}
+
+for (const error of ["final_target_changed", "final_revision_changed"]) {
+  test(`status preserves observed ${error} refusal and directs repair before another handoff`, t => {
+    const repo = handoffFixture(t);
+    repo.git("checkout", "-b", "concurrent-change", "main");
+    fs.writeFileSync(path.join(repo.directory, "change.txt"), "Concurrent content\n");
+    repo.git("add", "change.txt");
+    repo.git("-c", "user.name=Status test", "-c", "user.email=status@example.test", "commit", "-m", "Concurrent change");
+    const changed = repo.git("rev-parse", "HEAD");
+    if (error === "final_target_changed") repo.git("branch", "-f", "main", changed);
+    else repo.updateRemote(remote => { remote.pushDuringReady = changed; });
+    assert.equal(resultJson(repo.run("final-handoff", "--issue", "201", "--result", "Attempt ready handoff")).error, error);
+    const status = execute(repo, "status", "--issue", "201");
+    assert.equal(status.issues[0].handoffGate.state, "refused");
+    assert.equal(status.issues[0].handoffGate.error, error);
+    assert.equal(status.issues[0].handoffGate.source, "last_observed");
+    assert.equal(status.issues[0].observedHandoff.error, error);
+    assert.equal(status.nextStep, error === "final_target_changed" ? "incorporate_target_and_repeat_checks_review" : "rebind_pr_and_repeat_checks_review");
+    execute(repo, "sync");
+    const confirmed = execute(repo, "status", "--issue", "201");
+    assert.equal(confirmed.issues[0].final.handoff.error, error);
+    assert.equal(confirmed.issues[0].handoffGate.state, "refused");
+  });
+}
