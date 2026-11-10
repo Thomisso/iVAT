@@ -5,7 +5,7 @@ A Source File can contain several Documents (for example a PDF with five invoice
 1. **Split** returns the Documents as page ranges (or row sets for spreadsheets). Users can correct the Split in review.
 2. **Extract** then runs on each Document separately.
 
-PDFs and images go straight to multimodal LLMs (Anthropic and OpenAI at MVP) behind a provider abstraction, with the model configurable per step. The MVP has no dedicated OCR engine. Extractor is an interface, so an OCR+LLM strategy can be added if quality or cost on scans requires it.
+Split sends PDFs natively to multimodal LLMs (Anthropic and OpenAI at MVP) behind a provider abstraction, with the model configurable per step. For Extraction, the worker rasterizes the Document's visible, oriented PDF pages before sending them as numbered images in one request. Original Source Files remain unchanged and supply the review preview. This avoids the systematic coordinate displacement reproduced with native text/vector PDF Extraction in #253; it does not make model locations verified facts. Standalone images retain their existing input path. The MVP has no dedicated OCR engine. Extractor is an interface, so an OCR+LLM strategy can be added if quality or cost on scans requires it.
 
 ## Considered Options
 

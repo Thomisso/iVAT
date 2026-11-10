@@ -21,3 +21,17 @@ Runs the real iVAT OpenAI adapter against `postman/mocks/openai-responses`, with
 <!-- begin:observations -->
 2026-10-27: the `openai` member served both `POST /responses` calls; the real adapter completed native PDF Split and native image Extraction through the simulation.
 <!-- end:observations -->
+
+## PDF raster input verification (2026-11-10, #253)
+
+The simulation test now runs native PDF Split and real Poppler preparation of a
+three-page PDF for Extraction. The stand-in requires three numbered PNG blocks
+and refuses a native PDF Extraction block. On 2026-11-10 the real adapter test
+passed and the simulation log recorded both POST /responses requests. This
+establishes serialization and HTTP routing against this repository-owned mock;
+it does not establish model localization quality or live provider limits.
+
+The production adapter also has focused real-HTTP stand-in coverage for page-2
+locations. Official formats: https://developers.openai.com/api/docs/guides/images-vision
+and https://platform.claude.com/docs/en/build-with-claude/vision . The original
+2026-10-27 observations above remain historical evidence for the prior test.
