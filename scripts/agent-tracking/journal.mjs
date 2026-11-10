@@ -20,6 +20,20 @@ export function saveJournal(directory, journal) {
   try { fs.fsyncSync(parent); } finally { fs.closeSync(parent); }
 }
 
+// Writers replace this file atomically. An open descriptor keeps one complete
+// version even when a writer installs the next one; readers never acquire locks.
+export function readJournalSnapshot(config) {
+  let descriptor;
+  try {
+    descriptor = fs.openSync(path.join(journalDirectory(config), "journal.json"), "r");
+    const journal = JSON.parse(fs.readFileSync(descriptor, "utf8"));
+    return { journal, writtenAt: fs.fstatSync(descriptor).mtime.toISOString() };
+  } catch (error) {
+    if (error.code === "ENOENT") return { journal: null, writtenAt: null };
+    throw new TrackerError("local_snapshot_unavailable");
+  } finally { if (descriptor !== undefined) fs.closeSync(descriptor); }
+}
+
 function isLocalHost(host) {
   if (host === os.hostname()) return true;
   if (os.platform() !== "darwin" || typeof host !== "string") return false;
