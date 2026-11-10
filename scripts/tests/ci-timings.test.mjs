@@ -31,6 +31,8 @@ else {
    value=value.sequence[index];
  }
  if(value===undefined) { console.error('Unavailable fixture route '+args[1]); process.exit(1); }
+ if(value?.error) { console.error(value.error); process.exit(1); }
+ if(args[1].endsWith('/logs') && typeof value==='string' && value.includes(String.fromCharCode(27)) && !args.includes('--allow-escape-sequences')) { console.error('the response contains terminal escape sequences; pass --allow-escape-sequences to output it anyway'); process.exit(1); }
  if(value.binary) process.stdout.write(Buffer.from(value.binary,'base64')); else if(typeof value==='string') process.stdout.write(value); else console.log(JSON.stringify(value));
 }\n`);
   chmodSync(path.join(directory, "gh"), 0o755);
@@ -98,6 +100,50 @@ test("actual failed logs distinguish startup, application and tracker test failu
     const job = JSON.parse(result.stdout)[0].attempts[0].jobs[0];
     assert.equal(job.failure.type, sample.name === "startup" ? "startup-infrastructure" : "test-failure");
     if (sample.name !== "startup") assert.equal(job.failure.scope, sample.name === "test" ? "application" : "tracker");
+  }
+});
+
+test("timing CLI captures ANSI provider logs and reports normalized scope, checkout and failure observations", t => {
+  const run = provider.attempts[0];
+  const job = { ...provider.jobs[0][0], name: "CI profile", steps: [
+    { name: "Select verification plan", status: "completed", conclusion: "success", started_at: "2026-11-08T11:35:14Z", completed_at: "2026-11-08T11:35:14Z" },
+    { name: "Application test", status: "completed", conclusion: "failure", started_at: "2026-11-08T11:35:15Z", completed_at: "2026-11-08T11:35:16Z" },
+  ] };
+  const log = [
+    "2026-11-08T11:35:14Z \u001b[32mVerification profile: full (ready-for-review)\u001b[0m",
+    "2026-11-08T11:35:14Z \u001b[32mapplication: required (application-change)\u001b[0m",
+    "2026-11-08T11:35:14Z \u001b[36m[command]/usr/bin/git log -1 --format=%H\u001b[0m",
+    "2026-11-08T11:35:14Z \u001b[36mbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\u001b[0m",
+    "2026-11-08T11:35:14Z \u001b[36mCurrent runner version: '2.332.0'\u001b[0m",
+    "2026-11-08T11:35:16Z \u001b[31mFAIL\u001b[0m tests/example.test.ts > example",
+    "",
+  ].join("\n");
+  const result = fixture(t, { attempts: [run], jobs: [[job]], responses: { [`${root}/actions/jobs/${job.id}/logs`]: log } })();
+  assert.equal(result.status, 0, result.stderr);
+  const attempt = JSON.parse(result.stdout)[0].attempts[0];
+  const observed = attempt.jobs[0];
+  assert.equal(observed.logs.available, true);
+  assert.equal(attempt.provenance.scope.status, "log-observed");
+  assert.deepEqual(attempt.provenance.scope.plan, { profile: "full", reason: "ready-for-review", scopes: { application: true }, reasons: { application: "application-change" } });
+  assert.equal(attempt.provenance.checkedRevision, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+  assert.deepEqual(observed.logs.environment, ["2026-11-08T11:35:14Z Current runner version: '2.332.0'"]);
+  assert.deepEqual(observed.failure, { type: "test-failure", cause: "test-output-observed", scope: "application", evidence: "2026-11-08T11:35:16Z FAIL tests/example.test.ts > example" });
+  assert.doesNotMatch(result.stdout, /\\u001b|\u001b/);
+});
+
+test("timing CLI retains honest evidence gaps for missing and permission-denied logs", t => {
+  const run = provider.attempts[0];
+  const job = provider.jobs[0][0];
+  for (const responses of [{}, { [`${root}/actions/jobs/${job.id}/logs`]: { error: "HTTP 403: Resource not accessible by integration" } }]) {
+    const result = fixture(t, { attempts: [run], jobs: [[job]], responses })();
+    assert.equal(result.status, 0, result.stderr);
+    const attempt = JSON.parse(result.stdout)[0].attempts[0];
+    assert.equal(attempt.jobs[0].logs.available, false);
+    assert.equal(attempt.jobs[0].logs.reason, "logs-unavailable-or-job-not-started");
+    assert.equal(attempt.provenance.scope.status, "unverified");
+    assert.equal(attempt.provenance.checkedRevision, null);
+    assert.equal(attempt.jobs[0].failure.type, "unknown-failure");
+    assert.deepEqual(attempt.observedWork.unavailableLogs, [128718602819]);
   }
 });
 
