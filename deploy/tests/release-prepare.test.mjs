@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { createServer } from "node:http";
 import { assertPublishedRelease, requiredChecksState, resolveReleaseRevision } from "../scripts/release-policy.mjs";
-import { assertPublicBuild, createReleaseBundle, validateReleaseBundle } from "../scripts/release-bundle.mjs";
+import { assertPublicBuild, assertReleaseManifest, createReleaseBundle, validateReleaseBundle } from "../scripts/release-bundle.mjs";
 import { waitForRequiredChecks } from "../scripts/prepare-release.mjs";
 
 test("only a published stable versioned Release can select production contents", () => {
@@ -51,7 +51,7 @@ test("workflow evidence polling waits for exact checks and stops at a bounded de
   await assert.rejects(waitForRequiredChecks(options), /Invalid GitHub workflow evidence/);
 });
 
-test("a release bundle pins every application service and refuses tampered or extra assets", async t => {
+test("a verified release produces a strict bundle that pins images and refuses tampering", async t => {
   const directory = mkdtempSync(path.join(tmpdir(), "ivat-release-bundle-"));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const images = {
@@ -63,12 +63,18 @@ test("a release bundle pins every application service and refuses tampered or ex
   const compose = JSON.parse(execFileSync("docker", ["compose", "-f", "docker-compose.rosti.yml", "config", "--no-interpolate", "--no-path-resolution", "--format", "json"], { encoding: "utf8" }));
   await createReleaseBundle({
     sourceDirectory: process.cwd(), outputDirectory: directory,
-    release: { repository: "thomisso/ivat", revision: "a".repeat(40), tag: "v0.2.0", releaseId: 42 },
+    release: {
+      repository: "thomisso/ivat", revision: "a".repeat(40), tag: "v0.2.0", releaseId: 42,
+      // The real verification CLI retains this receipt beside the identity.
+      verification: { candidate: { inputsDigest: "e".repeat(64) }, receipt: { runId: 20, runAttempt: 1, artifactId: 30, artifactDigest: `sha256:${"f".repeat(64)}` } },
+    },
     publicBuild: { supabaseUrl: "https://api.ivat.cz", publishableKey: "sb_publishable_release_test" },
     images, compose,
   });
   const manifest = await validateReleaseBundle(directory);
   assert.equal(manifest.revision, "a".repeat(40));
+  assert.equal(manifest.verification, undefined, "verification metadata is not a deployment manifest field");
+  assert.throws(() => assertReleaseManifest({ ...manifest, verification: {} }), /Invalid release manifest identity/);
   assert.equal(Object.keys(manifest.images).length, 4);
   const rendered = JSON.parse(readFileSync(path.join(directory, "docker-compose.rosti.yml"), "utf8"));
   assert.equal(rendered.name, undefined);
