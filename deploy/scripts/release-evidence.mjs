@@ -136,7 +136,14 @@ function githubClient({ repository, token, apiUrl = "https://api.github.com", de
         signal: AbortSignal.timeout(Math.max(1, Math.min(15_000, deadline - Date.now()))),
       });
     } catch { throw new Error("GitHub candidate verification request failed or timed out."); }
-    if (!response.ok && response.status !== 302) throw new Error(`GitHub candidate verification request failed (HTTP ${response.status}).`);
+    if (!response.ok && response.status !== 302) {
+      await response.body?.cancel();
+      // Never include response bodies, credentials or signed download queries.
+      const endpoint = authenticated ? new URL(url).pathname.slice(new URL(prefix).pathname.length) : "artifact download";
+      const error = new Error(`GitHub candidate verification request failed (HTTP ${response.status}) for ${endpoint}.`);
+      error.httpStatus = response.status;
+      throw error;
+    }
     return response;
   }
   async function json(endpoint, options) {
@@ -192,21 +199,37 @@ async function assertCurrentCandidate(client, candidate) {
   if (source?.sha !== candidate.revision || source.commit?.tree?.sha !== candidate.sourceTree) throw new Error("Candidate verification tag or source changed.");
 }
 
-export async function waitForCandidateVerification({ candidate, token, apiUrl, runId, timeoutMs = 60 * 60_000, pollMs = 10_000 }) {
+export async function waitForCandidateVerification({ candidate, token, apiUrl, runId, timeoutMs = 60 * 60_000, pollMs = 10_000, metadataGraceMs = 60_000 }) {
   assertCandidate(candidate);
   const deadline = Date.now() + timeoutMs;
   const client = githubClient({ repository: candidate.repository, token, apiUrl, deadline });
+  const metadataDeadline = Math.min(deadline, Date.now() + Math.min(60_000, Math.max(0, metadataGraceMs)));
+  // Dispatch can acknowledge an ID before run/attempt metadata is readable.
+  // Retry only those exact read-only endpoints, never dispatch, refs or artifacts.
+  async function readRun(endpoint) {
+    while (true) {
+      try { return await client.json(endpoint); }
+      catch (error) {
+        if (candidate.purpose !== "release" || error.httpStatus !== 404 || Date.now() >= metadataDeadline) throw error;
+        await delay(Math.min(pollMs, Math.max(0, metadataDeadline - Date.now())));
+      }
+    }
+  }
   await assertCurrentCandidate(client, candidate);
   while (Date.now() < deadline) {
-    const runs = candidate.purpose === "acceptance" || positive(runId) ? [await client.json(`/actions/runs/${candidate.purpose === "acceptance" ? candidate.acceptanceRunId : runId}`)] :
+    const runs = candidate.purpose === "acceptance" || positive(runId) ? [await readRun(`/actions/runs/${candidate.purpose === "acceptance" ? candidate.acceptanceRunId : runId}`)] :
       await client.list(`/actions/workflows/${CANDIDATE_WORKFLOW}/runs`, "workflow_runs", { head_sha: candidate.revision, event: "workflow_dispatch" });
     const matches = candidate.purpose === "acceptance" ? runs : runs.filter(run => run.display_title === `Release verification ${candidate.requestId}`);
-    if (positive(runId) && matches.length !== 1) throw new Error("Dispatched candidate verification identity differs from its request.");
+    if (positive(runId) && matches.length !== 1) {
+      if (runs[0]?.id !== runId || runs[0]?.status === "completed" || Date.now() >= metadataDeadline) throw new Error("Dispatched candidate verification identity differs from its request.");
+      await delay(Math.min(pollMs, Math.max(0, metadataDeadline - Date.now())));
+      continue;
+    }
     if (matches.length > 1) throw new Error("Ambiguous candidate verification request; inspect its runs before retrying.");
     if (matches.length) {
-      const latest = await client.json(`/actions/runs/${matches[0].id}`);
+      const latest = await readRun(`/actions/runs/${matches[0].id}`);
       if (!positive(latest.id) || !positive(latest.run_attempt)) throw new Error("Invalid candidate verification attempt identity.");
-      const run = await client.json(`/actions/runs/${latest.id}/attempts/${latest.run_attempt}`);
+      const run = await readRun(`/actions/runs/${latest.id}/attempts/${latest.run_attempt}`);
       if (run.id !== latest.id || run.run_attempt !== latest.run_attempt) throw new Error("Candidate verification attempt changed.");
       if (run.status === "completed") {
         if (run.conclusion !== "success") throw new Error(`Candidate verification did not succeed (${run.conclusion}).`);
@@ -339,8 +362,9 @@ async function main() {
   const [command, file] = process.argv.slice(2);
   if (command === "identity" || command === "produce") {
     let candidate;
-    if (process.env.CANDIDATE) {
-      candidate = JSON.parse(process.env.CANDIDATE);
+    const candidateInput = process.env.CANDIDATE_FILE ? await readFile(process.env.CANDIDATE_FILE, "utf8") : process.env.CANDIDATE;
+    if (candidateInput) {
+      candidate = JSON.parse(candidateInput);
       assertCandidateSource(candidate);
       if (candidate.purpose === "release" ? process.env.GITHUB_EVENT_NAME !== "workflow_dispatch" || process.env.REQUEST_ID !== candidate.requestId :
           command !== "produce" || process.env.GITHUB_EVENT_NAME !== "pull_request") throw new Error("Candidate dispatch request differs from selected inputs.");
@@ -358,7 +382,9 @@ async function main() {
       await writeFile(file, JSON.stringify(candidate, null, 2) + "\n", { flag: "wx" });
       if (process.env.GITHUB_OUTPUT) {
         const { appendFile } = await import("node:fs/promises");
-        await appendFile(process.env.GITHUB_OUTPUT, `candidate=${JSON.stringify(candidate)}\npublic-build=${JSON.stringify(candidate.publicBuild)}\ntag=${candidate.tag}\n`);
+        // GitHub can suppress job outputs containing even public API keys.
+        // Pass the validated request file through the run-scoped artifact instead.
+        await appendFile(process.env.GITHUB_OUTPUT, `tag=${candidate.tag}\n`);
       }
     } else {
       const proof = produceCandidateEvidence(candidate, {
@@ -369,8 +395,8 @@ async function main() {
       await writeFile(file, JSON.stringify(proof, null, 2) + "\n", { flag: "wx" });
     }
   } else if (command === "build-runtime") {
-    const publicBuild = process.env.CANDIDATE_PUBLIC_BUILD ? JSON.parse(process.env.CANDIDATE_PUBLIC_BUILD) : null;
-    if (publicBuild) assertPublicBuild(publicBuild);
+    const candidate = process.env.CANDIDATE_FILE ? assertCandidateSource(JSON.parse(await readFile(process.env.CANDIDATE_FILE, "utf8"))) : null;
+    const publicBuild = candidate?.publicBuild;
     execFileSync("docker", ["compose", "--env-file", ".env.rosti", "-f", "docker-compose.rosti.yml", "build"], {
       stdio: "inherit", env: { ...process.env, ...(publicBuild ? { SUPABASE_PUBLIC_URL: publicBuild.supabaseUrl, ANON_KEY: publicBuild.publishableKey } : {}) },
     });

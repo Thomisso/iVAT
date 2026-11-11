@@ -317,6 +317,11 @@ The request binds repository, exact revision and source tree, stable tag,
 current main target, verification-policy digest, public build configuration and
 `linux/amd64`. The image/runtime check builds with the exact selected public
 URL/key and release identity while using disposable local runtime credentials.
+The identity job retains the validated request as the run/attempt-scoped
+`release-verification-request-RUN-ATTEMPT` artifact. Both the image verifier and
+final evidence producer restore that exact file and validate its source and
+policy. Only the tag uses a job output: GitHub can suppress even public API keys
+in job outputs, so neither the request nor its build settings travel that way.
 The preparation caller checks the completed run and exact attempt, referenced
 workflow revisions, every required job and execution step, and the named
 `release-verification-RUN-ATTEMPT` artifact. It verifies the downloaded ZIP's
@@ -408,6 +413,13 @@ workflow only prepares images and artifacts. Merging this implementation does
 not enable it. After the separate activation review, publishing a stable
 Release runs verification, preparation and deployment automatically. A green
 preparation job alone does not establish a deployed release.
+
+After dispatch, collection tolerates HTTP 404 from the selected run/attempt
+metadata endpoints and an unfinished run's temporary display title for at most
+60 seconds, bounded by the overall verification deadline. Other API failures,
+ref/artifact lookups and completed identity mismatches still fail immediately.
+Only reads are retried; dispatch is never repeated automatically. API errors
+identify the endpoint without response bodies or signed download URLs.
 
 If preparation fails or is interrupted, inspect the preparation and candidate
 run/attempt before retrying. The preparation run retains
