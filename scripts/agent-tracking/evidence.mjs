@@ -20,11 +20,27 @@ export function localAncestor(base, head) {
   if (result.status === 1) throw new TrackerError("revision_not_in_history");
   if (result.status !== 0) throw new TrackerError("git_evidence_failed");
 }
-export function remoteCommit(github, config, value) {
-  return github.request(`repos/${config.repository}/commits/${encodeURIComponent(value)}`);
+export function remoteCommit(github, config, value, { historical = false } = {}) {
+  try { return github.request(`repos/${config.repository}/commits/${encodeURIComponent(value)}`); }
+  catch (error) {
+    if (!historical || error.code !== "github_not_found") throw error;
+    // A hidden repository also returns 404. Confirm live repository/commit access
+    // before treating an unavailable historical object as invalid evidence.
+    const repository = github.request(`repos/${config.repository}`);
+    github.request(`repos/${config.repository}/commits/${encodeURIComponent(repository.default_branch)}`);
+    throw new TrackerError("revision_unavailable");
+  }
 }
 export function remoteAncestor(github, config, base, head) {
-  const comparison = github.request(`repos/${config.repository}/compare/${base}...${head}`);
+  let comparison;
+  try { comparison = github.request(`repos/${config.repository}/compare/${base}...${head}`); }
+  catch (error) {
+    if (error.code !== "github_not_found") throw error;
+    // GitHub returns 404 for readable commits with no common ancestor too.
+    remoteCommit(github, config, base, { historical: true });
+    remoteCommit(github, config, head, { historical: true });
+    throw new TrackerError("revision_not_in_history");
+  }
   if (!["ahead", "identical"].includes(comparison.status) || comparison.merge_base_commit?.sha !== base) throw new TrackerError("revision_not_in_history");
 }
 export function currentParent(github, config, number) {
@@ -104,7 +120,11 @@ export function finalMerge(github, repository, number) {
   const pr = prs.find(pr => pr.number === closer.number && pr.repository.nameWithOwner === repository);
   if (!pr?.merged || !pr.mergedAt || !pr.mergeCommit?.oid || !closer.merged || closer.mergeCommit?.oid !== pr.mergeCommit.oid || pr.baseRefName !== pr.repository.defaultBranchRef?.name || closer.baseRefName !== pr.baseRefName) return null;
   const target = remoteCommit(github, { repository }, pr.baseRefName).sha;
-  remoteAncestor(github, { repository }, pr.mergeCommit.oid, target);
+  try { remoteAncestor(github, { repository }, pr.mergeCommit.oid, target); }
+  catch (error) {
+    if (!["revision_not_in_history", "revision_unavailable"].includes(error.code)) throw error;
+    return null;
+  }
   return { pullRequest: pr.number, target: pr.baseRefName, commit: pr.mergeCommit.oid, closedAt: closure.createdAt };
 }
 export function dependencyReadiness(state, record, { github, config }) {

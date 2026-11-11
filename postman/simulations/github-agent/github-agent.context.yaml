@@ -93,6 +93,13 @@ assumptions:
     verification: On 2026-11-10 the complete verifier passed at clean candidate 9e46cda21fda08e06f45dec370552892c46feee1, fingerprint agent-tooling-264-preflight. Its summary reported 17 scenarios, 11 fields and 27 captured requests, covering permission and TLS refusals, partial publication, original envelope retry, deleted-item repair, unchanged projection effects and corroborated GraphQL merged results. The new finalize orchestration and expected-revision guards are covered separately by public CLI process tests with the controlled gh boundary; this wire run does not claim to exercise them. The production codeRef requires the updated worker before accepting those guarded envelopes.
     source: scripts/verify-agent-tracker-transport.mjs; scripts/tests/agent-tracker-finalize.test.mjs; postman/mocks/github-agent/default.js; https://github.com/Thomisso/iVAT/pull/263
     updated_at: "2026-11-10"
+  - id: disconnected-history-compare-404
+    status: supported
+    claim: GitHub compare can return HTTP 404 for two readable commits with no common ancestor after a history rewrite.
+    reason: A read-only live probe confirmed both commit reads and a self-comparison succeed while the old/new comparison returns No common ancestor. The caller must distinguish stale history from loss of repository access.
+    verification: On 2026-11-11, real gh returned 200 for both commits and the self-comparison, and 404 for their disconnected comparison. The minimized production caller failed before the fix and then returned revision_not_in_history. Public CLI/Git fixture regressions passed for retained and removed historical objects, invalidated delivery, blocked dependent readiness and stopped the original owner. The existing HTTPS simulation verifier passed all 17 foundation scenarios with 27 captured requests; it does not model these Git graph paths. Removed-object behavior is controlled fixture evidence, not a live deletion experiment.
+    source: scripts/agent-tracking/evidence.mjs; scripts/tests/agent-tracker-final.test.mjs; scripts/tests/agent-tracker-history.test.mjs; scripts/tests/support/agent-tracker-gh.mjs; scripts/verify-agent-tracker-transport.mjs
+    updated_at: "2026-11-11"
 fingerprints:
   - id: agent-tracking-254-deleted-node
     date: "2026-11-10"
@@ -149,4 +156,8 @@ fingerprints:
   - id: agent-tooling-264-preflight
     date: "2026-11-10"
     commit: 9e46cda21fda08e06f45dec370552892c46feee1 (clean complete tooling candidate before integration evidence note)
+    cli: Postman CLI 1.73.0; gh 2.101.0; Node 22.22.3
+  - id: agent-tracking-269-history-rewrite
+    date: "2026-11-11"
+    commit: a004e8db95c7c723b395245eaecdb0733f155b97 with dirty issue 269 history-evidence repair and regression fixtures
     cli: Postman CLI 1.73.0; gh 2.101.0; Node 22.22.3

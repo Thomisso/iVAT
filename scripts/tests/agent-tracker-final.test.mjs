@@ -552,3 +552,44 @@ test("a closure burst publishes each changed parent and child once and rereads a
   requests = repo.remote().requests;
   assert.equal(requests.filter(request => request.operation === "TrackerSetFields").length, 2);
 });
+
+for (const removed of [false, true]) {
+  test(`history rewrite ${removed ? "with removed old objects" : "with retained old objects"} leaves delivery unverified and reconciliation operational`, t => {
+    const repo = prepare(t, false);
+    evidenceComplete(repo);
+    mergeDelivery(repo);
+    execute(repo, "reconcile");
+    assert.equal(execute(repo, "show").remote.tickets[201].status, "done");
+
+    const tree = repo.git("rev-parse", `${repo.revision}^{tree}`);
+    const rewritten = repo.git("-c", "user.name=Rewrite test", "-c", "user.email=rewrite@example.test", "commit-tree", tree, "-m", "Privacy rewrite with identical content");
+    repo.git("branch", "-f", "main", rewritten);
+    if (removed) repo.updateRemote(remote => { remote.unavailableRevisions = [repo.revision]; });
+
+    execute(repo, "reconcile");
+    const state = execute(repo, "show").remote;
+    const ticket = state.tickets[201];
+    assert.equal(ticket.status, "review");
+    assert.equal(ticket.delivery.current, false);
+    assert.equal(ticket.final.gate.status, "outstanding");
+    assert.equal(ticket.final.gate.error, removed ? "revision_unavailable" : "revision_not_in_history");
+    assert.equal(ticket.final.checks.revision, repo.revision);
+    assert.notEqual(ticket.final.checks.appliesTo, rewritten);
+    assert.equal(state.owner.runId, "final-run");
+
+    repo.updateRemote(remote => {
+      remote.issues[202] = { id: "I_202", node_id: "I_202", number: 202, title: "Dependent", url: "https://github.com/example/project/issues/202", state: "OPEN", labels: ["ready-for-agent"], body: "", subIssues: { totalCount: 0 }, repository: { nameWithOwner: "example/project" } };
+      remote.parents[202] = null;
+      remote.dependencies = { 202: [{ number: 201, repository_url: "https://api.github.com/repos/example/project" }] };
+    });
+    execute(repo, "discover");
+    execute(repo, "readiness", "--issue", "202");
+    const dependent = execute(repo, "show").remote.tickets[202];
+    assert.equal(dependent.status, "blocked");
+    assert.equal(dependent.dependencies.ready, false);
+    assert.equal(dependent.dependencies.blockers[0].satisfied, false);
+
+    execute(repo, "stop", "--reason", "Reconciliation must not retain control after stale ancestry");
+    assert.equal(execute(repo, "show").remote.owner, null);
+  });
+}

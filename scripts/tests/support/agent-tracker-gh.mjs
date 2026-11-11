@@ -155,7 +155,9 @@ if (endpoint === "graphql") {
 } else if (endpoint.startsWith("repos/example/project/compare/")) {
   const [base, head] = endpoint.slice("repos/example/project/compare/".length).split("...");
   const ancestor = spawnSync("git", ["merge-base", "--is-ancestor", base, head]);
-  response = { status: base === head ? "identical" : ancestor.status === 0 ? "ahead" : "diverged", merge_base_commit: { sha: execFileSync("git", ["merge-base", base, head], { encoding: "utf8" }).trim() } };
+  const mergeBase = spawnSync("git", ["merge-base", base, head], { encoding: "utf8" });
+  if (mergeBase.status !== 0) { console.error("HTTP 404: No common ancestor"); process.exit(1); }
+  response = { status: base === head ? "identical" : ancestor.status === 0 ? "ahead" : "diverged", merge_base_commit: { sha: mergeBase.stdout.trim() } };
 } else if (/^repos\/example\/project\/pulls\/\d+$/.test(endpoint)) {
   response = remote.pulls?.[endpoint.split("/")[4]];
   if (remote.pushOnPullRead && --remote.pushOnPullRead.remaining === 0) {

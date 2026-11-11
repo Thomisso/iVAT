@@ -60,7 +60,7 @@ export function readFinalPullRequest(github, config, number, { allowChangedTarge
     if (!/^[a-f0-9]{40}$/.test(facts.mergeCommit?.oid ?? "")) throw new TrackerError("final_merge_required");
     mergeCommit = facts.mergeCommit.oid;
   }
-  const head = remoteCommit(github, config, pr.head.sha);
+  const head = remoteCommit(github, config, pr.head.sha, { historical: pr.merged });
   return { number, url: pr.html_url, nodeId: pr.node_id, branch: pr.head.ref, revision: pr.head.sha, tree: head.commit.tree.sha, target: pr.base.ref, state: pr.merged ? "merged" : pr.state === "closed" ? "closed" : pr.draft ? "draft" : "ready", mergedAt: pr.merged_at, mergeCommit };
 }
 function issueKey(issue, config) {
@@ -270,7 +270,7 @@ export function finishFinalHandoffs(state, github, config, persist) {
 function refreshPr(f, pr, github, config) {
   f.pullRequest = pr;
   f.revision = pr.mergeCommit ?? pr.revision;
-  f.tree = pr.mergeCommit ? remoteCommit(github, config, pr.mergeCommit).commit.tree.sha : pr.tree;
+  f.tree = pr.mergeCommit ? remoteCommit(github, config, pr.mergeCommit, { historical: true }).commit.tree.sha : pr.tree;
   for (const evidence of [f.checks, f.review]) {
     if (pr.mergeCommit && evidence?.revision === pr.revision && evidence.tree === f.tree) {
       evidence.appliesTo = pr.mergeCommit;
@@ -316,11 +316,12 @@ export function reconcileFinalFacts(state, github, config, at) {
 
   for (const record of Object.values(state.tickets).filter(record => record.final)) {
     const f = record.final;
-    const pr = readFinalPullRequest(github, config, f.pullRequest.number);
-    refreshPr(f, pr, github, config);
     updateSummary(state, record, github, config);
     let refusal;
     try {
+      const pr = readFinalPullRequest(github, config, f.pullRequest.number);
+      refreshPr(f, pr, github, config);
+      updateSummary(state, record, github, config);
       requireFinalGate(state, record, github, config);
       if (pr.state !== "merged" || !pr.mergedAt || !pr.mergeCommit) throw new TrackerError("final_merge_required");
       const result = remoteCommit(github, config, pr.mergeCommit);
