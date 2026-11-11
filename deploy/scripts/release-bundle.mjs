@@ -112,7 +112,11 @@ export async function createReleaseBundle({ sourceDirectory, outputDirectory, re
   await copyFile(path.join(sourceDirectory, "deploy/restore.yml"), path.join(outputDirectory, "deploy/restore.yml"));
   const files = {};
   for (const name of await listFiles(outputDirectory)) files[name] = sha256(await readFile(path.join(outputDirectory, name)));
-  const manifest = assertReleaseManifest({ schemaVersion: 1, ...release, publicBuild, images, files });
+  // Verification receipts belong to preparation, not the strict host manifest.
+  const manifest = assertReleaseManifest({
+    schemaVersion: 1, repository: release.repository, revision: release.revision,
+    tag: release.tag, releaseId: release.releaseId, publicBuild, images, files,
+  });
   await writeFile(path.join(outputDirectory, "manifest.json"), JSON.stringify(manifest, null, 2) + "\n", { flag: "wx" });
   return validateReleaseBundle(outputDirectory);
 }
