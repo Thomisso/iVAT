@@ -318,30 +318,37 @@ export function reconcileFinalFacts(state, github, config, at) {
     const f = record.final;
     updateSummary(state, record, github, config);
     let refusal;
+    let pr;
     try {
-      const pr = readFinalPullRequest(github, config, f.pullRequest.number);
+      pr = readFinalPullRequest(github, config, f.pullRequest.number);
       refreshPr(f, pr, github, config);
-      updateSummary(state, record, github, config);
-      requireFinalGate(state, record, github, config);
-      if (pr.state !== "merged" || !pr.mergedAt || !pr.mergeCommit) throw new TrackerError("final_merge_required");
-      const result = remoteCommit(github, config, pr.mergeCommit);
-      remoteAncestor(github, config, pr.mergeCommit, remoteCommit(github, config, pr.target).sha);
-      const subjects = [record, ...record.summary.children.map(number => state.tickets[number])];
-      const closure = new Map();
-      for (const subject of subjects) {
-        const delivered = finalMerge(github, config.repository, subject.number);
-        closure.set(subject.number, delivered?.pullRequest === pr.number && delivered?.commit === pr.mergeCommit && delivered.target === pr.target);
-      }
-      for (const subject of subjects.slice(1)) {
-        if (closure.get(subject.number)) recordDelivery(subject, pr, result, at);
-        else invalidateDelivery(subject, "Current issue closure is not the verified final delivery", at);
-      }
-      if (!subjects.every(subject => closure.get(subject.number))) throw new TrackerError("final_issue_closure_required");
-      recordDelivery(record, pr, result, at);
-      f.gate = { status: "passed", revision: f.revision };
     } catch (error) {
-      if (!(error instanceof TrackerError) || error.code.startsWith("github_")) throw error;
+      if (!(error instanceof TrackerError) || error.code !== "revision_unavailable") throw error;
       refusal = error.code;
+    }
+    if (!refusal) {
+      try {
+        requireFinalGate(state, record, github, config);
+        if (pr.state !== "merged" || !pr.mergedAt || !pr.mergeCommit) throw new TrackerError("final_merge_required");
+        const result = remoteCommit(github, config, pr.mergeCommit);
+        remoteAncestor(github, config, pr.mergeCommit, remoteCommit(github, config, pr.target).sha);
+        const subjects = [record, ...record.summary.children.map(number => state.tickets[number])];
+        const closure = new Map();
+        for (const subject of subjects) {
+          const delivered = finalMerge(github, config.repository, subject.number);
+          closure.set(subject.number, delivered?.pullRequest === pr.number && delivered?.commit === pr.mergeCommit && delivered.target === pr.target);
+        }
+        for (const subject of subjects.slice(1)) {
+          if (closure.get(subject.number)) recordDelivery(subject, pr, result, at);
+          else invalidateDelivery(subject, "Current issue closure is not the verified final delivery", at);
+        }
+        if (!subjects.every(subject => closure.get(subject.number))) throw new TrackerError("final_issue_closure_required");
+        recordDelivery(record, pr, result, at);
+        f.gate = { status: "passed", revision: f.revision };
+      } catch (error) {
+        if (!(error instanceof TrackerError) || error.code.startsWith("github_")) throw error;
+        refusal = error.code;
+      }
     }
     if (refusal) {
       f.gate = { status: "outstanding", error: refusal, revision: f.revision };
