@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createServer } from "node:http";
-import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile, rm, chmod } from "node:fs/promises";
 import { execFileSync, spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -238,12 +238,36 @@ test("candidate selection binds tagged source, current target, policy and exact 
   assert.throws(() => assertReleaseEvidenceInputs(verified, { ...expected.publicBuild, publishableKey: "sb_publishable_changed" }, directory), /inputs/);
   assert.throws(() => assertReleaseEvidenceInputs({ ...verified, verification: { ...verified.verification, candidate: { ...candidate, purpose: "acceptance", sourceRef: "refs/pull/12/merge", acceptanceRunId: 20 } } }, expected.publicBuild, directory), /inputs/);
   const output = path.join(directory, "produced-evidence.json");
+  const candidateFile = path.join(directory, "candidate-request.json");
+  await writeFile(candidateFile, JSON.stringify(candidate));
   execFileSync(process.execPath, [path.resolve("deploy/scripts/release-evidence.mjs"), "produce", output], { cwd: directory, env: {
-    ...process.env, CANDIDATE: JSON.stringify(candidate), REQUEST_ID: candidate.requestId,
+    ...process.env, CANDIDATE: "", CANDIDATE_FILE: candidateFile, REQUEST_ID: candidate.requestId,
     GITHUB_REPOSITORY: "Thomisso/iVAT", GITHUB_SHA: source, GITHUB_REF: "refs/tags/v0.2.0", GITHUB_EVENT_NAME: "workflow_dispatch",
     GITHUB_RUN_ID: "20", GITHUB_RUN_ATTEMPT: "1", APPLICATION_RESULT: "success", DEPLOYMENT_RESULT: "success",
   } });
   assert.equal(JSON.parse(await readFile(output, "utf8")).inputsDigest, candidate.inputsDigest);
+  const githubOutput = path.join(directory, "github-output");
+  execFileSync(process.execPath, [path.resolve("deploy/scripts/release-evidence.mjs"), "identity", path.join(directory, "identity.json")], { cwd: directory, env: {
+    ...process.env, CANDIDATE: JSON.stringify(candidate), CANDIDATE_FILE: "", REQUEST_ID: candidate.requestId,
+    GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_OUTPUT: githubOutput,
+  } });
+  assert.equal(await readFile(githubOutput, "utf8"), "tag=v0.2.0\n", "payloads must not use secret-filtered job outputs");
+  const docker = path.join(directory, "docker");
+  await writeFile(docker, '#!/bin/sh\nexec "$RELEASE_TEST_NODE" -e \'const fs=require("node:fs");fs.writeFileSync("build-inputs.json",JSON.stringify({url:process.env.SUPABASE_PUBLIC_URL,key:process.env.ANON_KEY,args:process.argv.slice(1)}));\' -- "$@"\n');
+  await chmod(docker, 0o755);
+  const build = () => spawnSync(process.execPath, [path.resolve("deploy/scripts/release-evidence.mjs"), "build-runtime"], { cwd: directory, encoding: "utf8", env: {
+    ...process.env, PATH: `${directory}${path.delimiter}${process.env.PATH}`, CANDIDATE_FILE: candidateFile, RELEASE_TEST_NODE: process.execPath,
+  } });
+  const built = build();
+  assert.equal(built.status, 0, built.stderr);
+  const inputs = JSON.parse(await readFile(path.join(directory, "build-inputs.json"), "utf8"));
+  assert.equal(inputs.url, candidate.publicBuild.supabaseUrl); assert.equal(inputs.key, candidate.publicBuild.publishableKey);
+  assert.deepEqual(inputs.args, ["compose", "--env-file", ".env.rosti", "-f", "docker-compose.rosti.yml", "build"]);
+  await writeFile(candidateFile, JSON.stringify({ ...candidate, publicBuild: { ...candidate.publicBuild, publishableKey: "sb_publishable_changed" } }));
+  assert.notEqual(build().status, 0, "changed artifact inputs must fail before Docker");
+  await rm(candidateFile);
+  assert.notEqual(build().status, 0, "a missing request artifact must not select disposable build inputs");
+  await writeFile(candidateFile, JSON.stringify(candidate));
   const eventFile = path.join(directory, "release-event.json");
   await writeFile(eventFile, JSON.stringify({ action: "published", repository: { full_name: "Thomisso/iVAT" }, release: { id: 42, tag_name: "v0.2.0", draft: false, prerelease: false } }));
   const verifiedFile = path.join(directory, "verified-release.json");

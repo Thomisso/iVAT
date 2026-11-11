@@ -362,8 +362,9 @@ async function main() {
   const [command, file] = process.argv.slice(2);
   if (command === "identity" || command === "produce") {
     let candidate;
-    if (process.env.CANDIDATE) {
-      candidate = JSON.parse(process.env.CANDIDATE);
+    const candidateInput = process.env.CANDIDATE_FILE ? await readFile(process.env.CANDIDATE_FILE, "utf8") : process.env.CANDIDATE;
+    if (candidateInput) {
+      candidate = JSON.parse(candidateInput);
       assertCandidateSource(candidate);
       if (candidate.purpose === "release" ? process.env.GITHUB_EVENT_NAME !== "workflow_dispatch" || process.env.REQUEST_ID !== candidate.requestId :
           command !== "produce" || process.env.GITHUB_EVENT_NAME !== "pull_request") throw new Error("Candidate dispatch request differs from selected inputs.");
@@ -381,7 +382,9 @@ async function main() {
       await writeFile(file, JSON.stringify(candidate, null, 2) + "\n", { flag: "wx" });
       if (process.env.GITHUB_OUTPUT) {
         const { appendFile } = await import("node:fs/promises");
-        await appendFile(process.env.GITHUB_OUTPUT, `candidate=${JSON.stringify(candidate)}\npublic-build=${JSON.stringify(candidate.publicBuild)}\ntag=${candidate.tag}\n`);
+        // GitHub can suppress job outputs containing even public API keys.
+        // Pass the validated request file through the run-scoped artifact instead.
+        await appendFile(process.env.GITHUB_OUTPUT, `tag=${candidate.tag}\n`);
       }
     } else {
       const proof = produceCandidateEvidence(candidate, {
@@ -392,8 +395,8 @@ async function main() {
       await writeFile(file, JSON.stringify(proof, null, 2) + "\n", { flag: "wx" });
     }
   } else if (command === "build-runtime") {
-    const publicBuild = process.env.CANDIDATE_PUBLIC_BUILD ? JSON.parse(process.env.CANDIDATE_PUBLIC_BUILD) : null;
-    if (publicBuild) assertPublicBuild(publicBuild);
+    const candidate = process.env.CANDIDATE_FILE ? assertCandidateSource(JSON.parse(await readFile(process.env.CANDIDATE_FILE, "utf8"))) : null;
+    const publicBuild = candidate?.publicBuild;
     execFileSync("docker", ["compose", "--env-file", ".env.rosti", "-f", "docker-compose.rosti.yml", "build"], {
       stdio: "inherit", env: { ...process.env, ...(publicBuild ? { SUPABASE_PUBLIC_URL: publicBuild.supabaseUrl, ANON_KEY: publicBuild.publishableKey } : {}) },
     });

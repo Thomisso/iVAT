@@ -33,8 +33,6 @@ jobs:
     name: Resolve candidate inputs
     runs-on: ubuntu-latest
     outputs:
-      candidate: ${{ steps.identity.outputs.candidate }}
-      public-build: ${{ steps.identity.outputs.public-build }}
       tag: ${{ steps.identity.outputs.tag }}
     steps:
       - uses: actions/checkout@v7
@@ -68,7 +66,7 @@ jobs:
     with:
       candidate-full: true
       release-tag: ${{ needs.identity.outputs.tag }}
-      public-build: ${{ needs.identity.outputs.public-build }}
+      candidate-request-artifact: release-verification-request-${{ github.run_id }}-${{ github.run_attempt }}
 
   evidence:
     name: Publish candidate evidence
@@ -83,9 +81,14 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
+      - name: Restore the exact candidate request
+        uses: actions/download-artifact@v8
+        with:
+          name: release-verification-request-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/candidate
       - name: Refuse incomplete verification and retain exact inputs
         env:
-          CANDIDATE: ${{ needs.identity.outputs.candidate }}
+          CANDIDATE_FILE: ${{ runner.temp }}/candidate/candidate-request.json
           REQUEST_ID: ${{ inputs.requestId }}
           APPLICATION_RESULT: ${{ needs.application.result }}
           DEPLOYMENT_RESULT: ${{ needs.deployment.result }}

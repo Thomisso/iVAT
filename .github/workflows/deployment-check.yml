@@ -9,7 +9,7 @@ on:
       release-tag:
         type: string
         default: v0.0.0
-      public-build:
+      candidate-request-artifact:
         type: string
         default: ''
   pull_request:
@@ -73,10 +73,18 @@ jobs:
       IVAT_RELEASE_REVISION: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
+      - name: Restore the exact candidate request
+        if: inputs.candidate-request-artifact != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.candidate-request-artifact }}
+          path: ${{ runner.temp }}/candidate
       - run: npm ci
       - name: Install PDF renderer for host application checks
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils
@@ -84,7 +92,7 @@ jobs:
         run: node deploy/scripts/init.mjs
       - name: Build the production images
         env:
-          CANDIDATE_PUBLIC_BUILD: ${{ inputs.public-build }}
+          CANDIDATE_FILE: ${{ inputs.candidate-request-artifact != '' && format('{0}/candidate/candidate-request.json', runner.temp) || '' }}
         run: node deploy/scripts/release-evidence.mjs build-runtime
       - name: Boot the production runtime with local-only test access
         run: docker compose --env-file .env.rosti -f docker-compose.rosti.yml -f deploy/tests/compose.yml up -d --wait --wait-timeout 240

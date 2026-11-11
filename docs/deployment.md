@@ -317,6 +317,11 @@ The request binds repository, exact revision and source tree, stable tag,
 current main target, verification-policy digest, public build configuration and
 `linux/amd64`. The image/runtime check builds with the exact selected public
 URL/key and release identity while using disposable local runtime credentials.
+The identity job retains the validated request as the run/attempt-scoped
+`release-verification-request-RUN-ATTEMPT` artifact. Both the image verifier and
+final evidence producer restore that exact file and validate its source and
+policy. Only the tag uses a job output: GitHub can suppress even public API keys
+in job outputs, so neither the request nor its build settings travel that way.
 The preparation caller checks the completed run and exact attempt, referenced
 workflow revisions, every required job and execution step, and the named
 `release-verification-RUN-ATTEMPT` artifact. It verifies the downloaded ZIP's

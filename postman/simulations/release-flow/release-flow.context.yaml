@@ -2,6 +2,13 @@ purpose:
   stands_in_for: GitHub legacy exact-main-push and complete candidate workflow/attempt/artifact evidence and Roští Compose storage/readback HTTP dependencies of the real release flow.
   unblocks: Verify Release authorization, real SSH transport and disposable Compose upgrades without live services or production credentials.
 assumptions:
+  - id: candidate-job-output-transport
+    status: contradicted
+    claim: GitHub reliably forwards the full validated candidate and public build settings as job outputs.
+    reason: Real candidate run 43006789647 completed every application/deployment suite, but its identity job explicitly suppressed candidate and public-build outputs as potential secrets. The evidence producer then received no request and refused. The public API key is a validated build input, not a production private credential.
+    verification: Read the identity Complete job warnings and final producer failure on 2026-11-11. The revised transport restores the existing run/attempt-scoped request artifact for both image verification and evidence production, with source/policy validation and no payload job outputs. Local CLI regression first reproduced the missing-request refusal; a complete live pass of the revised transport remains required.
+    source: .github/workflows/release-verification.yml; .github/workflows/deployment-check.yml; deploy/scripts/release-evidence.mjs; deploy/tests/release-evidence.test.mjs; https://github.com/Thomisso/iVAT/actions/runs/43006789647
+    updated_at: "2026-11-11"
   - id: newly-dispatched-candidate-metadata
     status: supported
     claim: Against this stand-in, the real collector tolerates a transient run/attempt HTTP 404 or an unfinished run's temporary display title, then requires complete exact candidate evidence; persistent failures remain bounded and dispatch is not repeated.
