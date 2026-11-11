@@ -2,6 +2,13 @@ purpose:
   stands_in_for: GitHub legacy exact-main-push and complete candidate workflow/attempt/artifact evidence and Roští Compose storage/readback HTTP dependencies of the real release flow.
   unblocks: Verify Release authorization, real SSH transport and disposable Compose upgrades without live services or production credentials.
 assumptions:
+  - id: newly-dispatched-candidate-metadata
+    status: supported
+    claim: Against this stand-in, the real collector tolerates a transient run/attempt HTTP 404 or an unfinished run's temporary display title, then requires complete exact candidate evidence; persistent failures remain bounded and dispatch is not repeated.
+    reason: Release v0.4.4 failed with HTTP 404 about 0.6 seconds after dispatch on 2026-11-11, while subsequent read-only queries for that run and attempt succeeded. The log did not identify the failing endpoint, so metadata propagation remains the likely explanation rather than a confirmed provider guarantee. The previous v0.4.3 failed immediately on display-title identity. The model injects these cases independently.
+    verification: In the release-271-polling fingerprint the Postman regression first reproduced the same HTTP 404, then all twelve candidate tests passed after bounded read retries were added. Live release completion with this change remains outstanding. No transient-provider guarantee or successful production deployment follows from these local checks.
+    source: deploy/tests/release-evidence.test.mjs; deploy/scripts/release-evidence.mjs; postman/mocks/github-release/default.js; https://github.com/Thomisso/iVAT/actions/runs/43006770555; https://github.com/Thomisso/iVAT/actions/runs/42859731026
+    updated_at: "2026-11-11"
   - id: candidate-http-caller-refusals
     status: supported
     claim: Against this local stand-in, the real candidate caller dispatches the exact tagged request, inspects exact run/attempt/jobs/artifact paths, verifies downloaded ZIP bytes and refuses changed targets, tampered bytes and provider errors.
@@ -80,6 +87,10 @@ assumptions:
     source: deploy/tests/release-runtime.test.mjs; deploy/scripts/connect-release.mjs; deploy/scripts/launch-release.sh; postman/simulations/release-flow/release-flow.sim.yaml
     updated_at: "2026-10-30"
 fingerprints:
+  - id: release-271-polling
+    date: "2026-11-11"
+    commit: 3e46378098586576941979d648eb2d294283d0f3 with dirty release polling implementation and regressions
+    cli: Postman CLI 1.73.0
   - id: release-254-workflow-triples
     date: "2026-11-10"
     commit: 3116c2f04805ce2c816738450a25e998c570a759 with dirty final review canonical reusable-workflow reference corroboration and provider-shaped fixtures

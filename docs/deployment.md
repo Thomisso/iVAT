@@ -409,6 +409,13 @@ not enable it. After the separate activation review, publishing a stable
 Release runs verification, preparation and deployment automatically. A green
 preparation job alone does not establish a deployed release.
 
+After dispatch, collection tolerates HTTP 404 from the selected run/attempt
+metadata endpoints and an unfinished run's temporary display title for at most
+60 seconds, bounded by the overall verification deadline. Other API failures,
+ref/artifact lookups and completed identity mismatches still fail immediately.
+Only reads are retried; dispatch is never repeated automatically. API errors
+identify the endpoint without response bodies or signed download URLs.
+
 If preparation fails or is interrupted, inspect the preparation and candidate
 run/attempt before retrying. The preparation run retains
 `candidate-request-RUN-ATTEMPT`, containing `verified-release.json.request.json`,

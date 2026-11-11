@@ -136,7 +136,14 @@ function githubClient({ repository, token, apiUrl = "https://api.github.com", de
         signal: AbortSignal.timeout(Math.max(1, Math.min(15_000, deadline - Date.now()))),
       });
     } catch { throw new Error("GitHub candidate verification request failed or timed out."); }
-    if (!response.ok && response.status !== 302) throw new Error(`GitHub candidate verification request failed (HTTP ${response.status}).`);
+    if (!response.ok && response.status !== 302) {
+      await response.body?.cancel();
+      // Never include response bodies, credentials or signed download queries.
+      const endpoint = authenticated ? new URL(url).pathname.slice(new URL(prefix).pathname.length) : "artifact download";
+      const error = new Error(`GitHub candidate verification request failed (HTTP ${response.status}) for ${endpoint}.`);
+      error.httpStatus = response.status;
+      throw error;
+    }
     return response;
   }
   async function json(endpoint, options) {
@@ -192,21 +199,37 @@ async function assertCurrentCandidate(client, candidate) {
   if (source?.sha !== candidate.revision || source.commit?.tree?.sha !== candidate.sourceTree) throw new Error("Candidate verification tag or source changed.");
 }
 
-export async function waitForCandidateVerification({ candidate, token, apiUrl, runId, timeoutMs = 60 * 60_000, pollMs = 10_000 }) {
+export async function waitForCandidateVerification({ candidate, token, apiUrl, runId, timeoutMs = 60 * 60_000, pollMs = 10_000, metadataGraceMs = 60_000 }) {
   assertCandidate(candidate);
   const deadline = Date.now() + timeoutMs;
   const client = githubClient({ repository: candidate.repository, token, apiUrl, deadline });
+  const metadataDeadline = Math.min(deadline, Date.now() + Math.min(60_000, Math.max(0, metadataGraceMs)));
+  // Dispatch can acknowledge an ID before run/attempt metadata is readable.
+  // Retry only those exact read-only endpoints, never dispatch, refs or artifacts.
+  async function readRun(endpoint) {
+    while (true) {
+      try { return await client.json(endpoint); }
+      catch (error) {
+        if (candidate.purpose !== "release" || error.httpStatus !== 404 || Date.now() >= metadataDeadline) throw error;
+        await delay(Math.min(pollMs, Math.max(0, metadataDeadline - Date.now())));
+      }
+    }
+  }
   await assertCurrentCandidate(client, candidate);
   while (Date.now() < deadline) {
-    const runs = candidate.purpose === "acceptance" || positive(runId) ? [await client.json(`/actions/runs/${candidate.purpose === "acceptance" ? candidate.acceptanceRunId : runId}`)] :
+    const runs = candidate.purpose === "acceptance" || positive(runId) ? [await readRun(`/actions/runs/${candidate.purpose === "acceptance" ? candidate.acceptanceRunId : runId}`)] :
       await client.list(`/actions/workflows/${CANDIDATE_WORKFLOW}/runs`, "workflow_runs", { head_sha: candidate.revision, event: "workflow_dispatch" });
     const matches = candidate.purpose === "acceptance" ? runs : runs.filter(run => run.display_title === `Release verification ${candidate.requestId}`);
-    if (positive(runId) && matches.length !== 1) throw new Error("Dispatched candidate verification identity differs from its request.");
+    if (positive(runId) && matches.length !== 1) {
+      if (runs[0]?.id !== runId || runs[0]?.status === "completed" || Date.now() >= metadataDeadline) throw new Error("Dispatched candidate verification identity differs from its request.");
+      await delay(Math.min(pollMs, Math.max(0, metadataDeadline - Date.now())));
+      continue;
+    }
     if (matches.length > 1) throw new Error("Ambiguous candidate verification request; inspect its runs before retrying.");
     if (matches.length) {
-      const latest = await client.json(`/actions/runs/${matches[0].id}`);
+      const latest = await readRun(`/actions/runs/${matches[0].id}`);
       if (!positive(latest.id) || !positive(latest.run_attempt)) throw new Error("Invalid candidate verification attempt identity.");
-      const run = await client.json(`/actions/runs/${latest.id}/attempts/${latest.run_attempt}`);
+      const run = await readRun(`/actions/runs/${latest.id}/attempts/${latest.run_attempt}`);
       if (run.id !== latest.id || run.run_attempt !== latest.run_attempt) throw new Error("Candidate verification attempt changed.");
       if (run.status === "completed") {
         if (run.conclusion !== "success") throw new Error(`Candidate verification did not succeed (${run.conclusion}).`);

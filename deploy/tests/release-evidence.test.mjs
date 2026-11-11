@@ -330,6 +330,7 @@ test("the real candidate HTTP caller consumes the existing Postman release simul
     assert.equal(response.status, 200);
   };
   const options = { candidate: expected, token: "PRIVATE_TEST_TOKEN", apiUrl, timeoutMs: 1000, pollMs: 1 };
+  const stats = async () => (await fetch(apiUrl + "/__stats")).json();
   await control("success");
   const shortTag = await fetch(`${apiUrl}/repos/thomisso/ivat/commits/tags%2Fv0.2.0`, { headers: { Authorization: "Bearer disposable-test-token" } });
   assert.equal(shortTag.status, 422);
@@ -345,6 +346,27 @@ test("the real candidate HTTP caller consumes the existing Postman release simul
   await assert.rejects(waitForCandidateVerification(options), /different workflow source/);
   await assert.rejects(confirmCandidate({ ...options, receipt }), /different workflow source/);
   evidence.run.referenced_workflows[0].ref = expected.sourceRef;
+  for (const behavior of ["eventual-run", "eventual-attempt", "eventual-title"]) {
+    await control(behavior);
+    assert.equal(await dispatchCandidateVerification(options), 20);
+    assert.deepEqual(await waitForCandidateVerification({ ...options, runId: 20, metadataGraceMs: 500 }), receipt, behavior);
+    assert.equal((await stats()).dispatch, 1, "metadata retries must not redispatch");
+  }
+  await control("missing-run");
+  await assert.rejects(waitForCandidateVerification({ ...options, runId: 20, metadataGraceMs: 20 }), /HTTP 404.*\/actions\/runs\/20/);
+  await control("wrong-title");
+  await assert.rejects(waitForCandidateVerification({ ...options, runId: 20, metadataGraceMs: 20 }), /identity differs/);
+  await control("missing-run");
+  await assert.rejects(waitForCandidateVerification({ ...options, runId: 20, timeoutMs: 20, metadataGraceMs: 500 }), /HTTP 404|[Tt]imed out/);
+  await control("missing-target");
+  await assert.rejects(waitForCandidateVerification({ ...options, runId: 20 }), /HTTP 404.*\/commits\//);
+  assert.equal((await stats()).target, 1, "ref failures must not be retried");
+  await control("missing-artifact");
+  await assert.rejects(waitForCandidateVerification({ ...options, runId: 20 }), /HTTP 404.*\/artifacts/);
+  assert.equal((await stats()).artifacts, 1, "artifact failures must not be retried");
+  await control("missing-dispatch");
+  await assert.rejects(dispatchCandidateVerification(options), /HTTP 404.*\/dispatches/);
+  assert.equal((await stats()).dispatch, 1, "an ambiguous dispatch must not be retried");
   for (const behavior of ["wrong-target", "tampered", "forbidden", "html", "malformed"]) {
     await control(behavior);
     await assert.rejects(waitForCandidateVerification(options), error => {
