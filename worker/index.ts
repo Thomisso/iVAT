@@ -7,6 +7,8 @@ import { PROCESSING_JOB_NAMES, runJob, type ProcessingJob, type Worker } from "@
 import { configuredAiProviders } from "@/ai";
 import { createBoss, createProcessingQueues, pgBossJobQueue } from "@/lib/jobs";
 import { configuredVatPayerRegistry } from "@/vat-registry";
+import { runOperationalAlertTick } from "@/application/operational-alert-worker";
+import { smtpOperationalAlertMailer } from "@/mail/smtp-operational-alert-mailer";
 import { configuredExchangeRates } from "@/cnb";
 
 // Background job runner (ADR-0002). The handlers live in the application layer
@@ -21,6 +23,31 @@ function required(name: string): string {
 
 const boss = createBoss({ supervise: true });
 let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
+let alertTimer: ReturnType<typeof setInterval> | undefined;
+let alertTick: Promise<void> | undefined;
+
+function reconcileAlerts() {
+  if (alertTick || !process.env.APP_ORIGIN) return;
+  alertTick = runOperationalAlertTick(system, {
+    appOrigin: process.env.APP_ORIGIN,
+    mailer: {
+      async send(message) {
+        // Construct only when a real authorized dispatch is ready. Missing SMTP
+        // configuration proves no send; it must not become a recursive incident.
+        let mailer;
+        try {
+          mailer = smtpOperationalAlertMailer({
+            host: process.env.SMTP_HOST ?? "", port: Number(process.env.SMTP_PORT ?? "587"),
+            user: process.env.SMTP_USER, password: process.env.SMTP_PASS,
+            sender: process.env.SMTP_ADMIN_EMAIL ?? "noreply@ivat.cz",
+            localCapture: process.env.SMTP_LOCAL_CAPTURE === "true",
+          });
+        } catch { return "failed"; }
+        return mailer.send(message);
+      },
+    },
+  }).catch(() => console.error("[worker] operational alert reconciliation failed")).finally(() => { alertTick = undefined; });
+}
 
 async function heartbeat() {
   const path = process.env.WORKER_HEALTH_FILE;
@@ -54,6 +81,10 @@ async function main() {
     });
   }
   await heartbeat();
+  if (!process.env.APP_ORIGIN) console.error("[worker] operational alerts require canonical APP_ORIGIN");
+  reconcileAlerts();
+  alertTimer = setInterval(reconcileAlerts, 30_000);
+  alertTimer.unref();
   if (process.env.WORKER_HEALTH_FILE) {
     heartbeatTimer = setInterval(() => {
       void heartbeat().catch(() => console.error("[worker] heartbeat failed"));
@@ -65,6 +96,8 @@ async function main() {
 
 async function shutdown() {
   clearInterval(heartbeatTimer);
+  clearInterval(alertTimer);
+  await alertTick;
   console.log("[worker] stopping");
   await boss.stop({ graceful: true });
   process.exit(0);
