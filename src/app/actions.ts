@@ -1,5 +1,7 @@
 "use server";
 
+import { resolveRepresentative } from "@/application/epo-representative";
+
 import { defineSourceDocuments, startManualSourceReview, excludeSourceFile, restoreSourceFile } from "@/application/source-files";
 
 import { refreshBankAccountCheck } from "@/application/bank-account-checks";
@@ -356,6 +358,7 @@ export async function deleteReportingYearAction(_state: FormState, formData: For
 }
 
 const FILING_DEFAULT_FIELDS = [
+  "representativeMode", "representativeCode", "representativePersonType", "representativeFirstName", "representativeLastName", "representativeBirthDate", "representativeEvidenceNumber",
   "taxOffice",
   "territorialOffice",
   "economicActivity",
@@ -377,9 +380,12 @@ export async function saveCompanyFilingDefaultsAction(
   _state: FormState,
   formData: FormData,
 ): Promise<FormState> {
+  const representative = resolveRepresentative(Object.fromEntries(FILING_DEFAULT_FIELDS.map(name => [name, field(formData, name)])), null);
+  if (!representative.ok) return refused(representative.error, formData, FILING_DEFAULT_FIELDS);
   const useEpoAddressOverride = field(formData, "useEpoAddressOverride") === "yes";
   const result = await saveCompanyFilingDefaults(await requireUserClient(), {
     companyId: field(formData, "companyId"),
+    representative: representative.value,
     taxOffice: field(formData, "taxOffice"),
     territorialOffice: field(formData, "territorialOffice"),
     economicActivity: field(formData, "economicActivity"),

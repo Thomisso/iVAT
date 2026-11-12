@@ -1,5 +1,7 @@
 "use client";
 
+import { RepresentativeFields } from "@/components/representative-fields";
+import { representativeFields } from "@/application/epo-representative";
 import Link from "next/link";
 import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import type { PersonType } from "@/application/companies";
@@ -74,6 +76,7 @@ export function ExportForm({
     && (personType === "natural" || Boolean(
     defaults?.signatoryFirstName && defaults.signatoryLastName && defaults.signatoryCapacity,
   ));
+  const [representationRevision, setRepresentationRevision] = useState(0);
   const [editing, setEditing] = useState(!filingDetailsComplete);
   const showFields = opened && (!wizard || Boolean(epoAddress));
   const serializedAddress = epoAddress
@@ -137,7 +140,7 @@ export function ExportForm({
       <form className="form" onSubmit={download} onChange={event => {
         const target = event.target;
         if (target instanceof HTMLInputElement || target instanceof HTMLSelectElement) {
-          if (!target.name || target.name === "preparedOn") return;
+          if (!target.name || target.name === "preparedOn" || target.name === "representativeMode") return;
           currentExport?.update({ [target.name]: target.value, ...(target.name === "taxOffice" ? { territorialOffice: "" } : {}) });
         }
       }}>
@@ -162,14 +165,16 @@ export function ExportForm({
           {personType === "legal" && <div><dt>{t("signatory")}</dt><dd>{defaults?.signatoryFirstName
             ? `${defaults.signatoryFirstName} ${defaults.signatoryLastName} · ${defaults.signatoryCapacity}`
             : t("notSet")}</dd></div>}
+          <div><dt>{t("representative")}</dt><dd>{defaults?.representative ? `${defaults.representative.firstName} ${defaults.representative.lastName} · ${defaults.representative.code}/${defaults.representative.personType}` : t("noRepresentative")}</dd></div>
           <div><dt>{t("email")}</dt><dd>{defaults?.email ?? t("notSet")}</dd></div>
           <div><dt>{t("phone")}</dt><dd>{defaults?.phone ?? t("notSet")}</dd></div>
           <div><dt>{t("serializedAddress")}</dt><dd>{serializedAddress ?? t("epoAddressMissing")}</dd></div>
           {epoAddress && <div><dt>{t("addressSource")}</dt><dd>{t(`addressSources.${epoAddress.source}`)}</dd></div>}
         </dl>
+        <RepresentativeFields key={representationRevision} allowDefault values={{ ...representativeFields(defaults?.representative), representativeMode: "default" }} onChange={fields => currentExport?.update(fields)} />
         {!epoAddress && !wizard && <div className="iv-notice iv-notice-warning" role="alert">
           <p>{t("epoAddressRequired")}</p>
-          <Link href={`/companies/${companyId}/settings#filing-defaults`}>{t("completeEpoAddress")}</Link>
+          <Link href={`/companies/${companyId}/settings/vat#filing-defaults`}>{t("completeEpoAddress")}</Link>
         </div>}
         {editing ? <>
           <FilingOfficeFields taxOffice={defaults?.taxOffice} territorialOffice={defaults?.territorialOffice} economicActivity={defaults?.economicActivity} requireTaxOffice requireEconomicActivity={format === "dphdp3"} />
@@ -185,7 +190,7 @@ export function ExportForm({
             <TextField label={t("email")} name="email" type="email" maxLength={255} defaultValue={defaults?.email ?? ""} />
             <TextField label={t("phone")} name="phone" type="tel" maxLength={14} defaultValue={defaults?.phone ?? ""} />
           </div>
-          {filingDetailsComplete && <Button type="button" variant="secondary" onClick={() => { currentExport?.reset(); setEditing(false); if (wizard) setOpened(false); }}>{t("useSaved")}</Button>}
+          {filingDetailsComplete && <Button type="button" variant="secondary" onClick={() => { currentExport?.reset(); setRepresentationRevision(value => value + 1); setEditing(false); if (wizard) setOpened(false); }}>{t("useSaved")}</Button>}
         </> : <Button type="button" variant="secondary" onClick={() => setEditing(true)}>{t("editForExport")}</Button>}
         </>}
         <FormError error={error} />

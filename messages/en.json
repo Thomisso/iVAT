@@ -786,7 +786,8 @@
     "organization_creation_failed": "The Organization could not be saved. Please try again.",
     "membership_self_change": "You cannot remove your own Membership or demote yourself from Administrator. Ask another authorized person to arrange the handover.",
     "membership_last_administrator": "This change would remove the last scoped Administrator. Another person must hold an Administrator Membership first.",
-    "membership_change_stale": "Access changed while you were reviewing. Cancel this confirmation and review the current impact again."
+    "membership_change_stale": "Access changed while you were reviewing. Cancel this confirmation and review the current impact again.",
+    "invalid_representative": "Select a supported representative and enter a valid first name, last name and birth date or evidence number."
   },
   "aiUsage": {
     "platformNav": "Platform AI usage",
@@ -1628,7 +1629,7 @@
     },
     "noExportArtifacts": "No stored export artifacts",
     "noExportArtifactsHint": "Create the appropriate statutory output from the VAT Return or Control Statement screen. Stored artifact history will remain period-scoped here.",
-    "exportArtifacts": "Stored XML artifacts",
+    "exportArtifacts": "Stored XML and PDF artifacts",
     "artifactForm": "Form",
     "artifactActions": "Actions",
     "artifactChecksum": "SHA-256 checksum",
@@ -1728,7 +1729,9 @@
       "463": "FÚ pro Moravskoslezský kraj",
       "464": "FÚ pro Zlínský kraj",
       "13": "Specializovaný finanční úřad"
-    }
+    },
+    "representative": "Representative",
+    "noRepresentative": "No representative"
   },
   "platformHistory": {
     "title": "Company history: {company}",
@@ -2007,5 +2010,18 @@
     "name": "Organization name",
     "create": "Create Organization",
     "cancel": "Back to administration"
+  },
+  "representation": {
+    "title": "Representative",
+    "selection": "Representation",
+    "default": "Use Company defaults",
+    "off": "No representative",
+    "generalNatural": "4a — general representative, natural person",
+    "firstName": "Representative first name",
+    "lastName": "Representative last name",
+    "birthDate": "Representative birth date",
+    "evidenceNumber": "Representative evidence number",
+    "identityHint": "Enter first name, last name and at least a birth date or evidence number.",
+    "scopeHint": "These details do not verify power of attorney. iVAT does not file the report."
   }
 }

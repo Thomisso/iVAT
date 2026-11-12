@@ -1,5 +1,7 @@
 "use client";
 
+import { RepresentativeFields } from "@/components/representative-fields";
+import { representativeFields } from "@/application/epo-representative";
 import { useActionState, useState } from "react";
 import { useTranslations } from "next-intl";
 import { saveCompanyFilingDefaultsAction } from "@/app/actions";
@@ -23,6 +25,7 @@ export function FilingDefaultsForm({
 }) {
   const t = useTranslations("filingDefaults");
   const initialValues = {
+    ...representativeFields(defaults?.representative),
     taxOffice: defaults?.taxOffice ?? "",
     territorialOffice: defaults?.territorialOffice ?? "",
     economicActivity: defaults?.economicActivity ?? "",
@@ -55,6 +58,7 @@ export function FilingDefaultsForm({
       </div>
       <TextField label={t("capacity")} name="signatoryCapacity" maxLength={40} defaultValue={state.values.signatoryCapacity} />
     </fieldset>}
+    <RepresentativeFields values={state.values} />
     <div className="form-row">
       <TextField label={t("email")} name="email" type="email" maxLength={255} defaultValue={state.values.email} />
       <TextField label={t("phone")} name="phone" type="tel" maxLength={14} defaultValue={state.values.phone} />

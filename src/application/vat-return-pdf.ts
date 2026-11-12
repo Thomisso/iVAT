@@ -1,3 +1,4 @@
+import { archiveVatReportPdf, type PdfArtifactError } from "./vat-report-pdf-artifacts";
 import { PDFDocument } from "pdf-lib";
 import type { AppClient, Result } from "./client";
 import type { VatReturnPreviewData } from "./vat-return-preview";
@@ -53,7 +54,7 @@ export async function createVatReturnPdf(preview: VatReturnPreviewData, header?:
 }
 
 /** Header-only preparation: never prepares amount rows or the second page. */
-export async function exportVatReturnThumbnail(client: AppClient, input: { companyId: string; period: string; details?: Record<string, string> }, now: () => Date = () => new Date()): Promise<Result<VatReturnPdfDownload, "report_not_found">> {
+export async function exportVatReturnThumbnail(client: AppClient, input: { companyId: string; period: string; details?: Record<string, string> }, now: () => Date = () => new Date()): Promise<Result<VatReturnPdfDownload, "report_not_found" | "invalid_representative">> {
   const header = await getVatReportExportHeader(client, input, now);
   if (!header.ok) return header;
   const { document } = await openingForm(header.value);
@@ -62,6 +63,7 @@ export async function exportVatReturnThumbnail(client: AppClient, input: { compa
 
 export type VatReturnPdfDownload = {
   bytes: Uint8Array;
+  artifactId?: string;
   fileName: string;
   mediaType: "application/pdf";
 };
@@ -71,18 +73,15 @@ export async function exportVatReturnPdf(
   client: AppClient,
   input: { companyId: string; period: string; details?: Record<string, string> },
   now: () => Date = () => new Date(),
-): Promise<Result<VatReturnPdfDownload, "report_not_found">> {
+): Promise<Result<VatReturnPdfDownload, "report_not_found" | "invalid_representative" | PdfArtifactError>> {
   const report = await getVatReport(client, input.companyId, input.period);
   if (!report) return { ok: false, error: "report_not_found" };
-  return {
-    ok: true,
-    value: {
-      bytes: await createVatReturnPdf({ company: report.result.company, period: report.period, lines: report.result.vatReturn, totals: report.result.totals }, {
-        company: report.result.company, period: report.period,
-        details: await resolveEpoExportDetails(client, { companyId: input.companyId, company: report.result.company, details: input.details ?? {}, today: todayInPrague(now()) }),
-      }),
-      fileName: `DPHDP3-${input.period}.pdf`,
-      mediaType: "application/pdf",
-    },
-  };
+  const details = await resolveEpoExportDetails(client, { companyId: input.companyId, company: report.result.company, details: input.details ?? {}, today: todayInPrague(now()) });
+  if (!details.ok) return details;
+  const bytes = await createVatReturnPdf({ company: report.result.company, period: report.period, lines: report.result.vatReturn, totals: report.result.totals }, {
+    company: report.result.company, period: report.period, details: details.value,
+  });
+  const archived = await archiveVatReportPdf(client, { companyId: input.companyId, reportId: report.id, reportGeneratedAt: report.generatedAt, format: "dphdp3", bytes, details: details.value });
+  if (!archived.ok) return archived;
+  return { ok: true, value: { bytes, artifactId: archived.value, fileName: `DPHDP3-${input.period}.pdf`, mediaType: "application/pdf" } };
 }

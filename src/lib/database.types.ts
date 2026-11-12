@@ -377,14 +377,14 @@ isOneToOne: false
                   ]
                 },"company_filing_defaults": {
                   Row: {
-                    "company_id": string,"economic_activity": string | null,"email": string | null,"epo_address_confirmed_at": string | null,"epo_city": string | null,"epo_house_number": string | null,"epo_orientation_number": string | null,"epo_postal_code": string | null,"epo_street_name": string | null,"organization_id": string,"phone": string | null,"signatory_capacity": string | null,"signatory_first_name": string | null,"signatory_last_name": string | null,"tax_office": string | null,"territorial_office": string | null,"updated_at": string,"updated_by": string | null
+                    "company_id": string,"economic_activity": string | null,"email": string | null,"epo_address_confirmed_at": string | null,"epo_city": string | null,"epo_house_number": string | null,"epo_orientation_number": string | null,"epo_postal_code": string | null,"epo_street_name": string | null,"organization_id": string,"phone": string | null,"representative": Json | null,"signatory_capacity": string | null,"signatory_first_name": string | null,"signatory_last_name": string | null,"tax_office": string | null,"territorial_office": string | null,"updated_at": string,"updated_by": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "company_id": string,"economic_activity"?: string | null,"email"?: string | null,"epo_address_confirmed_at"?: string | null,"epo_city"?: string | null,"epo_house_number"?: string | null,"epo_orientation_number"?: string | null,"epo_postal_code"?: string | null,"epo_street_name"?: string | null,"organization_id": string,"phone"?: string | null,"signatory_capacity"?: string | null,"signatory_first_name"?: string | null,"signatory_last_name"?: string | null,"tax_office"?: string | null,"territorial_office"?: string | null,"updated_at"?: string,"updated_by"?: string | null
+                    "company_id": string,"economic_activity"?: string | null,"email"?: string | null,"epo_address_confirmed_at"?: string | null,"epo_city"?: string | null,"epo_house_number"?: string | null,"epo_orientation_number"?: string | null,"epo_postal_code"?: string | null,"epo_street_name"?: string | null,"organization_id": string,"phone"?: string | null,"representative"?: Json | null,"signatory_capacity"?: string | null,"signatory_first_name"?: string | null,"signatory_last_name"?: string | null,"tax_office"?: string | null,"territorial_office"?: string | null,"updated_at"?: string,"updated_by"?: string | null
                   }
                   Update: {
-                    "company_id"?: string,"economic_activity"?: string | null,"email"?: string | null,"epo_address_confirmed_at"?: string | null,"epo_city"?: string | null,"epo_house_number"?: string | null,"epo_orientation_number"?: string | null,"epo_postal_code"?: string | null,"epo_street_name"?: string | null,"organization_id"?: string,"phone"?: string | null,"signatory_capacity"?: string | null,"signatory_first_name"?: string | null,"signatory_last_name"?: string | null,"tax_office"?: string | null,"territorial_office"?: string | null,"updated_at"?: string,"updated_by"?: string | null
+                    "company_id"?: string,"economic_activity"?: string | null,"email"?: string | null,"epo_address_confirmed_at"?: string | null,"epo_city"?: string | null,"epo_house_number"?: string | null,"epo_orientation_number"?: string | null,"epo_postal_code"?: string | null,"epo_street_name"?: string | null,"organization_id"?: string,"phone"?: string | null,"representative"?: Json | null,"signatory_capacity"?: string | null,"signatory_first_name"?: string | null,"signatory_last_name"?: string | null,"tax_office"?: string | null,"territorial_office"?: string | null,"updated_at"?: string,"updated_by"?: string | null
                   }
                   Relationships: [
                     {
@@ -941,6 +941,38 @@ isOneToOne: false
       referencedColumns: ["id","company_id","organization_id"]
     }
                   ]
+                },"vat_report_pdf_artifact": {
+                  Row: {
+                    "byte_size": number | null,"company_id": string,"created_at": string,"created_by": string,"file_name": string,"format": string,"id": string,"kind": string,"media_type": string,"organization_id": string,"pdf_bytes": string,"period": string,"period_lock_id": string | null,"report_generated_at": string,"resolved_details": NonNullable<Json>,"schema_version": string,"serializer_version": string,"sha256": string | null,"vat_report_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "byte_size"?: never,"company_id": string,"created_at"?: string,"created_by": string,"file_name": string,"format": string,"id"?: string,"kind": string,"media_type"?: string,"organization_id": string,"pdf_bytes": string,"period": string,"period_lock_id"?: string | null,"report_generated_at": string,"resolved_details": NonNullable<Json>,"schema_version": string,"serializer_version": string,"sha256"?: never,"vat_report_id": string
+                  }
+                  Update: {
+                    "byte_size"?: never,"company_id"?: string,"created_at"?: string,"created_by"?: string,"file_name"?: string,"format"?: string,"id"?: string,"kind"?: string,"media_type"?: string,"organization_id"?: string,"pdf_bytes"?: string,"period"?: string,"period_lock_id"?: string | null,"report_generated_at"?: string,"resolved_details"?: NonNullable<Json>,"schema_version"?: string,"serializer_version"?: string,"sha256"?: never,"vat_report_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "vat_report_pdf_artifact_company_id_organization_id_fkey"
+      columns: ["company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "company"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "vat_report_pdf_artifact_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organization"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "vat_report_pdf_artifact_vat_report_id_fkey"
+      columns: ["vat_report_id"]
+isOneToOne: false
+      referencedRelation: "vat_report"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"vat_report_transition": {
                   Row: {
                     "action": string,"actor_user_id": string,"company_id": string,"id": number,"occurred_at": string,"organization_id": string,"period": string,"period_lock_id": string | null,"unlock_reason": string | null,"vat_report_id": string
@@ -1175,6 +1207,9 @@ isOneToOne: false
 "create_password_recovery_request":
 { Args: { "target_email": string }; Returns: string
                            },
+"create_vat_report_pdf_artifact":
+{ Args: { "target_company_id": string,"target_format": string,"target_pdf_base64": string,"target_report_generated_at": string,"target_resolved_details": Json,"target_schema_version": string,"target_serializer_version": string,"target_vat_report_id": string }; Returns: string
+                           },
 "current_business_date":
 { Args: Record<PropertyKey, never>; Returns: string
                            },
@@ -1380,6 +1415,9 @@ isOneToOne: false
 "read_vat_report_artifact":
 { Args: { "target_artifact_id": string,"target_company_id": string }; Returns: Json
                            },
+"read_vat_report_pdf_artifact":
+{ Args: { "target_artifact_id": string,"target_company_id": string }; Returns: Json
+                           },
 "record_ai_extraction":
 { Args: { "findings": Json,"model": string,"payload": Json,"provider": string,"target_document_id": string,"target_extraction_request_id": string,"target_reservation_id": string }; Returns: undefined
                            },
@@ -1512,7 +1550,7 @@ isOneToOne: false
 { Args: { "enabled": boolean,"target_company_id": string }; Returns: undefined
                            },
 "set_company_filing_defaults":
-{ Args: { "epo_address_confirmed": boolean,"new_economic_activity"?: string,"new_email": string,"new_epo_city": string,"new_epo_house_number": string,"new_epo_orientation_number": string,"new_epo_postal_code": string,"new_epo_street_name": string,"new_phone": string,"new_signatory_capacity": string,"new_signatory_first_name": string,"new_signatory_last_name": string,"new_tax_office": string,"new_territorial_office"?: string,"target_company_id": string }; Returns: undefined
+{ Args: { "epo_address_confirmed": boolean,"new_economic_activity"?: string,"new_email": string,"new_epo_city": string,"new_epo_house_number": string,"new_epo_orientation_number": string,"new_epo_postal_code": string,"new_epo_street_name": string,"new_phone": string,"new_representative"?: Json,"new_signatory_capacity": string,"new_signatory_first_name": string,"new_signatory_last_name": string,"new_tax_office": string,"new_territorial_office"?: string,"target_company_id": string }; Returns: undefined
                            },
 "set_company_first_reporting_month":
 { Args: { "new_first_month": number,"target_company_id": string,"target_year": number }; Returns: undefined

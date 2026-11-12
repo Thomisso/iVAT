@@ -26,7 +26,8 @@ export function PdfDownload({ href, fileName, thumbnailHref, children }: { href:
         const response = await fetch(href, { method: "POST", body, signal: controller.signal });
         if (response.redirected) { window.location.assign(response.url); return; }
         if (!response.ok || !response.headers.get("Content-Type")?.startsWith("application/pdf")) {
-          setError("export_failed");
+          const failure = await response.json().catch(() => null);
+          setError(["invalid_representative", "stale_report", "report_not_found", "forbidden", "invalid_export_details"].includes(failure?.error) ? failure.error : "export_failed");
           return;
         }
         const blob = await response.blob();

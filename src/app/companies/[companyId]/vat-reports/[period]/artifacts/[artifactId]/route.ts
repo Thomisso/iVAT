@@ -1,3 +1,4 @@
+import { readVatReportPdfArtifact } from "@/application/vat-report-pdf-artifacts";
 import { readVatReportArtifact } from "@/application/epo-export";
 import { requireUserClient } from "@/lib/supabase/server";
 
@@ -8,7 +9,8 @@ export async function GET(
   context: RouteContext<"/companies/[companyId]/vat-reports/[period]/artifacts/[artifactId]">,
 ) {
   const { companyId, period, artifactId } = await context.params;
-  const result = await readVatReportArtifact(await requireUserClient(), { companyId, artifactId });
+  const client = await requireUserClient();
+  const result = await readVatReportArtifact(client, { companyId, artifactId }) ?? await readVatReportPdfArtifact(client, { companyId, artifactId });
   if (!result || result.artifact.period !== period) return new Response(null, { status: 404 });
   return new Response(Buffer.from(result.bytes), {
     headers: {
