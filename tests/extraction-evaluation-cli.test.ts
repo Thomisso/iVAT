@@ -1,10 +1,10 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdtemp, readFile, stat, writeFile, symlink } from "node:fs/promises";
+import { mkdtemp, readFile, realpath, stat, writeFile, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import sharp from "sharp";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { emptyDocumentPayload } from "@/application/extraction-payload";
 import type { AiProvider } from "@/application/ai-provider";
 import { runEvaluationCli } from "@/evaluation/evaluation-cli";
@@ -108,6 +108,53 @@ describe("Extraction evaluation CLI", () => {
     expect(changedReference.dataset.cases[0].documents[0].referenceFileHash).not.toBe(first.dataset.cases[0].documents[0].referenceFileHash);
     expect(changedManifest.provenance.manifestHash).not.toBe(first.provenance.manifestHash);
     expect(changedManifest.results[0].calls[0].provenance.sourceHash).toBe(first.results[0].calls[0].provenance.sourceHash);
+  });
+
+  it("refuses ambiguous Git ownership errors before reserving raw output or calling a provider", async () => {
+    const fixture = await privateFixture();
+    const untrusted = path.join(fixture.directory, "private-untrusted-repository");
+    await promisify(execFile)("git", ["init", "--quiet", untrusted]);
+    const reportPath = path.join(untrusted, "private-report.json");
+    let called = false;
+    fixture.provider.split = async () => { called = true; throw new Error("unexpected provider call"); };
+    // Exercise Git's real ownership refusal for the output repository. Trust
+    // only the current source worktree in this process so a failed guard cannot
+    // be masked by a later provenance failure. No global Git setting is changed.
+    vi.stubEnv("GIT_TEST_ASSUME_DIFFERENT_OWNER", "1");
+    vi.stubEnv("GIT_CONFIG_COUNT", "2");
+    vi.stubEnv("GIT_CONFIG_KEY_0", "safe.directory");
+    vi.stubEnv("GIT_CONFIG_VALUE_0", "");
+    vi.stubEnv("GIT_CONFIG_KEY_1", "safe.directory");
+    vi.stubEnv("GIT_CONFIG_VALUE_1", await realpath(process.cwd()));
+    try {
+      await expect(promisify(execFile)("git", ["-C", untrusted, "rev-parse", "--absolute-git-dir"]))
+        .rejects.toMatchObject({ code: 128, stderr: expect.stringContaining("detected dubious ownership") });
+      const result = await runEvaluationCli({ argv: [fixture.manifest, "--json"], env: { EVALUATION_REPORT_PATH: reportPath }, providers: [{ provider: fixture.provider }] });
+      expect(result.exitCode).toBe(1);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).not.toContain(fixture.directory);
+      expect(result.stderr).not.toContain("private-untrusted-repository");
+      expect(called).toBe(false);
+      await expect(stat(reportPath)).rejects.toThrow();
+    } finally { vi.unstubAllEnvs(); }
+  });
+
+  it("does not let caller Git discovery ceilings hide an enclosing output repository", async () => {
+    const fixture = await privateFixture();
+    const repository = path.join(fixture.directory, "private-repository");
+    await promisify(execFile)("git", ["init", "--quiet", repository]);
+    const reportPath = path.join(repository, "nested", "private-report.json");
+    let called = false;
+    fixture.provider.split = async () => { called = true; throw new Error("unexpected provider call"); };
+    vi.stubEnv("GIT_CEILING_DIRECTORIES", await realpath(repository));
+    try {
+      const result = await runEvaluationCli({ argv: [fixture.manifest, "--json"], env: { EVALUATION_REPORT_PATH: reportPath }, providers: [{ provider: fixture.provider }] });
+      expect(result.exitCode).toBe(1);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).not.toContain(fixture.directory);
+      expect(called).toBe(false);
+      await expect(stat(reportPath)).rejects.toThrow();
+    } finally { vi.unstubAllEnvs(); }
   });
 
 });

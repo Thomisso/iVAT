@@ -39,12 +39,20 @@ async function privateOutput(output: string | undefined) {
   const destination = path.resolve(output);
   await mkdir(path.dirname(destination), { recursive: true, mode: 0o700 });
   const directory = await realpath(path.dirname(destination));
+  // Check the physical directory with normal ancestor discovery. Caller Git
+  // routing/ceiling variables must not hide an enclosing repository.
+  const gitEnv: NodeJS.ProcessEnv = { ...process.env, LC_ALL: "C", GIT_DISCOVERY_ACROSS_FILESYSTEM: "1" };
+  for (const key of ["GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_CEILING_DIRECTORIES"]) delete gitEnv[key];
   let insideGit = false;
   try {
-    await execute("git", ["-C", directory, "rev-parse", "--absolute-git-dir"]);
+    await execute("git", ["-C", directory, "rev-parse", "--absolute-git-dir"], { env: gitEnv });
     insideGit = true;
   } catch (error) {
-    if (!(error && typeof error === "object" && "code" in error && error.code === 128)) throw error;
+    // Exit 128 also covers ownership, permissions and corrupt metadata. Only
+    // Git's exact outside-repository diagnostic establishes a safe destination.
+    if (!(error && typeof error === "object" && "code" in error && error.code === 128
+      && "stderr" in error && typeof error.stderr === "string"
+      && error.stderr.trimEnd() === "fatal: not a git repository (or any of the parent directories): .git")) throw error;
   }
   if (insideGit) throw new Error("evaluation_private_output_inside_git");
   const canonical = path.join(directory, path.basename(destination));
