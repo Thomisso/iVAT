@@ -6,6 +6,8 @@
 
 **Navazující triage Q15–Q25:** vlastník potvrdil [měření přesnosti a statistiky protistran](qa-v7-quality-statistics.md). Nové #280–#282 jsou zahrnuté níže; původní auditní rozsah 58 Markdown a tří PDF zůstává stejný. Reálná sada ani naměřená přesnost tím nevznikly.
 
+**Úplná zbývající frontier:** [Q26–Q40](qa-remaining-triage.md) pokrývají všechny další explicitní QA odklady a provozní návaznosti. Jde o doporučení čekající na odpovědi; stávající readiness ani potvrzené odklady se tím nemění.
+
 Tento inventář nevytváří závazek implementovat všechny budoucí nápady. Rozlišuje potvrzené zadání, explicitní odklad, skutečnou mezeru v kvalitě či důkazech a historický text. Čtení kódu a uzavření issue samo neprokazuje všechny runtime/klientské akceptační scénáře.
 
 ## QA v7 po jednotlivých bodech

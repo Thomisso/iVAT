@@ -45,6 +45,8 @@ Každý stav a počet povede na odpovídající práci v Company. Běžný User 
 
 ### Daňová ověřovací brána
 
+Doplňující [důkazní follow-up #277](https://github.com/Thomisso/iVAT/issues/277#issuecomment-6836184444) přidává soudní podklad a šest rozlišovacích příkladů. Nerozhoduje algoritmus měsíce a právní brána zůstává otevřená.
+
 Před `ready-for-agent` u #277 je třeba doložit přípustné přiřazení běžného přijatého plnění do měsíce KH uvnitř potvrzeného kvartálu, vztah k nejdřívějším splněným podmínkám a potřebné ukládané údaje. Dosavadní primární podklady neověřují ani univerzální měsíc přijetí, ani automatické zařazení všech vstupů do posledního měsíce kvartálu. Lidské potvrzení nesmí být neomezená výjimka z daňových pravidel. Ověření je práce s fakty, nikoli další produktová otázka na vlastníka.
 
 Měsíční výstupní a samovyměřovací povinnost se musí odvozovat podle příslušného režimu; rozhodnutí o vstupním nároku ji nesmí přesunout. #277 nerozšiřuje částečný nárok či oddělený Deferred Claim RC/EU z #221 ani režimy z #5. Dodatečné/opravné výkazy #6 zůstávají odložené.
