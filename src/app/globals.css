@@ -2489,3 +2489,12 @@ select:disabled {
 
 /* Keep Inspect positioned within the source while the workspace scrolls each pane. */
 .company-shell-content > .review.review-workspace .review-original > .pdf-source-viewer { position: relative; overflow: visible; }
+
+/* Keep dense access tables scrollable within their own region. */
+.member-users-table td, .member-invitations-table td { vertical-align: top; white-space: normal; overflow-wrap: anywhere; }
+.member-users-table td:first-child, .member-invitations-table td:first-child { min-width: 12rem; max-width: 22rem; }
+.member-membership-details { min-width: 16rem; }
+.member-membership-details summary { cursor: pointer; color: var(--accent); }
+.member-membership-details[open] { min-width: min(32rem, 70vw); }
+.member-invitation-actions { display: grid; gap: var(--space-2); min-width: 14rem; }
+.member-invitation-actions .iv-btn { white-space: normal; height: auto; min-height: var(--control-md); }

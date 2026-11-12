@@ -1,6 +1,7 @@
 import { expect, it } from "vitest";
-import { changeMembershipRole, listMemberships, previewMembershipChange, removeMembership } from "@/application/memberships";
-import { administratorWithCompany, companyMember } from "../tests/support/fixtures";
+import { acceptInvitation, generateInvitationLink, listAccessManagement, changeMembershipRole, listMemberships, previewMembershipChange, removeMembership } from "@/application/memberships";
+import { createCompany } from "@/application/companies";
+import { administratorWithCompany, companyDetails, companyMember } from "../tests/support/fixtures";
 import { baseUrl, httpAs, value } from "./support/http";
 
 it("returns localized self-change explanations and scoped action forms without mutating Memberships during review", async () => {
@@ -37,8 +38,11 @@ it("posts the real Membership preview and exact confirmation actions over authen
   const owner = await administratorWithCompany("HTTP exact confirmation");
   const member = await companyMember(owner, "administrator");
   const [membership] = await listMemberships(owner.client, owner);
+  const second = value(await createCompany(owner.client, { organizationId: owner.organizationId, ...companyDetails({ name: "Surviving Membership" }) }));
+  const invitation = value(await generateInvitationLink(owner.client, { organizationId: owner.organizationId, companyId: second.id, email: member.email, role: "user", acceptUrl: "http://localhost/invitations/accept" }));
+  value(await acceptInvitation(member.client, invitation.token));
   const request = await httpAs(owner.client);
-  const path = `/companies/${owner.companyId}/settings/users`;
+  const path = `/organizations/${owner.organizationId}/users`;
   const initial = await request(path);
   const post = (form: FormData) => request(path, { method: "POST", headers: { Origin: baseUrl() }, body: form });
   const preview = await post(membershipForm(await initial.text(), membership.id, false));
@@ -60,6 +64,10 @@ it("posts the real Membership preview and exact confirmation actions over authen
   const confirmed = await post(membershipForm(await refreshed.text(), membership.id, true));
   expect(confirmed.status).toBe(200);
   expect(await listMemberships(owner.client, owner)).toEqual([]);
+  const remaining = value(await listAccessManagement(owner.client, { organizationId: owner.organizationId, companyId: null }));
+  expect(remaining.users.find(user => user.userId === member.userId)?.memberships).toEqual([
+    expect.objectContaining({ companyId: second.id, role: "user", scopeName: "Surviving Membership" }),
+  ]);
   expect(await previewMembershipChange(member.client, { membershipId: membership.id, role: null })).toEqual({ ok: false, error: "forbidden" });
 });
 
