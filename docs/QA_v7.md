@@ -2,7 +2,8 @@
 
 **Datum založení:** 6. 11. 2026
 **Stav k 12. 11. 2026:** body 1, 2, 4, 7, 8 a 10–12 jsou dodané do `main` v [PR #243](https://github.com/Thomisso/iVAT/pull/243) ze dne 8. 11. 2026; #222 a jeho implementační tickety jsou uzavřené. Navazující oprava zvýraznění PDF #253 byla dodaná v [PR #265](https://github.com/Thomisso/iVAT/pull/265) dne 10. 11. 2026.
-**Zbývající dodávka:** bod 5 → [#276](https://github.com/Thomisso/iVAT/issues/276), bod 6 → [#278](https://github.com/Thomisso/iVAT/issues/278) se závislostí na [#277](https://github.com/Thomisso/iVAT/issues/277). Produktový rozhovor Q1–Q14 včetně upřesnění Q8a–Q8c je uzavřený; [potvrzená navazující zadání](qa-v7-triage.md) uvádějí rozhodnutí, akceptaci i zbývající daňovou ověřovací bránu #277.
+**Rozpracované zbývající dodávky:** bod 5 → [#276](https://github.com/Thomisso/iVAT/issues/276), bod 6 → [#278](https://github.com/Thomisso/iVAT/issues/278) se závislostí na [#277](https://github.com/Thomisso/iVAT/issues/277). Produktový rozhovor Q1–Q14 včetně upřesnění Q8a–Q8c je uzavřený; [potvrzená navazující zadání](qa-v7-triage.md) uvádějí rozhodnutí, akceptaci i zbývající daňovou ověřovací bránu #277.
+**Další odložený rozsah:** pokročilé statistiky a přehledy protistran z bodu 2 nemají samostatně specifikované zadání a nejsou pokryté #276–#278. Další backlog a ověřovací mezery napříč `docs` uvádí [úplný inventář](docs-open-items-audit.md).
 **Hranice stavu:** dokončený merge není potvrzením produkčního nasazení. Tato aktualizace nezavádí nové runtime ani vizuální důkazy. Původní číslování QA v6 je zachované; body 3 a 9 a Bugs / Improvements a–g zůstávají dokončené v [QA v6](QA_v6.md).
 
 ## Features
@@ -25,7 +26,7 @@
 
 - Vytvořit adresář dodavatelů a odběratelů.
 - Vytěžené informace propojit s odpovídajícím dodavatelem nebo odběratelem v adresáři.
-- Do budoucna nad adresářem umožnit statistiky, přehledy a filtry; jejich konkrétní rozsah zatím není určen.
+- **Zbývá odložené:** pokročilé statistiky, finanční přehledy a další analytické filtry nad protistranami; jejich rozsah zatím není určen a samostatný otevřený ticket nebyl při auditu nalezen. Základní hledání, filtry role/archivace a navázané doklady už byly dodané; tento odložený rozsah je nerozpracovává znovu.
 
 ### 4. Uplatnění pouze části dokladu
 

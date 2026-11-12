@@ -1,7 +1,7 @@
 # QA v7 potvrzená navazující zadání
 
 **Rozhodnutí:** 12. 11. 2026, potvrzená vlastníkem v rozhovoru Q1–Q14 včetně upřesnění Q8a–Q8c.
-**Stav:** produktový rozhovor je uzavřený. Zbývající QA práce je evidovaná ve třech samostatných issues; implementace nezačala.
+**Stav:** tento produktový rozhovor je uzavřený. Tři níže rozpracované dodávky mají samostatné issues; implementace nezačala. Nejde o úplný seznam všech odložených požadavků v repozitáři: například pokročilé statistiky protistran z QA v7 bodu 2 zůstávají mimo tyto tři dodávky. Úplný průchod dokumentací je v [inventáři otevřených a odložených bodů](docs-open-items-audit.md).
 
 | Zadání | Stav při uzavření triage | Návaznost |
 | --- | --- | --- |

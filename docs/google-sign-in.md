@@ -77,8 +77,7 @@ linking behavior, not custom iVAT account matching.
 Private local bootstrap/QA provisioning and administrator-issued Invitations
 remain the account-creation boundaries. The trusted Invitation claim guard
 owns its reserved Auth identity; the ordinary new-user trigger does not create
-an unrelated Organization for an invitee. Public signup's future design remains
-[#158](https://github.com/Thomisso/iVAT/issues/158).
+an unrelated Organization for an invitee. Public signup remains deferred without a newly approved public-onboarding specification. [#158](https://github.com/Thomisso/iVAT/issues/158) was repurposed on 12 November 2026 for SuperAdmin creation of Organizations; it no longer specifies public signup.
 
 Focused local checks:
 
