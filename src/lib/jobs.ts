@@ -24,9 +24,10 @@ export function createBoss(options: { supervise: boolean }): PgBoss {
 export function pgBossJobQueue(boss: PgBoss): JobQueue {
   return {
     async send(job, options) {
-      await boss.send(job.name, job.data, options?.startAfterSeconds === undefined
-        ? undefined
-        : { startAfter: options.startAfterSeconds });
+      await boss.send(job.name, job.data, {
+        ...(options?.startAfterSeconds === undefined ? {} : { startAfter: options.startAfterSeconds }),
+        ...(options?.jobId === undefined ? {} : { id: options.jobId }),
+      });
     },
   };
 }

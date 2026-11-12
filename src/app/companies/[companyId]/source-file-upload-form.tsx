@@ -7,6 +7,7 @@ import type { UploadLimits } from "@/application/source-files";
 import { Button } from "@/components/button";
 import { DropZone } from "@/components/drop-zone";
 import { FormError } from "@/components/form-error";
+import { SOURCE_UPLOAD_CHUNK_BYTES } from "@/lib/upload-policy";
 import { browserImagePreview } from "@/lib/browser-image-preview";
 
 type UploadItem = {
@@ -14,6 +15,7 @@ type UploadItem = {
   file: File;
   kind: "capture" | "picker";
   progress: number;
+  confirmedBytes: number;
   status: "queued" | "uploading" | "retrying" | "uploaded" | "refused";
   error: string | null;
   retryable: boolean;
@@ -89,37 +91,76 @@ async function finishBrowserUploadBatch(companyId: string, batchId: string, sign
   if (!response.ok) throw new Error("upload batch could not be finished");
 }
 
-function sendFile(
-  companyId: string,
-  batchId: string,
-  item: UploadItem,
-  update: (change: Partial<UploadItem>) => void,
-  signal: AbortSignal,
-): Promise<TransportResult> {
+type ConfirmedProgress = { confirmedBytes: number; byteSize: number; complete: boolean };
+type ProgressResult = { ok: true; value: ConfirmedProgress } | { ok: false; error: string };
+
+function sendPortion(
+  path: string, batchId: string, item: UploadItem, offset: number,
+  update: (change: Partial<UploadItem>) => void, signal: AbortSignal,
+): Promise<ProgressResult | TransportResult> {
   return new Promise((resolve) => {
     const request = new XMLHttpRequest();
-    request.open("POST", `/companies/${encodeURIComponent(companyId)}/source-files`);
+    request.open("PUT", path);
     request.responseType = "json";
+    request.setRequestHeader("Upload-Batch-Id", batchId);
+    request.setRequestHeader("Upload-File-Name", encodeURIComponent(item.file.name));
+    request.setRequestHeader("Upload-Byte-Size", String(item.file.size));
+    request.setRequestHeader("Upload-Sha256", item.sha256);
+    request.setRequestHeader("Upload-Offset", String(offset));
     request.upload.addEventListener("progress", (event) => {
-      if (event.lengthComputable) update({ status: "uploading", progress: Math.round((event.loaded / event.total) * 100) });
+      if (event.lengthComputable) update({ progress: Math.min(99, Math.round(((offset + event.loaded) / item.file.size) * 100)) });
     });
     request.addEventListener("load", () => {
-      const response = request.response as { ok: boolean; error?: string } | null;
-      if (request.status >= 200 && request.status < 300 && response?.ok) resolve({ kind: "uploaded" });
+      const response = request.response as ProgressResult | null;
+      if (request.responseURL && new URL(request.responseURL).pathname !== path) resolve({ kind: "refused", error: "upload_authentication_required" });
       else if (request.status >= 500 || request.status === 0) resolve({ kind: "retryable_failure" });
-      else resolve({ kind: "refused", error: response?.error ?? "upload_failed" });
+      else if (response) resolve(response);
+      else resolve({ kind: "refused", error: "upload_failed" });
     });
     request.addEventListener("error", () => resolve({ kind: "retryable_failure" }));
     const abort = () => request.abort();
     signal.addEventListener("abort", abort, { once: true });
     request.addEventListener("abort", () => resolve({ kind: "retryable_failure" }));
     request.addEventListener("loadend", () => signal.removeEventListener("abort", abort));
-    const data = new FormData();
-    data.set("sourceFileId", item.id);
-    data.set("batchId", batchId);
-    data.set("file", item.file);
-    request.send(data);
+    if (signal.aborted) { resolve({ kind: "retryable_failure" }); return; }
+    request.send(item.file.slice(offset, offset + SOURCE_UPLOAD_CHUNK_BYTES));
   });
+}
+
+async function sendFile(
+  companyId: string, batchId: string, item: UploadItem,
+  update: (change: Partial<UploadItem>) => void, signal: AbortSignal,
+): Promise<TransportResult> {
+  const path = `/companies/${encodeURIComponent(companyId)}/source-files/${encodeURIComponent(item.id)}/transfer`;
+  const identity = { batchId, fileName: item.file.name, byteSize: item.file.size, sha256: item.sha256 };
+  const command = async (complete = false) => {
+    const response = await fetch(path, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...identity, complete }), signal, redirect: "follow",
+    });
+    if (response.redirected) return { ok: false, error: "upload_authentication_required" } as const;
+    if (response.status >= 500) throw new Error("upload unavailable");
+    return response.json() as Promise<ProgressResult>;
+  };
+  try {
+    const reconciled = await command();
+    if (!reconciled.ok) return { kind: "refused", error: reconciled.error };
+    let offset = reconciled.value.confirmedBytes;
+    update({ confirmedBytes: offset, progress: Math.min(99, Math.round(offset / item.file.size * 100)) });
+    while (!reconciled.value.complete && offset < item.file.size && !signal.aborted) {
+      const portion = await sendPortion(path, batchId, item, offset, update, signal);
+      if ("kind" in portion) return portion;
+      if (!portion.ok) return { kind: "refused", error: portion.error };
+      if (portion.value.confirmedBytes <= offset) return { kind: "retryable_failure" };
+      offset = portion.value.confirmedBytes;
+      update({ confirmedBytes: offset });
+    }
+    if (signal.aborted) return { kind: "retryable_failure" };
+    const completed = await command(true);
+    return completed.ok ? { kind: "uploaded" } : { kind: "refused", error: completed.error };
+  } catch {
+    return { kind: "retryable_failure" };
+  }
 }
 
 async function uploadFile(
@@ -139,7 +180,7 @@ async function uploadFile(
       return;
     }
     if (result.kind === "refused") {
-      update({ status: "refused", error: result.error, retryable: false });
+      update({ status: "refused", error: result.error, retryable: result.error === "upload_authentication_required" });
       return;
     }
   }
@@ -190,7 +231,7 @@ function PhotoPreview({
   );
 }
 
-export function SourceFileUploadForm({ companyId, limits }: { companyId: string; limits: UploadLimits }) {
+export function SourceFileUploadForm({ companyId, userId, limits }: { companyId: string; userId: string; limits: UploadLimits }) {
   const t = useTranslations("sourceFiles");
   const router = useRouter();
   const [items, setItems] = useState<UploadItem[]>([]);
@@ -208,7 +249,7 @@ export function SourceFileUploadForm({ companyId, limits }: { companyId: string;
   const queuedSelections = useRef(0);
   const retakeId = useRef<string | null>(null);
   const activeUpload = useRef<AbortController | null>(null);
-  const draftKey = `company:${companyId}`;
+  const draftKey = `user:${userId}:company:${companyId}`;
 
   const replaceItems = (next: UploadItem[]) => {
     itemsRef.current = next;
@@ -236,6 +277,7 @@ export function SourceFileUploadForm({ companyId, limits }: { companyId: string;
       if (draft?.items.length) {
         const restored = await Promise.all(draft.items.map(async (item) => ({ ...item,
           sha256: item.sha256 ?? await contentHash(item.file),
+          confirmedBytes: 0,
           status: item.status === "uploading" || item.status === "retrying" ? "refused" as const : item.status,
           retryable: item.retryable || item.status === "uploading" || item.status === "retrying",
         })));
@@ -357,7 +399,7 @@ export function SourceFileUploadForm({ companyId, limits }: { companyId: string;
           continue;
         }
         if (replacingId) next = next.filter((item) => item.id !== replacingId);
-        next.push({ id: crypto.randomUUID(), file, kind, sha256, progress: 0, status: "queued", error: null, retryable: false });
+        next.push({ id: crypto.randomUUID(), file, kind, sha256, progress: 0, confirmedBytes: 0, status: "queued", error: null, retryable: false });
       }
       replaceItems(next);
       setDuplicateNotice(duplicate);
@@ -427,7 +469,11 @@ export function SourceFileUploadForm({ companyId, limits }: { companyId: string;
       {items.length > 0 && <ul className="upload-items" aria-live="polite">
         {items.map((item, index) => <li key={item.id}>
           <span className="iv-mono">{item.file.name}</span>
-          <progress max={100} value={item.progress} aria-label={t("uploadProgress", { name: item.file.name })} />
+          <div className="upload-item-progress">
+            <progress max={100} value={item.progress} aria-label={t("uploadProgress", { name: item.file.name })} />
+            <span>{t("transferEstimate", { percent: item.progress })}</span>
+            <span>{t("serverConfirmed", { bytes: item.confirmedBytes, total: item.file.size })}</span>
+          </div>
           <span>{t(`uploadStatus.${item.status}`)}
             {!batchId && <Button size="sm" variant="ghost" icon="remove" aria-label={t("removeFile", { name: item.file.name })}
               disabled={pending || selecting} onClick={() => removeItem(item.id)} />}

@@ -414,7 +414,7 @@
     "removePhoto": "Remove photo",
     "orChooseFiles": "or choose existing files",
     "draftRestored": "Draft restored. No file is marked uploaded until the server stores it.",
-    "uploadProgress": "Upload progress for {name}",
+    "uploadProgress": "Estimated transfer progress for {name}",
     "retryUpload": "Retry {name}",
     "removeFile": "Remove {name}",
     "identicalFileOmitted": "Identical file contents are already in the queue; another copy was not added.",
@@ -445,7 +445,9 @@
     "hash": "SHA-256 hash",
     "status": "Status",
     "dropTitle": "Drop a Source File here",
-    "chooseFile": "Choose a file"
+    "chooseFile": "Choose a file",
+    "serverConfirmed": "Server stored: {bytes} of {total} bytes",
+    "transferEstimate": "Transfer estimate: {percent}%"
   },
   "returnContext": {
     "counterparty": "← Back to Counterparty",
@@ -768,7 +770,10 @@
     "claim_deadline_expired": "The claim filing deadline has expired. A new approval cannot establish timely filing.",
     "claimed_period_after_deadline": "This period ends too late for an ordinary claim before the filing deadline. Choose an earlier eligible period.",
     "counterparty_resolution_required": "Resolve the Counterparty identity before approval. Select an existing entry, restore an archived match, or explicitly confirm creation without identifiers. Changed directory warnings must be reviewed.",
-    "organization_creation_failed": "The Organization could not be saved. Please try again."
+    "organization_creation_failed": "The Organization could not be saved. Please try again.",
+    "upload_authentication_required": "Sign in again with the same account, then retry this upload.",
+    "upload_incomplete": "Some bytes are still missing. Retry the upload.",
+    "upload_checksum_mismatch": "The received bytes do not match the selected file."
   },
   "aiUsage": {
     "platformNav": "Platform AI usage",

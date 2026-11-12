@@ -904,6 +904,10 @@ select {
   align-items: center;
   gap: var(--space-3);
 }
+.upload-item-progress {
+  display: grid;
+  gap: var(--space-1);
+}
 .upload-items progress {
   width: 100%;
   accent-color: var(--accent);
@@ -1219,7 +1223,7 @@ select:disabled {
   }
   .capture-preview { grid-template-columns: 72px minmax(0, 1fr); }
   .capture-preview img { width: 72px; height: 72px; }
-  .upload-items progress {
+  .upload-item-progress {
     grid-column: 1 / -1;
   }
 }
