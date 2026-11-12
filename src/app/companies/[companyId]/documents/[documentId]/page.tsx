@@ -1,3 +1,5 @@
+import { getPhotoGroup } from "@/application/photo-groups";
+import { getSourceFile } from "@/application/source-files";
 import { ReviewWorkspace } from "./review-workspace";
 import { ReviewGuard } from "./review-guard";
 import { SourceEvidenceProvider } from "./source-evidence-context";
@@ -60,6 +62,8 @@ export default async function DocumentReviewPage({
     bankChecks, file, sourceRows, duplicateWarnings, missingPeriod, role, lockedPeriod,
     deferredClaimPeriods, reporting, reviewing, recoverable, excludable,
   } = review;
+  const photoGroup = await getPhotoGroup(client, companyId, document.id);
+  const groupSources = photoGroup ? await Promise.all(photoGroup.sourceFileIds.map(id => getSourceFile(client, companyId, id))) : [];
   const position = await getDocumentQueuePosition(client, companyId, document.id, search);
   const { queue, documents: queuedDocuments, index: queueIndex } = position;
   const queueQuery = hasDocumentQueueContext(search) ? documentQueueQuery(queue) : "";
@@ -120,6 +124,11 @@ export default async function DocumentReviewPage({
               {t("review.sourceFile", { fileName: file.fileName, pages: sourceLocation })}
             </Link>
           </p> : <p className="iv-muted">{t("review.manualDocument")}</p>}
+          {photoGroup && <ol aria-label={t("sourceFiles.photoGroupOriginals")}>
+            {groupSources.map((source, index) => source && <li key={source.id}>
+              {t("review.page", { page: index + 1 })} · <Link href={`/companies/${companyId}/source-files/${source.id}/content`}>{source.fileName}</Link> <small className="iv-mono">{source.sha256}</small>
+            </li>)}
+          </ol>}
           <p>
             {t("review.status")}:{" "}
             <StatusBadge status={statusBadgeState(document.status, "document")}>
@@ -176,7 +185,7 @@ export default async function DocumentReviewPage({
           ))}
         </header>
         <section className="review-original" role="region" aria-label={t("review.workspace.sourcePanel")}>
-          {file?.format === "pdf" && !document.rowSet ? <PdfSourceViewer href={contentUrl} label={file.fileName} firstPage={document.firstPage!} lastPage={document.lastPage!} /> : document.rowSet && sourceRows && file ? <WorkbookSourceViewer rows={sourceRows} label={file.fileName} /> : file && !document.rowSet && (["png", "jpeg"].includes(file.format) || file.normalizedDerivative) ? <ImageSourceViewer href={contentUrl} label={file.fileName} /> : file ? <DocumentViewer label={file.fileName}>
+          {(photoGroup?.basis || file?.format === "pdf") && file && !document.rowSet ? <PdfSourceViewer href={contentUrl} label={file.fileName} firstPage={document.firstPage!} lastPage={document.lastPage!} /> : document.rowSet && sourceRows && file ? <WorkbookSourceViewer rows={sourceRows} label={file.fileName} /> : file && !document.rowSet && (["png", "jpeg"].includes(file.format) || file.normalizedDerivative) ? <ImageSourceViewer href={contentUrl} label={file.fileName} /> : file ? <DocumentViewer label={file.fileName}>
             {document.rowSet ? (
               <div className="workbook-source">
                 <Notice>{t("review.noDocumentImage")}</Notice>

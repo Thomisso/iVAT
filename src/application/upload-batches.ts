@@ -2,8 +2,8 @@ import { isUuid, type AppClient, type Result } from "./client";
 import type { DocumentStatus } from "./documents";
 import { SOURCE_FILE_BUCKET, type SourceFileStatus } from "./source-files";
 
-export type UploadBatchError = "file_required" | "too_many_files" | "forbidden" | "invalid_choice" | "identical_file";
-export type UploadBatchSelection = { id: string; sha256: string };
+export type UploadBatchError = "file_required" | "too_many_files" | "forbidden" | "invalid_choice" | "identical_file" | "too_many_pages";
+export type UploadBatchSelection = { id: string; sha256: string; groupId?: string };
 export type DeleteUploadBatchError = "forbidden" | "batch_processing" | "period_locked";
 export type UploadBatchOutcome = "processing" | "success" | "partial" | "failure";
 
@@ -115,7 +115,7 @@ export async function beginUploadBatch(
   });
   if (error) {
     if (error.code === "42501") return { ok: false, error: "forbidden" };
-    if (error.hint === "file_required" || error.hint === "too_many_files" || error.hint === "invalid_choice" || error.hint === "identical_file") {
+    if (error.hint === "file_required" || error.hint === "too_many_files" || error.hint === "invalid_choice" || error.hint === "identical_file" || error.hint === "too_many_pages") {
       return { ok: false, error: error.hint };
     }
     throw error;

@@ -1,3 +1,4 @@
+import { readPhotoGroupBasis } from "./photo-groups";
 import { getCurrentDocumentReviewFindings, prepareDocumentCounterparty } from "./document-review-findings";
 import { listCompanyReportingYears } from "./companies";
 import { reportingPeriodForDate, reportingPeriodsOf, reportingPeriodStart } from "./reporting-periods";
@@ -407,6 +408,8 @@ export async function readDocumentPages(
   const selected = requestedVersion === undefined ? undefined
     : (await listExtractionVersions(client, companyId, documentId)).find((version) => version.version === requestedVersion);
   if (requestedVersion !== undefined && !selected) return null;
+  const groupBasis = await readPhotoGroupBasis(client, companyId, documentId);
+  if (groupBasis) return { fileName: "photo-group.pdf", mediaType: "application/pdf", bytes: groupBasis.bytes };
   const stored = await readSourceFile(client, companyId, document.sourceFileId);
   if (!stored) return null;
   const { file, bytes } = stored;
