@@ -53,6 +53,7 @@ const COLUMNS = [
 const DEDUCTION_COLUMNS = ["deductionMode", "percentage", "claimedNetAmount", "claimedVatAmount", "unclaimedNetAmount", "unclaimedVatAmount"] as const;
 
 export type ReportingPeriodWorkbookCopy = {
+  deductionModes: { proportional: string; partialClaim: string; full: string };
   deductionColumns: Record<(typeof DEDUCTION_COLUMNS)[number], string>;
   columns: Record<(typeof COLUMNS)[number], string>;
   sheets: { included: string; attention: string };
@@ -68,8 +69,15 @@ type WorkbookRow = Record<(typeof COLUMNS)[number] | (typeof DEDUCTION_COLUMNS)[
 
 function amount(value: string | null): string | number {
   if (value === null) return "";
+  if (!/^-?\d+\.\d{2}$/.test(value)) return value;
+  const minor = halers(value);
+  // Reserve cents within Excel's 15-digit numeric precision. Larger amounts
+  // stay exact text cells, rather than relying on a lossy JS/Excel conversion.
+  // https://support.microsoft.com/en-us/excel/format-numbers-as-text
+  const absolute = minor < BigInt(0) ? -minor : minor;
+  if (absolute > BigInt("999999999999999")) return value;
   const numeric = Number(value);
-  return Number.isFinite(numeric) ? numeric : value;
+  return Number.isFinite(numeric) && numeric.toFixed(2) === exactAmount(minor) ? numeric : value;
 }
 
 function rateGross(line: DraftRateBreakdownLine | null): string | number {
@@ -182,7 +190,7 @@ export async function exportReportingPeriodWorkbook(
       const selected = document.payload ? proportionalDeductionRates(document.payload)?.find(line => line.rate === rate?.rate) : undefined;
       const remainder = document.payload ? proportionalUnclaimedPortion(document.payload)?.rateBreakdown.find(line => line.rate === rate?.rate) : undefined;
       const row: WorkbookRow = {
-        deductionMode: document.payload?.proportionalDeduction ? "proportional" : document.payload?.partialClaim ? "partial_claim" : "full",
+        deductionMode: document.payload?.proportionalDeduction ? copy.deductionModes.proportional : document.payload?.partialClaim ? copy.deductionModes.partialClaim : copy.deductionModes.full,
         percentage: document.payload?.proportionalDeduction?.percentage ?? "",
         claimedNetAmount: selected ? amount(selected.netAmount) : "",
         claimedVatAmount: selected ? amount(selected.vatAmount) : "",

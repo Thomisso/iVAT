@@ -52,5 +52,9 @@ it("authenticated review and final XML/PDF/XLSX downloads preserve the manually 
   const workbook = await request(`${prefix}/xlsx`);
   expect(workbook.status).toBe(200);
   const sheets = XLSX.read(await workbook.arrayBuffer(), { type: "array" });
-  expect(XLSX.utils.sheet_to_json(sheets.Sheets.Included)).toMatchObject([{ "Ratio (%)": 50, "Net amount": 12000, "Claimed net amount": 6000, "Claimed VAT amount": 1260, "Unclaimed net amount": 6000, "Unclaimed VAT amount": 1260 }]);
+  expect(XLSX.utils.sheet_to_json(sheets.Sheets.Included)).toMatchObject([{ "Deduction mode": "Proportional deduction", "Ratio (%)": 50, "Net amount": 12000, "Claimed net amount": 6000, "Claimed VAT amount": 1260, "Unclaimed net amount": 6000, "Unclaimed VAT amount": 1260 }]);
+  const czech = await (await httpAs(company.client, "cs"))(`${prefix}/xlsx`);
+  expect(czech.status).toBe(200);
+  const czechSheets = XLSX.read(await czech.arrayBuffer(), { type: "array" });
+  expect(XLSX.utils.sheet_to_json(czechSheets.Sheets["Zahrnuté"])).toMatchObject([{ "Režim odpočtu": "Poměrný odpočet", "Uplatněný základ": 6000 }]);
 });

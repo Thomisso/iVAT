@@ -1866,6 +1866,11 @@
       "claimedVatAmount": "Uplatněná DPH",
       "unclaimedNetAmount": "Neuplatněný základ",
       "unclaimedVatAmount": "Neuplatněná DPH"
+    },
+    "deductionModes": {
+      "proportional": "Poměrný odpočet",
+      "partialClaim": "Částečné uplatnění",
+      "full": "Plné uplatnění"
     }
   },
   "authEmails": {

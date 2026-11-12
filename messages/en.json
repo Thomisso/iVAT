@@ -1866,6 +1866,11 @@
       "claimedVatAmount": "Claimed VAT amount",
       "unclaimedNetAmount": "Unclaimed net amount",
       "unclaimedVatAmount": "Unclaimed VAT amount"
+    },
+    "deductionModes": {
+      "proportional": "Proportional deduction",
+      "partialClaim": "Partial Claim",
+      "full": "Full deduction"
     }
   },
   "authEmails": {

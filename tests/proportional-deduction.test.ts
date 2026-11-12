@@ -1,3 +1,4 @@
+import type { ExtractionPayload } from "@/application/extraction-payload";
 import * as XLSX from "xlsx";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { exportFinalVatReport, readVatReportArtifact } from "@/application/epo-export";
@@ -53,7 +54,7 @@ it("final XML artifacts, statutory PDF and workbook reconcile a proportional cla
   if (!workbook.ok) throw new Error(workbook.error);
   const book = XLSX.read(workbook.value.bytes, { type: "array" });
   const rows = XLSX.utils.sheet_to_json(book.Sheets.Included);
-  expect(rows).toMatchObject([{ "Net amount": 12000, "VAT amount": 2520, "Deduction mode": "proportional", "Ratio (%)": 50,
+  expect(rows).toMatchObject([{ "Net amount": 12000, "VAT amount": 2520, "Deduction mode": "Proportional deduction", "Ratio (%)": 50,
     "Claimed net amount": 6000, "Claimed VAT amount": 1260, "Unclaimed net amount": 6000, "Unclaimed VAT amount": 1260 }]);
   expect(await finalizeVatReport(company.client, { companyId: company.companyId, period: "2026-10", confirmed: true })).toEqual({ ok: true, value: null });
   for (const format of ["dphdp3", "dphkh1"]) {
@@ -316,4 +317,73 @@ it("an approved ratio is corrected through Return to Review while its previous r
   expect((await generateVatReport(company.client, { companyId: input.companyId, period: "2026-10" })).ok).toBe(true);
   expect((await getVatReport(company.client, input.companyId, "2026-10"))?.result.controlStatement)
     .toMatchObject([{ section: "B.2", proportionalDeduction: true, rateBreakdown: [{ netAmount: "7200.00", vatAmount: "1512.00" }] }]);
+});
+
+it("the workbook localizes every deduction mode while ordinary monetary cells remain numeric", async () => {
+  const company = await administratorWithCompany();
+  const choices: [string, Partial<ExtractionPayload>][] = [
+    ["MODE-1", {}], ["MODE-2", { partialClaim: { confirmed: true, rateBreakdown: [{ rate: 21, netAmount: "6000.00", vatAmount: "1260.00" }] } }],
+    ["MODE-3", { proportionalDeduction: ratio }],
+  ];
+  for (const [number, choice] of choices) {
+    const payload = { ...source, documentNumber: number };
+    const created = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload }, undefined, registry);
+    if (!created.ok) throw new Error(created.error);
+    expect(await saveAndApproveDocument(company.client, { companyId: company.companyId, documentId: created.value.id, basedOnVersion: 1,
+      requestId: crypto.randomUUID(), payload: { ...payload, ...choice } }, undefined, registry)).toMatchObject({ ok: true });
+  }
+  for (const [locale, sheet, numberColumn, modeColumn, modes] of [
+    ["en", "Included", "Document number", "Deduction mode", ["Full deduction", "Partial Claim", "Proportional deduction"]],
+    ["cs", "Zahrnuté", "Číslo dokladu", "Režim odpočtu", ["Plné uplatnění", "Částečné uplatnění", "Poměrný odpočet"]],
+  ] as const) {
+    const exported = await exportReportingPeriodWorkbook(company.client, { companyId: company.companyId, period: "2026-10" }, reportingWorkbookCopy(locale));
+    if (!exported.ok) throw new Error(exported.error);
+    const book = XLSX.read(exported.value.bytes, { type: "array" });
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(book.Sheets[sheet]);
+    expect([...rows].sort((left, right) => String(left[numberColumn]).localeCompare(String(right[numberColumn]))).map(row => row[modeColumn])).toEqual(modes);
+    const claimedHeader = locale === "en" ? "Claimed net amount" : "Uplatněný základ";
+    const headers = XLSX.utils.sheet_to_json<string[]>(book.Sheets[sheet], { header: 1 })[0];
+    const cell = book.Sheets[sheet][XLSX.utils.encode_cell({ c: headers.indexOf(claimedHeader), r: rows.findIndex(row => row[numberColumn] === "MODE-3") + 1 })];
+    expect(cell).toMatchObject({ t: "n", v: 6000 });
+  }
+});
+
+it("the review workbook retains exact original, claimed and unclaimed cents beyond spreadsheet numeric precision", async () => {
+  const company = await administratorWithCompany();
+  const payload = { ...source, documentNumber: "LARGE-PROPORTIONAL",
+    rateBreakdown: [{ rate: 21, netAmount: "9007199254740993.01", vatAmount: "1891511843495608.53" }],
+    totals: { netAmount: "9007199254740993.01", vatAmount: "1891511843495608.53", grossAmount: "10898711098236601.54" } };
+  const created = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload: { ...payload, proportionalDeduction: ratio } }, undefined, registry);
+  if (!created.ok) throw new Error(created.error);
+  const exported = await exportReportingPeriodWorkbook(company.client, { companyId: company.companyId, period: "2026-10" }, reportingWorkbookCopy());
+  if (!exported.ok) throw new Error(exported.error);
+  const book = XLSX.read(exported.value.bytes, { type: "array" });
+  const sheet = book.Sheets.Attention;
+  const [headers] = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 });
+  for (const [header, expected] of [
+    ["Net amount", "9007199254740993.01"], ["VAT amount", "1891511843495608.53"], ["Gross amount", "10898711098236601.54"],
+    ["Claimed net amount", "4503599627370496.51"], ["Claimed VAT amount", "945755921747804.27"],
+    ["Unclaimed net amount", "4503599627370496.50"], ["Unclaimed VAT amount", "945755921747804.26"],
+  ]) {
+    expect(sheet[XLSX.utils.encode_cell({ c: headers.indexOf(header), r: 1 })], header).toMatchObject({ t: "s", v: expected });
+  }
+});
+
+
+it.each([
+  { net: "9999999999999.99", gross: "12099999999999.99", type: "n", value: 9999999999999.99 },
+  { net: "10000000000000.01", gross: "12100000000000.01", type: "s", value: "10000000000000.01" },
+])("workbook monetary cell types reserve cents within spreadsheet precision ($net)", async example => {
+  const company = await administratorWithCompany();
+  const payload = { ...source, proportionalDeduction: ratio,
+    rateBreakdown: [{ rate: 21, netAmount: example.net, vatAmount: "2100000000000.00" }],
+    totals: { netAmount: example.net, vatAmount: "2100000000000.00", grossAmount: example.gross } };
+  const created = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload }, undefined, registry);
+  if (!created.ok) throw new Error(created.error);
+  const exported = await exportReportingPeriodWorkbook(company.client, { companyId: company.companyId, period: "2026-10" }, reportingWorkbookCopy());
+  if (!exported.ok) throw new Error(exported.error);
+  const book = XLSX.read(exported.value.bytes, { type: "array" });
+  const sheet = book.Sheets.Attention;
+  const [headers] = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 });
+  expect(sheet[XLSX.utils.encode_cell({ c: headers.indexOf("Net amount"), r: 1 })]).toMatchObject({ t: example.type, v: example.value });
 });

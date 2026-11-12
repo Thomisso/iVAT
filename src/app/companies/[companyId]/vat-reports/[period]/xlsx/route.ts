@@ -15,7 +15,7 @@ export async function GET(
   ]);
   const [result, t] = await Promise.all([
     exportReportingPeriodWorkbook(await requireUserClient(), { companyId, period }, {
-      deductionColumns: workbook.raw("deductionColumns"), columns: workbook.raw("columns"), sheets: workbook.raw("sheets"),
+      deductionModes: workbook.raw("deductionModes"), deductionColumns: workbook.raw("deductionColumns"), columns: workbook.raw("columns"), sheets: workbook.raw("sheets"),
       fileNamePrefix: workbook("fileNamePrefix"), inclusion: workbook.raw("inclusion"), mapping: workbook.raw("mapping"),
       reasons: reporting.raw("reasons"), details: reporting.raw("details"), unknownReasons: reporting.raw("unknownReasons"),
     }),

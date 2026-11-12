@@ -120,6 +120,10 @@ The review, live list summary and checking workbook use the same calculated
 claim. Workbook rows preserve original amounts and, when a proportional Document
 is present, add the mode, coefficient, claimed amounts and Unclaimed Portion.
 A workbook remains a live checking export rather than an immutable VAT Report.
+Monetary cells remain numeric while cents fit within Excel’s 15-digit precision
+and the two-decimal value survives conversion; larger values use exact decimal
+text cells. This preserves original, claimed and unclaimed cents without imposing
+a monetary limit. See [Microsoft’s numeric precision guidance](https://support.microsoft.com/en-us/excel/format-numbers-as-text).
 
 In addition to Earliest Claim Period and the existing pre-/post-2025 filing
 rules, the selected period must share the Earliest Claim Period's calendar year.
