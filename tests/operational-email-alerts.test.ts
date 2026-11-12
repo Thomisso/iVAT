@@ -17,6 +17,7 @@ afterEach(async () => {
     for (const document of await listCompanyDocuments(company.client, company.companyId)) {
       await startManualDocumentReview(company.client, { companyId: company.companyId, documentId: document.id });
     }
+    expect((await systemClient().from("company").update({ ai_processing_allowance: null }).eq("id", company.companyId)).error).toBeNull();
     expect((await listCompanyDocuments(company.client, company.companyId)).every(document => document.status === "needs_review")).toBe(true);
   }
   for (const subscriber of subscribers.splice(0)) await systemClient().auth.admin.deleteUser(subscriber.userId);
@@ -29,15 +30,25 @@ async function scenario(count = 2, locale: "cs" | "en" = "en") {
   await removeAiConfigurationFixture(company.client, company.companyId);
   const messages: OperationalAlertMessage[] = [];
   const mailer: OperationalAlertMailer = { async send(message) { messages.push(message); return "accepted"; } };
+  const scopes = new Set([company.companyId]);
   const start = Date.now() + 1000;
-  const tick = (seconds: number, transport = mailer) => runOperationalAlertTick(systemClient(), { mailer: transport,
-    now: new Date(start + seconds * 1000).toISOString(), appOrigin: "https://ivat.example.test" });
   const deliveries = async () => {
     const result = await listOperationalAlertDeliveries(admin.client);
     if (!result.ok) throw new Error(result.error);
-    return result.value;
+    return result.value.filter(delivery => [...scopes].some(scope => delivery.rootKey.split(":").includes(scope)));
   };
-  return { admin, company, messages, mailer, tick, deliveries, start };
+  const tick = async (seconds: number, transport = mailer) => {
+    await runOperationalAlertTick(systemClient(), { mailer: transport,
+      now: new Date(start + seconds * 1000).toISOString(), appOrigin: "https://ivat.example.test" });
+    // Other test files may leave legitimate active platform incidents. Observe
+    // this scenario's public receipt IDs rather than assuming an empty platform.
+    const result = await listOperationalAlertDeliveries(admin.client);
+    if (result.ok) {
+      const relevant = result.value.filter(delivery => [...scopes].some(scope => delivery.rootKey.split(":").includes(scope)));
+      messages.splice(0, messages.length, ...messages.filter(message => relevant.some(delivery => message.messageId.includes(delivery.id))));
+    }
+  };
+  return { admin, company, messages, mailer, tick, deliveries, start, scopes };
 }
 
 it("keeps alerts off until a SuperAdmin explicitly opts in on their verified account", async () => {
@@ -92,10 +103,10 @@ it.each(["refused", "failed", "unknown"] as const)("keeps %s distinct from accep
 });
 
 it("marks a transport exception unknown without a false sent result or a recursive alert", async () => {
-  const { tick, deliveries } = await scenario(1);
+  const { company, tick, deliveries } = await scenario(1);
   await tick(0);
   let sends = 0;
-  await tick(300, { async send() { sends++; throw new Error("private SMTP failure payload"); } });
+  await tick(300, { async send(message) { if (message.text.includes(company.companyId)) sends++; throw new Error("private SMTP failure payload"); } });
   expect((await deliveries()).map(delivery => delivery.state)).toEqual(["unknown"]);
   await tick(10000);
   expect(sends).toBe(1);
@@ -157,9 +168,13 @@ it.each(["accepted", "refused", "unknown"] as const)("records the real controlle
     const smtp = smtpOperationalAlertMailer({ host: "127.0.0.1", port: capture.port, sender: "noreply@example.test", localCapture: true });
     await tick(0, smtp); await tick(300, smtp);
     expect((await deliveries()).map(delivery => delivery.state)).toEqual([outcome]);
-    expect(capture.messages).toHaveLength(outcome === "refused" ? 0 : 1);
+    const ownMessages = async () => {
+      const receipts = await deliveries();
+      return capture.messages.filter(message => receipts.some(receipt => message.includes(receipt.id)));
+    };
+    expect(await ownMessages()).toHaveLength(outcome === "refused" ? 0 : 1);
     await tick(3600, smtp);
-    expect(capture.messages).toHaveLength(outcome === "refused" ? 0 : 1);
+    expect(await ownMessages()).toHaveLength(outcome === "refused" ? 0 : 1);
   } finally { await capture.close(); }
 });
 
@@ -184,11 +199,12 @@ it("refuses worker transitions to users and preserves the human MFA requirement"
 
 it("groups a shared configuration across Companies and keeps the same episode as impact changes", async () => {
   const { createAiConfiguration, assignCompanyAiConfiguration } = await import("@/application/ai-configurations");
-  const { admin, company, tick, messages, deliveries } = await scenario(2);
+  const { admin, company, tick, messages, deliveries, scopes } = await scenario(2);
   const second = await companyWithWaitingDocuments(3); companies.push(second);
   const configuration = await createAiConfiguration(admin.client, { label: `PRIVATE <configuration> ${crypto.randomUUID()}`,
     provider: "anthropic", splitModel: "test-split", extractModel: "test-extract", credential: "private-provider-credential" });
   if (!configuration.ok) throw new Error(configuration.error);
+  scopes.add(configuration.value.id);
   for (const owner of [company, second]) {
     expect(await assignCompanyAiConfiguration(admin.client, { companyId: owner.companyId, configurationId: configuration.value.id })).toEqual({ ok: true, value: null });
     for (const document of await listCompanyDocuments(owner.client, owner.companyId)) {

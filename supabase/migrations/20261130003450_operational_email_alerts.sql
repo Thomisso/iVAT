@@ -428,7 +428,7 @@ returns jsonb language plpgsql stable security definer set search_path = '' as $
 begin
   if not private.can_administrate_platform() then raise exception 'forbidden' using errcode = '42501'; end if;
   return (select coalesce(jsonb_agg(jsonb_build_object('id', delivery.id, 'episodeId', episode.id,
-    'kind', episode.kind, 'state', delivery.state, 'eligibleSince', episode.eligible_since,
+    'rootKey', episode.root_key, 'kind', episode.kind, 'state', delivery.state, 'eligibleSince', episode.eligible_since,
     'resolvedAt', episode.resolved_at, 'impact', episode.impact) order by episode.eligible_since, delivery.id), '[]'::jsonb)
     from private.operational_alert_outbox delivery join private.operational_alert_episode episode on episode.id = delivery.episode_id
     where delivery.user_id = auth.uid());
