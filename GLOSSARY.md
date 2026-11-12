@@ -40,6 +40,16 @@ _Avoid_: Permission level, profile
 A User restores access after losing an authenticator by proving email ownership and a prepared backup MFA code, then establishing a replacement authenticator.
 _Avoid_: MFA bypass, backup-code login
 
+## Platform operations
+
+**Operational Alert**:
+An optional email to a SuperAdmin about a continuing critical blockage of active platform work, grouped by its root cause.
+_Avoid_: Company notification, delivery confirmation
+
+**Incident Episode**:
+One continuous period in which the same operational root cause critically blocks active work. Changes in affected Companies or work counts belong to the same episode while any blockage remains.
+_Avoid_: Error occurrence, incident history
+
 ## Documents
 
 **Upload Queue**:

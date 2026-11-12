@@ -13,6 +13,29 @@ Production records, credentials, backup archives and account-specific design
 references stay outside Git. See [repository publication](docs/publication.md)
 for the cleanup and history-cutover requirements.
 
+## Operational email alerts
+
+MFA-verified SuperAdmins can opt in under Platform Settings. Delivery uses their
+current verified Auth email, with the language captured from the application's
+current CS/EN language when saving the preference. Preferences are off by default.
+An address undergoing an unverified change is ineligible until verified.
+
+The existing `npm run worker` process reconciles critical work every 30 seconds
+without an open platform page. Configure canonical `APP_ORIGIN` and the same
+managed `SMTP_*` transport used for Invitations; production requires authenticated
+TLS. Explicit `SMTP_LOCAL_CAPTURE=true` is restricted to loopback capture. Never
+use production SMTP for tests. A missing or invalid canonical origin prevents
+dispatch. The five-minute grace period begins with the first authoritative worker
+observation, so restarting after an unobserved outage does not backdate eligibility.
+
+Private episodes preserve root identity across impact-count changes. The first
+slice attempts each eligible recipient once; accepted, refused, definite failure
+and unknown are distinct durable outcomes. A crash after claim or an uncertain
+SMTP response is not automatically retried. Acceptance means the SMTP server
+accepted the message, without an Inbox or exactly-once guarantee. No reminders or
+recovery messages are sent by this first slice (#321); #322 owns that later policy.
+The active dashboard and existing audit/remediation flows remain the authorities.
+
 ## Prerequisites
 
 - Node.js 22+

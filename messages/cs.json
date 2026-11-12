@@ -810,12 +810,14 @@
     "membership_self_change": "Vlastní členství nelze odebrat ani si snížit roli Správce. O předání požádejte jinou oprávněnou osobu.",
     "membership_last_administrator": "Tato změna by odebrala posledního správce v daném rozsahu. Nejprve musí mít členství s rolí Správce jiná osoba.",
     "membership_change_stale": "Během kontroly se přístup změnil. Zrušte toto potvrzení a znovu zkontrolujte aktuální dopad.",
-    "invalid_representative": "Vyberte podporovaného zástupce a vyplňte platné jméno, příjmení a datum narození nebo evidenční číslo.",
     "proportional_deduction_invalid": "Potvrďte podporovaný poměrný odpočet podle skutečného využití (1–99 %).",
     "proportional_claim_year_mismatch": "Období poměrného odpočtu musí patřit do kalendářního roku nejdřívějšího přípustného období.",
     "upload_authentication_required": "Přihlaste se znovu stejným účtem a opakujte nahrávání.",
     "upload_incomplete": "Některé části souboru ještě chybí. Opakujte nahrávání.",
-    "upload_checksum_mismatch": "Přijatá data neodpovídají vybranému souboru."
+    "upload_checksum_mismatch": "Přijatá data neodpovídají vybranému souboru.",
+    "invalid_alert_preference": "Neplatné nastavení upozornění.",
+    "verified_email_required": "Před zapnutím upozornění ověřte aktuální e-mail účtu.",
+    "invalid_representative": "Vyberte podporovaného zástupce a vyplňte platné jméno, příjmení a datum narození nebo evidenční číslo."
   },
   "aiUsage": {
     "platformNav": "Využití AI na platformě",
@@ -2078,6 +2080,21 @@
     "name": "Název organizace",
     "create": "Vytvořit organizaci",
     "cancel": "Zpět do administrace"
+  },
+  "operationalAlerts": {
+    "title": "Provozní upozornění e-mailem",
+    "intro": "Dostávejte seskupená upozornění po pěti minutách kritické blokace práce na aktuální ověřený e-mail svého účtu.",
+    "enabled": "Zapnout provozní upozornění e-mailem",
+    "save": "Uložit nastavení",
+    "subject": "iVAT: kritická provozní blokace",
+    "heading": "Kritická práce je blokována alespoň pět minut",
+    "companies": "Společnosti",
+    "documents": "Doklady",
+    "sourceFiles": "Zdrojové soubory",
+    "exportJobs": "Exportní úlohy",
+    "remediation": "Přihlaste se pro kontrolu a nápravu blokace",
+    "impact": "Společnosti: {companies, number}\nDoklady: {documents, number}\nZdrojové soubory: {sourceFiles, number}\nExportní úlohy: {exportJobs, number}",
+    "body": "{heading}\n\n{problem}\n{impact}\n\n{remediation}\n{link}"
   },
   "representation": {
     "title": "Zástupce",
