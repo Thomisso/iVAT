@@ -429,7 +429,7 @@
     "removePhoto": "Odstranit fotografii",
     "orChooseFiles": "nebo vyberte existující soubory",
     "draftRestored": "Koncept byl obnoven. Soubor není označený jako nahraný, dokud ho server neuloží.",
-    "uploadProgress": "Průběh nahrávání souboru {name}",
+    "uploadProgress": "Odhad průběhu přenosu souboru {name}",
     "retryUpload": "Zkusit znovu: {name}",
     "removeFile": "Odebrat {name}",
     "identicalFileOmitted": "Totožný obsah už je ve frontě; další kopie nebyla přidána.",
@@ -460,7 +460,9 @@
     "hash": "Otisk SHA-256",
     "status": "Stav",
     "dropTitle": "Přetáhněte sem zdrojový soubor",
-    "chooseFile": "Vybrat soubor"
+    "chooseFile": "Vybrat soubor",
+    "serverConfirmed": "Uloženo serverem: {bytes} z {total} bajtů",
+    "transferEstimate": "Odhad přenosu: {percent} %"
   },
   "returnContext": {
     "counterparty": "← Zpět na protistranu",
@@ -784,6 +786,9 @@
     "claimed_period_after_deadline": "Toto období končí příliš pozdě pro běžné uplatnění před koncem lhůty podání. Zvolte dřívější přípustné období.",
     "counterparty_resolution_required": "Před schválením vyřešte identitu protistrany. Vyberte existující záznam, obnovte archivovanou shodu nebo výslovně potvrďte vytvoření bez identifikátorů. Změněná upozornění adresáře je nutné zkontrolovat.",
     "organization_creation_failed": "Organizaci se nepodařilo uložit. Zkuste to prosím znovu.",
+    "upload_authentication_required": "Přihlaste se znovu stejným účtem a opakujte nahrávání.",
+    "upload_incomplete": "Některé části souboru ještě chybí. Opakujte nahrávání.",
+    "upload_checksum_mismatch": "Přijatá data neodpovídají vybranému souboru.",
     "membership_self_change": "Vlastní členství nelze odebrat ani si snížit roli Správce. O předání požádejte jinou oprávněnou osobu.",
     "membership_last_administrator": "Tato změna by odebrala posledního správce v daném rozsahu. Nejprve musí mít členství s rolí Správce jiná osoba.",
     "membership_change_stale": "Během kontroly se přístup změnil. Zrušte toto potvrzení a znovu zkontrolujte aktuální dopad."

@@ -429,7 +429,7 @@
     "removePhoto": "Remove photo",
     "orChooseFiles": "or choose existing files",
     "draftRestored": "Draft restored. No file is marked uploaded until the server stores it.",
-    "uploadProgress": "Upload progress for {name}",
+    "uploadProgress": "Estimated transfer progress for {name}",
     "retryUpload": "Retry {name}",
     "removeFile": "Remove {name}",
     "identicalFileOmitted": "Identical file contents are already in the queue; another copy was not added.",
@@ -460,7 +460,9 @@
     "hash": "SHA-256 hash",
     "status": "Status",
     "dropTitle": "Drop a Source File here",
-    "chooseFile": "Choose a file"
+    "chooseFile": "Choose a file",
+    "serverConfirmed": "Server stored: {bytes} of {total} bytes",
+    "transferEstimate": "Transfer estimate: {percent}%"
   },
   "returnContext": {
     "counterparty": "← Back to Counterparty",
@@ -784,6 +786,9 @@
     "claimed_period_after_deadline": "This period ends too late for an ordinary claim before the filing deadline. Choose an earlier eligible period.",
     "counterparty_resolution_required": "Resolve the Counterparty identity before approval. Select an existing entry, restore an archived match, or explicitly confirm creation without identifiers. Changed directory warnings must be reviewed.",
     "organization_creation_failed": "The Organization could not be saved. Please try again.",
+    "upload_authentication_required": "Sign in again with the same account, then retry this upload.",
+    "upload_incomplete": "Some bytes are still missing. Retry the upload.",
+    "upload_checksum_mismatch": "The received bytes do not match the selected file.",
     "membership_self_change": "You cannot remove your own Membership or demote yourself from Administrator. Ask another authorized person to arrange the handover.",
     "membership_last_administrator": "This change would remove the last scoped Administrator. Another person must hold an Administrator Membership first.",
     "membership_change_stale": "Access changed while you were reviewing. Cancel this confirmation and review the current impact again."
