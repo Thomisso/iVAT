@@ -68,6 +68,13 @@ it("concurrent finalization and recovery after dispatch failure converge on one 
     await boss.start();
     await createProcessingQueues(boss);
     const realQueue = pgBossJobQueue(boss);
+    // The durable queue accepts the job, but its acknowledgement is lost.
+    await expect(completeSourceUpload(owner.client, {
+      async send(job, options) {
+        await realQueue.send(job, options);
+        throw new Error("lost enqueue acknowledgement");
+      },
+    }, identity)).rejects.toThrow("lost enqueue acknowledgement");
     expect(await Promise.all([completeSourceUpload(owner.client, realQueue, identity), completeSourceUpload(owner.client, realQueue, identity)]))
       .toEqual([{ ok: true, value: { id: file.sourceFileId } }, { ok: true, value: { id: file.sourceFileId } }]);
     const fetched = await boss.fetch<{ sourceFileId: string }>("split-source-file", { batchSize: 10 });

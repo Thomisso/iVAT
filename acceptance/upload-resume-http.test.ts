@@ -62,6 +62,12 @@ it("refuses anonymous, foreign-account and revoked-access continuation including
   const init = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(identity) };
   const request = await httpAs(member.client);
   expect((await request(path, init)).status).toBe(200);
+  const portion = await request(path, { method: "PUT", headers: {
+    "Upload-Batch-Id": batch.id, "Upload-File-Name": encodeURIComponent(file.fileName), "Upload-Byte-Size": String(file.bytes.length),
+    "Upload-Sha256": selectedFiles[0].sha256, "Upload-Offset": "0",
+  }, body: Buffer.from(file.bytes.slice(0, 20)) });
+  expect(portion.status).toBe(200);
+  expect((await portion.json()).value.confirmedBytes).toBe(20);
   const anonymous = await fetch(new URL(path, baseUrl()), { ...init, redirect: "manual" });
   expect(anonymous.status).toBe(307);
   expect(anonymous.headers.get("location")).toContain("/login");
