@@ -2,48 +2,86 @@
 
 import { useActionState, useId, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { cancelInvitationAction, changeMembershipRoleAction, inviteMemberAction, removeMembershipAction, replaceInvitationAction } from "@/app/actions";
+import { cancelInvitationAction, previewMembershipChangeAction, inviteMemberAction, replaceInvitationAction } from "@/app/actions";
 import type { ManagedUser, PendingInvitation, ScopedMembership } from "@/application/memberships";
 import { Button } from "./button";
 import { FormError } from "./form-error";
 import { TextField } from "./text-field";
 import { formatDateTime } from "@/lib/format-date";
 
-function MembershipRow({ membership }: { membership: ScopedMembership }) {
+function MembershipChangeForm({ membership, scope, self, removal = false }: {
+  membership: ScopedMembership; scope: string; self: boolean; removal?: boolean;
+}) {
+  const t = useTranslations("members");
+  const triggerForm = useRef<HTMLFormElement>(null);
+  const confirmationId = useId();
+  const [preview, previewAction, pending] = useActionState(previewMembershipChangeAction, { error: null, values: { role: membership.role }, impact: null });
+  const [cancelledPreview, setCancelledPreview] = useState<typeof preview | null>(null);
+  const prohibited = self && (removal || membership.role === "administrator");
+  const impact = cancelledPreview === preview ? null : preview.impact;
+  const label = t(removal ? "removeScope" : "changeScopeRole", { scope });
+  return <>
+    {!impact && <form ref={triggerForm} action={previewAction} className="form-row" aria-label={label}>
+      <input type="hidden" name="membershipId" value={membership.id} />
+      {removal ? <input type="hidden" name="role" value="" /> : <label className="iv-field-label">
+        {t("role")}
+        <select name="role" defaultValue={preview.values.role ?? membership.role} disabled={prohibited || pending}>
+          <option value="administrator">{t("administrator")}</option>
+          <option value="user">{t("user")}</option>
+        </select>
+      </label>}
+      <Button type="submit" variant={removal ? "danger" : undefined}
+        disabled={prohibited || pending} aria-describedby={prohibited ? `${membership.id}-self-hint` : undefined}>{label}</Button>
+    </form>}
+    <FormError error={preview.error} />
+    {impact && <fieldset id={confirmationId} className="form member-change-confirmation">
+      <legend>{t("confirmMembershipTitle")}</legend>
+      <p>{t("confirmMembershipPerson", { email: impact.membership.email, membership: impact.membership.id })}</p>
+      <p>{t("confirmMembershipScope", { scope: t(impact.membership.companyId === null ? "organizationMembership" : "companyMembership", { scope: impact.membership.scopeName }), role: t(impact.membership.role === "administrator" ? "administrator" : "user") })}</p>
+      <p>{impact.role === null ? t("confirmMembershipRemoval") : t("confirmMembershipRole", { role: t(impact.role === "administrator" ? "administrator" : "user") })}</p>
+      {membership.companyId === null && <p>{t("organizationImpact")}</p>}
+      {impact.platformAccess && <p>{t("platformAccessSurvives")}</p>}
+      {impact.companies.length === 0 ? <p>{t("noCompanyImpact")}</p> : <ul>
+        {impact.companies.map(company => <li key={company.companyId}>
+          <strong>{company.name}</strong>
+          <p>{impact.platformAccess ? t("platformAccessSurvives") : company.role === null ? t("companyAccessRemoved") : t("companyAccessSurvives", { role: t(company.role === "administrator" ? "administrator" : "user") })}</p>
+          {company.memberships.length > 0 && <ul>{company.memberships.map(path => <li key={path.id}>
+            {t("survivingMembership", { scope: t(path.source === "company" ? "companyMembership" : "organizationMembership", { scope: path.scopeName }), role: t(path.role === "administrator" ? "administrator" : "user"), membership: path.id })}
+          </li>)}</ul>}
+        </li>)}
+      </ul>}
+      <p>{t("revalidatedOnConfirmation")}</p>
+      <form action={previewAction} className="form-row">
+        <input type="hidden" name="confirm" value="1" />
+        <input type="hidden" name="membershipId" value={impact.membership.id} />
+        <input type="hidden" name="role" value={impact.role ?? ""} />
+        <input type="hidden" name="confirmationToken" value={impact.confirmationToken} />
+        <Button type="submit" variant={removal ? "danger" : "primary"} disabled={pending}>{t("confirmMembershipChange")}</Button>
+        <Button type="button" disabled={pending} onClick={() => { setCancelledPreview(preview); requestAnimationFrame(() => triggerForm.current?.querySelector<HTMLButtonElement>('button[type="submit"]')?.focus()); }}>{t("cancelMembershipChange")}</Button>
+      </form>
+    </fieldset>}
+  </>;
+}
+
+function MembershipRow({ membership, self }: { membership: ScopedMembership; self: boolean }) {
   const t = useTranslations("members");
   const scope = t(membership.source === "company" ? "companyMembership" : "organizationMembership", { scope: membership.scopeName });
-  const [roleState, roleAction, rolePending] = useActionState(changeMembershipRoleAction, { error: null, values: {} });
-  const [removeState, removeAction, removePending] = useActionState(removeMembershipAction, { error: null, values: {} });
   return <li className="member-membership-row">
     <fieldset className="form">
       <legend>{scope}</legend>
       <span>{t(membership.role === "administrator" ? "administrator" : "user")}</span>
       <span className="member-access-source">{t(`source.${membership.source}`)}</span>
       {!membership.manageable && <p>{t("inheritedManagementHint")}</p>}
+      {self && <p id={`${membership.id}-self-hint`}>{t("selfChangeHint")}</p>}
       {membership.manageable && <>
-        {membership.companyId !== null && <form action={roleAction} className="form-row" aria-label={t("changeScopeRole", { scope })}>
-          <input type="hidden" name="membershipId" value={membership.id} />
-          <label className="iv-field-label">
-            {t("role")}
-            <select name="role" defaultValue={roleState.values.role ?? membership.role}>
-              <option value="administrator">{t("administrator")}</option>
-              <option value="user">{t("user")}</option>
-            </select>
-          </label>
-          <Button type="submit" disabled={rolePending || removePending}>{t("changeScopeRole", { scope })}</Button>
-        </form>}
-        <FormError error={roleState.error} />
-        <form action={removeAction}>
-          <input type="hidden" name="membershipId" value={membership.id} />
-          <Button type="submit" variant="danger" disabled={removePending || rolePending}>{t("removeScope", { scope })}</Button>
-        </form>
-        <FormError error={removeState.error} />
+        {membership.companyId !== null && <MembershipChangeForm membership={membership} scope={scope} self={self} />}
+        <MembershipChangeForm membership={membership} scope={scope} self={self} removal />
       </>}
     </fieldset>
   </li>;
 }
 
-function ManagedUserRow({ access }: { access: ManagedUser }) {
+function ManagedUserRow({ access, currentUserId }: { access: ManagedUser; currentUserId: string }) {
   const t = useTranslations("members");
   const scopes = access.memberships.map(membership => t(
     membership.source === "company" ? "companyMembership" : "organizationMembership", { scope: membership.scopeName },
@@ -51,7 +89,7 @@ function ManagedUserRow({ access }: { access: ManagedUser }) {
   return <li className="panel member-access-row">
     <strong>{access.email}</strong>
     <p className="member-effective-access">{access.effectiveRole ? t("effectiveAccess", { role: t(access.effectiveRole === "administrator" ? "administrator" : "user"), scopes }) : t("organizationAccess", { scopes })}</p>
-    <ul className="member-list">{access.memberships.map(membership => <MembershipRow key={membership.id} membership={membership} />)}</ul>
+    <ul className="member-list">{access.memberships.map(membership => <MembershipRow key={membership.id} membership={membership} self={access.userId === currentUserId} />)}</ul>
   </li>;
 }
 
@@ -110,12 +148,14 @@ function InvitationRow({ invitation, acceptUrl }: { invitation: PendingInvitatio
 export function MemberManagement({
   organizationId,
   companyId,
+  currentUserId,
   users,
   pendingInvitations,
   acceptUrl,
 }: {
   organizationId: string;
   companyId: string | null;
+  currentUserId: string;
   users: ManagedUser[];
   pendingInvitations: PendingInvitation[];
   acceptUrl: string | null;
@@ -150,7 +190,7 @@ export function MemberManagement({
         <p>{t("activeCount", { count: activeCount })}</p>
         <p>{t("scopedAccessIntro")}</p>
         {activeCount === 0 ? <p>{t("none")}</p> : (
-          <ul className="member-list">{users.map(access => <ManagedUserRow key={access.userId} access={access} />)}</ul>
+          <ul className="member-list">{users.map(access => <ManagedUserRow key={access.userId} access={access} currentUserId={currentUserId} />)}</ul>
         )}
       </section>
       <section>
