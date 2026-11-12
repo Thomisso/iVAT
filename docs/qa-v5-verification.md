@@ -1,5 +1,7 @@
 # QA v5 final local verification (#179)
 
+**Closure update, 12 November 2026:** this is a historical local verification record. [PR #182](https://github.com/Thomisso/iVAT/pull/182) merged into `main` on 31 October 2026. Subsequent production acceptance was completed and recorded separately in [#169](https://github.com/Thomisso/iVAT/issues/169) and [#180](https://github.com/Thomisso/iVAT/issues/180); parent [#159](https://github.com/Thomisso/iVAT/issues/159) is closed. The pending cloud/production gates below describe their original capture times, not today's open QA queue. Original test counts, revisions, execution methods and limitations remain unchanged. Current agent verification follows the [CLI-only evidence policy](agents/cli-processes.md).
+
 Fresh canonical integration verification passed at
 `8a8472bcd5733754bbcb6386d0e475cc9f9bf2f0`: all 882 application cases,
 the complete three-case host/SSH fixture and 22 relevant production browser

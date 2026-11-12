@@ -1,6 +1,10 @@
 # Společná specifikace revize dokladů
 
-**Stav:** schválená společná specifikace k následné ticketizaci. Produktová rozhodnutí Q1–Q42 i celý dokument jsou potvrzené; implementace nebyla zahájena. Pro výpočet staré lhůty platí ověřovací brána v části „Podmínky implementace“.
+**Stav:** dodáno do `main` v [PR #243](https://github.com/Thomisso/iVAT/pull/243) dne 8. 11. 2026; [#222](https://github.com/Thomisso/iVAT/issues/222), integrační #242 a implementační tickety #223–#241 jsou uzavřené. Navazující oprava PDF evidence [#253 / PR #265](https://github.com/Thomisso/iVAT/pull/265) byla sloučena 10. 11. 2026. Produktová rozhodnutí Q1–Q42 níže jsou schválený podklad této dodávky, nikoli nedokončený rozhovor.
+
+**Navazující rozsah:** [QA v7 triage](qa-v7-triage.md), poměrný odpočet [#275](https://github.com/Thomisso/iVAT/issues/275) a oddělené měsíční KH [#277](https://github.com/Thomisso/iVAT/issues/277) jsou samostatná dosud nedodaná zadání. Tento stav potvrzuje merge kódu; nepřidává tvrzení o produkčním nasazení ani o novém klientském či vizuálním ověření.
+
+**Ověření staré lhůty:** bránu při tehdejší implementaci řešily #224 a #238; rozsah závěrů a inference zůstává v [původním rozboru](research/claim-deadline.md) a [navazujícím rozboru hranice](research/claim-deadline-new-yearend.md). Níže uvedené podmínky zachovávají historický kontrakt, nevytvářejí znovu otevřený produktový úkol.
 **Zdroj:** [QA v7](QA_v7.md), výchozí bod 7 a související požadavky.
 **Zahájeno:** 6. 11. 2026.
 **Schváleno:** 6. 11. 2026 výslovným závěrečným potvrzením uživatele.
