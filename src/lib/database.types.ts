@@ -1148,6 +1148,9 @@ isOneToOne: false
 "claim_mfa_replacement_operation":
 { Args: { "operation": string }; Returns: string
                            },
+"claim_operational_alert":
+{ Args: { "observed_at"?: string,"target_delivery_id": string }; Returns: Json
+                           },
 "claim_password_recovery":
 { Args: Record<PropertyKey, never>; Returns: string
                            },
@@ -1298,6 +1301,9 @@ isOneToOne: false
 "finish_mfa_enrollment":
 { Args: Record<PropertyKey, never>; Returns: (string)[]
                            },
+"finish_operational_alert":
+{ Args: { "observed_at"?: string,"target_claim_token": string,"target_delivery_id": string,"transport_outcome": string }; Returns: undefined
+                           },
 "finish_password_recovery":
 { Args: { "recovery_attempt_id": string,"succeeded": boolean }; Returns: undefined
                            },
@@ -1415,6 +1421,12 @@ isOneToOne: false
 "move_source_processing_status":
 { Args: { "expected_statuses": (Database["public"]['Enums']["source_file_status"])[],"target_source_file_id": string,"target_split_request_id": string,"target_status": Database["public"]['Enums']["source_file_status"] }; Returns: boolean
                            },
+"operational_alert_deliveries":
+{ Args: Record<PropertyKey, never>; Returns: Json
+                           },
+"operational_alert_preference":
+{ Args: Record<PropertyKey, never>; Returns: Json
+                           },
 "password_recovery_link_status":
 { Args: { "request_token": string }; Returns: string
                            },
@@ -1440,6 +1452,9 @@ isOneToOne: false
                            },
 "read_vat_report_artifact":
 { Args: { "target_artifact_id": string,"target_company_id": string }; Returns: Json
+                           },
+"reconcile_operational_alerts":
+{ Args: { "observed_at"?: string }; Returns: Json
                            },
 "reconcile_source_upload":
 { Args: { "original_byte_size": number,"original_file_name": string,"original_sha256": string,"target_batch_id": string,"target_company_id": string,"target_source_file_id": string }; Returns: Json
@@ -1586,6 +1601,9 @@ isOneToOne: false
                            },
 "set_default_ai_configuration":
 { Args: { "target_configuration_id": string }; Returns: undefined
+                           },
+"set_operational_alert_preference":
+{ Args: { "alert_enabled": boolean,"alert_locale": string }; Returns: undefined
                            },
 "set_organization_mfa_required":
 { Args: { "required": boolean,"target_organization_id": string }; Returns: undefined

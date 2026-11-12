@@ -793,7 +793,9 @@
     "proportional_claim_year_mismatch": "The proportional claim period must be in the Earliest Claim Period’s calendar year.",
     "upload_authentication_required": "Sign in again with the same account, then retry this upload.",
     "upload_incomplete": "Some bytes are still missing. Retry the upload.",
-    "upload_checksum_mismatch": "The received bytes do not match the selected file."
+    "upload_checksum_mismatch": "The received bytes do not match the selected file.",
+    "invalid_alert_preference": "Invalid alert preference.",
+    "verified_email_required": "Verify your current account email before enabling alerts."
   },
   "aiUsage": {
     "platformNav": "Platform AI usage",
@@ -2054,5 +2056,18 @@
     "name": "Organization name",
     "create": "Create Organization",
     "cancel": "Back to administration"
+  },
+  "operationalAlerts": {
+    "title": "Operational email alerts",
+    "intro": "Receive grouped alerts after five minutes of critical work blockage on your current verified account email.",
+    "enabled": "Enable operational email alerts",
+    "save": "Save preference",
+    "subject": "iVAT: critical operational blockage",
+    "heading": "Critical work has been blocked for at least five minutes",
+    "companies": "Companies",
+    "documents": "Documents",
+    "sourceFiles": "Source Files",
+    "exportJobs": "Export jobs",
+    "remediation": "Sign in to review and resolve the blockage"
   }
 }

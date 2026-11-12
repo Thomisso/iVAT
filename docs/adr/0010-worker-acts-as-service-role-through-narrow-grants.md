@@ -8,3 +8,5 @@ Job handlers live in `src/application/processing.ts` and take a `SystemClient`. 
 
 - Running jobs as the user who started them (storing a session or minting a JWT). Rejected: sessions expire before long or retried jobs finish, and minting tokens would put a signing secret in the worker anyway.
 - A direct Postgres connection as a dedicated role. Rejected for now: the worker also reads Source Files from Supabase Storage, which needs the Storage API.
+
+Operational email reconciliation is another narrow background handler. The worker receives only private incident candidates and current authorized recipients through service-role-only RPCs, then atomically claims and finishes durable delivery receipts. It receives no grants to private episode/preference/outbox tables or the unrestricted platform inventory. Public platform reads and personal opt-in mutations continue to require the human SuperAdmin MFA session.
