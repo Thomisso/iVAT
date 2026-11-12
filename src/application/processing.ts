@@ -59,7 +59,7 @@ export const PROCESSING_JOB_NAMES: ProcessingJob["name"][] = [
 ];
 
 export interface JobQueue {
-  send(job: ProcessingJob, options?: { startAfterSeconds?: number }): Promise<void>;
+  send(job: ProcessingJob, options?: { startAfterSeconds?: number; jobId?: string }): Promise<void>;
 }
 
 export interface AiProviderRegistry {
