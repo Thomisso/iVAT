@@ -6,7 +6,7 @@ import { FocusedShell } from "@/components/focused-shell";
 import { requireUserClient } from "@/lib/supabase/server";
 import { CompanyForm } from "./company-form";
 
-export default async function NewCompanyPage() {
+export default async function NewCompanyPage({ searchParams }: PageProps<"/companies/new">) {
   const client = await requireUserClient();
   const [t, nav, organizations] = await Promise.all([
     getTranslations("company"),
@@ -16,6 +16,9 @@ export default async function NewCompanyPage() {
   const administeredOrganizations = organizations.filter(
     (o) => o.role === "administrator",
   );
+  const requestedOrganization = (await searchParams).organizationId;
+  const selectedOrganization = administeredOrganizations.find((organization) => organization.id === requestedOrganization)?.id
+    ?? (administeredOrganizations.length === 1 ? administeredOrganizations[0].id : "");
   return (
     <FocusedShell actions={
       <form action={logOutAction}>
@@ -32,7 +35,7 @@ export default async function NewCompanyPage() {
           <>
             <p>{t("createIntro")}</p>
             <CompanyForm
-              organizationId={administeredOrganizations.length === 1 ? administeredOrganizations[0].id : ""}
+              organizationId={selectedOrganization}
               organizations={administeredOrganizations.length > 1 ? administeredOrganizations : undefined}
               initialValues={{
                 personType: "legal",
