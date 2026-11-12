@@ -795,7 +795,8 @@
     "upload_incomplete": "Některé části souboru ještě chybí. Opakujte nahrávání.",
     "upload_checksum_mismatch": "Přijatá data neodpovídají vybranému souboru.",
     "invalid_alert_preference": "Neplatné nastavení upozornění.",
-    "verified_email_required": "Před zapnutím upozornění ověřte aktuální e-mail účtu."
+    "verified_email_required": "Před zapnutím upozornění ověřte aktuální e-mail účtu.",
+    "invalid_representative": "Vyberte podporovaného zástupce a vyplňte platné jméno, příjmení a datum narození nebo evidenční číslo."
   },
   "aiUsage": {
     "platformNav": "Využití AI na platformě",
@@ -1661,7 +1662,7 @@
     },
     "noExportArtifacts": "Žádné uložené exportní artefakty",
     "noExportArtifactsHint": "Příslušný zákonný výstup vytvořte na obrazovce přiznání k DPH nebo kontrolního hlášení. Historie uložených artefaktů zůstane zde u daného období.",
-    "exportArtifacts": "Uložené XML artefakty",
+    "exportArtifacts": "Uložené XML a PDF artefakty",
     "artifactForm": "Formulář",
     "artifactActions": "Akce",
     "artifactChecksum": "Kontrolní součet SHA-256",
@@ -1761,7 +1762,9 @@
       "463": "FÚ pro Moravskoslezský kraj",
       "464": "FÚ pro Zlínský kraj",
       "13": "Specializovaný finanční úřad"
-    }
+    },
+    "representative": "Zástupce",
+    "noRepresentative": "Bez zástupce"
   },
   "platformHistory": {
     "title": "Historie firmy: {company}",
@@ -2069,5 +2072,18 @@
     "sourceFiles": "Zdrojové soubory",
     "exportJobs": "Exportní úlohy",
     "remediation": "Přihlaste se pro kontrolu a nápravu blokace"
+  },
+  "representation": {
+    "title": "Zástupce",
+    "selection": "Zastupování",
+    "default": "Použít výchozí údaje Company",
+    "off": "Bez zástupce",
+    "generalNatural": "4a — obecný zmocněnec, fyzická osoba",
+    "firstName": "Jméno zástupce",
+    "lastName": "Příjmení zástupce",
+    "birthDate": "Datum narození zástupce",
+    "evidenceNumber": "Evidenční číslo zástupce",
+    "identityHint": "Vyplňte jméno, příjmení a alespoň datum narození nebo evidenční číslo.",
+    "scopeHint": "Údaje neověřují plnou moc. iVAT výkaz nepodává."
   }
 }

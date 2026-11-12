@@ -1,3 +1,4 @@
+import { archiveVatReportPdf, type PdfArtifactError } from "./vat-report-pdf-artifacts";
 import { CONTROL_STATEMENT_DETAILS } from "./control-statement-form";
 import { PDFDocument } from "pdf-lib";
 import type { AppClient, Result } from "./client";
@@ -8,7 +9,7 @@ import { drawFormCell, drawFormHeader, embedFormFont, loadFormAsset } from "./pd
 
 // Retained for existing callers; statutory form content is always Czech.
 export type ControlStatementPdfCopy = Record<"title" | "vatId" | "ico" | "address" | "reportingPeriod" | "document" | "counterpartyVatId" | "counterpartyCountry" | "taxPointDate" | "supplyCode" | "section" | "rate" | "taxBaseCzk" | "vatCzk" | "sectionTotals" | "noEntries" | "statementTotals" | "subject", string>;
-export type ControlStatementPdfDownload = { bytes: Uint8Array; fileName: string; mediaType: "application/pdf" };
+export type ControlStatementPdfDownload = { bytes: Uint8Array; artifactId?: string; fileName: string; mediaType: "application/pdf" };
 
 /** Complete output and header-only preview reuse the exact opening artwork. */
 async function openingForm(header: VatReportExportHeader) {
@@ -63,15 +64,20 @@ export async function createControlStatementPdf(header: VatReportExportHeader, r
 }
 
 /** RLS scopes the saved report before any complete PDF bytes are produced. */
-export async function exportControlStatementPdf(client: AppClient, input: { companyId: string; period: string; details?: Record<string, string> }, _copy: ControlStatementPdfCopy | undefined, now: () => Date = () => new Date()): Promise<Result<ControlStatementPdfDownload, "report_not_found">> {
+export async function exportControlStatementPdf(client: AppClient, input: { companyId: string; period: string; details?: Record<string, string> }, _copy: ControlStatementPdfCopy | undefined, now: () => Date = () => new Date()): Promise<Result<ControlStatementPdfDownload, "report_not_found" | "invalid_representative" | PdfArtifactError>> {
   const report = await getVatReport(client, input.companyId, input.period);
   if (!report) return { ok: false, error: "report_not_found" };
-  const header = { company: report.result.company, period: report.period, details: await resolveEpoExportDetails(client, { companyId: input.companyId, company: report.result.company, details: input.details ?? {}, today: todayInPrague(now()) }) };
-  return { ok: true, value: { bytes: await createControlStatementPdf(header, prepareControlStatement(report.result)), fileName: `DPHKH1-${input.period}.pdf`, mediaType: "application/pdf" } };
+  const details = await resolveEpoExportDetails(client, { companyId: input.companyId, company: report.result.company, details: input.details ?? {}, today: todayInPrague(now()) });
+  if (!details.ok) return details;
+  const header = { company: report.result.company, period: report.period, details: details.value };
+  const bytes = await createControlStatementPdf(header, prepareControlStatement(report.result));
+  const archived = await archiveVatReportPdf(client, { companyId: input.companyId, reportId: report.id, reportGeneratedAt: report.generatedAt, format: "dphkh1", bytes, details: details.value });
+  if (!archived.ok) return archived;
+  return { ok: true, value: { bytes, artifactId: archived.value, fileName: `DPHKH1-${input.period}.pdf`, mediaType: "application/pdf" } };
 }
 
 /** No EPO rows, pagination or full-document exporter are involved in this path. */
-export async function exportControlStatementThumbnail(client: AppClient, input: { companyId: string; period: string; details?: Record<string, string> }, now: () => Date = () => new Date()): Promise<Result<ControlStatementPdfDownload, "report_not_found">> {
+export async function exportControlStatementThumbnail(client: AppClient, input: { companyId: string; period: string; details?: Record<string, string> }, now: () => Date = () => new Date()): Promise<Result<ControlStatementPdfDownload, "report_not_found" | "invalid_representative">> {
   const header = await getVatReportExportHeader(client, input, now);
   if (!header.ok) return header;
   return { ok: true, value: { bytes: await (await openingForm(header.value)).document.save(), fileName: `DPHKH1-${input.period}-thumbnail.pdf`, mediaType: "application/pdf" } };

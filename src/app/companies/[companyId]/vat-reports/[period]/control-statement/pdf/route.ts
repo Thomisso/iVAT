@@ -18,9 +18,9 @@ async function download(request: Request, context: RouteContext<"/companies/[com
   const result = await exportControlStatementPdf(await requireUserClient(), { companyId, period, details }, undefined);
   if (!result.ok) {
     const t = await getTranslations("errors");
-    return refusalResponse(result.error, { status: 404, message: t(result.error) });
+    return refusalResponse(result.error, { status: result.error === "report_not_found" || result.error === "forbidden" ? 404 : 422, message: t(result.error) });
   }
-  return downloadResponse(result.value);
+  return downloadResponse(result.value, result.value.artifactId ? { "X-iVAT-Artifact-ID": result.value.artifactId } : {});
 }
 export const GET = download;
 export const POST = download;

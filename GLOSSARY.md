@@ -213,3 +213,15 @@ _Avoid_: Closing, freeze
 **Manual Classification Required**:
 A flag on a Document whose VAT Regime is outside the regimes iVAT supports; such Documents are excluded from VAT Reports.
 _Avoid_: Unsupported, error
+
+**Representative**:
+A person identified as acting for the Company in the filing details of a VAT Report export. The Representative is distinct from the Company taxpayer, the export's author and any Authorized Signatory; entering these details does not establish or verify power of attorney.
+_Avoid_: Company User, export author, verified proxy
+
+**Representation Profile**:
+A Company's saved default Representative details, which a User can replace or explicitly disable for one export without changing the default.
+_Avoid_: Membership, Role, power of attorney record
+
+**Authorized Signatory**:
+The natural person identified as authorized to sign for a legal person in a VAT Report export, with their relationship to that legal person. This identity is separate from the Representative and the export's author.
+_Avoid_: Representative (when meaning the signatory), export author

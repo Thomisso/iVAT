@@ -1,3 +1,4 @@
+import { parseRepresentative, type Representative, type RepresentativeError } from "./epo-representative";
 import type { Result } from "./client";
 import { isEconomicActivity, isTerritorialOffice } from "./epo-catalogues";
 
@@ -30,6 +31,7 @@ export const TAX_OFFICES = [
   "13",
 ] as const;
 export type ExportDetails = {
+  representative?: Representative | null;
   taxOffice: string;
   territorialOffice: string;
   economicActivity: string;
@@ -55,10 +57,12 @@ export type ExportDetails = {
 
 /** Validates the resolved direct-filing details at the final server-side seam. */
 export function parseExportDetails(
-  input: Record<string, string>,
+  input: Record<string, unknown>,
   format: EpoFormat = "dphdp3",
-): Result<ExportDetails, "invalid_export_details"> {
-  const value = (key: string) => input[key]?.trim() ?? "";
+): Result<ExportDetails, "invalid_export_details" | RepresentativeError> {
+  const value = (key: string) => typeof input[key] === "string" ? input[key].trim() : "";
+  const representative = parseRepresentative(input.representative);
+  if (!representative.ok) return representative;
   const bounded = (key: string, max: number) =>
     value(key).length > 0 && value(key).length <= max;
   const date = value("preparedOn");
@@ -77,7 +81,7 @@ export function parseExportDetails(
     phone.length > 14
   )
     return refused;
-  const common = { taxOffice: value("taxOffice"), territorialOffice: value("taxOffice") === "13" ? "4000" : value("territorialOffice"), economicActivity: value("economicActivity"), preparedOn: date, email, phone };
+  const common = { ...(representative.value ? { representative: representative.value } : {}), taxOffice: value("taxOffice"), territorialOffice: value("taxOffice") === "13" ? "4000" : value("territorialOffice"), economicActivity: value("economicActivity"), preparedOn: date, email, phone };
   if (
     value("personType") === "P" &&
     bounded("signatoryFirstName", 20) &&

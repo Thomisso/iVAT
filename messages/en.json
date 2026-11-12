@@ -795,7 +795,8 @@
     "upload_incomplete": "Some bytes are still missing. Retry the upload.",
     "upload_checksum_mismatch": "The received bytes do not match the selected file.",
     "invalid_alert_preference": "Invalid alert preference.",
-    "verified_email_required": "Verify your current account email before enabling alerts."
+    "verified_email_required": "Verify your current account email before enabling alerts.",
+    "invalid_representative": "Select a supported representative and enter a valid first name, last name and birth date or evidence number."
   },
   "aiUsage": {
     "platformNav": "Platform AI usage",
@@ -1661,7 +1662,7 @@
     },
     "noExportArtifacts": "No stored export artifacts",
     "noExportArtifactsHint": "Create the appropriate statutory output from the VAT Return or Control Statement screen. Stored artifact history will remain period-scoped here.",
-    "exportArtifacts": "Stored XML artifacts",
+    "exportArtifacts": "Stored XML and PDF artifacts",
     "artifactForm": "Form",
     "artifactActions": "Actions",
     "artifactChecksum": "SHA-256 checksum",
@@ -1761,7 +1762,9 @@
       "463": "FÚ pro Moravskoslezský kraj",
       "464": "FÚ pro Zlínský kraj",
       "13": "Specializovaný finanční úřad"
-    }
+    },
+    "representative": "Representative",
+    "noRepresentative": "No representative"
   },
   "platformHistory": {
     "title": "Company history: {company}",
@@ -2069,5 +2072,18 @@
     "sourceFiles": "Source Files",
     "exportJobs": "Export jobs",
     "remediation": "Sign in to review and resolve the blockage"
+  },
+  "representation": {
+    "title": "Representative",
+    "selection": "Representation",
+    "default": "Use Company defaults",
+    "off": "No representative",
+    "generalNatural": "4a — general representative, natural person",
+    "firstName": "Representative first name",
+    "lastName": "Representative last name",
+    "birthDate": "Representative birth date",
+    "evidenceNumber": "Representative evidence number",
+    "identityHint": "Enter first name, last name and at least a birth date or evidence number.",
+    "scopeHint": "These details do not verify power of attorney. iVAT does not file the report."
   }
 }

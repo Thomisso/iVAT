@@ -6,6 +6,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getCompany } from "@/application/companies";
+import { listVatReportPdfArtifacts } from "@/application/vat-report-pdf-artifacts";
 import { listVatReportArtifacts } from "@/application/epo-export";
 import { getVatReport, getPeriodLock } from "@/application/vat-reports";
 import { VatReportArtifactDownload } from "@/components/vat-report-artifact-download";
@@ -33,7 +34,7 @@ export default async function ExportHistoryPage({
   const [company, report, artifacts, lock, t, epo] = await Promise.all([
     getCompany(client, companyId),
     getVatReport(client, companyId, period),
-    listVatReportArtifacts(client, { companyId, period }),
+    Promise.all([listVatReportArtifacts(client, { companyId, period }), listVatReportPdfArtifacts(client, { companyId, period })]).then(groups => groups.flat().sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))),
     getPeriodLock(client, companyId, period),
     getTranslations("vatReports"),
     getTranslations("epoExport"),
@@ -92,7 +93,7 @@ export default async function ExportHistoryPage({
                       <td>{artifact.authorEmail ?? artifact.authorUserId}</td>
                       <td><VatReportArtifactDownload
                         companyId={companyId} period={period} artifactId={artifact.id}
-                        fileName={artifact.fileName} format={artifact.format} kind={artifact.kind}
+                        fileName={artifact.fileName} format={artifact.format} kind={artifact.kind} mediaType={artifact.mediaType}
                         eligible={artifact.reportGeneratedAt === report.generatedAt && (artifact.kind === "draft"
                           ? !lock : !!lock && artifact.periodLockId === lock.id)}
                       /></td>
@@ -102,11 +103,12 @@ export default async function ExportHistoryPage({
                         <details className="export-artifact-details">
                           <summary>{t("artifactFilingDetails")}</summary>
                           <dl>
-                            <div><dt>{epo("taxOffice")}</dt><dd>{epo(`taxOffices.${details.taxOffice}`)}</dd></div>
+                            <div><dt>{epo("taxOffice")}</dt><dd>{details.taxOffice ? epo(`taxOffices.${details.taxOffice}`) : epo("notSet")}</dd></div>
                             <div><dt>{epo("territorialOffice")}</dt><dd>{details.territorialOffice || epo("notSet")}</dd></div>
                             {artifact.format === "dphdp3" && <div><dt>{epo("economicActivity")}</dt><dd>{details.economicActivity || epo("notSet")}</dd></div>}
                             <div><dt>{epo("preparedOn")}</dt><dd>{formatDate(details.preparedOn)}</dd></div>
                             <div><dt>{epo("signatory")}</dt><dd>{signatory}</dd></div>
+                            <div><dt>{epo("representative")}</dt><dd>{details.representative ? `${details.representative.code}/${details.representative.personType} · ${details.representative.firstName} ${details.representative.lastName} · ${[details.representative.birthDate ? formatDate(details.representative.birthDate) : "", details.representative.evidenceNumber].filter(Boolean).join(" / ")}` : epo("noRepresentative")}</dd></div>
                             <div><dt>{epo("email")}</dt><dd>{details.email || epo("notSet")}</dd></div>
                             <div><dt>{epo("phone")}</dt><dd>{details.phone || epo("notSet")}</dd></div>
                             <div><dt>{epo("serializedAddress")}</dt><dd>{address}</dd></div>
