@@ -79,11 +79,11 @@ export function ProportionalDeductionFields({ payload, editable, values, rateRow
           const rest = remainder?.rateBreakdown.find(row => row.rate === line.rate);
           return <tr key={line.rate}><th>{t("rateValue", { rate: line.rate ?? "" })}</th>
             {[line, selected, rest].map((row, index) => <td key={index}>{row?.netAmount != null && row?.vatAmount != null
-              ? <><Money amount={Number(row.netAmount)} currency={source.currency ?? ""} /> {t("amountSeparator")} <Money amount={Number(row.vatAmount)} currency={source.currency ?? ""} /></> : t("unavailable")}</td>)}
+              ? <><Money amount={row.netAmount} currency={source.currency ?? ""} /> {t("amountSeparator")} <Money amount={row.vatAmount} currency={source.currency ?? ""} /></> : t("unavailable")}</td>)}
           </tr>;
         })}</tbody><tfoot><tr><th>{t("total")}</th>
           {[source.totals, summary, remainder].map((row, index) => <td key={index}>{row?.netAmount != null && row?.vatAmount != null
-            ? <><Money amount={Number(row.netAmount)} currency={source.currency ?? ""} /> {t("amountSeparator")} <Money amount={Number(row.vatAmount)} currency={source.currency ?? ""} /></> : t("unavailable")}</td>)}
+            ? <><Money amount={row.netAmount} currency={source.currency ?? ""} /> {t("amountSeparator")} <Money amount={row.vatAmount} currency={source.currency ?? ""} /></> : t("unavailable")}</td>)}
         </tr></tfoot></table>}
       <p>{t("filing")}</p>
     </>}

@@ -114,6 +114,7 @@ it.each([
 
 it.each([
   { net: "1000.00", vat: "210.00", gross: "1210.00", percentage: 60, selectedNet: "600.00", selectedVat: "126.00", section: "B.3", restNet: "400.00", restVat: "84.00" },
+  { net: "0.03", vat: "0.01", gross: "0.04", percentage: 50, selectedNet: "0.02", selectedVat: "0.01", section: "B.3", restNet: "0.01", restVat: "0.00" },
   { net: "19.99", vat: "4.20", gross: "24.19", percentage: 33, selectedNet: "6.60", selectedVat: "1.39", section: "B.3", restNet: "13.39", restVat: "2.81" },
   { net: "8264.46", vat: "1735.54", gross: "10000.00", percentage: 50, selectedNet: "4132.23", selectedVat: "867.77", section: "B.3", restNet: "4132.23", restVat: "867.77" },
   { net: "8264.47", vat: "1735.54", gross: "10000.01", percentage: 50, selectedNet: "4132.24", selectedVat: "867.77", section: "B.2", restNet: "4132.23", restVat: "867.77" },
@@ -272,4 +273,24 @@ it("assignment cannot defer a proportional decision whose Earliest Claim Period 
   if (!created.ok) throw new Error(created.error);
   expect((await company.client.rpc("update_document_reporting", { target_document_id: created.value.id, new_claimed_reporting_period: "2026-11" })).error)
     .toMatchObject({ code: "P0001", hint: "claim_eligibility_required" });
+});
+
+
+it("Return XML rounds summed proportional amounts once while Control Statement retains exact cents", async () => {
+  const company = await administratorWithCompany();
+  const payload = { ...source, rateBreakdown: [{ rate: 21, netAmount: "19.99", vatAmount: "4.20" }],
+    totals: { netAmount: "19.99", vatAmount: "4.20", grossAmount: "24.19" } };
+  for (const number of ["SMALL-1", "SMALL-2"]) {
+    const created = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload: { ...payload, documentNumber: number } }, undefined, registry);
+    if (!created.ok) throw new Error(created.error);
+    expect(await saveAndApproveDocument(company.client, { companyId: company.companyId, documentId: created.value.id, basedOnVersion: 1,
+      requestId: crypto.randomUUID(), payload: { ...payload, documentNumber: number, proportionalDeduction: { ...ratio, percentage: 33 } } }, undefined, registry)).toMatchObject({ ok: true });
+  }
+  expect((await generateVatReport(company.client, { companyId: company.companyId, period: "2026-10" })).ok).toBe(true);
+  const report = (await getVatReport(company.client, company.companyId, "2026-10"))!;
+  expect(report.result.vatReturn.find(line => line.line === "40")).toMatchObject({ netAmount: "13.20", vatAmount: "2.78" });
+  const xml = await createEpoXml(report.result, "dphdp3", details);
+  expect(xml.ok && xml.value).toContain('pln23="13" odp_tuz23_nar="3"');
+  const kh = await createEpoXml(report.result, "dphkh1", details);
+  expect(kh.ok && kh.value).toContain('zakl_dane1="13.20" dan1="2.78"');
 });
