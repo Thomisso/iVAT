@@ -372,7 +372,22 @@
       "introduction": "Open the invitation and explicitly accept access. A new user chooses a password; an existing user keeps their credentials.",
       "linkLabel": "Open invitation",
       "expiry": "This invitation is single-use and expires seven days after it was created."
-    }
+    },
+    "confirmMembershipTitle": "Review Membership change",
+    "confirmMembershipPerson": "Person: {email}. Membership: {membership}.",
+    "confirmMembershipScope": "Exact scope: {scope}. Current Role: {role}.",
+    "confirmMembershipRemoval": "This concrete Membership will be removed.",
+    "confirmMembershipRole": "This concrete Membership will change to {role}.",
+    "organizationImpact": "This Organization Membership supplies inherited access to the following Companies. Review the remaining access in each Company.",
+    "platformAccessSurvives": "SuperAdmin platform access remains.",
+    "noCompanyImpact": "No active Companies are affected.",
+    "companyAccessRemoved": "No access to this Company will remain through Memberships.",
+    "companyAccessSurvives": "Access to this Company remains as {role}.",
+    "survivingMembership": "Remaining Membership: {scope}, {role} ({membership}).",
+    "revalidatedOnConfirmation": "The database will check the current access and safeguards again when you confirm. If the impact changes, review it again.",
+    "confirmMembershipChange": "Confirm Membership change",
+    "cancelMembershipChange": "Cancel change",
+    "selfChangeHint": "You cannot remove your own Membership or demote yourself from Administrator. Ask another authorized person to arrange the handover."
   },
   "dashboard": {
     "companies": "Companies"
@@ -768,7 +783,10 @@
     "claim_deadline_expired": "The claim filing deadline has expired. A new approval cannot establish timely filing.",
     "claimed_period_after_deadline": "This period ends too late for an ordinary claim before the filing deadline. Choose an earlier eligible period.",
     "counterparty_resolution_required": "Resolve the Counterparty identity before approval. Select an existing entry, restore an archived match, or explicitly confirm creation without identifiers. Changed directory warnings must be reviewed.",
-    "organization_creation_failed": "The Organization could not be saved. Please try again."
+    "organization_creation_failed": "The Organization could not be saved. Please try again.",
+    "membership_self_change": "You cannot remove your own Membership or demote yourself from Administrator. Ask another authorized person to arrange the handover.",
+    "membership_last_administrator": "This change would remove the last scoped Administrator. Another person must hold an Administrator Membership first.",
+    "membership_change_stale": "Access changed while you were reviewing. Cancel this confirmation and review the current impact again."
   },
   "aiUsage": {
     "platformNav": "Platform AI usage",
