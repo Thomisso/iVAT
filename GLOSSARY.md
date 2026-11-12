@@ -122,8 +122,12 @@ _Avoid_: Deleted Document, failed Extraction
 A User's explicit selection of amounts for eligible separate supplies on an incoming Document, by VAT rate, while preserving the Document's full amounts. It is independent of data discrepancies and distinct from statutory proportional or reduced deduction.
 _Avoid_: Rounding correction, corrected total
 
+**Proportional Deduction**:
+A User's explicitly confirmed input-VAT deduction under § 75 based on already known actual economic use, using one whole percentage for the entire Document. It is distinct from selecting separate supplies through a Partial Claim and from reduced deduction under § 76.
+_Avoid_: Partial Claim, estimated coefficient, reduced deduction
+
 **Unclaimed Portion**:
-The difference between a Document's full amounts and its explicitly selected Partial Claim, by VAT rate. It does not classify expenses for income tax or absorb discrepancies in extracted data.
+The difference between a Document's full amounts and its explicitly selected Partial Claim or Proportional Deduction, by VAT rate. It does not classify expenses for income tax or absorb discrepancies in extracted data.
 _Avoid_: Non-tax expense, balancing amount
 
 **Return to Review**:

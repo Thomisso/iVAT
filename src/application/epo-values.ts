@@ -113,7 +113,7 @@ export function prepareControlStatement(report: ComputedVatReport): EpoRow[] {
         attributes.c_evid_dd = entry.documentNumber!;
         attributes.dppd = epoDate(entry.taxPointDate!);
         if (section === "A.4") attributes.kod_rezim_pl = "0";
-        else attributes.pomer = "N";
+        else attributes.pomer = entry.proportionalDeduction ? "A" : "N";
         attributes.zdph_44 = "N";
       }
       if (section !== "A.1") {

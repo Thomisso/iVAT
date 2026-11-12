@@ -59,7 +59,7 @@ export const PROCESSING_JOB_NAMES: ProcessingJob["name"][] = [
 ];
 
 export interface JobQueue {
-  send(job: ProcessingJob, options?: { startAfterSeconds?: number }): Promise<void>;
+  send(job: ProcessingJob, options?: { startAfterSeconds?: number; jobId?: string }): Promise<void>;
 }
 
 export interface AiProviderRegistry {
@@ -442,6 +442,7 @@ async function extractDocument(
         // Partial Claim is a human decision. Ignore even malformed provider
         // metadata before financial findings; PostgreSQL preserves prior choices.
         partialClaim: undefined,
+        proportionalDeduction: undefined,
         direction: detectDocumentDirection(
           extractedPayload,
           { ico: company.ico, vatId: company.vat_id },

@@ -1,4 +1,5 @@
 import { halers, amount, assessedVat } from "./money";
+import { proportionalDeductionRates } from "./proportional-deduction";
 import { partialClaimRates } from "./partial-claim";
 import { convertedAmount, documentCzkConversion } from "./exchange-rates";
 import type {
@@ -82,6 +83,8 @@ export type VatReturnLine = {
 
 export type ControlStatementEntry = {
   section: "A.1" | "A.2" | "A.4" | "A.5" | "B.1" | "B.2" | "B.3";
+  /** Stored B.2 legal meaning; absent on historical reports means full/Partial Claim. */
+  proportionalDeduction?: boolean;
   counterpartyVatId: string | null;
   counterpartyCountry: string | null;
   documentNumber: string | null;
@@ -173,7 +176,7 @@ export function vatReportDocumentExclusion(document: ReportDocument): ExclusionR
     !p.totals.grossAmount
   )
     return "incomplete_data";
-  if (p.partialClaim !== undefined && !reportingClaimRates(p)) return "incomplete_data";
+  if ((p.partialClaim !== undefined || p.proportionalDeduction !== undefined) && !reportingClaimRates(p)) return "incomplete_data";
   const regime = p.proposedVatRegime;
   if (
     !regime ||
@@ -195,7 +198,7 @@ type CompleteExtractionPayload = Omit<ExtractionPayload, "rateBreakdown"> & { ra
 
 /** The selection stays in source currency; output uses the full Document's fixing. */
 function reportingClaimRates(payload: ExtractionPayload): RateBreakdownLine[] | null {
-  const selected = partialClaimRates(payload);
+  const selected = payload.proportionalDeduction ? proportionalDeductionRates(payload) : partialClaimRates(payload);
   if (!selected || payload.currency === "CZK") return selected;
   const conversion = documentCzkConversion(payload);
   if (!conversion) return null;
@@ -332,7 +335,7 @@ export function computeVatReport(
     }
     // exclusion() refused every incomplete row through validateExtractionPayload.
     const p = czkPayload(payload as CompleteExtractionPayload);
-    const reportingRates = (payload.partialClaim ? reportingClaimRates(payload)! : p.rateBreakdown)
+    const reportingRates = (payload.partialClaim || payload.proportionalDeduction ? reportingClaimRates(payload)! : p.rateBreakdown)
       .filter(rate => !isZeroRateBreakdownLine(rate));
     if (!reportingRates.length) continue;
     const counterparty = p.direction === "incoming" ? p.supplier : p.customer;
@@ -347,6 +350,7 @@ export function computeVatReport(
     if (!entry) {
       entry = {
         section,
+        ...(section === "B.2" ? { proportionalDeduction: !!payload.proportionalDeduction } : {}),
         counterpartyVatId: individual ? vatId : null,
         counterpartyCountry: section === "A.2" ? p.supplier.country : null,
         documentNumber: individual ? p.documentNumber : null,

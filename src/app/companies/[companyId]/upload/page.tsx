@@ -1,11 +1,12 @@
 import Link from "next/link";
+import { currentUserId } from "@/application/auth";
 import { companyPageContext, withCompanyReturnTo } from "@/application/return-context";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getCompany, getMyCompanyRole } from "@/application/companies";
 import { getUploadLimits } from "@/application/source-files";
 import { listUploadBatches } from "@/application/upload-batches";
-import { requireUserClient } from "@/lib/supabase/server";
+import { availableAuthValue, requireUserClient } from "@/lib/supabase/server";
 import { PageLayout } from "@/components/app-shell";
 import { DateInput } from "@/components/date-input";
 import { EmptyState } from "@/components/empty-state";
@@ -31,6 +32,8 @@ export default async function UploadPage({
     historyPage: String(page),
   })}`;
   const client = await requireUserClient();
+  const userId = availableAuthValue(await currentUserId(client));
+  if (!userId) notFound();
   const [company, role, limits, batches, t, ai, workspace, filter] = await Promise.all([
     getCompany(client, companyId),
     getMyCompanyRole(client, companyId),
@@ -58,7 +61,7 @@ export default async function UploadPage({
     </section>}
     <section className="panel upload-workspace-new" aria-labelledby="new-upload-title">
       <div><h2 id="new-upload-title">{workspace("newBatch")}</h2><p>{workspace("newBatchHint")}</p></div>
-      <SourceFileUploadForm key={companyId} companyId={companyId} limits={limits} />
+      <SourceFileUploadForm key={`${userId}:${companyId}`} companyId={companyId} userId={userId} limits={limits} />
     </section>
     <section className="upload-history" aria-labelledby="upload-history-title">
       <div className="upload-section-heading"><div><h2 id="upload-history-title">{workspace("history")}</h2><p>{workspace("historyHint")}</p></div><span>{workspace("historyPage", { page: historyPage })}</span></div>

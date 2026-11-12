@@ -594,11 +594,23 @@ function payloadFromForm(formData: FormData): ExtractionPayload {
   let basisValid = true;
   try { basis = optionalField(formData, "partialClaim.basis") ? JSON.parse(field(formData, "partialClaim.basis")) : undefined; }
   catch { basisValid = false; }
+  let proportionalBasis: NonNullable<ExtractionPayload["proportionalDeduction"]>["basis"];
+  let proportionalBasisValid = true;
+  try { proportionalBasis = optionalField(formData, "proportionalDeduction.basis") ? JSON.parse(field(formData, "proportionalDeduction.basis")) : undefined; }
+  catch { proportionalBasisValid = false; }
   let claimEligibility: ExtractionPayload["claimEligibility"];
   try { claimEligibility = optionalField(formData, "claimEligibility") ? JSON.parse(field(formData, "claimEligibility")) : undefined; }
   catch { claimEligibility = undefined; }
   return {
     schemaVersion: 1,
+    ...(field(formData, "proportionalDeduction.mode") === "full" ? { proportionalDeduction: null }
+      : field(formData, "proportionalDeduction.mode") === "proportional" ? { proportionalDeduction: {
+        percentage: /^\d+$/.test(field(formData, "proportionalDeduction.percentage")) ? Number(field(formData, "proportionalDeduction.percentage")) : null,
+        confirmed: proportionalBasisValid && field(formData, "proportionalDeduction.confirmed") === "true",
+        operatingExpenseConfirmed: field(formData, "proportionalDeduction.operatingExpenseConfirmed") === "true",
+        actualUseConfirmed: field(formData, "proportionalDeduction.actualUseConfirmed") === "true", origin: "user" as const,
+        ...(proportionalBasis ? { basis: proportionalBasis } : {}),
+      } } : {}),
     ...(claimEligibility ? { claimEligibility } : {}),
     documentType: optionalField(formData, "documentType") as ExtractionPayload["documentType"],
     documentNumber: optionalField(formData, "documentNumber"),
