@@ -6,7 +6,7 @@
 
 **Navazující triage Q15–Q25:** vlastník potvrdil [měření přesnosti a statistiky protistran](qa-v7-quality-statistics.md). Nové #280–#282 jsou zahrnuté níže; původní auditní rozsah 58 Markdown a tří PDF zůstává stejný. Reálná sada ani naměřená přesnost tím nevznikly.
 
-**Úplná zbývající frontier:** [Q26–Q40](qa-remaining-triage.md) pokrývají všechny další explicitní QA odklady a provozní návaznosti. Jde o doporučení čekající na odpovědi; stávající readiness ani potvrzené odklady se tím nemění.
+**Úplná zbývající frontier:** [Q26–Q40](qa-remaining-triage.md) pokrývají všechny další explicitní QA odklady a provozní návaznosti. Q26–Q40 vlastník potvrdil. Vybrané směry mají #283–#288; výzkum a údržba #289/#290, potvrzené odklady #291. Na odpovědi nyní čekají jen navazující Q41–Q49; #284 je již ready-for-agent a DNS podklad Q40 je připravený, neodeslaný.
 
 Tento inventář nevytváří závazek implementovat všechny budoucí nápady. Rozlišuje potvrzené zadání, explicitní odklad, skutečnou mezeru v kvalitě či důkazech a historický text. Čtení kódu a uzavření issue samo neprokazuje všechny runtime/klientské akceptační scénáře.
 
@@ -27,7 +27,7 @@ Tento inventář nevytváří závazek implementovat všechny budoucí nápady. 
 
 [QA v7](QA_v7.md) je v hlavní větvi stále ve starém stavu, dokud nebude sloučen dokumentační [PR #279](https://github.com/Thomisso/iVAT/pull/279). Tento audit a opravy patří do téhož PR. Produkční nasazení se z merge samotného neodvozuje.
 
-## Schválená a dosud nedodaná zadání
+## Vybrané a dosud nedodané rozsahy
 
 | Issue | Stav po navazující triage | Rozsah |
 | --- | --- | --- |
@@ -39,8 +39,14 @@ Tento inventář nevytváří závazek implementovat všechny budoucí nápady. 
 | [#280](https://github.com/Thomisso/iVAT/issues/280) | ready-for-agent | Evaluátor kritické přesnosti a opakovatelné porovnání providerů, offline testovatelný |
 | [#281](https://github.com/Thomisso/iVAT/issues/281) | ready-for-human | Soukromá reálná sada, lidská reference a plán prvního běhu; bez spuštění placeného benchmarku |
 | [#282](https://github.com/Thomisso/iVAT/issues/282) | ready-for-agent | Statistiky na detailu jedné Counterparty podle aktuálních Approved Documents |
+| [#283](https://github.com/Thomisso/iVAT/issues/283) | needs-triage, nativní blocker #278 | Přehled práce napříč dostupnými Companies; Q41–Q42 |
+| [#284](https://github.com/Thomisso/iVAT/issues/284) | ready-for-agent | Ruční skupiny fotografií jednoho Document se zachováním originálů a evidence |
+| [#285](https://github.com/Thomisso/iVAT/issues/285) | needs-triage | Úpravy fotografií a upozornění; Q43 |
+| [#286](https://github.com/Thomisso/iVAT/issues/286) | needs-triage | Byte-resume přenosu; Q44 |
+| [#287](https://github.com/Thomisso/iVAT/issues/287) | needs-triage | Údaje zastupování v exportu; Q45–Q46 |
+| [#288](https://github.com/Thomisso/iVAT/issues/288) | needs-triage | Opt-in e-mailové provozní alerty; Q47–Q49 |
 
-Po vytvoření #280–#282 otevřený seznam obsahuje 21 produktových/přípravných issues a jeden infrastrukturní registr #207. Kromě osmi výše jde o třináct backlog issues níže. Nové nepopsané budoucí nápady z dokumentace do tohoto čísla nepatří.
+Po Q26–Q40 otevřený seznam obsahuje 30 produktových/přípravných/backlogových issues a jeden infrastrukturní registr #207. Čtrnáct vybraných rozsahů je výše; třináct dřívějších backlog issues a tři nové výzkumné/údržbové/přehledové položky jsou níže. Vybraný směr není automaticky hotová specifikace ani dodaná funkce. Širší nepopsané vize do tohoto čísla nepatří.
 
 ## Backlog s existujícími otevřenými issues
 
@@ -60,26 +66,34 @@ Po vytvoření #280–#282 otevřený seznam obsahuje 21 produktových/příprav
 | [#14](https://github.com/Thomisso/iVAT/issues/14) | Billing/subscriptions; automatické dokoupení allowance ještě nemá samostatnou specifikaci |
 | [#221](https://github.com/Thomisso/iVAT/issues/221) | Odhady/korekce a majetek nad úzký #275, §76 a kombinace, částečný nárok a oddělená období RC/EU, částečné dobropisy; koordinace s #5/#2 |
 
+Další potvrzené backlogové položky:
+
+| Issue | Odklad |
+| --- | --- |
+| [#289](https://github.com/Thomisso/iVAT/issues/289) | Výzkum kalibrované nejistoty až podle skutečně naměřené baseline; samotná příprava #280/#281 nestačí |
+| [#290](https://github.com/Thomisso/iVAT/issues/290) | Nízkoprioritní prověření duplicity ovládání úloh; není nová funkční vada |
+| [#291](https://github.com/Thomisso/iVAT/issues/291) | Přehledový registr všech potvrzených odkladů; žádná hromadná implementace registru |
+
 Výchozí soupis je v [requirements v0.2, 15.4](agents/requirements.md) a v [revizi dokladů](document-review.md). Označení backlog není schválení úplné implementační specifikace.
 
-## Další explicitní odklady bez samostatného otevřeného ticketu
+## Vyřízení původně neticketizovaných QA odkladů
 
-U těchto témat nebyl v aktuálním otevřeném seznamu nalezen odpovídající samostatný ticket. Neznamená to, že existuje schválená dodávka nebo že je vhodné vytvořit jeden obří ticket pro celou skupinu.
+Q26–Q40 rozlišují vybrané funkce, vědomý odklad a již platnou produktovou politiku. Žádný explicitní QA odklad nezůstává bez tohoto rozhodnutí; zbylé detaily vybraných funkcí uvádí Q41–Q49.
 
-| Téma | Zdroj a vymezení |
+| Téma | Aktuální zachycení |
 | --- | --- |
-| Širší analytika protistran nad #282 | [QA v7, bod 2](QA_v7.md), [revize dokladů, Adresář protistran](document-review.md). #282 dodá jen první detailový souhrn; žebříčky a širší analytika zůstávají mimo jeho rozsah |
-| Cross-company dashboard | [QA v1, oddíl 18](QA_v1.md); výslovně mimo aktuální #278 |
-| Skládání více fotografií do jednoho vícestránkového Document | QA v1, oddíl 18; není totéž jako už podporované vícestránkové PDF |
-| Ořez, perspektiva a hodnocení kvality fotografií | QA v1, oddíl 18; není totéž jako oprava souřadnic PDF #253 |
-| Plně resumable/chunkovaný upload | QA v1, oddíl 18; stávající draft/retry/přetrvání fronty je užší schopnost |
-| Podání přes zástupce / daňového poradce | QA v1, oddíl 18; současné exportní údaje podepisující osoby nejsou celý tento proces |
-| Kalibrovaná nejistota/confidence a její výzkum | QA v1, oddíl 18; výzkum providerů/API a navazující workflow až po doložení korelace. Nejde o dodanou automatiku podle ADR-0019 |
-| Bezpečné Company-managed AI credentials/BYOK | [QA v2, Out of Scope](QA_v2.md), [ADR-0011](adr/0011-platform-owns-ai-credentials-and-company-access.md); možné budoucí přehodnocení, dnešní vlastnictví zůstává platformové |
-| Dark mode | QA v2, Out of Scope; dnešní světlý vzhled je záměrný |
-| Externí provozní alerty SuperAdmina | QA v2, Out of Scope, ADR-0011; e-mail/SMS jsou odložené, in-app monitoring je dodaný |
-| Samostatná dlouhodobá historie incidentů nad Audit Log | QA v2, Out of Scope; explicitně vyloučený rozsah, nikoli skrytý závazek |
-| Budoucí veřejná registrace | [Google sign-in](google-sign-in.md); #158 byl převeden na SuperAdmin provisioning, takže už není jejím ticketem |
+| Cross-company pracovní přehled | #283, vybraný k dopracování, nativní blocker #278 |
+| Seskupení fotografií | #284, ready-for-agent |
+| Úpravy/kvalita fotografie | #285, zbývá Q43 |
+| Resumable/chunkovaný upload | #286, zbývá Q44 |
+| Údaje zástupce/poradce v exportu | #287, zbývá Q45–Q46; celý proces automatického podání zůstává odložený |
+| Kalibrovaná nejistota/confidence | #289, výzkumný odklad, žádný nynější confidence approval práh |
+| Externí provozní alerty | E-mail #288 vybraný, Q47–Q49; SMS/webhooky odložené v #291 |
+| Dlouhodobá historie incidentů, dark mode, širší BI/analytika | Potvrzený odklad #291; základní Audit Log a #282 nejsou zaměněné za tyto širší schopnosti |
+| Přidávání souborů do zahájené dávky / obnova smazané Company | Dva potvrzené odklady v #291, žádná tichá reaktivace |
+| BYOK a provider visibility | Platná platformová politika podle QA v2/ADR-0011; není to vybrané chybějící zadání |
+| Budoucí veřejná registrace | Výslovně odložená; #158 zůstává SuperAdmin provisioning, shrnuto v #291 |
+| DNS příčina | [Neodeslaný podklad pro podporu](rosti-dns-support-draft.md) připravený podle Q40. Příčina resolveru ani současná reprodukce se netvrdí |
 
 ### Širší budoucí vize SRS
 
@@ -111,12 +125,12 @@ U těchto témat nebyl v aktuálním otevřeném seznamu nalezen odpovídající
 | Kalendářní hranice nároku §73 | [Stará lhůta](research/claim-deadline.md) a [nová year-end hranice](research/claim-deadline-new-yearend.md) zachovávají omezení síly výkladu. Implementace #224/#238 je dodaná; závěr o nepracovním konci je zdokumentovaná omezená inference, nikoli nově doložené výslovné rozhodnutí soudu nebo odborné potvrzení. Není to automatický důkaz nové vady |
 | Klientské a vizuální chování revize | [Akceptační inventář](document-review-acceptance.md) výslovně neprokazuje HTTP/SSR testy hydrataci, fokus, zkratky, resize, Inspect rendering, vizuální správnost či přístupnost. Zachované browser testy jsou source inventory; dnešní procesy je nesmějí spouštět. Nedokládat je vymyšleným passing stavem, ani je zaměnit za nově zjištěnou chybu |
 | Google a live-provider konfigurace | [Google runbook](google-sign-in.md) popisuje výchozí vypnutý provider a podmínky skutečné konfigurace. Kontrolované settings a lokální HTTP nejsou live Google OAuth proof. Ostatní kontraktní adaptéry mají podobně opt-in hranice; chybějící důkaz není automaticky chybějící adaptér |
-| Roští DNS root cause | [QA v6, bod g](QA_v6.md) ponechává šetření resolveru nepotvrzené. Aplikační interní transport #195–#197/PR #198 je dodaný; jeho úspěch nevysvětluje externí příčinu. Bez nového oprávnění se nepíše podpoře |
+| Roští DNS root cause | [QA v6, bod g](QA_v6.md) ponechává šetření resolveru nepotvrzené. Aplikační interní transport #195–#197/PR #198 je dodaný; jeho úspěch nevysvětluje externí příčinu. Podle Q40 je [podklad](rosti-dns-support-draft.md) připravený, neodeslaný; příčina zůstává neobjasněná |
 | Doručitelnost iCloud | Závěrečné záznamy #169/#180 dokládají úspěšnou autentizaci a dokončení pozvánek/obnovy, ale historická iCloud klasifikace Junk nebyla vydávaná za vyřešené doručování do Inboxu. Není to důvod znovu otevřít celý dodaný SMTP tok |
 | Skutečné CI úspory / náklady | [CI runbook](ci.md) a [audit 9. 11.](ci-workflow-audit-2026-11-09.md) odlišují pozorované runner intervals, zaokrouhlené odhady, skutečné faktury a srovnatelnost vstupů. Konkrétní aktuální finanční úsporu nelze vydat za ověřenou jen z lokálních policy testů nebo jednoho kratšího běhu |
 | Automatické uzavírání issues a sledování | [Tracker runbook](agents/agent-tracking.md) má omezený setup readback a odlišuje skutečnou PR-caused closure. Chybějící podporovaný setting API není nový produktový požadavek ani opakovaný implementační gate. Historické nepozorování cron triggeru v krátkém acceptance okně není důkaz dnešní nefunkčnosti |
 | Obnova bez záložního kódu či pokračovacího důkazu | [MFA recovery](mfa-recovery.md) vymezuje dostupné schopnosti a potřebu samostatného operator procesu pro případ mimo ně. V tomto auditu nebyl nalezen schválený nový postup; nezavádět z něj MFA bypass |
-| Duplicitní ovládání úloh | [QA v6 implementační záznam](QA_v6_implementation.md) ponechává volitelnou údržbovou připomínku. Není to neuzavřený hard finding původní dodávky |
+| Duplicitní ovládání úloh | [QA v6 implementační záznam](QA_v6_implementation.md) ponechává volitelnou údržbovou připomínku. Není to neuzavřený hard finding původní dodávky; nízkoprioritní evidence #290 |
 
 ### Reálné release běhy už existují
 
@@ -135,7 +149,7 @@ Toto je read-only kontrola skutečného průběhu. Není novou validací každé
 - Google runbook neodkazuje na #158 jako budoucí veřejnou registraci; #158 už má jiné potvrzené zadání.
 - Historická SRS v0.2, vizuální prototyp a CI/QA záznamy jsou čtené podle jejich data a pozdějších ADR/dodávek. Věty o nehotovém schématu či nepodporované automatice nejsou důvod duplikovat dodaný kontrakt a #241.
 
-Nové nevybrané funkce z inventáře nedostaly automaticky ready-for-agent ani příslib implementace. Jejich prioritu a konkrétní rozsah je třeba rozhodnout při další triage. Nejkonkrétnější opomenuté položky — první statistiky protistran a reálný golden set s novým skórováním — prošly navazující triage Q15–Q25 a mají #280–#282. Ostatní odklady zůstávají viditelně evidované.
+Nevybrané funkce jsou po Q26–Q40 vědomě odložené v #291, bez automatického ready-for-agent či příslibu implementace. Vybrané směry #283–#288 mají vlastní readiness a zbylé otázky. Nejkonkrétnější opomenuté položky — první statistiky protistran a reálný golden set s novým skórováním — prošly navazující triage Q15–Q25 a mají #280–#282. Ostatní odklady zůstávají viditelně evidované.
 
 ## Pokrytí dokumentů
 
