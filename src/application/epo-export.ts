@@ -16,7 +16,7 @@ export const EPO_SCHEMA_VERSIONS = {
   dphdp3: "03.01.04",
   dphkh1: "03.01.15",
 } as const;
-export const EPO_SERIALIZER_VERSION = "2";
+export const EPO_SERIALIZER_VERSION = "3";
 
 export type ExportVatReportError =
   | EpoXmlError
@@ -80,8 +80,9 @@ async function exportVatReportArtifact(
   const resolvedDetails = await resolveEpoExportDetails(client, {
     companyId: input.companyId, company: report.result.company, details: input.details, today,
   });
-  if (!resolvedDetails.address) return { ok: false, error: "epo_address_required" };
-  const { address, ...fields } = resolvedDetails;
+  if (!resolvedDetails.ok) return resolvedDetails;
+  if (!resolvedDetails.value.address) return { ok: false, error: "epo_address_required" };
+  const { address, ...fields } = resolvedDetails.value;
   const details = parseExportDetails(fields, input.format);
   if (!details.ok) return details;
   details.value.address = address;
