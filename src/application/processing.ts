@@ -1,3 +1,4 @@
+import { preparePhotoGroup, photoGroupAiInput } from "./photo-groups";
 import { prepareExtractionInput } from "./pdf-extraction";
 import { bindSourceEvidence } from "./source-locations";
 import {
@@ -118,6 +119,10 @@ async function completeCompanyExport(
       const stored = await system.storage
         .from(SOURCE_FILE_BUCKET)
         .download(sourceFileObjectPath(receipt.companyId, sourceFile.id));
+      if (stored.error) throw stored.error;
+      return new Uint8Array(await stored.data.arrayBuffer());
+    }, async path => {
+      const stored = await system.storage.from(SOURCE_FILE_BUCKET).download(path);
       if (stored.error) throw stored.error;
       return new Uint8Array(await stored.data.arrayBuffer());
     });
@@ -260,6 +265,20 @@ async function failOnFinalAttempt(attempt: Attempt, markFailed: () => Promise<vo
 }
 
 async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId: string, attempt: Attempt) {
+  let grouped: Awaited<ReturnType<typeof preparePhotoGroup>>;
+  try { grouped = await preparePhotoGroup(system, sourceFileId); }
+  catch (error) {
+    if (attempt.final) {
+      const failed = await system.rpc("fail_photo_group", { target_source_file_id: sourceFileId });
+      if (failed.error) throw failed.error;
+    }
+    throw error;
+  }
+  if (grouped) {
+    if (grouped.ready) await jobs.send(extractJob(grouped.group.id));
+    else await jobs.send(splitJob(sourceFileId), { startAfterSeconds: BLOCKED_JOB_RECHECK_SECONDS });
+    return;
+  }
   const { data: file, error } = await system
     .from("source_file")
     .select("id, organization_id, company_id, format, normalized_format, page_count, status, split_request_id")
@@ -418,7 +437,8 @@ async function extractDocument(
       const range = document.first_row === null
         ? { firstPage, lastPage }
         : { sheetName: document.source_sheet!, firstRow: document.first_row, lastRow: document.last_row! };
-      const input = await documentInput(processingFile.format, processingFile.bytes, range);
+      const groupedInput = await photoGroupAiInput(system, document.id);
+      const input = groupedInput?.input ?? await documentInput(processingFile.format, processingFile.bytes, range);
       const { model, payload: extractedPayload, usage } = await ai.extract(input, {
         organizationId: document.organization_id,
         configuration: availability.configuration!,
@@ -431,7 +451,8 @@ async function extractDocument(
       if (companyError) throw companyError;
       const evidencePayload = bindSourceEvidence(extractedPayload, {
         sourceFileId, documentId: document.id, sha256: document.source_file!.sha256,
-        requestId: document.extraction_request_id, format: processingFile.format, firstPage, lastPage,
+        requestId: document.extraction_request_id, format: groupedInput ? "pdf" : processingFile.format, firstPage, lastPage,
+        photoGroup: groupedInput ? { id: groupedInput.group.id, sha256: groupedInput.group.basis!.sha256 } : undefined,
         workbookEvidence: input.workbookEvidence,
         normalizedSha256: ["heic", "heif"].includes(document.source_file!.format)
           && document.source_file!.normalized_format === "jpeg" ? document.source_file!.normalized_sha256 : undefined,

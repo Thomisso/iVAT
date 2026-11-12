@@ -20,6 +20,7 @@ type UploadItem = {
   error: string | null;
   retryable: boolean;
   sha256: string;
+  groupId?: string;
 };
 type UploadDraft = { batchId: string | null; items: UploadItem[] };
 type BatchResult = { ok: true; value: { id: string } } | { ok: false; error: string };
@@ -77,7 +78,7 @@ async function beginBrowserUploadBatch(companyId: string, batchId: string, items
   const response = await fetch(`/companies/${encodeURIComponent(companyId)}/upload-batches`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ batchId, fileCount: items.length, selectedFiles: items.map(({ id, sha256 }) => ({ id, sha256 })) }),
+    body: JSON.stringify({ batchId, fileCount: items.length, selectedFiles: items.map(({ id, sha256, groupId }) => ({ id, sha256, ...(groupId ? { groupId } : {}) })) }),
     signal,
   });
   return response.json() as Promise<BatchResult>;
@@ -236,6 +237,7 @@ export function SourceFileUploadForm({ companyId, userId, limits }: { companyId:
   const router = useRouter();
   const [items, setItems] = useState<UploadItem[]>([]);
   const itemsRef = useRef<UploadItem[]>([]);
+  const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [selecting, setSelecting] = useState(false);
@@ -263,10 +265,12 @@ export function SourceFileUploadForm({ companyId, userId, limits }: { companyId:
     setItems(next);
   };
   function removeItem(id: string) {
-    const next = itemsRef.current.filter((item) => item.id !== id);
+    const remaining = itemsRef.current.filter((item) => item.id !== id);
+    const next = remaining.map(item => item.groupId && remaining.filter(other => other.groupId === item.groupId).length < 2 ? { ...item, groupId: undefined } : item);
     replaceItems(next);
     setError(next.length > limits.maxBatchFiles ? "too_many_files" : null);
     setDuplicateNotice(false);
+    setSelectedPhotos(value => value.filter(selected => selected !== id));
     form.current?.reset();
   }
 
@@ -398,8 +402,11 @@ export function SourceFileUploadForm({ companyId, userId, limits }: { companyId:
           duplicate = true;
           continue;
         }
-        if (replacingId) next = next.filter((item) => item.id !== replacingId);
-        next.push({ id: crypto.randomUUID(), file, kind, sha256, progress: 0, confirmedBytes: 0, status: "queued", error: null, retryable: false });
+        const replacementIndex = replacingId ? next.findIndex(item => item.id === replacingId) : -1;
+        const item: UploadItem = { id: crypto.randomUUID(), file, kind, sha256, progress: 0, confirmedBytes: 0, status: "queued", error: null, retryable: false,
+          ...(replacementIndex >= 0 ? { groupId: next[replacementIndex].groupId } : {}) };
+        if (replacementIndex >= 0) next[replacementIndex] = item;
+        else next.push(item);
       }
       replaceItems(next);
       setDuplicateNotice(duplicate);
@@ -466,9 +473,24 @@ export function SourceFileUploadForm({ companyId, userId, limits }: { companyId:
       {draftRestored && <p role="status" className="iv-muted">{t("draftRestored")}</p>}
       {duplicateNotice && <p role="status" className="iv-muted">{t("identicalFileOmitted")}</p>}
       <FormError error={error} />
+      {!batchId && items.length > 1 && <Button disabled={pending || selecting || selectedPhotos.length < 2} onClick={() => {
+        const groupId = crypto.randomUUID();
+        const next = itemsRef.current.map(item => selectedPhotos.includes(item.id) ? { ...item, groupId } : item);
+        replaceItems(next.map(item => item.groupId && next.filter(other => other.groupId === item.groupId).length < 2 ? { ...item, groupId: undefined } : item));
+        setSelectedPhotos([]);
+      }}>{t("groupPhotos")}</Button>}
       {items.length > 0 && <ul className="upload-items" aria-live="polite">
         {items.map((item, index) => <li key={item.id}>
           <span className="iv-mono">{item.file.name}</span>
+          {!batchId && /\.(jpe?g|png)$/i.test(item.file.name) && <label><input type="checkbox" checked={selectedPhotos.includes(item.id)} disabled={pending || selecting}
+            onChange={event => setSelectedPhotos(value => event.target.checked ? [...value, item.id] : value.filter(id => id !== item.id))} />{t("selectPhoto")}</label>}
+          {item.groupId && <span>{t("groupPage", { group: items.findIndex(other => other.groupId === item.groupId) + 1, page: items.slice(0, index + 1).filter(other => other.groupId === item.groupId).length })}
+            {!batchId && <Button size="sm" disabled={pending || selecting} onClick={() => replaceItems(itemsRef.current.map(other => other.groupId === item.groupId ? { ...other, groupId: undefined } : other))}>{t("dissolveGroup")}</Button>}
+          </span>}
+          {!batchId && <span>
+            <Button size="sm" disabled={pending || selecting || index === 0} onClick={() => { const next = [...itemsRef.current]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; replaceItems(next); }}>{t("movePhotoEarlier")}</Button>
+            <Button size="sm" disabled={pending || selecting || index === items.length - 1} onClick={() => { const next = [...itemsRef.current]; [next[index + 1], next[index]] = [next[index], next[index + 1]]; replaceItems(next); }}>{t("movePhotoLater")}</Button>
+          </span>}
           <div className="upload-item-progress">
             <progress max={100} value={item.progress} aria-label={t("uploadProgress", { name: item.file.name })} />
             <span>{t("transferEstimate", { percent: item.progress })}</span>

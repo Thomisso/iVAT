@@ -1,3 +1,4 @@
+import { readPhotoGroupObject } from "./photo-groups";
 import { isUuid, type AppClient, type Result } from "./client";
 import { buildCompanyDataArchive, type CompanyExportSnapshot } from "./company-data-export";
 import { completeCompanyExportJob, type JobQueue } from "./processing";
@@ -55,7 +56,7 @@ export async function exportCompanyData(
   try {
     bytes = await buildCompanyDataArchive(pending.snapshot, async (sourceFile) => (
       await readSourceFile(client, pending.snapshot.company.id, sourceFile.id)
-    )?.bytes ?? null);
+    )?.bytes ?? null, path => readPhotoGroupObject(client, path));
   } catch (error) {
     if (isMissingStoredObject(error)) return { ok: false, error: "export_failed" };
     throw error;

@@ -301,7 +301,7 @@ export async function uploadSourceFile(
       return { ok: true, value: { id } };
     }
     if (error.code === "42501") return { ok: false, error: "forbidden" };
-    if (error.hint === "identical_file" || error.hint === "too_many_files" || error.hint === "invalid_choice") return { ok: false, error: error.hint };
+    if (error.hint === "identical_file" || error.hint === "too_many_files" || error.hint === "invalid_choice" || error.hint === "file_too_large" || error.hint === "unsupported_format") return { ok: false, error: error.hint };
     throw error;
   }
   await jobs.send(splitJob(id));

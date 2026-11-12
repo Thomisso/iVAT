@@ -1,3 +1,4 @@
+import { getSourcePhotoGroup } from "@/application/photo-groups";
 import Link from "next/link";
 import { companyPageContext, safeCompanyReturnTo, withCompanyReturnTo } from "@/application/return-context";
 import { CompanyReturnLink } from "@/components/company-return-link";
@@ -37,6 +38,7 @@ export default async function SourceFilePage({
     getMyCompanyRole(client, companyId),
   ]);
   if (!company || !file) notFound();
+  const photoGroup = await getSourcePhotoGroup(client, companyId, sourceFileId);
   const documents = await Promise.all(
     (await listDocuments(client, companyId, file.id)).map(async (document) => ({
       ...document,
@@ -53,7 +55,7 @@ export default async function SourceFilePage({
   const workbook = file.format === "xlsx" || file.format === "xls";
   const workbookSource = workbook ? await readSourceWorkbook(client, companyId, file.id) : null;
   const waitingForAi = !company.aiProcessingEnabled && ["uploaded", "processing", "waiting_for_platform"].includes(file.status);
-  const unresolvedSource = documents.length === 0 && !["split", "rejected"].includes(file.status);
+  const unresolvedSource = !photoGroup && documents.length === 0 && !["split", "rejected"].includes(file.status);
   // Nothing moves until the platform enables an assigned AI Configuration.
   const processing =
     company.aiProcessingEnabled &&
@@ -84,6 +86,7 @@ export default async function SourceFilePage({
         </header>
         <section>
           <h2>{t("documents.title")}</h2>
+          {photoGroup && <Notice>{photoGroup.basis ? <Link href={`/companies/${companyId}/documents/${photoGroup.id}`}>{t("sourceFiles.groupDocument")}</Link> : t(file.status === "failed" ? "sourceFiles.groupUnavailable" : "sourceFiles.groupPreparing")}</Notice>}
           <p>
             {t("sourceFiles.status")}:{" "}
             <StatusBadge status={statusBadgeState(file.status, "source-file")}>
@@ -176,7 +179,7 @@ export default async function SourceFilePage({
                     const previous = documents[index - 1];
                     const next = documents[index + 1];
                     const lockedPeriod = lockedPeriods[document.id];
-                    const correctable = !isBeingExtracted(document.status) && !lockedPeriod;
+                    const correctable = !photoGroup && !isBeingExtracted(document.status) && !lockedPeriod;
                     if (lockedPeriod) return <span className="iv-muted">{t("documents.lockedPeriod", { period: lockedPeriod })}</span>;
                     return (
                       <div className="split-correction-actions">
