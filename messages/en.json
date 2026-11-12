@@ -767,7 +767,8 @@
     "claim_document_type_required": "Choose a Document type before confirming claim eligibility.",
     "claim_deadline_expired": "The claim filing deadline has expired. A new approval cannot establish timely filing.",
     "claimed_period_after_deadline": "This period ends too late for an ordinary claim before the filing deadline. Choose an earlier eligible period.",
-    "counterparty_resolution_required": "Resolve the Counterparty identity before approval. Select an existing entry, restore an archived match, or explicitly confirm creation without identifiers. Changed directory warnings must be reviewed."
+    "counterparty_resolution_required": "Resolve the Counterparty identity before approval. Select an existing entry, restore an archived match, or explicitly confirm creation without identifiers. Changed directory warnings must be reviewed.",
+    "organization_creation_failed": "The Organization could not be saved. Please try again."
   },
   "aiUsage": {
     "platformNav": "Platform AI usage",
@@ -938,7 +939,9 @@
     "maxBatchFiles": "Maximum Source Files per batch",
     "saveLimits": "Save upload limits",
     "retainedHistory": "Retained history",
-    "companyIdentity": "{name} · IČO {ico}"
+    "companyIdentity": "{name} · IČO {ico}",
+    "createOrganization": "Create Organization",
+    "createCompany": "Add Company"
   },
   "passwordChange": {
     "title": "Change password",
@@ -1979,5 +1982,12 @@
     "save": "Save approval policy",
     "saving": "Saving…",
     "saved": "Automatic approval policy saved."
+  },
+  "organizationCreation": {
+    "title": "Create Organization",
+    "intro": "Prepare an Organization in the closed pilot. You can add Companies and invite its first Administrator later.",
+    "name": "Organization name",
+    "create": "Create Organization",
+    "cancel": "Back to administration"
   }
 }

@@ -1166,6 +1166,9 @@ isOneToOne: false
 "create_manual_document":
 { Args: { "findings": Json,"payload": Json,"target_company_id": string }; Returns: string
                            },
+"create_organization":
+{ Args: { "organization_name": string }; Returns: string
+                           },
 "create_password_recovery_request":
 { Args: { "target_email": string }; Returns: string
                            },

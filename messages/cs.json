@@ -767,7 +767,8 @@
     "claim_document_type_required": "Vyberte typ dokladu, aby bylo možné potvrdit způsobilost uplatnění.",
     "claim_deadline_expired": "Lhůta pro uplatnění nároku podáním již uplynula. Nové schválení nemůže doložit včasné podání.",
     "claimed_period_after_deadline": "Toto období končí příliš pozdě pro běžné uplatnění před koncem lhůty podání. Zvolte dřívější přípustné období.",
-    "counterparty_resolution_required": "Před schválením vyřešte identitu protistrany. Vyberte existující záznam, obnovte archivovanou shodu nebo výslovně potvrďte vytvoření bez identifikátorů. Změněná upozornění adresáře je nutné zkontrolovat."
+    "counterparty_resolution_required": "Před schválením vyřešte identitu protistrany. Vyberte existující záznam, obnovte archivovanou shodu nebo výslovně potvrďte vytvoření bez identifikátorů. Změněná upozornění adresáře je nutné zkontrolovat.",
+    "organization_creation_failed": "Organizaci se nepodařilo uložit. Zkuste to prosím znovu."
   },
   "aiUsage": {
     "platformNav": "Využití AI na platformě",
@@ -938,7 +939,9 @@
     "maxBatchFiles": "Maximum zdrojových souborů v dávce",
     "saveLimits": "Uložit limity nahrávání",
     "retainedHistory": "Dochovaná historie",
-    "companyIdentity": "{name} · IČO {ico}"
+    "companyIdentity": "{name} · IČO {ico}",
+    "createOrganization": "Vytvořit organizaci",
+    "createCompany": "Přidat společnost"
   },
   "passwordChange": {
     "title": "Změna hesla",
@@ -1979,5 +1982,12 @@
     "save": "Uložit pravidla schvalování",
     "saving": "Ukládám…",
     "saved": "Nastavení automatického schvalování bylo uloženo."
+  },
+  "organizationCreation": {
+    "title": "Vytvořit organizaci",
+    "intro": "Založte organizaci v uzavřeném pilotu. Společnosti a prvního správce můžete přidat později.",
+    "name": "Název organizace",
+    "create": "Vytvořit organizaci",
+    "cancel": "Zpět do administrace"
   }
 }
