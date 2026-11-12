@@ -9,5 +9,5 @@ export default async function CompanyUsersSettingsPage({ params, searchParams }:
   const [company, role] = await Promise.all([getCompany(client, companyId), getMyCompanyRole(client, companyId)]);
   if (!company) notFound();
   if (role !== "administrator") redirect(`/companies/${company.id}/settings`);
-  return <ScopedMemberManagement organizationId={company.organizationId} initialCompanyId={companyId} requestedScope={(await searchParams).scope} />;
+  return <ScopedMemberManagement organizationId={company.organizationId} initialCompanyId={companyId} requestedScope={(await searchParams).scope} requestedEmail={(await searchParams).email} />;
 }

@@ -348,7 +348,7 @@ export type AccessManagement = {
  * Scalar JSON keeps scope choices, Users, Memberships and Invitations complete. */
 export async function listAccessManagement(
   client: AppClient,
-  input: { organizationId: string; companyId: string | null },
+  input: { organizationId: string; companyId: string | null; emailSearch?: string },
 ): Promise<Result<AccessManagement, "forbidden">> {
   if (!isUuid(input.organizationId) || (input.companyId !== null && !isUuid(input.companyId))) return { ok: false, error: "forbidden" };
   const { data, error } = await client.rpc("list_access_management", {
@@ -359,7 +359,8 @@ export async function listAccessManagement(
     throw error;
   }
   const result = data as unknown as Omit<AccessManagement, "users"> & { users: CompanyAccessDatabaseRow[] };
-  return { ok: true, value: { ...result, users: result.users.map(user => ({
+  const emailSearch = input.emailSearch?.trim().toLowerCase() ?? "";
+  return { ok: true, value: { ...result, users: result.users.filter(user => user.email.toLowerCase().includes(emailSearch)).map(user => ({
     userId: user.user_id, email: user.email, effectiveRole: input.companyId === null ? null : user.role,
     memberships: user.memberships.map(membership => ({
       id: membership.id, organizationId: membership.organization_id, companyId: membership.company_id,

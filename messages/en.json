@@ -298,6 +298,17 @@
     "saved": "Filing defaults saved."
   },
   "members": {
+    "searchEmail": "Search by email",
+    "applyFilters": "Apply filters",
+    "noSearchResults": "No users match this email in the selected scope.",
+    "showMemberships": "Show Memberships ({count}) for {email}",
+    "memberships": "Memberships",
+    "organizationRoles": "Scoped Roles",
+    "effectiveRole": "Effective Access",
+    "rolesByMembership": "See each Membership’s Role",
+    "status": "Status",
+    "expiry": "Expires",
+    "actions": "Actions",
     "managementScope": "Management scope",
     "applyScope": "Apply scope",
     "organizationScope": "Organization: {name}",
@@ -328,7 +339,7 @@
     "scopedAccessIntro": "Each action changes only the named Membership. Other Memberships can retain Effective Access. Removing a Membership does not delete the sign-in account.",
     "changeRole": "Change Role",
     "remove": "Remove access",
-    "pendingTitle": "Pending invitations",
+    "pendingTitle": "Invitations",
     "pendingNone": "No invitations are waiting for acceptance.",
     "expires": "Expires {date}",
     "source": {
