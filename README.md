@@ -27,8 +27,9 @@ npm run dev                  # app on http://localhost:3000
 npm run worker               # background worker, in a second terminal
 ```
 
-Open http://localhost:3000/login. Public registration is closed (future design:
-[#158](https://github.com/Thomisso/iVAT/issues/158)). For a fresh local QA account,
+Open http://localhost:3000/login. Public registration is closed. MFA-verified SuperAdmins can create an empty
+Organization in platform administration, then add Companies or invite its first
+Administrator through the existing membership management. For a fresh local QA account,
 run `npm run dev:seed`; it privately provisions the User, signs in through Auth,
 and prints sign-in details. Local SuperAdmin bootstrap and administrator-issued
 Invitations remain the supported provisioning paths. Signed-in Administrators
