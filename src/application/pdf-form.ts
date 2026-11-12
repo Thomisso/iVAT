@@ -88,6 +88,13 @@ export function drawFormHeader(page: PDFPage, font: PDFFont, header: VatReportEx
     cell(company.lastName, [42.7, 400, 339.9, 416.5]);
     cell(company.firstName, [354.3, 400, 495.2, 416.5]);
   }
+  const representative = details.representative;
+  if (representative) {
+    cell(representative.code, [191.6, vat ? 576.1 : 598.4, 219.4, vat ? 592.6 : 614.9]);
+    cell([representative.firstName, representative.lastName].filter(Boolean).join(" "), [49.9, vat ? 605.8 : 628.1, 559.6, vat ? 622.3 : 644.6]);
+    const date = representative.birthDate ? representative.birthDate.split("-").reverse().join(".") : "";
+    cell([date, representative.evidenceNumber].filter(Boolean).join(" / "), [49.9, vat ? 634.2 : 656.5, 559.6, vat ? 650.7 : 673]);
+  }
   const address = details.address;
   cell(address?.city, [42.8, 439.6, vat ? 298.8 : 482.9, 456.2]);
   cell(address?.postalCode, [vat ? 312 : 496, 439.6, vat ? 383 : 567, 456.1]);

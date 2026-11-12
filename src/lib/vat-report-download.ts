@@ -6,7 +6,7 @@ import type { DownloadAcknowledgementError } from "@/application/epo-export";
 import type { Result } from "@/application/client";
 
 const REFUSALS = new Set([
-  "report_not_found", "invalid_export_format", "invalid_export_details", "epo_address_required",
+  "invalid_representative", "report_not_found", "invalid_export_format", "invalid_export_details", "epo_address_required",
   "stale_report", "report_finalized", "report_not_finalized", "xml_invalid", "forbidden",
 ]);
 

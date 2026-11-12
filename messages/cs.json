@@ -799,6 +799,7 @@
     "membership_self_change": "Vlastní členství nelze odebrat ani si snížit roli Správce. O předání požádejte jinou oprávněnou osobu.",
     "membership_last_administrator": "Tato změna by odebrala posledního správce v daném rozsahu. Nejprve musí mít členství s rolí Správce jiná osoba.",
     "membership_change_stale": "Během kontroly se přístup změnil. Zrušte toto potvrzení a znovu zkontrolujte aktuální dopad.",
+    "invalid_representative": "Vyberte podporovaného zástupce a vyplňte platné jméno, příjmení a datum narození nebo evidenční číslo.",
     "proportional_deduction_invalid": "Potvrďte podporovaný poměrný odpočet podle skutečného využití (1–99 %).",
     "proportional_claim_year_mismatch": "Období poměrného odpočtu musí patřit do kalendářního roku nejdřívějšího přípustného období.",
     "upload_authentication_required": "Přihlaste se znovu stejným účtem a opakujte nahrávání.",
@@ -1669,7 +1670,7 @@
     },
     "noExportArtifacts": "Žádné uložené exportní artefakty",
     "noExportArtifactsHint": "Příslušný zákonný výstup vytvořte na obrazovce přiznání k DPH nebo kontrolního hlášení. Historie uložených artefaktů zůstane zde u daného období.",
-    "exportArtifacts": "Uložené XML artefakty",
+    "exportArtifacts": "Uložené XML a PDF artefakty",
     "artifactForm": "Formulář",
     "artifactActions": "Akce",
     "artifactChecksum": "Kontrolní součet SHA-256",
@@ -1769,7 +1770,9 @@
       "463": "FÚ pro Moravskoslezský kraj",
       "464": "FÚ pro Zlínský kraj",
       "13": "Specializovaný finanční úřad"
-    }
+    },
+    "representative": "Zástupce",
+    "noRepresentative": "Bez zástupce"
   },
   "platformHistory": {
     "title": "Historie firmy: {company}",
@@ -2064,5 +2067,18 @@
     "name": "Název organizace",
     "create": "Vytvořit organizaci",
     "cancel": "Zpět do administrace"
+  },
+  "representation": {
+    "title": "Zástupce",
+    "selection": "Zastupování",
+    "default": "Použít výchozí údaje Company",
+    "off": "Bez zástupce",
+    "generalNatural": "4a — obecný zmocněnec, fyzická osoba",
+    "firstName": "Jméno zástupce",
+    "lastName": "Příjmení zástupce",
+    "birthDate": "Datum narození zástupce",
+    "evidenceNumber": "Evidenční číslo zástupce",
+    "identityHint": "Vyplňte jméno, příjmení a alespoň datum narození nebo evidenční číslo.",
+    "scopeHint": "Údaje neověřují plnou moc. iVAT výkaz nepodává."
   }
 }
