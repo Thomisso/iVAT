@@ -1183,6 +1183,9 @@ isOneToOne: false
 "complete_source_processing_dispatch":
 { Args: { "target_source_file_id": string,"target_split_request_id": string }; Returns: undefined
                            },
+"confirm_membership_change":
+{ Args: { "confirmation_token": string,"next_role": Database["public"]['Enums']["membership_role"],"target_membership_id": string }; Returns: undefined
+                           },
 "confirm_mfa_replacement_native_finish":
 { Args: { "recovery_operation_id": string }; Returns: undefined
                            },
@@ -1431,6 +1434,9 @@ isOneToOne: false
                            },
 "prepare_document_source_attachment":
 { Args: { "target_company_id": string,"target_document_id": string,"target_source_file_id": string }; Returns: undefined
+                           },
+"preview_membership_change":
+{ Args: { "next_role": Database["public"]['Enums']["membership_role"],"target_membership_id": string }; Returns: Json
                            },
 "read_vat_report_artifact":
 { Args: { "target_artifact_id": string,"target_company_id": string }; Returns: Json

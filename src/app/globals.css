@@ -2368,7 +2368,7 @@ select:disabled {
 .member-access-identity > strong, .member-invitation-row > strong { min-width: 0; overflow-wrap: anywhere; }
 .member-access-identity { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
 .member-membership-row fieldset { min-width: 0; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: var(--space-3); }
-.member-membership-row legend, .member-effective-access, .member-access-row > strong { overflow-wrap: anywhere; }
+.member-membership-row legend, .member-change-confirmation, .member-effective-access, .member-access-row > strong { overflow-wrap: anywhere; }
 .member-membership-row .iv-btn { height: auto; min-height: var(--control-md); max-width: 100%; white-space: normal; text-align: left; }
 .member-access-source,
 .member-invitation-row > span { color: var(--ink-muted); }

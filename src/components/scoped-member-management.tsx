@@ -1,7 +1,8 @@
 import type { ComponentType, ReactNode } from "react";
 import { getTranslations } from "next-intl/server";
 import { listAccessManagement } from "@/application/memberships";
-import { requireUserClient } from "@/lib/supabase/server";
+import { currentUser } from "@/application/auth";
+import { availableAuthValue, requireUserClient } from "@/lib/supabase/server";
 import { configuredInvitationUrls } from "@/lib/invitations";
 import { MemberManagement } from "./member-management";
 import { PageHeader } from "./app-shell";
@@ -18,6 +19,8 @@ export async function ScopedMemberManagement({ organizationId, initialCompanyId,
 }) {
   const client = await requireUserClient();
   const t = await getTranslations("members");
+  const user = availableAuthValue(await currentUser(client));
+  if (!user) return null;
   const renderPage = (children: ReactNode, title: ReactNode = t("managementScope")) =>
     PageFrame ? <PageFrame title={title}>{children}</PageFrame> : children;
   const companyId = requestedScope === undefined ? initialCompanyId : requestedScope === "organization" ? null : requestedScope;
@@ -45,7 +48,7 @@ export async function ScopedMemberManagement({ organizationId, initialCompanyId,
     </form>
     <MemberManagement key={`${organizationId}:${scope.companyId ?? "organization"}`}
       acceptUrl={urls.ok ? urls.value.acceptUrl : null} organizationId={organizationId} companyId={scope.companyId}
-      users={users} pendingInvitations={pendingInvitations} />
+      currentUserId={user.id} users={users} pendingInvitations={pendingInvitations} />
   </section>;
   return renderPage(content, title);
 }
