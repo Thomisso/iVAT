@@ -176,7 +176,7 @@ export function vatReportDocumentExclusion(document: ReportDocument): ExclusionR
     !p.totals.grossAmount
   )
     return "incomplete_data";
-  if ((p.partialClaim || p.proportionalDeduction) && !reportingClaimRates(p)) return "incomplete_data";
+  if ((p.partialClaim !== undefined || p.proportionalDeduction !== undefined) && !reportingClaimRates(p)) return "incomplete_data";
   const regime = p.proposedVatRegime;
   if (
     !regime ||
