@@ -766,7 +766,9 @@
     "claim_deadline_expired": "Lhůta pro uplatnění nároku podáním již uplynula. Nové schválení nemůže doložit včasné podání.",
     "claimed_period_after_deadline": "Toto období končí příliš pozdě pro běžné uplatnění před koncem lhůty podání. Zvolte dřívější přípustné období.",
     "counterparty_resolution_required": "Před schválením vyřešte identitu protistrany. Vyberte existující záznam, obnovte archivovanou shodu nebo výslovně potvrďte vytvoření bez identifikátorů. Změněná upozornění adresáře je nutné zkontrolovat.",
-    "organization_creation_failed": "Organizaci se nepodařilo uložit. Zkuste to prosím znovu."
+    "organization_creation_failed": "Organizaci se nepodařilo uložit. Zkuste to prosím znovu.",
+    "proportional_deduction_invalid": "Potvrďte podporovaný poměrný odpočet podle skutečného využití (1–99 %).",
+    "proportional_claim_year_mismatch": "Období poměrného odpočtu musí patřit do kalendářního roku Earliest Claim Period."
   },
   "aiUsage": {
     "platformNav": "Využití AI na platformě",
@@ -1176,7 +1178,9 @@
       "deferred_claim_not_supported": "Společný odklad není pro tento režim podporován. Případ vyřešte ručně před novou přípravou výkazu.",
       "claim_document_type_required": "Vyberte typ dokladu, aby bylo možné potvrdit způsobilost uplatnění.",
       "claim_deadline_expired": "Lhůta pro uplatnění nároku podáním již uplynula. Nové schválení nemůže doložit včasné podání.",
-      "claimed_period_after_deadline": "Toto období končí příliš pozdě pro běžné uplatnění před koncem lhůty podání. Zvolte dřívější přípustné období."
+      "claimed_period_after_deadline": "Toto období končí příliš pozdě pro běžné uplatnění před koncem lhůty podání. Zvolte dřívější přípustné období.",
+      "proportional_deduction_invalid": "Potvrďte podporovaný poměrný odpočet podle skutečného využití (1–99 %).",
+      "proportional_claim_year_mismatch": "Období poměrného odpočtu musí patřit do kalendářního roku Earliest Claim Period."
     },
     "noDocumentImage": "Tento doklad vznikl z řádků tabulky a nemá obraz dokladu.",
     "sections": {
@@ -1352,7 +1356,29 @@
     "approvalHuman": "Schválil uživatel",
     "approvalUnknown": "Schválení je zaznamenáno; původní podrobnosti rozhodnutí nejsou známy",
     "approvalVersion": "Verze {version}",
-    "approvalVersionUnknown": "Verze není zaznamenána"
+    "approvalVersionUnknown": "Verze není zaznamenána",
+    "proportionalDeduction": {
+      "title": "Poměrný odpočet (§ 75)",
+      "enable": "Použít ručně potvrzený poměr skutečného využití",
+      "scope": "Pouze běžné tuzemské přijaté provozní výdaje v CZK. Dlouhodobý majetek, odhady, § 76, zálohy a kombinace s Partial Claim nejsou podporovány.",
+      "rounding": "Skutečný procentní podíl zaokrouhlete podle § 75 odst. 3 na celé procento nahoru. Zadejte konečný koeficient 1–99 % pro celý Document.",
+      "percentage": "Koeficient skutečného využití (%)",
+      "operating": "Potvrzuji běžný provozní výdaj mimo pořízení dlouhodobého majetku a výdaje do něj vstupující.",
+      "actual": "Potvrzuji, že poměr odpovídá již známému skutečnému využití, nikoli odhadu.",
+      "confirm": "Potvrdit poměr a tyto původní částky",
+      "previous": "Předchozí poměr: {percentage} %. Potvrďte jej znovu pro aktuální údaje.",
+      "invalid": "Zadejte celé procento od 1 do 99, potvrďte obě prohlášení i poměr a vyřešte nepodporované kombinace či chyby původních částek.",
+      "alternatives": "Pro 0 % výslovně vypněte tento režim a použijte Partial Claim s potvrzením nulového nároku. Pro 100 % jej výslovně vypněte a použijte plné částky. Před zapnutím poměru vypněte Partial Claim.",
+      "rate": "Sazba DPH",
+      "original": "Původní základ + DPH",
+      "claimed": "Uplatněný základ + DPH",
+      "unclaimed": "Neuplatněný základ + DPH",
+      "unavailable": "Nedostupné do vyřešení původních součtů",
+      "filing": "Export ani Finalization nejsou podáním ani roční korekcí. Zvolené období musí být v kalendářním roce Earliest Claim Period; nadále platí lhůta skutečného podání.",
+      "total": "Celkem",
+      "rateValue": "{rate} %",
+      "amountSeparator": "+"
+    }
   },
   "duplicateWarning": {
     "document_identity": "Možný duplikát: DIČ protistrany, číslo dokladu a směr se shodují se starším dokladem.",
@@ -1786,7 +1812,10 @@
     "claimLastFilingDate": "Nárok je nutné uplatnit podáním nejpozději: {date}",
     "claimEvaluatedOn": "Rozhodné datum posouzení: {date}",
     "claimLatestPeriod": "Poslední dostupné běžné období: {period}",
-    "claimFilingNote": "Příprava, finalizace ani export XML nejsou podáním přiznání. Uložené výkazy a archivní XML zachovávají své zaznamenané údaje."
+    "claimFilingNote": "Příprava, finalizace ani export XML nejsou podáním přiznání. Uložené výkazy a archivní XML zachovávají své zaznamenané údaje.",
+    "proportionalRatio": "Poměrný odpočet: {percentage} %",
+    "proportionalClaimed": "Uplatněný základ + DPH:",
+    "amountSeparator": "+"
   },
   "reportingWorkbook": {
     "columns": {
@@ -1827,6 +1856,14 @@
       "included": "zahrnuto",
       "proposed": "navrženo",
       "unavailable": "nedostupné"
+    },
+    "deductionColumns": {
+      "deductionMode": "Režim odpočtu",
+      "percentage": "Poměr (%)",
+      "claimedNetAmount": "Uplatněný základ",
+      "claimedVatAmount": "Uplatněná DPH",
+      "unclaimedNetAmount": "Neuplatněný základ",
+      "unclaimedVatAmount": "Neuplatněná DPH"
     }
   },
   "authEmails": {

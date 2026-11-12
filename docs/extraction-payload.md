@@ -156,3 +156,31 @@ Transport formats follow the official [OpenAI image input contract](https://deve
 and [Anthropic vision contract](https://platform.claude.com/docs/en/build-with-claude/vision).
 The original Source File and immutable Extraction Versions remain unchanged;
 explicit reprocessing creates a new version through the existing worker flow.
+
+
+## Proportional Deduction (§ 75, CZK)
+
+`proportionalDeduction` is optional human accounting metadata, separate from
+`partialClaim`: `{percentage, origin: "user", confirmed,
+operatingExpenseConfirmed, actualUseConfirmed, basis}`. One whole percentage
+1–99 applies to every supported rate. Both scope confirmations are explicit:
+ordinary operating expenditure outside fixed-asset acquisition and already
+known actual use rather than an estimate. The User supplies the final coefficient
+rounded upward to a whole percentage. Zero and full claims require an explicit
+choice of the existing modes; they are refused in this mode.
+
+The database binds the financial `basis` using the same source facts as a Partial
+Claim. The immutable Extraction Version supplies author and time, and a
+`document.proportional_deduction_changed` audit event references its id and
+version. AI metadata is stripped before financial findings and at insertion;
+an existing manual decision is retained as unconfirmed after AI replacement.
+Invalid or unconfirmed decisions block approval and new report operations.
+Earlier Versions and report/artifact bytes are never rewritten.
+
+The current slice supports incoming domestic invoices, receipts and simplified
+tax documents in CZK at 21% and 12%. Credit/debit notes, fixed assets, estimates,
+§ 76, advances, reverse charge, EU supplies and combination with Partial Claim
+are unsupported. Foreign currency is refused until the separately tracked
+conversion slice is delivered. The broader re-confirmation lifecycle remains in
+#295; financial-basis changes already retain the previous percentage and invalidate
+confirmation rather than restoring full amounts.

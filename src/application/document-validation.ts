@@ -1,3 +1,4 @@
+import { proportionalDeductionRates } from "./proportional-deduction";
 import { partialClaimRates } from "./partial-claim";
 import type { ExtractionPayload } from "./extraction-payload";
 import { domesticCounterpartyVatIdOptional, missingRequiredReportingVatId } from "./vat-rules";
@@ -285,6 +286,7 @@ export function validateDocument(
     });
   }
 
+  if (payload.proportionalDeduction && !proportionalDeductionRates(payload)) findings.push(error("proportionalDeduction", "proportional_deduction_invalid"));
   if (payload.partialClaim && !partialClaimRates(payload)) findings.push(error("partialClaim", "partial_claim_invalid"));
 
   return findings;
@@ -307,10 +309,11 @@ export function currentValidationFindings(
     .map<ValidationFinding>((finding) => historicalGrossError && finding.code === "total_gross_amount_mismatch"
     ? grossWarning ?? { ...finding, severity: "warning" } : finding)
     .map(finding => requiredFields.find(required => required.code === finding.code && required.field === finding.field) ?? finding);
+  const requiredRatio = payload.proportionalDeduction && !proportionalDeductionRates(payload) ? [error("proportionalDeduction", "proportional_deduction_invalid")] : [];
   const requiredClaim = payload.partialClaim && !partialClaimRates(payload) ? [error("partialClaim", "partial_claim_invalid")] : [];
   const requiredRegime = !payload.proposedVatRegime
     ? [error("proposedVatRegime", "vat_regime_required")]
     : [];
-  return [...current, ...[...paymentFindings(payload), ...requiredFields, ...requiredRegime, ...requiredClaim]
+  return [...current, ...[...paymentFindings(payload), ...requiredFields, ...requiredRegime, ...requiredRatio, ...requiredClaim]
     .filter((finding) => !current.some((entry) => entry.code === finding.code))];
 }

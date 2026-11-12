@@ -1,3 +1,4 @@
+import { proportionalDeductionSummary } from "./proportional-deduction";
 import type { ReportingYear } from "./companies";
 import { claimDeadline, claimEligibilityFinding, type ClaimDeadline } from "./claim-eligibility";
 import type { AppClient } from "./client";
@@ -7,6 +8,7 @@ import { deriveDocumentVatMapping, missingRequiredReportingVatId, reportingPerio
 
 export type DocumentReporting = {
   claimDeadline: ClaimDeadline | null;
+  proportionalDeduction: ReturnType<typeof proportionalDeductionSummary>;
   period: string | null;
   included: boolean;
   exclusionReason: ExclusionReason | "no_reporting_period" | "different_reporting_period" | "rejected" | null;
@@ -45,6 +47,7 @@ export function prepareDocumentReporting(
   const eligibility = claimEligibilityFinding(document, reportingYears, evaluatedOn);
   const findings = [...(payload ? currentValidationFindings(payload, storedFindings).filter(finding => finding.code !== eligibility?.code) : []), ...(eligibility ? [eligibility] : [])];
   return {
+    proportionalDeduction: payload ? proportionalDeductionSummary(payload) : null,
     claimDeadline: evaluatedOn ? claimDeadline(payload, reportingYears, evaluatedOn) : null,
     period, included: exclusionReason === null, exclusionReason,
     exclusionDetail: exclusionReason === "incomplete_data" && payload && missingRequiredReportingVatId(payload) ? "counterparty_vat_id_required" : null,

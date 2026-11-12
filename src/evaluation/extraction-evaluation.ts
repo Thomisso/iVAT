@@ -239,7 +239,7 @@ function leafFields(value: unknown, prefix = ""): Map<string, unknown> {
   }
   if (value !== null && typeof value === "object") {
     for (const [key, item] of Object.entries(value)) {
-      if (["schemaVersion", "confidence", "sourceLocations", "sourceEvidence", "czkConversion", "partialClaim", "sourceRateRows", "counterpartyLink", "claimEligibility"].includes(key)) continue;
+      if (["schemaVersion", "confidence", "sourceLocations", "sourceEvidence", "czkConversion", "partialClaim", "proportionalDeduction", "sourceRateRows", "counterpartyLink", "claimEligibility"].includes(key)) continue;
       for (const [path, leaf] of leafFields(item, prefix ? `${prefix}.${key}` : key)) fields.set(path, leaf);
     }
     return fields;

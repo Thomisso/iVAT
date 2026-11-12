@@ -94,3 +94,38 @@ another approval or a later Company edit.
 - [Financial Administration: sections A.4 and A.5](https://app.fs.gov.cz/dotazy-verejnosti/dotaz/oddil-a4-a-a5-kontrolniho-hlaseni-1512): treatment of recipients without a domestic VAT ID.
 - [Financial Administration: Control Statement form](https://financnisprava.gov.cz/assets/cs/prilohy/d-seznam-dani/Formular-kontrolniho-hlaseni.pdf): A.1, A.2, B.1 and reconciliation to VAT Return lines.
 - [Financial Administration: Control Statement guidance](https://financnisprava.gov.cz/cs/dane/dane/dan-z-pridane-hodnoty/kontrolni-hlaseni-DPH/soubory-ke-stazeni): current filing guidance and reverse-charge subject-code requirements.
+
+
+## Proportional Deduction (§ 75, CZK)
+
+A manually confirmed actual-use coefficient independently multiplies the original
+net amount and original VAT at each rate, using exact decimal arithmetic and
+half-away-from-zero rounding to two decimals. It never calculates VAT anew from
+the reduced net amount. For `19.99 + 4.20` at 33%, the claim is `6.60 + 1.39`;
+the Unclaimed Portion is `13.39 + 2.81`. Original net/VAT-total errors remain
+blocking and gross-total discrepancies remain advisory; an inconsistent original
+gross total has no displayed numeric remainder.
+
+The claimed 21%/12% amounts feed Return lines 40/41, including the full-deduction
+column, shared PDF output and XML `pln23`/`pln5` with
+`odp_tuz23_nar`/`odp_tuz5_nar`. Return rounding remains at summed whole-CZK lines.
+Control Statement values retain two decimals. The entire original gross amount
+selects B.2/B.3 and supplier identity requirements: precisely CZK 10,000 belongs to
+B.3; CZK 10,000.01 belongs to B.2 even if the claimed portion is below the limit.
+New B.2 report entries persist `proportionalDeduction: true`, serialized as
+`pomer=A` by both XML and PDF. Legacy, full and Partial Claim entries retain N;
+B.3 has no ratio field. Report contributions still retain Document ids.
+
+The review, live list summary and checking workbook use the same calculated
+claim. Workbook rows preserve original amounts and, when a proportional Document
+is present, add the mode, coefficient, claimed amounts and Unclaimed Portion.
+A workbook remains a live checking export rather than an immutable VAT Report.
+
+In addition to Earliest Claim Period and the existing pre-/post-2025 filing
+rules, the selected period must share the Earliest Claim Period's calendar year.
+November/December 2026 can follow October 2026; January 2027 cannot. Quarterly
+periods use the same year rule. Preparing December/Q4 in the following year is
+allowed while the general filing cutoff still permits it. Approval, assignment,
+preparation, finalization and new XML recheck the rules in the database; archived
+report/artifact reads retain their historical data. Export and Finalization are
+neither filing nor annual correction.

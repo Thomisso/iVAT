@@ -1,3 +1,5 @@
+import { proportionalDeductionRates, proportionalUnclaimedPortion } from "./proportional-deduction";
+import { amount as exactAmount, halers } from "./money";
 import { currentBusinessDate } from "./business-date";
 import * as XLSX from "xlsx";
 import type { ValidationFinding } from "./document-validation";
@@ -48,7 +50,10 @@ const COLUMNS = [
   "advisoryFindings",
 ] as const;
 
+const DEDUCTION_COLUMNS = ["deductionMode", "percentage", "claimedNetAmount", "claimedVatAmount", "unclaimedNetAmount", "unclaimedVatAmount"] as const;
+
 export type ReportingPeriodWorkbookCopy = {
+  deductionColumns: Record<(typeof DEDUCTION_COLUMNS)[number], string>;
   columns: Record<(typeof COLUMNS)[number], string>;
   sheets: { included: string; attention: string };
   fileNamePrefix: string;
@@ -59,7 +64,7 @@ export type ReportingPeriodWorkbookCopy = {
   unknownReasons: Record<NonNullable<DocumentReporting["mapping"]["vatReturnUnknownReason"]>, string>;
 };
 
-type WorkbookRow = Record<(typeof COLUMNS)[number], string | number>;
+type WorkbookRow = Record<(typeof COLUMNS)[number] | (typeof DEDUCTION_COLUMNS)[number], string | number>;
 
 function amount(value: string | null): string | number {
   if (value === null) return "";
@@ -69,9 +74,8 @@ function amount(value: string | null): string | number {
 
 function rateGross(line: DraftRateBreakdownLine | null): string | number {
   if (!line || line.netAmount === null || line.vatAmount === null) return "";
-  const net = Number(line.netAmount);
-  const vat = Number(line.vatAmount);
-  return Number.isFinite(net) && Number.isFinite(vat) ? net + vat : "";
+  if (!/^-?\d+\.\d{2}$/.test(line.netAmount) || !/^-?\d+\.\d{2}$/.test(line.vatAmount)) return "";
+  return amount(exactAmount(halers(line.netAmount) + halers(line.vatAmount)));
 }
 
 function details(payload: ExtractionPayload | null, line: DraftRateBreakdownLine | null) {
@@ -114,14 +118,16 @@ function findings(values: readonly ValidationFinding[]): string {
     .join("; ");
 }
 
-function worksheet(rows: WorkbookRow[], copy: ReportingPeriodWorkbookCopy): XLSX.WorkSheet {
-  const sheet = XLSX.utils.aoa_to_sheet([COLUMNS.map(column => copy.columns[column]), ...rows.map(row => COLUMNS.map(column => row[column]))]);
-  sheet["!cols"] = COLUMNS.map((column) => ({
-    wch: column === "documentId" ? 38 : column === "findings" ? 52 : Math.max(14, copy.columns[column].length + 2),
+function worksheet(rows: WorkbookRow[], copy: ReportingPeriodWorkbookCopy, hasProportional: boolean): XLSX.WorkSheet {
+  const columns = hasProportional ? [...COLUMNS, ...DEDUCTION_COLUMNS] : COLUMNS;
+  const labels: Record<string, string> = { ...copy.columns, ...copy.deductionColumns };
+  const sheet = XLSX.utils.aoa_to_sheet([columns.map(column => labels[column]), ...rows.map(row => columns.map(column => row[column]))]);
+  sheet["!cols"] = columns.map((column) => ({
+    wch: column === "documentId" ? 38 : column === "findings" ? 52 : Math.max(14, labels[column].length + 2),
   }));
   sheet["!autofilter"] = { ref: sheet["!ref"] ?? `A1:${XLSX.utils.encode_col(COLUMNS.length - 1)}1` };
   for (let row = 1; row <= rows.length; row++) {
-    for (const column of [9, 10, 11]) {
+    for (const column of [9, 10, 11, ...(hasProportional ? [25, 26, 27, 28] : [])]) {
       const cell = sheet[XLSX.utils.encode_cell({ r: row, c: column })];
       if (cell?.t === "n") cell.z = "#,##0.00";
     }
@@ -173,7 +179,15 @@ export async function exportReportingPeriodWorkbook(
     const rates = meaningfulRates.length ? meaningfulRates : [null];
     for (const rate of rates) {
       const values = details(document.payload, rate);
+      const selected = document.payload ? proportionalDeductionRates(document.payload)?.find(line => line.rate === rate?.rate) : undefined;
+      const remainder = document.payload ? proportionalUnclaimedPortion(document.payload)?.rateBreakdown.find(line => line.rate === rate?.rate) : undefined;
       const row: WorkbookRow = {
+        deductionMode: document.payload?.proportionalDeduction ? "proportional" : document.payload?.partialClaim ? "partial_claim" : "full",
+        percentage: document.payload?.proportionalDeduction?.percentage ?? "",
+        claimedNetAmount: selected ? amount(selected.netAmount) : "",
+        claimedVatAmount: selected ? amount(selected.vatAmount) : "",
+        unclaimedNetAmount: remainder ? amount(remainder.netAmount) : "",
+        unclaimedVatAmount: remainder ? amount(remainder.vatAmount) : "",
         "documentId": document.id,
         "documentNumber": values.documentNumber,
         direction: values.direction,
@@ -203,8 +217,8 @@ export async function exportReportingPeriodWorkbook(
     }
   }
   const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet(included, copy), copy.sheets.included);
-  XLSX.utils.book_append_sheet(workbook, worksheet(attention, copy), copy.sheets.attention);
+  XLSX.utils.book_append_sheet(workbook, worksheet(included, copy, documents.some(document => !!document.payload?.proportionalDeduction)), copy.sheets.included);
+  XLSX.utils.book_append_sheet(workbook, worksheet(attention, copy, documents.some(document => !!document.payload?.proportionalDeduction)), copy.sheets.attention);
   return {
     ok: true,
     value: {

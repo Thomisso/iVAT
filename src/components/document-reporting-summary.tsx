@@ -1,3 +1,4 @@
+import { Money } from "./money";
 import { formatDate } from "@/lib/format-date";
 import { getTranslations } from "next-intl/server";
 import type { DocumentReporting } from "@/application/document-reporting";
@@ -9,6 +10,10 @@ export async function DocumentReportingSummary({ reporting, compact = false }: {
   return <div className={`document-reporting${compact ? " is-compact" : ""}`} role="group" aria-label={t("liveTitle")}>
     {!compact && <strong>{t("liveTitle")}</strong>}
     <p>{t("period", { period: reporting.period ?? t("unassigned") })}</p>
+    {reporting.proportionalDeduction && <>
+      <p>{t("proportionalRatio", { percentage: reporting.proportionalDeduction.percentage })}</p>
+      <p>{t("proportionalClaimed")} <Money amount={Number(reporting.proportionalDeduction.netAmount)} /> {t("amountSeparator")} <Money amount={Number(reporting.proportionalDeduction.vatAmount)} /></p>
+    </>}
     {!compact && reporting.claimDeadline && <>
       <p>{t("claimLastFilingDate", { date: formatDate(reporting.claimDeadline.lastFilingDate) })}</p>
       <p>{t("claimEvaluatedOn", { date: formatDate(reporting.claimDeadline.evaluatedOn) })}</p>

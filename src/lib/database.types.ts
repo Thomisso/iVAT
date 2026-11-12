@@ -1562,6 +1562,9 @@ isOneToOne: false
 "update_document_reporting_before_claim_eligibility":
 { Args: { "new_claimed_reporting_period": string,"target_document_id": string }; Returns: undefined
                            },
+"update_document_reporting_before_proportional":
+{ Args: { "new_claimed_reporting_period": string,"target_document_id": string }; Returns: undefined
+                           },
 "upload_batch_deletion_refusal":
 { Args: { "target_batch_id": string }; Returns: string
                            },
