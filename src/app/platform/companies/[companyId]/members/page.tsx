@@ -9,5 +9,5 @@ export default async function PlatformCompanyMembersPage({ params, searchParams 
   const history = await getPlatformCompanyHistory(await requireUserClient(), companyId);
   if (!history.ok || history.value.deletedAt) notFound();
   return <ScopedMemberManagement headingLevel={1} pageLayout={PlatformPageLayout}
-    organizationId={history.value.snapshot.company.organizationId} initialCompanyId={companyId} requestedScope={(await searchParams).scope} />;
+    organizationId={history.value.snapshot.company.organizationId} initialCompanyId={companyId} requestedScope={(await searchParams).scope} requestedEmail={(await searchParams).email} />;
 }
