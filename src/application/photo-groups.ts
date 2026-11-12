@@ -33,15 +33,16 @@ export async function readPhotoGroupBasis(client: AppClient, companyId: string, 
 }
 
 /** Worker-only group preparation. No source object is replaced or reinterpreted as a composite. */
-export async function preparePhotoGroup(system: SystemClient, sourceFileId: string): Promise<{ group: PhotoGroup; ready: boolean } | null> {
+export async function preparePhotoGroup(system: SystemClient, sourceFileId: string): Promise<{ group: PhotoGroup; ready: boolean; terminal?: boolean } | null> {
   const found = await system.from("photo_group").select("*").contains("source_file_ids", [sourceFileId]).maybeSingle();
   if (found.error) throw found.error;
   if (!found.data) return null;
   const group = mapGroup(found.data);
   if (group.basis) return { group, ready: true };
-  const sources = await system.from("source_file").select("id, sha256, format, byte_size")
+  const sources = await system.from("source_file").select("id, sha256, format, byte_size, status")
     .eq("company_id", group.companyId).eq("upload_batch_id", group.batchId).in("id", group.sourceFileIds);
   if (sources.error) throw sources.error;
+  if (sources.data.some(source => !["uploaded", "processing", "waiting_for_platform"].includes(source.status))) return { group, ready: false, terminal: true };
   if (sources.data.length !== group.sourceFileIds.length) {
     const batch = await system.from("upload_batch").select("upload_finished_at").eq("id", group.batchId).single();
     if (batch.error) throw batch.error;

@@ -394,7 +394,7 @@ export function SourceFileUploadForm({ companyId, userId, limits }: { companyId:
     queuedSelections.current += 1;
     setSelecting(true);
     selectionWork.current = selectionWork.current.then(async () => {
-      let next = [...itemsRef.current];
+      const next = [...itemsRef.current];
       let duplicate = false;
       for (const file of files) {
         const sha256 = await contentHash(file);

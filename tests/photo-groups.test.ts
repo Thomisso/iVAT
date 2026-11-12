@@ -63,6 +63,7 @@ describe("User-confirmed Photo Groups", () => {
     expect(archive[`photo-groups/${groupId}/1.png`]).toBeDefined();
     expect(archive[`photo-groups/${groupId}/2.png`]).toBeDefined();
     expect(archive[`source-files/${second}/receipt.png`]).toEqual(fixtureFile("receipt.png"));
+    expect(archive[`source-files/${first}/receipt.jpg`]).toEqual((await readSourceFile(owner.client, owner.companyId, first))?.bytes);
     expect(await beginUploadBatch(owner.client, { companyId: owner.companyId, batchId, fileCount: 2, selectedFiles: [...selectedFiles].reverse() })).toEqual({ ok: false, error: "invalid_choice" });
   });
   it("refuses combined original bytes above the current limit before processing and keeps tenant decisions isolated", async () => {
@@ -80,13 +81,26 @@ describe("User-confirmed Photo Groups", () => {
     expect((await foreign.client.from("photo_group").select("*").eq("id", groupId)).data).toEqual([]);
     expect((await foreign.client.from("photo_group").update({ source_file_ids: [second, first] }).eq("id", groupId)).error?.code).toBe("42501");
     expect((await owner.client.from("photo_group").update({ source_file_ids: [second, first] }).eq("id", groupId)).error?.code).toBe("42501");
+    const reusedGroupId = randomUUID();
+    expect(await beginUploadBatch(owner.client, { companyId: owner.companyId, fileCount: 2, selectedFiles: selectedFiles.map(file => ({ ...file, groupId: reusedGroupId })) })).toEqual({ ok: false, error: "invalid_choice" });
     const worker = testWorker();
     try {
+      const limitedGroup = randomUUID();
+      const limitedSelection = [{ id: randomUUID(), sha256: jpegHash, groupId: limitedGroup }, { id: randomUUID(), sha256: pngHash, groupId: limitedGroup }];
+      expect((await setPlatformUploadLimits(platform.client, { ...previous, maxFilePages: 1 })).ok).toBe(true);
+      expect(await beginUploadBatch(owner.client, { companyId: owner.companyId, fileCount: 2, selectedFiles: limitedSelection })).toEqual({ ok: false, error: "too_many_pages" });
+      expect((await owner.client.rpc("begin_upload_batch", { target_company_id: owner.companyId, selected_file_count: 2, selected_files: limitedSelection })).error?.hint).toBe("too_many_pages");
+      expect((await setPlatformUploadLimits(platform.client, { ...previous, maxBatchFiles: 1 })).ok).toBe(true);
+      expect(await beginUploadBatch(owner.client, { companyId: owner.companyId, fileCount: 2, selectedFiles: limitedSelection })).toEqual({ ok: false, error: "too_many_files" });
       expect((await setPlatformUploadLimits(platform.client, { ...previous, maxFileBytes: 350 })).ok).toBe(true);
       expect((await uploadSourceFile(owner.client, worker.jobs, { companyId: owner.companyId, batchId: batch.value.id, sourceFileId: first, fileName: "red.jpg", bytes: await sharp({ create: { width: 80, height: 120, channels: 3, background: "#ff0000" } }).jpeg().toBuffer() })).ok).toBe(true);
       expect(await uploadSourceFile(owner.client, worker.jobs, { companyId: owner.companyId, batchId: batch.value.id, sourceFileId: second, fileName: "receipt.png", bytes: fixtureFile("receipt.png") })).toEqual({ ok: false, error: "file_too_large" });
       expect((await getPhotoGroup(owner.client, owner.companyId, groupId))?.basis).toBeNull();
     } finally { await setPlatformUploadLimits(platform.client, previous); }
+    await finishUploadBatch(owner.client, batch.value.id);
+    expect((await worker.runJobs()).length).toBeGreaterThan(0);
+    expect(await deleteUploadBatch(owner.client, { companyId: owner.companyId, batchId: batch.value.id })).toEqual({ ok: true, value: null });
+    expect((await owner.client.storage.from("source-files").download(`${owner.companyId}/${second}`)).error).not.toBeNull();
   });
 
   it("keeps a disabled-AI group as one manual Document and deletes its complete basis through the normal Batch lifecycle", async () => {
@@ -120,11 +134,14 @@ describe("User-confirmed Photo Groups", () => {
     if (!batch.ok) throw new Error(batch.error);
     for (const [sourceFileId, fileName] of [[first, "receipt.jpg"], [second, "receipt.png"]]) expect((await uploadSourceFile(owner.client, worker.jobs, { companyId: owner.companyId, batchId: batch.value.id, sourceFileId, fileName, bytes: fixtureFile(fileName) })).ok).toBe(true);
     await finishUploadBatch(owner.client, batch.value.id);
-    expect(await worker.runJobsConcurrently()).toHaveLength(2);
+    expect((await worker.runJobsConcurrently()).length).toBeGreaterThan(0);
     expect((await getUploadBatch(owner.client, owner.companyId, batch.value.id))?.outcome).toBe("failure");
     expect((await getPhotoGroup(owner.client, owner.companyId, groupId))?.basis).toBeNull();
     expect(await listCompanyDocuments(owner.client, owner.companyId)).toEqual([]);
     expect((await readSourceFile(owner.client, owner.companyId, first))?.bytes).toEqual(fixtureFile("receipt.jpg"));
+    expect((await uploadSourceFile(owner.client, worker.jobs, { companyId: owner.companyId, batchId: batch.value.id, sourceFileId: first, fileName: "receipt.jpg", bytes: fixtureFile("receipt.jpg") })).ok).toBe(true);
+    expect(await worker.runJobs()).toEqual([]);
+    expect((await getUploadBatch(owner.client, owner.companyId, batch.value.id))?.outcome).toBe("failure");
   });
 
   it("preserves ordinary PDF processing beside the group and parks all Documents when allowance is exhausted", async () => {

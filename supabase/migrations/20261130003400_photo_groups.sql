@@ -24,7 +24,7 @@ alter function public.begin_upload_batch_without_photo_groups(uuid, integer, uui
 revoke all on function private.begin_upload_batch_without_photo_groups(uuid, integer, uuid, jsonb) from public, anon, authenticated, service_role;
 create function public.begin_upload_batch(target_company_id uuid, selected_file_count integer, requested_batch_id uuid default null, selected_files jsonb default null)
 returns uuid language plpgsql security definer set search_path = '' as $$
-declare batch_id uuid; entry record; ids uuid[]; org_id uuid; maximum integer;
+declare batch_id uuid; entry record; ids uuid[]; org_id uuid; maximum integer; reserved_id text;
 begin
   perform 1 from public.company where id=target_company_id and private.can_access_company(id,organization_id) for update;
   batch_id := private.begin_upload_batch_without_photo_groups(target_company_id, selected_file_count, requested_batch_id, selected_files);
@@ -34,9 +34,14 @@ begin
     and (jsonb_typeof(x->'groupId') <> 'string' or x->>'groupId' !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')) then
     raise exception 'invalid group identity' using errcode='P0001', hint='invalid_choice';
   end if;
+  -- Serialize reservations and actual Source inserts by identity, including across Companies.
+  for reserved_id in select x->>'id' from jsonb_array_elements(selected_files) x where x ? 'groupId' order by x->>'id' loop
+    perform pg_advisory_xact_lock(hashtextextended('photo-group-source:'||reserved_id,0));
+  end loop;
   for entry in select x->>'groupId' as id from jsonb_array_elements(selected_files) x where x ? 'groupId' group by x->>'groupId' loop
     select array_agg((x->>'id')::uuid order by n) into ids
       from jsonb_array_elements(selected_files) with ordinality f(x,n) where x->>'groupId' = entry.id;
+    if exists(select 1 from public.photo_group g where g.id<>entry.id::uuid and g.source_file_ids && ids) then raise exception 'source identity already reserved' using errcode='P0001',hint='invalid_choice'; end if;
     if cardinality(ids) < 2 then raise exception 'a group needs two photos' using errcode='P0001',hint='invalid_choice'; end if;
     if cardinality(ids) > maximum then raise exception 'group exceeds page limit' using errcode='P0001',hint='too_many_pages'; end if;
     if not exists(select 1 from public.photo_group where id=entry.id::uuid) and (exists(select 1 from public.source_file where id=any(ids)) or exists(select 1 from public.document where id=entry.id::uuid)) then raise exception 'sources must be new' using errcode='P0001',hint='invalid_choice'; end if;
@@ -56,6 +61,7 @@ grant execute on function public.begin_upload_batch(uuid,integer,uuid,jsonb) to 
 create function private.validate_photo_group_source() returns trigger language plpgsql security definer set search_path='' as $$
 declare group_ids uuid[]; maximum bigint; existing_bytes bigint;
 begin
+  perform pg_advisory_xact_lock(hashtextextended('photo-group-source:'||new.id::text,0));
   if exists(select 1 from public.photo_group where new.id=any(source_file_ids) and (upload_batch_id is distinct from new.upload_batch_id or company_id<>new.company_id)) then raise exception 'reserved source identity' using errcode='P0001',hint='invalid_choice'; end if;
   select g.source_file_ids into group_ids from public.photo_group g where g.upload_batch_id=new.upload_batch_id and new.id=any(g.source_file_ids);
   if group_ids is not null then
@@ -87,7 +93,7 @@ begin
   if g.basis is not null then return g.id; end if;
   select * into settings from public.platform_settings where singleton;
   select count(*),sum(byte_size) into source_count,total_bytes from public.source_file
-    where id=any(g.source_file_ids) and upload_batch_id=g.upload_batch_id and company_id=g.company_id and format::text in ('jpeg','png') and page_count=1;
+    where id=any(g.source_file_ids) and upload_batch_id=g.upload_batch_id and company_id=g.company_id and format::text in ('jpeg','png') and page_count=1 and status in ('uploaded','processing','waiting_for_platform');
   if source_count<>cardinality(g.source_file_ids) then raise exception 'group incomplete' using errcode='P0001',hint='upload_incomplete'; end if;
   if cardinality(g.source_file_ids)>settings.max_source_file_pages then raise exception 'group page limit' using errcode='P0001',hint='too_many_pages'; end if;
   if total_bytes>settings.max_source_file_bytes or (processed_basis->>'byteSize')::bigint>settings.max_source_file_bytes then

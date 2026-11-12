@@ -276,7 +276,7 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
   }
   if (grouped) {
     if (grouped.ready) await jobs.send(extractJob(grouped.group.id));
-    else await jobs.send(splitJob(sourceFileId), { startAfterSeconds: BLOCKED_JOB_RECHECK_SECONDS });
+    else if (!grouped.terminal) await jobs.send(splitJob(sourceFileId), { startAfterSeconds: BLOCKED_JOB_RECHECK_SECONDS });
     return;
   }
   const { data: file, error } = await system
