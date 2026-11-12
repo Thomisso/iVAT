@@ -11,3 +11,11 @@ Split sends PDFs natively to multimodal LLMs (Anthropic and OpenAI at MVP) behin
 
 - One Source File = one Document. Rejected: multi-invoice PDFs are common in practice.
 - OCR (Tesseract or Azure Document Intelligence) followed by text-only LLM. Deferred: modern multimodal models read PDFs and images natively, and an extra engine adds cost and failure modes.
+
+## Explicit Photo Groups
+
+A User may confirm JPEG/PNG photographs as one ordered Photo Group before the Upload Batch starts. Its unchanged originals remain individual Source Files. The frozen selection records the group identity and order, human author and time. The group creates exactly one Document, anchored to its first Source File for compatible history and batch queries. AI Split is bypassed and existing page correction cannot change these human boundaries. Ungrouped files retain Split → Extract.
+
+The worker decodes and orients each photograph into a stored PNG page, then embeds those exact PNGs in an ordered PDF for review. The stored PNGs are supplied to both production provider adapters in a single Extraction request; they are not regenerated or rasterized again. The immutable group basis manifest binds original identities/hashes, processed page hashes and PDF hash. Source Evidence names that group and basis, with page coordinates in that processed representation. Review links each original separately; archives retain originals, the decision/manifest, PDF and processed PNGs. Failures remain failures rather than replacing originals or inventing an Extraction.
+
+This extends ADR-0015's single-source relationship without making a Source File a multi-file object. It preserves the immutable Versions of ADR-0005, database authority of ADR-0008, locks of ADR-0007 and one successful Extraction allowance under ADR-0011. HEIC/HEIF groups and group recovery are separate slices.

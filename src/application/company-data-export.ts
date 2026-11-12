@@ -1,3 +1,4 @@
+import { photoGroupPath, type PhotoGroup } from "./photo-groups";
 import { createHash } from "node:crypto";
 import { strToU8, zipSync } from "fflate";
 import type { Counterparty } from "./counterparties";
@@ -19,6 +20,7 @@ export type CompanyExportSnapshot = {
   reportingYears: ReportingYear[];
   counterparties?: (Counterparty & { createdAt: string })[];
   sourceFiles: SourceFile[];
+  photoGroups?: PhotoGroup[];
   documents: (Document & { supersededAt: string | null; extractionVersions: ExtractionVersion[] })[];
   vatReports: (VatReport & { generatedBy: string })[];
   vatReportTransitions: VatReportTransition[];
@@ -40,6 +42,7 @@ function archiveLeaf(fileName: string): string {
 export async function buildCompanyDataArchive(
   snapshot: CompanyExportSnapshot,
   readOriginal: (sourceFile: SourceFile) => Promise<Uint8Array | null>,
+  readObject?: (path: string) => Promise<Uint8Array | null>,
 ): Promise<Uint8Array | null> {
   const {
     company,
@@ -74,6 +77,17 @@ export async function buildCompanyDataArchive(
     const bytes = await readOriginal(sourceFile);
     if (!bytes) return null;
     archive[`source-files/${sourceFile.id}/${archiveLeaf(sourceFile.fileName)}`] = bytes;
+  }
+  if (snapshot.photoGroups) archive["photo-groups.json"] = json(snapshot.photoGroups);
+  for (const group of snapshot.photoGroups ?? []) {
+    archive[`photo-groups/${group.id}/manifest.json`] = json(group);
+    if (!group.basis) continue;
+    if (!readObject) return null;
+    for (const object of [{ leaf: "basis.pdf", ...group.basis }, ...group.basis.pages.map(page => ({ ...page, leaf: `${page.page}.png` }))]) {
+      const bytes = await readObject(photoGroupPath(group, object.leaf));
+      if (!bytes || bytes.length !== object.byteSize || createHash("sha256").update(bytes).digest("hex") !== object.sha256) return null;
+      archive[`photo-groups/${group.id}/${object.leaf}`] = bytes;
+    }
   }
   for (const artifact of vatReportArtifacts) {
     const bytes = new Uint8Array(Buffer.from(artifact.xmlBase64, "base64"));

@@ -96,7 +96,7 @@ export type SourceEvidence = {
   sourceSha256: string;
   documentId: string;
   originExtractionRequestId: string;
-  basis: { kind: "original"; format: "pdf" | "png" | "jpeg" | "xls" | "xlsx"; sha256: string } | { kind: "normalized"; format: "jpeg"; sha256: string };
+  basis: { kind: "photo_group"; format: "pdf"; sha256: string; groupId: string } | { kind: "original"; format: "pdf" | "png" | "jpeg" | "xls" | "xlsx"; sha256: string } | { kind: "normalized"; format: "jpeg"; sha256: string };
   range: { firstPage: number; lastPage: number } | WorkbookEvidenceRange;
   fields: Record<string, SourceFieldEvidence>;
 };
@@ -110,7 +110,7 @@ export function sourceFieldValue(payload: ExtractionPayload, field: string): str
 /** Never carries a provider-selected identity or a prior AI Version's reference forward. */
 export function bindSourceEvidence(payload: ExtractionPayload, source: {
   sourceFileId: string; sha256: string; documentId: string; requestId: string;
-  format: string; firstPage: number; lastPage: number; normalizedSha256?: string | null; workbookEvidence?: WorkbookEvidenceRange;
+  photoGroup?: { id: string; sha256: string }; format: string; firstPage: number; lastPage: number; normalizedSha256?: string | null; workbookEvidence?: WorkbookEvidenceRange;
 }): ExtractionPayload {
   const clean = { ...payload };
   delete clean.sourceLocations;
@@ -137,7 +137,7 @@ export function bindSourceEvidence(payload: ExtractionPayload, source: {
   return { ...clean, sourceEvidence: {
     schemaVersion: 1, sourceFileId: source.sourceFileId, sourceSha256: source.sha256,
     documentId: source.documentId, originExtractionRequestId: source.requestId,
-    basis: source.normalizedSha256 ? { kind: "normalized", format: "jpeg", sha256: source.normalizedSha256 }
+    basis: source.photoGroup ? { kind: "photo_group", format: "pdf", sha256: source.photoGroup.sha256, groupId: source.photoGroup.id } : source.normalizedSha256 ? { kind: "normalized", format: "jpeg", sha256: source.normalizedSha256 }
       : { kind: "original", format: source.format, sha256: source.sha256 },
     range: source.workbookEvidence ?? { firstPage: source.firstPage, lastPage: source.lastPage }, fields,
   } };

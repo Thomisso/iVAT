@@ -723,6 +723,38 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"photo_group": {
+                  Row: {
+                    "basis": Json | null,"company_id": string,"created_at": string,"created_by": string,"id": string,"organization_id": string,"source_file_ids": (string)[],"upload_batch_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "basis"?: Json | null,"company_id": string,"created_at"?: string,"created_by": string,"id": string,"organization_id": string,"source_file_ids": (string)[],"upload_batch_id": string
+                  }
+                  Update: {
+                    "basis"?: Json | null,"company_id"?: string,"created_at"?: string,"created_by"?: string,"id"?: string,"organization_id"?: string,"source_file_ids"?: (string)[],"upload_batch_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "photo_group_company_id_organization_id_fkey"
+      columns: ["company_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "company"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "photo_group_upload_batch_id_fkey"
+      columns: ["upload_batch_id"]
+isOneToOne: false
+      referencedRelation: "upload_batch"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "photo_group_upload_batch_id_fkey"
+      columns: ["upload_batch_id"]
+isOneToOne: false
+      referencedRelation: "upload_batch_summary"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"platform_ai_provider": {
                   Row: {
                     "provider": string
@@ -1212,6 +1244,9 @@ isOneToOne: false
 "complete_mfa_replacement":
 { Args: Record<PropertyKey, never>; Returns: undefined
                            },
+"complete_photo_group":
+{ Args: { "processed_basis": Json,"target_group_id": string }; Returns: string
+                           },
 "complete_source_processing_dispatch":
 { Args: { "target_source_file_id": string,"target_split_request_id": string }; Returns: undefined
                            },
@@ -1320,6 +1355,9 @@ isOneToOne: false
                            },
 "fail_company_data_export":
 { Args: { "target_export_id": string }; Returns: undefined
+                           },
+"fail_photo_group":
+{ Args: { "target_source_file_id": string }; Returns: undefined
                            },
 "finalize_vat_report":
 { Args: { "finalization_confirmed": boolean,"target_company_id": string,"target_period": string }; Returns: undefined

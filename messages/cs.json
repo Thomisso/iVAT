@@ -473,7 +473,17 @@
     "dropTitle": "Přetáhněte sem zdrojový soubor",
     "chooseFile": "Vybrat soubor",
     "serverConfirmed": "Uloženo serverem: {bytes} z {total} bajtů",
-    "transferEstimate": "Odhad přenosu: {percent} %"
+    "transferEstimate": "Odhad přenosu: {percent} %",
+    "groupPhotos": "Seskupit vybrané fotografie jako jeden doklad",
+    "selectPhoto": "Vybrat fotografii do skupiny",
+    "groupPage": "Skupina {group} · strana {page}",
+    "dissolveGroup": "Rozpustit skupinu",
+    "movePhotoEarlier": "Posunout dříve",
+    "movePhotoLater": "Posunout později",
+    "photoGroupOriginals": "Seřazené původní fotografie",
+    "groupDocument": "Zkontrolovat seskupený doklad",
+    "groupPreparing": "Fotografie je součástí potvrzené skupiny. Připravuje se její úplný podklad.",
+    "groupUnavailable": "Podklad skupiny není dostupný. Originály zůstávají zachované, zpracování skupiny není dokončené."
   },
   "returnContext": {
     "counterparty": "← Zpět na protistranu",

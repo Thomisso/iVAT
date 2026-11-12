@@ -54,8 +54,16 @@ _Avoid_: Import, job, dávka (in code)
 A single file uploaded or imported into a Company, preserved unchanged. May contain one or more Documents.
 _Avoid_: Upload, attachment, document (when meaning the file)
 
+**Photo Group**:
+A User-confirmed ordered set of original photographs of one Document, fixed when its Upload Batch starts. Its processed basis is separate from the unchanged Source Files.
+_Avoid_: Automatic group, merged original
+
+**Processed Basis**:
+The preserved representation actually supplied for Extraction, with its identity and page order traceable to the original source evidence.
+_Avoid_: Original, Source File (when meaning a derived representation)
+
 **Document**:
-One financial document (invoice, credit note, receipt, simplified tax document…), entered manually or identified within a Source File by a page range or row set. A Document can exist without a Source File.
+One financial document (invoice, credit note, receipt, simplified tax document…), entered manually, identified within a Source File by a page range or row set, or explicitly bounded by a Photo Group. A Document can exist without a Source File.
 _Avoid_: Doklad (in code), file, record
 
 **Direction**:

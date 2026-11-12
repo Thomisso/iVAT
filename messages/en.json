@@ -473,7 +473,17 @@
     "dropTitle": "Drop a Source File here",
     "chooseFile": "Choose a file",
     "serverConfirmed": "Server stored: {bytes} of {total} bytes",
-    "transferEstimate": "Transfer estimate: {percent}%"
+    "transferEstimate": "Transfer estimate: {percent}%",
+    "groupPhotos": "Group selected photos as one Document",
+    "selectPhoto": "Select photograph for grouping",
+    "groupPage": "Group {group} · page {page}",
+    "dissolveGroup": "Dissolve group",
+    "movePhotoEarlier": "Move earlier",
+    "movePhotoLater": "Move later",
+    "photoGroupOriginals": "Ordered original photographs",
+    "groupDocument": "Review the grouped Document",
+    "groupPreparing": "This photograph belongs to a confirmed group; its complete basis is being prepared.",
+    "groupUnavailable": "The group basis is unavailable. Originals remain preserved; this group has not completed processing."
   },
   "returnContext": {
     "counterparty": "← Back to Counterparty",
