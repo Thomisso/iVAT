@@ -1,6 +1,6 @@
 # QA v1: redesign hlavního pracovního toku
 
-**Navazující backlog triage 12. 11. 2026:** [potvrzené Q26–Q40 a další Q41–Q49](qa-remaining-triage.md) upřesňují dnešní stav odkladů níže. Původní specifikace a její historická hranice zůstávají zachované.
+**Navazující backlog triage 12. 11. 2026:** [potvrzené Q26–Q49](qa-remaining-triage.md) upřesňují dnešní stav odkladů níže. Původní specifikace a její historická hranice zůstávají zachované.
 
 **Stav:** historická specifikace etapy integrované do `main` v [PR #90](https://github.com/Thomisso/iVAT/pull/90) dne 29. 10. 2026; [#73](https://github.com/Thomisso/iVAT/issues/73) je uzavřené. Původní specifikace a její backlog níže zůstávají historickým záznamem; zbývající firemní dashboard a další navazující nálezy sleduje [QA v7](QA_v7.md).
 **Datum rozhodnutí:** 28. října 2026  

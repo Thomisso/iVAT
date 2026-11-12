@@ -1,12 +1,12 @@
-# Zbývající rozhodnutí z QA
+# Potvrzená navazující zadání a odklady QA
 
-**Stav k 12. 11. 2026:** probíhá triage a příprava zadání, nikoli implementace. Vlastník výslovně potvrdil tento rozsah i všechna doporučení Q26–Q40 odpovědí „souhlasím se vším“. První rozsahy a vědomé odklady jsou schválené. Navazující Q41–Q49 čekají na odpovědi; readiness je uvedená po jednotlivých issues.
+**Stav k 12. 11. 2026:** produktová triage je dokončená. Vlastník potvrdil Q26–Q40 i navazující Q41–Q49 odpověďmi „souhlasím se vším“. Všechny vybrané funkce mají zadání, ostatní explicitní QA odklady mají potvrzený backlog nebo zachovanou produktovou politiku. Implementace se touto triage nespustila; readiness a skutečné závislosti jsou uvedené po jednotlivých issues.
 
 Všechny QA dokumenty jsou zahrnuté v [úplném inventáři](docs-open-items-audit.md). Dodané etapy, potvrzené [Q1–Q14](qa-v7-triage.md) a [Q15–Q25](qa-v7-quality-statistics.md) se neotevírají znovu. Zbývají převážně explicitní odklady, nikoli vady dokončených dodávek.
 
 ## Potvrzená rozhodnutí Q26 až Q40
 
-Rozhodnutí vybírají první rozsah nebo vědomé ponechání v backlogu. Potvrzení směru se odlišuje od úplného implementačního zadání; konkrétní zbylé volby uvádí Q41–Q49.
+Rozhodnutí vybírají první rozsah nebo vědomé ponechání v backlogu. Navazující potvrzené detaily Q41–Q49 níže jsou součástí úplných implementačních zadání.
 
 | Rozhodnutí | Zdroj QA | Potvrzený rozsah nebo odklad |
 | --- | --- | --- |
@@ -30,22 +30,22 @@ Rozhodnutí vybírají první rozsah nebo vědomé ponechání v backlogu. Potvr
 
 | Issue nebo podklad | Stav | Návaznost |
 | --- | --- | --- |
-| [#283 Přehled Companies](https://github.com/Thomisso/iVAT/issues/283) | `needs-triage`, nativní blocker #278 | Q41–Q42; stejné definice práce a DPH jako firemní dashboard |
+| [#283 Přehled Companies](https://github.com/Thomisso/iVAT/issues/283) | `ready-for-agent`, nativní blocker #278 | Potvrzené Q41–Q42; stejné definice práce a DPH jako firemní dashboard |
 | [#284 Seskupení fotografií](https://github.com/Thomisso/iVAT/issues/284) | `ready-for-agent` | Jeden lidsky určený Document, ordered originály, AI evidence a úplný archiv; bez tichého AI přerozdělení |
-| [#285 Úpravy fotografií](https://github.com/Thomisso/iVAT/issues/285) | `needs-triage` | Q43; obecná derivative/provenance dosud neexistuje |
-| [#286 Byte-resume](https://github.com/Thomisso/iVAT/issues/286) | `needs-triage` | Q44; současná IndexedDB queue je užší schopnost |
-| [#287 Zastupování v exportech](https://github.com/Thomisso/iVAT/issues/287) | `needs-triage` | Q45–Q46; samostatná větev zástupce, nikoli přejmenování oprávněné osoby |
-| [#288 E-mailové provozní alerty](https://github.com/Thomisso/iVAT/issues/288) | `needs-triage` | Q47–Q49; vlastní durable epizody/dedupe a úzký worker přístup, bez oslabení MFA |
+| [#285 Úpravy fotografií](https://github.com/Thomisso/iVAT/issues/285) | `ready-for-agent`, nativní blocker #284 | Potvrzené Q43: jen před zahájením dávky; společná provenance zdrojů |
+| [#286 Byte-resume](https://github.com/Thomisso/iVAT/issues/286) | `ready-for-agent` | Potvrzené Q44: sedm dní od nově potvrzené části; současná IndexedDB queue je užší schopnost |
+| [#287 Zastupování v exportech](https://github.com/Thomisso/iVAT/issues/287) | `ready-for-agent` | Potvrzené Q45–Q46: přímá cesta a 4a/4b/4c; Company profil + jednorázový override |
+| [#288 E-mailové provozní alerty](https://github.com/Thomisso/iVAT/issues/288) | `ready-for-agent` | Potvrzené Q47–Q49: vlastní ověřený účet, pět minut blokace, připomínka nejvýše 1/24h a recovery; úzký worker přístup bez oslabení MFA |
 | [#289 Výzkum nejistoty](https://github.com/Thomisso/iVAT/issues/289) | `needs-triage`, odloženo | Až skutečně dokončená baseline; samotné #280/#281 nejsou naměřený výsledek |
 | [#290 Duplicita ovládání](https://github.com/Thomisso/iVAT/issues/290) | `needs-triage`, nízkoprioritní údržba | Není zbývající funkční vada QA6 |
 | [#291 Potvrzené odklady](https://github.com/Thomisso/iVAT/issues/291) | `needs-triage`, přehledový backlog | Q33–Q38 a zachovaná dřívější rozhodnutí; není obří implementační ticket |
 | [DNS podklad](rosti-dns-support-draft.md) | Připraveno, neodesláno | Q40 splněné přípravou; neprokazuje současnou reprodukci ani příčinu resolveru |
 
-## Navazující rozhodnutí Q41 až Q49
+## Potvrzená rozhodnutí Q41 až Q49
 
-Toto jsou doporučení čekající na odpověď vlastníka. Již potvrzené Q26–Q40 se znovu neotevírají. Fyzický formát podkladů, tabulky, chunk size a jiné technické detaily rozhodne implementace při zachování akceptace.
+Všechna doporučení Q41–Q49 vlastník potvrdil. Další otevřená produktová otázka z tohoto průchodu nezůstává. Fyzický formát podkladů, tabulky, chunk size a jiné technické detaily rozhodne implementace při zachování akceptace.
 
-| Otázka | Doporučení k potvrzení |
+| Rozhodnutí | Potvrzená volba |
 | --- | --- |
 | Q41 Umístění přehledu Companies | Vždy dostupný samostatný přehled Firmy; zachovat dnešní návrat do zapamatované Company |
 | Q42 Výběr a řazení Companies | Výchozí všechny přístupné Companies, hledání názvem a filtr Organization; s pozorností první, ostatní podle názvu; každá má vlastní DPH cyklus z #278, bez společného období |
@@ -57,7 +57,7 @@ Toto jsou doporučení čekající na odpověď vlastníka. Již potvrzené Q26�
 | Q48 Závažnost a první alert | Kritické blokace konkrétní práce po pěti minutách trvání. Přechodná varování, 80% allowance a vyčerpání bez čekající práce zůstávají jen in-app |
 | Q49 Připomínky a vyřešení | První alert, maximálně jedna připomínka za 24 hodin a jedna zpráva po vyřešení, jen pokud první alert skutečně odešel; bez acknowledge/umlčení v první verzi |
 
-Běžné typy zastupování ověřené v aktuálních oficiálních popisech [DPHDP3](https://adisspr.mfcr.cz/dpr/adis/idpr_pub/epo2_info/popis_struktury_detail.faces?zkratka=DPHDP3) a [DPHKH1](https://adisspr.mfcr.cz/dpr/adis/idpr_pub/epo2_info/popis_struktury_detail.faces?zkratka=DPHKH1) z 11. 8. 2026. Q45 vybírá podporovaný produktový rozsah; uživatel neurčuje zákonná pravidla. XSD anotace obsahují podmíněné povinnosti, které samotná validace schématem plně nevynucuje.
+Běžné typy zastupování ověřené v aktuálních oficiálních popisech [DPHDP3](https://adisspr.mfcr.cz/dpr/adis/idpr_pub/epo2_info/popis_struktury_detail.faces?zkratka=DPHDP3) a [DPHKH1](https://adisspr.mfcr.cz/dpr/adis/idpr_pub/epo2_info/popis_struktury_detail.faces?zkratka=DPHKH1) z 11. 8. 2026. Potvrzené Q45 vybírá podporovaný produktový rozsah; uživatel neurčuje zákonná pravidla. XSD anotace obsahují podmíněné povinnosti, které samotná validace schématem plně nevynucuje.
 
 ## Zachovaná rozhodnutí a hranice
 

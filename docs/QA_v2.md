@@ -1,6 +1,6 @@
 # QA v2: sjednocení aplikace a platformně řízené AI
 
-**Navazující backlog triage 12. 11. 2026:** [potvrzené Q26–Q40 a další Q41–Q49](qa-remaining-triage.md) upřesňují dnešní stav odkladů níže. Původní specifikace a její historická hranice zůstávají zachované.
+**Navazující backlog triage 12. 11. 2026:** [potvrzené Q26–Q49](qa-remaining-triage.md) upřesňují dnešní stav odkladů níže. Původní specifikace a její historická hranice zůstávají zachované.
 
 **Stav:** dodáno do `main` v [PR #114](https://github.com/Thomisso/iVAT/pull/114) dne 29. 10. 2026; [#91](https://github.com/Thomisso/iVAT/issues/91) je uzavřené. Níže zůstává schválená specifikace této etapy.
 **Datum rozhodnutí:** 29. října 2026
