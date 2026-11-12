@@ -1139,6 +1139,9 @@ isOneToOne: false
               "document_id": string,"document_number": string,"version": number
             }[]
                            },
+"counterparty_statistics":
+{ Args: { "contribution": string,"date_from": string,"date_to": string,"original_currency": string,"page_number": number,"target_company_id": string,"target_counterparty_id": string,"trade_direction": string }; Returns: Json
+                           },
 "create_ai_configuration":
 { Args: { "configuration_label": string,"provider_credential": string,"target_extract_model": string,"target_provider": string,"target_split_model": string }; Returns: string
                            },

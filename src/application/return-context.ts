@@ -4,7 +4,7 @@ const INTERNAL_ORIGIN = "https://ivat.invalid";
 const UUID_PATH = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
 const DOCUMENT_PARAMS = ["view", "status", "direction", "reportingPeriod", "counterparty", "hasFindings", "batchId", "readiness", "page"];
 
-export type CompanyReturnDestination = "company" | "documents" | "document" | "processing" | "vatReturn" | "controlStatement" | "exportHistory" | "periods" | "upload" | "batch" | "sourceFile";
+export type CompanyReturnDestination = "company" | "documents" | "document" | "counterparty" | "processing" | "vatReturn" | "controlStatement" | "exportHistory" | "periods" | "upload" | "batch" | "sourceFile";
 
 export function companyReturnDestination(companyId: string, href: string): CompanyReturnDestination | null {
   const path = new URL(href, INTERNAL_ORIGIN).pathname;
@@ -14,6 +14,7 @@ export function companyReturnDestination(companyId: string, href: string): Compa
   const suffix = path.slice(prefix.length);
   if (suffix === "/documents") return "documents";
   if (new RegExp(`^/documents/${UUID_PATH}$`).test(suffix)) return "document";
+  if (new RegExp(`^/counterparties/${UUID_PATH}$`).test(suffix)) return "counterparty";
   if (suffix === "/upload") return "upload";
   if (new RegExp(`^/upload-batches/${UUID_PATH}$`).test(suffix)) return "batch";
   if (new RegExp(`^/source-files/${UUID_PATH}$`).test(suffix)) return "sourceFile";
@@ -37,7 +38,8 @@ function safeReturnTo(companyId: string, requested: unknown, depth: number): str
   const destination = companyReturnDestination(companyId, url.pathname);
   if (!destination) return null;
   const allowed = destination === "documents" || destination === "document" ? [...DOCUMENT_PARAMS, "version"]
-    : destination === "upload" ? ["createdFrom", "createdTo", "historyPage"]
+    : destination === "counterparty" ? ["year", "from", "to", "direction", "currency", "contribution", "page", "documentsPage"]
+      : destination === "upload" ? ["createdFrom", "createdTo", "historyPage"]
       : destination === "processing" ? ["period"] : [];
   const query = new URLSearchParams();
   for (const key of allowed) {
