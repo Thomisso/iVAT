@@ -786,12 +786,14 @@
     "claimed_period_after_deadline": "This period ends too late for an ordinary claim before the filing deadline. Choose an earlier eligible period.",
     "counterparty_resolution_required": "Resolve the Counterparty identity before approval. Select an existing entry, restore an archived match, or explicitly confirm creation without identifiers. Changed directory warnings must be reviewed.",
     "organization_creation_failed": "The Organization could not be saved. Please try again.",
-    "upload_authentication_required": "Sign in again with the same account, then retry this upload.",
-    "upload_incomplete": "Some bytes are still missing. Retry the upload.",
-    "upload_checksum_mismatch": "The received bytes do not match the selected file.",
     "membership_self_change": "You cannot remove your own Membership or demote yourself from Administrator. Ask another authorized person to arrange the handover.",
     "membership_last_administrator": "This change would remove the last scoped Administrator. Another person must hold an Administrator Membership first.",
-    "membership_change_stale": "Access changed while you were reviewing. Cancel this confirmation and review the current impact again."
+    "membership_change_stale": "Access changed while you were reviewing. Cancel this confirmation and review the current impact again.",
+    "proportional_deduction_invalid": "Confirm a supported actual-use proportional deduction (1–99%).",
+    "proportional_claim_year_mismatch": "The proportional claim period must be in the Earliest Claim Period’s calendar year.",
+    "upload_authentication_required": "Sign in again with the same account, then retry this upload.",
+    "upload_incomplete": "Some bytes are still missing. Retry the upload.",
+    "upload_checksum_mismatch": "The received bytes do not match the selected file."
   },
   "aiUsage": {
     "platformNav": "Platform AI usage",
@@ -1201,7 +1203,9 @@
       "deferred_claim_not_supported": "Shared deferral is not supported for this regime. Resolve the Document manually before preparing a new report.",
       "claim_document_type_required": "Choose a Document type before confirming claim eligibility.",
       "claim_deadline_expired": "The claim filing deadline has expired. A new approval cannot establish timely filing.",
-      "claimed_period_after_deadline": "This period ends too late for an ordinary claim before the filing deadline. Choose an earlier eligible period."
+      "claimed_period_after_deadline": "This period ends too late for an ordinary claim before the filing deadline. Choose an earlier eligible period.",
+      "proportional_deduction_invalid": "Confirm a supported actual-use proportional deduction (1–99%).",
+      "proportional_claim_year_mismatch": "The proportional claim period must be in the Earliest Claim Period’s calendar year."
     },
     "noDocumentImage": "This Document came from spreadsheet rows and has no document image.",
     "sections": {
@@ -1377,7 +1381,29 @@
     "approvalHuman": "Approved by a User",
     "approvalUnknown": "Approval recorded; original decision details are unknown",
     "approvalVersion": "Version {version}",
-    "approvalVersionUnknown": "Version not recorded"
+    "approvalVersionUnknown": "Version not recorded",
+    "proportionalDeduction": {
+      "title": "Proportional deduction (§ 75)",
+      "enable": "Use a manually confirmed actual-use ratio",
+      "scope": "Only ordinary incoming domestic operating expenditure in CZK. Fixed assets, estimates, § 76, advances and combinations with Partial Claim are unsupported.",
+      "rounding": "Round the actual percentage upward to a whole percentage under § 75(3). Enter the final coefficient, 1–99%, for the entire Document.",
+      "percentage": "Actual-use coefficient (%)",
+      "operating": "I confirm this is ordinary operating expenditure, outside fixed-asset acquisition and its related expenditure.",
+      "actual": "I confirm the ratio reflects already known actual use, not an estimate.",
+      "confirm": "Confirm this ratio and these source amounts",
+      "previous": "Previous ratio: {percentage} %. Confirm it again for the current data.",
+      "invalid": "Enter a whole percentage from 1 to 99, confirm both statements and the ratio, and resolve unsupported combinations or source discrepancies.",
+      "alternatives": "For 0% explicitly disable this mode and use Partial Claim with its zero confirmation. For 100% explicitly disable this mode and use full amounts. Disable Partial Claim before selecting a proportional deduction.",
+      "rate": "VAT rate",
+      "original": "Original net + VAT",
+      "claimed": "Claimed net + VAT",
+      "unclaimed": "Unclaimed net + VAT",
+      "unavailable": "Unavailable until source totals reconcile",
+      "filing": "Export and Finalization do not submit a tax return or perform an annual correction. The selected period must be in the Earliest Claim Period’s calendar year; the filing deadline still applies.",
+      "total": "Total",
+      "rateValue": "{rate} %",
+      "amountSeparator": "+"
+    }
   },
   "duplicateWarning": {
     "document_identity": "Possible duplicate: the counterparty VAT ID, document number and direction match an earlier Document.",
@@ -1811,7 +1837,10 @@
     "claimLastFilingDate": "Claim must be exercised by filing no later than: {date}",
     "claimEvaluatedOn": "Assessed as of: {date}",
     "claimLatestPeriod": "Latest available ordinary period: {period}",
-    "claimFilingNote": "Preparation, Finalization and XML export do not submit a return. Saved reports and archived XML retain their recorded data."
+    "claimFilingNote": "Preparation, Finalization and XML export do not submit a return. Saved reports and archived XML retain their recorded data.",
+    "proportionalRatio": "Proportional deduction: {percentage} %",
+    "proportionalClaimed": "Claimed net + VAT:",
+    "amountSeparator": "+"
   },
   "reportingWorkbook": {
     "columns": {
@@ -1852,6 +1881,19 @@
       "included": "included",
       "proposed": "proposed",
       "unavailable": "unavailable"
+    },
+    "deductionColumns": {
+      "deductionMode": "Deduction mode",
+      "percentage": "Ratio (%)",
+      "claimedNetAmount": "Claimed net amount",
+      "claimedVatAmount": "Claimed VAT amount",
+      "unclaimedNetAmount": "Unclaimed net amount",
+      "unclaimedVatAmount": "Unclaimed VAT amount"
+    },
+    "deductionModes": {
+      "proportional": "Proportional deduction",
+      "partialClaim": "Partial Claim",
+      "full": "Full deduction"
     }
   },
   "authEmails": {

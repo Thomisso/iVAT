@@ -3,6 +3,7 @@
 import { useCompanyReviewShortcuts } from "@/components/company-shortcuts";
 import { ReviewActions, useReviewWorkspace } from "./review-workspace";
 import { useReviewDraft } from "./review-guard";
+import { ProportionalDeductionFields } from "./proportional-deduction-fields";
 import { PartialClaimFields } from "./partial-claim-fields";
 import { ClaimEligibilityFields } from "./claim-eligibility-fields";
 
@@ -243,6 +244,7 @@ export function CorrectionForm({
   const errors = (state.findings ?? findings).filter(item => item.severity === "error");
   const fieldLabel = (field: string) => {
     if (field === "claimEligibility") return t("claimEligibility.title");
+    if (field === "proportionalDeduction") return t("proportionalDeduction.title");
     if (field === "partialClaim") return t("partialClaim.title");
     const labels: Record<string, string> = { proposedVatRegime: "vatRegime", "totals.netAmount": "totalNet", "totals.vatAmount": "totalVat", "totals.grossAmount": "totalGross", partialClaim: "totalNet" };
     const key = `fields.${labels[field] ?? field.split(".").at(-1)!}`;
@@ -253,6 +255,7 @@ export function CorrectionForm({
     workspace?.showData();
     const wrapper = [...(form.current?.querySelectorAll<HTMLElement>("[data-source-field]") ?? [])].find(element => element.dataset.sourceField === field);
     const target = field === "claimEligibility" ? form.current?.querySelector<HTMLElement>("#earliest-claim-period")
+      : field === "proportionalDeduction" ? form.current?.querySelector<HTMLElement>(editable ? "#proportional-deduction-enabled" : "#proportional-deduction")
       : field === "partialClaim" ? form.current?.querySelector<HTMLElement>(editable ? "#partial-claim-enabled" : "#partial-claim")
       : wrapper?.querySelector<HTMLElement>('input:not([type="hidden"]):not([type="date"]),select')
         ?? [...(form.current?.elements ?? [])].find(element => element instanceof HTMLElement && element.getAttribute("name") === field) as HTMLElement | undefined;
@@ -262,7 +265,7 @@ export function CorrectionForm({
 
   const comparisonRows = state.conflict ? Object.entries(state.values).flatMap(([name, submitted]) => {
     // Receipts, directory identities and validation bases are not editable fields.
-    if (["companyId", "documentId", "basedOnVersion", "requestId", "displayedBankAccountCheckId", "displayedReviewContext", "acknowledgement", "intent", "nextDocumentId", "queueQuery", "returnTo", "counterpartyId", "partialClaim.basis"].includes(name)) return [];
+    if (["companyId", "documentId", "basedOnVersion", "requestId", "displayedBankAccountCheckId", "displayedReviewContext", "acknowledgement", "intent", "nextDocumentId", "queueQuery", "returnTo", "counterpartyId", "partialClaim.basis", "proportionalDeduction.basis"].includes(name)) return [];
     const currentPayload = state.conflict!.payload;
     const path = name.replace(/^partialClaim\.(\d+)\./, "partialClaim.rateBreakdown.$1.");
     const current = path.split(".").reduce<unknown>((entry, part) => entry !== null && typeof entry === "object" ? (entry as Record<string, unknown>)[part] : undefined, currentPayload);
@@ -443,6 +446,7 @@ export function CorrectionForm({
           )}
         </div>
       </fieldset>
+      <ProportionalDeductionFields key={`proportional-${version}`} payload={payload} editable={editable} values={state.values} rateRows={lines} />
       <PartialClaimFields key={version} payload={payload} editable={editable} values={state.values} rateRows={lines} />
       {payload.czkConversion && (
         <fieldset>

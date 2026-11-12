@@ -50,6 +50,7 @@ export function claimEligibilityFinding(document: {
     || !basis.importDate || reportingPeriodForDate(basis.importDate, years) !== taxPeriod)) return error("claim_eligibility_required");
   const chosen = document.claimedReportingPeriod ?? taxPeriod;
   if (reportingPeriodStart(chosen)! < earliest) return error("claimed_period_before_earliest");
+  if (payload.proportionalDeduction && chosen.slice(0, 4) !== claim.period.slice(0, 4)) return error("proportional_claim_year_mismatch");
   const deadline = evaluatedOn ? claimDeadline(payload, years, evaluatedOn) : null;
   if (deadline && evaluatedOn! > deadline.lastFilingDate) return { ...error("claim_deadline_expired"), params: { lastFilingDate: deadline.lastFilingDate, evaluatedOn: evaluatedOn! } };
   if (deadline && firstOrdinaryFilingDate(chosen)! > deadline.lastFilingDate) return { ...error("claimed_period_after_deadline"), params: { lastFilingDate: deadline.lastFilingDate } };
@@ -79,6 +80,7 @@ export function claimDeadline(payload: ExtractionPayload | null, years: readonly
   const base = origin >= "2025-01-01" ? `${Number(origin.slice(0, 4)) + 2}-12-31`
     : `${Number(start.slice(0, 4)) + 3}${start.slice(4)}`;
   const lastFilingDate = nextCzechWorkingDate(base);
-  const latestOrdinaryPeriod = reportingPeriodsOf(years).filter(period => firstOrdinaryFilingDate(period)! <= lastFilingDate).at(-1) ?? null;
+  const latestOrdinaryPeriod = reportingPeriodsOf(years).filter(period => firstOrdinaryFilingDate(period)! <= lastFilingDate
+    && (!payload.proportionalDeduction || period.slice(0, 4) === (payload.claimEligibility?.period ?? originPeriod).slice(0, 4))).at(-1) ?? null;
   return { lastFilingDate, evaluatedOn, latestOrdinaryPeriod };
 }

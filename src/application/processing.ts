@@ -442,6 +442,7 @@ async function extractDocument(
         // Partial Claim is a human decision. Ignore even malformed provider
         // metadata before financial findings; PostgreSQL preserves prior choices.
         partialClaim: undefined,
+        proportionalDeduction: undefined,
         direction: detectDocumentDirection(
           extractedPayload,
           { ico: company.ico, vatId: company.vat_id },
