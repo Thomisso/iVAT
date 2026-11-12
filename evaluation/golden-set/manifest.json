@@ -6,6 +6,7 @@
       "source": "../../tests/fixtures/two-invoices.pdf",
       "format": "pdf",
       "pageCount": 2,
+      "company": { "ico": "00000000", "vatId": "CZ00000000" },
       "expectedSplit": [
         { "firstPage": 1, "lastPage": 1 },
         { "firstPage": 2, "lastPage": 2 }
@@ -20,6 +21,7 @@
       "source": "../../tests/fixtures/receipt.png",
       "format": "png",
       "pageCount": 1,
+      "company": { "ico": "00000000", "vatId": "CZ00000000" },
       "expectedSplit": [
         { "firstPage": 1, "lastPage": 1 }
       ],
