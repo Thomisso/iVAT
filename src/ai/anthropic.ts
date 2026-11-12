@@ -14,6 +14,7 @@ import {
   extractionPayload,
   interpreted,
   pageRanges,
+  pageSplitPrompt,
   parsedOrNull,
   rowRanges,
   SPREADSHEET_SPLIT_SCHEMA,
@@ -64,7 +65,7 @@ async function structuredMessage(
   input: AiInput,
   prompt: string,
   schema: object,
-): Promise<{ model: string; value: unknown; usage?: AiUsage; raw: string }> {
+): Promise<{ model: string; modelReported?: boolean; value: unknown; usage?: AiUsage; raw: string }> {
   let response: Response;
   try {
     response = await fetch(`${options.baseUrl ?? "https://api.anthropic.com"}/v1/messages`, {
@@ -136,6 +137,7 @@ async function structuredMessage(
   return {
     raw,
     model: typeof result.model === "string" ? result.model : model,
+    ...(typeof result.model !== "string" ? { modelReported: false } : {}),
     value,
     ...(typeof usage?.input_tokens === "number" && typeof usage.output_tokens === "number"
       ? { usage: { inputTokens: usage.input_tokens, outputTokens: usage.output_tokens } }
@@ -155,11 +157,12 @@ export function anthropicAiProvider(options: AnthropicAiProviderOptions): AiProv
         input,
         spreadsheet
           ? "Identify every Document in this workbook table. A list normally has one Document per data row; a single invoice may span several rows. Return each inclusive row set and its sheet name."
-          : `Identify the inclusive page range of every Document in this ${input.pageCount}-page Source File.`,
+          : pageSplitPrompt(input.pageCount),
         spreadsheet ? SPREADSHEET_SPLIT_SCHEMA : SPLIT_SCHEMA,
       );
       return {
         model: result.model,
+        ...(result.modelReported === false ? { modelReported: false } : {}),
         documents: interpreted(result.raw, () => spreadsheet ? rowRanges("Anthropic", result.value) : pageRanges("Anthropic", result.value)),
         ...(result.usage ? { usage: result.usage } : {}),
       };
@@ -175,6 +178,7 @@ export function anthropicAiProvider(options: AnthropicAiProviderOptions): AiProv
       );
       return {
         model: result.model,
+        ...(result.modelReported === false ? { modelReported: false } : {}),
         payload: interpreted(result.raw, () => extractionPayload("Anthropic", result.value, input)),
         ...(result.usage ? { usage: result.usage } : {}),
       };

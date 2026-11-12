@@ -1,13 +1,17 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import type { AiInput, AiProvider, PageRange, SourceRange } from "@/application/ai-provider";
+import { providerResponseOf, type AiInput, type AiProvider, type AiUsage, type PageRange, type SourceRange } from "@/application/ai-provider";
 import type { ExtractionPayload } from "@/application/extraction-payload";
 import { emptyDocumentPayload } from "@/application/extraction-payload";
 import { detectDocumentDirection, type CompanyIdentity } from "@/application/direction-detection";
 import type { ImageSourceFileFormat } from "@/application/source-files";
-import { extractionPayload, pageRanges } from "@/ai/structured-output";
+import { EXTRACTION_PROMPT, SPLIT_SCHEMA, extractionSchema, extractionPayload, pageRanges, pageSplitPrompt } from "@/ai/structured-output";
+
+import { prepareExtractionInput } from "@/application/pdf-extraction";
+import { evaluationRevision, hashBytes, hashValue, inputHash, type EvaluationRevision } from "./evaluation-provenance";
 
 export type GoldenDocument = {
+  referenceFileHash?: string;
   pages: PageRange;
   expected: ExtractionPayload;
   /** Human-undecided or unreadable facts are not an assertion of absence. */
@@ -26,12 +30,13 @@ export type GoldenCase = {
 };
 
 export type GoldenSet = {
+  manifestHash?: string;
   schemaVersion: 1;
   cases: GoldenCase[];
 };
 
-export type Accuracy = { correct: number; total: number; accuracy: number };
-export type Absence = { correct: number; total: number; hallucinated: number };
+export type Accuracy = { correct: number; total: number; accuracy: number; missing?: number };
+export type Absence = { correct: number; total: number; hallucinated: number; missing?: number };
 export type Normalization = { side: "expected" | "actual"; path: string; before: unknown; after: unknown; reason: string };
 export type Classification = { expected: string | null; actual: string | null; correct: boolean };
 export type FieldDifference = { path: string; expected: unknown; actual: unknown; kind: "missing" | "hallucinated" | "value" };
@@ -47,7 +52,35 @@ export type DocumentEvaluation = {
   requiresCorrection: boolean;
 };
 
+export type CallCoverage = { expected: number; completed: number; failed: number; missing: number };
+export type CallProvenance = {
+  datasetHash: string;
+  revision: EvaluationRevision;
+  sourceHash: string | null;
+  inputHash: string | null;
+  referenceHash: string;
+  promptHash: string;
+  schemaHash: string | null;
+  adapter: string;
+  configurationHash: string;
+  requestedModel: string | null;
+};
+export type EvaluationCall = {
+  provenance: CallProvenance;
+  phase: "split" | "extraction";
+  caseId: string;
+  pages?: PageRange;
+  status: "completed" | "failed" | "missing";
+  actualModel: string | null;
+  usage: AiUsage | null;
+  costUsd: number | null;
+  latencyMs: number | null;
+  error?: { message: string; rawResponse?: string };
+};
 export type EvaluationResult = {
+  status: "complete" | "partial" | "failed";
+  coverage: { split: CallCoverage; extraction: CallCoverage };
+  calls: EvaluationCall[];
   provider: string;
   splitModel: string;
   extractModel: string;
@@ -66,6 +99,9 @@ export type EvaluationResult = {
 };
 
 export type EvaluationReport = {
+  dataset: GoldenSet;
+  provenance: { datasetHash: string; manifestHash: string | null; revision: EvaluationRevision };
+  status: "complete" | "partial" | "failed";
   extractionScope: "isolated_reference_ranges";
   evaluatedAt: string;
   cases: number;
@@ -73,7 +109,11 @@ export type EvaluationReport = {
   results: EvaluationResult[];
 };
 
-export type EvaluationProvider = { provider: AiProvider; label?: string };
+export type EvaluationProvider = { provider: AiProvider; label?: string; identity?: {
+  /** Source/version identity, never an API key or a credential-bearing configuration. */
+  adapter: string;
+  configuration: { splitModel: string; extractModel: string };
+} };
 export type ReadBytes = (sourcePath: string) => Promise<Uint8Array>;
 export type DocumentBytes = (
   bytes: Uint8Array,
@@ -163,7 +203,8 @@ function completeReference(unresolvedFields: unknown): void {
 
 /** Loads and validates a versioned golden-set manifest and its adjacent expected-value files. */
 export async function loadGoldenSet(manifestPath: string): Promise<GoldenSet> {
-  const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as unknown;
+  const manifestBytes = await readFile(manifestPath);
+  const manifest = JSON.parse(manifestBytes.toString("utf8")) as unknown;
   if (!object(manifest) || manifest.schemaVersion !== 1 || !Array.isArray(manifest.cases)) {
     throw new Error("Golden set manifest must have schemaVersion 1 and a cases array");
   }
@@ -192,8 +233,9 @@ export async function loadGoldenSet(manifestPath: string): Promise<GoldenSet> {
         throw new Error(`Golden set case ${id} Document ${documentIndex} does not match expectedSplit`);
       }
       const expectedPath = path.resolve(directory, string(document.expected, `case ${id} expected path`));
-      const expected = completeExtraction(JSON.parse(await readFile(expectedPath, "utf8")));
-      documents.push({ pages, expected });
+      const expectedBytes = await readFile(expectedPath);
+      const expected = completeExtraction(JSON.parse(expectedBytes.toString("utf8")));
+      documents.push({ pages, expected, referenceFileHash: hashBytes(expectedBytes) });
     }
     cases.push({
       id,
@@ -206,7 +248,7 @@ export async function loadGoldenSet(manifestPath: string): Promise<GoldenSet> {
       documents,
     });
   }
-  return { schemaVersion: 1, cases };
+  return { schemaVersion: 1, cases, manifestHash: hashBytes(manifestBytes) };
 }
 
 function companyIdentity(value: unknown): CompanyIdentity {
@@ -214,7 +256,8 @@ function companyIdentity(value: unknown): CompanyIdentity {
   return { ico: string(value.ico, "Company IČO"), vatId: string(value.vatId, "Company VAT ID") };
 }
 
-const score = (correct: number, total: number): Accuracy => ({
+const score = (correct: number, total: number, missing = 0): Accuracy => ({
+  ...(missing ? { missing } : {}),
   correct,
   total,
   accuracy: total === 0 ? 0 : correct / total,
@@ -314,6 +357,7 @@ export async function evaluateGoldenSet(
   readBytes: ReadBytes,
   documentBytes: DocumentBytes,
 ): Promise<EvaluationReport> {
+  if (!goldenSet.cases.length || !providers.length) throw new Error("Evaluation needs Source Files and providers");
   // Validate the entire reference before spending even the first provider call.
   for (const source of goldenSet.cases) {
     companyIdentity(source.company);
@@ -322,15 +366,84 @@ export async function evaluateGoldenSet(
       completeExtraction(document.expected);
     }
   }
+  // Snapshot references and all source/range bytes before calling either provider.
+  goldenSet = structuredClone(goldenSet);
+  const identities = providers.map(configured => structuredClone(configured.identity ?? {
+    adapter: hashValue({ name: configured.provider.name, region: configured.provider.region,
+      split: configured.provider.split.toString(), extract: configured.provider.extract.toString() }),
+    configuration: { splitModel: null, extractModel: null },
+  }));
+  const revision = await evaluationRevision();
+  type Prepared = { input: AiInput; error?: never } | { input?: never; error: string };
+  const message = (error: unknown) => error instanceof Error ? error.message : String(error);
+  const frozen = await Promise.all(goldenSet.cases.map(async (source) => {
+    try {
+      const bytes = new Uint8Array(await readBytes(source.sourcePath));
+      const documents: Prepared[] = await Promise.all(source.documents.map(async (document): Promise<Prepared> => {
+        try {
+          const isolated = new Uint8Array(await documentBytes(bytes.slice(), structuredClone(source), structuredClone(document.pages)));
+          return { input: await prepareExtractionInput(input(source, isolated, document.pages.lastPage - document.pages.firstPage + 1)) };
+        } catch (error) { return { error: message(error) }; }
+      }));
+      return { split: { input: input(source, bytes, source.pageCount) } as Prepared, documents, sourceHash: hashBytes(bytes) };
+    } catch (error) {
+      const missing = { error: message(error) } as Prepared;
+      return { split: missing, documents: source.documents.map(() => missing), sourceHash: null };
+    }
+  }));
+  const datasetHash = hashValue({ manifestHash: goldenSet.manifestHash ?? null,
+    cases: goldenSet.cases.map((source, index) => ({ ...source, sourcePath: undefined, sourceHash: frozen[index].sourceHash })) });
   const results: EvaluationResult[] = [];
 
-  for (const configured of providers) {
+  for (const [providerIndex, configured] of providers.entries()) {
     let splitCorrect = 0;
-    let splitModel = "";
-    let extractModel = "";
     let fieldCorrect = 0;
     let fieldTotal = 0;
-    const fields = new Map<string, { correct: number; total: number }>();
+    const fields = new Map<string, { correct: number; total: number; missing?: number }>();
+    const calls: EvaluationCall[] = [];
+    let missingFields = 0;
+    let missingCritical = 0;
+    const capture = async <T extends { model: string; modelReported?: boolean; usage?: AiUsage }>(
+      phase: EvaluationCall["phase"], source: GoldenCase, prepared: Prepared, operation: (callInput: AiInput) => Promise<T>, document?: GoldenDocument,
+    ): Promise<T | null> => {
+      const callInput = prepared.input;
+      const identity = identities[providerIndex];
+      const pages = document?.pages;
+      const provenance: CallProvenance = {
+        datasetHash, revision, sourceHash: frozen[goldenSet.cases.indexOf(source)].sourceHash,
+        inputHash: callInput ? inputHash(callInput) : null,
+        referenceHash: hashValue(document ? { company: source.company, document } : { company: source.company, expectedSplit: source.expectedSplit, documents: source.documents }),
+        promptHash: hashBytes(phase === "split" ? pageSplitPrompt(source.pageCount) : EXTRACTION_PROMPT),
+        schemaHash: callInput ? hashValue(phase === "split" ? SPLIT_SCHEMA : extractionSchema(callInput)) : null,
+        adapter: identity.adapter, configurationHash: hashValue(identity.configuration),
+        requestedModel: phase === "split" ? identity.configuration.splitModel : identity.configuration.extractModel,
+      };
+      if (!callInput) {
+        calls.push({ provenance, phase, caseId: source.id, ...(pages ? { pages } : {}), status: "missing", actualModel: null,
+          usage: null, costUsd: null, latencyMs: null, error: { message: prepared.error } });
+        return null;
+      }
+      const start = performance.now();
+      try {
+        const result = structuredClone(await operation(structuredClone(callInput)));
+        calls.push({ provenance, phase, caseId: source.id, ...(pages ? { pages } : {}), status: "completed", actualModel: result.modelReported === false ? null : result.model,
+          usage: result.usage ?? null, costUsd: result.usage?.costUsd ?? null, latencyMs: performance.now() - start });
+        return result;
+      } catch (error) {
+        const rawResponse = providerResponseOf(error);
+        let returnedModel: string | null = null;
+        if (rawResponse) {
+          try {
+            const response: unknown = JSON.parse(rawResponse);
+            if (object(response) && typeof response.model === "string") returnedModel = response.model;
+          } catch { /* A non-JSON failure body remains private diagnostic evidence. */ }
+        }
+        calls.push({ provenance, phase, caseId: source.id, ...(pages ? { pages } : {}), status: "failed", actualModel: returnedModel,
+          usage: null, costUsd: null, latencyMs: performance.now() - start,
+          error: { message: error instanceof Error ? error.message : String(error), ...(rawResponse ? { rawResponse } : {}) } });
+        return null;
+      }
+    };
     const absentFields: Record<string, Absence> = {};
     const absence: Absence = { correct: 0, total: 0, hallucinated: 0 };
     const documents: DocumentEvaluation[] = [];
@@ -338,22 +451,39 @@ export async function evaluateGoldenSet(
     let criticalCorrect = 0;
     let criticalTotal = 0;
 
-    for (const source of goldenSet.cases) {
-      const bytes = await readBytes(source.sourcePath);
-      const split = await configured.provider.split(input(source, bytes, source.pageCount));
-      splitModel ||= split.model;
-      const pageDocuments = split.documents.filter((range): range is PageRange => "firstPage" in range);
-      const correctSplit = pageDocuments.length === split.documents.length && sameSplit(pageDocuments, source.expectedSplit);
-      splitDetails.push({ caseId: source.id, expected: source.expectedSplit, actual: split.documents, correct: correctSplit });
-      if (correctSplit) {
-        splitCorrect += 1;
+    for (const [sourceIndex, source] of goldenSet.cases.entries()) {
+      const split = await capture("split", source, frozen[sourceIndex].split, input => configured.provider.split(input));
+      if (split) {
+        const pageDocuments = split.documents.filter((range): range is PageRange => "firstPage" in range);
+        const correctSplit = pageDocuments.length === split.documents.length && sameSplit(pageDocuments, source.expectedSplit);
+        splitDetails.push({ caseId: source.id, expected: source.expectedSplit, actual: split.documents, correct: correctSplit });
+        if (correctSplit) splitCorrect += 1;
       }
 
-      for (const document of source.documents) {
-        const isolated = await documentBytes(bytes, source, document.pages);
-        const pageCount = document.pages.lastPage - document.pages.firstPage + 1;
-        const extraction = await configured.provider.extract(input(source, isolated, pageCount));
-        extractModel ||= extraction.model;
+      for (const [documentIndex, document] of source.documents.entries()) {
+        const extractionInput = frozen[sourceIndex].documents[documentIndex];
+        const extraction = await capture("extraction", source, extractionInput,
+          input => configured.provider.extract(input), document);
+        if (!extraction) {
+          for (const [fieldPath, expected] of canonicalFields(document.expected, "expected", [])) {
+            if (expected === null || fieldPath === "rateBreakdown.length" && expected === 0) {
+              const absent = absentFields[fieldPath] ??= { correct: 0, total: 0, hallucinated: 0 };
+              for (const target of [absence, absent]) {
+                target.total += 1;
+                target.missing = (target.missing ?? 0) + 1;
+              }
+              continue;
+            }
+            const field = fields.get(fieldPath) ?? { correct: 0, total: 0 };
+            field.total += 1;
+            field.missing = (field.missing ?? 0) + 1;
+            fields.set(fieldPath, field);
+            fieldTotal += 1;
+            missingFields += 1;
+            if (criticalField(fieldPath)) { criticalTotal += 1; missingCritical += 1; }
+          }
+          continue;
+        }
         const normalizations: Normalization[] = [];
         const expectedFields = canonicalFields(document.expected, "expected", normalizations);
         const actualDirection = detectDocumentDirection(extraction.payload, source.company);
@@ -395,33 +525,48 @@ export async function evaluateGoldenSet(
       }
     }
 
+    const coverage = Object.fromEntries((["split", "extraction"] as const).map((phase) => [phase, {
+      expected: phase === "split" ? goldenSet.cases.length : goldenSet.cases.reduce((sum, source) => sum + source.documents.length, 0),
+      completed: calls.filter(call => call.phase === phase && call.status === "completed").length,
+      failed: calls.filter(call => call.phase === phase && call.status === "failed").length,
+      missing: calls.filter(call => call.phase === phase && call.status === "missing").length,
+    }])) as EvaluationResult["coverage"];
+    const totalDocuments = coverage.extraction.expected;
+    const missingDocuments = totalDocuments - documents.length;
     results.push({
+      status: calls.every(call => call.status === "completed") ? "complete" : calls.some(call => call.status === "completed") ? "partial" : "failed",
+      calls, coverage,
       provider: configured.label ?? configured.provider.name,
-      splitModel,
-      extractModel,
-      split: score(splitCorrect, goldenSet.cases.length),
+      splitModel: modelSummary(calls, "split"),
+      extractModel: modelSummary(calls, "extraction"),
+      split: score(splitCorrect, goldenSet.cases.length, coverage.split.failed + coverage.split.missing),
       splitDetails,
-      fieldAccuracy: score(fieldCorrect, fieldTotal),
+      fieldAccuracy: score(fieldCorrect, fieldTotal, missingFields),
       absence,
       absentFields,
-      criticalAccuracy: score(criticalCorrect, criticalTotal),
-      criticalDocuments: score(documents.filter((document) => document.criticalCorrect).length, documents.length),
-      correctionFreeDocuments: score(documents.filter((document) => !document.requiresCorrection).length, documents.length),
+      criticalAccuracy: score(criticalCorrect, criticalTotal, missingCritical),
+      criticalDocuments: score(documents.filter((document) => document.criticalCorrect).length, totalDocuments, missingDocuments),
+      correctionFreeDocuments: score(documents.filter((document) => !document.requiresCorrection).length, totalDocuments, missingDocuments),
       direction: score(documents.filter((document) => document.direction.expected !== null && document.direction.correct).length,
-        documents.filter((document) => document.direction.expected !== null).length),
+        goldenSet.cases.flatMap(source => source.documents).filter(document => document.expected.direction !== null).length,
+        goldenSet.cases.flatMap(source => source.documents).filter(document => document.expected.direction !== null).length - documents.filter(document => document.direction.expected !== null).length),
       vatRegime: score(documents.filter((document) => document.vatRegime.expected !== null && document.vatRegime.correct).length,
-        documents.filter((document) => document.vatRegime.expected !== null).length),
+        goldenSet.cases.flatMap(source => source.documents).filter(document => document.expected.proposedVatRegime !== null).length,
+        goldenSet.cases.flatMap(source => source.documents).filter(document => document.expected.proposedVatRegime !== null).length - documents.filter(document => document.vatRegime.expected !== null).length),
       documents,
       fields: Object.fromEntries(
         [...fields.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([path, field]) => [
           path,
-          score(field.correct, field.total),
+          score(field.correct, field.total, field.missing),
         ]),
       ),
     });
   }
 
   return {
+    dataset: goldenSet,
+    provenance: { datasetHash, manifestHash: goldenSet.manifestHash ?? null, revision },
+    status: results.every(result => result.status === "complete") ? "complete" : results.some(result => result.status !== "failed") ? "partial" : "failed",
     extractionScope: "isolated_reference_ranges",
     evaluatedAt: new Date().toISOString(),
     cases: goldenSet.cases.length,
@@ -430,18 +575,55 @@ export async function evaluateGoldenSet(
   };
 }
 
+function modelSummary(calls: EvaluationCall[], phase: EvaluationCall["phase"]): string {
+  const models = [...new Set(calls.filter(call => call.phase === phase && call.actualModel !== null).map(call => call.actualModel!))];
+  return models.length > 1 ? `mixed: ${models.join(", ")}` : models[0] ?? "unavailable";
+}
+
 const percent = (accuracy: number) => `${(accuracy * 100).toFixed(2)}%`;
 
-export function formatEvaluationReport(report: EvaluationReport): string {
+/** Deliberate allow-list: never spread the private report into public output. */
+export function safeEvaluationSummary(report: EvaluationReport) {
+  const safeField = (key: string) => /^(documentType|documentNumber|issueDate|taxPointDate|dueDate|direction|currency|proposedVatRegime|reverseChargeCode|originalDocumentNumber)$/.test(key)
+    || /^(supplier|customer)\.(name|ico|vatId|street|city|postalCode|country)$/.test(key)
+    || /^totals\.(netAmount|vatAmount|grossAmount)$/.test(key)
+    || /^payment\.(variableSymbol|bankAccount|iban)$/.test(key)
+    || /^rateBreakdown\.(length|\d+\.(rate|netAmount|vatAmount))$/.test(key);
+  const safeFields = <T>(fields: Record<string, T>) => Object.fromEntries(Object.entries(fields).filter(([key]) => safeField(key)));
+  return {
+    status: report.status, extractionScope: report.extractionScope,
+    evaluatedAt: report.evaluatedAt, cases: report.cases, documents: report.documents,
+    datasetHash: report.provenance.datasetHash,
+    results: report.results.map((result, index) => ({
+      provider: ["anthropic", "openai"].includes(result.provider) ? result.provider : `Provider ${index + 1}`,
+      status: result.status, coverage: result.coverage,
+      returnedModels: {
+        split: new Set(result.calls.filter(call => call.phase === "split" && call.actualModel !== null).map(call => call.actualModel)).size,
+        extraction: new Set(result.calls.filter(call => call.phase === "extraction" && call.actualModel !== null).map(call => call.actualModel)).size,
+      },
+      split: result.split, fieldAccuracy: result.fieldAccuracy,
+      criticalAccuracy: result.criticalAccuracy, criticalDocuments: result.criticalDocuments,
+      correctionFreeDocuments: result.correctionFreeDocuments, direction: result.direction, vatRegime: result.vatRegime,
+      absence: result.absence, fields: safeFields(result.fields), absentFields: safeFields(result.absentFields),
+    })),
+  };
+}
+
+export function formatEvaluationReport(privateReport: EvaluationReport): string {
+  const report = safeEvaluationSummary(privateReport);
   const lines = [
     `Golden set: ${report.cases} Source Files, ${report.documents} Documents`,
+    `Run status: ${report.status}`,
     `Evaluated at: ${report.evaluatedAt}`,
     "Isolated Extraction on human reference ranges; not end-to-end production accuracy",
+    "Missing measurements remain in denominators and are not observed correctness or zero cost.",
   ];
   for (const result of report.results) {
     lines.push(
       "",
-      `${result.provider} | Split ${result.splitModel} | Extract ${result.extractModel}`,
+      `${result.provider} | Split models: ${result.returnedModels.split} | Extract models: ${result.returnedModels.extraction}`,
+      `Split coverage: ${result.coverage.split.completed}/${result.coverage.split.expected}; failed: ${result.coverage.split.failed}; missing: ${result.coverage.split.missing}`,
+      `Extraction coverage: ${result.coverage.extraction.completed}/${result.coverage.extraction.expected}; failed: ${result.coverage.extraction.failed}; missing: ${result.coverage.extraction.missing}`,
       `Split accuracy: ${result.split.correct}/${result.split.total} (${percent(result.split.accuracy)})`,
       `Present field accuracy: ${result.fieldAccuracy.correct}/${result.fieldAccuracy.total} (${percent(result.fieldAccuracy.accuracy)})`,
       `Critical financial fields: ${result.criticalAccuracy.correct}/${result.criticalAccuracy.total} (${percent(result.criticalAccuracy.accuracy)})`,
@@ -449,17 +631,13 @@ export function formatEvaluationReport(report: EvaluationReport): string {
       `Production Direction: ${result.direction.correct}/${result.direction.total} (${percent(result.direction.accuracy)})`,
       `Proposed VAT Regime: ${result.vatRegime.correct}/${result.vatRegime.total} (${percent(result.vatRegime.accuracy)})`,
       `Correction-free Documents (including ancillary fields): ${result.correctionFreeDocuments.correct}/${result.correctionFreeDocuments.total} (${percent(result.correctionFreeDocuments.accuracy)})`,
-      `Known absence: ${result.absence.correct}/${result.absence.total}; hallucinated values: ${result.absence.hallucinated}`,
+      `Known absence: ${result.absence.correct}/${result.absence.total}; hallucinated values: ${result.absence.hallucinated}; missing: ${result.absence.missing ?? 0}`,
     );
-    const misses = Object.entries(result.fields).filter(([, accuracy]) => accuracy.correct !== accuracy.total);
-    if (misses.length > 0) {
-      lines.push("Field misses:");
-      for (const [path, accuracy] of misses) {
-        lines.push(`  ${path}: ${accuracy.correct}/${accuracy.total} (${percent(accuracy.accuracy)})`);
-      }
+    for (const [path, accuracy] of Object.entries(result.fields)) {
+      if (accuracy.correct !== accuracy.total) lines.push(`  ${path}: ${accuracy.correct}/${accuracy.total} (${percent(accuracy.accuracy)}); missing: ${accuracy.missing ?? 0}`);
     }
     for (const [path, absence] of Object.entries(result.absentFields)) {
-      if (absence.correct !== absence.total) lines.push(`Absence miss ${path}: ${absence.correct}/${absence.total}; hallucinated: ${absence.hallucinated}`);
+      if (absence.correct !== absence.total) lines.push(`Absence miss ${path}: ${absence.correct}/${absence.total}; hallucinated: ${absence.hallucinated}; missing: ${absence.missing ?? 0}`);
     }
   }
   return `${lines.join("\n")}\n`;

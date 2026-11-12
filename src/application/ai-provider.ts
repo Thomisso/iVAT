@@ -113,6 +113,7 @@ export interface AiProvider {
   readonly name: string;
   /** Where the provider processes the Documents it receives. */
   readonly region: string;
-  split(input: AiInput, context?: AiCallContext): Promise<{ model: string; documents: SourceRange[]; usage?: AiUsage }>;
-  extract(input: AiInput, context?: AiCallContext): Promise<{ model: string; payload: ExtractionPayload; usage?: AiUsage }>;
+  /** False when `model` is only the configured fallback rather than returned evidence. */
+  split(input: AiInput, context?: AiCallContext): Promise<{ model: string; modelReported?: boolean; documents: SourceRange[]; usage?: AiUsage }>;
+  extract(input: AiInput, context?: AiCallContext): Promise<{ model: string; modelReported?: boolean; payload: ExtractionPayload; usage?: AiUsage }>;
 }
