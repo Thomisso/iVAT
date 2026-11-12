@@ -2,7 +2,9 @@
 
 **Audit:** 12. 11. 2026. Rozsah: všech 58 Markdown dokumentů v `docs` na `main` (`ffcf4ec60c90a8a5aaa282695c696597e2b758d3`), text všech tří PDF předloh v `docs/PDF`, související aktuální issues/PR a již připravený záznam [QA v7 triage](qa-v7-triage.md).
 
-**Závěr:** tři zadání #276–#278 nejsou úplným seznamem otevřené práce napříč dokumentací. Přímo v QA v7 navíc zůstávají odložené pokročilé statistiky protistran. Starší QA a požadavky obsahují širší backlog; reálný anonymizovaný golden set chybí. Část zdánlivě otevřených implementací je naopak už dodaná a pouze nesprávně popsaná jako pending.
+**Závěr:** tři zadání #276–#278 nejsou úplným seznamem otevřené práce napříč dokumentací. Přímo v QA v7 zbývají statistiky protistran; jejich první rozsah je po navazující triage specifikovaný jako #282. Starší QA a požadavky obsahují širší backlog; reálný anonymizovaný golden set chybí. Část zdánlivě otevřených implementací je naopak už dodaná a pouze nesprávně popsaná jako pending.
+
+**Navazující triage Q15–Q25:** vlastník potvrdil [měření přesnosti a statistiky protistran](qa-v7-quality-statistics.md). Nové #280–#282 jsou zahrnuté níže; původní auditní rozsah 58 Markdown a tří PDF zůstává stejný. Reálná sada ani naměřená přesnost tím nevznikly.
 
 Tento inventář nevytváří závazek implementovat všechny budoucí nápady. Rozlišuje potvrzené zadání, explicitní odklad, skutečnou mezeru v kvalitě či důkazech a historický text. Čtení kódu a uzavření issue samo neprokazuje všechny runtime/klientské akceptační scénáře.
 
@@ -11,7 +13,7 @@ Tento inventář nevytváří závazek implementovat všechny budoucí nápady. 
 | Bod | Dodané / aktuálně schválené | Co skutečně zbývá |
 | --- | --- | --- |
 | 1 Zdrojové zvýraznění a Inspect | #239/#240 v PR #243; navazující PDF oprava #253 v PR #265 | Žádné další konkrétní implementační zadání z tohoto bodu nebylo nalezeno; klientské a vizuální důkazy mají samostatné hranice níže |
-| 2 Adresář protistran | #231–#234 v PR #243: adresář, identita, základní hledání/filtry, správa a vazby na Documents | **Pokročilé statistiky, finanční přehledy a další analytické filtry jsou stále odložené a nespecifikované. Samostatný otevřený ticket nebyl nalezen.** |
+| 2 Adresář protistran | #231–#234 v PR #243: adresář, identita, základní hledání/filtry, správa a vazby na Documents | #282: první souhrn na detailu, specifikovaný a ready-for-agent. Širší statistiky/analytika a žebříčky zůstávají odložené |
 | 4 Částečné uplatnění | #235/#236 v PR #243 | Širší daňové scénáře #221; úzký poměrný odpočet #275 je samostatné připravené zadání |
 | 5 Správa uživatelů | Dosavadní sjednocení #192/#193 v PR #198 | #276: vlastní/poslední přístup, potvrzení, tabulka Users a Invitations |
 | 6 Dashboard | Produktová rozhodnutí v nynějším rozhovoru potvrzená | #278 čeká na #277; nejde o celý cross-company/BI backlog |
@@ -25,15 +27,18 @@ Tento inventář nevytváří závazek implementovat všechny budoucí nápady. 
 
 ## Schválená a dosud nedodaná zadání
 
-| Issue | Stav k auditu | Rozsah |
+| Issue | Stav po navazující triage | Rozsah |
 | --- | --- | --- |
 | [#158](https://github.com/Thomisso/iVAT/issues/158) | ready-for-agent | SuperAdmin založí Organization; první Administrator se přidá později. Veřejná registrace tím není schválená |
 | [#275](https://github.com/Thomisso/iVAT/issues/275) | ready-for-agent | Poměrný odpočet drobných provozních výdajů se skutečným ručně zadaným poměrem |
 | [#276](https://github.com/Thomisso/iVAT/issues/276) | ready-for-agent | Ochrana přístupu a tabulky uživatelů/pozvánek |
 | [#277](https://github.com/Thomisso/iVAT/issues/277) | needs-triage, produkt rozhodnut | Oddělené měsíční KH; zbývá doložit pravidlo měsíce běžného přijatého vstupu uvnitř kvartálu |
 | [#278](https://github.com/Thomisso/iVAT/issues/278) | ready-for-agent, nativní blocker #277 | Firemní dashboard a aktuální cyklus DPH |
+| [#280](https://github.com/Thomisso/iVAT/issues/280) | ready-for-agent | Evaluátor kritické přesnosti a opakovatelné porovnání providerů, offline testovatelný |
+| [#281](https://github.com/Thomisso/iVAT/issues/281) | ready-for-human | Soukromá reálná sada, lidská reference a plán prvního běhu; bez spuštění placeného benchmarku |
+| [#282](https://github.com/Thomisso/iVAT/issues/282) | ready-for-agent | Statistiky na detailu jedné Counterparty podle aktuálních Approved Documents |
 
-Aktuální otevřený seznam obsahoval 18 produktových issues a jeden infrastrukturní registr #207. Kromě pěti výše jde o třináct backlog issues níže. Nové nepopsané budoucí nápady z dokumentace do tohoto čísla nepatří.
+Po vytvoření #280–#282 otevřený seznam obsahuje 21 produktových/přípravných issues a jeden infrastrukturní registr #207. Kromě osmi výše jde o třináct backlog issues níže. Nové nepopsané budoucí nápady z dokumentace do tohoto čísla nepatří.
 
 ## Backlog s existujícími otevřenými issues
 
@@ -61,7 +66,7 @@ U těchto témat nebyl v aktuálním otevřeném seznamu nalezen odpovídající
 
 | Téma | Zdroj a vymezení |
 | --- | --- |
-| **Pokročilé statistiky protistran** | [QA v7, bod 2](QA_v7.md), [revize dokladů, Adresář protistran](document-review.md). Základní adresář, filtry a seznam navázaných dokladů jsou dodané |
+| Širší analytika protistran nad #282 | [QA v7, bod 2](QA_v7.md), [revize dokladů, Adresář protistran](document-review.md). #282 dodá jen první detailový souhrn; žebříčky a širší analytika zůstávají mimo jeho rozsah |
 | Cross-company dashboard | [QA v1, oddíl 18](QA_v1.md); výslovně mimo aktuální #278 |
 | Skládání více fotografií do jednoho vícestránkového Document | QA v1, oddíl 18; není totéž jako už podporované vícestránkové PDF |
 | Ořez, perspektiva a hodnocení kvality fotografií | QA v1, oddíl 18; není totéž jako oprava souřadnic PDF #253 |
@@ -99,7 +104,7 @@ U těchto témat nebyl v aktuálním otevřeném seznamu nalezen odpovídající
 
 | Oblast | Co zbývá nebo jaká je přesná hranice |
 | --- | --- |
-| **Reálný anonymizovaný golden set / accuracy baseline** | [Historický MVP podklad](mvp.md), část Co je podmíněné, a [golden-set README](../evaluation/golden-set/README.md) výslovně říkají, že technické ukázky nejsou produktová baseline. Aktuální manifest obsahuje jen dvě ilustrativní blank cases. Harness #32 existuje; reálná reprezentativní sada a smysluplné měření přesnosti zatím nejsou dodané. Samostatný otevřený ticket nebyl nalezen |
+| **Reálný anonymizovaný golden set / accuracy baseline** | [Historický MVP podklad](mvp.md), část Co je podmíněné, a [golden-set README](../evaluation/golden-set/README.md) výslovně říkají, že technické ukázky nejsou produktová baseline. Aktuální manifest obsahuje jen dvě ilustrativní blank cases. Harness #32 existuje; reálná reprezentativní sada a smysluplné měření přesnosti zatím nejsou dodané. Nově sledované jako #280 (nástroj) a #281 (lidská příprava). Skutečný výsledek baseline vznikne až dokončeným samostatně schváleným živým během |
 | Měsíc ordinary incoming KH uvnitř kvartálu | #277 obsahuje konkrétní otevřenou faktickou bránu; produktová volba již potvrzená. Neřešit dotazem na uživatele, jaké je právo |
 | Kalendářní hranice nároku §73 | [Stará lhůta](research/claim-deadline.md) a [nová year-end hranice](research/claim-deadline-new-yearend.md) zachovávají omezení síly výkladu. Implementace #224/#238 je dodaná; závěr o nepracovním konci je zdokumentovaná omezená inference, nikoli nově doložené výslovné rozhodnutí soudu nebo odborné potvrzení. Není to automatický důkaz nové vady |
 | Klientské a vizuální chování revize | [Akceptační inventář](document-review-acceptance.md) výslovně neprokazuje HTTP/SSR testy hydrataci, fokus, zkratky, resize, Inspect rendering, vizuální správnost či přístupnost. Zachované browser testy jsou source inventory; dnešní procesy je nesmějí spouštět. Nedokládat je vymyšleným passing stavem, ani je zaměnit za nově zjištěnou chybu |
@@ -128,7 +133,7 @@ Toto je read-only kontrola skutečného průběhu. Není novou validací každé
 - Google runbook neodkazuje na #158 jako budoucí veřejnou registraci; #158 už má jiné potvrzené zadání.
 - Historická SRS v0.2, vizuální prototyp a CI/QA záznamy jsou čtené podle jejich data a pozdějších ADR/dodávek. Věty o nehotovém schématu či nepodporované automatice nejsou důvod duplikovat dodaný kontrakt a #241.
 
-Nové nevybrané funkce z inventáře nedostaly automaticky ready-for-agent ani příslib implementace. Jejich prioritu a konkrétní rozsah je třeba rozhodnout při další triage. Nejkonkrétnější nově opomenuté položky jsou statistiky protistran a reálný golden set; ostatní odklady zůstávají viditelně evidované.
+Nové nevybrané funkce z inventáře nedostaly automaticky ready-for-agent ani příslib implementace. Jejich prioritu a konkrétní rozsah je třeba rozhodnout při další triage. Nejkonkrétnější opomenuté položky — první statistiky protistran a reálný golden set s novým skórováním — prošly navazující triage Q15–Q25 a mají #280–#282. Ostatní odklady zůstávají viditelně evidované.
 
 ## Pokrytí dokumentů
 
@@ -201,4 +206,4 @@ Následuje úplný seznam vstupních souborů z hlavní větve. U Markdown dokum
 - [DPHKH1-XXXXXXXXXX-20261106-104935.pdf](PDF/DPHKH1-XXXXXXXXXX-20261106-104935.pdf)
 - [Vzorovy-formular-kontrolniho-hlaseni-DPH.pdf](PDF/Vzorovy-formular-kontrolniho-hlaseni-DPH.pdf)
 
-Navíc byl porovnán nový [záznam potvrzené QA v7 triage](qa-v7-triage.md) z dokumentační větve.
+Navíc byl porovnán nový [záznam potvrzené QA v7 triage](qa-v7-triage.md) z dokumentační větve; navazující rozhodnutí ukládá [přesnost a statistiky Q15–Q25](qa-v7-quality-statistics.md).

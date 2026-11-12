@@ -1,7 +1,7 @@
 # QA v7 potvrzená navazující zadání
 
 **Rozhodnutí:** 12. 11. 2026, potvrzená vlastníkem v rozhovoru Q1–Q14 včetně upřesnění Q8a–Q8c.
-**Stav:** tento produktový rozhovor je uzavřený. Tři níže rozpracované dodávky mají samostatné issues; implementace nezačala. Nejde o úplný seznam všech odložených požadavků v repozitáři: například pokročilé statistiky protistran z QA v7 bodu 2 zůstávají mimo tyto tři dodávky. Úplný průchod dokumentací je v [inventáři otevřených a odložených bodů](docs-open-items-audit.md).
+**Stav:** tento produktový rozhovor je uzavřený. Tři níže rozpracované dodávky mají samostatné issues; implementace nezačala. Nejde o úplný seznam všech odložených požadavků v repozitáři: například pokročilé statistiky protistran z QA v7 bodu 2 zůstávají mimo tyto tři dodávky. Úplný průchod dokumentací je v [inventáři otevřených a odložených bodů](docs-open-items-audit.md); první statistiky a accuracy baseline byly následně specifikované v [Q15–Q25](qa-v7-quality-statistics.md).
 
 | Zadání | Stav při uzavření triage | Návaznost |
 | --- | --- | --- |
@@ -67,4 +67,4 @@ Oddělení povinností je záměrná změna dosavadního společného periodové
 
 Toto ověření stavu vychází z aktuálních GitHub issue/PR záznamů a čtení zdrojů; nepřidává nové runtime, vizuální nebo produkční testy. Historické ověřovací záznamy se zachovávají v rozsahu, v jakém byly skutečně provedené. Současné procesy používají [CLI pravidla a hranice důkazů](agents/cli-processes.md).
 
-Mimo tuto dodávku zůstávají dříve odložené statistiky protistran, cross-company přehledy a ostatní backlog. Samostatné #158 a #275 z předchozí triage zůstávají připravené k implementaci; neoznačují se tím za dodané a nevznikají jejich duplicity.
+Mimo tuto dodávku Q1–Q14 zůstávají statistiky protistran (nově samostatně specifikované jako #282 v Q15–Q25), cross-company přehledy a ostatní backlog. Samostatné #158 a #275 z předchozí triage zůstávají připravené k implementaci; neoznačují se tím za dodané a nevznikají jejich duplicity.
