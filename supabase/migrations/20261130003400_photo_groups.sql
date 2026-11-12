@@ -80,6 +80,10 @@ $$;
 revoke all on function private.validate_photo_group_source() from public,anon,authenticated,service_role;
 create trigger validate_photo_group_source before insert on public.source_file for each row execute function private.validate_photo_group_source();
 
+-- The worker distinguishes pending original transfers from a finished missing
+-- group; it needs only these two Batch metadata columns for that check.
+grant select (id, upload_finished_at) on public.upload_batch to service_role;
+
 -- Only the worker may bind a real stored basis and create the one Document.
 create function public.complete_photo_group(target_group_id uuid, processed_basis jsonb)
 returns uuid language plpgsql security definer set search_path='' as $$

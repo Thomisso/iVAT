@@ -3,7 +3,7 @@ import { PDFDocument } from "pdf-lib";
 import sharp from "sharp";
 import { isUuid, type AppClient, type SystemClient } from "./client";
 import type { AiInput } from "./ai-provider";
-import { SOURCE_FILE_BUCKET, sourceFileObjectPath } from "./source-files";
+import { SOURCE_FILE_BUCKET, sourceFileObjectPath, type SourceFileFormat, type SourceFileStatus } from "./source-files";
 
 export type PhotoGroupBasis = { sha256: string; byteSize: number; pages: { page: number; sourceFileId: string; sourceSha256: string; sha256: string; byteSize: number; width: number; height: number }[] };
 export type PhotoGroup = { id: string; companyId: string; batchId: string; sourceFileIds: string[]; createdBy: string; createdAt: string; basis: PhotoGroupBasis | null };
@@ -39,11 +39,27 @@ export async function preparePhotoGroup(system: SystemClient, sourceFileId: stri
   if (!found.data) return null;
   const group = mapGroup(found.data);
   if (group.basis) return { group, ready: true };
-  const sources = await system.from("source_file").select("id, sha256, format, byte_size, status")
-    .eq("company_id", group.companyId).eq("upload_batch_id", group.batchId).in("id", group.sourceFileIds);
-  if (sources.error) throw sources.error;
-  if (sources.data.some(source => !["uploaded", "processing", "waiting_for_platform"].includes(source.status))) return { group, ready: false, terminal: true };
-  if (sources.data.length !== group.sourceFileIds.length) {
+  const sources: { id: string; sha256: string; format: SourceFileFormat; byte_size: number; status: SourceFileStatus }[] = [];
+  // Bound the IN filter independently of the configured group limit. Continue
+  // from the last actual row until empty: PostgREST may cap below our request.
+  const memberBatchSize = 100;
+  for (let start = 0; start < group.sourceFileIds.length; start += memberBatchSize) {
+    const ids = group.sourceFileIds.slice(start, start + memberBatchSize);
+    let afterId: string | undefined;
+    for (;;) {
+      let query = system.from("source_file").select("id, sha256, format, byte_size, status")
+        .eq("company_id", group.companyId).eq("upload_batch_id", group.batchId).in("id", ids)
+        .order("id").limit(memberBatchSize);
+      if (afterId) query = query.gt("id", afterId);
+      const page = await query;
+      if (page.error) throw page.error;
+      if (!page.data.length) break;
+      sources.push(...page.data);
+      afterId = page.data.at(-1)!.id;
+    }
+  }
+  if (sources.some(source => !["uploaded", "processing", "waiting_for_platform"].includes(source.status))) return { group, ready: false, terminal: true };
+  if (sources.length !== group.sourceFileIds.length) {
     const batch = await system.from("upload_batch").select("upload_finished_at").eq("id", group.batchId).single();
     if (batch.error) throw batch.error;
     if (batch.data.upload_finished_at) throw new Error("Photo Group original upload incomplete");
@@ -51,14 +67,14 @@ export async function preparePhotoGroup(system: SystemClient, sourceFileId: stri
   }
   const limits = await system.from("platform_settings").select("max_source_file_bytes, max_source_file_pages").single();
   if (limits.error) throw limits.error;
-  if (group.sourceFileIds.length > limits.data.max_source_file_pages || sources.data.reduce((sum, source) => sum + Number(source.byte_size), 0) > limits.data.max_source_file_bytes) throw new Error("Photo Group exceeds platform limits");
+  if (group.sourceFileIds.length > limits.data.max_source_file_pages || sources.reduce((sum, source) => sum + Number(source.byte_size), 0) > limits.data.max_source_file_bytes) throw new Error("Photo Group exceeds platform limits");
   const pdf = await PDFDocument.create();
   pdf.setCreationDate(new Date("1980-01-01T00:00:00Z"));
   pdf.setModificationDate(new Date("1980-01-01T00:00:00Z"));
   const basis: PhotoGroupBasis = { sha256: "", byteSize: 0, pages: [] };
   let pixels = 0, bytesTotal = 0;
   for (const [index, id] of group.sourceFileIds.entries()) {
-    const source = sources.data.find(source => source.id === id)!;
+    const source = sources.find(source => source.id === id)!;
     if (!["jpeg", "png"].includes(source.format)) throw new Error("Photo Group source format unsupported");
     const original = await system.storage.from(SOURCE_FILE_BUCKET).download(sourceFileObjectPath(group.companyId, id));
     if (original.error) throw original.error;

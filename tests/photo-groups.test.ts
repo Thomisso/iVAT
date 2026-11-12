@@ -11,7 +11,9 @@ import { getDocument, listExtractionVersions, readDocumentPages, splitDocument, 
 import { getPhotoGroup, readPhotoGroupBasis } from "@/application/photo-groups";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { administratorWithCompany, assignAiConfigurationFixture } from "./support/fixtures";
-import { fixtureFile } from "./support/files";
+import { fixtureFile, selectUploadFiles } from "./support/files";
+import { withPostgrestRowLimit } from "./support/postgrest";
+import { PDFDocument } from "pdf-lib";
 import { testWorker } from "./support/worker";
 
 const jpegHash = "0896be252af2407fd12029be53cc41ea9747e33613fb5702a0e8c5b39b1fc7c1";
@@ -167,6 +169,44 @@ describe("User-confirmed Photo Groups", () => {
     expect((await getDocument(owner.client, owner.companyId, groupId))?.lastPage).toBe(2);
     expect((await listCompanyDocuments(owner.client, owner.companyId)).map(document => document.status)).toEqual(["needs_review", "needs_review", "needs_review"]);
     expect(await getCompanyAiProcessingAllowance(owner.client, owner.companyId)).toEqual({ ok: true, value: { used: 3, allowance: 3, waitingDocuments: 0 } });
+  });
+
+  it("prepares every ordered original above a real PostgREST response cap without a false incomplete failure", async () => {
+    const owner = await administratorWithCompany();
+    const groupId = randomUUID();
+    const worker = testWorker(fakeAiProvider({ extract: input => {
+      expect(input.pageCount).toBe(4);
+      expect(input.pageImages?.map(page => [page.width, page.height])).toEqual([[8, 12], [9, 13], [10, 14], [11, 15]]);
+      return SAMPLE_EXTRACTION;
+    } }));
+    await assignAiConfigurationFixture(owner.client, worker.jobs, { companyId: owner.companyId, provider: worker.ai });
+    const selection = selectUploadFiles(await Promise.all(["#ff0000", "#00ff00", "#0000ff", "#000000"].map(async (background, index) => ({
+      fileName: `page-${index + 1}.png`,
+      bytes: new Uint8Array(await sharp({ create: { width: 8 + index, height: 12 + index, channels: 3, background } }).png().toBuffer()),
+    }))));
+    const batch = await beginUploadBatch(owner.client, { companyId: owner.companyId, fileCount: 4, selectedFiles: selection.selectedFiles.map(file => ({ ...file, groupId })) });
+    if (!batch.ok) throw new Error(batch.error);
+    const pendingFiles = [...selection.files].reverse();
+    const first = pendingFiles.shift()!;
+    expect((await uploadSourceFile(owner.client, worker.jobs, { companyId: owner.companyId, batchId: batch.value.id, ...first })).ok).toBe(true);
+    expect(await worker.runJobs()).toEqual([]);
+    expect((await readSourceFile(owner.client, owner.companyId, first.sourceFileId))?.file.status).toBe("uploaded");
+    for (const file of pendingFiles) expect((await uploadSourceFile(owner.client, worker.jobs, { companyId: owner.companyId, batchId: batch.value.id, ...file })).ok).toBe(true);
+    await finishUploadBatch(owner.client, batch.value.id);
+    worker.releaseDelayedJobs();
+    await withPostgrestRowLimit(2, () => owner.client.from("source_file").select("id").eq("company_id", owner.companyId).limit(10), async () => {
+      expect(await worker.runJobsConcurrently()).toEqual([]);
+      expect((await getDocument(owner.client, owner.companyId, groupId))?.status).toBe("needs_review");
+      const group = await getPhotoGroup(owner.client, owner.companyId, groupId);
+      expect(group?.basis?.pages.map(page => page.sourceFileId)).toEqual(selection.files.map(file => file.sourceFileId));
+      expect(group?.basis?.pages.map(page => [page.width, page.height])).toEqual([[8, 12], [9, 13], [10, 14], [11, 15]]);
+      const stored = await readPhotoGroupBasis(owner.client, owner.companyId, groupId);
+      expect((await PDFDocument.load(stored!.bytes)).getPageCount()).toBe(4);
+      expect(await listExtractionVersions(owner.client, owner.companyId, groupId)).toHaveLength(1);
+    });
+    expect(await listCompanyDocuments(owner.client, owner.companyId)).toHaveLength(1);
+    expect((await getUploadBatch(owner.client, owner.companyId, batch.value.id))?.outcome).toBe("success");
+    expect(await getCompanyAiProcessingAllowance(owner.client, owner.companyId)).toEqual({ ok: true, value: { used: 1, allowance: 50, waitingDocuments: 0 } });
   });
 
 });
