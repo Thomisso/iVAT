@@ -10,12 +10,13 @@ import { Button } from "./button";
 import { Notice } from "./notice";
 
 /** All management entry points render this same scope selector and projection. */
-export async function ScopedMemberManagement({ organizationId, initialCompanyId, requestedScope, headingLevel = 2, pageLayout: PageFrame }: {
+export async function ScopedMemberManagement({ organizationId, initialCompanyId, requestedScope, requestedEmail, headingLevel = 2, pageLayout: PageFrame }: {
   pageLayout?: ComponentType<{ children?: ReactNode; title: ReactNode }>;
   headingLevel?: 1 | 2;
   organizationId: string;
   initialCompanyId: string | null;
   requestedScope: string | string[] | undefined;
+  requestedEmail?: string | string[];
 }) {
   const client = await requireUserClient();
   const t = await getTranslations("members");
@@ -25,7 +26,8 @@ export async function ScopedMemberManagement({ organizationId, initialCompanyId,
     PageFrame ? <PageFrame title={title}>{children}</PageFrame> : children;
   const companyId = requestedScope === undefined ? initialCompanyId : requestedScope === "organization" ? null : requestedScope;
   if (Array.isArray(companyId)) return renderPage(<Notice tone="warning">{t("scopeForbidden")}</Notice>);
-  const result = await listAccessManagement(client, { organizationId, companyId });
+  const emailSearch = typeof requestedEmail === "string" ? requestedEmail : "";
+  const result = await listAccessManagement(client, { organizationId, companyId, emailSearch });
   if (!result.ok) return renderPage(<Notice tone="warning">{t("scopeForbidden")}</Notice>);
   const { scope, scopes, users, pendingInvitations, blocked } = result.value;
   const urls = configuredInvitationUrls();
@@ -44,11 +46,15 @@ export async function ScopedMemberManagement({ organizationId, initialCompanyId,
           </option>)}
         </select>
       </div>
-      <Button type="submit">{t("applyScope")}</Button>
+      <div className="iv-field-label">
+        <label htmlFor="member-email-search">{t("searchEmail")}</label>
+        <input id="member-email-search" name="email" type="search" defaultValue={emailSearch} />
+      </div>
+      <Button type="submit">{t("applyFilters")}</Button>
     </form>
     <MemberManagement key={`${organizationId}:${scope.companyId ?? "organization"}`}
       acceptUrl={urls.ok ? urls.value.acceptUrl : null} organizationId={organizationId} companyId={scope.companyId}
-      currentUserId={user.id} users={users} pendingInvitations={pendingInvitations} />
+      scopeName={scope.name} emailSearch={emailSearch} currentUserId={user.id} users={users} pendingInvitations={pendingInvitations} />
   </section>;
   return renderPage(content, title);
 }

@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { cancelInvitationAction, previewMembershipChangeAction, inviteMemberAction, replaceInvitationAction } from "@/app/actions";
 import type { ManagedUser, PendingInvitation, ScopedMembership } from "@/application/memberships";
 import { Button } from "./button";
+import { DataTable } from "./data-table";
 import { FormError } from "./form-error";
 import { TextField } from "./text-field";
 import { formatDateTime } from "@/lib/format-date";
@@ -81,19 +82,15 @@ function MembershipRow({ membership, self }: { membership: ScopedMembership; sel
   </li>;
 }
 
-function ManagedUserRow({ access, currentUserId }: { access: ManagedUser; currentUserId: string }) {
+function MembershipDetails({ access, currentUserId }: { access: ManagedUser; currentUserId: string }) {
   const t = useTranslations("members");
-  const scopes = access.memberships.map(membership => t(
-    membership.source === "company" ? "companyMembership" : "organizationMembership", { scope: membership.scopeName },
-  )).join("; ");
-  return <li className="panel member-access-row">
-    <strong>{access.email}</strong>
-    <p className="member-effective-access">{access.effectiveRole ? t("effectiveAccess", { role: t(access.effectiveRole === "administrator" ? "administrator" : "user"), scopes }) : t("organizationAccess", { scopes })}</p>
+  return <details className="member-membership-details">
+    <summary>{t("showMemberships", { count: access.memberships.length, email: access.email })}</summary>
     <ul className="member-list">{access.memberships.map(membership => <MembershipRow key={membership.id} membership={membership} self={access.userId === currentUserId} />)}</ul>
-  </li>;
+  </details>;
 }
 
-function InvitationRow({ invitation, acceptUrl }: { invitation: PendingInvitation; acceptUrl: string | null }) {
+function InvitationActions({ invitation, acceptUrl }: { invitation: PendingInvitation; acceptUrl: string | null }) {
   const t = useTranslations("members");
   const [cancelState, cancelAction, cancelling] = useActionState(cancelInvitationAction, { error: null, values: {} });
   const [replaceState, replaceAction, replacing] = useActionState(replaceInvitationAction, { error: null, values: {} });
@@ -105,11 +102,7 @@ function InvitationRow({ invitation, acceptUrl }: { invitation: PendingInvitatio
   const linkInput = useRef<HTMLInputElement>(null);
   const link = acceptUrl && invitation.token ? `${acceptUrl}#${new URLSearchParams({ token: invitation.token })}` : null;
   const available = invitation.status === "pending" || invitation.status === "expired";
-  return <li className="panel member-invitation-row">
-    <strong>{invitation.email}</strong>
-    <span>{t(invitation.role === "administrator" ? "administrator" : "user")}</span>
-    <span>{t(`invitationStatus.${invitation.status}`)}</span>
-    <span>{t("expires", { date: formatDateTime(invitation.expiresAt) })}</span>
+  return <div className="member-invitation-actions">
     {link && <label className="iv-field-label invitation-link-field">
       {t("invitationLink")}<input ref={linkInput} value={link} readOnly type="url" />
     </label>}
@@ -142,7 +135,7 @@ function InvitationRow({ invitation, acceptUrl }: { invitation: PendingInvitatio
       </fieldset>}
       <FormError error={replaceState.error ?? cancelState.error} />
     </>}
-  </li>;
+  </div>;
 }
 
 export function MemberManagement({
@@ -152,6 +145,8 @@ export function MemberManagement({
   users,
   pendingInvitations,
   acceptUrl,
+  scopeName,
+  emailSearch,
 }: {
   organizationId: string;
   companyId: string | null;
@@ -159,6 +154,8 @@ export function MemberManagement({
   users: ManagedUser[];
   pendingInvitations: PendingInvitation[];
   acceptUrl: string | null;
+  scopeName: string;
+  emailSearch: string;
 }) {
   const t = useTranslations("members");
   const [state, action, pending] = useActionState(inviteMemberAction, { error: null, values: {} });
@@ -189,16 +186,27 @@ export function MemberManagement({
         <h2>{t("activeTitle")}</h2>
         <p>{t("activeCount", { count: activeCount })}</p>
         <p>{t("scopedAccessIntro")}</p>
-        {activeCount === 0 ? <p>{t("none")}</p> : (
-          <ul className="member-list">{users.map(access => <ManagedUserRow key={access.userId} access={access} currentUserId={currentUserId} />)}</ul>
+        {activeCount === 0 ? <p>{t(emailSearch.trim() ? "noSearchResults" : "none")}</p> : (
+          <div className="member-users-table"><DataTable caption={t("activeTitle")} rows={users.map(access => ({ ...access, id: access.userId }))} columns={[
+            { key: "email", header: t("email") },
+            { key: "effectiveRole", header: t(companyId === null ? "organizationRoles" : "effectiveRole"), render: access =>
+              access.effectiveRole ? t(access.effectiveRole === "administrator" ? "administrator" : "user") : t("rolesByMembership") },
+            { key: "memberships", header: t("memberships"), render: access => <MembershipDetails access={access} currentUserId={currentUserId} /> },
+          ]} /></div>
         )}
       </section>
       <section>
         <h2>{t("pendingTitle")}</h2>
         <p>{t("invitationScopeHint")}</p>
-        {pendingInvitations.length === 0 ? <p>{t("pendingNone")}</p> : <ul className="member-list">
-          {pendingInvitations.map((invitation) => <InvitationRow invitation={invitation} acceptUrl={acceptUrl} key={invitation.id} />)}
-        </ul>}
+        {pendingInvitations.length === 0 ? <p>{t("pendingNone")}</p> : <div className="member-invitations-table"><DataTable
+          caption={t("pendingTitle")} rows={pendingInvitations} columns={[
+            { key: "email", header: t("email") },
+            { key: "role", header: t("role"), render: invitation => t(invitation.role === "administrator" ? "administrator" : "user") },
+            { key: "scope", header: t("managementScope"), render: () => t(companyId === null ? "organizationScope" : "companyScope", { name: scopeName }) },
+            { key: "status", header: t("status"), render: invitation => t(`invitationStatus.${invitation.status}`) },
+            { key: "expiresAt", header: t("expiry"), muted: true, render: invitation => <time dateTime={invitation.expiresAt}>{formatDateTime(invitation.expiresAt)}</time> },
+            { key: "actions", header: t("actions"), render: invitation => <InvitationActions invitation={invitation} acceptUrl={acceptUrl} /> },
+          ]} /></div>}
       </section>
     </div>
   );
