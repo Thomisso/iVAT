@@ -9,12 +9,13 @@ The checked-in `manifest.json` uses the repository's tiny blank technical fixtur
 Set the providers, credentials, and default model names in the environment, then run:
 
 ```bash
+EVALUATION_REPORT_PATH=/private/evaluation/run-001.json \
 EVALUATION_PROVIDERS=anthropic,openai \
 ANTHROPIC_CONTRACT_API_KEY=... \
 ANTHROPIC_CONTRACT_MODEL=... \
 OPENAI_CONTRACT_API_KEY=... \
 OPENAI_CONTRACT_MODEL=... \
-npm run evaluate:extraction
+npm run --silent evaluate:extraction
 ```
 
 When only one provider's credentials are present, `EVALUATION_PROVIDERS` may be omitted and the command infers that provider. To compare different pipeline models, set any of:
@@ -24,11 +25,34 @@ When only one provider's credentials are present, `EVALUATION_PROVIDERS` may be 
 - `OPENAI_EVALUATION_SPLIT_MODEL`
 - `OPENAI_EVALUATION_EXTRACT_MODEL`
 
-Each falls back to its provider's `*_CONTRACT_MODEL`. Pass a different manifest as the first argument, or add `--json` for a machine-readable report:
+Each falls back to its provider's `*_CONTRACT_MODEL`. `EVALUATION_REPORT_PATH` is mandatory and must name a new file outside every Git repository/worktree, including ignored directories and paths reached through symlinks. The evaluator reserves it before calling AI, creates it with mode `0600`, refuses existing files, and never uploads or commits it. Keep its enclosing storage private as well.
+
+Pass a different manifest as the first argument, or add `--json` for a machine-readable **safe aggregate summary**. Use `npm run --silent` when saving or sharing stdout so npm does not echo the command arguments, including a private manifest path. Both evaluator stdout formats omit case IDs, paths, references, raw values, error bodies and free-form provider/model labels. Only the external report contains case-level diagnostics and exact returned models:
 
 ```bash
-npm run evaluate:extraction -- evaluation/golden-set/manifest.json --json
+EVALUATION_REPORT_PATH=/private/evaluation/run-002.json \
+npm run --silent evaluate:extraction -- /private/evaluation/manifest.json --json
 ```
+
+Process exit status describes technical completion, without an accuracy release gate:
+
+- `0`: every planned Split and Extraction completed, even if its accuracy is poor.
+- `2`: partial run; at least one measurement completed and another failed or could not be prepared.
+- `1`: no measurement completed, or configuration/input/private-output validation failed.
+
+A failed Split does not prevent isolated Extraction. Other Documents, Source Files and providers continue after a call or preparation failure. A partial or wholly failed run still saves its private report. Invalid references refuse the run before any provider calls; fatal setup errors print a generic diagnostic without confidential error text.
+
+## Frozen comparison and provenance
+
+Before either provider runs, the evaluator snapshots the complete validated manifest/reference facts, reads every Source File once, and prepares every reference Document once. PDF subsets use the real `pdfPages` path and production `prepareExtractionInput` rasterization contract. Both providers receive independent copies of those same frozen original/subset bytes and ordered page images. File edits during a provider call cannot alter the second provider's benchmark.
+
+The private report stores the frozen reference snapshot, SHA-256 of the original manifest bytes and each expected JSON file, a dataset hash including source hashes and Company identity, and per-call source/input/reference/prompt/schema/configuration identities. Input hashes include prepared page-image hashes, geometry and order. The revision records the Git commit, dirty flag and an exact source/dependency-manifest hash, so local edits cannot masquerade as the committed source. The live CLI records the selected adapter source hash and requested model for each phase without storing credentials. Programmatic fake adapters may supply a non-secret identity; otherwise their method-source identity and unknown requested models are recorded explicitly.
+
+Every planned Split/Extraction has a completed, failed or missing entry. Each completed call retains its actual returned model (or `null` if the response did not report one), available usage and measured latency. The adapters preserve their existing configured-model fallback for application compatibility while marking it as unreported evidence. Mixed model summaries list every returned model, rather than labeling a run from its first success. A returned model in an attached failed provider response is retained with that private diagnostic body. Unknown usage/cost is `null`; no estimate or missing measurement is reported as a provider invoice or zero cost.
+
+Coverage reports expected/completed/failed/missing calls separately. All failed/missing cases remain in Split, field, known-absence, classification and Document denominators. Metric `missing` counts distinguish unavailable measurements from observed incorrect values or hallucinations. These fractions are successful correct measurements divided by the full reference denominator; they do not assert that failed calls produced incorrect financial values.
+
+Preflight and enforced call/token/retry budgets remain the separate #303 slice. Do not treat the command as approval to run a paid baseline: models, repetition and budget still require a concrete approved plan. The tool changes no production models or Company data and consumes no Company allowance.
 
 ## Format
 
@@ -69,4 +93,4 @@ Paths are relative to the manifest, which may be outside the repository. Formats
 - Direction uses `detectDocumentDirection`, the same deterministic Company-identity/receipt rules as production, rather than the provider's raw guess. Direction and proposed VAT Regime have separate present classification scores; null references belong to absence totals. The overall correction-free Document result additionally requires both classifications and all ancillary names, addresses, due dates and payment facts to match. A critical financial pass alone does not mean an entire Document is perfect.
 - Money compares exact signed original-currency values at two decimals: no arithmetic tolerance, CZK conversion, Partial Claim or automatic sign repair. Canonicalization accepts ungrouped digits (optional whitespace grouping), a dot or comma decimal separator with at most two decimals, and preserves the sign; no rounding or fuzzy corrections. Dates accept ISO dates or equivalent valid `D.M.YYYY` strings; IČO/VAT ID and IBAN ignore whitespace, and VAT ID/IBAN ignore letter case. Document numbers, names and addresses remain literal.
 - Rate Breakdown order is ignored by sorting by numeric rate. Array length, every rate and every amount remain significant; missing, extra and duplicate output rows are errors. References must contain unique rates.
-- The JSON report contains each raw Extraction, applied normalization traces and canonical expected/actual differences. Treat it as private financial data. The readable summary contains only aggregate metrics and field paths, without individual values or source paths. Returned-model provenance, partial-call failure reporting and budget/preflight controls are subsequent slices of #280, not capabilities claimed by this scoring slice.
+- The JSON report contains each raw Extraction, applied normalization traces and canonical expected/actual differences. Treat it as private financial data. The readable summary contains only aggregate metrics and field paths, without individual values or source paths. The external raw report additionally retains provenance, failed/missing coverage and the frozen reference snapshot. Preflight and budget enforcement remain separate work.
