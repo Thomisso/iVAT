@@ -372,7 +372,22 @@
       "introduction": "Otevřete pozvánku a výslovně přijměte přístup. Nový uživatel si zvolí heslo, existující použije stávající přihlášení.",
       "linkLabel": "Otevřít pozvánku",
       "expiry": "Pozvánka je jednorázová a platí sedm dní od vytvoření."
-    }
+    },
+    "confirmMembershipTitle": "Zkontrolovat změnu členství",
+    "confirmMembershipPerson": "Osoba: {email}. Členství: {membership}.",
+    "confirmMembershipScope": "Přesný rozsah: {scope}. Současná role: {role}.",
+    "confirmMembershipRemoval": "Toto konkrétní členství bude odebráno.",
+    "confirmMembershipRole": "Toto konkrétní členství se změní na roli {role}.",
+    "organizationImpact": "Toto členství v organizaci poskytuje zděděný přístup do následujících společností. Zkontrolujte zbývající přístup v každé společnosti.",
+    "platformAccessSurvives": "Platformový přístup SuperAdmin zůstává.",
+    "noCompanyImpact": "Změna neovlivní žádné aktivní společnosti.",
+    "companyAccessRemoved": "V této společnosti nezůstane přístup prostřednictvím členství.",
+    "companyAccessSurvives": "Přístup do této společnosti zůstává s rolí {role}.",
+    "survivingMembership": "Zbývající členství: {scope}, {role} ({membership}).",
+    "revalidatedOnConfirmation": "Databáze při potvrzení znovu ověří aktuální přístup a ochranná pravidla. Pokud se dopad změní, znovu jej zkontrolujte.",
+    "confirmMembershipChange": "Potvrdit změnu členství",
+    "cancelMembershipChange": "Zrušit změnu",
+    "selfChangeHint": "Vlastní členství nelze odebrat ani si snížit roli Správce. O předání požádejte jinou oprávněnou osobu."
   },
   "dashboard": {
     "companies": "Firmy"
@@ -768,7 +783,10 @@
     "claim_deadline_expired": "Lhůta pro uplatnění nároku podáním již uplynula. Nové schválení nemůže doložit včasné podání.",
     "claimed_period_after_deadline": "Toto období končí příliš pozdě pro běžné uplatnění před koncem lhůty podání. Zvolte dřívější přípustné období.",
     "counterparty_resolution_required": "Před schválením vyřešte identitu protistrany. Vyberte existující záznam, obnovte archivovanou shodu nebo výslovně potvrďte vytvoření bez identifikátorů. Změněná upozornění adresáře je nutné zkontrolovat.",
-    "organization_creation_failed": "Organizaci se nepodařilo uložit. Zkuste to prosím znovu."
+    "organization_creation_failed": "Organizaci se nepodařilo uložit. Zkuste to prosím znovu.",
+    "membership_self_change": "Vlastní členství nelze odebrat ani si snížit roli Správce. O předání požádejte jinou oprávněnou osobu.",
+    "membership_last_administrator": "Tato změna by odebrala posledního správce v daném rozsahu. Nejprve musí mít členství s rolí Správce jiná osoba.",
+    "membership_change_stale": "Během kontroly se přístup změnil. Zrušte toto potvrzení a znovu zkontrolujte aktuální dopad."
   },
   "aiUsage": {
     "platformNav": "Využití AI na platformě",

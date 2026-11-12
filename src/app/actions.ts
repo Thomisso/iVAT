@@ -39,7 +39,7 @@ import {
   generateReportingYears,
   setFirstReportingMonth,
 } from "@/application/reporting-years";
-import { cancelInvitation, changeMembershipRole, completeInvitationOnboarding, generateInvitationLink, getInvitationOnboarding, inviteMember, removeMembership, replaceInvitationLink } from "@/application/memberships";
+import { previewMembershipChange, type MembershipChangeImpact, cancelInvitation, changeMembershipRole, completeInvitationOnboarding, generateInvitationLink, getInvitationOnboarding, inviteMember, removeMembership, replaceInvitationLink } from "@/application/memberships";
 import { configuredInvitationUrls, invitationAuthentication, invitationMailer } from "@/lib/invitations";
 import {
   saveAndApproveDocument,
@@ -883,17 +883,38 @@ export async function acceptInvitationAction(_state: FormState, formData: FormDa
   redirect("/");
 }
 
+export async function previewMembershipChangeAction(_state: { error: string | null; values: Record<string, string>; impact: MembershipChangeImpact | null }, formData: FormData): Promise<{ error: string | null; values: Record<string, string>; impact: MembershipChangeImpact | null }> {
+  const client = await requireUserClient();
+  const membershipId = field(formData, "membershipId");
+  const role = (field(formData, "role") || null) as "administrator" | "user" | null;
+  const values = { role: field(formData, "role") };
+  if (field(formData, "confirm") === "1") {
+    const confirmationToken = field(formData, "confirmationToken");
+    if (!confirmationToken) return { error: "membership_change_stale", values, impact: null };
+    const result = role === null ? await removeMembership(client, membershipId, confirmationToken)
+      : await changeMembershipRole(client, { membershipId, role, confirmationToken });
+    if (!result.ok) return { error: result.error, values, impact: null };
+    refresh();
+    return { error: null, values, impact: null };
+  }
+  const result = await previewMembershipChange(client, { membershipId, role });
+  return { error: result.ok ? null : result.error, values, impact: result.ok ? result.value : null };
+}
+
 export async function changeMembershipRoleAction(_state: FormState, formData: FormData): Promise<FormState> {
+  if (!field(formData, "confirmationToken")) return refused("membership_change_stale", formData, ["role"]);
   const result = await changeMembershipRole(await requireUserClient(), {
     membershipId: field(formData, "membershipId"),
     role: field(formData, "role") as "administrator" | "user",
+    confirmationToken: field(formData, "confirmationToken"),
   });
   if (!result.ok) return refused(result.error, formData, ["role"]);
   return settled(result);
 }
 
 export async function removeMembershipAction(_state: FormState, formData: FormData): Promise<FormState> {
-  return settled(await removeMembership(await requireUserClient(), field(formData, "membershipId")));
+  if (!field(formData, "confirmationToken")) return refused("membership_change_stale", formData, []);
+  return settled(await removeMembership(await requireUserClient(), field(formData, "membershipId"), field(formData, "confirmationToken")));
 }
 
 export async function createAiConfigurationAction(
