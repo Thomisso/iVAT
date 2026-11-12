@@ -220,6 +220,9 @@ it("archives complete PDF exports immutably without changing XML progress, while
     expect(await readVatReportPdfArtifact(outsider.client, read)).toBeNull();
     expect(await listVatReportPdfArtifacts(outsider.client, input)).toEqual([]);
     expect((await outsider.client.from("vat_report_pdf_artifact").select("id").eq("id", read.artifactId)).data).toEqual([]);
+    expect((await outsider.client.from("vat_report_pdf_artifact").update({ file_name: "foreign-change.pdf" }).eq("id", read.artifactId)).error?.code).toBe("42501");
+    expect((await outsider.client.from("vat_report_pdf_artifact").delete().eq("id", read.artifactId)).error?.code).toBe("42501");
+    expect(await readVatReportPdfArtifact(user.client, read)).toEqual(archive);
     expect((await user.client.from("vat_report_pdf_artifact").update({ file_name: "changed.pdf" }).eq("id", read.artifactId)).error?.code).toBe("42501");
     expect((await user.client.from("vat_report_pdf_artifact").delete().eq("id", read.artifactId)).error?.code).toBe("42501");
     await saveCompanyFilingDefaults(company.client, { ...filing, companyId: company.companyId, representative: { ...representative, firstName: "Marie" } });

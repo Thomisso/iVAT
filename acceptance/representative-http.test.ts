@@ -71,7 +71,7 @@ it("saves a profile through the real settings action and serves matching XML/PDF
   const history = await request(`${prefix}/exports`);
   expect(history.status).toBe(200);
   const html = await history.text();
-  expect(html).toContain("Alena");
+  expect(html.includes("Alena Zástupná · 03.02.1981")).toBe(true);
   expect(html).toContain("DPHDP3-2026-10.pdf");
   expect(html).toContain("DPHKH1-2026-10.pdf");
 });

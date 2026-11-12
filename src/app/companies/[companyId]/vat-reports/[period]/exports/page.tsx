@@ -108,7 +108,7 @@ export default async function ExportHistoryPage({
                             {artifact.format === "dphdp3" && <div><dt>{epo("economicActivity")}</dt><dd>{details.economicActivity || epo("notSet")}</dd></div>}
                             <div><dt>{epo("preparedOn")}</dt><dd>{formatDate(details.preparedOn)}</dd></div>
                             <div><dt>{epo("signatory")}</dt><dd>{signatory}</dd></div>
-                            <div><dt>{epo("representative")}</dt><dd>{details.representative ? `${details.representative.code}/${details.representative.personType} · ${details.representative.firstName} ${details.representative.lastName} · ${[details.representative.birthDate, details.representative.evidenceNumber].filter(Boolean).join(" / ")}` : epo("noRepresentative")}</dd></div>
+                            <div><dt>{epo("representative")}</dt><dd>{details.representative ? `${details.representative.code}/${details.representative.personType} · ${details.representative.firstName} ${details.representative.lastName} · ${[details.representative.birthDate ? formatDate(details.representative.birthDate) : "", details.representative.evidenceNumber].filter(Boolean).join(" / ")}` : epo("noRepresentative")}</dd></div>
                             <div><dt>{epo("email")}</dt><dd>{details.email || epo("notSet")}</dd></div>
                             <div><dt>{epo("phone")}</dt><dd>{details.phone || epo("notSet")}</dd></div>
                             <div><dt>{epo("serializedAddress")}</dt><dd>{address}</dd></div>
