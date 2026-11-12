@@ -40,6 +40,14 @@ it("preserves last Organization and effective Company administration, counting d
   expect(await removeMembership(operator.client, last.id)).toEqual({ ok: false, error: "membership_last_administrator" });
   // Platform authority is not a synthetic scoped Administrator.
   expect((await listMemberships(operator.client, { organizationId: empty.id, companyId: company.id })).map(m => m.userId)).toEqual([first.userId]);
+  const firstInvitation = succeeded(await generateInvitationLink(operator.client, { organizationId: empty.id, companyId: null, email: first.email, role: "administrator", acceptUrl: "http://localhost/invitations/accept" }));
+  succeeded(await acceptInvitation(first.client, firstInvitation.token));
+  expect((await listMemberships(operator.client, { organizationId: empty.id, companyId: null })).map(membership => membership.userId)).toEqual([first.userId]);
+  // Two paths belonging to this one User preserve Company access when only the
+  // direct path is demoted, but do not provide a second Organization Administrator.
+  succeeded(await changeMembershipRole(operator.client, { membershipId: last.id, role: "user" }));
+  const [onlyOrganizationAdministrator] = await listMemberships(operator.client, { organizationId: empty.id, companyId: null });
+  expect(await removeMembership(operator.client, onlyOrganizationAdministrator.id)).toEqual({ ok: false, error: "membership_last_administrator" });
   expect(member.userId).not.toBe(owner.userId);
 });
 
