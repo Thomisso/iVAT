@@ -770,7 +770,7 @@
     "counterparty_resolution_required": "Před schválením vyřešte identitu protistrany. Vyberte existující záznam, obnovte archivovanou shodu nebo výslovně potvrďte vytvoření bez identifikátorů. Změněná upozornění adresáře je nutné zkontrolovat.",
     "organization_creation_failed": "Organizaci se nepodařilo uložit. Zkuste to prosím znovu.",
     "proportional_deduction_invalid": "Potvrďte podporovaný poměrný odpočet podle skutečného využití (1–99 %).",
-    "proportional_claim_year_mismatch": "Období poměrného odpočtu musí patřit do kalendářního roku Earliest Claim Period."
+    "proportional_claim_year_mismatch": "Období poměrného odpočtu musí patřit do kalendářního roku nejdřívějšího přípustného období."
   },
   "aiUsage": {
     "platformNav": "Využití AI na platformě",
@@ -1182,7 +1182,7 @@
       "claim_deadline_expired": "Lhůta pro uplatnění nároku podáním již uplynula. Nové schválení nemůže doložit včasné podání.",
       "claimed_period_after_deadline": "Toto období končí příliš pozdě pro běžné uplatnění před koncem lhůty podání. Zvolte dřívější přípustné období.",
       "proportional_deduction_invalid": "Potvrďte podporovaný poměrný odpočet podle skutečného využití (1–99 %).",
-      "proportional_claim_year_mismatch": "Období poměrného odpočtu musí patřit do kalendářního roku Earliest Claim Period."
+      "proportional_claim_year_mismatch": "Období poměrného odpočtu musí patřit do kalendářního roku nejdřívějšího přípustného období."
     },
     "noDocumentImage": "Tento doklad vznikl z řádků tabulky a nemá obraz dokladu.",
     "sections": {
@@ -1362,21 +1362,21 @@
     "proportionalDeduction": {
       "title": "Poměrný odpočet (§ 75)",
       "enable": "Použít ručně potvrzený poměr skutečného využití",
-      "scope": "Pouze běžné tuzemské přijaté provozní výdaje v CZK. Dlouhodobý majetek, odhady, § 76, zálohy a kombinace s Partial Claim nejsou podporovány.",
-      "rounding": "Skutečný procentní podíl zaokrouhlete podle § 75 odst. 3 na celé procento nahoru. Zadejte konečný koeficient 1–99 % pro celý Document.",
+      "scope": "Pouze běžné tuzemské přijaté provozní výdaje v CZK. Dlouhodobý majetek, odhady, § 76, zálohy a kombinace s částečným uplatněním nejsou podporovány.",
+      "rounding": "Skutečný procentní podíl zaokrouhlete podle § 75 odst. 3 na celé procento nahoru. Zadejte konečný koeficient 1–99 % pro celý doklad.",
       "percentage": "Koeficient skutečného využití (%)",
       "operating": "Potvrzuji běžný provozní výdaj mimo pořízení dlouhodobého majetku a výdaje do něj vstupující.",
       "actual": "Potvrzuji, že poměr odpovídá již známému skutečnému využití, nikoli odhadu.",
       "confirm": "Potvrdit poměr a tyto původní částky",
       "previous": "Předchozí poměr: {percentage} %. Potvrďte jej znovu pro aktuální údaje.",
       "invalid": "Zadejte celé procento od 1 do 99, potvrďte obě prohlášení i poměr a vyřešte nepodporované kombinace či chyby původních částek.",
-      "alternatives": "Pro 0 % výslovně vypněte tento režim a použijte Partial Claim s potvrzením nulového nároku. Pro 100 % jej výslovně vypněte a použijte plné částky. Před zapnutím poměru vypněte Partial Claim.",
+      "alternatives": "Pro 0 % výslovně vypněte tento režim a použijte částečné uplatnění s potvrzením nulového nároku. Pro 100 % jej výslovně vypněte a použijte plné částky. Před zapnutím poměru vypněte částečné uplatnění.",
       "rate": "Sazba DPH",
       "original": "Původní základ + DPH",
       "claimed": "Uplatněný základ + DPH",
       "unclaimed": "Neuplatněný základ + DPH",
       "unavailable": "Nedostupné do vyřešení původních součtů",
-      "filing": "Export ani Finalization nejsou podáním ani roční korekcí. Zvolené období musí být v kalendářním roce Earliest Claim Period; nadále platí lhůta skutečného podání.",
+      "filing": "Export ani finalizace nejsou podáním ani roční korekcí. Zvolené období musí patřit do kalendářního roku nejdřívějšího přípustného období; nadále platí lhůta skutečného podání.",
       "total": "Celkem",
       "rateValue": "{rate} %",
       "amountSeparator": "+"
