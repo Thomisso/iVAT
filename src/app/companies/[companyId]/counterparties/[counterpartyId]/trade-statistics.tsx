@@ -4,6 +4,8 @@ import type { AppClient } from "@/application/client";
 import { getCounterpartyStatistics, type CounterpartyStatisticsFilters } from "@/application/counterparty-statistics";
 import { withCompanyReturnTo } from "@/application/return-context";
 import { DataTable } from "@/components/data-table";
+import { Money } from "@/components/money";
+import { formatDate } from "@/lib/format-date";
 
 export async function TradeStatistics({ client, companyId, counterpartyId, search }: {
   client: AppClient; companyId: string; counterpartyId: string; search: CounterpartyStatisticsFilters;
@@ -25,7 +27,7 @@ export async function TradeStatistics({ client, companyId, counterpartyId, searc
     return `${base}?${query}`;
   }
   function money(value: string | null) {
-    return value === null ? t("unavailableAmount") : <span className="iv-money">{value}</span>;
+    return value === null ? t("unavailableAmount") : <Money amount={value} currency="" />;
   }
   return <section aria-label={t("title")}>
     <h2>{t("title")}</h2>
@@ -51,7 +53,7 @@ export async function TradeStatistics({ client, companyId, counterpartyId, searc
       <button className="iv-btn iv-btn-primary" type="submit">{directory("filter")}</button>
       <Link href={base}>{t("reset")}</Link>
     </form>
-    <p>{t("period", { from: statistics.from, to: statistics.to })}</p>
+    <p>{t("period", { from: formatDate(statistics.from), to: formatDate(statistics.to) })}</p>
     <ul>{statistics.directions.map(group => <li key={group.direction}>
       <Link href={href({ direction: group.direction, contribution: "dated", page: 1 })}>{t("directionCount", { direction: t(group.direction), count: group.documentCount })}</Link>
     </li>)}</ul>
@@ -67,7 +69,7 @@ export async function TradeStatistics({ client, companyId, counterpartyId, searc
     <h3>{t("documents")}</h3><p>{t("countDocuments", { count: statistics.total })}</p>
     {statistics.entries.length ? <DataTable caption={t("documents")} rows={statistics.entries.map(document => ({ ...document, id: document.documentId }))} columns={[
       { key: "documentNumber", header: t("document"), render: row => <Link href={withCompanyReturnTo(companyId, `/companies/${companyId}/documents/${row.documentId}?version=${row.version}`, href())}>{row.documentNumber ?? directory("unnumberedDocument")}</Link> },
-      { key: "taxPointDate", header: t("taxPointDate"), render: row => row.taxPointDate ?? t("missingDate") },
+      { key: "taxPointDate", header: t("taxPointDate"), render: row => row.taxPointDate ? formatDate(row.taxPointDate) : t("missingDate") },
       { key: "direction", header: t("direction"), render: row => t(row.direction) },
       { key: "currency", header: t("currency"), render: row => row.currency ?? t("unknownCurrency") },
       ...(["netAmount", "vatAmount", "grossAmount"] as const).map(key => ({ key, header: t(key), align: "right" as const, render: (row: typeof statistics.entries[number]) => money(row[key]) })),

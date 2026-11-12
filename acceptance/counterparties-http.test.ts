@@ -15,6 +15,8 @@ it("returns localized trade statistics, exact DUZP drill-down and refusal throug
     { payload: { ...base, documentNumber: "TRADE-DECEMBER", taxPointDate: "2026-12-31" } },
     { payload: { ...base, documentNumber: "TRADE-UNDATED", taxPointDate: null } },
     { payload: { ...base, documentNumber: "TRADE-GROSS-ADVISORY", taxPointDate: "2020-01-01", totals: { netAmount: "0.01", vatAmount: "0.02", grossAmount: "0.04" } } },
+    { payload: { ...base, documentNumber: "TRADE-PRESENTATION-LARGE", taxPointDate: "2022-10-14", totals: { netAmount: "-9007199254740993.01", vatAmount: "0.00", grossAmount: "-9007199254740993.01" } } },
+    { payload: { ...base, documentNumber: "TRADE-PRESENTATION-GROUPED", taxPointDate: "2022-10-14", totals: { netAmount: "24200.00", vatAmount: "0.00", grossAmount: "24200.00" } } },
   ]);
   const path = `/companies/${owner.companyId}/counterparties/${party.id}`;
   const request = await httpAs(owner.client);
@@ -24,7 +26,7 @@ it("returns localized trade statistics, exact DUZP drill-down and refusal throug
   const trade = html.match(/<section aria-label="Trade statistics"[\s\S]*?<\/section>/)?.[0];
   expect(trade).toBeDefined();
   expect(trade).toContain("Tax Point Date");
-  expect(trade).toContain("1210.00");
+  expect(trade).toContain("1 210,00");
   expect(trade).toContain("TRADE-OCTOBER");
   expect(trade).not.toContain("TRADE-DECEMBER");
   expect(trade).not.toContain("TRADE-UNDATED");
@@ -43,6 +45,15 @@ it("returns localized trade statistics, exact DUZP drill-down and refusal throug
   expect(await cs.text()).toContain("Obchodní statistiky");
   const discrepancy = await request(`${path}?year=2020`);
   expect(await discrepancy.text()).toContain("Stored gross differs from net + VAT");
+  const presentation = await request(`${path}?from=2022-10-14&to=2022-10-14`);
+  const presentedTrade = (await presentation.text()).match(/<section aria-label="Trade statistics"[\s\S]*?<\/section>/)?.[0];
+  expect(presentedTrade).toContain("−9 007 199 254 740 993,01");
+  expect(presentedTrade).toContain("−9 007 199 254 716 793,01");
+  expect(presentedTrade).toContain("24 200,00");
+  expect(presentedTrade).toContain('class="iv-money is-negative');
+  expect(presentedTrade).toContain("Tax Point Date: 14.10.2022 – 14.10.2022");
+  expect(presentedTrade).toContain(">14.10.2022</td>");
+  expect(presentedTrade).toMatch(/<input[^>]*value="2022-10-14"[^>]*name="from"|<input[^>]*name="from"[^>]*value="2022-10-14"/);
   const invalid = await request(`${path}?from=2026-02-30`);
   expect(await invalid.text()).toContain("Choose a valid Tax Point Date range and filters");
   await withUnavailableCounterpartyStatistics(async () => {
