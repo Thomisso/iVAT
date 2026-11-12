@@ -294,3 +294,26 @@ it("Return XML rounds summed proportional amounts once while Control Statement r
   const kh = await createEpoXml(report.result, "dphkh1", details);
   expect(kh.ok && kh.value).toContain('zakl_dane1="13.20" dan1="2.78"');
 });
+
+it("an approved ratio is corrected through Return to Review while its previous report and Versions stay unchanged", async () => {
+  const { returnDocumentToReview } = await import("@/application/documents");
+  const company = await administratorWithCompany();
+  const created = await createConfirmedManualDocument(company.client, { companyId: company.companyId, payload: source }, undefined, registry);
+  if (!created.ok) throw new Error(created.error);
+  const input = { companyId: company.companyId, documentId: created.value.id };
+  expect(await saveAndApproveDocument(company.client, { ...input, basedOnVersion: 1, requestId: crypto.randomUUID(), payload: { ...source, proportionalDeduction: ratio } }, undefined, registry)).toMatchObject({ ok: true });
+  expect((await generateVatReport(company.client, { companyId: input.companyId, period: "2026-10" })).ok).toBe(true);
+  const previous = await getVatReport(company.client, input.companyId, "2026-10");
+  const history = await listExtractionVersions(company.client, input.companyId, input.documentId);
+  expect(await returnDocumentToReview(company.client, input)).toEqual({ ok: true, value: null });
+  expect(await saveAndApproveDocument(company.client, { ...input, basedOnVersion: 2, requestId: crypto.randomUUID(), payload: {
+    ...history[1].payload, proportionalDeduction: { ...history[1].payload.proportionalDeduction!, percentage: 60, confirmed: true },
+  } }, undefined, registry)).toEqual({ ok: true, value: { version: 3 } });
+  expect(await getVatReport(company.client, input.companyId, "2026-10")).toEqual(previous);
+  const versions = await listExtractionVersions(company.client, input.companyId, input.documentId);
+  expect(versions.slice(0, 2)).toEqual(history);
+  expect(versions[2].payload).toMatchObject({ totals: source.totals, proportionalDeduction: { percentage: 60 } });
+  expect((await generateVatReport(company.client, { companyId: input.companyId, period: "2026-10" })).ok).toBe(true);
+  expect((await getVatReport(company.client, input.companyId, "2026-10"))?.result.controlStatement)
+    .toMatchObject([{ section: "B.2", proportionalDeduction: true, rateBreakdown: [{ netAmount: "7200.00", vatAmount: "1512.00" }] }]);
+});
