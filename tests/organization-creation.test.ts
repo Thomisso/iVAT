@@ -86,4 +86,25 @@ describe("SuperAdmin Organization creation", () => {
     expect(await listMyOrganizations(operator.client)).toContainEqual({ id: direct.data, name: "vivid", role: "administrator" });
   });
 
+  it.each(["v", "vivid", "rev"])("preserves the valid v-boundary name %s through command and direct RPC", async (name) => {
+    const operator = await promotedSuperAdministrator("Name preservation operator");
+    const created = await createOrganization(operator.client, { name });
+    expect(created).toEqual({ ok: true, value: { id: expect.any(String), name } });
+    if (!created.ok) throw new Error(created.error);
+    expect(await listMyOrganizations(operator.client)).toContainEqual({ id: created.value.id, name, role: "administrator" });
+    const direct = await operator.client.rpc("create_organization", { organization_name: name });
+    expect(direct.error).toBeNull();
+    expect(await listMyOrganizations(operator.client)).toContainEqual({ id: direct.data, name, role: "administrator" });
+  });
+
+  it("refuses actual vertical-tab-only names at the command and direct RPC boundaries", async () => {
+    const operator = await promotedSuperAdministrator("Vertical whitespace operator");
+    const name = String.fromCharCode(11);
+    const before = await listPlatformOrganizationCompanies(operator.client);
+    expect(await createOrganization(operator.client, { name })).toEqual({ ok: false, error: "organization_name_required" });
+    const direct = await operator.client.rpc("create_organization", { organization_name: name });
+    expect(direct.error).toEqual(expect.objectContaining({ code: "P0001", hint: "organization_name_required" }));
+    expect(await listPlatformOrganizationCompanies(operator.client)).toEqual(before);
+  });
+
 });
