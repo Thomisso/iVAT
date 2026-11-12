@@ -71,6 +71,10 @@ it("sends one grouped alert at five continuous minutes and deduplicates concurre
   await Promise.all([tick(300), tick(300)]);
   const delivered = messages.filter(message => message.to === admin.email);
   expect(delivered).toHaveLength(1);
+  expect(delivered[0].subject).toBe("iVAT: critical operational blockage");
+  expect(delivered[0].text).toContain("Critical work has been blocked for at least five minutes");
+  expect(delivered[0].text).toContain("Sign in to review and resolve the blockage");
+  expect(delivered[0].html).toContain("Documents: 2");
   expect(delivered[0].text).toContain("Documents: 2");
   expect(delivered[0].text).toContain("Companies: 1");
   expect(delivered[0].text).toContain("https://ivat.example.test/platform/ai-settings");
@@ -159,12 +163,15 @@ it("never reclaims an interrupted sending receipt after worker restart", async (
   expect((await listOperationalAlertDeliveries(admin.client)).ok).toBe(true);
 });
 
-it.each(["accepted", "refused", "unknown"] as const)("records the real controlled SMTP %s outcome through reconciliation and outbox", async outcome => {
+it.each([
+  ["accepted", "cs"], ["refused", "cs"], ["unknown", "cs"],
+  ["accepted", "en"], ["refused", "en"], ["unknown", "en"],
+] as const)("records the real controlled SMTP %s outcome in %s through reconciliation and outbox", async (outcome, locale) => {
   const { localSmtpCapture } = await import("./support/smtp-capture");
   const { smtpOperationalAlertMailer } = await import("@/mail/smtp-operational-alert-mailer");
   const capture = await localSmtpCapture(outcome);
   try {
-    const { tick, deliveries } = await scenario(1, "cs");
+    const { tick, deliveries } = await scenario(1, locale);
     const smtp = smtpOperationalAlertMailer({ host: "127.0.0.1", port: capture.port, sender: "noreply@example.test", localCapture: true });
     await tick(0, smtp); await tick(300, smtp);
     expect((await deliveries()).map(delivery => delivery.state)).toEqual([outcome]);
@@ -315,6 +322,8 @@ it("refuses opt-in without a verified current address and localizes both safe me
   await tick(0); await tick(300);
   expect(messages).toHaveLength(1);
   expect(messages[0].subject).toBe("iVAT: kritická provozní blokace");
+  expect(messages[0].text).toContain("Kritická práce je blokována alespoň pět minut");
+  expect(messages[0].text).toContain("Přihlaste se pro kontrolu a nápravu blokace");
   expect(messages[0].text).toContain("Doklady: 1");
   expect(messages[0].html).toContain("Doklady: 1");
   expect(messages[0].html).toContain('href="https://ivat.example.test/platform/ai-settings#company-');

@@ -1,3 +1,4 @@
+import { createTranslator } from "next-intl";
 import type { SystemClient } from "./client";
 import type { Locale } from "@/i18n/locales";
 import cs from "../../messages/cs.json";
@@ -39,19 +40,21 @@ export async function runOperationalAlertTick(system: SystemClient, input: {
     if (!claimed.data) continue;
     const claim = claimed.data as unknown as Claim;
     const messages = claim.locale === "en" ? en : cs;
-    const content = messages.operationalAlerts;
+    const t = createTranslator({ locale: claim.locale, messages, timeZone: "Europe/Prague" });
     const label = labels[claim.kind as keyof typeof labels];
     // The database supplies only allowlisted local remediation paths. Refuse any
     // malformed persisted receipt before exposing the current address to a transport.
     const link = new URL(claim.detailHref, origin);
     let outcome: AlertTransportOutcome = "failed";
     if (label && link.origin === origin.origin && ["/platform/ai-settings", "/platform/administration"].includes(link.pathname)) {
-      const problem = messages.platformAdministration[label];
-      const impact = `${content.companies}: ${claim.impact.companies}\n${content.documents}: ${claim.impact.documents}\n${content.sourceFiles}: ${claim.impact.sourceFiles}\n${content.exportJobs}: ${claim.impact.exportJobs}`;
-      const text = `${content.heading}\n\n${problem}\n${impact}\n\n${content.remediation}\n${link.toString()}`;
+      const problem = t(`platformAdministration.${label}`);
+      const heading = t("operationalAlerts.heading");
+      const remediation = t("operationalAlerts.remediation");
+      const impact = t("operationalAlerts.impact", claim.impact);
+      const text = t("operationalAlerts.body", { heading, problem, impact, remediation, link: link.toString() });
       try {
-        outcome = await input.mailer.send({ to: claim.email, subject: content.subject, text,
-          html: `<h2>${escapeHtml(content.heading)}</h2><p>${escapeHtml(problem)}</p><p>${escapeHtml(impact).replace(/\n/g, "<br>")}</p><p><a href="${escapeHtml(link.toString())}">${escapeHtml(content.remediation)}</a></p>`,
+        outcome = await input.mailer.send({ to: claim.email, subject: t("operationalAlerts.subject"), text,
+          html: `<h2>${escapeHtml(heading)}</h2><p>${escapeHtml(problem)}</p><p>${escapeHtml(impact).replace(/\n/g, "<br>")}</p><p><a href="${escapeHtml(link.toString())}">${escapeHtml(remediation)}</a></p>`,
           messageId: `<operational-alert-${claim.id}@${origin.hostname}>`,
         });
       } catch {

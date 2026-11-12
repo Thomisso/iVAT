@@ -2071,7 +2071,9 @@
     "documents": "Doklady",
     "sourceFiles": "Zdrojové soubory",
     "exportJobs": "Exportní úlohy",
-    "remediation": "Přihlaste se pro kontrolu a nápravu blokace"
+    "remediation": "Přihlaste se pro kontrolu a nápravu blokace",
+    "impact": "Společnosti: {companies, number}\nDoklady: {documents, number}\nZdrojové soubory: {sourceFiles, number}\nExportní úlohy: {exportJobs, number}",
+    "body": "{heading}\n\n{problem}\n{impact}\n\n{remediation}\n{link}"
   },
   "representation": {
     "title": "Zástupce",
