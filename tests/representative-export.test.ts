@@ -44,7 +44,8 @@ it("exports a professional natural-person default with either permitted identifi
         expect(await pdfField(pdf.value.bytes, format === "dphdp3" ? [49.9, 605.8, 559.6, 622.3] : [49.9, 628.1, 559.6, 644.6])).toBe("Eva Poradná");
         expect(await pdfField(pdf.value.bytes, format === "dphdp3" ? [49.9, 634.2, 559.6, 650.7] : [49.9, 656.5, 559.6, 673])).toBe(identity.birthDate ? "03.02.1981" : "SYN-123");
         const storedPdf = await readVatReportPdfArtifact(user.client, { companyId: company.companyId, artifactId: pdf.value.artifactId! });
-        expect(storedPdf?.bytes).toEqual(pdf.value.bytes);
+        // Compare every archived byte natively; object traversal dominates these large PDFs.
+        expect(storedPdf && Buffer.compare(storedPdf.bytes, pdf.value.bytes)).toBe(0);
         expect(storedPdf?.artifact).toMatchObject({ resolvedDetails: { representative: professional }, serializerVersion: "4", authorUserId: user.userId });
       }
     }
