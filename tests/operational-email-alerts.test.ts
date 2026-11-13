@@ -55,9 +55,9 @@ async function scenario(count = 2, locale: "cs" | "en" = "en", startAt?: string)
   return { admin, company, messages, mailer, tick, deliveries, start, scopes, observeMessages };
 }
 
-/** Both roots and subscribers remain eligible. Select the target by public
- * pending receipt IDs so an unrelated delivery precedes it deterministically,
- * independently of random UUID allocation. The worker still drains every ID. */
+/** Both roots and subscribers remain eligible. Use the actual prepared plan
+ * only to select a target after an unrelated delivery; observe their outcomes
+ * through public receipts. The worker still drains every ID. */
 async function scenarioAfterUnrelatedDelivery(startAt = new Date(Date.now() + 1000).toISOString()) {
   const candidates = [await scenario(1, "en", startAt), await scenario(1, "en", startAt)];
   await candidates[0].tick(0);
@@ -70,10 +70,13 @@ async function scenarioAfterUnrelatedDelivery(startAt = new Date(Date.now() + 10
     expect(receipt).toEqual(expect.objectContaining({ deliveryKind: "first", state: "pending" }));
     return { testCase, receipt };
   }));
-  pairs.sort((a, b) => a.receipt.id < b.receipt.id ? -1 : 1);
-  const [earlier, target] = pairs;
-  expect((planned.data as string[]).indexOf(earlier.receipt.id)).toBeLessThan((planned.data as string[]).indexOf(target.receipt.id));
-  return { ...target.testCase, earlier: earlier.testCase };
+  const candidatesByReceipt = new Map(pairs.map(pair => [pair.receipt.id, pair.testCase]));
+  const [earlier, target] = (planned.data as string[]).flatMap(id => {
+    const testCase = candidatesByReceipt.get(id);
+    return testCase ? [testCase] : [];
+  });
+  if (!earlier || !target) throw new Error("Fixture did not plan both public pending receipts");
+  return { ...target, earlier };
 }
 
 it("spaces reminders by literal elapsed twenty-four hours and never catches up missed windows", async () => {
