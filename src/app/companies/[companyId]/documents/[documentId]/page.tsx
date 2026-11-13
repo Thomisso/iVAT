@@ -83,7 +83,7 @@ export default async function DocumentReviewPage({
     }
     return t("review.approvalUnknown");
   };
-  const contentUrl = file?.normalizedDerivative
+  const contentUrl = !photoGroup?.basis && file?.normalizedDerivative
     ? `/companies/${companyId}/source-files/${file.id}/preview`
     : `/companies/${companyId}/documents/${document.id}/content`;
   const sourceLocation = document.rowSet
