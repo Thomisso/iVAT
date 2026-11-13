@@ -1,3 +1,5 @@
+import { createClient } from "@supabase/supabase-js";
+import { asUserClient } from "@/application/client";
 import { Client as DatabaseClient } from "pg";
 import { pragueDate } from "@/application/reporting-periods";
 import { unzipSync, strFromU8 } from "fflate";
@@ -174,6 +176,18 @@ describe("User-confirmed Photo Groups", () => {
     expect((await foreign.client.from("photo_group").select("*").eq("id", groupId)).data).toEqual([]);
     expect(await recoverPhotoGroup(foreign.client, worker.jobs, input)).toEqual({ ok: false, error: "forbidden" });
     expect((await foreign.client.rpc("recover_photo_group", { target_group_id: groupId, recovery_mode: "manual" })).error?.code).toBe("42501");
+    // Retained identity reservations are internal metadata. The real authenticated
+    // role cannot read or modify them, including under another native user's id.
+    const database = new DatabaseClient({ connectionString: inject("databaseUrl") }); await database.connect();
+    try {
+      for (const sql of ["select * from private.photo_group_source_reservation where source_file_id=$1", "update private.photo_group_source_reservation set group_id=group_id where source_file_id=$1"]) {
+        await database.query("begin");
+        await database.query("set local role authenticated");
+        await database.query("select set_config('request.jwt.claims',$1,true)", [JSON.stringify({ sub: foreign.userId, role: "authenticated" })]);
+        await expect(database.query(sql, [selection.files[0].sourceFileId])).rejects.toMatchObject({ code: "42501" });
+        await database.query("rollback");
+      }
+    } finally { await database.end(); }
     expect(await recoverPhotoGroup(member.client, worker.jobs, input)).toEqual({ ok: true, value: { id: groupId } });
     const membership = (await listMemberships(owner.client, { organizationId: owner.organizationId, companyId: owner.companyId })).find(item => item.userId === member.userId)!;
     expect(await removeMembership(owner.client, membership.id)).toEqual({ ok: true, value: null });
@@ -277,6 +291,34 @@ describe("User-confirmed Photo Groups", () => {
     expect(await getDocument(owner.client, owner.companyId, groupId)).toBeNull();
     for (const mode of ["manual", "retry"] as const) expect(await recoverPhotoGroup(owner.client, worker.jobs, { companyId: owner.companyId, groupId, mode })).toEqual({ ok: false, error: "group_evidence_unavailable" });
     expect((await readSourceFile(owner.client, owner.companyId, selection.files[0].sourceFileId))?.bytes).toEqual(invalid);
+  });
+
+  it.each(["original", "normalization"] as const)("refuses a late %s upload after deletion before any Source row exists", async kind => {
+    const owner = await administratorWithCompany(), gateway = await supabaseHttpGateway(inject("supabaseUrl")), worker = testWorker();
+    const proxy = asUserClient(createClient(gateway.url, inject("supabaseAnonKey"), { auth: { persistSession: false, autoRefreshToken: false } }));
+    const session = await owner.client.auth.getSession();
+    if (!session.data.session) throw new Error("Native Auth session missing");
+    expect((await proxy.auth.setSession(session.data.session)).error).toBeNull();
+    const groupId = randomUUID(), selection = selectUploadFiles([{ fileName: "first.heic", bytes: heicFixture() }, { fileName: "second.png", bytes: fixtureFile("receipt.png") }]);
+    const batch = await beginUploadBatch(owner.client, { companyId: owner.companyId, fileCount: 2, selectedFiles: selection.selectedFiles.map(file => ({ ...file, groupId })) });
+    if (!batch.ok) throw new Error(batch.error);
+    const sourceId = selection.files[0].sourceFileId;
+    const held = gateway.holdNext(`/storage/v1/object/source-files/${owner.companyId}/${sourceId}${kind === "normalization" ? "/normalized.jpeg" : ""}`);
+    const uploading = uploadSourceFile(proxy, worker.jobs, { companyId: owner.companyId, batchId: batch.value.id, ...selection.files[0] });
+    await held.started;
+    expect(await getSourceFile(owner.client, owner.companyId, sourceId)).toBeNull();
+    await finishUploadBatch(owner.client, batch.value.id);
+    expect(await deleteUploadBatch(owner.client, { companyId: owner.companyId, batchId: batch.value.id })).toEqual({ ok: true, value: null });
+    held.release();
+    expect(await uploading).toEqual({ ok: false, error: "forbidden" });
+    const storage = systemClient().storage.from("source-files");
+    expect((await storage.download(`${owner.companyId}/${sourceId}`)).error).not.toBeNull();
+    expect((await storage.download(`${owner.companyId}/${sourceId}/normalized.jpeg`)).error).not.toBeNull();
+    expect((await storage.list(`${owner.companyId}/${sourceId}`)).data).toEqual([]);
+    const replacementGroup = randomUUID();
+    expect(await beginUploadBatch(owner.client, { companyId: owner.companyId, fileCount: 2, selectedFiles: selection.selectedFiles.map(file => ({ ...file, groupId: replacementGroup })) })).toEqual({ ok: false, error: "invalid_choice" });
+    expect(await listCompanyDocuments(owner.client, owner.companyId)).toEqual([]);
+    gateway.close();
   });
 
   it("preserves mixed JPEG/PNG/HEIC/HEIF originals and extracts the ordered persisted normalized basis once", async () => {

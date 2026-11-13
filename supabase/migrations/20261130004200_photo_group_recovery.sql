@@ -10,6 +10,34 @@ update public.photo_group set preparation_status='ready' where basis is not null
 update public.photo_group g set preparation_status='failed',preparation_failure='temporarily_unavailable'
   where g.basis is null and exists(select 1 from public.source_file s where s.id=any(g.source_file_ids) and s.status='failed');
 
+-- Retained reservations make deleted member identities recognizable even before
+-- a Source row existed. No original bytes or personal data are stored here.
+create table private.photo_group_source_reservation (
+  source_file_id uuid primary key,
+  organization_id uuid not null,
+  company_id uuid not null,
+  group_id uuid not null,
+  upload_batch_id uuid not null,
+  foreign key(company_id,organization_id) references public.company(id,organization_id)
+);
+alter table private.photo_group_source_reservation enable row level security;
+revoke all on private.photo_group_source_reservation from public,anon,authenticated,service_role;
+insert into private.photo_group_source_reservation(source_file_id,organization_id,company_id,group_id,upload_batch_id)
+  select member.id,g.organization_id,g.company_id,g.id,g.upload_batch_id from public.photo_group g cross join unnest(g.source_file_ids) member(id);
+create function private.reserve_photo_group_sources() returns trigger
+language plpgsql security definer set search_path='' as $$
+begin
+  if exists(select 1 from private.photo_group_source_reservation where source_file_id=any(new.source_file_ids)) then
+    raise exception 'immutable source identity already used' using errcode='P0001',hint='invalid_choice';
+  end if;
+  insert into private.photo_group_source_reservation(source_file_id,organization_id,company_id,group_id,upload_batch_id)
+    select member.id,new.organization_id,new.company_id,new.id,new.upload_batch_id from unnest(new.source_file_ids) member(id);
+  return new;
+end;
+$$;
+revoke all on function private.reserve_photo_group_sources() from public,anon,authenticated,service_role;
+create trigger reserve_photo_group_sources after insert on public.photo_group for each row execute function private.reserve_photo_group_sources();
+
 create function private.lock_photo_group(target_group_id uuid) returns public.photo_group
 language plpgsql security definer set search_path='' as $$
 declare g public.photo_group;
@@ -134,16 +162,23 @@ grant execute on function public.fail_photo_group(uuid,uuid,uuid,text) to servic
 -- paused before upload cannot create hidden group objects after batch removal.
 create function private.guard_photo_group_object() returns trigger
 language plpgsql security definer set search_path='' as $$
-declare g public.photo_group; anchor uuid; object_company_id uuid;
+declare reservation private.photo_group_source_reservation; g public.photo_group; is_basis boolean;
 begin
-  if new.bucket_id<>'source-files' or new.name !~ '^[0-9a-f-]{36}/[0-9a-f-]{36}/group/' then return new; end if;
-  if auth.role() is distinct from 'service_role' then raise exception 'worker-owned group basis' using errcode='42501'; end if;
-  object_company_id:=split_part(new.name,'/',1)::uuid; anchor:=split_part(new.name,'/',2)::uuid;
-  select * into g from public.photo_group where company_id=object_company_id and source_file_ids[1]=anchor;
-  if not found then raise exception 'group no longer exists'; end if;
-  g:=private.lock_photo_group(g.id);
-  if g.id is null or not exists(select 1 from public.company where id=g.company_id and deleted_at is null)
-    or g.preparation_status not in ('preparing','ready') then raise exception 'group no longer preparing'; end if;
+  if new.bucket_id<>'source-files' or new.name !~ '^[0-9a-f-]{36}/[0-9a-f-]{36}(/|$)' then return new; end if;
+  is_basis:=split_part(new.name,'/',3)='group';
+  select * into reservation from private.photo_group_source_reservation where source_file_id=split_part(new.name,'/',2)::uuid;
+  if not found then
+    if is_basis then raise exception 'group missing' using errcode='42501'; end if;
+    return new;
+  end if;
+  if reservation.company_id::text<>split_part(new.name,'/',1) then raise exception 'foreign source identity' using errcode='42501'; end if;
+  g:=private.lock_photo_group(reservation.group_id);
+  if g.id is null or not exists(select 1 from public.company where id=g.company_id and deleted_at is null) then
+    raise exception 'group no longer exists' using errcode='42501';
+  end if;
+  if is_basis and (auth.role() is distinct from 'service_role' or g.preparation_status not in ('preparing','ready')) then
+    raise exception 'worker-owned group basis' using errcode='42501';
+  end if;
   return new;
 end;
 $$;
@@ -209,3 +244,27 @@ returns jsonb language sql stable security definer set search_path='' as $$
       where source.id=any(g.source_file_ids) and g.company_id=source.company_id and g.basis is not null);
 $$;
 revoke all on function private.source_file_readiness_source(uuid,text) from public,anon,authenticated,service_role;
+
+-- Wait for canonical object writes before discovering reserved identities whose
+-- Source row was never recorded. The underlying command retains all Role,
+-- processing, Source/Document lock, audit and durable cleanup requirements.
+create or replace function public.delete_upload_batch(target_batch_id uuid) returns text[]
+language plpgsql security definer set search_path='' as $$
+declare batch public.upload_batch; extra_names text[]; names text[];
+begin
+  select * into batch from public.upload_batch where id=target_batch_id;
+  if not found or not private.can_access_company(batch.company_id,batch.organization_id) then raise exception 'not allowed' using errcode='42501'; end if;
+  perform 1 from public.company where id=batch.company_id for update;
+  select * into batch from public.upload_batch where id=target_batch_id for update;
+  if not found or not private.can_access_company(batch.company_id,batch.organization_id) then raise exception 'not allowed' using errcode='42501'; end if;
+  select coalesce(array_agg(o.name),'{}') into extra_names from storage.objects o where o.bucket_id='source-files'
+    and exists(select 1 from public.photo_group g cross join unnest(g.source_file_ids) source(id) where g.upload_batch_id=target_batch_id
+      and (o.name=batch.company_id::text||'/'||source.id::text or o.name like batch.company_id::text||'/'||source.id::text||'/%'));
+  names:=private.delete_upload_batch_without_photo_groups(target_batch_id);
+  insert into private.deleted_source_file_object(name,organization_id,company_id)
+    select name,batch.organization_id,batch.company_id from unnest(extra_names) name on conflict(name) do nothing;
+  return array(select distinct name from unnest(names||extra_names) name order by name);
+end;
+$$;
+revoke all on function public.delete_upload_batch(uuid) from public,anon,service_role;
+grant execute on function public.delete_upload_batch(uuid) to authenticated;

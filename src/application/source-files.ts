@@ -217,7 +217,11 @@ export async function storeSourceFileObjects(client: AppClient, input: { company
   }
   if (derivative) {
     const error = await storeImmutableObject(client, sourceFileDerivativeObjectPath(input.companyId, input.sourceFileId), derivative, SOURCE_FILE_MEDIA_TYPES.jpeg);
-    if (error) throw error;
+    if (error) {
+      if ("statusCode" in error && error.statusCode === "403") return { ok: false, error: "forbidden" };
+      if ("statusCode" in error && error.statusCode === "409") return { ok: false, error: "invalid_choice" };
+      throw error;
+    }
   }
   return { ok: true, value: {
     normalizedFormat: derivative ? "jpeg" : null,
