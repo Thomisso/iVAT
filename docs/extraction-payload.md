@@ -171,7 +171,12 @@ rounded upward to a whole percentage. Zero and full claims require an explicit
 choice of the existing modes; they are refused in this mode.
 
 The database binds the financial `basis` using the same source facts as a Partial
-Claim. The immutable Extraction Version supplies author and time, and a
+Claim, plus `earliestClaimPeriod` for a Proportional Deduction. Changing that
+period retains the previous percentage but requires fresh confirmation. An
+allowed reassignment within the earliest year preserves the decision; existing
+eligibility, year and deadline guards still apply. Legacy immutable Versions
+retain their previous basis shape, and new writes bind the period without
+rewriting history. The immutable Extraction Version supplies author and time, and a
 `document.proportional_deduction_changed` audit event references its id and
 version. AI metadata is stripped before financial findings and at insertion;
 an existing manual decision is retained as unconfirmed after AI replacement.
@@ -189,6 +194,8 @@ without treating conversion rounding as expenditure.
 
 Credit/debit notes, fixed assets, estimates,
 § 76, advances, reverse charge, EU supplies and combination with Partial Claim
-are unsupported. The broader re-confirmation lifecycle remains in
-#295; financial-basis changes already retain the previous percentage and invalidate
-confirmation rather than restoring full amounts.
+are unsupported. Financial-basis changes and AI reruns retain the previous
+percentage for comparison and invalidate confirmation rather than restoring
+full amounts. Return to Review and a fresh human decision remain subject to
+Period Locks; changing these inputs does not perform an annual correction or file
+a return.
