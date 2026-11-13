@@ -204,3 +204,14 @@ it("resumes a known started Batch without re-admitting its frozen manifest under
   expect(paths.some(path => path.endsWith("/upload-batches"))).toBe(false);
   expect(navigation.push).toHaveBeenCalledOnce();
 });
+
+it("refuses a malformed persisted workflow without blocking a fresh in-memory selection", async () => {
+  const storage: UploadDraftStorage = { async read() { return { batchId: null, items: [{ id: "corrupt", file: new NativeFile([new Uint8Array([1, 2, 3])], "corrupt.png"),
+    fileName: "corrupt.png", byteSize: 3, kind: "picker", sha256: "039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81", status: "unknown", error: null, retryable: false }] }; }, async write() {} };
+  vi.stubGlobal("crypto", webcrypto);
+  await mount(storage);
+  await vi.waitFor(async () => { await act(async () => {}); expect(container.textContent).toContain("localDraftUnavailable"); });
+  expect(container.textContent).not.toContain("corrupt.png");
+  await select();
+  await vi.waitFor(async () => { await act(async () => {}); expect(container.textContent).toContain("page.png"); });
+});

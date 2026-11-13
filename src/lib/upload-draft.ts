@@ -28,6 +28,8 @@ export async function restoreUploadDraft(value: unknown, contentHash: (file: Fil
   if (!(draft.batchId === null || typeof draft.batchId === "string") || !Array.isArray(draft.items)) throw new Error("Invalid upload draft");
   const items = await Promise.all(draft.items.map(async item => {
     if (!item || typeof item.id !== "string" || !item.id || !["picker", "capture"].includes(item.kind)
+      || !["queued", "uploading", "retrying", "uploaded", "refused"].includes(item.status)
+      || !(item.error === null || typeof item.error === "string")
       || (item.attemptId !== undefined && item.attemptId !== null && typeof item.attemptId !== "string")
       || (item.groupId !== undefined && typeof item.groupId !== "string")) throw new Error("Invalid upload item");
     let file = item.file && typeof item.file.arrayBuffer === "function" && typeof item.file.slice === "function" ? item.file : undefined;
@@ -51,6 +53,7 @@ export async function restoreUploadDraft(value: unknown, contentHash: (file: Fil
       retryable: !!file && !lifecycle && (item.retryable || interrupted || claimedComplete),
       error: file || lifecycle ? item.error : "upload_file_required" };
   }));
+  if (new Set(items.map(item => item.id)).size !== items.length) throw new Error("Duplicate upload identities");
   return { batchId: draft.batchId, items, ...(draft.started === true ? { started: true } : {}) };
 }
 
