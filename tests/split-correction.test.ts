@@ -9,7 +9,7 @@ import {
   reprocessDocument,
   splitDocument,
 } from "@/application/documents";
-import { uploadSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import { fakeAiProvider } from "@/ai/fake";
 import { provisionedUser } from "./support/clients";
 import {

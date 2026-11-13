@@ -9,7 +9,7 @@ import { listAuditEvents } from "@/application/audit";
 import { correctDocument, getDocument, listDocuments, listExtractionVersions, saveAndApproveDocument } from "@/application/documents";
 import { fakeVatPayerRegistry } from "@/vat-registry/fake";
 import { administratorWithCompany, assignAiConfigurationFixture } from "./support/fixtures";
-import { uploadSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import { fixtureFile } from "./support/files";
 import { testWorker } from "./support/worker";
 

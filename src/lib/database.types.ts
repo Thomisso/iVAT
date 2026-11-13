@@ -819,14 +819,14 @@ isOneToOne: false
                   ]
                 },"source_file": {
                   Row: {
-                    "byte_size": number,"company_id": string,"excluded_at": string | null,"excluded_by": string | null,"exclusion_reason": string | null,"file_name": string,"format": Database["public"]['Enums']["source_file_format"],"id": string,"manual_definition": Json | null,"manually_defined_at": string | null,"manually_defined_by": string | null,"normalized_byte_size": number | null,"normalized_format": Database["public"]['Enums']["source_file_format"] | null,"normalized_sha256": string | null,"organization_id": string,"page_count": number,"preselected_direction": string | null,"sha256": string,"split_dispatch_request_id": string | null,"split_request_id": string,"split_requested_at": string | null,"status": Database["public"]['Enums']["source_file_status"],"upload_batch_id": string | null,"uploaded_at": string,"uploaded_by": string | null
+                    "byte_size": number,"company_id": string,"excluded_at": string | null,"excluded_by": string | null,"exclusion_reason": string | null,"file_name": string,"format": Database["public"]['Enums']["source_file_format"],"id": string,"manual_definition": Json | null,"manually_defined_at": string | null,"manually_defined_by": string | null,"normalized_byte_size": number | null,"normalized_format": Database["public"]['Enums']["source_file_format"] | null,"normalized_sha256": string | null,"organization_id": string,"page_count": number,"preselected_direction": string | null,"sha256": string,"split_dispatch_request_id": string | null,"split_request_id": string,"split_requested_at": string | null,"status": Database["public"]['Enums']["source_file_status"],"storage_attempt_id": string | null,"upload_batch_id": string | null,"uploaded_at": string,"uploaded_by": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "byte_size": number,"company_id": string,"excluded_at"?: string | null,"excluded_by"?: string | null,"exclusion_reason"?: string | null,"file_name": string,"format": Database["public"]['Enums']["source_file_format"],"id": string,"manual_definition"?: Json | null,"manually_defined_at"?: string | null,"manually_defined_by"?: string | null,"normalized_byte_size"?: number | null,"normalized_format"?: Database["public"]['Enums']["source_file_format"] | null,"normalized_sha256"?: string | null,"organization_id": string,"page_count": number,"preselected_direction"?: string | null,"sha256": string,"split_dispatch_request_id"?: string | null,"split_request_id"?: string,"split_requested_at"?: string | null,"status"?: Database["public"]['Enums']["source_file_status"],"upload_batch_id"?: string | null,"uploaded_at"?: string,"uploaded_by"?: string | null
+                    "byte_size": number,"company_id": string,"excluded_at"?: string | null,"excluded_by"?: string | null,"exclusion_reason"?: string | null,"file_name": string,"format": Database["public"]['Enums']["source_file_format"],"id": string,"manual_definition"?: Json | null,"manually_defined_at"?: string | null,"manually_defined_by"?: string | null,"normalized_byte_size"?: number | null,"normalized_format"?: Database["public"]['Enums']["source_file_format"] | null,"normalized_sha256"?: string | null,"organization_id": string,"page_count": number,"preselected_direction"?: string | null,"sha256": string,"split_dispatch_request_id"?: string | null,"split_request_id"?: string,"split_requested_at"?: string | null,"status"?: Database["public"]['Enums']["source_file_status"],"storage_attempt_id"?: string | null,"upload_batch_id"?: string | null,"uploaded_at"?: string,"uploaded_by"?: string | null
                   }
                   Update: {
-                    "byte_size"?: number,"company_id"?: string,"excluded_at"?: string | null,"excluded_by"?: string | null,"exclusion_reason"?: string | null,"file_name"?: string,"format"?: Database["public"]['Enums']["source_file_format"],"id"?: string,"manual_definition"?: Json | null,"manually_defined_at"?: string | null,"manually_defined_by"?: string | null,"normalized_byte_size"?: number | null,"normalized_format"?: Database["public"]['Enums']["source_file_format"] | null,"normalized_sha256"?: string | null,"organization_id"?: string,"page_count"?: number,"preselected_direction"?: string | null,"sha256"?: string,"split_dispatch_request_id"?: string | null,"split_request_id"?: string,"split_requested_at"?: string | null,"status"?: Database["public"]['Enums']["source_file_status"],"upload_batch_id"?: string | null,"uploaded_at"?: string,"uploaded_by"?: string | null
+                    "byte_size"?: number,"company_id"?: string,"excluded_at"?: string | null,"excluded_by"?: string | null,"exclusion_reason"?: string | null,"file_name"?: string,"format"?: Database["public"]['Enums']["source_file_format"],"id"?: string,"manual_definition"?: Json | null,"manually_defined_at"?: string | null,"manually_defined_by"?: string | null,"normalized_byte_size"?: number | null,"normalized_format"?: Database["public"]['Enums']["source_file_format"] | null,"normalized_sha256"?: string | null,"organization_id"?: string,"page_count"?: number,"preselected_direction"?: string | null,"sha256"?: string,"split_dispatch_request_id"?: string | null,"split_request_id"?: string,"split_requested_at"?: string | null,"status"?: Database["public"]['Enums']["source_file_status"],"storage_attempt_id"?: string | null,"upload_batch_id"?: string | null,"uploaded_at"?: string,"uploaded_by"?: string | null
                   }
                   Relationships: [
                     {
@@ -1182,6 +1182,12 @@ isOneToOne: false
 "begin_mfa_replacement":
 { Args: { "continuation_token"?: string,"input_code": string }; Returns: string
                            },
+"begin_source_file_validation":
+{ Args: { "original_byte_size": number,"original_file_name": string,"original_sha256": string,"target_batch_id": string,"target_company_id": string,"target_source_file_id": string }; Returns: string
+                           },
+"begin_source_upload_validation":
+{ Args: { "expected_attempt_id": string,"original_byte_size": number,"original_file_name": string,"original_sha256": string,"target_batch_id": string,"target_company_id": string,"target_source_file_id": string }; Returns: string
+                           },
 "begin_upload_batch":
 { Args: { "requested_batch_id"?: string,"selected_file_count": number,"selected_files"?: Json,"target_company_id": string }; Returns: string
                            },
@@ -1392,6 +1398,9 @@ isOneToOne: false
 "finish_source_upload_cleanup_sweep":
 { Args: { "target_attempt_id": string }; Returns: undefined
                            },
+"finish_source_upload_original_sweep":
+{ Args: { "legacy": boolean,"owner_id": string }; Returns: undefined
+                           },
 "finish_upload_batch":
 { Args: { "target_batch_id": string }; Returns: undefined
                            },
@@ -1539,7 +1548,7 @@ isOneToOne: false
 { Args: { "next_role": Database["public"]['Enums']["membership_role"],"target_membership_id": string }; Returns: Json
                            },
 "publish_source_upload":
-{ Args: { "derivative_byte_size"?: number,"derivative_format"?: Database["public"]['Enums']["source_file_format"],"derivative_sha256"?: string,"expected_attempt_id": string,"original_byte_size": number,"original_file_name": string,"original_sha256": string,"source_format": Database["public"]['Enums']["source_file_format"],"source_page_count": number,"target_batch_id": string,"target_company_id": string,"target_source_file_id": string }; Returns: string
+{ Args: { "expected_attempt_id": string,"original_byte_size": number,"original_file_name": string,"original_sha256": string,"target_batch_id": string,"target_company_id": string,"target_source_file_id": string,"validation_claim_id": string }; Returns: string
                            },
 "read_vat_report_artifact":
 { Args: { "target_artifact_id": string,"target_company_id": string }; Returns: Json
@@ -1570,6 +1579,9 @@ isOneToOne: false
                            },
 "record_bank_account_check":
 { Args: { "check_outcome": string,"checked_version_id": string,"target_document_id": string }; Returns: string
+                           },
+"record_source_upload_validation":
+{ Args: { "actual_byte_size": number,"actual_format": Database["public"]['Enums']["source_file_format"],"actual_page_count": number,"actual_sha256": string,"claim_id": string,"normalized_byte_size"?: number,"normalized_sha256"?: string }; Returns: string
                            },
 "record_split":
 { Args: { "source_ranges": Json,"target_source_file_id": string,"target_split_request_id": string }; Returns: undefined
@@ -1637,6 +1649,9 @@ isOneToOne: false
 { Args: { "target_company_id"?: string,"target_configuration_id"?: string }; Returns: {
               "classification": Database["public"]['Enums']["ai_processing_issue_classification"],"configuration_id": string,"extraction_request_id": string,"first_detected_at": string,"provider": string,"split_request_id": string,"target_id": string,"target_kind": Database["public"]['Enums']["ai_processing_target_kind"]
             }[]
+                           },
+"retire_source_file_validation_objects":
+{ Args: Record<PropertyKey, never>; Returns: undefined
                            },
 "retire_source_uploads":
 { Args: Record<PropertyKey, never>; Returns: undefined
@@ -1734,6 +1749,12 @@ isOneToOne: false
                            },
 "source_upload_cleanup_candidates":
 { Args: Record<PropertyKey, never>; Returns: Json
+                           },
+"source_upload_original_cleanup_candidates":
+{ Args: Record<PropertyKey, never>; Returns: Json
+                           },
+"source_upload_validation_input":
+{ Args: { "claim_id": string }; Returns: Json
                            },
 "split_document":
 { Args: { "split_after_page": number,"target_document_id": string }; Returns: (string)[]

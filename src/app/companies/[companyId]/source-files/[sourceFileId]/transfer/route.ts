@@ -1,3 +1,4 @@
+import { sourceUploadValidation } from "@/lib/source-upload-validation";
 import { appendSourceUpload, cancelSourceUpload, completeSourceUpload, reconcileSourceUpload, restartSourceUpload, type SourceUploadIdentity, type SourceUploadAttempt } from "@/application/source-upload-transfers";
 import { SOURCE_UPLOAD_CHUNK_BYTES } from "@/lib/upload-policy";
 import { jobQueue } from "@/lib/jobs";
@@ -38,7 +39,7 @@ export async function POST(request: Request, ctx: Context) {
   if (input.cancel === true) return respond(await cancelSourceUpload(client, identity as SourceUploadAttempt));
   if (input.restart === true) return respond(await restartSourceUpload(client, identity as SourceUploadAttempt));
   return input.complete === true
-    ? respond(await completeSourceUpload(client, jobQueue, identity as SourceUploadAttempt), 201)
+    ? respond(await completeSourceUpload(client, jobQueue, identity as SourceUploadAttempt, sourceUploadValidation()), 201)
     : respond(await reconcileSourceUpload(client, identity, input.expectedAttemptId));
 }
 

@@ -10,8 +10,8 @@ export async function legacyUploadLayoutFixture(sourceFileId: string) {
 
 /** Pause a real Storage transaction AFTER INSERT/RLS, before it commits. An
  * empty cleanup snapshot therefore cannot yet see this admitted object's row. */
-export async function delayedTemporaryWrite<T, R>(name: string, upload: () => Promise<T>, during: (finish: () => Promise<T>) => Promise<R>) {
-  if (!/^[a-f0-9/-]+$/.test(name)) throw new Error("Invalid fixture object name");
+export async function delayedTemporaryWrite<T, R>(name: string, upload: () => Promise<T>, during: (finish: () => Promise<T>) => Promise<R>, bucket: "source-upload-chunks" | "source-files" = "source-upload-chunks") {
+  if (!/^[a-z0-9/.-]+$/.test(name)) throw new Error("Invalid fixture object name");
   const barrier = new Client({ connectionString: inject("databaseUrl") });
   const observer = new Client({ connectionString: inject("databaseUrl") });
   await barrier.connect(); await observer.connect();
@@ -24,7 +24,7 @@ export async function delayedTemporaryWrite<T, R>(name: string, upload: () => Pr
     await barrier.query("select pg_advisory_lock(317,9)");
     const pid = (await barrier.query<{ pid: number }>("select pg_backend_pid() pid")).rows[0].pid;
     await barrier.query(`create function private.test_delay_upload_commit() returns trigger language plpgsql as $$
-      begin if new.bucket_id='source-upload-chunks' and new.name='${name}' then perform pg_advisory_xact_lock(317,9); end if; return new; end $$;
+      begin if new.bucket_id='${bucket}' and new.name='${name}' then perform pg_advisory_xact_lock(317,9); end if; return new; end $$;
       create trigger test_delay_upload_commit after insert on storage.objects for each row execute function private.test_delay_upload_commit()`);
     pending = upload();
     const deadline = Date.now() + 5_000;
@@ -69,4 +69,18 @@ export async function orderedUploadCommands(companyId: string, commands: { query
     await Promise.allSettled(pending);
     await barrier.end(); await observer.end();
   }
+}
+
+/** A real provider-corruption fixture temporarily replaces only the new guard
+ * in this isolated DB; exact restoration is verified, just like clock fixtures. */
+export async function withStoredObjectCorruption<T>(operation:()=>Promise<T>):Promise<T> {
+ const database=new Client({connectionString:inject("databaseUrl")});await database.connect();
+ const definition=async()=>(await database.query<{definition:string}>("select pg_get_functiondef('private.guard_upload_owned_object()'::regprocedure) definition")).rows[0].definition;
+ const original=await definition();
+ try {
+  await database.query("create or replace function private.guard_upload_owned_object() returns trigger language plpgsql security definer set search_path='' as $$ begin return new; end $$");
+  return await operation();
+ } finally {
+  try {await database.query(original);if(await definition()!==original)throw new Error("Storage guard restoration failed; reset isolated DB");}finally{await database.end();}
+ }
 }

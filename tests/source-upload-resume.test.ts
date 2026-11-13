@@ -1,8 +1,9 @@
+import { completeSourceUpload } from "./support/source-upload";
 import { sourceUploadAttempt } from "./support/source-upload";
 import { expect, inject, it } from "vitest";
 import { beginUploadBatch } from "@/application/upload-batches";
 import { getSourceFile, readSourceFile } from "@/application/source-files";
-import { reconcileSourceUpload, appendSourceUpload, completeSourceUpload } from "@/application/source-upload-transfers";
+import { reconcileSourceUpload, appendSourceUpload } from "@/application/source-upload-transfers";
 import { administratorWithCompany } from "./support/fixtures";
 import { selectFixtureFiles } from "./support/files";
 import { testWorker } from "./support/worker";

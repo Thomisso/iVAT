@@ -8,7 +8,8 @@ import { getPhotoGroup, photoGroupPath, readPhotoGroupBasis } from "@/applicatio
 import { getCompanyAiProcessingAllowance } from "@/application/ai-processing-allowance";
 import { getCompanyDataExportStatus } from "@/application/company-deletion";
 import { beginUploadBatch, finishUploadBatch } from "@/application/upload-batches";
-import { readSourceFileDerivative, uploadSourceFile } from "@/application/source-files";
+import { readSourceFileDerivative } from "@/application/source-files";
+import { uploadSourceFile } from "../tests/support/source-upload";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { testWorker } from "../tests/support/worker";
 import { administratorWithCompany, assignAiConfigurationFixture } from "../tests/support/fixtures";

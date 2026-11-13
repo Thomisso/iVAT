@@ -14,7 +14,8 @@ import { listPlatformOperationalProblems } from "@/application/operational-probl
 import { listPlatformAuditEvents } from "@/application/audit";
 import { listCompanyDocuments } from "@/application/documents";
 import { splitJob, type ProcessingJob } from "@/application/processing";
-import { getSourceFile, uploadSourceFile } from "@/application/source-files";
+import { getSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import { fakeAiProvider } from "@/ai/fake";
 import { administratorWithCompany, companyMember } from "./support/fixtures";
 import { fixtureFile } from "./support/files";

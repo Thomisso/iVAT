@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { uploadSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import { administratorWithCompany, platformCompanyInventoryFixture, storageObjectMetadataFixture } from "./support/fixtures";
 import { provisionedUser } from "./support/clients";
 import { fixtureFile } from "./support/files";

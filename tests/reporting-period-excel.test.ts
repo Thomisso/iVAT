@@ -6,7 +6,7 @@ import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { exportReportingPeriodWorkbook } from "@/application/reporting-period-excel";
 import { createCompany, setCurrentReportingYear } from "@/application/companies";
 import { approveDocument, correctDocument, listDocuments, returnDocumentToReview } from "@/application/documents";
-import { uploadSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import {
   administratorWithCompany,
   assignAiConfigurationFixture as enableAiProcessing,

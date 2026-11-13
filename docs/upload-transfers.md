@@ -40,8 +40,11 @@ Batch retires its incomplete attempts. Authorized Batch deletion and
 export-authorized Company soft deletion retain their existing processing,
 Period Lock and retention rules while recording temporary cleanup scopes.
 
-Assembly, hash/format validation and immutable original storage precede guarded
-database publication. Publication repeats the expected-attempt, deadline,
+A database-issued claim authorizes a narrow server-only validator to inspect
+actual chunks, verify hashes/format/pages and store immutable attempt-owned
+originals and derivatives. Its private receipt binds actual stored object IDs
+and observed content; authenticated callers cannot assert these facts. Native
+User publication consumes that receipt. Publication repeats the expected-attempt, deadline,
 identity, access and current-limit checks while holding Company, Batch and
 Transfer locks in that order. Ordinary Source File inserts cannot publish a
 transfer-owned item. A completed current attempt remains reconcilable after
@@ -62,12 +65,29 @@ empty listings cannot prove that every previously admitted write has finished.
 Pre-lifecycle attempts keep their existing four-segment object layout
 `Company/Source/offset/hash`. New attempts use five segments,
 `Company/Source/attempt/offset/hash`. Legacy cleanup matches exactly four
-segments and cannot delete a replacement's five-segment objects. Canonical
-originals, normalized derivatives and Photo Group bases live in a different
-bucket and are never temporary-cleanup targets.
+segments and cannot delete a replacement's five-segment objects. New transfer originals and derivatives use exact attempt-owned paths in
+`source-files`. Unpublished ownership becomes permanently retired on expiry,
+cancel, finish or deletion, so their tombstones collect late writes safely.
+Published ownership protects retained evidence; replacement attempts use
+different paths. Legacy canonical unpublished names are also registered, and
+manifest identity reservations survive cascades. Existing published legacy paths,
+Photo Group bases and immutable historical archives are preserved. Cleanup
+reports unexpected provider failures after durable retry/fairness bookkeeping.
 
 CLI application and authenticated HTTP checks establish authority, durable
 offsets, actual bytes, hashes and terminal processing. They do not establish
 native IndexedDB retention or eviction, picker behavior, hydration, clicks,
 focus or visual layout. Same-device continuation does not promise cross-device
 or evicted-file recovery.
+
+
+Ordinary full-file Batch uploads use the same factual validator before their
+native Source File insertion. Their existing canonical paths and UUIDs remain
+unchanged. A matching private validated receipt is required for every reserved
+manifest identity, even before transfer reconciliation. A common insertion guard
+also applies this rule to definer-based manual attachment; a reserved UUID cannot
+escape its Batch by omitting or changing that Batch. Genuine historical
+count-only Batches retain their creator/count semantics and obtain content proof
+without inventing a frozen manifest. Unreserved unbatched uploads are unchanged.
+Legacy admission is retired under the Company/Batch locks before temporary
+canonical cleanup, preventing publication from racing an already selected delete.

@@ -61,7 +61,7 @@ export async function preparePhotoGroup(system: SystemClient, sourceFileId: stri
   const group = mapGroup(found.data);
   if (group.basis) return { group, ready: group.preparation.mode !== "manual", terminal: true };
   if (group.preparation.status === "failed") return { group, ready: false, terminal: true };
-  const sources: { id: string; sha256: string; format: SourceFileFormat; byte_size: number; status: SourceFileStatus; normalized_format: SourceFileFormat | null; normalized_byte_size: number | null; normalized_sha256: string | null }[] = [];
+  const sources: { id: string; sha256: string; format: SourceFileFormat; byte_size: number; status: SourceFileStatus; normalized_format: SourceFileFormat | null; normalized_byte_size: number | null; normalized_sha256: string | null; storage_attempt_id: string | null }[] = [];
   // Bound the IN filter independently of the configured group limit. Continue
   // from the last actual row until empty: PostgREST may cap below our request.
   const memberBatchSize = 100;
@@ -69,7 +69,7 @@ export async function preparePhotoGroup(system: SystemClient, sourceFileId: stri
     const ids = group.sourceFileIds.slice(start, start + memberBatchSize);
     let afterId: string | undefined;
     for (;;) {
-      let query = system.from("source_file").select("id, sha256, format, byte_size, status, normalized_format, normalized_byte_size, normalized_sha256")
+      let query = system.from("source_file").select("id, sha256, format, byte_size, status, normalized_format, normalized_byte_size, normalized_sha256, storage_attempt_id")
         .eq("company_id", group.companyId).eq("upload_batch_id", group.batchId).in("id", ids)
         .order("id").limit(memberBatchSize);
       if (afterId) query = query.gt("id", afterId);
@@ -114,7 +114,7 @@ export async function preparePhotoGroup(system: SystemClient, sourceFileId: stri
     for (const [index, id] of group.sourceFileIds.entries()) {
       const source = sources.find(source => source.id === id)!;
       if (!["jpeg", "png", "heic", "heif"].includes(source.format)) throw new PhotoGroupEvidenceError("Photo Group source format unsupported");
-      const original = await system.storage.from(SOURCE_FILE_BUCKET).download(sourceFileObjectPath(group.companyId, id));
+      const original = await system.storage.from(SOURCE_FILE_BUCKET).download(sourceFileObjectPath(group.companyId, id, source.storage_attempt_id));
       if (original.error) throw original.error;
       const raw = new Uint8Array(await original.data.arrayBuffer());
       if (raw.length !== Number(source.byte_size) || hash(raw) !== source.sha256) throw new PhotoGroupEvidenceError("Photo Group original checksum mismatch");
@@ -123,7 +123,7 @@ export async function preparePhotoGroup(system: SystemClient, sourceFileId: stri
       if (source.format === "heic" || source.format === "heif") {
         if (source.normalized_format !== "jpeg" || !source.normalized_byte_size || !source.normalized_sha256) throw new PhotoGroupEvidenceError("Photo Group normalization metadata unavailable");
         if (Number(source.normalized_byte_size) > limits.data.max_source_file_bytes) throw new Error("Photo Group normalization exceeds platform limit");
-        const stored = await system.storage.from(SOURCE_FILE_BUCKET).download(sourceFileDerivativeObjectPath(group.companyId, id));
+        const stored = await system.storage.from(SOURCE_FILE_BUCKET).download(sourceFileDerivativeObjectPath(group.companyId, id, source.storage_attempt_id));
         if (stored.error) throw stored.error;
         input = new Uint8Array(await stored.data.arrayBuffer());
         if (input.length !== Number(source.normalized_byte_size) || hash(input) !== source.normalized_sha256) throw new PhotoGroupEvidenceError("Photo Group normalization checksum mismatch");

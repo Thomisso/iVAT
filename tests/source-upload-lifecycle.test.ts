@@ -1,10 +1,12 @@
+import { completeSourceUpload, sourceUploadValidator } from "./support/source-upload";
 import { expect, inject, it } from "vitest";
 import { createClient } from "@supabase/supabase-js";
 import { asUserClient } from "@/application/client";
 import type { Database } from "@/lib/database.types";
 import { beginUploadBatch } from "@/application/upload-batches";
-import { appendSourceUpload, completeSourceUpload, reconcileSourceUpload, restartSourceUpload } from "@/application/source-upload-transfers";
-import { getSourceFile, readSourceFile, uploadSourceFile } from "@/application/source-files";
+import { appendSourceUpload, reconcileSourceUpload, restartSourceUpload } from "@/application/source-upload-transfers";
+import { getSourceFile, readSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import { runSourceUploadCleanupTick } from "@/application/source-upload-cleanup";
 import { administratorWithCompany } from "./support/fixtures";
 import { selectFixtureFiles } from "./support/files";
@@ -75,7 +77,7 @@ it("refuses an old completion paused before canonical Storage when a restart win
       const old = { ...item.identity, expectedAttemptId: first.attemptId };
       value(await appendSourceUpload(item.client, { ...old, offset: 0, bytes: item.file.bytes }));
       const held = gateway.holdNext("/storage/v1/object/source-files/");
-      const completing = completeSourceUpload(transport, worker.jobs, old);
+      const completing = completeSourceUpload(transport, worker.jobs, old, sourceUploadValidator(gateway.url));
       await held.started;
       try {
         await set("2030-01-08T00:00:00.000000Z");
@@ -236,14 +238,19 @@ it("retries failed cleanup and concurrent ticks without deleting a live replacem
   try {
     const first = value(await reconcileSourceUpload(item.client, item.identity));
     const attempt = { ...item.identity, expectedAttemptId: first.attemptId };
-    value(await appendSourceUpload(item.client, { ...attempt, offset: 0, bytes: item.file.bytes.slice(0, 20) }));
+    value(await appendSourceUpload(item.client, { ...attempt, offset: 0, bytes: item.file.bytes }));
+    const claim = await item.client.rpc("begin_source_upload_validation", {target_company_id:item.companyId,target_batch_id:item.identity.batchId,target_source_file_id:item.file.sourceFileId,
+      original_file_name:item.file.fileName,original_byte_size:item.file.bytes.length,original_sha256:item.identity.sha256,expected_attempt_id:first.attemptId!});
+    if(claim.error)throw claim.error;
+    value(await sourceUploadValidator().validateAndStage(claim.data));
     value(await cancelSourceUpload(item.client, attempt));
     const replacement = value(await restartSourceUpload(item.client, attempt));
     value(await appendSourceUpload(item.client, { ...item.identity, expectedAttemptId: replacement.attemptId, offset: 0, bytes: item.file.bytes.slice(0, 20) }));
     gateway.unavailable(true, "/storage/v1/object/source-upload-chunks");
-    await runSourceUploadCleanupTick(systemClient(gateway.url));
+    await expect(runSourceUploadCleanupTick(systemClient(gateway.url))).rejects.toBeDefined();
     const prefix = `${item.companyId}/${item.file.sourceFileId}/${first.attemptId}/0`;
     expect((await system.storage.from("source-upload-chunks").list(prefix)).data).toHaveLength(1);
+    expect((await system.storage.from("source-files").list(`${item.companyId}/${item.file.sourceFileId}/transfer/${first.attemptId}`)).data).toEqual([]);
     gateway.unavailable(false);
     await Promise.all([runSourceUploadCleanupTick(systemClient(gateway.url)), runSourceUploadCleanupTick(system)]);
     expect((await system.storage.from("source-upload-chunks").list(prefix)).data).toEqual([]);
@@ -320,7 +327,7 @@ it("refuses final publication when expiry cleanup wins after assembly and origin
       const attempt = { ...item.identity, expectedAttemptId: first.attemptId };
       value(await appendSourceUpload(item.client, { ...attempt, offset: 0, bytes: item.file.bytes }));
       const held = gateway.holdNext("/rest/v1/rpc/publish_source_upload");
-      const completing = completeSourceUpload(transport, worker.jobs, attempt);
+      const completing = completeSourceUpload(transport, worker.jobs, attempt, sourceUploadValidator(gateway.url));
       await held.started;
       try {
         await set("2030-01-08T00:00:00.000000Z");
@@ -347,7 +354,7 @@ it("preserves the completed original when publication wins the Company lock befo
     const attempt = { ...item.identity, expectedAttemptId: first.attemptId };
     value(await appendSourceUpload(item.client, { ...attempt, offset: 0, bytes: item.file.bytes }));
     const held = gateway.holdNext("/rest/v1/rpc/publish_source_upload");
-    const completing = completeSourceUpload(transport, worker.jobs, attempt);
+    const completing = completeSourceUpload(transport, worker.jobs, attempt, sourceUploadValidator(gateway.url));
     await held.started;
     let results;
     try {
@@ -410,8 +417,8 @@ it("converges when another completion publishes and cleans chunks before a retry
     const first = value(await reconcileSourceUpload(item.client, item.identity));
     const attempt = { ...item.identity, expectedAttemptId: first.attemptId };
     value(await appendSourceUpload(item.client, { ...attempt, offset: 0, bytes: item.file.bytes }));
-    const held = gateway.holdNext("/rest/v1/source_upload_chunk?");
-    const completing = completeSourceUpload(transport, worker.jobs, attempt);
+    const held = gateway.holdNext("/rest/v1/rpc/source_upload_validation_input");
+    const completing = completeSourceUpload(transport, worker.jobs, attempt, sourceUploadValidator(gateway.url));
     await held.started;
     try {
       value(await completeSourceUpload(item.client, worker.jobs, attempt));

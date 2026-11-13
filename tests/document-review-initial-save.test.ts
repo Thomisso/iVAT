@@ -27,7 +27,7 @@ import DocumentReviewPage from "@/app/companies/[companyId]/documents/[documentI
 import { CorrectionForm } from "@/app/companies/[companyId]/documents/[documentId]/correction-form";
 import { ReviewGuard, useReviewDraft } from "@/app/companies/[companyId]/documents/[documentId]/review-guard";
 import { correctDocument, listDocuments, listExtractionVersions, startManualDocumentReview } from "@/application/documents";
-import { uploadSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import { SAMPLE_EXTRACTION, fakeAiProvider } from "@/ai/fake";
 import { administratorWithCompany, assignAiConfigurationFixture, knownSupplierFixture } from "./support/fixtures";
 import { fixtureFile } from "./support/files";

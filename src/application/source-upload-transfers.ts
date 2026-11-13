@@ -1,8 +1,8 @@
 import { SOURCE_UPLOAD_CHUNK_BYTES } from "@/lib/upload-policy";
 import { createHash } from "node:crypto";
-import { isUuid, type AppClient } from "./client";
+import { isUuid, type AppClient, type Result } from "./client";
 import { splitJob, type JobQueue } from "./processing";
-import { prepareSourceFile, storeSourceFileObjects, type UploadSourceFileError } from "./source-files";
+import { type UploadSourceFileError } from "./source-files";
 
 export type SourceUploadIdentity = {
   companyId: string;
@@ -12,6 +12,8 @@ export type SourceUploadIdentity = {
   byteSize: number;
   sha256: string;
 };
+export interface SourceUploadValidation { validateAndStage(claimId: string): Promise<Result<string, SourceUploadError>>; }
+
 export type SourceUploadAttempt = SourceUploadIdentity & { expectedAttemptId: string | null };
 export type SourceUploadProgress = { attemptId: string | null; confirmedBytes: number; byteSize: number; complete: boolean };
 export type SourceUploadError = UploadSourceFileError | "upload_incomplete" | "upload_checksum_mismatch" | "upload_expired" | "upload_cancelled" | "upload_attempt_changed";
@@ -130,7 +132,7 @@ export async function appendSourceUpload(client: AppClient, input: SourceUploadA
 }
 
 /** Only assembled, size/format/limit/hash-verified originals enter the existing immutable upload pipeline. */
-export async function completeSourceUpload(client: AppClient, jobs: JobQueue, identity: SourceUploadAttempt): Promise<SourceUploadResult<{ id: string }>> {
+export async function completeSourceUpload(client: AppClient, jobs: JobQueue, identity: SourceUploadAttempt, validator: SourceUploadValidation): Promise<SourceUploadResult<{ id: string }>> {
   if (identity.expectedAttemptId !== null && !isUuid(identity.expectedAttemptId)) return { ok: false, error: "invalid_choice" };
   const state = await reconcileSourceUpload(client, identity, identity.expectedAttemptId);
   if (!state.ok) return state;
@@ -155,55 +157,25 @@ export async function completeSourceUpload(client: AppClient, jobs: JobQueue, id
   }
   if (state.value.confirmedBytes !== identity.byteSize) return { ok: false, error: "upload_incomplete" };
   if (!identity.expectedAttemptId) return { ok: false, error: "invalid_choice" };
-  const transfer = await client.from("source_upload_transfer").select("legacy_layout")
-    .eq("source_file_id", identity.sourceFileId).eq("attempt_id", identity.expectedAttemptId).maybeSingle();
-  if (transfer.error) return refusal(transfer.error);
-  if (!transfer.data) return { ok: false, error: "upload_attempt_changed" };
-  const bytes = new Uint8Array(identity.byteSize);
-  let offset = 0;
-  // Paginate because a platform limit can permit more portions than PostgREST's row cap.
-  while (offset < identity.byteSize) {
-    const { data, error } = await client.from("source_upload_chunk").select("byte_offset, byte_size, sha256")
-      .eq("source_file_id", identity.sourceFileId).eq("attempt_id", identity.expectedAttemptId).gte("byte_offset", offset).order("byte_offset").limit(1000);
-    if (error) return refusal(error);
-    if (!data.length) {
-      const current = await afterStorageRefusal(client, identity, true);
+  const args = { target_company_id: identity.companyId, target_batch_id: identity.batchId, target_source_file_id: identity.sourceFileId,
+    original_file_name: identity.fileName, original_byte_size: identity.byteSize, original_sha256: identity.sha256, expected_attempt_id: identity.expectedAttemptId };
+  const claim = await client.rpc("begin_source_upload_validation", args);
+  if (claim.error) return refusal(claim.error);
+  try {
+    const verified = await validator.validateAndStage(claim.data);
+    if (!verified.ok) {
+      const current = await reconcileSourceUpload(client, identity, identity.expectedAttemptId);
       if (!current.ok) return current;
-      await dispatch.send(splitJob(identity.sourceFileId));
-      return { ok: true, value: { id: identity.sourceFileId } };
+      if (!current.value.complete) return verified;
+    } else {
+      const published = await client.rpc("publish_source_upload", { ...args, validation_claim_id: verified.value });
+      if (published.error) return refusal(published.error);
     }
-    for (const chunk of data) {
-      if (Number(chunk.byte_offset) !== offset) return { ok: false, error: "upload_incomplete" };
-      const stored = await client.storage.from(BUCKET).download(objectPath(identity, identity.expectedAttemptId, transfer.data.legacy_layout, offset, chunk.sha256));
-      if (stored.error) {
-        if ("statusCode" in stored.error && ["403", "404"].includes(String(stored.error.statusCode))) {
-          const current = await afterStorageRefusal(client, identity, String(stored.error.statusCode) === "404");
-          if (!current.ok) return current;
-          await dispatch.send(splitJob(identity.sourceFileId));
-          return { ok: true, value: { id: identity.sourceFileId } };
-        }
-        throw stored.error;
-      }
-      const portion = new Uint8Array(await stored.data.arrayBuffer());
-      if (portion.length !== chunk.byte_size || hash(portion) !== chunk.sha256) return { ok: false, error: "upload_checksum_mismatch" };
-      bytes.set(portion, offset);
-      offset += portion.length;
-    }
+  } catch (error) {
+    const current = await reconcileSourceUpload(client, identity, identity.expectedAttemptId);
+    if (!current.ok) return current;
+    if (!current.value.complete) throw error;
   }
-  if (hash(bytes) !== identity.sha256) return { ok: false, error: "upload_checksum_mismatch" };
-  const prepared = await prepareSourceFile(client, { fileName: identity.fileName, bytes });
-  if (!prepared.ok) return prepared;
-  const stored = await storeSourceFileObjects(client, { companyId: identity.companyId, sourceFileId: identity.sourceFileId, format: prepared.value.format, bytes });
-  if (!stored.ok) return stored;
-  // Publication, not assembly or immutable object storage, is the final
-  // arbitration point with restart, cancellation, expiry and deletion.
-  const published = await client.rpc("publish_source_upload", {
-    target_company_id: identity.companyId, target_batch_id: identity.batchId, target_source_file_id: identity.sourceFileId,
-    original_file_name: identity.fileName, original_byte_size: identity.byteSize, original_sha256: identity.sha256,
-    expected_attempt_id: identity.expectedAttemptId, source_format: prepared.value.format, source_page_count: prepared.value.pageCount,
-    ...(stored.value.normalizedFormat ? { derivative_format: stored.value.normalizedFormat, derivative_byte_size: stored.value.normalizedByteSize!, derivative_sha256: stored.value.normalizedSha256! } : {}),
-  });
-  if (published.error) return refusal(published.error);
   await dispatch.send(splitJob(identity.sourceFileId));
   return { ok: true, value: { id: identity.sourceFileId } };
 }

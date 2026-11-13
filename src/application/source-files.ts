@@ -1,3 +1,4 @@
+import type { SourceUploadValidation } from "./source-upload-transfers";
 import { createHash, randomUUID } from "node:crypto";
 import convertHeic from "heic-convert";
 import { PDFDocument } from "pdf-lib";
@@ -21,6 +22,7 @@ export type SourceFile = {
   format: SourceFileFormat;
   byteSize: number;
   sha256: string;
+  storageAttemptId?: string;
   normalizedDerivative: {
     format: "jpeg";
     byteSize: number;
@@ -122,7 +124,7 @@ function contentMatches(format: SourceFileFormat, bytes: Uint8Array): boolean {
   return SIGNATURES[format].every((byte, i) => bytes[i] === byte);
 }
 
-async function normalizedDerivative(
+export async function normalizedDerivative(
   format: SourceFileFormat,
   bytes: Uint8Array,
 ): Promise<Uint8Array | null> {
@@ -161,9 +163,9 @@ export async function pdfPages(bytes: Uint8Array, range: { firstPage: number; la
   return pages.save();
 }
 
-export const sourceFileObjectPath = (companyId: string, sourceFileId: string) => `${companyId}/${sourceFileId}`;
-export const sourceFileDerivativeObjectPath = (companyId: string, sourceFileId: string) =>
-  `${companyId}/${sourceFileId}/normalized.jpeg`;
+export const sourceFileObjectPath = (companyId: string, sourceFileId: string, attemptId?: string | null) => attemptId ? `${companyId}/${sourceFileId}/transfer/${attemptId}/original` : `${companyId}/${sourceFileId}`;
+export const sourceFileDerivativeObjectPath = (companyId: string, sourceFileId: string, attemptId?: string | null) =>
+  attemptId ? `${companyId}/${sourceFileId}/transfer/${attemptId}/normalized.jpeg` : `${companyId}/${sourceFileId}/normalized.jpeg`;
 
 /** A lost response or concurrent retry may leave the immutable object stored already. */
 async function storeImmutableObject(
@@ -190,9 +192,13 @@ export type PreparedSourceFile = {
 
 /** Shared content validation for upload and later attachment of real originals. */
 export async function prepareSourceFile(client: AppClient, input: { fileName: string; bytes: Uint8Array }): Promise<Result<PreparedSourceFile, UploadSourceFileError>> {
+  return inspectSourceFile(input, await getUploadLimits(client));
+}
+
+/** Actual content inspection shared with the narrow trusted validator. */
+export async function inspectSourceFile(input: { fileName: string; bytes: Uint8Array }, limits: UploadLimits): Promise<Result<PreparedSourceFile, UploadSourceFileError>> {
   const fileName = input.fileName.trim();
   if (!fileName || input.bytes.length === 0) return { ok: false, error: "file_required" };
-  const limits = await getUploadLimits(client);
   if (input.bytes.length > limits.maxFileBytes) return { ok: false, error: "file_too_large" };
   const format = formatOf(fileName);
   if (!format) return { ok: false, error: "unsupported_format" };
@@ -241,6 +247,7 @@ export async function uploadSourceFile(
   client: AppClient,
   jobs: JobQueue,
   input: UploadSourceFileInput,
+  validator?: SourceUploadValidation,
 ): Promise<Result<{ id: string }, UploadSourceFileError>> {
   const fileName = input.fileName.trim();
   if (!fileName || input.bytes.length === 0) return { ok: false, error: "file_required" };
@@ -278,6 +285,24 @@ export async function uploadSourceFile(
   const stored = await storeSourceFileObjects(client, { companyId: company.id, sourceFileId: id, format, bytes: input.bytes });
   if (!stored.ok) return stored;
 
+  if (input.batchId) {
+    if (!validator) return { ok: false, error: "forbidden" };
+    const claim = await client.rpc("begin_source_file_validation", { target_company_id: company.id, target_batch_id: input.batchId, target_source_file_id: id,
+      original_file_name: fileName, original_byte_size: input.bytes.length, original_sha256: sha256 });
+    if (claim.error) {
+      if (claim.error.code === "42501") return { ok: false, error: "forbidden" };
+      if (claim.error.hint === "invalid_choice") return { ok: false, error: "invalid_choice" };
+      throw claim.error;
+    }
+    const verified = await validator.validateAndStage(claim.data);
+    if (!verified.ok) {
+      const error = verified.error;
+      if (error === "upload_incomplete" || error === "upload_checksum_mismatch") return { ok: false, error: "invalid_choice" };
+      if (error === "upload_expired" || error === "upload_cancelled" || error === "upload_attempt_changed") return { ok: false, error: "forbidden" };
+      return { ok: false, error };
+    }
+  }
+
   const { error } = await client.from("source_file").insert({
     id,
     organization_id: company.organizationId,
@@ -312,9 +337,10 @@ export async function uploadSourceFile(
   return { ok: true, value: { id } };
 }
 
-const COLUMNS = "id, company_id, file_name, format, byte_size, sha256, normalized_format, normalized_byte_size, normalized_sha256, page_count, status, uploaded_at, exclusion_reason, excluded_at, excluded_by, manually_defined_at, manually_defined_by";
+const COLUMNS = "storage_attempt_id, id, company_id, file_name, format, byte_size, sha256, normalized_format, normalized_byte_size, normalized_sha256, page_count, status, uploaded_at, exclusion_reason, excluded_at, excluded_by, manually_defined_at, manually_defined_by";
 
 type SourceFileRow = {
+  storage_attempt_id: string | null;
   id: string;
   company_id: string;
   file_name: string;
@@ -336,6 +362,7 @@ type SourceFileRow = {
 
 function toSourceFile(row: SourceFileRow): SourceFile {
   return {
+    ...(row.storage_attempt_id ? { storageAttemptId: row.storage_attempt_id } : {}),
     id: row.id,
     companyId: row.company_id,
     fileName: row.file_name,
@@ -395,7 +422,7 @@ export async function readSourceFile(
 ): Promise<{ file: SourceFile; bytes: Uint8Array } | null> {
   const file = await getSourceFile(client, companyId, sourceFileId);
   if (!file) return null;
-  const { data, error } = await client.storage.from(SOURCE_FILE_BUCKET).download(sourceFileObjectPath(file.companyId, file.id));
+  const { data, error } = await client.storage.from(SOURCE_FILE_BUCKET).download(sourceFileObjectPath(file.companyId, file.id, file.storageAttemptId));
   if (error) throw error;
   return { file, bytes: new Uint8Array(await data.arrayBuffer()) };
 }
@@ -416,7 +443,7 @@ export async function readSourceFileDerivative(
   if (!file?.normalizedDerivative) return null;
   const { data, error } = await client.storage
     .from(SOURCE_FILE_BUCKET)
-    .download(sourceFileDerivativeObjectPath(file.companyId, file.id));
+    .download(sourceFileDerivativeObjectPath(file.companyId, file.id, file.storageAttemptId));
   if (error) throw error;
   return {
     sourceFileId: file.id,

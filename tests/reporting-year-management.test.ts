@@ -3,7 +3,7 @@ import { listCompanyReportingYears } from "@/application/companies";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { listAuditEvents } from "@/application/audit";
 import { listCompanyDocuments } from "@/application/documents";
-import { uploadSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import {
   changeReportingYearFrequency,
   deleteReportingYear,
