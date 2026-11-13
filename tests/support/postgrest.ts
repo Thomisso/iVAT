@@ -1,5 +1,5 @@
 import { Client } from "pg";
-import { inject } from "vitest";
+import { inject, onTestFinished } from "vitest";
 import type { AppClient } from "@/application/client";
 
 // Positive table reads here establish only the real server cap precondition;
@@ -50,23 +50,33 @@ export async function withPostgrestRowLimit<T>(
     }
     throw new Error(`PostgREST response cap did not change to ${expected}`);
   }
+  let restoration: Promise<void> | undefined;
+  function restore() {
+    // A timed-out callback can resume after a later test installs another cap.
+    // Share the completed restoration rather than writing the old setting twice.
+    return restoration ??= (async () => {
+      try {
+        if (setting !== undefined) {
+          if (!/^\d+$/.test(setting)) throw new Error("Unexpected existing PostgREST row limit");
+          await database.query(`alter role authenticator set pgrst.db_max_rows = '${setting}'`);
+        } else {
+          await database.query("alter role authenticator reset pgrst.db_max_rows");
+        }
+        await database.query("notify pgrst, 'reload config'");
+        await waitForCount(initialCount);
+      } finally {
+        await database.end();
+      }
+    })();
+  }
+  // Vitest owns this awaited cleanup even when its timeout abandons operation().
+  onTestFinished(restore);
   try {
     await database.query(`alter role authenticator set pgrst.db_max_rows = '${limit}'`);
     await database.query("notify pgrst, 'reload config'");
     await waitForCount(limit);
     return await operation();
   } finally {
-    try {
-      if (setting !== undefined) {
-        if (!/^\d+$/.test(setting)) throw new Error("Unexpected existing PostgREST row limit");
-        await database.query(`alter role authenticator set pgrst.db_max_rows = '${setting}'`);
-      } else {
-        await database.query("alter role authenticator reset pgrst.db_max_rows");
-      }
-      await database.query("notify pgrst, 'reload config'");
-      await waitForCount(initialCount);
-    } finally {
-      await database.end();
-    }
+    await restore();
   }
 }
