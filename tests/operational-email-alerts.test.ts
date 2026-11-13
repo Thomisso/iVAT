@@ -8,6 +8,7 @@ import { companyWithWaitingDocuments, removeAiConfigurationFixture } from "./sup
 import { listCompanyDocuments, startManualDocumentReview } from "@/application/documents";
 import { systemClient } from "./support/worker";
 import { runOperationalAlertTick, type OperationalAlertMailer, type OperationalAlertMessage } from "@/application/operational-alert-worker";
+import { withSupabaseRequestDiagnostics } from "./support/request-failure-diagnostics";
 
 import { classifiedDocumentIssueFixture, classifiedSourceIssueFixture, clearOperationalAlertAllowanceFixture, failedCompanyDataExportFixture } from "./support/operational-alerts";
 
@@ -405,7 +406,7 @@ it("cancels a pending allowance alert immediately when the Company receives suff
   expect(await deliveries()).toEqual([expect.objectContaining({ kind: "allowance_exhausted", state: "cancelled", resolvedAt: expect.any(String) })]);
 });
 
-it("splits 1001 new Documents in a Company with an active incident without restarting that incident's grace", async () => {
+it("splits 1001 new Documents in a Company with an active incident without restarting that incident's grace", async () => withSupabaseRequestDiagnostics(async (setPhase) => {
   const { assignAiConfigurationFixture } = await import("./support/fixtures");
   const { companyAlertConfigurationFixture } = await import("./support/operational-alerts");
   const { uploadSourceFile } = await import("@/application/source-files");
@@ -433,23 +434,29 @@ it("splits 1001 new Documents in a Company with an active incident without resta
     return result.value.filter(delivery => delivery.rootKey === `invalid_credentials:${configurationId}`);
   };
   try {
+    setPhase("reconciliation");
     await tick(0);
+    setPhase("fixture");
     worker.ai.split = async () => ({ model: "fake-bulk-split", documents: Array.from({ length: 1001 }, (_, index) => ({ sheetName: "Invoices", firstRow: index + 2, lastRow: index + 2 })) });
     const source = await uploadSourceFile(company.client, worker.jobs, { companyId: company.companyId, fileName: "related-bulk.xlsx", bytes: workbookFile("xlsx", [["Invoice"], ...Array.from({ length: 1001 }, (_, index) => [`INV-${index}`])]) });
     if (!source.ok) throw new Error(source.error);
+    setPhase("bulk_split");
     await worker.runNextJob();
+    setPhase("readback_assertions");
     const documents = await listCompanyDocuments(company.client, company.companyId);
     expect(documents.filter(document => document.sourceFileId === source.value.id)).toHaveLength(1001);
     expect(documents.find(document => document.id === blocked.id)?.status).toBe("waiting_for_platform");
+    setPhase("reconciliation");
     await tick(299); expect(await ownDeliveries()).toEqual([]);
     await tick(300);
     const own = await ownDeliveries();
     expect(own).toEqual([expect.objectContaining({ state: "accepted", resolvedAt: null, impact: { companies: 1, documents: 1, sourceFiles: 0, exportJobs: 0 } })]);
     expect(messages.filter(message => own.some(delivery => message.messageId.includes(delivery.id)))).toHaveLength(1);
   } finally {
+    setPhase("cleanup");
     expect(await startManualDocumentReview(company.client, { companyId: company.companyId, documentId: blocked.id })).toEqual({ ok: true, value: null });
   }
-});
+}));
 
 it("observes both configuration scopes on reassignment while another Company preserves the shared root", async () => {
   const { createAiConfiguration, assignCompanyAiConfiguration } = await import("@/application/ai-configurations");
