@@ -24,6 +24,7 @@ import {
 } from "./support/fixtures";
 import { fixtureFile, workbookFile } from "./support/files";
 import { systemClient, testWorker } from "./support/worker";
+import { withUnrelatedOperationalIncident } from "./support/operational-alerts";
 
 async function exportAndComplete(client: AppClient, input: { companyId: string }) {
   const worker = testWorker();
@@ -432,7 +433,7 @@ it("retains an Approved Document and its Period Lock after the Company is soft-d
   expect(await getCompany(company.client, company.companyId)).toBeNull();
 });
 
-it("exports every Document beyond the API row limit, including superseded rows", async () => {
+it("exports every Document beyond the API row limit, including superseded rows", async () => withUnrelatedOperationalIncident(async () => {
   const company = await administratorWithCompany();
   const worker = testWorker();
   await enableAiProcessing(company.client, worker.jobs, {
@@ -478,7 +479,7 @@ it("exports every Document beyond the API row limit, including superseded rows",
   expect(documents).toHaveLength(1003);
   expect(new Set(documents.map((document: { id: string }) => document.id)).size).toBe(1003);
   expect(documents).toContainEqual(expect.objectContaining({ id: second.id }));
-});
+}));
 
 it("refuses deletion when Company data changed after its completed export", async () => {
   const company = await administratorWithCompany();

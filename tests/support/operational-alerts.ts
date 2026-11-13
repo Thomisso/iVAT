@@ -18,3 +18,54 @@ export async function documentAlertRequest(documentId: string) {
   if (result.error) throw result.error;
   return result.data.extraction_request_id;
 }
+
+/** Current assignment identity for genuine worker issue setup; never reads a credential. */
+export async function companyAlertConfigurationFixture(companyId: string): Promise<string> {
+  const database = new Client({ connectionString: inject("databaseUrl") });
+  await database.connect();
+  try {
+    const result = await database.query<{ configuration_id: string }>("select configuration_id from public.company_ai_configuration where company_id=$1", [companyId]);
+    if (!result.rows[0]) throw new Error("Missing fixture assignment");
+    return result.rows[0].configuration_id;
+  } finally { await database.end(); }
+}
+
+/** Prior synthetic tenants are intentionally retained, like a long-running
+ * application suite. Only population setup bypasses the Application; the active
+ * blockage and its resolution use the real worker and user commands. */
+export async function withUnrelatedOperationalIncident(run: () => Promise<void>) {
+  const { companyWithWaitingDocuments, removeAiConfigurationFixture } = await import("./fixtures");
+  const { startManualDocumentReview, listCompanyDocuments } = await import("@/application/documents");
+  const { runOperationalAlertTick } = await import("@/application/operational-alert-worker");
+  const { systemClient } = await import("./worker");
+  const company = await companyWithWaitingDocuments(1);
+  const database = new Client({ connectionString: inject("databaseUrl") });
+  await database.connect();
+  try {
+    await database.query(`
+      with companies as (
+        insert into public.company
+        select (jsonb_populate_record(null::public.company, to_jsonb(template) ||
+          jsonb_build_object('id', gen_random_uuid(), 'ico', (70000000 + n)::text,
+            'vat_id', 'CZ' || (70000000 + n)::text, 'name', 'Prior synthetic Company ' || n))).*
+        from public.company template cross join generate_series(1, 1100) n
+        where template.id = $1
+        returning id, organization_id
+      )
+      insert into public.document (organization_id, company_id, status, has_document_image)
+      select organization_id, id, 'needs_review', false from companies cross join generate_series(1, 5)
+    `, [company.companyId]);
+  } finally { await database.end(); }
+  await removeAiConfigurationFixture(company.client, company.companyId);
+  await runOperationalAlertTick(systemClient(), {
+    mailer: { async send() { return "accepted"; } },
+    now: new Date().toISOString(), appOrigin: "https://ivat.example.test",
+  });
+  try { await run(); }
+  finally {
+    for (const document of await listCompanyDocuments(company.client, company.companyId)) {
+      const result = await startManualDocumentReview(company.client, { companyId: company.companyId, documentId: document.id });
+      if (!result.ok) throw new Error(result.error);
+    }
+  }
+}
