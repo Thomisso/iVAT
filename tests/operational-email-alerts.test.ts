@@ -1,6 +1,7 @@
 import { afterEach, expect, it } from "vitest";
 import { promotedSuperAdministrator, revokeSuperAdministratorFixture } from "./support/platform";
 import { provisionedUser } from "./support/clients";
+import { deactivateAccountFixture, deleteAccountFixture, setVerifiedAccountEmailFixture } from "./support/accounts";
 import { getOperationalAlertPreference, setOperationalAlertPreference, listOperationalAlertDeliveries } from "@/application/operational-email-alerts";
 
 import { companyWithWaitingDocuments, removeAiConfigurationFixture } from "./support/fixtures";
@@ -8,7 +9,7 @@ import { listCompanyDocuments, startManualDocumentReview } from "@/application/d
 import { systemClient } from "./support/worker";
 import { runOperationalAlertTick, type OperationalAlertMailer, type OperationalAlertMessage } from "@/application/operational-alert-worker";
 
-import { clearOperationalAlertAllowanceFixture, documentAlertRequest } from "./support/operational-alerts";
+import { classifiedDocumentIssueFixture, classifiedSourceIssueFixture, clearOperationalAlertAllowanceFixture, failedCompanyDataExportFixture } from "./support/operational-alerts";
 
 const companies: Awaited<ReturnType<typeof companyWithWaitingDocuments>>[] = [];
 const subscribers: Awaited<ReturnType<typeof promotedSuperAdministrator>>[] = [];
@@ -20,7 +21,7 @@ afterEach(async () => {
     await clearOperationalAlertAllowanceFixture(company.companyId);
     expect((await listCompanyDocuments(company.client, company.companyId)).every(document => document.status === "needs_review")).toBe(true);
   }
-  for (const subscriber of subscribers.splice(0)) await systemClient().auth.admin.deleteUser(subscriber.userId);
+  for (const subscriber of subscribers.splice(0)) await deleteAccountFixture(subscriber.userId);
 });
 
 async function scenario(count = 2, locale: "cs" | "en" = "en") {
@@ -126,7 +127,7 @@ it.each(["opt_out", "role_removed", "deactivated", "unverified", "email_change"]
   expect((planned.data as string[]).length).toBeGreaterThan(0);
   if (reason === "opt_out") await setOperationalAlertPreference(admin.client, { enabled: false, locale: "en" });
   if (reason === "role_removed") await revokeSuperAdministratorFixture(admin.userId);
-  if (reason === "deactivated") await system.auth.admin.updateUserById(admin.userId, { ban_duration: "24h" });
+  if (reason === "deactivated") await deactivateAccountFixture(admin.userId);
   if (reason === "unverified" || reason === "email_change") {
     const { alertAccountFixture } = await import("./support/operational-alerts");
     await alertAccountFixture(admin.userId, reason);
@@ -139,8 +140,7 @@ it("uses the current verified address at claim time, never the queued address", 
   const { admin, start, tick, messages } = await scenario(1);
   await tick(0);
   await systemClient().rpc("reconcile_operational_alerts", { observed_at: new Date(start + 300000).toISOString() });
-  const updated = await systemClient().auth.admin.updateUserById(admin.userId, { email: `current-${admin.userId}@example.test`, email_confirm: true });
-  expect(updated.error).toBeNull();
+  await setVerifiedAccountEmailFixture(admin.userId, `current-${admin.userId}@example.test`);
   await tick(300);
   expect(messages.map(message => message.to)).toEqual([`current-${admin.userId}@example.test`]);
 });
@@ -215,8 +215,7 @@ it("groups a shared configuration across Companies and keeps the same episode as
   for (const owner of [company, second]) {
     expect(await assignCompanyAiConfiguration(admin.client, { companyId: owner.companyId, configurationId: configuration.value.id })).toEqual({ ok: true, value: null });
     for (const document of await listCompanyDocuments(owner.client, owner.companyId)) {
-      expect((await systemClient().rpc("record_ai_processing_issue", { target_kind: "document", target_id: document.id, target_extraction_request_id: await documentAlertRequest(document.id),
-        target_classification: "invalid_credentials", target_state: "waiting_for_platform", target_configuration_id: configuration.value.id })).error).toBeNull();
+      await classifiedDocumentIssueFixture(document.id, { classification: "invalid_credentials", state: "waiting_for_platform", configurationId: configuration.value.id });
     }
   }
   await tick(0);
@@ -234,8 +233,7 @@ it("keeps transient provider warnings and exhausted allowance without waiting wo
   const { setCompanyAiProcessingAllowance } = await import("@/application/ai-processing-allowance");
   const { admin, company, tick, messages } = await scenario(1);
   const [document] = await listCompanyDocuments(company.client, company.companyId);
-  expect((await systemClient().rpc("record_ai_processing_issue", { target_kind: "document", target_id: document.id, target_extraction_request_id: await documentAlertRequest(document.id),
-    target_classification: "provider_unavailable", target_state: "waiting_for_platform" })).error).toBeNull();
+  await classifiedDocumentIssueFixture(document.id, { classification: "provider_unavailable", state: "waiting_for_platform" });
   await tick(0); await tick(300); expect(messages).toHaveLength(0);
   await startManualDocumentReview(company.client, { companyId: company.companyId, documentId: document.id });
   expect(await setCompanyAiProcessingAllowance(admin.client, { async send() {} }, { companyId: company.companyId, allowance: 0 })).toEqual({ ok: true, value: null });
@@ -284,12 +282,7 @@ it.each([
 ] as const)("keeps %s issue eligibility and synchronous manual resolution consistent", async classification => {
   const { company, tick, messages, deliveries } = await scenario(1);
   const [document] = await listCompanyDocuments(company.client, company.companyId);
-  const recorded = await systemClient().rpc("record_ai_processing_issue", {
-    target_kind: "document", target_id: document.id,
-    target_extraction_request_id: await documentAlertRequest(document.id),
-    target_classification: classification, target_state: "terminal",
-  });
-  expect(recorded.error).toBeNull();
+  await classifiedDocumentIssueFixture(document.id, { classification, state: "terminal" });
   await tick(0);
   await tick(300);
   expect(messages).toHaveLength(1);
@@ -327,12 +320,7 @@ it.each(["independent", "overlapping"] as const)("ends a shared incident at conc
     await assignCompanyAiConfiguration(admin.client, { companyId: owner.companyId, configurationId: configuration.value.id });
     const [document] = await listCompanyDocuments(owner.client, owner.companyId);
     documents.push(document);
-    expect((await systemClient().rpc("record_ai_processing_issue", {
-      target_kind: "document", target_id: document.id,
-      target_extraction_request_id: await documentAlertRequest(document.id),
-      target_configuration_id: configuration.value.id,
-      target_classification: "invalid_credentials", target_state: "waiting_for_platform",
-    })).error).toBeNull();
+    await classifiedDocumentIssueFixture(document.id, { classification: "invalid_credentials", state: "waiting_for_platform", configurationId: configuration.value.id });
   }
   await tick(0);
   expect((await systemClient().rpc("reconcile_operational_alerts", { observed_at: new Date(start + 300000).toISOString() })).error).toBeNull();
@@ -369,12 +357,7 @@ it.each(["independent", "overlapping"] as const)("ends a shared incident at conc
   }
   expect(await deliveries()).toEqual([expect.objectContaining({ id: oldDelivery.id, state: "cancelled", resolvedAt: expect.any(String) })]);
   await reprocessDocument(company.client, { async send() {} }, { companyId: company.companyId, documentId: documents[0].id });
-  expect((await systemClient().rpc("record_ai_processing_issue", {
-    target_kind: "document", target_id: documents[0].id,
-    target_extraction_request_id: await documentAlertRequest(documents[0].id),
-    target_configuration_id: configuration.value.id,
-    target_classification: "invalid_credentials", target_state: "waiting_for_platform",
-  })).error).toBeNull();
+  await classifiedDocumentIssueFixture(documents[0].id, { classification: "invalid_credentials", state: "waiting_for_platform", configurationId: configuration.value.id });
   await tick(301); await tick(600); expect(messages).toHaveLength(0);
   await tick(601); expect(messages).toHaveLength(1);
   expect(await deliveries()).toEqual([
@@ -437,12 +420,7 @@ it("splits 1001 new Documents in a Company with an active incident without resta
   const worker = testWorker();
   await assignAiConfigurationFixture(company.client, { async send() {} }, { companyId: company.companyId, provider: worker.ai });
   const configurationId = await companyAlertConfigurationFixture(company.companyId);
-  expect((await systemClient().rpc("record_ai_processing_issue", {
-    target_kind: "document", target_id: blocked.id,
-    target_extraction_request_id: await documentAlertRequest(blocked.id),
-    target_configuration_id: configurationId,
-    target_classification: "invalid_credentials", target_state: "waiting_for_platform",
-  })).error).toBeNull();
+  await classifiedDocumentIssueFixture(blocked.id, { classification: "invalid_credentials", state: "waiting_for_platform", configurationId: configurationId });
   const messages: OperationalAlertMessage[] = [];
   const start = Date.now() + 1000;
   const tick = async (seconds: number) => runOperationalAlertTick(systemClient(), {
@@ -504,17 +482,12 @@ it("observes both configuration scopes on reassignment while another Company pre
 it("cancels a Source File incident immediately when manual Source recovery resolves its work", async () => {
   const { uploadSourceFile, startManualSourceReview, getSourceFile } = await import("@/application/source-files");
   const { fixtureFile } = await import("./support/files");
-  const { sourceSplitRequestFixture } = await import("./support/source-request");
   const { company, start, tick, deliveries } = await scenario(1);
   const [document] = await listCompanyDocuments(company.client, company.companyId);
   await startManualDocumentReview(company.client, { companyId: company.companyId, documentId: document.id });
   const source = await uploadSourceFile(company.client, { async send() {} }, { companyId: company.companyId, fileName: "receipt.png", bytes: fixtureFile("receipt.png") });
   if (!source.ok) throw new Error(source.error);
-  expect((await systemClient().rpc("record_ai_processing_issue", {
-    target_kind: "source_file", target_id: source.value.id,
-    target_split_request_id: await sourceSplitRequestFixture(systemClient(), source.value.id),
-    target_classification: "configuration_missing", target_state: "waiting_for_platform",
-  })).error).toBeNull();
+  await classifiedSourceIssueFixture(source.value.id, { classification: "configuration_missing", state: "waiting_for_platform" });
   await tick(0);
   expect((await systemClient().rpc("reconcile_operational_alerts", { observed_at: new Date(start + 300000).toISOString() })).error).toBeNull();
   expect(await deliveries()).toEqual([expect.objectContaining({ kind: "configuration_missing", state: "pending", impact: { companies: 1, documents: 0, sourceFiles: 1, exportJobs: 0 } })]);
@@ -572,7 +545,7 @@ it("includes durable terminal processing failure and failed export with truthful
     expect(failures.value).toContainEqual(expect.objectContaining({ id: processingId, name: "extract-document", targetId: document.id, retryCount: processingJob.retryCount }));
     const exported = await exportCompanyData(company.client, { async send(job) { await boss.send(job.name, job.data, { retryLimit: 0 }); } }, { companyId: company.companyId });
     if (!exported.ok) throw new Error(exported.error);
-    expect((await systemClient().rpc("fail_company_data_export", { target_export_id: exported.value.exportId })).error).toBeNull();
+    await failedCompanyDataExportFixture(exported.value.exportId);
     const exportJobs = await boss.fetch("complete-company-export", { includeMetadata: true, batchSize: 100 });
     const exportJob = exportJobs.find(job => (job.data as { exportId: string }).exportId === exported.value.exportId);
     if (!exportJob) throw new Error("export claim failed");

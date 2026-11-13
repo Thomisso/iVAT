@@ -1,6 +1,7 @@
 import { Client } from "pg";
 import { inject } from "vitest";
 import type { AppClient } from "@/application/client";
+import type { AiProcessingIssueClassification } from "@/application/ai-provider";
 
 /** Auth state not writable by an ordinary User, for revocation verification only. */
 export async function alertAccountFixture(userId: string, state: "unverified" | "email_change") {
@@ -18,6 +19,46 @@ export async function documentAlertRequest(documentId: string) {
   const result = await systemClient().from("document").select("extraction_request_id").eq("id", documentId).single();
   if (result.error) throw result.error;
   return result.data.extraction_request_id;
+}
+
+type ClassifiedIssueFixtureInput = {
+  classification: AiProcessingIssueClassification;
+  state: "waiting_for_platform" | "terminal";
+  configurationId?: string;
+};
+
+/** Classified worker starting state at the current request generation; tests
+ * exercise subsequent reconciliation, authorization and real remediation. */
+export async function classifiedDocumentIssueFixture(documentId: string, input: ClassifiedIssueFixtureInput) {
+  const { systemClient } = await import("./worker");
+  const result = await systemClient().rpc("record_ai_processing_issue", {
+    target_kind: "document", target_id: documentId,
+    target_extraction_request_id: await documentAlertRequest(documentId),
+    target_classification: input.classification, target_state: input.state,
+    target_configuration_id: input.configurationId,
+  });
+  if (result.error) throw result.error;
+}
+
+/** Source counterpart of the generation-bound classified worker setup. */
+export async function classifiedSourceIssueFixture(sourceFileId: string, input: ClassifiedIssueFixtureInput) {
+  const { systemClient } = await import("./worker");
+  const { sourceSplitRequestFixture } = await import("./source-request");
+  const system = systemClient();
+  const result = await system.rpc("record_ai_processing_issue", {
+    target_kind: "source_file", target_id: sourceFileId,
+    target_split_request_id: await sourceSplitRequestFixture(system, sourceFileId),
+    target_classification: input.classification, target_state: input.state,
+    target_configuration_id: input.configurationId,
+  });
+  if (result.error) throw result.error;
+}
+
+/** Prepare a failed receipt through the existing worker transition. */
+export async function failedCompanyDataExportFixture(exportId: string) {
+  const { systemClient } = await import("./worker");
+  const result = await systemClient().rpc("fail_company_data_export", { target_export_id: exportId });
+  if (result.error) throw result.error;
 }
 
 /** Current assignment identity for genuine worker issue setup; never reads a credential. */

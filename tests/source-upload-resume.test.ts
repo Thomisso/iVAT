@@ -5,6 +5,7 @@ import { reconcileSourceUpload, appendSourceUpload, completeSourceUpload } from 
 import { administratorWithCompany } from "./support/fixtures";
 import { selectFixtureFiles } from "./support/files";
 import { testWorker } from "./support/worker";
+import { removeIsolatedUploadQueueFixture } from "./support/faults";
 
 it("reconciles an interrupted immutable item and completes only its missing bytes", async () => {
   const owner = await administratorWithCompany();
@@ -60,7 +61,6 @@ it("concurrent finalization and recovery after dispatch failure converge on one 
   expect((await appendSourceUpload(owner.client, { ...identity, offset: 0, bytes: file.bytes })).ok).toBe(true);
   await expect(completeSourceUpload(owner.client, { async send() { throw new Error("lost dispatch response"); } }, identity)).rejects.toThrow("lost dispatch response");
   const { PgBoss } = await import("pg-boss");
-  const { Client } = await import("pg");
   const { createProcessingQueues, pgBossJobQueue } = await import("@/lib/jobs");
   const schema = `resume_${crypto.randomUUID().replaceAll("-", "")}`;
   const boss = new PgBoss({ connectionString: inject("databaseUrl"), schema, supervise: false, schedule: false });
@@ -86,10 +86,7 @@ it("concurrent finalization and recovery after dispatch failure converge on one 
     expect(await boss.fetch("split-source-file", { batchSize: 10 })).toEqual([]);
   } finally {
     await boss.stop();
-    const database = new Client({ connectionString: inject("databaseUrl") });
-    await database.connect();
-    try { await database.query(`drop schema "${schema}" cascade`); }
-    finally { await database.end(); }
+    await removeIsolatedUploadQueueFixture(schema);
   }
   expect(await listSourceFiles(owner.client, owner.companyId)).toHaveLength(1);
   const documents = await listCompanyDocuments(owner.client, owner.companyId);

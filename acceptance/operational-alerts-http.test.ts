@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 import { beginTotpEnrollment, completeTotpEnrollment } from "@/application/mfa";
 import { getOperationalAlertPreference } from "@/application/operational-email-alerts";
 import { provisionedUser } from "../tests/support/clients";
-import { systemClient } from "../tests/support/worker";
+import { deleteAccountFixture } from "../tests/support/accounts";
 import { promoteSuperAdministratorFixture } from "../tests/support/platform";
 import { totp } from "../tests/support/totp";
 import { baseUrl, httpAs } from "./support/http";
@@ -40,7 +40,7 @@ it("submits the opt-in/out preference over real MFA-authorized HTTP and refuses 
     expect((await (await httpAs(ordinary.client))("/platform/settings")).status).toBe(404);
     const remediation = await fetch(new URL("/platform/ai-settings", baseUrl()), { redirect: "manual" });
     expect(remediation.status).toBe(307);
-  } finally { await systemClient().auth.admin.deleteUser(operator.userId); }
+  } finally { await deleteAccountFixture(operator.userId); }
 });
 
 function preferenceForm(html: string) {
