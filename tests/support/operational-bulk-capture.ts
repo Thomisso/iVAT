@@ -28,7 +28,7 @@ export function validateCaptureContext(input: ContextInput) {
   } catch { throw unavailable(); }
 }
 
-type PgFrame = { sqlState: string | null } | { schema: string | null; function: string; line: number };
+type PgFrame = { sqlState: string | null } | { schema: string | null; function: string; line: number | null };
 /** Existing default stderr only; unsupported prefixes/missing codes stay absent.
  * Backend IDs group lines in memory and never leave this parser. */
 export function createPostgresFrameReader(emit: (frame: PgFrame) => void) {
@@ -47,12 +47,14 @@ export function createPostgresFrameReader(emit: (frame: PgFrame) => void) {
       context = true; body = text;
     }
     if (!context || frames >= 64) return;
-    const match = body.match(/^PL\/pgSQL function ((?:(?:public|private)\.)?[a-z_][a-z0-9_]{0,62})\([^\n]*\) line (\d+)\b/i)
-      ?? body.match(/^SQL function "((?:(?:public|private)\.)?[a-z_][a-z0-9_]{0,62})" statement (\d+)\b/i);
+    const plpgsql = body.match(/^PL\/pgSQL function ((?:(?:public|private)\.)?[a-z_][a-z0-9_]{0,62})\([^\n]*\) line (\d+)\b/i);
+    const match = plpgsql ?? body.match(/^SQL function "((?:(?:public|private)\.)?[a-z_][a-z0-9_]{0,62})" (?:statement \d+|during inlining)\b/i);
     if (match) {
-      if (!Number.isSafeInteger(Number(match[2])) || Number(match[2]) < 1) return;
+      const sourceLine = plpgsql ? Number(plpgsql[2]) : null;
+      if (sourceLine !== null && (!Number.isSafeInteger(sourceLine) || sourceLine < 1)) return;
       const parts = match[1].split("."); frames++;
-      emit({ schema: parts.length === 2 ? parts[0] : null, function: parts.at(-1)!, line: Number(match[2]) });
+      // SQL statement ordinals are not source line numbers.
+      emit({ schema: parts.length === 2 ? parts[0] : null, function: parts.at(-1)!, line: sourceLine });
     }
   };
   return {

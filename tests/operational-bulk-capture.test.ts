@@ -22,6 +22,7 @@ it("retains only the first timeout's safe SQL and PLpgSQL frames across chunks w
   const trace = '2026-11-13 19:30:00 UTC [456] authenticator@postgres ERROR:  57014: canceling statement due to statement timeout\n'
     + '2026-11-13 19:30:00 UTC [456] authenticator@postgres CONTEXT:  PL/pgSQL function private.flush_alerts(uuid) line 12 at SQL statement\n'
     + 'SQL function "public.root_exists" statement 1\n'
+    + 'SQL function "private.scoped_root" during inlining\n'
     + '2026-11-13 19:30:00 UTC [456] authenticator@postgres STATEMENT: select private_secret_canary(\'private_document_canary\')\n'
     + '2026-11-13 19:30:01 UTC [789] authenticator@postgres ERROR: canceling statement due to statement timeout\n'
     + '2026-11-13 19:30:01 UTC [789] authenticator@postgres CONTEXT: PL/pgSQL function private.secondary(uuid) line 3 at SQL statement\n';
@@ -30,7 +31,8 @@ it("retains only the first timeout's safe SQL and PLpgSQL frames across chunks w
   expect(frames).toEqual([
     { sqlState: "57014" },
     { schema: "private", function: "flush_alerts", line: 12 },
-    { schema: "public", function: "root_exists", line: 1 },
+    { schema: "public", function: "root_exists", line: null },
+    { schema: "private", function: "scoped_root", line: null },
   ]);
   expect(JSON.stringify(frames)).not.toMatch(/private_(?:secret|document)_canary|456|789|authenticator|uuid|select/);
 });

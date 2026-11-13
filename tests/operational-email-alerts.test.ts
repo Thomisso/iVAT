@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it } from "vitest";
-import { startSupabaseRequestDiagnostics } from "./support/request-failure-diagnostics";
+import { startSupabaseRequestDiagnostics, type RequestTestPhase } from "./support/request-failure-diagnostics";
 import { operationalBulkCase as bulkCase } from "./support/operational-bulk-protocol";
 import { promotedSuperAdministrator, revokeSuperAdministratorFixture } from "./support/platform";
 import { provisionedUser } from "./support/clients";
@@ -17,7 +17,7 @@ const companies: Awaited<ReturnType<typeof companyWithWaitingDocuments>>[] = [];
 const subscribers: Awaited<ReturnType<typeof promotedSuperAdministrator>>[] = [];
 let bulkDiagnostics: ReturnType<typeof startSupabaseRequestDiagnostics> | undefined;
 beforeEach(({ task }) => {
-  if (task.name === bulkCase) bulkDiagnostics = startSupabaseRequestDiagnostics({ reportOnSuccess: true, announce: true });
+  if (task.name === bulkCase && process.env.IVAT_OPERATIONAL_BULK_CAPTURE === "1") bulkDiagnostics = startSupabaseRequestDiagnostics({ reportOnSuccess: true, announce: true });
 });
 afterEach(async () => {
   const cleanup = async () => {
@@ -781,7 +781,7 @@ it("cancels a pending allowance alert immediately when the Company receives suff
 });
 
 it(bulkCase, async () => {
-  const measure = bulkDiagnostics!.runPhase;
+  const measure = bulkDiagnostics?.runPhase ?? (async <T>(_phase: RequestTestPhase, run: () => Promise<T>) => run());
   const { assignAiConfigurationFixture } = await import("./support/fixtures");
   const { companyAlertConfigurationFixture } = await import("./support/operational-alerts");
   const { uploadSourceFile } = await import("@/application/source-files");
