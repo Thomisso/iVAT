@@ -68,6 +68,7 @@ export default async function UploadBatchPage({
       {role === "administrator" && <Link href={`/companies/${companyId}/settings`}>{t("configureAi")}</Link>}
     </section>}
 
+    {batch.createdBy === userId && !batch.uploadFinishedAt && <Link href={`/companies/${companyId}/upload?resumeBatchId=${batch.id}`} className="iv-btn iv-btn-primary iv-btn-md">{t("resumeBatch")}</Link>}
     <ol className="upload-lifecycle" aria-label={t("lifecycle") }>
       {phases.map((phase, index) => <li className={phase.active ? "is-active" : ""} key={phase.key}>
         <span className="upload-phase-index" aria-hidden="true">{index + 1}</span>

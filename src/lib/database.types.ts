@@ -1410,6 +1410,9 @@ isOneToOne: false
 "generate_company_reporting_years":
 { Args: { "from_year": number,"new_frequency": Database["public"]['Enums']["filing_frequency"],"target_company_id": string,"to_year": number }; Returns: Json
                            },
+"get_upload_batch_recovery":
+{ Args: { "target_batch_id": string,"target_company_id": string }; Returns: Json
+                           },
 "invitation_authentication_authority":
 { Args: { "acceptance_claim_id": string }; Returns: Json
                            },
