@@ -24,7 +24,7 @@ const injected = matching && !skipped ? { ...remote.failure } : null;
 if (injected) {
   remote.failure.remaining--;
   publishRemote(file, remote);
-  if (injected.phase === "before") { console.error("simulated connection failure"); process.exit(1); }
+  if (injected.phase === "before") { console.error(injected.message ?? "simulated connection failure"); process.exit(1); }
 }
 let response;
 const parent = number => {
@@ -134,7 +134,17 @@ if (endpoint === "graphql") {
   }
   response = { data: response };
 } else if (/^repos\/example\/project\/actions\/runs\/\d+$/.test(endpoint)) {
-  response = { created_at: "2026-11-05T12:00:00Z" };
+  if (remote.runReadWorker) {
+    const event = remote.runReadWorker;
+    delete remote.runReadWorker;
+    publishRemote(file, remote);
+    const worker = spawnSync(process.execPath, [process.env.TRACKER_COMMAND, "worker"], {
+      cwd: process.cwd(), encoding: "utf8", env: { ...process.env, GITHUB_ACTIONS: "true", GITHUB_JOB: "publish", GITHUB_WORKFLOW_REF: "example/project/.github/workflows/agent-tracking.yml@refs/heads/main", GITHUB_ACTOR: "maintainer", TRACKER_EVENT: JSON.stringify(event) },
+    });
+    if (worker.status !== 0) { console.error(worker.stderr); process.exit(1); }
+    Object.assign(remote, JSON.parse(fs.readFileSync(file, "utf8")));
+  }
+  response = Object.hasOwn(remote, "workflowRunResponse") ? remote.workflowRunResponse : { created_at: "2026-11-05T12:00:00Z", id: Number(endpoint.split("/").at(-1)), path: ".github/workflows/agent-tracking.yml", event: "workflow_dispatch", repository: { full_name: "example/project" }, status: "completed", ...remote.workflowRun };
 } else if (endpoint === "user") {
   response = { login: "maintainer" };
 } else if (endpoint === "repos/example/project") {

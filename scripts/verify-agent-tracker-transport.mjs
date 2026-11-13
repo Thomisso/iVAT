@@ -201,6 +201,78 @@ try {
   assert.equal(bound.status, "implementing", "a merged binding alone does not satisfy final gates");
   assert.ok((await api("__state")).requests.some(request => request.operation === "TrackerMergedPullRequest"));
 
+  // Admission uses actual Actions metadata over the same supported gh transport.
+  result = await command("repair", ["--wait-seconds", "0"]);
+  assert.match(result.stderr, /publication_pending/);
+  const admissionStart = await api("__state");
+  const admissionHead = admissionStart.dispatches.at(-1).event;
+  const admissionRun = admissionStart.dispatches.length;
+  const runPath = `/repos/${admissionStart.repository}/actions/runs/${admissionRun}`;
+  for (const status of ["queued", "pending", "requested", "waiting", "in_progress"]) {
+    await api("__control", { workflowRun: { status } });
+    result = await command(status === "queued" || status === "pending" ? "repair" : "sync", ["--wait-seconds", "0"]);
+    assert.match(result.stderr, /publication_pending/);
+    assert.equal((await api("__state")).dispatches.length, admissionRun, "active mapped head never creates another workflow");
+  }
+  const admissionPending = JSON.parse((await command("show", ["--local"])).stdout).local.pending;
+  assert.equal(admissionPending.length, 3);
+  assert.equal(JSON.stringify(admissionPending[0]), admissionHead);
+  for (const failure of [
+    { mode: "json", status: 403 },
+    { mode: "html", status: 502 },
+  ]) {
+    await api("__control", { failure: { match: `GET ${runPath}`, phase: "before", remaining: 1, ...failure } });
+    result = await command("sync", ["--wait-seconds", "0"]);
+    assert.match(result.stderr, /publication_pending/);
+    assert.doesNotMatch(result.stdout + result.stderr, /PRIVATE_SIMULATED_GITHUB_BODY/);
+    assert.deepEqual(JSON.parse((await command("show", ["--local"])).stdout).local.pending, admissionPending);
+    assert.equal((await api("__state")).dispatches.length, admissionRun);
+  }
+  for (const workflowRunResponse of [null, { id: admissionRun, status: "completed" }]) {
+    await api("__control", { workflowRunResponse });
+    result = await command("sync", ["--wait-seconds", "0"]);
+    assert.match(result.stderr, /publication_pending/);
+    assert.equal((await api("__state")).dispatches.length, admissionRun);
+  }
+  await api("__control", { workflowRun: { status: "completed", conclusion: "success" } });
+  result = await command("sync", ["--wait-seconds", "0"]);
+  assert.match(result.stderr, /publication_pending/);
+  state = await api("__state");
+  assert.equal(state.dispatches.length, admissionRun + 1);
+  assert.equal(state.dispatches.at(-1).event, admissionHead, "completion retries the identical saved envelope");
+  assert.deepEqual(JSON.parse((await command("show", ["--local"])).stdout).local.pending, admissionPending);
+  assert.equal((await worker(admissionHead)).code, 0);
+  // Receipt authority survives Actions permission loss and advances FIFO.
+  await api("__control", { workflowRun: { status: "queued" }, failure: { match: `GET /repos/${state.repository}/actions/runs/${state.dispatches.length}`, phase: "before", mode: "json", status: 403, remaining: 1 } });
+  result = await command("sync", ["--wait-seconds", "0"]);
+  assert.match(result.stderr, /publication_pending/);
+  state = await api("__state");
+  assert.equal(state.failure.remaining, 1);
+  assert.equal(state.dispatches.at(-1).event, JSON.stringify(admissionPending[1]));
+  await api("__control", { failure: null });
+  for (const pendingEvent of admissionPending.slice(1)) {
+    assert.equal((await worker(JSON.stringify(pendingEvent))).code, 0);
+    result = await command("sync", ["--wait-seconds", "0"]);
+  }
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(JSON.parse((await command("show", ["--local"])).stdout).local.pending.length, 0);
+  assert.ok((await api("__state")).requests.some(request => request.method === "GET" && request.path === runPath), "real gh exercised Actions run readback");
+
+  // An ambiguous dispatch response without a saved mapping keeps its old recovery.
+  const beforeLostDispatch = (await api("__state")).dispatches.length;
+  await api("__control", { failure: { match: `POST /repos/${state.repository}/actions/workflows/agent-tracking.yml/dispatches`, phase: "after", mode: "html", status: 502, remaining: 1 } });
+  result = await command("repair", ["--wait-seconds", "0"]);
+  assert.match(result.stderr, /publication_pending/);
+  const lostDispatch = (await api("__state")).dispatches.at(-1).event;
+  assert.equal(JSON.parse((await command("show", ["--local"])).stdout).local.dispatches[JSON.parse(lostDispatch).id], undefined);
+  result = await command("sync", ["--wait-seconds", "0"]);
+  assert.match(result.stderr, /publication_pending/);
+  state = await api("__state");
+  assert.equal(state.dispatches.length, beforeLostDispatch + 2);
+  assert.equal(state.dispatches.at(-1).event, lostDispatch);
+  assert.equal((await worker(lostDispatch)).code, 0);
+  assert.equal((await command("sync", ["--wait-seconds", "0"])).code, 0);
+
   await api("__control", { reset: true, failure: { match: "TrackerCreateField", phase: "before", mode: "graphql-validation", remaining: 1 } });
   result = await setup();
   assert.equal(result.code, 1);
@@ -218,7 +290,7 @@ try {
   assert.ok(state.requests.some(request => request.operation === "TrackerCreateField"));
   assert.ok(state.requests.some(request => request.path.endsWith("/issues/9001/comments") && request.method === "POST"));
   assert.match(proxyLog, /api\.github\.com/);
-  console.log(JSON.stringify({ ok: true, transport: "real gh and tracker CLI/worker over Postman HTTPS proxy", cases: ["untrusted CA refusal", "setup", "repeat setup", "doctor", "native workflow refusal and explicit removal", "permission refusal", "HTML failure sanitation", "durable dispatch and real worker", "partial projection retry", "duplicate worker receipt", "unchanged repair skips projection mutations", "deleted node repair preserves envelope", "permission/mixed/wrong-path item errors refuse repair", "GraphQL rejection classification", "create persisted before failed response", "retry without duplicate registry", "GraphQL merged result after REST field removal"], fields: state.fields.length, requests: state.requests.length }));
+  console.log(JSON.stringify({ ok: true, transport: "real gh and tracker CLI/worker over Postman HTTPS proxy", cases: ["untrusted CA refusal", "setup", "repeat setup", "doctor", "native workflow refusal and explicit removal", "permission refusal", "HTML failure sanitation", "durable dispatch and real worker", "partial projection retry", "duplicate worker receipt", "unchanged repair skips projection mutations", "deleted node repair preserves envelope", "permission/mixed/wrong-path item errors refuse repair", "GraphQL rejection classification", "create persisted before failed response", "retry without duplicate registry", "GraphQL merged result after REST field removal", "mapped active dispatch admission", "run metadata failure preserves FIFO", "completed run retries exact envelope", "receipt outranks Actions permission loss", "lost dispatch response keeps same-event recovery"], fields: state.fields.length, requests: state.requests.length }));
 } finally {
   try { process.kill(-proxy.pid, "SIGINT"); } catch { /* Already stopped. */ }
   await new Promise(resolve => { const timeout = setTimeout(resolve, 3000); proxy.once("exit", () => { clearTimeout(timeout); resolve(); }); });

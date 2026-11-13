@@ -80,6 +80,8 @@ Status distinguishes recorded handoff outcomes from inferred evidence gaps. A so
 
 Receipt polling reads immediately, then increases its delay from one second to a maximum of five seconds, clipping the final delay to the remaining `--wait-seconds` deadline. Only the actual published receipt acknowledges an event; a deadline, workflow result or cached status does not.
 
+Before retrying a durably mapped dispatch, `sync` verifies the actual Actions run ID, repository, configured workflow path and dispatch event. A queued, pending, requested, waiting or in-progress run keeps its existing attempt while receipt polling continues. Unknown, malformed or inaccessible metadata leaves publication pending. A completed run permits retry only after rereading canonical receipts and ownership, using the original event envelope. Receipts take precedence over Actions metadata, including after restart. A lost dispatch response without a saved run mapping retains the existing same-event recovery; this non-atomic provider boundary can create another workflow for the same UUID.
+
 Starting a second controlling run is refused, including from another linked worktree. No heartbeat timeout releases ownership. Keep review, integration, test-budget and eventual final-handoff rules in the existing implementation workflow.
 
 ## Genuine activity and independent freshness

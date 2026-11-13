@@ -61,6 +61,15 @@ function consumeReceipt(journal, event, state, save) {
   return true;
 }
 
+function dispatchCompleted(github, config, runId) {
+  if (!Number.isSafeInteger(runId) || runId <= 0) throw new TrackerError("workflow_run_unverified");
+  const run = github.request(`repos/${config.repository}/actions/runs/${runId}`);
+  if (run?.id !== runId || typeof run.repository?.full_name !== "string" || run.repository.full_name.toLowerCase() !== config.repository.toLowerCase() || run.path !== `.github/workflows/${config.workflow}` || run.event !== "workflow_dispatch") throw new TrackerError("workflow_run_unverified");
+  if (run.status === "completed") return true;
+  if (["queued", "pending", "requested", "waiting", "in_progress"].includes(run.status)) return false;
+  throw new TrackerError("workflow_run_unverified");
+}
+
 export function synchronize(github, config, journal, save, options = {}) {
   const seconds = Number(options["wait-seconds"] ?? 120);
   if (!Number.isFinite(seconds) || seconds < 0 || seconds > 600) throw new TrackerError("wait_invalid");
@@ -74,7 +83,26 @@ export function synchronize(github, config, journal, save, options = {}) {
         quarantineRun(journal, save, "run_superseded");
         throw new TrackerError("run_superseded");
       }
-      try {
+      let dispatch = true;
+      if (Object.hasOwn(journal.dispatches ?? {}, event.id)) {
+        try { dispatch = dispatchCompleted(github, config, journal.dispatches[event.id]); }
+        catch (error) {
+          journal.publicationError = { eventId: event.id, code: error.code ?? "github_connection_failed" };
+          save();
+          throw new TrackerError("publication_pending");
+        }
+        if (dispatch) {
+          // Completion only admits a retry. A receipt may have arrived during
+          // the run read; canonical state still decides acknowledgment/ownership.
+          try { current = observe(github, config, journal, save); } catch { throw new TrackerError("publication_pending"); }
+          if (consumeReceipt(journal, event, current, save)) continue;
+          if (!submissionOwnershipMatches(current, event)) {
+            quarantineRun(journal, save, "run_superseded");
+            throw new TrackerError("run_superseded");
+          }
+        }
+      }
+      if (dispatch) try {
         const dispatched = github.request(`repos/${config.repository}/actions/workflows/${config.workflow}/dispatches`, { method: "POST", body: { ref: config.codeRef, inputs: { event: JSON.stringify(event) } } });
         if (dispatched?.workflow_run_id) { journal.dispatches ??= {}; journal.dispatches[event.id] = dispatched.workflow_run_id; save(); }
       } catch (error) {

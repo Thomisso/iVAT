@@ -38,6 +38,8 @@ http.createServer(async (request, response) => {
     if (request.body.reset) state = seed();
     if (request.body.repository) state.repository = request.body.repository;
     if (request.body.failure !== undefined) state.failure = request.body.failure;
+    if (request.body.workflowRun !== undefined) { state.workflowRun = request.body.workflowRun; delete state.workflowRunResponse; }
+    if (Object.hasOwn(request.body, "workflowRunResponse")) state.workflowRunResponse = request.body.workflowRunResponse;
     if (request.body.removeItem) for (const [key, item] of Object.entries(state.items)) if (item.id === request.body.removeItem) delete state.items[key];
     if (request.body.workflows !== undefined) state.workflows = request.body.workflows;
     if (request.body.mergeFacts !== undefined) state.mergeFacts = request.body.mergeFacts;
@@ -93,6 +95,12 @@ http.createServer(async (request, response) => {
   if (assignees && request.method === "POST") {
     state.assignees[assignees[1]] = [...new Set([...(state.assignees[assignees[1]] || []), ...request.body.assignees])];
     return finish(201, { ...issue(Number(assignees[1]), state.repository), assignees: state.assignees[assignees[1]].map(login => ({ login })) });
+  }
+  const run = new RegExp(`^${base}/actions/runs/(\\d+)$`).exec(url.pathname);
+  if (run && request.method === "GET") {
+    const id = Number(run[1]);
+    if (!state.dispatches[id - 1]) return finish(404, { message: "Not Found" });
+    return finish(200, Object.hasOwn(state, "workflowRunResponse") ? state.workflowRunResponse : { id, repository: { full_name: state.repository }, path: ".github/workflows/agent-tracking.yml", event: "workflow_dispatch", status: "queued", ...state.workflowRun });
   }
   if (call === `POST ${base}/actions/workflows/agent-tracking.yml/dispatches`) {
     if (typeof request.body?.ref !== "string" || typeof request.body?.inputs?.event !== "string") return finish(422, { message: "Workflow ref and string event input are required" });
