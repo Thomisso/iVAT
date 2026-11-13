@@ -53,9 +53,12 @@ it.each(["heic", "heif"] as const)("selects the exact group PDF for %s-first rev
     const bytes = new Uint8Array(await content.arrayBuffer());
     expect(bytes).toEqual((await readPhotoGroupBasis(owner.client, owner.companyId, groupId))?.bytes);
     expect(createHash("sha256").update(bytes).digest("hex")).toBe(version.payload.sourceEvidence?.basis.sha256);
-    expect((await PDFDocument.load(bytes)).getPageCount()).toBe(3);
+    expect((await PDFDocument.load(bytes)).getPages().map(page => [page.getWidth(), page.getHeight()])).toEqual([[16, 16], [1, 1], [80, 120]]);
   }
   expect(group.basis!.pages.map(page => page.sourceFileId)).toEqual(selection.files.map(file => file.sourceFileId));
+  expect(group.basis!.pages[0].sha256).toBe(format === "heic"
+    ? "9339c93194e6e0fd13c075a0d9a8351d3ff52f186af16c16d4fc09ef827539a1"
+    : "e8e79f3d7576bb64bab656481dd2cceaa72bf6831da8b0470379dd764120da43");
   for (const [index, page] of group.basis!.pages.entries()) {
     const stored = await owner.client.storage.from("source-files").download(photoGroupPath(group, `${page.page}.png`));
     if (stored.error) throw stored.error;
@@ -64,6 +67,7 @@ it.each(["heic", "heif"] as const)("selects the exact group PDF for %s-first rev
     expect(createHash("sha256").update(bytes).digest("hex")).toBe(page.sha256);
   }
   expect(value(await correctDocument(owner.client, { companyId: owner.companyId, documentId: groupId, basedOnVersion: 1, payload: { ...version.payload, documentNumber: "HUMAN-CORRECTION" } })).version).toBe(2);
+  expect((await listExtractionVersions(owner.client, owner.companyId, groupId))[0].payload.sourceEvidence).toEqual(version.payload.sourceEvidence);
   for (const query of ["", "?version=1"]) {
     const review = await request(`${path}/documents/${groupId}${query}`);
     expect(review.status).toBe(200);
