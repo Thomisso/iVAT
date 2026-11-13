@@ -55,5 +55,10 @@ it("authenticated foreign proportional review and XML/XLSX downloads use the sav
     payload: { ...original, proportionalDeduction: ratio, czkConversion: { ...original.czkConversion!, rateBreakdown: null } }, findings: [] })).error).toBeNull();
   const refused = await request(`/companies/${company.companyId}/documents/${malformed.id}`);
   expect(refused.status).toBe(200);
-  expect(await refused.text()).toContain("A valid saved CZK conversion of the full Document is required");
+  const refusedHtml = await refused.text();
+  const proportionalSection = refusedHtml.match(/<fieldset[^>]*id="proportional-deduction"[^>]*>([\s\S]*?)<\/fieldset>/)?.[1];
+  const conversionAlert = proportionalSection?.match(/<div class="iv-notice iv-notice-danger" role="alert">([\s\S]*?)<\/div><\/div>/)?.[1];
+  expect(conversionAlert, "conversion blocker uses the danger Notice inside the proportional controls").toBeDefined();
+  expect(conversionAlert).toContain("A valid saved CZK conversion of the full Document is required");
+  expect(conversionAlert).toMatch(/<svg\b[^>]*aria-hidden="true"/);
 });
