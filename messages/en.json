@@ -483,7 +483,9 @@
     "photoGroupOriginals": "Ordered original photographs",
     "groupDocument": "Review the grouped Document",
     "groupPreparing": "This photograph belongs to a confirmed group; its complete basis is being prepared.",
-    "groupUnavailable": "The group basis is unavailable. Originals remain preserved; this group has not completed processing."
+    "groupUnavailable": "The group basis is unavailable. Originals remain preserved; this group has not completed processing.",
+    "groupManual": "Prepare whole group for manual review",
+    "groupRetry": "Retry preparing the whole group"
   },
   "returnContext": {
     "counterparty": "← Back to Counterparty",
@@ -817,7 +819,8 @@
     "upload_checksum_mismatch": "The received bytes do not match the selected file.",
     "invalid_alert_preference": "Invalid alert preference.",
     "verified_email_required": "Verify your current account email before enabling alerts.",
-    "invalid_representative": "Select a supported representative and enter a valid first name, last name and birth date or evidence number."
+    "invalid_representative": "Select a supported representative and enter a valid first name, last name and birth date or evidence number.",
+    "group_evidence_unavailable": "The original evidence or its stored representation is missing or invalid. This immutable group cannot be recovered; start a new upload with complete photographs."
   },
   "aiUsage": {
     "platformNav": "Platform AI usage",

@@ -1,3 +1,4 @@
+import { getSourcePhotoGroup } from "@/application/photo-groups";
 import Link from "next/link";
 import { companyPageContext, safeCompanyReturnTo, withCompanyReturnTo } from "@/application/return-context";
 import { CompanyReturnLink } from "@/components/company-return-link";
@@ -48,6 +49,9 @@ export default async function UploadBatchPage({
   ] as const;
   const manualSources = batch.sourceFiles.filter((source) => source.status === "needs_review");
   const failedSources = batch.sourceFiles.filter((source) => source.status === "failed");
+  const groupedFailures = new Set((await Promise.all(failedSources.map(async source =>
+    (await getSourcePhotoGroup(client, companyId, source.id)) ? source.id : null,
+  ))).filter((id): id is string => id !== null));
   const failedDocuments = batch.sourceFiles.flatMap((source) =>
     source.documents.filter((document) => document.status === "failed"),
   );
@@ -84,7 +88,7 @@ export default async function UploadBatchPage({
       {failedSources.map((source) => <div className="upload-failure-row" key={source.id}>
         <Link href={withCompanyReturnTo(companyId, `/companies/${companyId}/source-files/${source.id}`, `${context}#source-${source.id}`)}>{source.fileName}</Link>
         <span>{t("splitFailed")}</span>
-        <CommandButton action={retrySplitAction} fields={{ companyId, sourceFileId: source.id }} size="sm" variant="ai">{t("retrySplit")}</CommandButton>
+        {!groupedFailures.has(source.id) && <CommandButton action={retrySplitAction} fields={{ companyId, sourceFileId: source.id }} size="sm" variant="ai">{t("retrySplit")}</CommandButton>}
       </div>)}
       {failedDocuments.map((document) => <div className="upload-failure-row" key={document.id}>
         <Link href={withCompanyReturnTo(companyId, `/companies/${companyId}/documents/${document.id}`, `${context}#document-${document.id}`)}>{t("documentPages", { first: document.firstPage, last: document.lastPage })}</Link>
