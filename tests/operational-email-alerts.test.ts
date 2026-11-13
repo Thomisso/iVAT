@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, expect, it } from "vitest";
+import { afterEach, aroundEach, expect, inject, it } from "vitest";
+import OperationalBulkCapture from "./support/operational-bulk-capture";
 import { startSupabaseRequestDiagnostics, type RequestTestPhase } from "./support/request-failure-diagnostics";
 import { operationalBulkCase as bulkCase } from "./support/operational-bulk-protocol";
 import { promotedSuperAdministrator, revokeSuperAdministratorFixture } from "./support/platform";
@@ -16,8 +17,17 @@ import { classifiedDocumentIssueFixture, classifiedSourceIssueFixture, clearOper
 const companies: Awaited<ReturnType<typeof companyWithWaitingDocuments>>[] = [];
 const subscribers: Awaited<ReturnType<typeof promotedSuperAdministrator>>[] = [];
 let bulkDiagnostics: ReturnType<typeof startSupabaseRequestDiagnostics> | undefined;
-beforeEach(({ task }) => {
-  if (task.name === bulkCase && process.env.IVAT_OPERATIONAL_BULK_CAPTURE === "1") bulkDiagnostics = startSupabaseRequestDiagnostics({ reportOnSuccess: true, announce: true });
+aroundEach(async (run, { task }) => {
+  if (task.name !== bulkCase || process.env.IVAT_OPERATIONAL_BULK_CAPTURE !== "1") { await run(); return; }
+  const capture = new OperationalBulkCapture();
+  await capture.begin({ name: task.name, moduleId: task.file.filepath, root: process.cwd(), provided: { supabaseUrl: inject("supabaseUrl"), databaseUrl: inject("databaseUrl") } });
+  try {
+    bulkDiagnostics = startSupabaseRequestDiagnostics({ reportOnSuccess: true, announce: true });
+    await run();
+  } finally {
+    try { capture.recordRequestReport(bulkDiagnostics?.finish()); }
+    finally { bulkDiagnostics = undefined; await capture.end(); }
+  }
 });
 afterEach(async () => {
   const cleanup = async () => {
@@ -30,13 +40,8 @@ afterEach(async () => {
     }
     for (const subscriber of subscribers.splice(0)) await deleteAccountFixture(subscriber.userId);
   };
-  try {
-    if (bulkDiagnostics) await bulkDiagnostics.runPhase("after_each", cleanup);
-    else await cleanup();
-  } finally {
-    bulkDiagnostics?.finish();
-    bulkDiagnostics = undefined;
-  }
+  if (bulkDiagnostics) await bulkDiagnostics.runPhase("after_each", cleanup);
+  else await cleanup();
 });
 
 async function scenario(count = 2, locale: "cs" | "en" = "en", startAt?: string) {
@@ -781,49 +786,60 @@ it("cancels a pending allowance alert immediately when the Company receives suff
 });
 
 it(bulkCase, async () => {
-  const measure = bulkDiagnostics?.runPhase ?? (async <T>(_phase: RequestTestPhase, run: () => Promise<T>) => run());
-  const { assignAiConfigurationFixture } = await import("./support/fixtures");
-  const { companyAlertConfigurationFixture } = await import("./support/operational-alerts");
-  const { uploadSourceFile } = await import("./support/source-upload");
-  const { workbookFile } = await import("./support/files");
-  const { testWorker } = await import("./support/worker");
-  const admin = await measure("fixture", () => promotedSuperAdministrator("Related bulk subscriber")); subscribers.push(admin);
-  await measure("fixture", () => setOperationalAlertPreference(admin.client, { enabled: true, locale: "en" }));
-  // This completed bulk fixture is retained, like the other large Split cases;
-  // only the deliberately blocked Document needs manual remediation below.
-  const company = await measure("fixture", () => companyWithWaitingDocuments(1));
-  const [blocked] = await measure("fixture", () => listCompanyDocuments(company.client, company.companyId));
-  const worker = testWorker();
-  await measure("configuration", () => assignAiConfigurationFixture(company.client, { async send() {} }, { companyId: company.companyId, provider: worker.ai }));
-  const configurationId = await measure("configuration", () => companyAlertConfigurationFixture(company.companyId));
-  await measure("classified_issue", () => classifiedDocumentIssueFixture(blocked.id, { classification: "invalid_credentials", state: "waiting_for_platform", configurationId: configurationId }));
-  const messages: OperationalAlertMessage[] = [];
-  const start = Date.now() + 1000;
-  const tick = async (seconds: number) => runOperationalAlertTick(systemClient(), {
-    mailer: { async send(message) { messages.push(message); return "accepted"; } },
-    now: new Date(start + seconds * 1000).toISOString(), appOrigin: "https://ivat.example.test",
-  });
-  const ownDeliveries = async () => {
-    const result = await listOperationalAlertDeliveries(admin.client);
-    if (!result.ok) throw new Error(result.error);
-    return result.value.filter(delivery => delivery.rootKey === `invalid_credentials:${configurationId}`);
-  };
   try {
-    await measure("initial_tick", () => tick(0));
-    worker.ai.split = async () => ({ model: "fake-bulk-split", documents: Array.from({ length: 1001 }, (_, index) => ({ sheetName: "Invoices", firstRow: index + 2, lastRow: index + 2 })) });
-    const source = await measure("upload", () => uploadSourceFile(company.client, worker.jobs, { companyId: company.companyId, fileName: "related-bulk.xlsx", bytes: workbookFile("xlsx", [["Invoice"], ...Array.from({ length: 1001 }, (_, index) => [`INV-${index}`])]) }));
-    if (!source.ok) throw new Error(source.error);
-    await measure("bulk_split", () => worker.runNextJob());
-    const documents = await measure("readback_assertions", () => listCompanyDocuments(company.client, company.companyId));
-    expect(documents.filter(document => document.sourceFileId === source.value.id)).toHaveLength(1001);
-    expect(documents.find(document => document.id === blocked.id)?.status).toBe("waiting_for_platform");
-    await measure("tick_299", () => tick(299)); expect(await measure("receipts", ownDeliveries)).toEqual([]);
-    await measure("tick_300", () => tick(300));
-    const own = await measure("receipts", ownDeliveries);
-    expect(own).toEqual([expect.objectContaining({ state: "accepted", resolvedAt: null, impact: { companies: 1, documents: 1, sourceFiles: 0, exportJobs: 0 } })]);
-    expect(messages.filter(message => own.some(delivery => message.messageId.includes(delivery.id)))).toHaveLength(1);
-  } finally {
-    expect(await measure("finally_manual", () => startManualDocumentReview(company.client, { companyId: company.companyId, documentId: blocked.id }))).toEqual({ ok: true, value: null });
+    const measure = bulkDiagnostics?.runPhase ?? (async <T>(_phase: RequestTestPhase, run: () => Promise<T>) => run());
+    const { assignAiConfigurationFixture } = await import("./support/fixtures");
+    const { companyAlertConfigurationFixture } = await import("./support/operational-alerts");
+    const { uploadSourceFile } = await import("./support/source-upload");
+    const { workbookFile } = await import("./support/files");
+    const { testWorker } = await import("./support/worker");
+    const admin = await measure("fixture", () => promotedSuperAdministrator("Related bulk subscriber")); subscribers.push(admin);
+    await measure("fixture", () => setOperationalAlertPreference(admin.client, { enabled: true, locale: "en" }));
+    // This completed bulk fixture is retained, like the other large Split cases;
+    // only the deliberately blocked Document needs manual remediation below.
+    const company = await measure("fixture", () => companyWithWaitingDocuments(1));
+    const [blocked] = await measure("fixture", () => listCompanyDocuments(company.client, company.companyId));
+    const worker = testWorker();
+    await measure("configuration", () => assignAiConfigurationFixture(company.client, { async send() {} }, { companyId: company.companyId, provider: worker.ai }));
+    const configurationId = await measure("configuration", () => companyAlertConfigurationFixture(company.companyId));
+    await measure("classified_issue", () => classifiedDocumentIssueFixture(blocked.id, { classification: "invalid_credentials", state: "waiting_for_platform", configurationId: configurationId }));
+    const messages: OperationalAlertMessage[] = [];
+    const start = Date.now() + 1000;
+    const tick = async (seconds: number) => runOperationalAlertTick(systemClient(), {
+      mailer: { async send(message) { messages.push(message); return "accepted"; } },
+      now: new Date(start + seconds * 1000).toISOString(), appOrigin: "https://ivat.example.test",
+    });
+    const ownDeliveries = async () => {
+      const result = await listOperationalAlertDeliveries(admin.client);
+      if (!result.ok) throw new Error(result.error);
+      return result.value.filter(delivery => delivery.rootKey === `invalid_credentials:${configurationId}`);
+    };
+    try {
+      try {
+        await measure("initial_tick", () => tick(0));
+        worker.ai.split = async () => ({ model: "fake-bulk-split", documents: Array.from({ length: 1001 }, (_, index) => ({ sheetName: "Invoices", firstRow: index + 2, lastRow: index + 2 })) });
+        const source = await measure("upload", () => uploadSourceFile(company.client, worker.jobs, { companyId: company.companyId, fileName: "related-bulk.xlsx", bytes: workbookFile("xlsx", [["Invoice"], ...Array.from({ length: 1001 }, (_, index) => [`INV-${index}`])]) }));
+        if (!source.ok) throw new Error(source.error);
+        await measure("bulk_split", () => worker.runNextJob());
+        const documents = await measure("readback_assertions", () => listCompanyDocuments(company.client, company.companyId));
+        expect(documents.filter(document => document.sourceFileId === source.value.id)).toHaveLength(1001);
+        expect(documents.find(document => document.id === blocked.id)?.status).toBe("waiting_for_platform");
+        await measure("tick_299", () => tick(299)); expect(await measure("receipts", ownDeliveries)).toEqual([]);
+        await measure("tick_300", () => tick(300));
+        const own = await measure("receipts", ownDeliveries);
+        expect(own).toEqual([expect.objectContaining({ state: "accepted", resolvedAt: null, impact: { companies: 1, documents: 1, sourceFiles: 0, exportJobs: 0 } })]);
+        expect(messages.filter(message => own.some(delivery => message.messageId.includes(delivery.id)))).toHaveLength(1);
+      } catch (error) {
+        bulkDiagnostics?.observeFailure(error);
+        throw error;
+      }
+    } finally {
+      expect(await measure("finally_manual", () => startManualDocumentReview(company.client, { companyId: company.companyId, documentId: blocked.id }))).toEqual({ ok: true, value: null });
+    }
+  } catch (error) {
+    // Also retain setup failures that occur before manual recovery's finally.
+    bulkDiagnostics?.observeFailure(error);
+    throw error;
   }
 });
 

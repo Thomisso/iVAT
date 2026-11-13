@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { afterEach, expect, inject, it, vi } from "vitest";
 import { startSupabaseRequestDiagnostics, withSupabaseRequestDiagnostics } from "./support/request-failure-diagnostics";
 
-afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 it("reports the failed RPC and SQLSTATE without changing the client's original error or exposing request/error data", async () => {
   const failure = { code: "57014", message: "canceling statement due to statement timeout",
@@ -146,4 +146,51 @@ it("keeps the first failed RPC after a finally error replaces it and afterEach r
     { phase: "after_each", elapsedMs: expect.any(Number) },
   ]);
   expect(JSON.stringify(output.mock.calls)).not.toMatch(/private_\w+_canary/);
+});
+
+it("preserves an assertion before finally and afterEach replace its thrown error", async () => {
+  vi.stubGlobal("fetch", async () => new Response("null", { status: 200 }));
+  const output = vi.spyOn(console, "error").mockImplementation(() => {});
+  const diagnostics = startSupabaseRequestDiagnostics();
+  const secondary = { code: "40P01" };
+  let escaped: unknown;
+  try {
+    try {
+      diagnostics.setPhase("readback_assertions");
+      try { expect(1).toBe(2); }
+      catch (error) { diagnostics.observeFailure(error); throw error; }
+    } finally {
+      await diagnostics.runPhase("finally_manual", async () => { throw secondary; });
+    }
+  } catch (error) { escaped = error; }
+  await diagnostics.runPhase("after_each", async () => {});
+  diagnostics.finish();
+  expect(escaped).toBe(secondary);
+  const report = JSON.parse(output.mock.calls[0][1] as string);
+  expect(report.firstFailure).toEqual({ kind: "stage", phase: "readback_assertions", sqlState: null, contextClass: null });
+});
+
+it("bounds oversized error decoding while leaving the original Response body intact", async () => {
+  const body = JSON.stringify({ code: "57014", details: "private_large_canary".repeat(5000) });
+  const response = new Response(body, { status: 500 });
+  vi.stubGlobal("fetch", async () => response);
+  const output = vi.spyOn(console, "error").mockImplementation(() => {});
+  const failure = new Error("private_failure_canary");
+  await expect(withSupabaseRequestDiagnostics(async () => {
+    const actual = await fetch(new URL("/rest/v1/rpc/record_split", inject("supabaseUrl")));
+    expect(actual).toBe(response); expect(await actual.text()).toBe(body); throw failure;
+  })).rejects.toBe(failure);
+  expect(JSON.parse(output.mock.calls[0][1] as string).failedRequest.sqlState).toBeNull();
+  expect(JSON.stringify(output.mock.calls)).not.toContain("private_large_canary");
+});
+
+it("returns an error Response within the diagnostic deadline even when its clone stalls", async () => {
+  vi.useFakeTimers();
+  let close!: () => void;
+  const stream = new ReadableStream<Uint8Array>({ start(controller) { close = () => controller.close(); } });
+  const response = new Response(stream, { status: 500 });
+  vi.stubGlobal("fetch", async () => response);
+  const run = withSupabaseRequestDiagnostics(async () => { expect(await fetch(new URL("/rest/v1/rpc/record_split", inject("supabaseUrl")))).toBe(response); });
+  await vi.advanceTimersByTimeAsync(100);
+  await run; close(); vi.useRealTimers();
 });

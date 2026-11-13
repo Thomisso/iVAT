@@ -3,8 +3,6 @@ import path from "node:path";
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { Client } from "pg";
-import type { Reporter } from "vitest/node";
-import type { UserConsoleLog } from "vitest";
 import { localSupabaseContext } from "../../scripts/supabase-status.mjs";
 import { operationalBulkCase, requestTestPhases } from "./operational-bulk-protocol";
 
@@ -32,18 +30,19 @@ type PgFrame = { sqlState: string | null } | { schema: string | null; function: 
 /** Existing default stderr only; unsupported prefixes/missing codes stay absent.
  * Backend IDs group lines in memory and never leave this parser. */
 export function createPostgresFrameReader(emit: (frame: PgFrame) => void) {
-  let buffer = "", dropping = false, firstBackend: string | null = null, context = false, frames = 0;
+  let buffer = "", dropping = false, firstBackend: string | null = null, context = false, closed = false, frames = 0;
   const line = (value: string) => {
     const prefix = value.match(/^\d{4}-\d\d-\d\d[ T][\d:.+-]+(?:\s+[A-Z]+)?\s+\[(\d+)\]\s+(?:\S+@\S+\s+)?(ERROR|CONTEXT|STATEMENT|DETAIL|HINT|LOCATION|LOG|NOTICE|WARNING):\s*(.*)$/);
     let body = value.trim();
     if (prefix) {
       context = false;
       const [, backend, level, text] = prefix;
+      if (level === "ERROR" && firstBackend !== null && backend === firstBackend) closed = true;
       if (level === "ERROR" && firstBackend === null && /^(?:[0-9A-Z]{5}:\s+)?canceling statement due to statement timeout\s*$/.test(text)) {
         firstBackend = backend;
         emit({ sqlState: text.match(/^([0-9A-Z]{5}):/)?.[1] ?? null });
       }
-      if (level !== "CONTEXT" || backend !== firstBackend) return;
+      if (closed || level !== "CONTEXT" || backend !== firstBackend) return;
       context = true; body = text;
     }
     if (!context || frames >= 64) return;
@@ -75,7 +74,7 @@ export type CaptureTransport = {
   context(root: string): { isLinkedWorktree: boolean; generatedWorkdir: string };
   config(file: string): string;
   inspect(container: string): Promise<unknown>;
-  logs(container: string, since: string, accept: (chunk: string) => void, failed: () => void): () => void;
+  logs(container: string, since: string, until: string, accept: (chunk: string) => void): Promise<void>;
   connect(url: string): Promise<Connection>;
 };
 const exec = promisify(execFile);
@@ -86,14 +85,26 @@ const transport: CaptureTransport = {
     const { stdout } = await exec("docker", ["inspect", "--format", "{{json .NetworkSettings.Ports}}", container], { timeout: 2000, maxBuffer: 65536 });
     return JSON.parse(stdout);
   },
-  logs(container, since, accept, failed) {
-    const child = spawn("docker", ["logs", "--follow", "--since", since, container], { stdio: ["ignore", "pipe", "pipe"] });
-    let stopped = false;
-    child.stdout.on("data", (bytes: Buffer) => accept(bytes.toString()));
-    child.stderr.on("data", (bytes: Buffer) => accept(bytes.toString()));
-    child.on("error", failed);
-    child.on("close", (code) => { if (!stopped && code !== 0) failed(); });
-    return () => { stopped = true; child.kill("SIGTERM"); };
+  async logs(container, since, until, accept) {
+    await new Promise<void>((resolve, reject) => {
+      const child = spawn("docker", ["logs", "--since", since, "--until", until, container], { stdio: ["ignore", "pipe", "pipe"] });
+      let ended = false, bytes = 0;
+      const complete = (ok: boolean) => {
+        if (ended) return; ended = true; clearTimeout(deadline);
+        if (!ok) child.kill("SIGTERM");
+        if (ok) resolve(); else reject(new Error("capture log unavailable"));
+      };
+      const deadline = setTimeout(() => complete(false), 2000);
+      const receive = (chunk: Buffer) => {
+        if (ended) return;
+        bytes += chunk.byteLength;
+        if (bytes > 8 * 1024 * 1024) { complete(false); return; }
+        accept(chunk.toString());
+      };
+      child.stdout.on("data", receive); child.stderr.on("data", receive);
+      child.on("error", () => complete(false));
+      child.on("close", code => complete(code === 0));
+    });
   },
   async connect(url) {
     const client = new Client({ connectionString: url, connectionTimeoutMillis: 1000, query_timeout: 1000 });
@@ -130,40 +141,30 @@ function requestReport(raw: unknown) {
   };
 }
 
-type LifecycleCase = {
-  name: string;
-  module: { moduleId: string };
-  project: { config: { root: string }; getProvidedContext(): { supabaseUrl: string; databaseUrl: string } };
-  logs(): readonly Pick<UserConsoleLog, "content">[];
-};
-/** Opt-in runner fixture. Does not change test selection, clocks or errors. */
-export default class OperationalBulkCapture implements Reporter {
-  private seen = false;
-  private active = false;
+export type CaptureCase = { name: string; moduleId: string; root: string; provided: { supabaseUrl: string; databaseUrl: string } };
+/** Explicitly awaited by the worker's aroundEach; no reporter notification is a gate. */
+export default class OperationalBulkCapture {
+  private state: "idle" | "starting" | "active" | "stopped" = "idle";
   private root = "";
   private started = 0;
+  private since = "";
+  private until = "";
+  private container?: string;
+  private armed = false;
   private interval?: ReturnType<typeof setInterval>;
   private deadline?: ReturnType<typeof setTimeout>;
+  private startup = Promise.resolve();
   private pending = Promise.resolve();
+  private sampling = false;
   private connection?: Connection;
-  private stopLogs?: () => void;
-  private reader?: ReturnType<typeof createPostgresFrameReader>;
   private stopping?: Promise<void>;
   private bytes = 0;
   private truncated = false;
   private requestCaptured = false;
   private logUnavailable = false;
   private sampleUnavailable = false;
-  private readonly exit = () => {
-    this.active = false; clearInterval(this.interval); clearTimeout(this.deadline);
-    try { this.stopLogs?.(); } catch { this.logUnavailable = true; }
-    void this.connection?.close().catch(() => {});
-    if (this.root) this.write("capture.jsonl", { reason: "runner_exit", elapsedMs: performance.now() - this.started, requestCaptured: this.requestCaptured, logUnavailable: this.logUnavailable, sampleUnavailable: this.sampleUnavailable, truncated: this.truncated });
-  };
+  private readonly exit = () => { void this.end("runner_exit"); };
   constructor(private readonly io: CaptureTransport = transport, private readonly environment: Record<string, string | undefined> = process.env) {}
-  private matches(test: LifecycleCase) {
-    return test.name === operationalBulkCase && path.relative(test.project.config.root, test.module.moduleId).split(path.sep).join("/") === "tests/operational-email-alerts.test.ts";
-  }
   private write(file: "postgres.jsonl" | "waits.jsonl" | "request.jsonl" | "capture.jsonl", value: object) {
     try {
       const line = JSON.stringify(value) + "\n";
@@ -173,74 +174,72 @@ export default class OperationalBulkCapture implements Reporter {
       fs.appendFileSync(target, line, { mode: 0o600 }); fs.chmodSync(target, 0o600);
     } catch { /* Filesystem errors never replace the application's result. */ }
   }
-  async onTestCaseReady(test: LifecycleCase) {
-    if (this.environment.IVAT_OPERATIONAL_BULK_CAPTURE !== "1" || this.seen || !this.matches(test)) return;
-    this.seen = true;
-    this.started = performance.now();
-    try {
-      const root = fs.realpathSync(test.project.config.root);
-      const context = this.io.context(root);
-      const config = this.io.config(path.join(context.isLinkedWorktree ? context.generatedWorkdir : root, "supabase", "config.toml"));
-      const provided = test.project.getProvidedContext();
-      const selected = validateCaptureContext({ linked: context.isLinkedWorktree, root, workspace: this.environment.GITHUB_WORKSPACE ? fs.realpathSync(this.environment.GITHUB_WORKSPACE) : "", environment: this.environment, config, provided });
-      const ports = await this.io.inspect(selected.container) as Record<string, { HostPort: string }[]>;
-      if (!ports["5432/tcp"]?.some(port => port.HostPort === selected.databasePort)) throw unavailable();
-      const results = path.join(root, "test-results");
-      if (fs.existsSync(results) && fs.lstatSync(results).isSymbolicLink()) throw unavailable();
-      const directory = path.join(results, "operational-bulk-capture");
-      if (fs.existsSync(directory) && fs.lstatSync(directory).isSymbolicLink()) throw unavailable();
-      fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
-      if (fs.realpathSync(directory) !== directory) throw unavailable();
-      const files = ["capture.jsonl", "request.jsonl", "postgres.jsonl", "waits.jsonl"].map(file => path.join(directory, file));
-      if (files.some(file => fs.existsSync(file) && (!fs.lstatSync(file).isFile() || fs.lstatSync(file).isSymbolicLink()))) throw unavailable();
-      for (const file of files) { fs.writeFileSync(file, "", { mode: 0o600 }); fs.chmodSync(file, 0o600); }
-      this.root = root; this.active = true;
-      this.deadline = setTimeout(() => { void this.stop("120s_cap"); }, Math.max(0, 120000 - (performance.now() - this.started)));
-      this.reader = createPostgresFrameReader(frame => this.write("postgres.jsonl", { elapsedMs: performance.now() - this.started, ...frame }));
-      this.stopLogs = this.io.logs(selected.container, new Date().toISOString(), chunk => { if (this.active) this.reader?.accept(chunk); }, () => { this.logUnavailable = true; });
-      this.connection = await this.io.connect(selected.databaseUrl);
-      if (!this.active) { await this.connection.close(); this.connection = undefined; return; }
-      this.interval = setInterval(() => {
-        if (!this.active) return;
-        // One query in flight; timer ticks never build a backlog.
-        const connection = this.connection;
-        if (!connection) return;
-        this.connection = undefined;
-        this.pending = connection.sample().then(rows => {
-          if (this.active) this.write("waits.jsonl", { elapsedMs: performance.now() - this.started, waits: rows.slice(0, 32).map(row => ({ waitType: typeof row.wait_event_type === "string" && waitTypes.has(row.wait_event_type) ? row.wait_event_type : null, blockerCount: Number.isInteger(row.blocker_count) && Number(row.blocker_count) >= 0 ? row.blocker_count : null })) });
-        }).catch(() => { this.sampleUnavailable = true; }).finally(() => { this.connection = connection; });
-      }, 100);
-      process.once("exit", this.exit);
-    } catch {
-      this.logUnavailable = true; this.sampleUnavailable = true;
-      await this.stop("capture_unavailable");
+  async begin(test: CaptureCase) {
+    if (this.environment.IVAT_OPERATIONAL_BULK_CAPTURE !== "1" || this.state !== "idle" || test.name !== operationalBulkCase || path.relative(test.root, test.moduleId).split(path.sep).join("/") !== "tests/operational-email-alerts.test.ts") return;
+    this.state = "starting"; this.started = performance.now(); this.since = new Date().toISOString();
+    this.deadline = setTimeout(() => { void this.end("120s_cap"); }, 120000);
+    process.once("exit", this.exit);
+    this.startup = this.acquire(test).catch(() => { this.logUnavailable = true; this.sampleUnavailable = true; });
+    await this.startup;
+    if (this.logUnavailable || this.sampleUnavailable) {
+      await this.end("capture_unavailable");
       if (!this.root) console.info("Operational bulk capture unavailable: context validation failed");
     }
   }
-  onUserConsoleLog(log: Pick<UserConsoleLog, "content">) {
-    if (!this.active || this.requestCaptured || log.content.length > 65536) return;
-    for (const line of log.content.split("\n")) {
-      const match = line.match(/^Supabase request (?:failure diagnostics|measurement) [^\n]*?: (\{.*\})$/);
-      if (!match) continue;
-      try { const report = requestReport(JSON.parse(match[1])); if (report) { this.write("request.jsonl", report); this.requestCaptured = true; } } catch { /* No raw/unparsed content is retained. */ }
-    }
+  private async acquire(test: CaptureCase) {
+    const root = fs.realpathSync(test.root);
+    const context = this.io.context(root);
+    const config = this.io.config(path.join(context.isLinkedWorktree ? context.generatedWorkdir : root, "supabase", "config.toml"));
+    const selected = validateCaptureContext({ linked: context.isLinkedWorktree, root, workspace: this.environment.GITHUB_WORKSPACE ? fs.realpathSync(this.environment.GITHUB_WORKSPACE) : "", environment: this.environment, config, provided: test.provided });
+    const ports = await this.io.inspect(selected.container) as Record<string, { HostPort: string }[]>;
+    if (this.state !== "starting") return;
+    if (!ports["5432/tcp"]?.some(port => port.HostPort === selected.databasePort)) throw unavailable();
+    const results = path.join(root, "test-results");
+    if (fs.existsSync(results) && fs.lstatSync(results).isSymbolicLink()) throw unavailable();
+    const directory = path.join(results, "operational-bulk-capture");
+    if (fs.existsSync(directory) && fs.lstatSync(directory).isSymbolicLink()) throw unavailable();
+    fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
+    if (fs.realpathSync(directory) !== directory) throw unavailable();
+    fs.chmodSync(directory, 0o700);
+    const files = ["capture.jsonl", "request.jsonl", "postgres.jsonl", "waits.jsonl"].map(file => path.join(directory, file));
+    if (files.some(file => fs.existsSync(file) && (!fs.lstatSync(file).isFile() || fs.lstatSync(file).isSymbolicLink()))) throw unavailable();
+    for (const file of files) { fs.writeFileSync(file, "", { mode: 0o600 }); fs.chmodSync(file, 0o600); }
+    this.root = root; this.container = selected.container;
+    // This acquisition is owned even if stop arrives before it resolves.
+    this.connection = await this.io.connect(selected.databaseUrl);
+    if (this.state !== "starting") return;
+    this.state = "active"; this.armed = true;
+    this.interval = setInterval(() => {
+      const connection = this.connection;
+      if (this.state !== "active" || this.sampling || !connection) return;
+      this.sampling = true;
+      this.pending = connection.sample().then(rows => {
+        if (this.state === "active") this.write("waits.jsonl", { elapsedMs: performance.now() - this.started, waits: rows.slice(0, 32).map(row => ({ waitType: typeof row.wait_event_type === "string" && waitTypes.has(row.wait_event_type) ? row.wait_event_type : null, blockerCount: Number.isInteger(row.blocker_count) && Number(row.blocker_count) >= 0 ? row.blocker_count : null })) });
+      }).catch(() => { this.sampleUnavailable = true; }).finally(() => { this.sampling = false; });
+    }, 100);
   }
-  async onTestCaseResult(test: LifecycleCase) {
-    if (!this.matches(test)) return;
-    for (const log of test.logs()) this.onUserConsoleLog(log);
-    await this.stop("target_finished");
+  recordRequestReport(raw: unknown) {
+    if (this.requestCaptured || !this.root) return;
+    const report = requestReport(raw);
+    if (report) { this.write("request.jsonl", report); this.requestCaptured = true; }
   }
-  async onTestRunEnd() { await this.stop("run_finished"); }
-  async onProcessTimeout() { await this.stop("runner_exit"); }
-  private async stop(reason: string) {
+  async end(reason = "target_finished") {
     if (this.stopping) return this.stopping;
-    this.active = false; clearInterval(this.interval); clearTimeout(this.deadline);
-    try { this.stopLogs?.(); } catch { this.logUnavailable = true; }
+    this.state = "stopped"; this.until = new Date().toISOString();
+    clearInterval(this.interval); clearTimeout(this.deadline);
     this.stopping = (async () => {
-      await this.pending;
-      await this.connection?.close().catch(() => { this.sampleUnavailable = true; });
-      this.reader?.finish(); process.removeListener("exit", this.exit);
-      if (this.root) this.write("capture.jsonl", { reason, elapsedMs: performance.now() - this.started, requestCaptured: this.requestCaptured, logUnavailable: this.logUnavailable, sampleUnavailable: this.sampleUnavailable, truncated: this.truncated });
+      await this.startup; await this.pending;
+      await this.connection?.close().catch(() => { this.sampleUnavailable = true; }); this.connection = undefined;
+      // Bounded historical read, not a new sampling interval: the worker awaits
+      // this drain before the next test or CI's disposable DB teardown.
+      if (this.armed && this.container) {
+        const reader = createPostgresFrameReader(frame => this.write("postgres.jsonl", frame));
+        try { await this.io.logs(this.container, this.since, this.until, chunk => reader.accept(chunk)); }
+        catch { this.logUnavailable = true; }
+        reader.finish();
+      }
+      process.removeListener("exit", this.exit);
+      if (this.root) this.write("capture.jsonl", { reason, startedAtUtc: this.since, endedAtUtc: this.until, elapsedMs: performance.now() - this.started, armed: this.armed, requestCaptured: this.requestCaptured, logUnavailable: this.logUnavailable, sampleUnavailable: this.sampleUnavailable, truncated: this.truncated });
     })();
     return this.stopping;
   }

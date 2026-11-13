@@ -37,8 +37,29 @@ function errorContext(payload: unknown): Pick<RequestObservation, "sqlState" | "
 }
 
 async function failureContext(response: Response) {
-  try { return errorContext(await response.clone().json()); }
-  catch { return { sqlState: null, contextClass: "http_error" as const }; }
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    reader = response.clone().body?.getReader();
+    if (!reader) throw new Error("no diagnostic body");
+    const decode = async () => {
+      const decoder = new TextDecoder(); let bytes = 0, chunks = 0, text = "";
+      while (true) {
+        const part = await reader!.read();
+        if (part.done) return JSON.parse(text + decoder.decode());
+        bytes += part.value.byteLength;
+        if (bytes > 65536 || ++chunks > 1024) throw new Error("diagnostic body limit");
+        text += decoder.decode(part.value, { stream: true });
+      }
+    };
+    const limit = new Promise<never>((_, reject) => { timeout = setTimeout(() => reject(new Error("diagnostic body deadline")), 100); });
+    return errorContext(await Promise.race([decode(), limit]));
+  } catch { return { sqlState: null, contextClass: "http_error" as const }; }
+  finally {
+    clearTimeout(timeout);
+    // A tee cancellation can await its untouched sibling. Never await it.
+    void reader?.cancel().catch(() => {});
+  }
 }
 
 /** A test may retain this boundary through its afterEach hook. All failures are
@@ -104,31 +125,43 @@ export function startSupabaseRequestDiagnostics(options: { reportOnSuccess?: boo
       }
     }
   });
+  const observedErrors = new WeakSet<object>();
+  const observeFailure = (error: unknown, observedPhase = phase) => {
+    if (error !== null && (typeof error === "object" || typeof error === "function")) {
+      if (observedErrors.has(error)) return;
+      observedErrors.add(error);
+    }
+    const context = errorContext(error);
+    const failure = { phase: observedPhase, ...context, contextClass: context.sqlState === null ? null : context.contextClass };
+    firstFailure ??= { kind: "stage", ...failure };
+    stageFailures.push(failure);
+    if (stageFailures.length > 16) stageFailures.shift();
+  };
   return {
     setPhase,
+    observeFailure,
     async runPhase<T>(next: RequestTestPhase, run: () => Promise<T>): Promise<T> {
       setPhase(next);
       try { return await run(); }
       catch (error) {
-        const failure = { phase: next, ...errorContext(error) };
-        firstFailure ??= { kind: "stage", ...failure };
-        stageFailures.push(failure);
-        if (stageFailures.length > 16) stageFailures.shift();
+        observeFailure(error, next);
         throw error;
       }
     },
     finish(failed = stageFailures.length > 0) {
-      if (finished) return;
+      const report = { firstFailure, failedRequest, stageFailures, phases, observations };
+      if (finished) return report;
       finished = true;
       spy.mockRestore();
       try {
         if (failed || options.reportOnSuccess) {
-          const report = JSON.stringify({ firstFailure, failedRequest, stageFailures, phases, observations });
-          if (failed) console.error("Supabase request failure diagnostics (last 32 operations; headersMs):", report);
-          else console.info("Supabase request measurement (last 32 operations; headersMs):", report);
+          const serialized = JSON.stringify(report);
+          if (failed) console.error("Supabase request failure diagnostics (last 32 operations; headersMs):", serialized);
+          else console.info("Supabase request measurement (last 32 operations; headersMs):", serialized);
         }
       } catch { /* Diagnostics must never replace an application error. */ }
       if (options.announce) announce("end");
+      return report;
     },
   };
 }

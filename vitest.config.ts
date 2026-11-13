@@ -1,7 +1,6 @@
 import path from "node:path";
 import { defineConfig } from "vitest/config";
 import ApplicationTestSequencer from "./scripts/application-test-sequencer";
-import OperationalBulkCapture from "./tests/support/operational-bulk-capture";
 
 export default defineConfig({
   resolve: {
@@ -16,6 +15,5 @@ export default defineConfig({
     fileParallelism: false,
     sequence: { sequencer: ApplicationTestSequencer },
     testTimeout: 20_000,
-    reporters: process.env.IVAT_OPERATIONAL_BULK_CAPTURE === "1" ? ["default", new OperationalBulkCapture()] : undefined,
   },
 });
