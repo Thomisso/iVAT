@@ -22,6 +22,7 @@ import { administratorWithCompany, assignAiConfigurationFixture, companyMember, 
 import { fixtureFile, heicFixture, rotatedHeicFixture, selectUploadFiles } from "./support/files";
 import { companySourceFileRowLimitProbe, withPostgrestRowLimit } from "./support/postgrest";
 import { PDFDocument } from "pdf-lib";
+import { lockHistoricalPhotoGroupMemberFixture } from "./support/photo-group-recovery";
 import { supabaseHttpGateway } from "./support/supabase-http-gateway";
 import { systemClient, testWorker } from "./support/worker";
 
@@ -265,13 +266,10 @@ describe("User-confirmed Photo Groups", () => {
     expect((await setCurrentReportingYear(owner.client, { companyId: owner.companyId, year: Number(period.slice(0, 4)), filingFrequency: "monthly" })).ok).toBe(true);
     expect((await generateVatReport(owner.client, { companyId: owner.companyId, period })).ok).toBe(true);
     const report = (await getVatReport(owner.client, owner.companyId, period))!;
-    // A restored historical snapshot can name any source. This fixture locks
-    // only the non-anchor; assertions use the normal user commands and query.
-    const database = new DatabaseClient({ connectionString: inject("databaseUrl") }); await database.connect();
-    try {
-      await database.query("update public.vat_report set result=jsonb_set(result,'{sourceFilesReadinessSource}',jsonb_build_array(jsonb_build_object('sourceFileId',$2::text))) where id=$1", [report.id, second.id]);
-      await database.query("insert into public.period_lock(company_id,organization_id,period,vat_report_id,locked_by) values($1,$2,$3,$4,$5)", [owner.companyId, owner.organizationId, period, report.id, owner.userId]);
-    } finally { await database.end(); }
+    await lockHistoricalPhotoGroupMemberFixture({
+      companyId: owner.companyId, organizationId: owner.organizationId, period,
+      reportId: report.id, userId: owner.userId, sourceFileId: second.id,
+    });
     const before = await getVatReport(owner.client, owner.companyId, period);
     for (const mode of ["manual", "retry"] as const) expect(await recoverPhotoGroup(owner.client, worker.jobs, { companyId: owner.companyId, groupId, mode })).toEqual({ ok: false, error: "period_locked" });
     expect((await owner.client.rpc("recover_photo_group", { target_group_id: groupId, recovery_mode: "manual" })).error?.hint).toBe("period_locked");
