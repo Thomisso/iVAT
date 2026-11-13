@@ -1,9 +1,9 @@
-import { withPostgrestRowLimit } from "./support/postgrest";
+import { organizationCompanyRowLimitProbe, withPostgrestRowLimit } from "./support/postgrest";
 import { beginTotpEnrollment, completeTotpEnrollment, setOrganizationMfaRequired } from "@/application/mfa";
 import { createOrganization } from "@/application/organizations";
 import { createCompany } from "@/application/companies";
 import { provisionedUser } from "./support/clients";
-import { systemClient } from "./support/worker";
+import { promoteSuperAdministratorFixture } from "./support/platform";
 import { totp } from "./support/totp";
 import { succeeded } from "./support/results";
 import { expect, it } from "vitest";
@@ -55,8 +55,7 @@ async function superAdministrator() {
   const user = await provisionedUser("Safety platform operator");
   const enrollment = succeeded(await beginTotpEnrollment(user.client));
   succeeded(await completeTotpEnrollment(user.client, { factorId: enrollment.factorId, code: totp(enrollment.secret) }));
-  const promoted = await systemClient().from("platform_user").insert({ user_id: user.userId, role: "super_admin" });
-  if (promoted.error) throw promoted.error;
+  await promoteSuperAdministratorFixture(user.userId);
   return user;
 }
 
@@ -105,8 +104,7 @@ it("applies self-change to concrete SuperAdmin Memberships and inherited/direct 
     if (promote) {
       const enrollment = succeeded(await beginTotpEnrollment(direct.client));
       succeeded(await completeTotpEnrollment(direct.client, { factorId: enrollment.factorId, code: totp(enrollment.secret) }));
-      const result = await systemClient().from("platform_user").insert({ user_id: direct.userId, role: "super_admin" });
-      if (result.error) throw result.error;
+      await promoteSuperAdministratorFixture(direct.userId);
     }
     const before = await listAuditEvents(owner.client, owner.organizationId);
     expect(await removeMembership(direct.client, membership.id)).toEqual({ ok: false, error: "membership_self_change" });
@@ -180,7 +178,7 @@ it("previews every affected Company beyond the response cap and preserves inheri
   succeeded(await acceptInvitation(member.client, invitation.token));
   const [direct] = await listMemberships(owner.client, owner);
   const inherited = (await listMemberships(owner.client, { organizationId: owner.organizationId, companyId: null })).find(m => m.userId === member.userId)!;
-  await withPostgrestRowLimit(1, () => owner.client.from("company").select("id").eq("organization_id", owner.organizationId), async () => {
+  await withPostgrestRowLimit(1, organizationCompanyRowLimitProbe(owner.client, owner.organizationId), async () => {
     const impact = succeeded(await previewMembershipChange(owner.client, { membershipId: inherited.id, role: null }));
     expect(impact.companies.map(company => company.name)).toEqual(["Novák s.r.o.", "Second", "Third"]);
     const directImpact = succeeded(await previewMembershipChange(owner.client, { membershipId: direct.id, role: "user" }));

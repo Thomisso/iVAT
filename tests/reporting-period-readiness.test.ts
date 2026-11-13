@@ -1,5 +1,6 @@
 import { reportingWorkbookCopy } from "./support/reporting-workbook-copy";
 import { expect, inject, it } from "vitest";
+import { withUnrelatedOperationalIncident } from "./support/operational-alerts";
 import { Client as DatabaseClient } from "pg";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import {
@@ -356,7 +357,7 @@ it("keeps a new snapshot current when unassigned rejected Documents are resolved
   expect(readiness.value.snapshot?.freshness).toBe("current");
 });
 
-it("counts every relevant Document beyond the API row cap", async () => {
+it("counts every relevant Document beyond the API row cap", async () => withUnrelatedOperationalIncident(async () => {
   const company = await companyWithManyReportDocuments(1001);
   const readiness = await getReportingPeriodReadiness(company.client, {
     companyId: company.companyId,
@@ -374,4 +375,4 @@ it("counts every relevant Document beyond the API row cap", async () => {
   const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets.Attention);
   expect(new Set(rows.map(row => row["Document ID"])).size).toBe(1001);
   expect(rows.filter(row => row["VAT Return line"] === "40" && row["Control Statement section"] === "B.3" && row["Mapping status"] === "proposed")).toHaveLength(1001);
-}, 60_000);
+}), 60_000);

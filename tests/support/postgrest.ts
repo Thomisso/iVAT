@@ -1,5 +1,24 @@
 import { Client } from "pg";
 import { inject } from "vitest";
+import type { AppClient } from "@/application/client";
+
+// Positive table reads here establish only the real server cap precondition;
+// business assertions remain in tests through their public Application calls.
+export function companyDocumentRowLimitProbe(client: AppClient, companyId: string) {
+  return () => client.from("document").select("id").eq("company_id", companyId).limit(10);
+}
+
+export function companySourceFileRowLimitProbe(client: AppClient, companyId: string) {
+  return () => client.from("source_file").select("id").eq("company_id", companyId).limit(10);
+}
+
+export function organizationCompanyRowLimitProbe(client: AppClient, organizationId: string) {
+  return () => client.from("company").select("id").eq("organization_id", organizationId);
+}
+
+export function sourceUploadChunkRowLimitProbe(client: AppClient, sourceFileId: string) {
+  return () => client.from("source_upload_chunk").select("byte_offset").eq("source_file_id", sourceFileId);
+}
 
 /** Exercise scalar inventory completeness against a real, smaller response cap.
  * Only use in serial tests; restores this isolated stack's configuration even

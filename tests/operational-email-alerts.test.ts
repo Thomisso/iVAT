@@ -1,6 +1,7 @@
 import { afterEach, expect, it } from "vitest";
-import { promotedSuperAdministrator } from "./support/platform";
+import { promotedSuperAdministrator, revokeSuperAdministratorFixture } from "./support/platform";
 import { provisionedUser } from "./support/clients";
+import { deactivateAccountFixture, deleteAccountFixture, setVerifiedAccountEmailFixture } from "./support/accounts";
 import { getOperationalAlertPreference, setOperationalAlertPreference, listOperationalAlertDeliveries } from "@/application/operational-email-alerts";
 
 import { companyWithWaitingDocuments, removeAiConfigurationFixture } from "./support/fixtures";
@@ -8,7 +9,7 @@ import { listCompanyDocuments, startManualDocumentReview } from "@/application/d
 import { systemClient } from "./support/worker";
 import { runOperationalAlertTick, type OperationalAlertMailer, type OperationalAlertMessage } from "@/application/operational-alert-worker";
 
-import { documentAlertRequest } from "./support/operational-alerts";
+import { classifiedDocumentIssueFixture, classifiedSourceIssueFixture, clearOperationalAlertAllowanceFixture, failedCompanyDataExportFixture } from "./support/operational-alerts";
 
 const companies: Awaited<ReturnType<typeof companyWithWaitingDocuments>>[] = [];
 const subscribers: Awaited<ReturnType<typeof promotedSuperAdministrator>>[] = [];
@@ -17,10 +18,10 @@ afterEach(async () => {
     for (const document of await listCompanyDocuments(company.client, company.companyId)) {
       await startManualDocumentReview(company.client, { companyId: company.companyId, documentId: document.id });
     }
-    expect((await systemClient().from("company").update({ ai_processing_allowance: null }).eq("id", company.companyId)).error).toBeNull();
+    await clearOperationalAlertAllowanceFixture(company.companyId);
     expect((await listCompanyDocuments(company.client, company.companyId)).every(document => document.status === "needs_review")).toBe(true);
   }
-  for (const subscriber of subscribers.splice(0)) await systemClient().auth.admin.deleteUser(subscriber.userId);
+  for (const subscriber of subscribers.splice(0)) await deleteAccountFixture(subscriber.userId);
 });
 
 async function scenario(count = 2, locale: "cs" | "en" = "en") {
@@ -125,8 +126,8 @@ it.each(["opt_out", "role_removed", "deactivated", "unverified", "email_change"]
   expect(planned.error).toBeNull();
   expect((planned.data as string[]).length).toBeGreaterThan(0);
   if (reason === "opt_out") await setOperationalAlertPreference(admin.client, { enabled: false, locale: "en" });
-  if (reason === "role_removed") await system.from("platform_user").delete().eq("user_id", admin.userId);
-  if (reason === "deactivated") await system.auth.admin.updateUserById(admin.userId, { ban_duration: "24h" });
+  if (reason === "role_removed") await revokeSuperAdministratorFixture(admin.userId);
+  if (reason === "deactivated") await deactivateAccountFixture(admin.userId);
   if (reason === "unverified" || reason === "email_change") {
     const { alertAccountFixture } = await import("./support/operational-alerts");
     await alertAccountFixture(admin.userId, reason);
@@ -139,8 +140,7 @@ it("uses the current verified address at claim time, never the queued address", 
   const { admin, start, tick, messages } = await scenario(1);
   await tick(0);
   await systemClient().rpc("reconcile_operational_alerts", { observed_at: new Date(start + 300000).toISOString() });
-  const updated = await systemClient().auth.admin.updateUserById(admin.userId, { email: `current-${admin.userId}@example.test`, email_confirm: true });
-  expect(updated.error).toBeNull();
+  await setVerifiedAccountEmailFixture(admin.userId, `current-${admin.userId}@example.test`);
   await tick(300);
   expect(messages.map(message => message.to)).toEqual([`current-${admin.userId}@example.test`]);
 });
@@ -215,8 +215,7 @@ it("groups a shared configuration across Companies and keeps the same episode as
   for (const owner of [company, second]) {
     expect(await assignCompanyAiConfiguration(admin.client, { companyId: owner.companyId, configurationId: configuration.value.id })).toEqual({ ok: true, value: null });
     for (const document of await listCompanyDocuments(owner.client, owner.companyId)) {
-      expect((await systemClient().rpc("record_ai_processing_issue", { target_kind: "document", target_id: document.id, target_extraction_request_id: await documentAlertRequest(document.id),
-        target_classification: "invalid_credentials", target_state: "waiting_for_platform", target_configuration_id: configuration.value.id })).error).toBeNull();
+      await classifiedDocumentIssueFixture(document.id, { classification: "invalid_credentials", state: "waiting_for_platform", configurationId: configuration.value.id });
     }
   }
   await tick(0);
@@ -234,8 +233,7 @@ it("keeps transient provider warnings and exhausted allowance without waiting wo
   const { setCompanyAiProcessingAllowance } = await import("@/application/ai-processing-allowance");
   const { admin, company, tick, messages } = await scenario(1);
   const [document] = await listCompanyDocuments(company.client, company.companyId);
-  expect((await systemClient().rpc("record_ai_processing_issue", { target_kind: "document", target_id: document.id, target_extraction_request_id: await documentAlertRequest(document.id),
-    target_classification: "provider_unavailable", target_state: "waiting_for_platform" })).error).toBeNull();
+  await classifiedDocumentIssueFixture(document.id, { classification: "provider_unavailable", state: "waiting_for_platform" });
   await tick(0); await tick(300); expect(messages).toHaveLength(0);
   await startManualDocumentReview(company.client, { companyId: company.companyId, documentId: document.id });
   expect(await setCompanyAiProcessingAllowance(admin.client, { async send() {} }, { companyId: company.companyId, allowance: 0 })).toEqual({ ok: true, value: null });
@@ -244,15 +242,21 @@ it("keeps transient provider warnings and exhausted allowance without waiting wo
 
 it("sends for actual allowance waits while an 80-percent Company remains warning-only", async () => {
   const { setCompanyAiProcessingAllowance } = await import("@/application/ai-processing-allowance");
-  const { companyWithManyReportDocuments } = await import("./support/fixtures");
-  const { admin, company, tick, messages } = await scenario(1);
+  const { companyWithManyReportDocuments, assignAiConfigurationFixture } = await import("./support/fixtures");
+  const { companyAlertConfigurationFixture } = await import("./support/operational-alerts");
+  const { testWorker } = await import("./support/worker");
+  const { admin, company, tick, messages, scopes } = await scenario(1);
   const high = await companyWithManyReportDocuments(8); companies.push(high);
   expect(await setCompanyAiProcessingAllowance(admin.client, { async send() {} }, { companyId: high.companyId, allowance: 10 })).toEqual({ ok: true, value: null });
   const [document] = await listCompanyDocuments(company.client, company.companyId);
-  expect(await setCompanyAiProcessingAllowance(admin.client, { async send() {} }, { companyId: company.companyId, allowance: 0 })).toEqual({ ok: true, value: null });
+  const worker = testWorker();
+  await assignAiConfigurationFixture(company.client, worker.jobs, { companyId: company.companyId, provider: worker.ai });
+  scopes.add(await companyAlertConfigurationFixture(company.companyId));
+  expect(await setCompanyAiProcessingAllowance(admin.client, worker.jobs, { companyId: company.companyId, allowance: 0 })).toEqual({ ok: true, value: null });
   // The allowance mutation requeues work; the genuine handler discovers that
   // zero allowance still requires a wait before an extraction can begin.
-  expect((await systemClient().from("document").update({ status: "waiting_for_allowance" }).eq("id", document.id)).error).toBeNull();
+  expect(await worker.runJobs()).toEqual([]);
+  expect((await listCompanyDocuments(company.client, company.companyId)).find(waiting => waiting.id === document.id)?.status).toBe("waiting_for_allowance");
   await tick(0); await tick(299); expect(messages).toHaveLength(0);
   await tick(300); expect(messages).toHaveLength(1);
   expect(messages[0].text).toContain("Documents: 1");
@@ -272,24 +276,276 @@ it("starts a fresh grace period after an intervening complete resolution even be
   await tick(599); expect(messages).toHaveLength(1);
 });
 
+it.each([
+  "configuration_missing", "configuration_unusable", "invalid_credentials",
+  "provider_credits_exhausted", "provider_unavailable", "provider_response_invalid", "processing_failed",
+] as const)("keeps %s issue eligibility and synchronous manual resolution consistent", async classification => {
+  const { company, tick, messages, deliveries } = await scenario(1);
+  const [document] = await listCompanyDocuments(company.client, company.companyId);
+  await classifiedDocumentIssueFixture(document.id, { classification, state: "terminal" });
+  await tick(0);
+  await tick(300);
+  expect(messages).toHaveLength(1);
+  expect(await deliveries()).toEqual([expect.objectContaining({ kind: classification, state: "accepted", resolvedAt: null })]);
+  expect(await startManualDocumentReview(company.client, { companyId: company.companyId, documentId: document.id })).toEqual({ ok: true, value: null });
+  // Read immediately, without another reconciliation tick.
+  expect(await deliveries()).toEqual([expect.objectContaining({ kind: classification, resolvedAt: expect.any(String) })]);
+});
+
+it("cancels pending delivery synchronously and starts fresh grace after manual recovery", async () => {
+  const { reprocessDocument } = await import("@/application/documents");
+  const { company, start, tick, messages, deliveries } = await scenario(1);
+  const [document] = await listCompanyDocuments(company.client, company.companyId);
+  await tick(0);
+  expect((await systemClient().rpc("reconcile_operational_alerts", { observed_at: new Date(start + 300000).toISOString() })).error).toBeNull();
+  expect(await deliveries()).toEqual([expect.objectContaining({ state: "pending", resolvedAt: null })]);
+  await startManualDocumentReview(company.client, { companyId: company.companyId, documentId: document.id });
+  expect(await deliveries()).toEqual([expect.objectContaining({ state: "cancelled", resolvedAt: expect.any(String) })]);
+  await reprocessDocument(company.client, { async send() {} }, { companyId: company.companyId, documentId: document.id });
+  await tick(301); await tick(600); expect(messages).toHaveLength(0);
+  await tick(601); expect(messages).toHaveLength(1);
+});
+
+it.each(["independent", "overlapping"] as const)("ends a shared incident at concurrent remediation commits (%s) and requires full fresh grace for recurrence", async interleaving => {
+  const { createAiConfiguration, assignCompanyAiConfiguration } = await import("@/application/ai-configurations");
+  const { reprocessDocument } = await import("@/application/documents");
+  const { manualReviewTransactionFixture } = await import("./support/operational-alerts");
+  const { admin, company, start, tick, messages, deliveries, scopes } = await scenario(1);
+  const second = await companyWithWaitingDocuments(1); companies.push(second);
+  const configuration = await createAiConfiguration(admin.client, { label: `Concurrent shared ${crypto.randomUUID()}`, provider: "anthropic", splitModel: "test", extractModel: "test", credential: "synthetic-test-credential" });
+  if (!configuration.ok) throw new Error(configuration.error);
+  scopes.add(configuration.value.id);
+  const documents: Awaited<ReturnType<typeof listCompanyDocuments>> = [];
+  for (const owner of [company, second]) {
+    await assignCompanyAiConfiguration(admin.client, { companyId: owner.companyId, configurationId: configuration.value.id });
+    const [document] = await listCompanyDocuments(owner.client, owner.companyId);
+    documents.push(document);
+    await classifiedDocumentIssueFixture(document.id, { classification: "invalid_credentials", state: "waiting_for_platform", configurationId: configuration.value.id });
+  }
+  await tick(0);
+  expect((await systemClient().rpc("reconcile_operational_alerts", { observed_at: new Date(start + 300000).toISOString() })).error).toBeNull();
+  const [oldDelivery] = await deliveries();
+  expect(oldDelivery).toEqual(expect.objectContaining({ state: "pending", resolvedAt: null, impact: { companies: 2, documents: 2, sourceFiles: 0, exportJobs: 0 } }));
+  if (interleaving === "overlapping") {
+    const { generateInvitationLink, acceptInvitation } = await import("@/application/memberships");
+    const invitation = await generateInvitationLink(second.client, { organizationId: second.organizationId, companyId: second.companyId, email: company.email, role: "user", acceptUrl: "https://ivat.example.test/invitations/accept" });
+    if (!invitation.ok) throw new Error(invitation.error);
+    expect(await acceptInvitation(company.client, invitation.value.token)).toEqual({ ok: true, value: null });
+  }
+  const transactions = await Promise.all([manualReviewTransactionFixture(company.client), manualReviewTransactionFixture(second.client)]);
+  try {
+    // Both commands finish their mutations while the other connection's work is
+    // still uncommitted. Neither can see a globally quiet root until commit.
+    await Promise.all(transactions.map((transaction, index) => transaction.review(documents[index].id)));
+    // Reconciliation also completes while both Companies are locked. It sees
+    // their still-committed blockage; it cannot deadlock on Company locks.
+    expect((await systemClient().rpc("reconcile_operational_alerts", { observed_at: new Date(start + 300000).toISOString() })).error).toBeNull();
+    if (interleaving === "overlapping") {
+      // The first transaction needs the second Company later in its command.
+      // The second can commit without waiting for an alert lock held by the
+      // first, then the first finishes its remaining mutation and commits.
+      const remaining = transactions[0].review(documents[1].id);
+      await transactions[1].commit();
+      await remaining;
+      await transactions[0].commit();
+    } else {
+      await Promise.all(transactions.map(transaction => transaction.commit()));
+    }
+  } finally { await Promise.all(transactions.map(transaction => transaction.close())); }
+  for (const [index, owner] of [company, second].entries()) {
+    expect((await listCompanyDocuments(owner.client, owner.companyId)).find(document => document.id === documents[index].id)?.status).toBe("needs_review");
+  }
+  expect(await deliveries()).toEqual([expect.objectContaining({ id: oldDelivery.id, state: "cancelled", resolvedAt: expect.any(String) })]);
+  await reprocessDocument(company.client, { async send() {} }, { companyId: company.companyId, documentId: documents[0].id });
+  await classifiedDocumentIssueFixture(documents[0].id, { classification: "invalid_credentials", state: "waiting_for_platform", configurationId: configuration.value.id });
+  await tick(301); await tick(600); expect(messages).toHaveLength(0);
+  await tick(601); expect(messages).toHaveLength(1);
+  expect(await deliveries()).toEqual([
+    expect.objectContaining({ id: oldDelivery.id, state: "cancelled" }),
+    expect.objectContaining({ id: expect.not.stringMatching(oldDelivery.id), state: "accepted", impact: { companies: 1, documents: 1, sourceFiles: 0, exportJobs: 0 } }),
+  ]);
+});
+
+it("closes an incident first observed while remediation is uncommitted before the command commits", async () => {
+  const { manualReviewTransactionFixture } = await import("./support/operational-alerts");
+  const { company, start, tick, deliveries } = await scenario(1);
+  const [document] = await listCompanyDocuments(company.client, company.companyId);
+  const transaction = await manualReviewTransactionFixture(company.client);
+  try {
+    await transaction.review(document.id);
+    // The worker can still observe the old committed Document even though the
+    // public command has already completed all its row mutations.
+    await tick(0);
+    expect((await systemClient().rpc("reconcile_operational_alerts", { observed_at: new Date(start + 300000).toISOString() })).error).toBeNull();
+    expect(await deliveries()).toEqual([expect.objectContaining({ state: "pending", resolvedAt: null })]);
+    await transaction.commit();
+  } finally { await transaction.close(); }
+  expect((await listCompanyDocuments(company.client, company.companyId))[0].status).toBe("needs_review");
+  expect(await deliveries()).toEqual([expect.objectContaining({ state: "cancelled", resolvedAt: expect.any(String) })]);
+});
+
+it("cancels a pending allowance alert immediately when the Company receives sufficient allowance", async () => {
+  const { setCompanyAiProcessingAllowance, getCompanyAiProcessingAllowance } = await import("@/application/ai-processing-allowance");
+  const { assignAiConfigurationFixture } = await import("./support/fixtures");
+  const { companyAlertConfigurationFixture } = await import("./support/operational-alerts");
+  const { testWorker } = await import("./support/worker");
+  const { admin, company, start, tick, deliveries, scopes } = await scenario(1);
+  const [document] = await listCompanyDocuments(company.client, company.companyId);
+  const worker = testWorker();
+  await assignAiConfigurationFixture(company.client, worker.jobs, { companyId: company.companyId, provider: worker.ai });
+  scopes.add(await companyAlertConfigurationFixture(company.companyId));
+  expect(await setCompanyAiProcessingAllowance(admin.client, worker.jobs, { companyId: company.companyId, allowance: 0 })).toEqual({ ok: true, value: null });
+  expect(await worker.runJobs()).toEqual([]);
+  expect((await listCompanyDocuments(company.client, company.companyId)).find(waiting => waiting.id === document.id)?.status).toBe("waiting_for_allowance");
+  await tick(0);
+  expect((await systemClient().rpc("reconcile_operational_alerts", { observed_at: new Date(start + 300000).toISOString() })).error).toBeNull();
+  expect(await deliveries()).toEqual([expect.objectContaining({ kind: "allowance_exhausted", state: "pending", resolvedAt: null })]);
+  expect(await setCompanyAiProcessingAllowance(admin.client, { async send() {} }, { companyId: company.companyId, allowance: null })).toEqual({ ok: true, value: null });
+  expect(await getCompanyAiProcessingAllowance(company.client, company.companyId)).toEqual(expect.objectContaining({ ok: true, value: expect.objectContaining({ used: 0, allowance: null }) }));
+  expect(await deliveries()).toEqual([expect.objectContaining({ kind: "allowance_exhausted", state: "cancelled", resolvedAt: expect.any(String) })]);
+});
+
+it("splits 1001 new Documents in a Company with an active incident without restarting that incident's grace", async () => {
+  const { assignAiConfigurationFixture } = await import("./support/fixtures");
+  const { companyAlertConfigurationFixture } = await import("./support/operational-alerts");
+  const { uploadSourceFile } = await import("@/application/source-files");
+  const { workbookFile } = await import("./support/files");
+  const { testWorker } = await import("./support/worker");
+  const admin = await promotedSuperAdministrator("Related bulk subscriber"); subscribers.push(admin);
+  await setOperationalAlertPreference(admin.client, { enabled: true, locale: "en" });
+  // This completed bulk fixture is retained, like the other large Split cases;
+  // only the deliberately blocked Document needs manual remediation below.
+  const company = await companyWithWaitingDocuments(1);
+  const [blocked] = await listCompanyDocuments(company.client, company.companyId);
+  const worker = testWorker();
+  await assignAiConfigurationFixture(company.client, { async send() {} }, { companyId: company.companyId, provider: worker.ai });
+  const configurationId = await companyAlertConfigurationFixture(company.companyId);
+  await classifiedDocumentIssueFixture(blocked.id, { classification: "invalid_credentials", state: "waiting_for_platform", configurationId: configurationId });
+  const messages: OperationalAlertMessage[] = [];
+  const start = Date.now() + 1000;
+  const tick = async (seconds: number) => runOperationalAlertTick(systemClient(), {
+    mailer: { async send(message) { messages.push(message); return "accepted"; } },
+    now: new Date(start + seconds * 1000).toISOString(), appOrigin: "https://ivat.example.test",
+  });
+  const ownDeliveries = async () => {
+    const result = await listOperationalAlertDeliveries(admin.client);
+    if (!result.ok) throw new Error(result.error);
+    return result.value.filter(delivery => delivery.rootKey === `invalid_credentials:${configurationId}`);
+  };
+  try {
+    await tick(0);
+    worker.ai.split = async () => ({ model: "fake-bulk-split", documents: Array.from({ length: 1001 }, (_, index) => ({ sheetName: "Invoices", firstRow: index + 2, lastRow: index + 2 })) });
+    const source = await uploadSourceFile(company.client, worker.jobs, { companyId: company.companyId, fileName: "related-bulk.xlsx", bytes: workbookFile("xlsx", [["Invoice"], ...Array.from({ length: 1001 }, (_, index) => [`INV-${index}`])]) });
+    if (!source.ok) throw new Error(source.error);
+    await worker.runNextJob();
+    const documents = await listCompanyDocuments(company.client, company.companyId);
+    expect(documents.filter(document => document.sourceFileId === source.value.id)).toHaveLength(1001);
+    expect(documents.find(document => document.id === blocked.id)?.status).toBe("waiting_for_platform");
+    await tick(299); expect(await ownDeliveries()).toEqual([]);
+    await tick(300);
+    const own = await ownDeliveries();
+    expect(own).toEqual([expect.objectContaining({ state: "accepted", resolvedAt: null, impact: { companies: 1, documents: 1, sourceFiles: 0, exportJobs: 0 } })]);
+    expect(messages.filter(message => own.some(delivery => message.messageId.includes(delivery.id)))).toHaveLength(1);
+  } finally {
+    expect(await startManualDocumentReview(company.client, { companyId: company.companyId, documentId: blocked.id })).toEqual({ ok: true, value: null });
+  }
+});
+
+it("observes both configuration scopes on reassignment while another Company preserves the shared root", async () => {
+  const { createAiConfiguration, assignCompanyAiConfiguration } = await import("@/application/ai-configurations");
+  const { assignedCompanyWithDisabledAiFixture } = await import("./support/operational-alerts");
+  const { admin, company, tick, messages, deliveries, scopes } = await scenario(1);
+  const second = await companyWithWaitingDocuments(1); companies.push(second);
+  await removeAiConfigurationFixture(second.client, second.companyId);
+  const first = await createAiConfiguration(admin.client, { label: `Shared ${crypto.randomUUID()}`, provider: "anthropic", splitModel: "test", extractModel: "test", credential: "synthetic-test-credential" });
+  const replacement = await createAiConfiguration(admin.client, { label: `Replacement ${crypto.randomUUID()}`, provider: "anthropic", splitModel: "test", extractModel: "test", credential: "synthetic-test-credential" });
+  if (!first.ok || !replacement.ok) throw new Error("Configuration fixture failed");
+  scopes.add(first.value.id); scopes.add(replacement.value.id);
+  for (const owner of [company, second]) {
+    expect(await assignCompanyAiConfiguration(admin.client, { companyId: owner.companyId, configurationId: first.value.id })).toEqual({ ok: true, value: null });
+    await assignedCompanyWithDisabledAiFixture(owner.companyId);
+  }
+  await tick(0);
+  expect(await assignCompanyAiConfiguration(admin.client, { companyId: company.companyId, configurationId: replacement.value.id })).toEqual({ ok: true, value: null });
+  await assignedCompanyWithDisabledAiFixture(company.companyId);
+  await tick(299);
+  await tick(300);
+  expect(messages).toHaveLength(1);
+  expect(await deliveries()).toEqual([expect.objectContaining({ rootKey: `waiting_documents:${first.value.id}`, impact: { companies: 1, documents: 1, sourceFiles: 0, exportJobs: 0 } })]);
+  const [remaining] = await listCompanyDocuments(second.client, second.companyId);
+  await startManualDocumentReview(second.client, { companyId: second.companyId, documentId: remaining.id });
+  expect(await deliveries()).toEqual([expect.objectContaining({ rootKey: `waiting_documents:${first.value.id}`, resolvedAt: expect.any(String) })]);
+  await tick(598); expect(messages).toHaveLength(1);
+  await tick(599); expect(messages).toHaveLength(2);
+});
+
+it("cancels a Source File incident immediately when manual Source recovery resolves its work", async () => {
+  const { uploadSourceFile, startManualSourceReview, getSourceFile } = await import("@/application/source-files");
+  const { fixtureFile } = await import("./support/files");
+  const { company, start, tick, deliveries } = await scenario(1);
+  const [document] = await listCompanyDocuments(company.client, company.companyId);
+  await startManualDocumentReview(company.client, { companyId: company.companyId, documentId: document.id });
+  const source = await uploadSourceFile(company.client, { async send() {} }, { companyId: company.companyId, fileName: "receipt.png", bytes: fixtureFile("receipt.png") });
+  if (!source.ok) throw new Error(source.error);
+  await classifiedSourceIssueFixture(source.value.id, { classification: "configuration_missing", state: "waiting_for_platform" });
+  await tick(0);
+  expect((await systemClient().rpc("reconcile_operational_alerts", { observed_at: new Date(start + 300000).toISOString() })).error).toBeNull();
+  expect(await deliveries()).toEqual([expect.objectContaining({ kind: "configuration_missing", state: "pending", impact: { companies: 1, documents: 0, sourceFiles: 1, exportJobs: 0 } })]);
+  expect(await startManualSourceReview(company.client, { companyId: company.companyId, sourceFileId: source.value.id })).toEqual({ ok: true, value: null });
+  expect(await getSourceFile(company.client, company.companyId, source.value.id)).toEqual(expect.objectContaining({ status: "needs_review" }));
+  expect(await deliveries()).toEqual([expect.objectContaining({ state: "cancelled", resolvedAt: expect.any(String) })]);
+});
+
+it("still invalidates a failed export synchronously when only its Company data revision changes", async () => {
+  const { createBoss, createProcessingQueues } = await import("@/lib/jobs");
+  const { exportCompanyData } = await import("@/application/company-deletion");
+  const { uploadSourceFile } = await import("@/application/source-files");
+  const { fixtureFile } = await import("./support/files");
+  const { company, start, tick, deliveries } = await scenario(1);
+  process.loadEnvFile(".env.local");
+  const boss = createBoss({ supervise: false }); await boss.start(); await createProcessingQueues(boss);
+  try {
+    const exported = await exportCompanyData(company.client, { async send(job) { await boss.send(job.name, job.data, { retryLimit: 0 }); } }, { companyId: company.companyId });
+    if (!exported.ok) throw new Error(exported.error);
+    const jobs = await boss.fetch("complete-company-export", { includeMetadata: true, batchSize: 100 });
+    const ownJob = jobs.find(job => (job.data as { exportId: string }).exportId === exported.value.exportId);
+    if (!ownJob) throw new Error("Export fixture not claimed");
+    await boss.fail("complete-company-export", ownJob.id, { message: "synthetic export failure" });
+    await tick(0);
+    expect((await systemClient().rpc("reconcile_operational_alerts", { observed_at: new Date(start + 300000).toISOString() })).error).toBeNull();
+    expect((await deliveries()).filter(delivery => delivery.kind === "failed_company_export")).toEqual([expect.objectContaining({ state: "pending", resolvedAt: null })]);
+    const uploaded = await uploadSourceFile(company.client, { async send() {} }, { companyId: company.companyId, fileName: "later.png", bytes: fixtureFile("receipt.png") });
+    expect(uploaded.ok).toBe(true);
+    expect((await deliveries()).filter(delivery => delivery.kind === "failed_company_export")).toEqual([expect.objectContaining({ state: "cancelled", resolvedAt: expect.any(String) })]);
+    expect((await deliveries()).filter(delivery => delivery.kind === "waiting_documents")).toEqual([expect.objectContaining({ state: "pending", resolvedAt: null })]);
+  } finally { await boss.stop(); }
+});
+
 it("includes durable terminal processing failure and failed export with truthful units", async () => {
   const { createBoss, createProcessingQueues } = await import("@/lib/jobs");
   const { exportCompanyData, getCompanyDataExportStatus } = await import("@/application/company-deletion");
-  const { closeFailedExportAttempt, takeOverFailedProcessingJob } = await import("@/application/processing-administration");
+  const { closeFailedExportAttempt, takeOverFailedProcessingJob, listFailedProcessingJobs } = await import("@/application/processing-administration");
+  const { legacyUnclassifiedFailedDocumentFixture } = await import("./support/operational-alerts");
   const { admin, company, tick, messages, deliveries } = await scenario(1);
   const [document] = await listCompanyDocuments(company.client, company.companyId);
   process.loadEnvFile(".env.local");
   const boss = createBoss({ supervise: false }); await boss.start(); await createProcessingQueues(boss);
   try {
-    // The handler's durable terminal state and pg-boss's failed attempt agree.
-    expect((await systemClient().from("document").update({ status: "failed" }).eq("id", document.id)).error).toBeNull();
+    // Retained unclassified failure, not proof of today's classified AI handler:
+    // the real pg-boss attempt and public remediation below exercise that legacy path.
+    await legacyUnclassifiedFailedDocumentFixture(document.id);
     const processingId = await boss.send("extract-document", { documentId: document.id }, { retryLimit: 0 });
     if (!processingId) throw new Error("processing enqueue failed");
     const processingJobs = await boss.fetch("extract-document", { includeMetadata: true, batchSize: 100 });
-    await boss.fail("extract-document", processingJobs.map(job => job.id), { message: "PRIVATE_PROVIDER_RESPONSE" });
+    const processingJob = processingJobs.find(job => job.id === processingId);
+    if (!processingJob) throw new Error("Processing claim failed");
+    await boss.fail("extract-document", processingJob.id, { message: "PRIVATE_PROVIDER_RESPONSE" });
+    const failures = await listFailedProcessingJobs(admin.client);
+    if (!failures.ok) throw new Error(failures.error);
+    expect(failures.value).toContainEqual(expect.objectContaining({ id: processingId, name: "extract-document", targetId: document.id, retryCount: processingJob.retryCount }));
     const exported = await exportCompanyData(company.client, { async send(job) { await boss.send(job.name, job.data, { retryLimit: 0 }); } }, { companyId: company.companyId });
     if (!exported.ok) throw new Error(exported.error);
-    expect((await systemClient().rpc("fail_company_data_export", { target_export_id: exported.value.exportId })).error).toBeNull();
+    await failedCompanyDataExportFixture(exported.value.exportId);
     const exportJobs = await boss.fetch("complete-company-export", { includeMetadata: true, batchSize: 100 });
     const exportJob = exportJobs.find(job => (job.data as { exportId: string }).exportId === exported.value.exportId);
     if (!exportJob) throw new Error("export claim failed");

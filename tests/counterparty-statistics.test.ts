@@ -9,7 +9,7 @@ import { fakeVatPayerRegistry } from "@/vat-registry/fake";
 import { administratorWithCompany, companyDetails, companyMember, knownSupplierFixture } from "./support/fixtures";
 import { createConfirmedManualDocument } from "./support/claim-eligibility";
 import { legacyCounterpartyTradeFixture } from "./support/counterparty-statistics";
-import { withPostgrestRowLimit } from "./support/postgrest";
+import { companyDocumentRowLimitProbe, withPostgrestRowLimit } from "./support/postgrest";
 import { promotedSuperAdministrator } from "./support/platform";
 
 it("shows original trade amounts and the exact Approved Document contribution", async () => {
@@ -94,7 +94,7 @@ it("covers more than 1000 Documents and pages the exact population even under a 
   const [party] = (await listCounterparties(owner.client, owner.companyId)).entries;
   const payload = { ...SAMPLE_EXTRACTION, counterpartyLink: { id: party.id }, totals: { netAmount: "0.01", vatAmount: "0.02", grossAmount: "0.03" } };
   const ids = await legacyCounterpartyTradeFixture(owner, Array.from({ length: 1001 }, () => ({ payload })));
-  await withPostgrestRowLimit(3, () => owner.client.from("document").select("id").eq("company_id", owner.companyId).limit(10), async () => {
+  await withPostgrestRowLimit(3, companyDocumentRowLimitProbe(owner.client, owner.companyId), async () => {
     const first = await getCounterpartyStatistics(owner.client, owner.companyId, party.id, { year: "2026" });
     expect(first).toMatchObject({ ok: true, value: { total: 1001, pageCount: 21, groups: [{ documentCount: 1001, netAmount: "10.01", vatAmount: "20.02", grossAmount: "30.03" }] } });
     const observed: string[] = [];

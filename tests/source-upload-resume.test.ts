@@ -5,6 +5,7 @@ import { reconcileSourceUpload, appendSourceUpload, completeSourceUpload } from 
 import { administratorWithCompany } from "./support/fixtures";
 import { selectFixtureFiles } from "./support/files";
 import { testWorker } from "./support/worker";
+import { removeIsolatedUploadQueueFixture } from "./support/faults";
 
 it("reconciles an interrupted immutable item and completes only its missing bytes", async () => {
   const owner = await administratorWithCompany();
@@ -60,7 +61,6 @@ it("concurrent finalization and recovery after dispatch failure converge on one 
   expect((await appendSourceUpload(owner.client, { ...identity, offset: 0, bytes: file.bytes })).ok).toBe(true);
   await expect(completeSourceUpload(owner.client, { async send() { throw new Error("lost dispatch response"); } }, identity)).rejects.toThrow("lost dispatch response");
   const { PgBoss } = await import("pg-boss");
-  const { Client } = await import("pg");
   const { createProcessingQueues, pgBossJobQueue } = await import("@/lib/jobs");
   const schema = `resume_${crypto.randomUUID().replaceAll("-", "")}`;
   const boss = new PgBoss({ connectionString: inject("databaseUrl"), schema, supervise: false, schedule: false });
@@ -86,10 +86,7 @@ it("concurrent finalization and recovery after dispatch failure converge on one 
     expect(await boss.fetch("split-source-file", { batchSize: 10 })).toEqual([]);
   } finally {
     await boss.stop();
-    const database = new Client({ connectionString: inject("databaseUrl") });
-    await database.connect();
-    try { await database.query(`drop schema "${schema}" cascade`); }
-    finally { await database.end(); }
+    await removeIsolatedUploadQueueFixture(schema);
   }
   expect(await listSourceFiles(owner.client, owner.companyId)).toHaveLength(1);
   const documents = await listCompanyDocuments(owner.client, owner.companyId);
@@ -159,7 +156,7 @@ it("pins manifest identity and applies current byte, page and batch limits at co
 });
 
 it("assembles every confirmed portion beyond the actual PostgREST response cap", async () => {
-  const { withPostgrestRowLimit } = await import("./support/postgrest");
+  const { sourceUploadChunkRowLimitProbe, withPostgrestRowLimit } = await import("./support/postgrest");
   const owner = await administratorWithCompany();
   const { files: [file], selectedFiles } = selectFixtureFiles("receipt.png");
   const batch = await beginUploadBatch(owner.client, { companyId: owner.companyId, fileCount: 1, selectedFiles });
@@ -170,7 +167,7 @@ it("assembles every confirmed portion beyond the actual PostgREST response cap",
     expect((await appendSourceUpload(owner.client, { ...identity, offset, bytes: file.bytes.slice(offset, end) })).ok).toBe(true);
   }
   await withPostgrestRowLimit(1,
-    () => owner.client.from("source_upload_chunk").select("byte_offset").eq("source_file_id", file.sourceFileId),
+    sourceUploadChunkRowLimitProbe(owner.client, file.sourceFileId),
     async () => {
       expect(await completeSourceUpload(owner.client, testWorker().jobs, identity)).toEqual({ ok: true, value: { id: file.sourceFileId } });
       expect((await readSourceFile(owner.client, owner.companyId, file.sourceFileId))?.bytes).toEqual(file.bytes);

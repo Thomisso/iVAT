@@ -12,7 +12,7 @@ import { getPhotoGroup, readPhotoGroupBasis } from "@/application/photo-groups";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { administratorWithCompany, assignAiConfigurationFixture } from "./support/fixtures";
 import { fixtureFile, selectUploadFiles } from "./support/files";
-import { withPostgrestRowLimit } from "./support/postgrest";
+import { companySourceFileRowLimitProbe, withPostgrestRowLimit } from "./support/postgrest";
 import { PDFDocument } from "pdf-lib";
 import { testWorker } from "./support/worker";
 
@@ -194,7 +194,7 @@ describe("User-confirmed Photo Groups", () => {
     for (const file of pendingFiles) expect((await uploadSourceFile(owner.client, worker.jobs, { companyId: owner.companyId, batchId: batch.value.id, ...file })).ok).toBe(true);
     await finishUploadBatch(owner.client, batch.value.id);
     worker.releaseDelayedJobs();
-    await withPostgrestRowLimit(2, () => owner.client.from("source_file").select("id").eq("company_id", owner.companyId).limit(10), async () => {
+    await withPostgrestRowLimit(2, companySourceFileRowLimitProbe(owner.client, owner.companyId), async () => {
       expect(await worker.runJobsConcurrently()).toEqual([]);
       expect((await getDocument(owner.client, owner.companyId, groupId))?.status).toBe("needs_review");
       const group = await getPhotoGroup(owner.client, owner.companyId, groupId);

@@ -1,17 +1,16 @@
-import { inject, expect, it } from "vitest";
-import { Client as DatabaseClient } from "pg";
+import { expect, it } from "vitest";
 import { listPlatformOrganizationCompanies } from "@/application/platform-administration";
 import { beginTotpEnrollment, completeTotpEnrollment } from "@/application/mfa";
 import { provisionedUser } from "../tests/support/clients";
-import { systemClient } from "../tests/support/worker";
+import { promoteSuperAdministratorFixture } from "../tests/support/platform";
+import { withOrganizationCreateStorageFault } from "../tests/support/faults";
 import { totp } from "../tests/support/totp";
 import { baseUrl, httpAs, inputTag } from "./support/http";
 
 it("creates an empty Organization through localized MFA-authorized HTTP and retains refused input", async () => {
   const customerName = `HTTP created customer ${crypto.randomUUID()}`;
   const operator = await provisionedUser("HTTP platform operator");
-  const promoted = await systemClient().from("platform_user").insert({ user_id: operator.userId, role: "super_admin" });
-  if (promoted.error) throw promoted.error;
+  await promoteSuperAdministratorFixture(operator.userId);
   const anonymous = await fetch(new URL("/platform/organizations/new", baseUrl()), { redirect: "manual" });
   expect(anonymous.status).toBe(307);
   expect(new URL(anonymous.headers.get("location")!, baseUrl()).pathname).toBe("/login");
@@ -39,14 +38,7 @@ it("creates an empty Organization through localized MFA-authorized HTTP and reta
       expect(invalidHtml.includes("Enter the name of your organization.")).toBe(true);
       expect(/<input[^>]*name="name"[^>]*value="   "/.test(invalidHtml)).toBe(true);
 
-      const database = new DatabaseClient({ connectionString: inject("databaseUrl") });
-      await database.connect();
-      try {
-        await database.query(`create function private.test_reject_organization_create_292() returns trigger
-          language plpgsql as $$ begin if new.name = 'Storage failure customer' then
-          raise exception 'controlled storage failure'; end if; return new; end $$;
-          create trigger test_reject_organization_create_292 before insert on public.organization
-          for each row execute function private.test_reject_organization_create_292();`);
+      await withOrganizationCreateStorageFault(async () => {
         const failing = organizationForm(invalidHtml);
         failing.set("name", "  Storage failure customer  ");
         const failed = await request("/platform/organizations/new", { method: "POST", headers: { Origin: baseUrl() }, body: failing });
@@ -54,10 +46,7 @@ it("creates an empty Organization through localized MFA-authorized HTTP and reta
         const failedHtml = await failed.text();
         expect(failedHtml.includes("The Organization could not be saved. Please try again.")).toBe(true);
         expect(/<input[^>]*name="name"[^>]*value="  Storage failure customer  "/.test(failedHtml)).toBe(true);
-      } finally {
-        await database.query("drop trigger if exists test_reject_organization_create_292 on public.organization; drop function if exists private.test_reject_organization_create_292()");
-        await database.end();
-      }
+      });
 
       const valid = organizationForm(invalidHtml);
       valid.set("name", `  ${customerName}  `);
