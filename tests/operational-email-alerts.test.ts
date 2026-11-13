@@ -18,16 +18,18 @@ import { classifiedDocumentIssueFixture, classifiedSourceIssueFixture, clearOper
 const companies: Awaited<ReturnType<typeof companyWithWaitingDocuments>>[] = [];
 const subscribers: Awaited<ReturnType<typeof promotedSuperAdministrator>>[] = [];
 let bulkDiagnostics: ReturnType<typeof startSupabaseRequestDiagnostics> | undefined;
+let bulkCapture: OperationalBulkCapture | undefined;
 aroundEach(async (run, { task }) => {
   if (task.name !== bulkCase || process.env.IVAT_OPERATIONAL_BULK_CAPTURE !== "1") { await run(); return; }
   const capture = new OperationalBulkCapture();
   await capture.begin({ name: task.name, moduleId: task.file.filepath, root: process.cwd(), provided: { supabaseUrl: inject("supabaseUrl"), databaseUrl: inject("databaseUrl") } });
+  bulkCapture = capture;
   try {
     bulkDiagnostics = startSupabaseRequestDiagnostics({ reportOnSuccess: true, announce: true });
     await run();
   } finally {
     try { capture.recordRequestReport(bulkDiagnostics?.finish()); }
-    finally { bulkDiagnostics = undefined; await capture.end(); }
+    finally { bulkDiagnostics = undefined; bulkCapture = undefined; await capture.end(); }
   }
 });
 afterEach(async () => {
@@ -786,7 +788,8 @@ it("cancels a pending allowance alert immediately when the Company receives suff
   expect(await deliveries()).toEqual([expect.objectContaining({ kind: "allowance_exhausted", state: "cancelled", resolvedAt: expect.any(String) })]);
 });
 
-it(bulkCase, async () => {
+it(bulkCase, async ({ task, signal }) => {
+  const bodyStartedAt = performance.now();
   try {
     const measure = bulkDiagnostics?.runPhase ?? (async <T>(_phase: RequestTestPhase, run: () => Promise<T>) => run());
     const { assignAiConfigurationFixture } = await import("./support/fixtures");
@@ -824,7 +827,11 @@ it(bulkCase, async () => {
         await measure("bulk_split", () => worker.runNextJob());
         const documents = await measure("readback_assertions", () => withDocumentOverviewPlan(company.client, company.companyId,
           () => listCompanyDocuments(company.client, company.companyId),
-          { root: process.cwd(), databaseUrl: inject("databaseUrl"), supabaseUrl: inject("supabaseUrl") }));
+          { root: process.cwd(), databaseUrl: inject("databaseUrl"), supabaseUrl: inject("supabaseUrl"), sourceFileId: source.value.id, failure: {
+            ready: () => bulkCapture?.hasActiveContext({ databaseUrl: inject("databaseUrl"), supabaseUrl: inject("supabaseUrl") }) ?? false,
+            firstFailure: () => bulkDiagnostics?.firstFailure(), observeOriginal: error => bulkDiagnostics?.observeFailure(error),
+            bodyStartedAt, timeoutMs: task.timeout, signal,
+          } }));
         expect(documents.filter(document => document.sourceFileId === source.value.id)).toHaveLength(1001);
         expect(documents.find(document => document.id === blocked.id)?.status).toBe("waiting_for_platform");
         await measure("tick_299", () => tick(299)); expect(await measure("receipts", ownDeliveries)).toEqual([]);

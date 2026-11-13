@@ -182,6 +182,7 @@ jobs:
         run: npm run test:serial -- --shard=${{ matrix.shard }}/3
         env:
           IVAT_OPERATIONAL_BULK_CAPTURE: "1"
+          IVAT_DOCUMENT_OVERVIEW_FAILURE_CAPTURE: "1"
       - name: Upload sanitized operational bulk capture
         if: always()
         uses: actions/upload-artifact@v7
@@ -192,6 +193,7 @@ jobs:
             test-results/operational-bulk-capture/request.jsonl
             test-results/operational-bulk-capture/postgres.jsonl
             test-results/operational-bulk-capture/waits.jsonl
+            test-results/document-overview-failure.json
           if-no-files-found: ignore
           retention-days: 3
       - name: Stop the disposable database

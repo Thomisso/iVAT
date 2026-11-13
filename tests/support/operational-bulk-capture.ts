@@ -157,6 +157,7 @@ export default class OperationalBulkCapture {
   private until = "";
   private container?: string;
   private armed = false;
+  private provided?: CaptureCase["provided"];
   private interval?: ReturnType<typeof setInterval>;
   private deadline?: ReturnType<typeof setTimeout>;
   private startup = Promise.resolve();
@@ -221,7 +222,7 @@ export default class OperationalBulkCapture {
     const files = ["capture.jsonl", "request.jsonl", "postgres.jsonl", "waits.jsonl"].map(file => path.join(directory, file));
     if (files.some(file => fs.existsSync(file) && (!fs.lstatSync(file).isFile() || fs.lstatSync(file).isSymbolicLink()))) throw unavailable();
     for (const file of files) { fs.writeFileSync(file, "", { mode: 0o600 }); fs.chmodSync(file, 0o600); }
-    this.root = root; this.container = selected.container;
+    this.root = root; this.container = selected.container; this.provided = test.provided;
     // This acquisition is owned even if stop arrives before it resolves.
     this.connection = await this.io.connect(selected.databaseUrl);
     if (this.state !== "starting") return;
@@ -234,6 +235,9 @@ export default class OperationalBulkCapture {
         if (this.state === "active") this.write("waits.jsonl", { elapsedMs: performance.now() - this.started, waits: rows.slice(0, 32).map(row => ({ waitType: typeof row.wait_event_type === "string" && waitTypes.has(row.wait_event_type) ? row.wait_event_type : null, blockerCount: Number.isInteger(row.blocker_count) && Number(row.blocker_count) >= 0 ? row.blocker_count : null })) });
       }).catch(() => { this.sampleUnavailable = true; }).finally(() => { this.sampling = false; });
     }, 100);
+  }
+  hasActiveContext(provided: CaptureCase["provided"]) {
+    return this.state === "active" && this.armed && this.provided?.databaseUrl === provided.databaseUrl && this.provided.supabaseUrl === provided.supabaseUrl;
   }
   recordRequestReport(raw: unknown) {
     if (this.requestCaptured || !this.root) return;

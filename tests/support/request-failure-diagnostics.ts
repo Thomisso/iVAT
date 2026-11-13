@@ -138,6 +138,7 @@ export function startSupabaseRequestDiagnostics(options: { reportOnSuccess?: boo
     if (stageFailures.length > 16) stageFailures.shift();
   };
   return {
+    firstFailure: () => firstFailure ? { ...firstFailure } : null,
     setPhase,
     observeFailure,
     async runPhase<T>(next: RequestTestPhase, run: () => Promise<T>): Promise<T> {
