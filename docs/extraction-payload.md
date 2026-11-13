@@ -153,11 +153,6 @@ establish `origin: "same_period"` only when DUZP, issue date and the actual Sour
 File Import Date all belong to that generated period. This rule does not itself
 approve a Document or establish earlier possession from a later upload.
 
-**ADR conflict:** ADR-0020 places the same-period rule under the automatic-approval
-policy. The implemented [`private.document_eligibility_payload`](../supabase/migrations/20261130001500_earliest_claim_period.sql)
-applies it without checking the Company automatic-approval setting. This section
-records the implemented contract; the ADR policy wording remains to be reconciled.
-
 The database binds `basis` to the then-current document type, Direction, VAT Regime,
 DUZP, issue date, Source File identity and Prague Import Date. A Document without a
 Source File has null source identity and Import Date in that basis; it cannot
