@@ -1,6 +1,8 @@
 # QA v2: sjednocení aplikace a platformně řízené AI
 
-**Stav:** potvrzená produktová specifikace
+**Navazující backlog triage 12. 11. 2026:** [potvrzené Q26–Q49](qa-remaining-triage.md) upřesňují dnešní stav odkladů níže. Původní specifikace a její historická hranice zůstávají zachované.
+
+**Stav:** dodáno do `main` v [PR #114](https://github.com/Thomisso/iVAT/pull/114) dne 29. 10. 2026; [#91](https://github.com/Thomisso/iVAT/issues/91) je uzavřené. Níže zůstává schválená specifikace této etapy.
 **Datum rozhodnutí:** 29. října 2026
 **Původ:** ruční QA současného MVP a navazující produktové grilování
 **Návaznost:** tato specifikace nahrazuje části QA v1 a requirements v0.2, které předpokládají Organization BYOK nebo Organization AI Settings

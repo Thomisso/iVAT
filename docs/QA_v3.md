@@ -1,6 +1,6 @@
 # QA v3: opravy dokladů, zdaňovací období a desktopový pracovní tok
 
-**Stav:** QA nálezy strukturované pro navazující specifikaci
+**Stav:** dodáno do `main` v [PR #131](https://github.com/Thomisso/iVAT/pull/131) dne 30. 10. 2026; [#115](https://github.com/Thomisso/iVAT/issues/115) je uzavřené. Níže zůstává původní návrhový podklad; jeho tehdejší otevřené detaily nejsou dnešní frontou práce.
 **Původ:** ruční QA aplikace po změnách QA v1 a QA v2
 **Návaznost:** navazuje na QA v1 a QA v2; zachovává platformně řízené AI a ochranu uzamčených období
 

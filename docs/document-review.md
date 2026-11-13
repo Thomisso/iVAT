@@ -1,6 +1,10 @@
 # Společná specifikace revize dokladů
 
-**Stav:** schválená společná specifikace k následné ticketizaci. Produktová rozhodnutí Q1–Q42 i celý dokument jsou potvrzené; implementace nebyla zahájena. Pro výpočet staré lhůty platí ověřovací brána v části „Podmínky implementace“.
+**Stav:** dodáno do `main` v [PR #243](https://github.com/Thomisso/iVAT/pull/243) dne 8. 11. 2026; [#222](https://github.com/Thomisso/iVAT/issues/222), integrační #242 a implementační tickety #223–#241 jsou uzavřené. Navazující oprava PDF evidence [#253 / PR #265](https://github.com/Thomisso/iVAT/pull/265) byla sloučena 10. 11. 2026. Produktová rozhodnutí Q1–Q42 níže jsou schválený podklad této dodávky, nikoli nedokončený rozhovor.
+
+**Navazující rozsah:** [QA v7 triage](qa-v7-triage.md), poměrný odpočet [#275](https://github.com/Thomisso/iVAT/issues/275) a oddělené měsíční KH [#277](https://github.com/Thomisso/iVAT/issues/277) jsou samostatná dosud nedodaná zadání. Tento stav potvrzuje merge kódu; nepřidává tvrzení o produkčním nasazení ani o novém klientském či vizuálním ověření.
+
+**Ověření staré lhůty:** bránu při tehdejší implementaci řešily #224 a #238; rozsah závěrů a inference zůstává v [původním rozboru](research/claim-deadline.md) a [navazujícím rozboru hranice](research/claim-deadline-new-yearend.md). Níže uvedené podmínky zachovávají historický kontrakt, nevytvářejí znovu otevřený produktový úkol.
 **Zdroj:** [QA v7](QA_v7.md), výchozí bod 7 a související požadavky.
 **Zahájeno:** 6. 11. 2026.
 **Schváleno:** 6. 11. 2026 výslovným závěrečným potvrzením uživatele.
@@ -77,7 +81,7 @@ Správa uživatelů z bodu 5 a dashboard z bodu 6 nejsou součástí. Samostatn�
 - Automatické propojení vyžaduje jednoznačnou shodu normalizovaného DIČ nebo IČO. Rozporné identifikátory, více kandidátů nebo chybějící identifikace vyžadují ruční výběr. Podobné jméno smí nabídnout kandidáta, ne samo automaticky propojit záznam.
 - Při úspěšném schválení může vzniknout záznam dosud neznámé protistrany. Automatické vytvoření vyžaduje platné jednoznačné IČO nebo DIČ. Bez identifikátoru uživatel výslovně potvrdí vytvoření nebo vybere existující záznam. Neúspěšné schválení nezanechá nový adresářový záznam.
 - Nepoužitý záznam lze smazat. Záznam s navázanými doklady lze pouze archivovat. Úpravy jsou možné, ale nepřepíší údaje dokladů. Archivovaná protistrana zůstává dostupná na starých dokladech a běžně se nenabízí pro nové.
-- První verze adresáře zahrnuje hledání podle názvu, IČO a DIČ, filtr dodavatel/odběratel, detail s navázanými doklady a ruční založení, úpravu a archivaci. Pokročilé statistiky a finanční přehledy zůstávají budoucím rozšířením.
+- První verze adresáře zahrnuje hledání podle názvu, IČO a DIČ, filtr dodavatel/odběratel, detail s navázanými doklady a ruční založení, úpravu a archivaci. První finanční souhrn na detailu je nově specifikované, dosud nedodané rozšíření [#282](https://github.com/Thomisso/iVAT/issues/282) podle [Q15–Q25](qa-v7-quality-statistics.md); širší analytika zůstává odložená.
 - Všichni uživatelé s přístupem k dané firmě mají stejná oprávnění k celé správě jejího adresáře: založení, úpravy, smazání nepoužitého záznamu, archivaci i obnovení. Administrator ani SuperAdmin nemají navíc výjimku z kontroly vazeb na doklady.
 - Identifikátory se kontrolují i proti archivovaným záznamům. Stejnou identitu nelze v téže firmě znovu založit; při archivované shodě lze záznam obnovit. Podobná jména bez identifikátorů automatickou shodu ani sloučení nevytvářejí; automatické slučování není součástí první verze.
 - Shoda jednoho identifikátoru nepřebije rozpor druhého. Současné založení stejné identity dvěma uživateli nesmí vytvořit dvě protistrany; pokud se během operace změní kandidát či jeho údaje, znovu se posoudí shoda a případné nové upozornění.

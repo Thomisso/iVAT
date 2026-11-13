@@ -1,6 +1,8 @@
 # QA v4: spolehlivé dávky, pravdivý stav exportů a jednotná administrace
 
-**GitHub issue:** [#133](https://github.com/Thomisso/iVAT/issues/133) — ready-for-agent.
+**GitHub issue:** [#133](https://github.com/Thomisso/iVAT/issues/133) — uzavřené po merge [PR #151](https://github.com/Thomisso/iVAT/pull/151) do `main` dne 30. 10. 2026.
+
+**Aktualizace stavu 12. 11. 2026:** dodávka této etapy je dokončená; následující text zachovává původní schválenou specifikaci a tehdejší testovací plán. Nové ověřování se řídí současnými [CLI pravidly](agents/cli-processes.md).
 
 **Stav:** schválená specifikace podle uzavřeného rozhovoru nad QA v4. Uživatel potvrdil také testovací rozhraní: stávající Playwright scénáře, integrační testy aplikačních služeb proti lokální databázi a cílené databázové kontroly oprávnění, souběžných duplicit a zamykání. Implementace není součástí vytvoření této specifikace.
 

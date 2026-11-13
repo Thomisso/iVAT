@@ -1,6 +1,8 @@
-# iVAT: aktuálně dostupná funkcionalita MVP
+# iVAT: historický stav MVP po QA v2
 
-Tento dokument popisuje funkce doložené v repozitáři po integraci specifikace QA v2 dne 29. října 2026. Draft požadavků používá jen jako kontext; za implementovanou funkci považuje pouze to, co má oporu ve zdrojovém kódu, databázových migracích, aplikačních testech nebo end-to-end scénáři.
+Tento dokument zachovává stav po integraci specifikace QA v2 dne 29. října 2026. Není dnešním katalogem funkcí: veřejná registrace byla později uzavřena, review/source evidence a volitelné automatické schvalování dodaly další QA etapy. Aktuální rozlišení dodávek, backlogu a ověřovacích mezer je v [auditu dokumentace](docs-open-items-audit.md).
+
+Původní podklad popisuje funkce doložené v repozitáři k uvedenému datu. Draft požadavků používá jen jako kontext; za implementovanou funkci považuje pouze to, co má oporu ve zdrojovém kódu, databázových migracích, aplikačních testech nebo end-to-end scénáři.
 
 ## Co MVP řeší
 

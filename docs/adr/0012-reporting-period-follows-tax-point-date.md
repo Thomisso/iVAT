@@ -8,6 +8,6 @@ This retains a predictable initial proposal while separating it from legal eligi
 
 - Defaulting incoming Documents to the later of the Tax Point Date and the Receipt Date (the previous behaviour) was rejected because the Receipt Date defaulted to the upload date, which silently moved Documents uploaded late into the wrong period.
 
-## Revision accepted on 6 November 2026; implementation pending
+## Revision accepted on 6 November 2026 and delivered on 8 November 2026
 
-The old general three-year Deferred Claim limit and the prior trade-off allowing a default without checking the earliest eligible period are superseded by ADR-0020. The accepted target distinguishes transitional provisions, entitlement, earliest eligibility and actual exercise by filing. The existing implementation has not changed; [the shared Document review specification](../document-review.md) records the target and its implementation gates.
+The old general three-year Deferred Claim limit and the prior trade-off allowing a default without checking the earliest eligible period are superseded by ADR-0020. The accepted target distinguishes transitional provisions, entitlement, earliest eligibility and actual exercise by filing. The revision was delivered by #237/#238 within [PR #243](https://github.com/Thomisso/iVAT/pull/243). [The shared Document review specification](../document-review.md) and the linked deadline research retain the supported scope, acceptance and interpretation limits.
