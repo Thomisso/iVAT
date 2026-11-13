@@ -55,10 +55,12 @@ creating an empty transport attempt.
 The worker runs bounded temporary cleanup on startup and every 30 seconds.
 Worker-only RPCs retire invalid/expired attempts and enumerate actual objects,
 including unconfirmed ones. The worker cannot write transport tables directly.
-Removal uses the Storage API and only the
-`source-upload-chunks` bucket. Cleanup tombstones survive Batch deletion and
+Removal uses the Storage API: retired portion scopes in
+`source-upload-chunks`, and exact unpublished original/derivative names in
+`source-files`. Published object ownership protects retained evidence. Cleanup tombstones survive Batch deletion and
 empty or failed sweeps, so later provider-side writes remain discoverable.
-Each pass visits up to 100 scopes and up to 500 objects per scope; later passes
+Each pass visits up to 100 portion scopes (up to 500 objects each) and up to
+100 original/derivative owners (at most two exact names each); later passes
 continue remaining work. Tombstones are retained indefinitely: timeouts and
 empty listings cannot prove that every previously admitted write has finished.
 
