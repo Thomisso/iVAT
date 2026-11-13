@@ -85,7 +85,6 @@ async function collectOverviewFailure(client: AppClient, companyId: string, cont
     await query("begin read only"); await query("set local statement_timeout = '500ms'");
     const metadata = (await query(`select current_setting('server_version_num') as server_version_num,version() as server_build,
       pg_jit_available() as jit_available,current_setting('jit_provider') as provider,
-      (select setting from pg_config where name='CONFIGURE') as build_config,
       (select jsonb_agg(jsonb_build_object('role',rolname,'settings',rolconfig)) from pg_roles where rolname in ('authenticated','authenticator')) as roles,
       (select jsonb_agg(jsonb_build_object('name',name,'setting',setting)) from pg_settings where name=any($2::text[])) as settings,
       (select jsonb_agg(jsonb_build_object('relation',c.relname,'rows',c.reltuples,'pages',c.relpages,
@@ -96,18 +95,34 @@ async function collectOverviewFailure(client: AppClient, companyId: string, cont
       (select count(*)::int from public.document where company_id=$1 and source_file_id=$3 and superseded_at is null) as bulk_documents,
       (select count(*)::int from public.extraction_version where company_id=$1) as versions`, [companyId, fields, context.sourceFileId ?? null])).rows[0];
     if (!metadata?.roles?.every((role: { settings: string[] }) => role.settings?.includes("statement_timeout=8s") && !role.settings.some(s => s.startsWith("pgrst.db_max_rows=") && s !== "pgrst.db_max_rows=1000")) || metadata.roles.length !== 2) throw unavailable();
-    report.metadata = {
+    const metadataReport: Record<string, unknown> = {
       serverVersionNum: /^\d+$/.test(metadata.server_version_num) ? Number(metadata.server_version_num) : null,
       architecture: typeof metadata.server_build === "string" ? metadata.server_build.match(/\b(x86_64|aarch64|arm64)\b/)?.[1] ?? null : null,
       jitAvailable: typeof metadata.jit_available === "boolean" ? metadata.jit_available : null,
       jitProvider: typeof metadata.provider === "string" && /^[a-z_][a-z0-9_]{0,62}$/.test(metadata.provider) ? metadata.provider : null,
-      withLlvm: typeof metadata.build_config === "string" ? /(?:^|\s|')--with-llvm(?:\s|'|$)/.test(metadata.build_config) : null,
-      withoutLlvm: typeof metadata.build_config === "string" ? /(?:^|\s|')--without-llvm(?:\s|'|$)/.test(metadata.build_config) : null,
+      withLlvm: null,
+      withoutLlvm: null,
       settings: Array.isArray(metadata.settings) ? metadata.settings.slice(0, 16).flatMap((s: { name: unknown; setting: unknown }) => { const value = cleanPlanSetting(s.name, s.setting); return value === undefined ? [] : [{ name: s.name, value }]; }) : [],
       tables: Array.isArray(metadata.tables) ? metadata.tables.slice(0, 3).flatMap((t: { relation: string; rows: unknown; pages: unknown; distinctCompanies: unknown; mcvCount: unknown }) => ["document", "source_file", "extraction_version"].includes(t.relation) ? [{ relation: t.relation, rows: numeric(t.rows) ? t.rows : null, pages: numeric(t.pages) ? t.pages : null, distinctCompanies: numeric(t.distinctCompanies) ? t.distinctCompanies : null, mcvCount: numeric(t.mcvCount) ? t.mcvCount : null }] : []) : [],
       documents: numeric(metadata.documents) ? metadata.documents : null, bulkDocuments: context.sourceFileId && numeric(metadata.bulk_documents) ? metadata.bulk_documents : null, versions: numeric(metadata.versions) ? metadata.versions : null,
       nativeStatementTimeoutMs: 8000, apiMaxRows: 1000, metadataRole: "diagnostic",
     };
+    report.metadata = metadataReport;
+    const buildConfig: Record<string, unknown> = { available: false, sqlState: null };
+    report.optionalMetadata = { buildConfig };
+    await query("savepoint overview_build_config");
+    try {
+      const raw = (await query("select setting from pg_config where name='CONFIGURE'")).rows[0]?.setting;
+      if (typeof raw === "string") {
+        buildConfig.available = true;
+        metadataReport.withLlvm = /(?:^|\s|')--with-llvm(?:\s|'|$)/.test(raw);
+        metadataReport.withoutLlvm = /(?:^|\s|')--without-llvm(?:\s|'|$)/.test(raw);
+      } else buildConfig.reason = "missing";
+    } catch (error) {
+      buildConfig.sqlState = code(error);
+      if (stopped) throw error;
+      await query("rollback to savepoint overview_build_config");
+    } finally { if (!stopped) await query("release savepoint overview_build_config"); }
     await query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify(claims)]);
     await query("set local role authenticated"); await query("set local row_security = on");
     const authority = (await query("select current_user as role,current_setting('row_security') as rls,current_setting('transaction_read_only') as read_only")).rows[0];

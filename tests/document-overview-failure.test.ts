@@ -9,7 +9,7 @@ import { withDocumentOverviewFailure } from "./support/document-overview-failure
 import { startSupabaseRequestDiagnostics } from "./support/request-failure-diagnostics";
 import { listCompanyDocuments } from "@/application/documents";
 
-const io = vi.hoisted(() => ({ root: "", calls: [] as string[], connect: undefined as Promise<void> | undefined, metadata: undefined as Promise<void> | undefined, failPlain: false, failAnalyze: false, rejectMetadata: false, rejectQuery: "", rejectClose: false }));
+const io = vi.hoisted(() => ({ root: "", calls: [] as string[], connect: undefined as Promise<void> | undefined, metadata: undefined as Promise<void> | undefined, build: undefined as Promise<void> | undefined, denyBuild: false, failPlain: false, failAnalyze: false, rejectMetadata: false, rejectQuery: "", rejectClose: false }));
 vi.mock("../scripts/supabase-status.mjs", () => ({ localSupabaseContext: () => ({ isLinkedWorktree: false, generatedWorkdir: io.root }) }));
 vi.mock("pg", () => ({ Client: class {
   on() { return this; }
@@ -18,6 +18,11 @@ vi.mock("pg", () => ({ Client: class {
   async query(sql: string) {
     io.calls.push(sql.startsWith("explain") ? sql.includes("analyze") ? "analyze" : "plain" : sql);
     if (sql === io.rejectQuery) throw new Error("private_cleanup_canary");
+    if (/from pg_config\b/.test(sql)) {
+      await io.build;
+      if (io.denyBuild) throw { code: "42501", message: "permission denied for function pg_config", detail: "private_build_denial_canary" };
+      if (!sql.includes("server_version_num")) return { rows: [{ setting: "private_build_path_canary --with-llvm" }] };
+    }
     if (sql.includes("server_version_num")) {
       await io.metadata;
       if (io.rejectMetadata) throw new Error("private_metadata_canary");
@@ -36,7 +41,7 @@ afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); vi.unstubAllGlobals(
 function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "ivat-failure-plan-")); roots.push(root); io.root = root;
   fs.mkdirSync(path.join(root, "supabase")); fs.writeFileSync(path.join(root, "supabase/config.toml"), 'project_id = "ivat"\n[api]\nport = 54321\nmax_rows = 1000\n[db]\nport = 54322\n');
-  io.calls = []; io.connect = undefined; io.metadata = undefined; io.failPlain = false; io.failAnalyze = false; io.rejectMetadata = false; io.rejectQuery = ""; io.rejectClose = false;
+  io.calls = []; io.connect = undefined; io.metadata = undefined; io.build = undefined; io.denyBuild = false; io.failPlain = false; io.failAnalyze = false; io.rejectMetadata = false; io.rejectQuery = ""; io.rejectClose = false;
   for (const [key, value] of Object.entries({ IVAT_DOCUMENT_OVERVIEW_FAILURE_CAPTURE: "1", CI: "true", GITHUB_ACTIONS: "true", GITHUB_RUN_ID: "123", GITHUB_JOB: "full", GITHUB_WORKSPACE: root })) vi.stubEnv(key, value);
   const client = asUserClient(createClient("http://127.0.0.1:54321", "private_key_canary"));
   const claims = { role: "authenticated", sub: "11111111-1111-4111-8111-111111111111", session_id: "private_session_canary", aal: "aal1" };
@@ -140,6 +145,27 @@ it("retains the original error when metadata rejects and still closes the connec
   const f = fixture(); io.rejectMetadata = true; expect(await f.run()).toBe(f.original);
   expect(io.calls).not.toContain("plain"); expect(io.calls).toContain("end"); expect(f.output()).not.toContain("private_metadata_canary");
   expect(io.calls.at(-1)).toBe("public_finally");
+});
+it("continues core metadata and authenticated plans after the actual optional build permission error", async () => {
+  const f = fixture(); io.denyBuild = true; expect(await f.run()).toBe(f.original);
+  const report = JSON.parse(f.output());
+  expect(report.metadata).toMatchObject({ jitAvailable: true, documents: 1002, withLlvm: null, withoutLlvm: null });
+  expect(report.optionalMetadata.buildConfig).toEqual({ available: false, sqlState: "42501" });
+  expect(io.calls.filter(x => ["plain", "analyze"].includes(x))).toEqual(["plain", "analyze"]);
+  expect(io.calls).toContain("rollback to savepoint overview_build_config"); expect(io.calls.at(-1)).toBe("public_finally");
+  expect(f.output()).not.toMatch(/private_build_denial_canary|permission denied/);
+});
+it.each(["rollback to savepoint overview_build_config", "release savepoint overview_build_config"])("fails closed when optional metadata cleanup %s rejects", async command => {
+  const f = fixture(); io.denyBuild = true; io.rejectQuery = command; expect(await f.run()).toBe(f.original);
+  expect(io.calls).toContain(command); expect(io.calls).not.toContain("plain"); expect(io.calls).toContain("end"); expect(io.calls.at(-1)).toBe("public_finally");
+  expect(JSON.parse(f.output())).toMatchObject({ unavailable: true });
+});
+it("bounds a pending optional field and rejects late results without inventing its SQLSTATE", async () => {
+  const f = fixture(); let release!: () => void; io.build = new Promise<void>(resolve => { release = resolve; });
+  const pending = f.run(); await vi.waitFor(() => expect(io.calls.some(call => call.startsWith("select setting from pg_config"))).toBe(true)); f.controller.abort();
+  expect(await pending).toBe(f.original); const output = f.output(); release(); await new Promise(resolve => setTimeout(resolve, 0));
+  expect(io.calls).not.toContain("plain"); expect(f.output()).toBe(output);
+  expect(JSON.parse(output).optionalMetadata.buildConfig).toMatchObject({ available: false, sqlState: null });
 });
 it.each(["rollback", "release savepoint overview_probe"])("retains the original error and closes when %s rejects", async command => {
   const f = fixture(); io.rejectQuery = command; expect(await f.run()).toBe(f.original);
