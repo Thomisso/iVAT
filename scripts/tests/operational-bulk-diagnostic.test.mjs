@@ -30,6 +30,7 @@ test("focused success cannot satisfy application verification or publish complet
   assert.ok(diagnostic);
   assert.match(diagnostic, /name: Operational bulk diagnostic \(89 cases; no full verification\)/);
   assert.match(diagnostic, /if: needs\.profile\.outputs\.diagnostic == 'true'/);
+  assert.match(diagnostic, /IVAT_POST_CLEANUP_CATALOG: "1"\n\s+IVAT_OPERATIONAL_DIAGNOSTIC_MODE: post_cleanup_catalog_344/);
   const gate = workflow.split("\n  check:\n")[1].split("\n  e2e:\n")[0];
   assert.match(gate, /"application": "\$\{\{ needs\.full\.result \}\}"/);
   assert.doesNotMatch(gate, /operational-bulk-diagnostic/);

@@ -28,9 +28,13 @@ export function operationalCaptureFixture() {
     name: operationalBulkCase, moduleId: path.join(root, "tests/operational-email-alerts.test.ts"), root,
     provided: { supabaseUrl: "http://127.0.0.1:62321", databaseUrl: "postgresql://private_password_canary@127.0.0.1:62322/postgres" },
   };
+  const reporter = new OperationalBulkCapture(io, { IVAT_OPERATIONAL_BULK_CAPTURE: "1", IVAT_POST_CLEANUP_CATALOG: "1" });
   return {
     root, calls, event, logs, io, windows,
-    reporter: new OperationalBulkCapture(io, { IVAT_OPERATIONAL_BULK_CAPTURE: "1", IVAT_POST_CLEANUP_CATALOG: "1" }),
+    reporter,
+    // Unit transport controls represent already-settled native work. Actual
+    // runner controls mark each real finalizer separately instead.
+    settledCatalog(signal = new AbortController().signal) { reporter.bodyFinished(signal); reporter.cleanupFinished(); return reporter.postCleanupCatalog(); },
     serverLog(bytes: string) { serverChunks.push(bytes); },
     blockInspect() { let release!: () => void; inspectBarrier = new Promise<void>(resolve => { release = resolve; }); return release; },
     blockConnect() { let release!: () => void; connectBarrier = new Promise<void>(resolve => { release = resolve; }); return release; },

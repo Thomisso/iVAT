@@ -14,9 +14,10 @@ it("accepts only the provisioned worktree or explicit isolated Actions checkout 
   const ci = { ...base, linked: false, config: 'project_id = "ivat"\n[api]\nport = 54321\n[db]\nport = 54322', provided: { supabaseUrl: "http://127.0.0.1:54321", databaseUrl: "postgresql://private_password@127.0.0.1:54322/postgres" }, environment: { CI: "true", GITHUB_ACTIONS: "true", GITHUB_RUN_ID: "123", GITHUB_JOB: "full" } };
   expect(validateCaptureContext(ci).container).toBe("supabase_db_ivat");
   expect(() => validateCaptureContext({ ...ci, workspace: "/tmp/foreign" })).toThrow("capture context unavailable");
-  const diagnostic = { ...ci, environment: { ...ci.environment, GITHUB_JOB: "operational-bulk-diagnostic", GITHUB_HEAD_REF: "fix/operational-post-cleanup-catalog-344", IVAT_POST_CLEANUP_CATALOG: "1" } };
+  const diagnostic = { ...ci, environment: { ...ci.environment, GITHUB_JOB: "operational-bulk-diagnostic", GITHUB_HEAD_REF: "fix/operational-post-cleanup-catalog-344", IVAT_POST_CLEANUP_CATALOG: "1", IVAT_OPERATIONAL_DIAGNOSTIC_MODE: "post_cleanup_catalog_344" } };
   expect(validateCaptureContext(diagnostic).container).toBe("supabase_db_ivat");
-  for (const environment of [{ ...diagnostic.environment, IVAT_POST_CLEANUP_CATALOG: "" }, { ...diagnostic.environment, GITHUB_HEAD_REF: "another" }, { ...diagnostic.environment, GITHUB_JOB: "another" }]) {
+  const missingMode: Record<string, string | undefined> = { ...diagnostic.environment }; delete missingMode.IVAT_OPERATIONAL_DIAGNOSTIC_MODE;
+  for (const environment of [missingMode, { ...diagnostic.environment, IVAT_POST_CLEANUP_CATALOG: "" }, { ...diagnostic.environment, GITHUB_HEAD_REF: "another" }, { ...diagnostic.environment, GITHUB_JOB: "another" }, { ...diagnostic.environment, IVAT_OPERATIONAL_DIAGNOSTIC_MODE: "" }, { ...diagnostic.environment, IVAT_OPERATIONAL_DIAGNOSTIC_MODE: "wrong" }]) {
     expect(() => validateCaptureContext({ ...diagnostic, environment })).toThrow("capture context unavailable");
   }
 });
@@ -57,7 +58,7 @@ const capture = () => { const fixture = operationalCaptureFixture(); captures.pu
 it("collects catalog facts after successful cleanup without another business read or plan", async () => {
   const fixture = capture();
   await fixture.reporter.begin(fixture.event);
-  await fixture.reporter.postCleanupCatalog();
+  await fixture.settledCatalog();
   await fixture.reporter.end();
   expect(fixture.calls).toEqual(["git_context", "docker_inspect", "pg_connect", "pg_catalog", "pg_close", "docker_logs_snapshot"]);
   expect(JSON.parse(fixture.output("catalog.jsonl"))).toEqual({
@@ -76,15 +77,45 @@ it("leaves the catalog disabled without its separate opt-in or after capture sto
   const disabled = new OperationalBulkCapture(fixture.io, { IVAT_OPERATIONAL_BULK_CAPTURE: "1" });
   await disabled.begin(fixture.event); await disabled.postCleanupCatalog(); await disabled.end();
   expect(fixture.calls).not.toContain("pg_catalog");
+  await fixture.settledCatalog();
+  expect(fixture.calls).not.toContain("pg_catalog");
+});
+
+it.each(["body", "cleanup", "aborted"])("skips immediately with %s completion unproven or cancelled and never retries late completion", async missing => {
+  const fixture = capture(); const controller = new AbortController();
+  await fixture.reporter.begin(fixture.event);
+  if (missing !== "body") fixture.reporter.bodyFinished(controller.signal);
+  if (missing !== "cleanup") fixture.reporter.cleanupFinished();
+  if (missing === "aborted") controller.abort();
   await fixture.reporter.postCleanupCatalog();
   expect(fixture.calls).not.toContain("pg_catalog");
+  const output = fixture.output("catalog.jsonl");
+  expect(JSON.parse(output)).toEqual({ source: "diagnostic_session", skipped: missing === "aborted" ? "aborted" : "completion_unproven" });
+  await fixture.reporter.end();
+  const calls = [...fixture.calls];
+  fixture.reporter.bodyFinished(new AbortController().signal); fixture.reporter.cleanupFinished();
+  await fixture.reporter.postCleanupCatalog();
+  expect(fixture.calls).toEqual(calls); expect(fixture.output("catalog.jsonl")).toBe(output);
+});
+
+it("cancels a catalog already in flight when the original native body signal aborts", async () => {
+  const fixture = capture(); const connect = fixture.io.connect; const controller = new AbortController();
+  let opened!: () => void, release!: () => void;
+  const ready = new Promise<void>(resolve => { opened = resolve; });
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  fixture.io.connect = async url => ({ ...await connect(url), async catalog() { opened(); await pending; return { server_build: "private_late_canary" }; } });
+  await fixture.reporter.begin(fixture.event);
+  const finish = fixture.settledCatalog(controller.signal); await ready; controller.abort(); await finish;
+  expect(JSON.parse(fixture.output("catalog.jsonl"))).toMatchObject({ unavailable: true, deadlineExpired: false, sqlState: null });
+  const output = fixture.output("catalog.jsonl"); await fixture.reporter.end(); release(); await Promise.resolve();
+  expect(fixture.output("catalog.jsonl")).toBe(output); expect(fixture.calls.filter(c => c === "pg_close")).toHaveLength(1);
 });
 
 it("waits for the last sample before catalog collection and discards its late target-window row", async () => {
   vi.useFakeTimers();
   const fixture = capture(); const release = fixture.blockSample();
   await fixture.reporter.begin(fixture.event); await vi.advanceTimersByTimeAsync(100);
-  const finish = fixture.reporter.postCleanupCatalog();
+  const finish = fixture.settledCatalog();
   expect(fixture.calls).not.toContain("pg_catalog");
   release(); await finish; await fixture.reporter.end();
   expect(fixture.calls.filter(call => call === "pg_catalog")).toHaveLength(1);
@@ -105,7 +136,7 @@ it.each(["sample", "catalog"])("bounds pending %s work, closes the owned connect
   await fixture.reporter.begin(fixture.event);
   if (boundary === "sample") await vi.advanceTimersByTimeAsync(100);
   let completed = false;
-  const finish = fixture.reporter.postCleanupCatalog().then(() => { completed = true; });
+  const finish = fixture.settledCatalog().then(() => { completed = true; });
   await vi.advanceTimersByTimeAsync(1000); await finish;
   expect(completed).toBe(true);
   expect(JSON.parse(fixture.output("catalog.jsonl"))).toMatchObject({ unavailable: true, deadlineExpired: true });
@@ -122,7 +153,7 @@ it("cancels a pending catalog on owned runner exit without a late write or secon
   const pending = new Promise<void>(resolve => { release = resolve; });
   fixture.io.connect = async url => ({ ...await connect(url), async catalog() { opened(); await pending; return {}; } });
   await fixture.reporter.begin(fixture.event);
-  const finish = fixture.reporter.postCleanupCatalog(); await ready;
+  const finish = fixture.settledCatalog(); await ready;
   await fixture.reporter.end("runner_exit"); await finish;
   release(); await Promise.resolve();
   expect(fixture.output("catalog.jsonl")).toBe("");
@@ -135,7 +166,7 @@ it("keeps catalog/close rejection diagnostic-only and strips unexpected metadata
   const original = Object.assign(new Error("original business error"), { code: "57014" });
   let cleanup = false;
   await fixture.reporter.begin(fixture.event);
-  const execute = async () => { try { throw original; } finally { cleanup = true; await fixture.reporter.postCleanupCatalog(); await fixture.reporter.end(); } };
+  const execute = async () => { try { throw original; } finally { cleanup = true; await fixture.settledCatalog(); await fixture.reporter.end(); } };
   await expect(execute()).rejects.toBe(original); expect(cleanup).toBe(true);
   expect(JSON.parse(fixture.output("catalog.jsonl"))).toMatchObject({ unavailable: true });
   expect(fixture.output("catalog.jsonl")).not.toContain("private_");
@@ -179,7 +210,7 @@ it("bounds a nonsettling owned close within the catalog's one-second work-and-cl
   fixture.io.connect = async url => ({ ...await connect(url), async catalog() { await new Promise(() => {}); }, async close() { fixture.calls.push("pg_close"); await new Promise(() => {}); } });
   await fixture.reporter.begin(fixture.event);
   let completed = false;
-  const finish = fixture.reporter.postCleanupCatalog().then(() => { completed = true; });
+  const finish = fixture.settledCatalog().then(() => { completed = true; });
   await vi.advanceTimersByTimeAsync(999); expect(completed).toBe(false);
   await vi.advanceTimersByTimeAsync(1); await finish;
   expect(completed).toBe(true);
@@ -198,7 +229,7 @@ it("sanitizes post-cleanup statistics and unknown build/config fields before the
       { relation: "private_relation_canary", rows: 100 },
     ] },
   }; } });
-  await fixture.reporter.begin(fixture.event); await fixture.reporter.postCleanupCatalog(); await fixture.reporter.end();
+  await fixture.reporter.begin(fixture.event); await fixture.settledCatalog(); await fixture.reporter.end();
   const output = fixture.output("catalog.jsonl"); expect(output).not.toContain("private_");
   expect(JSON.parse(output)).toMatchObject({
     architecture: null, serverVersionNum: null, jit: null, jitProvider: null, planCacheMode: null,
@@ -214,13 +245,13 @@ it("the installed worker retains body and afterEach failures while post-cleanup 
     const fixture = path.resolve("tests/support/operational-bulk-capture-fixture.ts");
     fs.writeFileSync(path.join(root, "runner.test.ts"), `import {aroundEach,afterEach,afterAll,it} from ${JSON.stringify(vitest)};
       import fs from 'node:fs';import {operationalCaptureFixture} from ${JSON.stringify(fixture)};
-      const events=[];
-      aroundEach(async(run,{task})=>{const f=operationalCaptureFixture();const connect=f.io.connect;
+      const events=[];let current;
+      aroundEach(async(run,{task})=>{const f=operationalCaptureFixture();current=f;const connect=f.io.connect;
         f.io.connect=async url=>({...await connect(url),async catalog(){events.push(task.name+':catalog');throw new Error('private_catalog_canary');}});
         await f.reporter.begin(f.event);try{await run();}finally{await f.reporter.postCleanupCatalog();await f.reporter.end();events.push(task.name+':closed');f.remove();}});
-      afterEach(({task})=>{events.push(task.name+':afterEach');if(task.name==='cleanup original')throw new Error('original_cleanup_failure');});
-      it('body original',()=>{try{events.push('body original:body');throw new Error('original_body_failure');}finally{events.push('body original:finally');}});
-      it('cleanup original',()=>{try{events.push('cleanup original:body');}finally{events.push('cleanup original:finally');}});
+      afterEach(({task})=>{const own=current;try{events.push(task.name+':afterEach');if(task.name==='cleanup original')throw new Error('original_cleanup_failure');}finally{own.reporter.cleanupFinished();}});
+      it('body original',({signal})=>{const own=current;try{events.push('body original:body');throw new Error('original_body_failure');}finally{events.push('body original:finally');own.reporter.bodyFinished(signal);}});
+      it('cleanup original',({signal})=>{const own=current;try{events.push('cleanup original:body');}finally{events.push('cleanup original:finally');own.reporter.bodyFinished(signal);}});
       afterAll(()=>fs.writeFileSync(${JSON.stringify(path.join(root, "events.json"))},JSON.stringify(events)));`);
     fs.writeFileSync(path.join(root, "vitest.config.mjs"), `export default {root:${JSON.stringify(root)},test:{include:['runner.test.ts'],globalSetup:[],testTimeout:20000,maxWorkers:1}};`);
     const result = spawnSync(process.execPath, [path.resolve("node_modules/vitest/vitest.mjs"), "run", "--config", path.join(root, "vitest.config.mjs"), "--reporter=json", "--outputFile", path.join(root, "results.json")], { encoding: "utf8", timeout: 10000 });
@@ -231,6 +262,39 @@ it("the installed worker retains body and afterEach failures while post-cleanup 
       "body original:body", "body original:finally", "body original:afterEach", "body original:catalog", "body original:closed",
       "cleanup original:body", "cleanup original:finally", "cleanup original:afterEach", "cleanup original:catalog", "cleanup original:closed",
     ]);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+it("the installed worker skips catalog when native timeout returns before the real body-finally or afterEach settles", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ivat-catalog-timeout-"));
+  try {
+    const vitest = path.resolve("node_modules/vitest/dist/index.js");
+    const fixture = path.resolve("tests/support/operational-bulk-capture-fixture.ts");
+    fs.writeFileSync(path.join(root, "runner.test.ts"), `import {aroundEach,afterEach,afterAll,it} from ${JSON.stringify(vitest)};
+      import fs from 'node:fs';import {operationalCaptureFixture} from ${JSON.stringify(fixture)};
+      const events=[],closed=[];let current;const delay=ms=>new Promise(r=>setTimeout(r,ms));
+      aroundEach(async(run,{task})=>{const f=operationalCaptureFixture();current=f;await f.reporter.begin(f.event);
+        try{await run();}finally{events.push(task.name+':wrapper-return');await f.reporter.postCleanupCatalog();await f.reporter.end();
+          events.push(task.name+':closed');closed.push({f,calls:[...f.calls],output:f.output('catalog.jsonl')});current=undefined;}});
+      afterEach(async({task})=>{const own=current;
+        try{if(task.name==='cleanup pending')await delay(5);}finally{
+          if(task.name==='cleanup pending'){events.push('cleanup:finally-start');await delay(80);events.push('cleanup:finally-end');}
+          own.reporter.cleanupFinished();}},25);
+      it('body pending',async({signal})=>{const own=current;try{await delay(5);}finally{
+        events.push('body:finally-start');await delay(80);events.push('body:finally-end');own.reporter.bodyFinished(signal);}},25);
+      it('cleanup pending',async({signal})=>{const own=current;try{}finally{own.reporter.bodyFinished(signal);}},20000);
+      afterAll(async()=>{await delay(150);fs.writeFileSync(${JSON.stringify(path.join(root, "events.json"))},JSON.stringify({events,
+        results:closed.map(({f,calls,output})=>({catalogCalls:f.calls.filter(x=>x==='pg_catalog').length,
+          callsStable:JSON.stringify(calls)===JSON.stringify(f.calls),outputStable:output===f.output('catalog.jsonl')}))}));for(const {f}of closed)f.remove();});`);
+    fs.writeFileSync(path.join(root, "vitest.config.mjs"), `export default {root:${JSON.stringify(root)},test:{include:['runner.test.ts'],globalSetup:[],testTimeout:20000,maxWorkers:1}};`);
+    const result = spawnSync(process.execPath, [path.resolve("node_modules/vitest/vitest.mjs"), "run", "--config", path.join(root, "vitest.config.mjs"), "--reporter=json", "--outputFile", path.join(root, "results.json")], { encoding: "utf8", timeout: 10000 });
+    expect(result.status).toBe(1);
+    const report = fs.readFileSync(path.join(root, "results.json"), "utf8");
+    expect(report).toContain("Test timed out in 25ms"); expect(report).toContain("Hook timed out in 25ms");
+    const packet = JSON.parse(fs.readFileSync(path.join(root, "events.json"), "utf8"));
+    expect(packet.events.indexOf("body pending:closed")).toBeLessThan(packet.events.indexOf("body:finally-end"));
+    expect(packet.events.indexOf("cleanup pending:closed")).toBeLessThan(packet.events.indexOf("cleanup:finally-end"));
+    expect(packet.results).toEqual([{ catalogCalls: 0, callsStable: true, outputStable: true }, { catalogCalls: 0, callsStable: true, outputStable: true }]);
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
@@ -343,8 +407,9 @@ import { afterAll, aroundEach, beforeEach, describe } from "vitest";
 // Uses Vitest's real awaited hook execution, not reporter callbacks manually awaited by a fixture.
 describe("actual awaited worker capture boundary", () => {
   const order: string[] = [];
+  let ownCapture: ReturnType<typeof operationalCaptureFixture>;
   aroundEach(async run => {
-    const fixture = operationalCaptureFixture();
+    const fixture = operationalCaptureFixture(); ownCapture = fixture;
     const inspect = fixture.io.inspect;
     fixture.io.inspect = async container => { order.push("inspect-start"); await new Promise(resolve => setTimeout(resolve, 10)); const ports = await inspect(container); order.push("inspect-finish"); return ports; };
     const connect = fixture.io.connect;
@@ -356,8 +421,8 @@ describe("actual awaited worker capture boundary", () => {
     finally { await fixture.reporter.postCleanupCatalog(); await fixture.reporter.end(); order.push("capture-closed"); fixture.remove(); }
   });
   beforeEach(() => { order.push("beforeEach-fixture"); });
-  afterEach(() => { order.push("afterEach-cleanup"); });
-  it("awaits readiness before the first fixture and drains only after every hook", () => { try { order.push("body"); } finally { order.push("body-finally"); } });
+  afterEach(() => { try { order.push("afterEach-cleanup"); } finally { ownCapture.reporter.cleanupFinished(); } });
+  it("awaits readiness before the first fixture and drains only after every hook", ({ signal }) => { const own = ownCapture; try { order.push("body"); } finally { order.push("body-finally"); own.reporter.bodyFinished(signal); } });
   afterAll(() => {
     expect(order).toEqual(["inspect-start", "inspect-finish", "pg-ready", "beforeEach-fixture", "body", "body-finally", "afterEach-cleanup", "post-cleanup-catalog", "pg-close", "snapshot", "capture-closed"]);
   });

@@ -33,6 +33,7 @@ aroundEach(async (run, { task }) => {
   }
 });
 afterEach(async () => {
+  const ownCapture = bulkCapture;
   const cleanup = async () => {
     for (const company of companies.splice(0)) {
       for (const document of await listCompanyDocuments(company.client, company.companyId)) {
@@ -43,8 +44,10 @@ afterEach(async () => {
     }
     for (const subscriber of subscribers.splice(0)) await deleteAccountFixture(subscriber.userId);
   };
-  if (bulkDiagnostics) await bulkDiagnostics.runPhase("after_each", cleanup);
-  else await cleanup();
+  try {
+    if (bulkDiagnostics) await bulkDiagnostics.runPhase("after_each", cleanup);
+    else await cleanup();
+  } finally { ownCapture?.cleanupFinished(); }
 });
 
 async function scenario(count = 2, locale: "cs" | "en" = "en", startAt?: string) {
@@ -789,6 +792,7 @@ it("cancels a pending allowance alert immediately when the Company receives suff
 });
 
 it(bulkCase, async ({ task, signal }) => {
+  const ownCapture = bulkCapture;
   const bodyStartedAt = performance.now();
   try {
     const measure = bulkDiagnostics?.runPhase ?? (async <T>(_phase: RequestTestPhase, run: () => Promise<T>) => run());
@@ -851,7 +855,7 @@ it(bulkCase, async ({ task, signal }) => {
     // Also retain setup failures that occur before manual recovery's finally.
     bulkDiagnostics?.observeFailure(error);
     throw error;
-  }
+  } finally { ownCapture?.bodyFinished(signal); }
 });
 
 it("observes both configuration scopes on reassignment while another Company preserves the shared root", async () => {

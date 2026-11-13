@@ -1,5 +1,11 @@
 import type { Client } from "pg";
 
+/** Error codes only; never infer a SQLSTATE from messages or primitive errors. */
+export function diagnosticSqlState(error: unknown) {
+  const code = error && typeof error === "object" && "code" in error ? error.code : null;
+  return typeof code === "string" && /^[0-9A-Z]{5}$/.test(code) ? code : null;
+}
+
 /** Catalog-only boundary on the already owned capture connection. */
 export async function readPostCleanupCatalog(database: Pick<Client, "query">, active: () => boolean) {
   const unavailable = () => new Error("catalog unavailable");
@@ -28,7 +34,7 @@ export async function readPostCleanupCatalog(database: Pick<Client, "query">, ac
         const result = (await query("select pg_catalog.pg_jit_available() as available")).rows[0]?.available;
         if (typeof result === "boolean") jitAvailability = { available: true, value: result, sqlState: null };
       } catch (error) {
-        jitAvailability.sqlState = error && typeof error === "object" && "code" in error && typeof error.code === "string" && /^[0-9A-Z]{5}$/.test(error.code) ? error.code : null;
+        jitAvailability.sqlState = diagnosticSqlState(error);
         await query("rollback to savepoint catalog_jit");
       } finally { if (active()) await query("release savepoint catalog_jit"); }
     }
@@ -44,7 +50,7 @@ export async function readPostCleanupCatalog(database: Pick<Client, "query">, ac
           where n.nspname='public' and c.relname in ('document','source_file','extraction_version') limit 3`)).rows;
         statistics.available = true;
       } catch (error) {
-        statistics.sqlState = error && typeof error === "object" && "code" in error && typeof error.code === "string" && /^[0-9A-Z]{5}$/.test(error.code) ? error.code : null;
+        statistics.sqlState = diagnosticSqlState(error);
         await query("rollback to savepoint catalog_stats");
       } finally { if (active()) await query("release savepoint catalog_stats"); }
     }

@@ -247,6 +247,7 @@ jobs:
           IVAT_OPERATIONAL_BULK_CAPTURE: "1"
           IVAT_DOCUMENT_OVERVIEW_FAILURE_CAPTURE: "1"
           IVAT_POST_CLEANUP_CATALOG: "1"
+          IVAT_OPERATIONAL_DIAGNOSTIC_MODE: post_cleanup_catalog_344
       - name: Upload sanitized focused diagnostic capture
         if: always()
         uses: actions/upload-artifact@v7

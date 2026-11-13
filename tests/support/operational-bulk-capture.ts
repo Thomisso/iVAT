@@ -3,7 +3,7 @@ import path from "node:path";
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { Client } from "pg";
-import { readPostCleanupCatalog } from "./post-cleanup-catalog";
+import { readPostCleanupCatalog, diagnosticSqlState } from "./post-cleanup-catalog";
 import { localSupabaseContext } from "../../scripts/supabase-status.mjs";
 import { operationalBulkCase, requestTestPhases } from "./operational-bulk-protocol";
 
@@ -21,7 +21,7 @@ export function validateCaptureContext(input: ContextInput) {
       if (!/^ivat-wt[1-9][0-9]?$/.test(project)) throw unavailable();
     } else {
       const env = input.environment;
-      const diagnostic = env.GITHUB_JOB === "operational-bulk-diagnostic" && env.GITHUB_HEAD_REF === "fix/operational-post-cleanup-catalog-344" && env.IVAT_POST_CLEANUP_CATALOG === "1";
+      const diagnostic = env.GITHUB_JOB === "operational-bulk-diagnostic" && env.GITHUB_HEAD_REF === "fix/operational-post-cleanup-catalog-344" && env.IVAT_POST_CLEANUP_CATALOG === "1" && env.IVAT_OPERATIONAL_DIAGNOSTIC_MODE === "post_cleanup_catalog_344";
       if (env.CI !== "true" || env.GITHUB_ACTIONS !== "true" || !/^\d+$/.test(env.GITHUB_RUN_ID ?? "") || (env.GITHUB_JOB !== "full" && !diagnostic) || input.workspace !== input.root) throw unavailable();
     }
     return { container: `supabase_db_${project}`, databasePort: db.port, databaseUrl: input.provided.databaseUrl };
@@ -173,6 +173,9 @@ export default class OperationalBulkCapture {
   private stopping?: Promise<void>;
   private catalogStop?: () => void;
   private closing?: Promise<void>;
+  private bodySignal?: AbortSignal;
+  private bodyComplete = false;
+  private cleanupComplete = false;
   private closeConnection() {
     const connection = this.connection; this.connection = undefined;
     if (!connection || this.closing) return;
@@ -262,10 +265,21 @@ export default class OperationalBulkCapture {
     const report = requestReport(raw);
     if (report) { this.write("request.jsonl", report); this.requestCaptured = true; }
   }
-  /** Called by the awaited worker only after body-finally and afterEach return.
-   * It never reads business rows or replays a public request/plan. */
+  /** Actual async finalizers mark completion, never the runner's timeout wrapper.
+   * Late callbacks retain their own capture handle and cannot revive it. */
+  bodyFinished(signal: AbortSignal) {
+    if (this.state === "active") { this.bodySignal = signal; this.bodyComplete = true; }
+  }
+  cleanupFinished() { if (this.state === "active") this.cleanupComplete = true; }
+  /** A wrapped run() can return before actual async finalizers settle. Skip
+   * immediately unless both witnesses and the original native signal agree. */
   async postCleanupCatalog() {
     if (this.environment.IVAT_POST_CLEANUP_CATALOG !== "1" || this.state !== "active" || !this.connection) return;
+    const signal = this.bodySignal;
+    if (!this.bodyComplete || !this.cleanupComplete || !signal || signal.aborted) {
+      this.write("catalog.jsonl", { source: "diagnostic_session", skipped: signal?.aborted ? "aborted" : "completion_unproven" });
+      return;
+    }
     this.state = "finishing"; this.until ||= new Date().toISOString();
     clearInterval(this.interval);
     const cap = Math.min(1000, 120000 - (performance.now() - this.started) - 250);
@@ -275,6 +289,8 @@ export default class OperationalBulkCapture {
     const stopped = new Promise<never>((_, fail) => { reject = fail; }); void stopped.catch(() => {});
     const close = () => this.closeConnection();
     this.catalogStop = () => { if (!active) return; active = false; reject(unavailable()); close(); };
+    const abort = () => this.catalogStop?.();
+    signal.addEventListener("abort", abort, { once: true });
     const timer = setTimeout(() => { expired = true; this.catalogStop?.(); }, cap - 250);
     // An unresponsive sample is bounded too; its late result is discarded by
     // the finishing state and cannot hold the teardown open after this cap.
@@ -284,7 +300,7 @@ export default class OperationalBulkCapture {
     try {
       await Promise.race([pending, stopped]);
       if (!active || this.state !== "finishing" || !this.connection) throw unavailable();
-      const raw = await Promise.race([this.connection.catalog(() => active && this.state === "finishing"), stopped]) as Record<string, unknown>;
+      const raw = await Promise.race([this.connection.catalog(() => active && !signal.aborted && this.state === "finishing"), stopped]) as Record<string, unknown>;
       if (!active || this.state !== "finishing") return;
       const number = (value: unknown, minimum = 0) => typeof value === "string" && /^-?\d+(?:\.\d+)?$/.test(value) && Number.isFinite(Number(value)) && Number(value) >= minimum ? Number(value) : null;
       const availability = raw?.jitAvailability as Record<string, unknown> | undefined;
@@ -310,10 +326,11 @@ export default class OperationalBulkCapture {
       });
     } catch (error) {
       report.unavailable = true; report.deadlineExpired = expired;
-      report.sqlState = error && typeof error === "object" && "code" in error && typeof error.code === "string" && /^[0-9A-Z]{5}$/.test(error.code) ? error.code : null;
+      report.sqlState = diagnosticSqlState(error);
     }
     finally {
       active = false; clearTimeout(timer); this.catalogStop = undefined;
+      signal.removeEventListener("abort", abort);
       if (expired) await this.closing;
       if (this.state === "finishing" && !this.exiting) this.write("catalog.jsonl", report);
     }
