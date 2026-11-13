@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { providerResponseOf, type AiInput, type AiProvider, type AiUsage, type PageRange, type SourceRange } from "@/application/ai-provider";
+import { AiProviderError, providerResponseOf, type AiInput, type AiProvider, type AiUsage, type PageRange, type SourceRange } from "@/application/ai-provider";
 import type { ExtractionPayload } from "@/application/extraction-payload";
 import { emptyDocumentPayload } from "@/application/extraction-payload";
 import { detectDocumentDirection, type CompanyIdentity } from "@/application/direction-detection";
@@ -9,6 +9,8 @@ import { EXTRACTION_PROMPT, SPLIT_SCHEMA, extractionSchema, extractionPayload, p
 
 import { prepareExtractionInput } from "@/application/pdf-extraction";
 import { evaluationRevision, hashBytes, hashValue, inputHash, type EvaluationRevision } from "./evaluation-provenance";
+import { EvaluationBudget, type EvaluationBudgetState, type EvaluationRunOptions } from "./evaluation-budget";
+import { estimateEvaluationPrice, estimateGeneratedPlan, priceAmount, priceUnits, type EvaluationPriceEstimate } from "./evaluation-prices";
 
 export type GoldenDocument = {
   referenceFileHash?: string;
@@ -66,6 +68,8 @@ export type CallProvenance = {
   requestedModel: string | null;
 };
 export type EvaluationCall = {
+  attempts?: { status: "completed" | "failed"; actualModel: string | null; usage: AiUsage | null; costUsd: number | null; estimatedPrice?: EvaluationPriceEstimate | null; latencyMs: number; error?: { message: string; rawResponse?: string } }[];
+  estimatedPrice?: EvaluationPriceEstimate | null;
   provenance: CallProvenance;
   phase: "split" | "extraction";
   caseId: string;
@@ -78,6 +82,7 @@ export type EvaluationCall = {
   error?: { message: string; rawResponse?: string };
 };
 export type EvaluationResult = {
+  repetition?: number;
   status: "complete" | "partial" | "failed";
   coverage: { split: CallCoverage; extraction: CallCoverage };
   calls: EvaluationCall[];
@@ -99,6 +104,16 @@ export type EvaluationResult = {
 };
 
 export type EvaluationReport = {
+  budget?: EvaluationBudgetState;
+  mode?: "preflight" | "run";
+  plan?: {
+    repetitions: number; measurements: number; maximumAttempts: number; admittedMaximumAttempts: number;
+    limits: EvaluationRunOptions["limits"]; inputTokens: null; totalTokens: null; estimatedPriceUsd: null; hardMonetaryCap: false;
+    tariffHash: string | null;
+    generatedPriceEstimate: ReturnType<typeof estimateGeneratedPlan>;
+    providers: { provider: string; splitModel: string | null; extractModel: string | null }[];
+    sources: { sourceHash: string | null; splitInputHash: string | null; extractionInputHashes: (string | null)[] }[];
+  };
   dataset: GoldenSet;
   provenance: { datasetHash: string; manifestHash: string | null; revision: EvaluationRevision };
   status: "complete" | "partial" | "failed";
@@ -356,6 +371,7 @@ export async function evaluateGoldenSet(
   providers: EvaluationProvider[],
   readBytes: ReadBytes,
   documentBytes: DocumentBytes,
+  options?: EvaluationRunOptions,
 ): Promise<EvaluationReport> {
   if (!goldenSet.cases.length || !providers.length) throw new Error("Evaluation needs Source Files and providers");
   // Validate the entire reference before spending even the first provider call.
@@ -394,8 +410,32 @@ export async function evaluateGoldenSet(
   const datasetHash = hashValue({ manifestHash: goldenSet.manifestHash ?? null,
     cases: goldenSet.cases.map((source, index) => ({ ...source, sourcePath: undefined, sourceHash: frozen[index].sourceHash })) });
   const results: EvaluationResult[] = [];
+  const measurements = goldenSet.cases.reduce((total, source) => total + 1 + source.documents.length, 0) * providers.length * (options?.repetitions ?? 1);
+  const maximumAttempts = measurements * (1 + (options?.limits.maxRetries ?? 0));
+  if (!Number.isSafeInteger(maximumAttempts)) throw new Error("evaluation_plan_too_large");
+  const plan = options ? { repetitions: options.repetitions, measurements, maximumAttempts,
+    admittedMaximumAttempts: Math.min(maximumAttempts, options.limits.maxCalls, Math.floor(options.limits.maxGeneratedTokens / options.limits.generatedTokensPerAttempt)),
+    limits: options.limits, inputTokens: null, totalTokens: null, estimatedPriceUsd: null, hardMonetaryCap: false as const,
+    tariffHash: options.tariffs ? hashValue(options.tariffs) : null,
+    generatedPriceEstimate: estimateGeneratedPlan(options.tariffs ?? [], providers.flatMap((configured, index) =>
+      [identities[index].configuration.splitModel, identities[index].configuration.extractModel].map(model => ({ provider: configured.label ?? configured.provider.name, model }))),
+    Math.min(maximumAttempts, options.limits.maxCalls, Math.floor(options.limits.maxGeneratedTokens / options.limits.generatedTokensPerAttempt)) * options.limits.generatedTokensPerAttempt),
+    providers: providers.map((configured, index) => ({ provider: configured.label ?? configured.provider.name,
+      splitModel: identities[index].configuration.splitModel, extractModel: identities[index].configuration.extractModel })),
+    sources: frozen.map(source => ({ sourceHash: source.sourceHash, splitInputHash: source.split.input ? inputHash(source.split.input) : null,
+      extractionInputHashes: source.documents.map(document => document.input ? inputHash(document.input) : null) })),
+  } : undefined;
+  if (options?.preflight) return { mode: "preflight", plan, dataset: goldenSet,
+    provenance: { datasetHash, manifestHash: goldenSet.manifestHash ?? null, revision },
+    status: frozen.every(source => source.split.input && source.documents.every(document => document.input)) ? "complete" : "failed",
+    extractionScope: "isolated_reference_ranges", evaluatedAt: new Date().toISOString(), cases: goldenSet.cases.length,
+    documents: goldenSet.cases.reduce((total, source) => total + source.documents.length, 0), results: [],
+  };
 
-  for (const [providerIndex, configured] of providers.entries()) {
+  const budget = options ? new EvaluationBudget(options.limits) : undefined;
+  const repeatedProviders = Array.from({ length: options?.repetitions ?? 1 }, () => providers).flat();
+  for (const [executionIndex, configured] of repeatedProviders.entries()) {
+    const providerIndex = executionIndex % providers.length;
     let splitCorrect = 0;
     let fieldCorrect = 0;
     let fieldTotal = 0;
@@ -415,7 +455,8 @@ export async function evaluateGoldenSet(
         referenceHash: hashValue(document ? { company: source.company, document } : { company: source.company, expectedSplit: source.expectedSplit, documents: source.documents }),
         promptHash: hashBytes(phase === "split" ? pageSplitPrompt(source.pageCount) : EXTRACTION_PROMPT),
         schemaHash: callInput ? hashValue(phase === "split" ? SPLIT_SCHEMA : extractionSchema(callInput)) : null,
-        adapter: identity.adapter, configurationHash: hashValue(identity.configuration),
+        adapter: identity.adapter, configurationHash: hashValue(options ? { configuration: identity.configuration,
+          maxOutputTokens: options.limits.generatedTokensPerAttempt } : identity.configuration),
         requestedModel: phase === "split" ? identity.configuration.splitModel : identity.configuration.extractModel,
       };
       if (!callInput) {
@@ -423,26 +464,51 @@ export async function evaluateGoldenSet(
           usage: null, costUsd: null, latencyMs: null, error: { message: prepared.error } });
         return null;
       }
-      const start = performance.now();
-      try {
-        const result = structuredClone(await operation(structuredClone(callInput)));
-        calls.push({ provenance, phase, caseId: source.id, ...(pages ? { pages } : {}), status: "completed", actualModel: result.modelReported === false ? null : result.model,
-          usage: result.usage ?? null, costUsd: result.usage?.costUsd ?? null, latencyMs: performance.now() - start });
-        return result;
-      } catch (error) {
-        const rawResponse = providerResponseOf(error);
-        let returnedModel: string | null = null;
-        if (rawResponse) {
-          try {
-            const response: unknown = JSON.parse(rawResponse);
-            if (object(response) && typeof response.model === "string") returnedModel = response.model;
-          } catch { /* A non-JSON failure body remains private diagnostic evidence. */ }
+      const attempts: NonNullable<EvaluationCall["attempts"]> = [];
+      for (let attempt = 0; attempt <= (options?.limits.maxRetries ?? 0); attempt++) {
+        if (budget && !budget.admit()) {
+          if (!attempts.length) calls.push({ provenance, phase, caseId: source.id, ...(pages ? { pages } : {}),
+            status: "missing", actualModel: null, usage: null, costUsd: null, latencyMs: null, attempts,
+            error: { message: budget.state.stopReason! } });
+          else calls.push({ provenance, phase, caseId: source.id, ...(pages ? { pages } : {}), ...attempts[attempts.length - 1], attempts });
+          return null;
         }
-        calls.push({ provenance, phase, caseId: source.id, ...(pages ? { pages } : {}), status: "failed", actualModel: returnedModel,
-          usage: null, costUsd: null, latencyMs: performance.now() - start,
-          error: { message: error instanceof Error ? error.message : String(error), ...(rawResponse ? { rawResponse } : {}) } });
-        return null;
+        const start = performance.now();
+        try {
+          const result = structuredClone(await operation(structuredClone(callInput)));
+          const usage = budget ? budget.observe(result.usage) : result.usage ?? null;
+          const estimatedPrice = estimateEvaluationPrice(options?.tariffs ?? [], configured.label ?? configured.provider.name,
+            result.modelReported === false ? null : result.model, usage);
+          attempts.push({ status: "completed", actualModel: result.modelReported === false ? null : result.model,
+            usage, costUsd: usage?.costUsd ?? null, estimatedPrice, latencyMs: performance.now() - start });
+          calls.push({ provenance, phase, caseId: source.id, ...(pages ? { pages } : {}), status: "completed", actualModel: result.modelReported === false ? null : result.model,
+            usage, costUsd: usage?.costUsd ?? null, latencyMs: performance.now() - start, ...(budget ? { attempts, estimatedPrice } : {}) });
+          return result;
+        } catch (error) {
+          const rawResponse = providerResponseOf(error);
+          let returnedModel: string | null = null;
+          if (rawResponse) {
+            try {
+              const response: unknown = JSON.parse(rawResponse);
+              if (object(response) && typeof response.model === "string") returnedModel = response.model;
+            } catch { /* A non-JSON failure body remains private diagnostic evidence. */ }
+          }
+          let failedUsage: unknown;
+          if (rawResponse) {
+            try { const response = JSON.parse(rawResponse); const usage = response?.usage;
+              if (usage) failedUsage = { inputTokens: usage.input_tokens, outputTokens: usage.output_tokens }; } catch { /* Unmetered failure stays unknown. */ }
+          }
+          const usage = budget?.observe(failedUsage) ?? null;
+          const estimatedPrice = estimateEvaluationPrice(options?.tariffs ?? [], configured.label ?? configured.provider.name, returnedModel, usage);
+          const measured = { status: "failed" as const, actualModel: returnedModel, usage, costUsd: usage?.costUsd ?? null, estimatedPrice, latencyMs: performance.now() - start,
+            error: { message: error instanceof Error ? error.message : String(error), ...(rawResponse ? { rawResponse } : {}) } };
+          attempts.push(measured);
+          if (budget && !budget.state.stopReason && attempt < options!.limits.maxRetries && error instanceof AiProviderError && error.transient) continue;
+          calls.push({ provenance, phase, caseId: source.id, ...(pages ? { pages } : {}), ...measured, ...(budget ? { attempts } : {}) });
+          return null;
+        }
       }
+      return null;
     };
     const absentFields: Record<string, Absence> = {};
     const absence: Absence = { correct: 0, total: 0, hallucinated: 0 };
@@ -452,7 +518,8 @@ export async function evaluateGoldenSet(
     let criticalTotal = 0;
 
     for (const [sourceIndex, source] of goldenSet.cases.entries()) {
-      const split = await capture("split", source, frozen[sourceIndex].split, input => configured.provider.split(input));
+      const generationLimits = options ? { maxOutputTokens: options.limits.generatedTokensPerAttempt } : undefined;
+      const split = await capture("split", source, frozen[sourceIndex].split, input => configured.provider.split(input, undefined, generationLimits));
       if (split) {
         const pageDocuments = split.documents.filter((range): range is PageRange => "firstPage" in range);
         const correctSplit = pageDocuments.length === split.documents.length && sameSplit(pageDocuments, source.expectedSplit);
@@ -463,7 +530,7 @@ export async function evaluateGoldenSet(
       for (const [documentIndex, document] of source.documents.entries()) {
         const extractionInput = frozen[sourceIndex].documents[documentIndex];
         const extraction = await capture("extraction", source, extractionInput,
-          input => configured.provider.extract(input), document);
+          input => configured.provider.extract(input, undefined, generationLimits), document);
         if (!extraction) {
           for (const [fieldPath, expected] of canonicalFields(document.expected, "expected", [])) {
             if (expected === null || fieldPath === "rateBreakdown.length" && expected === 0) {
@@ -534,6 +601,7 @@ export async function evaluateGoldenSet(
     const totalDocuments = coverage.extraction.expected;
     const missingDocuments = totalDocuments - documents.length;
     results.push({
+      ...(options ? { repetition: Math.floor(executionIndex / providers.length) + 1 } : {}),
       status: calls.every(call => call.status === "completed") ? "complete" : calls.some(call => call.status === "completed") ? "partial" : "failed",
       calls, coverage,
       provider: configured.label ?? configured.provider.name,
@@ -564,9 +632,10 @@ export async function evaluateGoldenSet(
   }
 
   return {
+    ...(options ? { mode: "run" as const, plan, budget: budget!.state } : {}),
     dataset: goldenSet,
     provenance: { datasetHash, manifestHash: goldenSet.manifestHash ?? null, revision },
-    status: results.every(result => result.status === "complete") ? "complete" : results.some(result => result.status !== "failed") ? "partial" : "failed",
+    status: results.every(result => result.status === "complete") && !budget?.state.stopReason ? "complete" : results.some(result => result.status !== "failed") ? "partial" : "failed",
     extractionScope: "isolated_reference_ranges",
     evaluatedAt: new Date().toISOString(),
     cases: goldenSet.cases.length,
@@ -576,7 +645,7 @@ export async function evaluateGoldenSet(
 }
 
 function modelSummary(calls: EvaluationCall[], phase: EvaluationCall["phase"]): string {
-  const models = [...new Set(calls.filter(call => call.phase === phase && call.actualModel !== null).map(call => call.actualModel!))];
+  const models = [...new Set(calls.filter(call => call.phase === phase).flatMap(call => call.attempts?.map(attempt => attempt.actualModel) ?? [call.actualModel]).filter(model => model !== null))];
   return models.length > 1 ? `mixed: ${models.join(", ")}` : models[0] ?? "unavailable";
 }
 
@@ -584,6 +653,10 @@ const percent = (accuracy: number) => `${(accuracy * 100).toFixed(2)}%`;
 
 /** Deliberate allow-list: never spread the private report into public output. */
 export function safeEvaluationSummary(report: EvaluationReport) {
+  const attempts = report.results.flatMap(result => result.calls.flatMap<{ costUsd: number | null; estimatedPrice?: EvaluationPriceEstimate | null }>(call => call.attempts ?? (call.status === "missing" ? [] : [call])));
+  const reported = attempts.filter(attempt => attempt.costUsd !== null);
+  const estimated = attempts.flatMap(attempt => attempt.estimatedPrice ? [attempt.estimatedPrice] : []);
+  const reportedSubtotal = reported.length ? reported.reduce((total, attempt) => total + attempt.costUsd!, 0) : null;
   const safeField = (key: string) => /^(documentType|documentNumber|issueDate|taxPointDate|dueDate|direction|currency|proposedVatRegime|reverseChargeCode|originalDocumentNumber)$/.test(key)
     || /^(supplier|customer)\.(name|ico|vatId|street|city|postalCode|country)$/.test(key)
     || /^totals\.(netAmount|vatAmount|grossAmount)$/.test(key)
@@ -591,15 +664,29 @@ export function safeEvaluationSummary(report: EvaluationReport) {
     || /^rateBreakdown\.(length|\d+\.(rate|netAmount|vatAmount))$/.test(key);
   const safeFields = <T>(fields: Record<string, T>) => Object.fromEntries(Object.entries(fields).filter(([key]) => safeField(key)));
   return {
+    ...(report.budget ? { budget: report.budget } : {}),
+    ...(report.mode ? { costs: { providerReportedUsd: attempts.length && reported.length === attempts.length ? reportedSubtotal : null,
+      providerReportedSubtotalUsd: reportedSubtotal, providerReportedAttempts: reported.length,
+      estimatedUsd: attempts.length && estimated.length === attempts.length ? priceAmount(estimated.reduce((total, estimate) => total + priceUnits(estimate.usd), BigInt(0))) : null,
+      estimatedSubtotalUsd: estimated.length ? priceAmount(estimated.reduce((total, estimate) => total + priceUnits(estimate.usd), BigInt(0))) : null,
+      estimatedAttempts: estimated.length, hardMonetaryCap: false } } : {}),
+    ...(report.mode ? { mode: report.mode, providerCalls: report.budget?.attemptedCalls ?? 0,
+      pages: report.dataset.cases.reduce((total, source) => total + source.pageCount, 0),
+      plan: report.plan ? { repetitions: report.plan.repetitions, measurements: report.plan.measurements,
+        maximumAttempts: report.plan.maximumAttempts, admittedMaximumAttempts: report.plan.admittedMaximumAttempts,
+        limits: report.plan.limits, inputTokens: null, totalTokens: null, estimatedPriceUsd: report.plan.estimatedPriceUsd,
+        generatedPriceEstimate: report.plan.generatedPriceEstimate ? { usd: report.plan.generatedPriceEstimate.usd, scope: report.plan.generatedPriceEstimate.scope } : null,
+        hardMonetaryCap: false } : undefined } : {}),
     status: report.status, extractionScope: report.extractionScope,
     evaluatedAt: report.evaluatedAt, cases: report.cases, documents: report.documents,
     datasetHash: report.provenance.datasetHash,
     results: report.results.map((result, index) => ({
+      ...(result.repetition ? { repetition: result.repetition } : {}),
       provider: ["anthropic", "openai"].includes(result.provider) ? result.provider : `Provider ${index + 1}`,
       status: result.status, coverage: result.coverage,
       returnedModels: {
-        split: new Set(result.calls.filter(call => call.phase === "split" && call.actualModel !== null).map(call => call.actualModel)).size,
-        extraction: new Set(result.calls.filter(call => call.phase === "extraction" && call.actualModel !== null).map(call => call.actualModel)).size,
+        split: new Set(result.calls.filter(call => call.phase === "split").flatMap(call => call.attempts?.map(attempt => attempt.actualModel) ?? [call.actualModel]).filter(model => model !== null)).size,
+        extraction: new Set(result.calls.filter(call => call.phase === "extraction").flatMap(call => call.attempts?.map(attempt => attempt.actualModel) ?? [call.actualModel]).filter(model => model !== null)).size,
       },
       split: result.split, fieldAccuracy: result.fieldAccuracy,
       criticalAccuracy: result.criticalAccuracy, criticalDocuments: result.criticalDocuments,
@@ -613,11 +700,22 @@ export function formatEvaluationReport(privateReport: EvaluationReport): string 
   const report = safeEvaluationSummary(privateReport);
   const lines = [
     `Golden set: ${report.cases} Source Files, ${report.documents} Documents`,
-    `Run status: ${report.status}`,
-    `Evaluated at: ${report.evaluatedAt}`,
-    "Isolated Extraction on human reference ranges; not end-to-end production accuracy",
+    `${report.mode === "preflight" ? "Preflight" : "Run"} status: ${report.status}`,
+    `${report.mode === "preflight" ? "Prepared" : "Evaluated"} at: ${report.evaluatedAt}`,
+    report.mode === "preflight" ? "Plan only; no accuracy has been measured." : "Isolated Extraction on human reference ranges; not end-to-end production accuracy",
     "Missing measurements remain in denominators and are not observed correctness or zero cost.",
   ];
+  if (report.plan) {
+    lines.push(report.mode === "preflight" ? "Preflight: 0 provider calls" : `Provider calls: ${report.providerCalls}`,
+      `${report.plan.measurements} measurements; at most ${report.plan.maximumAttempts} attempts; ${report.plan.admittedMaximumAttempts} admitted by limits`,
+      `Repetitions: ${report.plan.repetitions}; maximum calls: ${report.plan.limits.maxCalls}; retries per measurement: ${report.plan.limits.maxRetries}`,
+      `Generated/output tokens: ${report.plan.limits.generatedTokensPerAttempt} per attempt; ${report.plan.limits.maxGeneratedTokens} globally (reasoning included where supported)`,
+      "Input/total token ceiling: unavailable. No guaranteed monetary cap.");
+    lines.push(`Generated-component USD estimate: ${report.plan.generatedPriceEstimate?.usd ?? "unavailable"} (supplied tariff; input component unavailable)`);
+  }
+  if (report.budget) lines.push(`Reserved generated tokens: ${report.budget.reservedGeneratedTokens}; metered attempts: ${report.budget.meteredAttempts}; unmetered attempts: ${report.budget.unmeteredAttempts}`,
+    `Observed input tokens: ${report.budget.observedInputTokens ?? "unavailable"}; observed generated tokens: ${report.budget.observedGeneratedTokens ?? "unavailable"}; stop: ${report.budget.stopReason ?? "none"}`);
+  if (report.mode === "run" && report.costs) lines.push(`Provider-reported USD: ${report.costs.providerReportedUsd ?? "unavailable"}; estimated USD: ${report.costs.estimatedUsd ?? "unavailable"} (supplied tariff, not a provider invoice)`);
   for (const result of report.results) {
     lines.push(
       "",

@@ -11,6 +11,10 @@ Set the providers, credentials, and default model names in the environment, then
 ```bash
 EVALUATION_REPORT_PATH=/private/evaluation/run-001.json \
 EVALUATION_PROVIDERS=anthropic,openai \
+EVALUATION_MAX_CALLS=8 \
+EVALUATION_MAX_GENERATED_TOKENS=32768 \
+EVALUATION_GENERATED_TOKENS_PER_ATTEMPT=4096 \
+EVALUATION_MAX_RETRIES=0 \
 ANTHROPIC_CONTRACT_API_KEY=... \
 ANTHROPIC_CONTRACT_MODEL=... \
 OPENAI_CONTRACT_API_KEY=... \
@@ -52,7 +56,84 @@ Every planned Split/Extraction has a completed, failed or missing entry. Each co
 
 Coverage reports expected/completed/failed/missing calls separately. All failed/missing cases remain in Split, field, known-absence, classification and Document denominators. Metric `missing` counts distinguish unavailable measurements from observed incorrect values or hallucinations. These fractions are successful correct measurements divided by the full reference denominator; they do not assert that failed calls produced incorrect financial values.
 
-Preflight and enforced call/token/retry budgets remain the separate #303 slice. Do not treat the command as approval to run a paid baseline: models, repetition and budget still require a concrete approved plan. The tool changes no production models or Company data and consumes no Company allowance.
+## Zero-call preflight and explicit limits
+
+Add `--preflight` to prepare and hash the real source bytes and reference ranges
+without any provider request, including token-count requests. Select providers
+and models explicitly; provider API keys are unnecessary for preflight. The same
+required limits apply to the plan and execution:
+
+| Variable | Meaning |
+| --- | --- |
+| `EVALUATION_MAX_CALLS` | Positive global maximum of dispatched attempts, including retries and every provider/repetition. |
+| `EVALUATION_MAX_GENERATED_TOKENS` | Positive global generated/output-token reservation allowance. This excludes input tokens. |
+| `EVALUATION_GENERATED_TOKENS_PER_ATTEMPT` | Generated/output ceiling reserved before each request; integer at least 16. |
+| `EVALUATION_MAX_RETRIES` | Explicit nonnegative number of extra attempts per measurement; only known transient provider failures may retry. |
+| `EVALUATION_REPETITIONS` | Positive repetitions of the same frozen benchmark; defaults to 1. |
+
+For example, with the model and limit variables above and a new private report
+destination, `npm run --silent evaluate:extraction -- --preflight --json` returns
+the safe plan. It contains Source File/page/Document counts, repetitions, planned
+measurements, maximum attempts and admitted attempts under both global limits.
+The private report additionally records selected models, source/prepared-input
+hashes, references, exact revision and the limits. An unavailable or invalid
+source refuses successful preflight. The dataset and prepared bytes are frozen
+once per invocation across providers and repetitions; a later invocation checks
+them again, so compare its hashes with the approved plan before a real run.
+
+Every dispatched request reserves the full per-attempt output ceiling before
+dispatch, including retries. Reservations are never refunded, even if reported
+output is shorter or a request fails. The OpenAI adapter sends
+`max_output_tokens`, covering generated visible and reasoning tokens; Anthropic
+sends `max_tokens`. No built-in SDK retry multiplies these attempts. If a call or
+generated reservation cannot be admitted, no next request is sent. Missing,
+negative, fractional, overflowing or over-ceiling token usage stops further
+dispatch while retaining the partial report. Metered failures can retry within
+both limits; an unmetered failure cannot safely retry. Retry attempts retain
+their own models, usage, latency and errors without multiplying measurement
+denominators.
+
+Observed input/generated tokens are known subtotals, accompanied by metered and
+unmetered attempt counts. Observed total tokens are unavailable after any
+unmetered attempt. A generated-token allowance is **not** a hard input+output
+token ceiling or a guaranteed monetary cap. Requests for unsupported hard limits
+(`EVALUATION_MAX_TOKENS`, `EVALUATION_MAX_TOTAL_TOKENS`,
+`EVALUATION_MAX_COST_USD`, or unknown CLI flags) refuse before provider dispatch.
+
+Optional `EVALUATION_PRICE_TABLE_PATH` points to a private JSON array of tariffs
+the operator has verified. Each entry has `provider`, `model`,
+`inputUsdPerMillion`, `outputUsdPerMillion` (nonnegative decimal strings, up to
+six decimal places), `source` (HTTPS pricing reference), `verifiedAt` (valid
+nonfuture ISO date), and `verified:true`. Duplicate provider/model entries or
+invalid/unverified data refuse the run. Tariffs are supplied evidence; the tool
+does not independently verify their truth or fetch live prices. For example:
+
+```json
+[{"provider":"synthetic","model":"test-model","inputUsdPerMillion":"2.00","outputUsdPerMillion":"10.00","source":"https://example.test/verified-tariff","verifiedAt":"2026-11-01","verified":true}]
+```
+
+Runtime estimates use observed valid usage and an exactly matching **returned**
+model, with exact decimal arithmetic and the supplied tariff attached privately.
+Unreported/different models and absent tariffs stay unavailable. Provider-reported
+cost, its known subtotal, tariff estimate and its known subtotal have separate
+fields and coverage counts; missing prices never become zero or invoices.
+Preflight can estimate only the generated component, conservatively using the
+highest supplied output tariff across admitted attempts when every selected
+model is priced. Input and total price remain unavailable. Public summaries omit
+tariff sources and free-form model names; the private report retains attribution
+and tariff identity.
+
+Parameter contracts: [OpenAI Responses](https://developers.openai.com/api/reference/resources/responses/methods/create),
+[OpenAI token counts](https://developers.openai.com/api/docs/guides/token-counting),
+[Anthropic Messages](https://platform.claude.com/docs/en/api/messages/create).
+Verified from primary documentation on 2026-11-13; local fake/HTTP simulation
+checks establish serialization and accounting, not live model availability,
+metering accuracy, prices or extraction quality.
+
+Do not treat this command as approval to run a paid baseline: concrete models,
+repetition and budget still require an approved plan. No percentage release gate
+or production model change follows from a first baseline. The tool changes no
+Company data and consumes no Company allowance.
 
 ## Format
 
@@ -93,4 +174,4 @@ Paths are relative to the manifest, which may be outside the repository. Formats
 - Direction uses `detectDocumentDirection`, the same deterministic Company-identity/receipt rules as production, rather than the provider's raw guess. Direction and proposed VAT Regime have separate present classification scores; null references belong to absence totals. The overall correction-free Document result additionally requires both classifications and all ancillary names, addresses, due dates and payment facts to match. A critical financial pass alone does not mean an entire Document is perfect.
 - Money compares exact signed original-currency values at two decimals: no arithmetic tolerance, CZK conversion, Partial Claim or automatic sign repair. Canonicalization accepts ungrouped digits (optional whitespace grouping), a dot or comma decimal separator with at most two decimals, and preserves the sign; no rounding or fuzzy corrections. Dates accept ISO dates or equivalent valid `D.M.YYYY` strings; IČO/VAT ID and IBAN ignore whitespace, and VAT ID/IBAN ignore letter case. Document numbers, names and addresses remain literal.
 - Rate Breakdown order is ignored by sorting by numeric rate. Array length, every rate and every amount remain significant; missing, extra and duplicate output rows are errors. References must contain unique rates.
-- The JSON report contains each raw Extraction, applied normalization traces and canonical expected/actual differences. Treat it as private financial data. The readable summary contains only aggregate metrics and field paths, without individual values or source paths. The external raw report additionally retains provenance, failed/missing coverage and the frozen reference snapshot. Preflight and budget enforcement remain separate work.
+- The JSON report contains each raw Extraction, applied normalization traces and canonical expected/actual differences. Treat it as private financial data. The readable summary contains only aggregate metrics and field paths, without individual values or source paths. The external raw report additionally retains provenance, failed/missing coverage, budget/attempt evidence and the frozen reference snapshot.

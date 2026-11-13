@@ -46,6 +46,10 @@ const server = http.createServer(async (request, response) => {
     );
   }
   const body = await readJson(request);
+  if (body.model === "bounded-evaluator" && body.max_output_tokens !== 512) {
+    response.writeHead(400, JSON_HEADERS);
+    return response.end(JSON.stringify({ error: { message: "Expected explicit generated-token ceiling" } }));
+  }
   if (
     !request.headers.authorization?.startsWith("Bearer ") ||
     body.text?.format?.type !== "json_schema"
@@ -82,6 +86,7 @@ const server = http.createServer(async (request, response) => {
   response.end(
     JSON.stringify({
       model: body.model,
+      ...(body.model === "bounded-evaluator" ? { usage: { input_tokens: 32, output_tokens: 12 } } : {}),
       status: "completed",
       output: [
         {

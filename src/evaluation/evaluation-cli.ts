@@ -8,12 +8,14 @@ import { openAiProvider } from "@/ai/openai";
 import { pdfPages } from "@/application/source-files";
 import { evaluateGoldenSet, formatEvaluationReport, loadGoldenSet, safeEvaluationSummary, type EvaluationProvider } from "./extraction-evaluation";
 import { hashBytes } from "./evaluation-provenance";
+import { evaluationRunOptions } from "./evaluation-budget";
+import { parseEvaluationTariffs } from "./evaluation-prices";
 
 const execute = promisify(execFile);
 type Environment = Record<string, string | undefined>;
 type ProviderName = "anthropic" | "openai";
 
-async function providersFromEnvironment(env: Environment): Promise<EvaluationProvider[]> {
+async function providersFromEnvironment(env: Environment, preflight: boolean): Promise<EvaluationProvider[]> {
   const required = (name: string): string => {
     const value = env[name]?.trim();
     if (!value) throw new Error("evaluation_configuration_missing");
@@ -29,7 +31,7 @@ async function providersFromEnvironment(env: Environment): Promise<EvaluationPro
       extractModel: env[`${prefix}_EVALUATION_EXTRACT_MODEL`]?.trim() || fallback };
     const adapter = hashBytes(await readFile(fileURLToPath(new URL(`../ai/${name}.ts`, import.meta.url))));
     return { label: name, identity: { adapter, configuration },
-      provider: (name === "anthropic" ? anthropicAiProvider : openAiProvider)({ ...configuration, apiKey: required(`${prefix}_CONTRACT_API_KEY`) }) };
+      provider: (name === "anthropic" ? anthropicAiProvider : openAiProvider)({ ...configuration, apiKey: preflight ? "" : required(`${prefix}_CONTRACT_API_KEY`) }) };
   }));
 }
 
@@ -68,14 +70,16 @@ export async function runEvaluationCli(options: EvaluationCliOptions): Promise<{
   let output: Awaited<ReturnType<typeof privateOutput>> | undefined;
   let written = false;
   try {
-    if (options.argv.some(value => value.startsWith("--") && value !== "--json")
+    if (options.argv.some(value => value.startsWith("--") && value !== "--json" && value !== "--preflight")
       || options.argv.filter(value => !value.startsWith("--")).length > 1) throw new Error("evaluation_arguments_invalid");
+    const runOptions = evaluationRunOptions(options.env, options.argv.includes("--preflight"));
+    if (options.env.EVALUATION_PRICE_TABLE_PATH) runOptions.tariffs = parseEvaluationTariffs(JSON.parse(await readFile(options.env.EVALUATION_PRICE_TABLE_PATH, "utf8")));
     output = await privateOutput(options.env.EVALUATION_REPORT_PATH);
     const manifestPath = path.resolve(options.argv.find(value => !value.startsWith("--")) ?? "evaluation/golden-set/manifest.json");
     const goldenSet = await loadGoldenSet(manifestPath);
-    const report = await evaluateGoldenSet(goldenSet, options.providers ?? await providersFromEnvironment(options.env),
+    const report = await evaluateGoldenSet(goldenSet, options.providers ?? await providersFromEnvironment(options.env, Boolean(runOptions.preflight)),
       async sourcePath => new Uint8Array(await readFile(sourcePath)),
-      async (bytes, source, pages) => source.format !== "pdf" || pages.firstPage === 1 && pages.lastPage === source.pageCount ? bytes : pdfPages(bytes, pages));
+      async (bytes, source, pages) => source.format !== "pdf" || pages.firstPage === 1 && pages.lastPage === source.pageCount ? bytes : pdfPages(bytes, pages), runOptions);
     await output.file.writeFile(`${JSON.stringify(report, null, 2)}\n`);
     await output.file.sync();
     written = true;
@@ -83,7 +87,7 @@ export async function runEvaluationCli(options: EvaluationCliOptions): Promise<{
       stderr: "", exitCode: report.status === "complete" ? 0 : report.status === "partial" ? 2 : 1 };
   } catch {
     // Errors may contain confidential case IDs, source paths or provider data.
-    return { stdout: "", stderr: "Extraction evaluation failed. Check the private inputs, output destination and provider configuration.\n", exitCode: 1 };
+    return { stdout: "", stderr: "Extraction evaluation failed. Check the private inputs, output destination, explicit generated-token/call/retry limits and provider configuration.\n", exitCode: 1 };
   } finally {
     if (output) {
       await output.file.close();

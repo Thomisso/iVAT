@@ -28,6 +28,19 @@ async function openAiStandIn(
 }
 
 describe("OpenAI provider", () => {
+  it("sends the evaluator generated-token ceiling on the real Responses request", async () => {
+    let requestBody: unknown;
+    const baseUrl = await openAiStandIn((_request, body, response) => {
+      requestBody = body;
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({ model: "bounded", status: "completed", usage: { input_tokens: 8, output_tokens: 9 },
+        output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify({ documents: [{ firstPage: 1, lastPage: 1 }] }) }] }] }));
+    });
+    const provider = openAiProvider({ apiKey: "synthetic", splitModel: "bounded", extractModel: "bounded", baseUrl });
+    const result = await provider.split({ format: "png", mediaType: "image/png", bytes: new Uint8Array([1]), pageCount: 1 }, undefined, { maxOutputTokens: 100 });
+    expect(requestBody).toMatchObject({ max_output_tokens: 100, store: false });
+    expect(result.usage).toEqual({ inputTokens: 8, outputTokens: 9 });
+  });
   it("requests PDF field locations relative to the oriented input pages", async () => {
     let requestBody: unknown;
     const sourceLocations = [
