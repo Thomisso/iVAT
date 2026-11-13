@@ -12,11 +12,15 @@ const endpoint = rawEndpoint.split("?")[0];
 const page = Number(new URLSearchParams(rawEndpoint.split("?")[1]).get("page") ?? 1);
 const input = args.includes("--input") ? JSON.parse(fs.readFileSync(0, "utf8")) : {};
 const operation = endpoint === "graphql" ? input.query.match(/(?:query|mutation)\s+(\w+)/)?.[1] : `${method} ${endpoint}`;
+if (typeof input.body === "string" && Buffer.byteLength(input.body) > 60 * 1024) { console.error("HTTP 422: comment body exceeds fixture limit"); process.exit(1); }
 if (endpoint === "graphql" ? input.query.startsWith("mutation ") : method !== "GET") {
   remote.requests ??= [];
   remote.requests.push({ operation, method, endpoint, input });
 }
-const injected = remote.failure?.remaining > 0 && operation === remote.failure.match ? { ...remote.failure } : null;
+const matching = remote.failure?.remaining > 0 && operation === remote.failure.match;
+const skipped = matching && remote.failure.skip > 0;
+if (skipped) remote.failure.skip--;
+const injected = matching && !skipped ? { ...remote.failure } : null;
 if (injected) {
   remote.failure.remaining--;
   publishRemote(file, remote);
@@ -138,10 +142,21 @@ if (endpoint === "graphql") {
 } else if (endpoint === "repos/example/project/issues/99/comments" && method === "GET") {
   let body = remote.registry;
   if (remote.staleRegistry?.remaining > 0) { body = remote.staleRegistry.body; remote.staleRegistry.remaining--; }
-  response = body ? [{ id: 900, body }] : [];
+  response = [...(body ? [{ id: 900, body }] : []), ...(remote.registryComments ?? [])].slice((page - 1) * 100, page * 100);
 } else if (endpoint === "repos/example/project/issues/99/comments" && method === "POST") {
-  remote.registry = input.body;
-  response = { id: 900, body: input.body };
+  if (input.body.startsWith("<!-- ivat-agent-tracker:registry:v1 -->")) {
+    remote.registry = input.body;
+    response = { id: 900, body: input.body };
+  } else {
+    remote.registryComments ??= [];
+    const id = Math.max(10_000, ...remote.registryComments.map(comment => comment.id)) + 1;
+    response = { id, body: input.body };
+    remote.registryComments.push(response);
+  }
+} else if (/^repos\/example\/project\/issues\/comments\/\d+$/.test(endpoint) && method === "GET") {
+  const id = Number(endpoint.split("/").at(-1));
+  response = id === 900 ? { id, body: remote.registry } : remote.registryComments?.find(comment => comment.id === id);
+  if (!response) { console.error("HTTP 404: comment missing"); process.exit(1); }
 } else if (endpoint === "repos/example/project/issues/comments/900" && method === "PATCH") {
   remote.registry = input.body;
   response = { id: 900, body: input.body };

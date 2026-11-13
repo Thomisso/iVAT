@@ -43,6 +43,15 @@ function readiness(github, config, issue) {
   return { status: "ready", result: "Approved implementation is waiting to be claimed" };
 }
 
+function unclaimedDiscovery(record) {
+  // Fail closed on execution evidence, including fields introduced by later
+  // lifecycle commands. Only passive discovery/projection metadata is safe.
+  const passive = new Set(["number", "nodeId", "title", "url", "repository", "role", "parent", "parentRepository", "parentSource", "status", "activity", "stateAt", "result", "revision", "blockage", "projectItemId", "projectionHash", "manualConflict"]);
+  return record.role === "implementation" && ["ready", "blocked"].includes(record.status) && record.activity === "inactive"
+    && (record.blockage == null || (record.blockage.kind === "dependency" && record.blockage.resumePhase === "ready"))
+    && Object.entries(record).every(([key, value]) => value == null || passive.has(key));
+}
+
 export function discoverTickets(state, { github, config, at }) {
   const [owner, name] = config.repository.split("/");
   const issues = [];
@@ -58,7 +67,12 @@ export function discoverTickets(state, { github, config, at }) {
     const repository = issue.repository?.nameWithOwner ?? config.repository;
     // Cross-repository parent context uses its qualified identity, never a local number collision.
     const key = repository.toLowerCase() === config.repository.toLowerCase() ? issue.number : `${repository}#${issue.number}`;
-    if (tickets[key]) return;
+    if (tickets[key]) {
+      if (role === "specification" && unclaimedDiscovery(tickets[key])) {
+        tickets[key] = { ...tickets[key], role, status: null, activity: "inactive", blockage: null, stateAt: at, result: "Parent specification context", revision: state.revision + 1 };
+      }
+      return;
+    }
     tickets[key] = { number: issue.number, nodeId: issue.id, title: issue.title, url: issue.url, repository, role, parent,
       account: null, agent: null, reviewer: null, branch: null, workingRevision: null, pullRequest: null,
       status: null, activity: "inactive", stateAt: at, activityAt: null, result: "Parent specification context", runId: null, generation: null, revision: state.revision + 1, ...extra };
@@ -93,7 +107,7 @@ export function discoverTickets(state, { github, config, at }) {
     }
     if (observed.number !== null) {
       const key = observed.repository.toLowerCase() === config.repository.toLowerCase() ? observed.number : `${observed.repository}#${observed.number}`;
-      if (!tickets[key]) {
+      if (!tickets[key] || unclaimedDiscovery(tickets[key])) {
         const parent = github.request(`repos/${observed.repository}/issues/${observed.number}`);
         add({ id: parent.node_id, number: parent.number, title: parent.title, url: parent.html_url, repository: { nameWithOwner: observed.repository } }, "specification");
       }

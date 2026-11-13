@@ -1,12 +1,11 @@
 import { createHash } from "node:crypto";
 import { gzipSync, gunzipSync } from "node:zlib";
 import { TrackerError } from "./github.mjs";
+import { registryBodyLimit, registryDecodedLimit, registryMarker, isPartsManifest, decodeParts, publishParts } from "./registry-parts.mjs";
 
-const registryBodyLimit = 60 * 1024;
-const registryDecodedLimit = 4 * 1024 * 1024;
 const registryEncoding = "gzip-base64-v1";
 
-export const registryMarker = "<!-- ivat-agent-tracker:registry:v1 -->";
+export { registryMarker };
 export const statuses = { ready: "Připraveno", implementing: "Implementace", review: "Review", integrated: "V integrační větvi", done: "Hotovo", blocked: "Blokováno", cancelled: "Zrušeno" };
 export const activities = { confirmed: "Potvrzená", unverified: "Neověřená", inactive: "Neaktivní" };
 export const textFields = { agent: "Agent", reviewer: "Review agent", branch: "Branch", pullRequest: "Implementation PR", stateAt: "Confirmed state (UTC)", activityAt: "Confirmed activity (UTC)", result: "Latest result", runId: "Run", revision: "Revision" };
@@ -28,14 +27,15 @@ export function renderRegistry(state) {
   return body;
 }
 
-export function parseRegistry(body) {
+export function parseRegistry(body, parts) {
   if (typeof body === "string" && Buffer.byteLength(body) > registryBodyLimit) throw new TrackerError("registry_capacity_exceeded");
   const match = typeof body === "string" && body.match(/^<!-- ivat-agent-tracker:registry:v1 -->\s*```json\n([\s\S]+)\n```\s*$/);
   if (!match) throw new TrackerError("registry_invalid");
   let state;
   try {
     state = JSON.parse(match[1]);
-    if (state && !Object.hasOwn(state, "schemaVersion") && Object.hasOwn(state, "registryEncoding")) {
+    if (isPartsManifest(state)) state = decodeParts(state, parts?.comments, parts?.commentId);
+    else if (state && !Object.hasOwn(state, "schemaVersion") && Object.hasOwn(state, "registryEncoding")) {
       if (state.registryEncoding !== registryEncoding || !Number.isSafeInteger(state.decodedBytes) || state.decodedBytes <= 0 || typeof state.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(state.sha256) || typeof state.data !== "string") throw new TrackerError("registry_invalid");
       if (state.decodedBytes > registryDecodedLimit) throw new TrackerError("registry_capacity_exceeded");
       const compressed = Buffer.from(state.data, "base64");
@@ -48,6 +48,10 @@ export function parseRegistry(body) {
     if (error instanceof TrackerError) throw error;
     throw new TrackerError("registry_invalid");
   }
+  return validateRegistry(state);
+}
+
+function validateRegistry(state) {
   const record = value => value !== null && typeof value === "object" && !Array.isArray(value);
   const counter = value => Number.isSafeInteger(value) && value >= 0;
   const timestamp = value => typeof value === "string" && Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value;
@@ -102,11 +106,20 @@ export function readRegistry(github, config) {
   const comments = github.pages(`repos/${config.repository}/issues/${config.registryIssue}/comments`);
   const matches = comments.filter(comment => comment.body.startsWith(registryMarker));
   if (matches.length !== 1) throw new TrackerError(matches.length ? "registry_ambiguous" : "registry_missing");
-  return { commentId: matches[0].id, state: parseRegistry(matches[0].body) };
+  return { commentId: matches[0].id, state: parseRegistry(matches[0].body, { comments, commentId: matches[0].id }) };
 }
 
 export function writeRegistry(github, config, commentId, state) {
-  const body = renderRegistry(state);
+  let body;
+  try { body = renderRegistry(state); }
+  catch (error) {
+    if (!(error instanceof TrackerError) || error.code !== "registry_capacity_exceeded") throw error;
+    validateRegistry(state);
+    const result = publishParts(github, config, commentId, state);
+    const observed = readRegistry(github, config);
+    if (observed.commentId !== commentId || JSON.stringify(observed.state) !== JSON.stringify(state)) throw new TrackerError("registry_readback_failed");
+    return result;
+  }
   parseRegistry(body);
   return github.request(`repos/${config.repository}/issues/comments/${commentId}`, { method: "PATCH", body: { body } });
 }
