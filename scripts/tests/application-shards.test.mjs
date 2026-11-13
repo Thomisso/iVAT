@@ -68,9 +68,13 @@ test("every discovered application file is selected exactly once, including unme
     for (const file of ["tests/contract/adis-vat-registry.test.ts", "tests/contract/anthropic.test.ts", "tests/contract/ares.test.ts", "tests/contract/cnb-rates.test.ts", "tests/contract/openai.test.ts", "tests/simulation/openai.test.ts"]) {
       assert.ok(selected.includes(file), `${file} remains selected with its existing opt-in behavior`);
     }
-    // Baseline's slowest shard contained 409.877s of emitted file durations.
-    // This is a prediction from those same measurements, not observed CI time.
-    assert.ok(Math.max(...estimates) < 285000, `predicted loads: ${estimates}`);
+    // Added files increase unavoidable work; a fixed wall-time estimate cannot
+    // test balance. Budget at most one recorded-median fallback (5.500s) above
+    // the inventory's mathematical lower bound, retaining a strict imbalance
+    // check without inventing measurements for new/opt-in files.
+    const weights = all.map(file => measurements.get(file) ?? 5500);
+    const lowerBound = Math.max(Math.ceil(weights.reduce((sum, duration) => sum + duration, 0) / 3), ...weights);
+    assert.ok(Math.max(...estimates) <= lowerBound + 5500, `predicted loads: ${estimates}; lower bound: ${lowerBound}`);
     t.diagnostic(`${all.length} files selected once; predicted file-duration totals ${estimates.join("/")}ms, including 5500ms fallback per unmeasured file`);
   } finally {
     await runner.close();
