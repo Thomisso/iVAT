@@ -280,7 +280,7 @@ export default class OperationalBulkCapture {
     // the finishing state and cannot hold the teardown open after this cap.
     const pending = this.pending;
     this.pending = Promise.race([pending, stopped]).catch(() => {});
-    const report: Record<string, unknown> = { source: "diagnostic_session", phase: "post_cleanup", originalEffectiveSettings: false, originalJitUse: false, originalPlanStatistics: false };
+    const report: Record<string, unknown> = { source: "diagnostic_session", phase: "post_cleanup", originalEffectiveSettingsCaptured: false, originalJitUseCaptured: false, originalPlanStatisticsCaptured: false };
     try {
       await Promise.race([pending, stopped]);
       if (!active || this.state !== "finishing" || !this.connection) throw unavailable();

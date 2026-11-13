@@ -61,8 +61,8 @@ it("collects catalog facts after successful cleanup without another business rea
   await fixture.reporter.end();
   expect(fixture.calls).toEqual(["git_context", "docker_inspect", "pg_connect", "pg_catalog", "pg_close", "docker_logs_snapshot"]);
   expect(JSON.parse(fixture.output("catalog.jsonl"))).toEqual({
-    source: "diagnostic_session", phase: "post_cleanup", originalEffectiveSettings: false,
-    originalJitUse: false, originalPlanStatistics: false, serverVersionNum: 170011, architecture: "x86_64",
+    source: "diagnostic_session", phase: "post_cleanup", originalEffectiveSettingsCaptured: false,
+    originalJitUseCaptured: false, originalPlanStatisticsCaptured: false, serverVersionNum: 170011, architecture: "x86_64",
     jit: true, jitProvider: "llvmjit", jitAboveCost: 100000, jitInlineAboveCost: 500000, jitOptimizeAboveCost: 500000,
     planCacheMode: "auto", jitAvailability: { available: true, value: true, sqlState: null },
     nativeRoleLimits: true,
