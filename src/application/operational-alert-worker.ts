@@ -9,7 +9,7 @@ export type OperationalAlertMessage = { to: string; subject: string; text: strin
 export type OperationalAlertMailer = { send(message: OperationalAlertMessage): Promise<AlertTransportOutcome> };
 type Claim = {
   id: string; claimToken: string; episodeId: string; email: string; locale: Locale;
-  kind: string; detailHref: string;
+  kind: string; deliveryKind: "first" | "reminder" | "recovery"; detailHref: string;
   impact: { companies: number; documents: number; sourceFiles: number; exportJobs: number };
 };
 const labels = {
@@ -23,7 +23,7 @@ const escapeHtml = (value: string) => value.replace(/[&<>"']/g, character => ({ 
 
 /** One durable background observation and outbox drain. Never retries an uncertain claim. */
 export async function runOperationalAlertTick(system: SystemClient, input: {
-  mailer: OperationalAlertMailer; appOrigin: string; now?: string;
+  mailer: OperationalAlertMailer; appOrigin: string; now?: string; clock?: () => string;
 }) {
   const origin = new URL(input.appOrigin);
   if (!['https:', 'http:'].includes(origin.protocol) || origin.username || origin.password
@@ -31,11 +31,11 @@ export async function runOperationalAlertTick(system: SystemClient, input: {
     || (origin.protocol === "http:" && !["localhost", "127.0.0.1", "::1", "[::1]"].includes(origin.hostname))) {
     throw new Error("Invalid canonical alert origin");
   }
-  const now = input.now ?? new Date().toISOString();
-  const planned = await system.rpc("reconcile_operational_alerts", { observed_at: now });
+  const clock = input.clock ?? (() => input.now ?? new Date().toISOString());
+  const planned = await system.rpc("reconcile_operational_alerts", { observed_at: clock() });
   if (planned.error) throw planned.error;
   for (const id of planned.data as string[]) {
-    const claimed = await system.rpc("claim_operational_alert", { target_delivery_id: id, observed_at: now });
+    const claimed = await system.rpc("claim_operational_alert", { target_delivery_id: id, observed_at: clock() });
     if (claimed.error) throw claimed.error;
     if (!claimed.data) continue;
     const claim = claimed.data as unknown as Claim;
@@ -48,12 +48,15 @@ export async function runOperationalAlertTick(system: SystemClient, input: {
     let outcome: AlertTransportOutcome = "failed";
     if (label && link.origin === origin.origin && ["/platform/ai-settings", "/platform/administration"].includes(link.pathname)) {
       const problem = t(`platformAdministration.${label}`);
-      const heading = t("operationalAlerts.heading");
-      const remediation = t("operationalAlerts.remediation");
-      const impact = t("operationalAlerts.impact", claim.impact);
+      const heading = t(claim.deliveryKind === "recovery" ? "operationalAlerts.recoveryHeading"
+        : claim.deliveryKind === "reminder" ? "operationalAlerts.reminderHeading" : "operationalAlerts.heading");
+      const remediation = t(claim.deliveryKind === "recovery" ? "operationalAlerts.recoveryRemediation" : "operationalAlerts.remediation");
+      const impact = claim.deliveryKind === "recovery" ? t("operationalAlerts.recoveryContext") : t("operationalAlerts.impact", claim.impact);
       const text = t("operationalAlerts.body", { heading, problem, impact, remediation, link: link.toString() });
       try {
-        outcome = await input.mailer.send({ to: claim.email, subject: t("operationalAlerts.subject"), text,
+        outcome = await input.mailer.send({ to: claim.email,
+          subject: t(claim.deliveryKind === "recovery" ? "operationalAlerts.recoverySubject"
+            : claim.deliveryKind === "reminder" ? "operationalAlerts.reminderSubject" : "operationalAlerts.subject"), text,
           html: `<h2>${escapeHtml(heading)}</h2><p>${escapeHtml(problem)}</p><p>${escapeHtml(impact).replace(/\n/g, "<br>")}</p><p><a href="${escapeHtml(link.toString())}">${escapeHtml(remediation)}</a></p>`,
           messageId: `<operational-alert-${claim.id}@${origin.hostname}>`,
         });
@@ -63,7 +66,7 @@ export async function runOperationalAlertTick(system: SystemClient, input: {
       }
     }
     const finished = await system.rpc("finish_operational_alert", {
-      target_delivery_id: id, target_claim_token: claim.claimToken, transport_outcome: outcome, observed_at: now,
+      target_delivery_id: id, target_claim_token: claim.claimToken, transport_outcome: outcome, observed_at: clock(),
     });
     if (finished.error) throw finished.error;
   }

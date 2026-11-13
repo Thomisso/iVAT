@@ -23,6 +23,8 @@ export async function setOperationalAlertPreference(client: AppClient, input: Op
 export type OperationalAlertDelivery = {
   id: string; episodeId: string; rootKey: string; kind: string; state: "pending" | "sending" | "accepted" | "refused" | "failed" | "unknown" | "cancelled";
   eligibleSince: string; resolvedAt: string | null;
+  deliveryKind: "first" | "reminder" | "recovery"; reminderOrdinal: number;
+  dispatchStartedAt: string | null; finishedAt: string | null;
   impact: { companies: number; documents: number; sourceFiles: number; exportJobs: number };
 };
 
