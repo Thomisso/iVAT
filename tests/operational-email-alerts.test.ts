@@ -33,14 +33,12 @@ async function scenario(count = 2, locale: "cs" | "en" = "en", startAt?: string)
   const mailer: OperationalAlertMailer = { async send(message) { messages.push(message); return "accepted"; } };
   const scopes = new Set([company.companyId]);
   const start = startAt ? Date.parse(startAt) : Date.now() + 1000;
-  const deliveries = async () => {
-    const result = await listOperationalAlertDeliveries(admin.client);
+  const deliveries = async (recipient = admin.client) => {
+    const result = await listOperationalAlertDeliveries(recipient);
     if (!result.ok) throw new Error(result.error);
     return result.value.filter(delivery => [...scopes].some(scope => delivery.rootKey.split(":").includes(scope)));
   };
-  const tick = async (seconds: number, transport = mailer) => {
-    await runOperationalAlertTick(systemClient(), { mailer: transport,
-      now: new Date(start + seconds * 1000).toISOString(), appOrigin: "https://ivat.example.test" });
+  const observeMessages = async () => {
     // Other test files may leave legitimate active platform incidents. Observe
     // this scenario's public receipt IDs rather than assuming an empty platform.
     const result = await listOperationalAlertDeliveries(admin.client);
@@ -49,7 +47,36 @@ async function scenario(count = 2, locale: "cs" | "en" = "en", startAt?: string)
       messages.splice(0, messages.length, ...messages.filter(message => relevant.some(delivery => message.messageId.includes(delivery.id))));
     }
   };
-  return { admin, company, messages, mailer, tick, deliveries, start, scopes };
+  const tick = async (seconds: number, transport = mailer) => {
+    await runOperationalAlertTick(systemClient(), { mailer: transport,
+      now: new Date(start + seconds * 1000).toISOString(), appOrigin: "https://ivat.example.test" });
+    await observeMessages();
+  };
+  return { admin, company, messages, mailer, tick, deliveries, start, scopes, observeMessages };
+}
+
+/** Both roots and subscribers remain eligible. Use the actual prepared plan
+ * only to select a target after an unrelated delivery; observe their outcomes
+ * through public receipts. The worker still drains every ID. */
+async function scenarioAfterUnrelatedDelivery(startAt = new Date(Date.now() + 1000).toISOString()) {
+  const candidates = [await scenario(1, "en", startAt), await scenario(1, "en", startAt)];
+  await candidates[0].tick(0);
+  const planned = await systemClient().rpc("reconcile_operational_alerts", {
+    observed_at: new Date(Date.parse(startAt) + 300000).toISOString(),
+  });
+  if (planned.error) throw planned.error;
+  const pairs = await Promise.all(candidates.map(async testCase => {
+    const [receipt] = await testCase.deliveries();
+    expect(receipt).toEqual(expect.objectContaining({ deliveryKind: "first", state: "pending" }));
+    return { testCase, receipt };
+  }));
+  const candidatesByReceipt = new Map(pairs.map(pair => [pair.receipt.id, pair.testCase]));
+  const [earlier, target] = (planned.data as string[]).flatMap(id => {
+    const testCase = candidatesByReceipt.get(id);
+    return testCase ? [testCase] : [];
+  });
+  if (!earlier || !target) throw new Error("Fixture did not plan both public pending receipts");
+  return { ...target, earlier };
 }
 
 it("spaces reminders by literal elapsed twenty-four hours and never catches up missed windows", async () => {
@@ -99,17 +126,26 @@ it("cancels a queued reminder at remediation commit and sends one episode-specif
 });
 
 it("anchors first qualification to acceptance and later spacing to the genuine delayed dispatch clock", async () => {
-  const { messages, mailer, tick, deliveries } = await scenario(1, "en", "2026-01-01T09:55:00Z");
+  const { admin, messages, mailer, tick, deliveries, earlier, observeMessages } = await scenarioAfterUnrelatedDelivery("2026-01-01T09:55:00Z");
   await tick(0);
   let now = "2026-01-01T10:00:00Z";
   await runOperationalAlertTick(systemClient(), { appOrigin: "https://ivat.example.test", clock: () => now,
-    mailer: { async send(message) { messages.push(message); now = "2026-01-01T11:00:00Z"; return "accepted"; } } });
+    mailer: { async send(message) {
+      messages.push(message);
+      if (message.to === admin.email && (await deliveries()).some(receipt => message.messageId.includes(receipt.id))) {
+        now = "2026-01-01T11:00:00Z";
+      }
+      return "accepted";
+    } } });
+  await observeMessages();
   expect((await deliveries())[0]).toEqual(expect.objectContaining({ dispatchStartedAt: "2026-01-01T10:00:00+00:00", finishedAt: "2026-01-01T11:00:00+00:00" }));
+  expect((await earlier.deliveries())[0]).toEqual(expect.objectContaining({ state: "accepted", dispatchStartedAt: "2026-01-01T10:00:00+00:00" }));
   await tick(90299.999); // Jan 2, 10:59:59.999: less than 24h since acceptance.
   expect(messages).toHaveLength(1);
   let samples = 0;
   await runOperationalAlertTick(systemClient(), { appOrigin: "https://ivat.example.test", mailer,
     clock: () => ++samples === 1 ? "2026-01-02T11:00:00Z" : "2026-01-02T12:00:00Z" });
+  await observeMessages();
   expect(messages).toHaveLength(2);
   expect((await deliveries())[1]).toEqual(expect.objectContaining({ dispatchStartedAt: "2026-01-02T12:00:00+00:00" }));
   await tick(180299.999); // Jan 3, 11:59:59.999.
@@ -119,17 +155,22 @@ it("anchors first qualification to acceptance and later spacing to the genuine d
 });
 
 it.each(["refused", "failed", "unknown"] as const)("never qualifies reminders or recovery from a %s first, even for another qualified subscriber", async outcome => {
-  const { admin, company, tick, messages, deliveries } = await scenario(1);
+  const { company, tick, messages, deliveries, earlier } = await scenarioAfterUnrelatedDelivery();
   const other = await promotedSuperAdministrator("Unqualified subscriber"); subscribers.push(other);
   expect(await setOperationalAlertPreference(other.client, { enabled: true, locale: "en" })).toEqual({ ok: true, value: null });
   const otherMessages: OperationalAlertMessage[] = [];
   const transport: OperationalAlertMailer = { async send(message) {
-    (message.to === admin.email ? messages : otherMessages).push(message);
-    return message.to === admin.email ? "accepted" : outcome;
+    if (message.to === other.email && (await deliveries(other.client)).some(receipt => message.messageId.includes(receipt.id))) {
+      otherMessages.push(message);
+      return outcome;
+    }
+    messages.push(message);
+    return "accepted";
   } };
   await tick(0, transport); await tick(300, transport);
   await tick(86700, transport);
   expect(otherMessages).toHaveLength(1);
+  expect((await earlier.deliveries())[0].state).toBe("accepted");
   const [document] = await listCompanyDocuments(company.client, company.companyId);
   expect(await startManualDocumentReview(company.client, { companyId: company.companyId, documentId: document.id })).toEqual({ ok: true, value: null });
   await tick(86701, transport);
