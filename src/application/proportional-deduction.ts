@@ -1,5 +1,6 @@
 import type { ExtractionPayload, RateBreakdownLine } from "./extraction-payload";
 import { claimBasisKey } from "./partial-claim";
+import { validatedDocumentCzkConversion } from "./exchange-rates";
 import { halers, amount, assessedVat } from "./money";
 
 /** Exact independent reduction in minor units, half away from zero. */
@@ -8,13 +9,14 @@ function reduce(value: string, percentage: number): string {
   return amount((minor + BigInt(50)) / BigInt(100));
 }
 
-/** CZK ordinary operating actual-use decisions only; foreign support is a separate slice. */
+/** Original-currency actual-use amounts; foreign claims require the saved Document conversion. */
 export function proportionalDeductionRates(payload: ExtractionPayload): RateBreakdownLine[] | null {
   const choice = payload.proportionalDeduction;
   if (!choice || payload.partialClaim || choice.origin !== "user" || !choice.confirmed
     || !choice.operatingExpenseConfirmed || !choice.actualUseConfirmed
     || !Number.isInteger(choice.percentage) || choice.percentage! < 1 || choice.percentage! > 99
-    || payload.direction !== "incoming" || payload.proposedVatRegime !== "domestic" || payload.currency !== "CZK"
+    || payload.direction !== "incoming" || payload.proposedVatRegime !== "domestic" || !/^[A-Z]{3}$/.test(payload.currency ?? "")
+    || (payload.currency !== "CZK" && !validatedDocumentCzkConversion(payload))
     || !["invoice", "receipt", "simplified_tax_document"].includes(payload.documentType ?? "")
     || !payload.rateBreakdown.length
     || Object.keys(choice).some(key => !["percentage", "confirmed", "operatingExpenseConfirmed", "actualUseConfirmed", "origin", "basis"].includes(key))) return null;

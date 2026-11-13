@@ -19,6 +19,7 @@ import {
   isZeroRateBreakdownLine,
   type ExtractionPayload,
 } from "@/application/extraction-payload";
+import { validatedDocumentCzkConversion } from "@/application/exchange-rates";
 import type { ValidationFinding } from "@/application/document-validation";
 import { findingMessage as messageOf } from "./finding-message";
 import { Button } from "@/components/button";
@@ -85,6 +86,7 @@ export function CorrectionForm({
   // Keep this draft's base until our explicit save actually succeeds.
   const [base, setBase] = useState({ version: currentVersion, payload: currentPayload, findings: currentFindings, requestId, displayedBankAccountCheckId, displayedReviewContext, extractionVersionId });
   const { version, payload, findings } = base;
+  const czkConversion = payload.proportionalDeduction ? validatedDocumentCzkConversion(payload) : payload.czkConversion;
   const [direction, setDirection] = useState(payload.direction);
   const [clientErrors, setClientErrors] = useState<{ field: string; message: string }[]>([]);
   const [keepCounterpartyEditor, setKeepCounterpartyEditor] = useState(editable);
@@ -448,22 +450,22 @@ export function CorrectionForm({
       </fieldset>
       <ProportionalDeductionFields key={`proportional-${version}`} payload={payload} editable={editable} values={state.values} rateRows={lines} />
       <PartialClaimFields key={version} payload={payload} editable={editable} values={state.values} rateRows={lines} />
-      {payload.czkConversion && (
+      {czkConversion && (
         <fieldset>
           <legend>{t("sections.czkConversion")}</legend>
           <p>
             {t("czkConversion.rate", {
-              unit: payload.czkConversion.unit,
-              currency: payload.czkConversion.originalCurrency,
-              rate: payload.czkConversion.rate,
-              date: payload.czkConversion.rateDate,
-              source: payload.czkConversion.source,
+              unit: czkConversion.unit,
+              currency: czkConversion.originalCurrency,
+              rate: czkConversion.rate,
+              date: czkConversion.rateDate,
+              source: czkConversion.source,
             })}
           </p>
           <table className="rate-breakdown">
             <thead><tr><th>{t("fields.rate")}</th><th>{t("fields.netAmountCzk")}</th><th>{t("fields.vatAmountCzk")}</th></tr></thead>
             <tbody>
-              {payload.czkConversion.rateBreakdown.filter((line) => !isZeroRateBreakdownLine(line)).map((line, index) => (
+              {czkConversion.rateBreakdown.filter((line) => !isZeroRateBreakdownLine(line)).map((line, index) => (
                 <tr key={`${line.rate}-${index}`}>
                   <td>{line.rate}</td><td className="iv-mono">{line.netAmount}</td><td className="iv-mono">{line.vatAmount}</td>
                 </tr>
@@ -472,9 +474,9 @@ export function CorrectionForm({
           </table>
           <p className="iv-mono">
             {t("czkConversion.totals", {
-              net: payload.czkConversion.totals.netAmount ?? t("notSet"),
-              vat: payload.czkConversion.totals.vatAmount ?? t("notSet"),
-              gross: payload.czkConversion.totals.grossAmount ?? t("notSet"),
+              net: czkConversion.totals.netAmount ?? t("notSet"),
+              vat: czkConversion.totals.vatAmount ?? t("notSet"),
+              gross: czkConversion.totals.grossAmount ?? t("notSet"),
             })}
           </p>
         </fieldset>

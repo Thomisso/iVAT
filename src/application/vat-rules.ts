@@ -1,7 +1,7 @@
 import { halers, amount, assessedVat } from "./money";
 import { proportionalDeductionRates } from "./proportional-deduction";
 import { partialClaimRates } from "./partial-claim";
-import { convertedAmount, documentCzkConversion } from "./exchange-rates";
+import { convertedAmount, documentCzkConversion, validatedDocumentCzkConversion } from "./exchange-rates";
 import type {
   CompanyDetails,
   ReportingYear,
@@ -136,9 +136,9 @@ function add(
 
 /** The stored CZK gross amount used by both domestic identity and classification. */
 function reportingGrossAmountCzk(p: ExtractionPayload): string | null {
-  const converted = p.currency === "CZK" ? p : p.czkConversion
-    && p.czkConversion.originalCurrency === p.currency && p.taxPointDate
-    && p.czkConversion.rateDate <= p.taxPointDate ? p.czkConversion : null;
+  const converted = p.currency === "CZK" ? p : p.proportionalDeduction ? validatedDocumentCzkConversion(p)
+    : p.czkConversion && p.czkConversion.originalCurrency === p.currency && p.taxPointDate
+      && p.czkConversion.rateDate <= p.taxPointDate ? p.czkConversion : null;
   const gross = converted?.totals.grossAmount;
   return gross && /^-?\d+\.\d{2}$/.test(gross) ? gross : null;
 }
@@ -176,6 +176,7 @@ export function vatReportDocumentExclusion(document: ReportDocument): ExclusionR
     !p.totals.grossAmount
   )
     return "incomplete_data";
+  if (p.proportionalDeduction && p.currency !== "CZK" && !validatedDocumentCzkConversion(p)) return "currency_conversion_required";
   if ((p.partialClaim !== undefined || p.proportionalDeduction !== undefined) && !reportingClaimRates(p)) return "incomplete_data";
   const regime = p.proposedVatRegime;
   if (
@@ -270,8 +271,8 @@ export function deriveDocumentVatMapping(payload: ExtractionPayload | null): Doc
   if (p.proposedVatRegime === "domestic_reverse_charge") section = p.direction === "outgoing" ? "A.1" : "B.1";
   else if (!domestic) section = "A.2";
   else {
-    const converted = p.currency === "CZK" ? p : p.czkConversion
-      && p.czkConversion.originalCurrency === p.currency && p.taxPointDate
+    const converted = p.currency === "CZK" ? p : p.proportionalDeduction ? validatedDocumentCzkConversion(p)
+    : p.czkConversion && p.czkConversion.originalCurrency === p.currency && p.taxPointDate
       && p.czkConversion.rateDate <= p.taxPointDate ? p.czkConversion : null;
     const grossAmount = converted?.totals.grossAmount;
     if (!p.currency) controlStatementUnknownReason = "missing_currency";

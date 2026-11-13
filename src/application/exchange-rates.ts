@@ -52,6 +52,34 @@ export function convertedAmount(value: string | null, rate: Pick<CnbRate, "rate"
   return `${converted < BigInt(0) ? "-" : ""}${magnitude / BigInt(100)}.${String(magnitude % BigInt(100)).padStart(2, "0")}`;
 }
 
+/** A saved full-Document fixing is usable only while every saved amount still corresponds. */
+export function validatedDocumentCzkConversion(payload: ExtractionPayload): CzkConversion | null {
+  try {
+    const saved = documentCzkConversion(payload);
+    const quote = saved && typeof saved.rate === "string" ? scaledDecimal(saved.rate) : null;
+    const validDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !value.startsWith("0000")
+      && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
+    if (!saved || !quote || quote.value <= BigInt(0) || saved.source !== "CNB"
+      || !/^[A-Z]{3}$/.test(payload.currency ?? "") || payload.currency === "CZK"
+      || !Number.isSafeInteger(saved.unit) || saved.unit <= 0
+      || !validDate(saved.rateDate) || !payload.taxPointDate || !validDate(payload.taxPointDate)
+      || !saved.totals || !Array.isArray(saved.rateBreakdown)) return null;
+    for (const key of ["netAmount", "vatAmount", "grossAmount"] as const) {
+      if (typeof payload.totals[key] !== "string" || typeof saved.totals[key] !== "string"
+        || convertedAmount(payload.totals[key], saved) !== saved.totals[key]) return null;
+    }
+    const original = payload.rateBreakdown.filter(line => !isZeroRateBreakdownLine(line));
+    if (original.length !== saved.rateBreakdown.length || new Set(original.map(line => line.rate)).size !== original.length) return null;
+    for (const line of original) {
+      const converted = saved.rateBreakdown.filter(row => row && row.rate === line.rate);
+      if (converted.length !== 1 || typeof line.netAmount !== "string" || typeof line.vatAmount !== "string"
+        || convertedAmount(line.netAmount, saved) !== converted[0].netAmount
+        || convertedAmount(line.vatAmount, saved) !== converted[0].vatAmount) return null;
+    }
+    return saved;
+  } catch { return null; }
+}
+
 function conversion(payload: ExtractionPayload, rate: CnbRate): CzkConversion | null {
   const rateBreakdown = payload.rateBreakdown.map((line): RateBreakdownLine | null => {
     const netAmount = convertedAmount(line.netAmount, rate);

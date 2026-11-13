@@ -1228,6 +1228,7 @@
       "claim_document_type_required": "Vyberte typ dokladu, aby bylo možné potvrdit způsobilost uplatnění.",
       "claim_deadline_expired": "Lhůta pro uplatnění nároku podáním již uplynula. Nové schválení nemůže doložit včasné podání.",
       "claimed_period_after_deadline": "Toto období končí příliš pozdě pro běžné uplatnění před koncem lhůty podání. Zvolte dřívější přípustné období.",
+      "proportional_deduction_conversion_required": "Pro poměrný odpočet v cizí měně je nutný platný uložený přepočet celého dokladu do CZK.",
       "proportional_deduction_invalid": "Potvrďte podporovaný poměrný odpočet podle skutečného využití (1–99 %).",
       "proportional_claim_year_mismatch": "Období poměrného odpočtu musí patřit do kalendářního roku nejdřívějšího přípustného období."
     },
@@ -1409,7 +1410,9 @@
     "proportionalDeduction": {
       "title": "Poměrný odpočet (§ 75)",
       "enable": "Použít ručně potvrzený poměr skutečného využití",
-      "scope": "Pouze běžné tuzemské přijaté provozní výdaje v CZK. Dlouhodobý majetek, odhady, § 76, zálohy a kombinace s částečným uplatněním nejsou podporovány.",
+      "scope": "Pouze běžné tuzemské přijaté provozní výdaje. Cizí měna používá uložený přepočet celého dokladu do CZK. Dlouhodobý majetek, odhady, § 76, zálohy a kombinace s částečným uplatněním nejsou podporovány.",
+      "conversion": "Nejprve se poměrně sníží částky v původní měně a potom se použije uložený kurz celého dokladu. Měnové zaokrouhlení není neuplatněnou částí.",
+      "conversionRequired": "Pro poměrný odpočet v cizí měně je nutný platný uložený přepočet celého dokladu do CZK.",
       "rounding": "Skutečný procentní podíl zaokrouhlete podle § 75 odst. 3 na celé procento nahoru. Zadejte konečný koeficient 1–99 % pro celý doklad.",
       "percentage": "Koeficient skutečného využití (%)",
       "operating": "Potvrzuji běžný provozní výdaj mimo pořízení dlouhodobého majetku a výdaje do něj vstupující.",
