@@ -29,7 +29,7 @@ it("includes the saved Representation Profile and exact immutable XML/PDF bytes 
   expect(archive[`vat-report-artifacts/${xml.value.artifactId}/${xml.value.fileName}`]).toEqual(storedXml.bytes);
   expect(archive[`vat-report-pdf-artifacts/${pdf.value.artifactId}/${pdf.value.fileName}`]).toEqual(pdf.value.bytes);
   expect(JSON.parse(strFromU8(archive["vat-report-pdf-artifacts.json"]))).toEqual([
-    expect.objectContaining({ id: pdf.value.artifactId, format: "dphdp3", kind: "draft", resolvedDetails: expect.objectContaining({ representative }), authorUserId: company.userId, serializerVersion: "3" }),
+    expect.objectContaining({ id: pdf.value.artifactId, format: "dphdp3", kind: "draft", resolvedDetails: expect.objectContaining({ representative }), authorUserId: company.userId, serializerVersion: "4" }),
   ]);
   expect(await worker.runJobs()).toEqual([]);
   expect(await getCompanyDataExportStatus(company.client, { companyId: company.companyId, exportId: download.value.exportId })).toEqual({ ok: true, value: "completed" });
