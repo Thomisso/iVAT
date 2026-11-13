@@ -159,7 +159,7 @@ it("pins manifest identity and applies current byte, page and batch limits at co
 });
 
 it("assembles every confirmed portion beyond the actual PostgREST response cap", async () => {
-  const { withPostgrestRowLimit } = await import("./support/postgrest");
+  const { sourceUploadChunkRowLimitProbe, withPostgrestRowLimit } = await import("./support/postgrest");
   const owner = await administratorWithCompany();
   const { files: [file], selectedFiles } = selectFixtureFiles("receipt.png");
   const batch = await beginUploadBatch(owner.client, { companyId: owner.companyId, fileCount: 1, selectedFiles });
@@ -170,7 +170,7 @@ it("assembles every confirmed portion beyond the actual PostgREST response cap",
     expect((await appendSourceUpload(owner.client, { ...identity, offset, bytes: file.bytes.slice(offset, end) })).ok).toBe(true);
   }
   await withPostgrestRowLimit(1,
-    () => owner.client.from("source_upload_chunk").select("byte_offset").eq("source_file_id", file.sourceFileId),
+    sourceUploadChunkRowLimitProbe(owner.client, file.sourceFileId),
     async () => {
       expect(await completeSourceUpload(owner.client, testWorker().jobs, identity)).toEqual({ ok: true, value: { id: file.sourceFileId } });
       expect((await readSourceFile(owner.client, owner.companyId, file.sourceFileId))?.bytes).toEqual(file.bytes);

@@ -3,15 +3,14 @@ import { Client as DatabaseClient } from "pg";
 import { listPlatformOrganizationCompanies } from "@/application/platform-administration";
 import { beginTotpEnrollment, completeTotpEnrollment } from "@/application/mfa";
 import { provisionedUser } from "../tests/support/clients";
-import { systemClient } from "../tests/support/worker";
+import { promoteSuperAdministratorFixture } from "../tests/support/platform";
 import { totp } from "../tests/support/totp";
 import { baseUrl, httpAs, inputTag } from "./support/http";
 
 it("creates an empty Organization through localized MFA-authorized HTTP and retains refused input", async () => {
   const customerName = `HTTP created customer ${crypto.randomUUID()}`;
   const operator = await provisionedUser("HTTP platform operator");
-  const promoted = await systemClient().from("platform_user").insert({ user_id: operator.userId, role: "super_admin" });
-  if (promoted.error) throw promoted.error;
+  await promoteSuperAdministratorFixture(operator.userId);
   const anonymous = await fetch(new URL("/platform/organizations/new", baseUrl()), { redirect: "manual" });
   expect(anonymous.status).toBe(307);
   expect(new URL(anonymous.headers.get("location")!, baseUrl()).pathname).toBe("/login");

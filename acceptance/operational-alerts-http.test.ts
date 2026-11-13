@@ -3,12 +3,13 @@ import { beginTotpEnrollment, completeTotpEnrollment } from "@/application/mfa";
 import { getOperationalAlertPreference } from "@/application/operational-email-alerts";
 import { provisionedUser } from "../tests/support/clients";
 import { systemClient } from "../tests/support/worker";
+import { promoteSuperAdministratorFixture } from "../tests/support/platform";
 import { totp } from "../tests/support/totp";
 import { baseUrl, httpAs } from "./support/http";
 
 it("submits the opt-in/out preference over real MFA-authorized HTTP and refuses other Roles", async () => {
   const operator = await provisionedUser("HTTP operational alerts");
-  expect((await systemClient().from("platform_user").insert({ user_id: operator.userId, role: "super_admin" })).error).toBeNull();
+  await promoteSuperAdministratorFixture(operator.userId);
   const anonymous = await fetch(new URL("/platform/settings", baseUrl()), { redirect: "manual" });
   expect(anonymous.status).toBe(307);
   expect(new URL(anonymous.headers.get("location")!, baseUrl()).pathname).toBe("/login");
