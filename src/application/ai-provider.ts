@@ -114,6 +114,9 @@ export interface AiProvider {
   /** Where the provider processes the Documents it receives. */
   readonly region: string;
   /** False when `model` is only the configured fallback rather than returned evidence. */
-  split(input: AiInput, context?: AiCallContext): Promise<{ model: string; modelReported?: boolean; documents: SourceRange[]; usage?: AiUsage }>;
-  extract(input: AiInput, context?: AiCallContext): Promise<{ model: string; modelReported?: boolean; payload: ExtractionPayload; usage?: AiUsage }>;
+  split(input: AiInput, context?: AiCallContext, limits?: AiGenerationLimits): Promise<{ model: string; modelReported?: boolean; documents: SourceRange[]; usage?: AiUsage }>;
+  extract(input: AiInput, context?: AiCallContext, limits?: AiGenerationLimits): Promise<{ model: string; modelReported?: boolean; payload: ExtractionPayload; usage?: AiUsage }>;
 }
+
+/** Optional request ceiling; generated tokens include reasoning where supported. */
+export type AiGenerationLimits = { maxOutputTokens: number };
