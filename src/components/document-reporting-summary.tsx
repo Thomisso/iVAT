@@ -12,7 +12,7 @@ export async function DocumentReportingSummary({ reporting, compact = false }: {
     <p>{t("period", { period: reporting.period ?? t("unassigned") })}</p>
     {reporting.proportionalDeduction && <>
       <p>{t("proportionalRatio", { percentage: reporting.proportionalDeduction.percentage })}</p>
-      <p>{t("proportionalClaimed")} <Money amount={reporting.proportionalDeduction.netAmount} /> {t("amountSeparator")} <Money amount={reporting.proportionalDeduction.vatAmount} /></p>
+      <p>{t("proportionalClaimed")} <Money amount={reporting.proportionalDeduction.netAmount} currency={reporting.proportionalDeduction.currency} /> {t("amountSeparator")} <Money amount={reporting.proportionalDeduction.vatAmount} currency={reporting.proportionalDeduction.currency} /></p>
     </>}
     {!compact && reporting.claimDeadline && <>
       <p>{t("claimLastFilingDate", { date: formatDate(reporting.claimDeadline.lastFilingDate) })}</p>
