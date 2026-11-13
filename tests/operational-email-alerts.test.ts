@@ -333,7 +333,10 @@ it.each(["independent", "overlapping"] as const)("ends a shared incident at conc
   const [oldDelivery] = await deliveries();
   expect(oldDelivery).toEqual(expect.objectContaining({ state: "pending", resolvedAt: null, impact: { companies: 2, documents: 2, sourceFiles: 0, exportJobs: 0 } }));
   if (interleaving === "overlapping") {
-    expect((await systemClient().from("membership").insert({ user_id: company.userId, email: company.email, organization_id: second.organizationId, company_id: second.companyId, role: "user" })).error).toBeNull();
+    const { generateInvitationLink, acceptInvitation } = await import("@/application/memberships");
+    const invitation = await generateInvitationLink(second.client, { organizationId: second.organizationId, companyId: second.companyId, email: company.email, role: "user", acceptUrl: "https://ivat.example.test/invitations/accept" });
+    if (!invitation.ok) throw new Error(invitation.error);
+    expect(await acceptInvitation(company.client, invitation.value.token)).toEqual({ ok: true, value: null });
   }
   const transactions = await Promise.all([manualReviewTransactionFixture(company.client), manualReviewTransactionFixture(second.client)]);
   try {
@@ -394,10 +397,17 @@ it("closes an incident first observed while remediation is uncommitted before th
 
 it("cancels a pending allowance alert immediately when the Company receives sufficient allowance", async () => {
   const { setCompanyAiProcessingAllowance, getCompanyAiProcessingAllowance } = await import("@/application/ai-processing-allowance");
-  const { admin, company, start, tick, deliveries } = await scenario(1);
+  const { assignAiConfigurationFixture } = await import("./support/fixtures");
+  const { companyAlertConfigurationFixture } = await import("./support/operational-alerts");
+  const { testWorker } = await import("./support/worker");
+  const { admin, company, start, tick, deliveries, scopes } = await scenario(1);
   const [document] = await listCompanyDocuments(company.client, company.companyId);
-  expect(await setCompanyAiProcessingAllowance(admin.client, { async send() {} }, { companyId: company.companyId, allowance: 0 })).toEqual({ ok: true, value: null });
-  expect((await systemClient().from("document").update({ status: "waiting_for_allowance" }).eq("id", document.id)).error).toBeNull();
+  const worker = testWorker();
+  await assignAiConfigurationFixture(company.client, worker.jobs, { companyId: company.companyId, provider: worker.ai });
+  scopes.add(await companyAlertConfigurationFixture(company.companyId));
+  expect(await setCompanyAiProcessingAllowance(admin.client, worker.jobs, { companyId: company.companyId, allowance: 0 })).toEqual({ ok: true, value: null });
+  expect(await worker.runJobs()).toEqual([]);
+  expect((await listCompanyDocuments(company.client, company.companyId)).find(waiting => waiting.id === document.id)?.status).toBe("waiting_for_allowance");
   await tick(0);
   expect((await systemClient().rpc("reconcile_operational_alerts", { observed_at: new Date(start + 300000).toISOString() })).error).toBeNull();
   expect(await deliveries()).toEqual([expect.objectContaining({ kind: "allowance_exhausted", state: "pending", resolvedAt: null })]);
@@ -459,6 +469,7 @@ it("splits 1001 new Documents in a Company with an active incident without resta
 
 it("observes both configuration scopes on reassignment while another Company preserves the shared root", async () => {
   const { createAiConfiguration, assignCompanyAiConfiguration } = await import("@/application/ai-configurations");
+  const { assignedCompanyWithDisabledAiFixture } = await import("./support/operational-alerts");
   const { admin, company, tick, messages, deliveries, scopes } = await scenario(1);
   const second = await companyWithWaitingDocuments(1); companies.push(second);
   await removeAiConfigurationFixture(second.client, second.companyId);
@@ -468,13 +479,11 @@ it("observes both configuration scopes on reassignment while another Company pre
   scopes.add(first.value.id); scopes.add(replacement.value.id);
   for (const owner of [company, second]) {
     expect(await assignCompanyAiConfiguration(admin.client, { companyId: owner.companyId, configurationId: first.value.id })).toEqual({ ok: true, value: null });
-    // Assignment normally enables AI. Preserve the deliberately disabled-work
-    // fixture while moving its shared operational scope.
-    expect((await systemClient().from("company").update({ ai_processing_enabled: false }).eq("id", owner.companyId)).error).toBeNull();
+    await assignedCompanyWithDisabledAiFixture(owner.companyId);
   }
   await tick(0);
   expect(await assignCompanyAiConfiguration(admin.client, { companyId: company.companyId, configurationId: replacement.value.id })).toEqual({ ok: true, value: null });
-  expect((await systemClient().from("company").update({ ai_processing_enabled: false }).eq("id", company.companyId)).error).toBeNull();
+  await assignedCompanyWithDisabledAiFixture(company.companyId);
   await tick(299);
   await tick(300);
   expect(messages).toHaveLength(1);

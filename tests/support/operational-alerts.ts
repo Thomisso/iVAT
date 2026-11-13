@@ -31,6 +31,16 @@ export async function companyAlertConfigurationFixture(companyId: string): Promi
   } finally { await database.end(); }
 }
 
+/** Assigned-but-disabled monitoring setup has no current public creator:
+ * assignment enables AI and direct authenticated flag updates are revoked.
+ * Reassignment and remediation under test still use their public commands. */
+export async function assignedCompanyWithDisabledAiFixture(companyId: string) {
+  const database = new Client({ connectionString: inject("databaseUrl") });
+  await database.connect();
+  try { await database.query("update public.company set ai_processing_enabled=false where id=$1", [companyId]); }
+  finally { await database.end(); }
+}
+
 /** Holds real authenticated public commands open on separate connections so
  * concurrent commits are deterministic. Claims come from the real Auth session;
  * only transaction timing bypasses PostgREST's one-request transaction wrapper. */
