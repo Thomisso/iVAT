@@ -634,9 +634,11 @@ begin
  if b.id is not null and b.selected_files is null and b.created_by=auth.uid() and b.upload_finished_at is null and private.can_access_company(b.company_id,b.organization_id) then
  insert into private.source_upload_identity(source_file_id,organization_id,company_id,upload_batch_id) values(target_source_file_id,b.organization_id,b.company_id,b.id) on conflict do nothing;
  end if;
- if b.id is null or b.created_by<>auth.uid() or b.upload_finished_at is not null or not private.can_access_company(b.company_id,b.organization_id)
- or not exists(select 1 from private.source_upload_identity r where r.source_file_id=target_source_file_id and r.upload_batch_id=b.id and r.company_id=b.company_id and not r.transfer_owned and not r.legacy_retired) then raise exception 'not allowed' using errcode='42501'; end if;
+ if b.id is null or b.created_by<>auth.uid() or b.upload_finished_at is not null or not private.can_access_company(b.company_id,b.organization_id) then raise exception 'not allowed' using errcode='42501'; end if;
+ -- Reveal frozen-selection refusals only after current native authority, and
+ -- before checking ownership that an unselected UUID cannot have acquired.
  if (b.selected_files is not null and not exists(select 1 from jsonb_array_elements(b.selected_files) f where f->>'id'=target_source_file_id::text and f->>'sha256'=original_sha256)) or coalesce(length(trim(original_file_name)),0)=0 or original_byte_size is null or original_byte_size<1 then raise exception 'immutable identity mismatch' using errcode='P0001',hint='invalid_choice'; end if;
+ if not exists(select 1 from private.source_upload_identity r where r.source_file_id=target_source_file_id and r.upload_batch_id=b.id and r.company_id=b.company_id and not r.transfer_owned and not r.legacy_retired) then raise exception 'not allowed' using errcode='42501'; end if;
  insert into private.source_upload_validation(attempt_id,organization_id,company_id,upload_batch_id,source_file_id,created_by,legacy,file_name,expected_sha256,expected_byte_size)
  values(gen_random_uuid(),b.organization_id,b.company_id,b.id,target_source_file_id,auth.uid(),true,trim(original_file_name),original_sha256,original_byte_size) on conflict do nothing;
  select * into v from private.source_upload_validation where source_file_id=target_source_file_id and legacy for update;
