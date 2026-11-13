@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { startSupabaseRequestDiagnostics } from "./support/request-failure-diagnostics";
+import { operationalBulkCase as bulkCase } from "./support/operational-bulk-protocol";
 import { promotedSuperAdministrator, revokeSuperAdministratorFixture } from "./support/platform";
 import { provisionedUser } from "./support/clients";
 import { deactivateAccountFixture, deleteAccountFixture, setVerifiedAccountEmailFixture } from "./support/accounts";
@@ -14,7 +15,6 @@ import { classifiedDocumentIssueFixture, classifiedSourceIssueFixture, clearOper
 
 const companies: Awaited<ReturnType<typeof companyWithWaitingDocuments>>[] = [];
 const subscribers: Awaited<ReturnType<typeof promotedSuperAdministrator>>[] = [];
-const bulkCase = "splits 1001 new Documents in a Company with an active incident without restarting that incident's grace";
 let bulkDiagnostics: ReturnType<typeof startSupabaseRequestDiagnostics> | undefined;
 beforeEach(({ task }) => {
   if (task.name === bulkCase) bulkDiagnostics = startSupabaseRequestDiagnostics({ reportOnSuccess: true, announce: true });

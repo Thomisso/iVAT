@@ -180,6 +180,20 @@ jobs:
       # Each shard owns its runner/database; files within it remain serial.
       - name: Complete application shard
         run: npm run test:serial -- --shard=${{ matrix.shard }}/3
+        env:
+          IVAT_OPERATIONAL_BULK_CAPTURE: "1"
+      - name: Upload sanitized operational bulk capture
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: operational-bulk-capture-${{ matrix.shard }}
+          path: |
+            test-results/operational-bulk-capture/capture.jsonl
+            test-results/operational-bulk-capture/request.jsonl
+            test-results/operational-bulk-capture/postgres.jsonl
+            test-results/operational-bulk-capture/waits.jsonl
+          if-no-files-found: ignore
+          retention-days: 3
       - name: Stop the disposable database
         if: always()
         run: npm run db:stop -- --no-backup

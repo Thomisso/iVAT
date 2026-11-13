@@ -1,8 +1,6 @@
 import { inject, vi } from "vitest";
-
-export type RequestTestPhase = "fixture" | "configuration" | "classified_issue" | "initial_tick" | "upload"
-  | "generation" | "readback_assertions" | "bulk_split" | "reconciliation" | "tick_299" | "tick_300"
-  | "receipts" | "finally_manual" | "after_each" | "cleanup";
+import type { RequestTestPhase } from "./operational-bulk-protocol";
+export type { RequestTestPhase } from "./operational-bulk-protocol";
 type ErrorContextClass = "statement_timeout" | "query_cancelled" | "lock_timeout" | "deadlock"
   | "postgres_error" | "postgrest_error" | "http_error" | "transport_error";
 
