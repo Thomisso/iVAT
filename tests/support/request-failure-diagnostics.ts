@@ -74,6 +74,7 @@ export function startSupabaseRequestDiagnostics(options: { reportOnSuccess?: boo
   const stageFailures: { phase: RequestTestPhase; sqlState: string | null; contextClass: ErrorContextClass | null }[] = [];
   let firstFailure: ({ kind: "request" } & RequestObservation) | ({ kind: "stage" } & typeof stageFailures[number]) | null = null;
   let failedRequest: RequestObservation | null = null;
+  let firstOverviewReadback: (RequestObservation & { ordinal: 1; completed: boolean }) | null = null;
   let finished = false;
   const setPhase = (next: RequestTestPhase) => {
     phase = next;
@@ -97,6 +98,8 @@ export function startSupabaseRequestDiagnostics(options: { reportOnSuccess?: boo
     }
     const requestPhase = phase;
     const method = (init?.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
+    const firstOverview = firstOverviewReadback === null && requestPhase === "readback_assertions" && method === "GET" && url.pathname === "/rest/v1/document_overview";
+    if (firstOverview) firstOverviewReadback = { ordinal: 1, completed: false, operation: url.pathname, method, phase: requestPhase, status: null, headersMs: 0, sqlState: null, contextClass: null };
     const started = performance.now();
     let status: number | null = null;
     let headersMs: number | null = null;
@@ -117,6 +120,7 @@ export function startSupabaseRequestDiagnostics(options: { reportOnSuccess?: boo
         ...context,
       };
       observations.push(observation);
+      if (firstOverview) firstOverviewReadback = { ...observation, ordinal: 1, completed: true };
       if (observations.length > 32) observations.shift();
       // Retain the first failure even if later cleanup requests exceed the ring.
       if (status === null || status >= 400) {
@@ -139,6 +143,7 @@ export function startSupabaseRequestDiagnostics(options: { reportOnSuccess?: boo
   };
   return {
     firstFailure: () => firstFailure ? { ...firstFailure } : null,
+    firstOverviewReadback: () => firstOverviewReadback ? { ...firstOverviewReadback } : null,
     setPhase,
     observeFailure,
     async runPhase<T>(next: RequestTestPhase, run: () => Promise<T>): Promise<T> {
@@ -150,7 +155,7 @@ export function startSupabaseRequestDiagnostics(options: { reportOnSuccess?: boo
       }
     },
     finish(failed = stageFailures.length > 0) {
-      const report = { firstFailure, failedRequest, stageFailures, phases, observations };
+      const report = { firstFailure, firstOverviewReadback, failedRequest, stageFailures, phases, observations };
       if (finished) return report;
       finished = true;
       spy.mockRestore();

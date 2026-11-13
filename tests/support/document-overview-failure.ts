@@ -4,12 +4,15 @@ import { Client } from "pg";
 import type { AppClient } from "@/application/client";
 import { localSupabaseContext } from "../../scripts/supabase-status.mjs";
 import { validateCaptureContext } from "./operational-bulk-capture";
-import { cleanPlan, documentOverviewPageSql, type withDocumentOverviewPlan } from "./document-overview-plan";
+import { cleanPlan, cleanPlanSetting, planSettingNames, documentOverviewPageSql } from "./document-overview-plan";
 
-type Context = Parameters<typeof withDocumentOverviewPlan>[3];
+export type OverviewFailureContext = { root: string; databaseUrl: string; supabaseUrl: string; sourceFileId?: string; failure?: {
+  ready(): boolean; firstFailure(): unknown; firstOverviewReadback(): unknown; observeOriginal(error: unknown): void;
+  bodyStartedAt: number; timeoutMs: number; signal: AbortSignal;
+} };
 const unavailable = () => new Error("diagnostic unavailable");
 const code = (e: unknown) => e && typeof e === "object" && "code" in e && typeof e.code === "string" && /^[A-Z0-9]{5}$/.test(e.code) ? e.code : null;
-const fields = ["jit", "jit_above_cost", "jit_inline_above_cost", "jit_optimize_above_cost", "plan_cache_mode", "work_mem", "effective_cache_size", "random_page_cost", "seq_page_cost", "cpu_tuple_cost", "cpu_index_tuple_cost", "cpu_operator_cost", "max_parallel_workers_per_gather"];
+const fields = [...planSettingNames];
 const numeric = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
 function frames(error: unknown) {
   if (!error || typeof error !== "object" || !("where" in error) || typeof error.where !== "string") return [];
@@ -22,13 +25,7 @@ function frames(error: unknown) {
     return [{ schema: parts.length === 2 ? parts[0] : null, function: parts.at(-1)!, line: number }];
   });
 }
-function setting(name: unknown, value: unknown): object[] {
-  if (typeof name !== "string" || !fields.includes(name) || typeof value !== "string") return [];
-  if (["on", "off"].includes(value)) return [{ name, value: value === "on" }];
-  if (name === "plan_cache_mode" && ["auto", "force_custom_plan", "force_generic_plan"].includes(value)) return [{ name, value }];
-  const match = value.match(/^(\d+(?:\.\d+)?)(ms|s|kB|MB|GB)?$/);
-  return match ? [{ name, value: Number(match[1]), unit: match[2] ?? null }] : [];
-}
+
 function write(root: string, report: object) {
   try {
     const directory = path.join(root, "test-results");
@@ -43,20 +40,24 @@ function write(root: string, report: object) {
 
 /** Failure-only CI observer. Every plan/frame is secondary and source-equivalent;
  * this does not retrieve PostgREST's original wrapper or cached plan. */
-export async function collectOverviewFailure(client: AppClient, companyId: string, context: Context) {
+async function collectOverviewFailure(client: AppClient, companyId: string, context: OverviewFailureContext) {
   const failure = context.failure;
   const first = failure?.firstFailure() as Record<string, unknown> | null;
-  if (!failure || first?.kind !== "request" || first.phase !== "readback_assertions" || first.operation !== "/rest/v1/document_overview" || first.status !== 500 || first.sqlState !== "57014") return;
+  const firstRead = failure?.firstOverviewReadback() as Record<string, unknown> | null;
+  if (!failure || firstRead?.ordinal !== 1 || firstRead.completed !== true || firstRead.operation !== "/rest/v1/document_overview" || firstRead.phase !== "readback_assertions" || firstRead.status !== 500 || firstRead.sqlState !== "57014" || first?.kind !== "request" || first.phase !== "readback_assertions" || first.operation !== "/rest/v1/document_overview" || first.status !== 500 || first.sqlState !== "57014") return;
   const report: Record<string, unknown> = { source: "diagnostic_source_equivalent", originalWrapperCaptured: false, cleanupReserveMs: 4000, plainTimeoutMs: 750, analyzeTimeoutMs: 3000 };
+  if (failure.timeoutMs !== 20000 || !Number.isFinite(failure.bodyStartedAt) || failure.bodyStartedAt > performance.now()) {
+    report.skipped = "unsupported_deadline"; write(context.root, report); return;
+  }
   const bodyDeadline = failure.bodyStartedAt + failure.timeoutMs;
   const cap = Math.min(5000, bodyDeadline - performance.now() - 4000);
   report.captureCapMs = cap;
-  if (failure.timeoutMs !== 20000 || !Number.isFinite(cap) || cap < 1000) { report.skipped = "remaining_budget"; write(context.root, report); return; }
+  if (!Number.isFinite(cap) || cap < 1000) { report.skipped = "remaining_budget"; write(context.root, report); return; }
   const workDeadline = performance.now() + cap - 250;
   let database: Client | undefined, stopped = false;
   let rejectStop!: (reason: Error) => void;
   const stopPromise = new Promise<never>((_, reject) => { rejectStop = reject; }); void stopPromise.catch(() => {});
-  const end = () => database?.end().catch(() => {});
+  const end = () => database?.end().catch(() => { report.closeUnavailable = true; });
   const stop = () => { stopped = true; report.unavailable = true; rejectStop(unavailable()); void end(); };
   const timer = setTimeout(stop, cap - 250);
   failure.signal.addEventListener("abort", stop, { once: true });
@@ -102,7 +103,7 @@ export async function collectOverviewFailure(client: AppClient, companyId: strin
       jitProvider: typeof metadata.provider === "string" && /^[a-z_][a-z0-9_]{0,62}$/.test(metadata.provider) ? metadata.provider : null,
       withLlvm: typeof metadata.build_config === "string" ? /(?:^|\s|')--with-llvm(?:\s|'|$)/.test(metadata.build_config) : null,
       withoutLlvm: typeof metadata.build_config === "string" ? /(?:^|\s|')--without-llvm(?:\s|'|$)/.test(metadata.build_config) : null,
-      settings: Array.isArray(metadata.settings) ? metadata.settings.slice(0, 16).flatMap((s: { name: unknown; setting: unknown }) => setting(s.name, s.setting)) : [],
+      settings: Array.isArray(metadata.settings) ? metadata.settings.slice(0, 16).flatMap((s: { name: unknown; setting: unknown }) => { const value = cleanPlanSetting(s.name, s.setting); return value === undefined ? [] : [{ name: s.name, value }]; }) : [],
       tables: Array.isArray(metadata.tables) ? metadata.tables.slice(0, 3).flatMap((t: { relation: string; rows: unknown; pages: unknown; distinctCompanies: unknown; mcvCount: unknown }) => ["document", "source_file", "extraction_version"].includes(t.relation) ? [{ relation: t.relation, rows: numeric(t.rows) ? t.rows : null, pages: numeric(t.pages) ? t.pages : null, distinctCompanies: numeric(t.distinctCompanies) ? t.distinctCompanies : null, mcvCount: numeric(t.mcvCount) ? t.mcvCount : null }] : []) : [],
       documents: numeric(metadata.documents) ? metadata.documents : null, bulkDocuments: context.sourceFileId && numeric(metadata.bulk_documents) ? metadata.bulk_documents : null, versions: numeric(metadata.versions) ? metadata.versions : null,
       nativeStatementTimeoutMs: 8000, apiMaxRows: 1000, metadataRole: "diagnostic",
@@ -133,5 +134,18 @@ export async function collectOverviewFailure(client: AppClient, companyId: strin
     let closingTimer: ReturnType<typeof setTimeout> | undefined;
     await Promise.race([end(), new Promise<void>(resolve => { closingTimer = setTimeout(resolve, 250); })]); clearTimeout(closingTimer);
     write(context.root, report);
+  }
+}
+
+/** Only this route can acquire the secondary plan connection. The first public
+ * error is retained before diagnostic awaits and rethrown unchanged. */
+export async function withDocumentOverviewFailure<T>(client: AppClient, companyId: string, read: () => Promise<T>, context: OverviewFailureContext): Promise<T> {
+  try { return await read(); }
+  catch (error) {
+    if (process.env.IVAT_DOCUMENT_OVERVIEW_FAILURE_CAPTURE === "1") {
+      try { context.failure?.observeOriginal(error); await collectOverviewFailure(client, companyId, context); }
+      catch { /* No diagnostic failure can replace the original error. */ }
+    }
+    throw error;
   }
 }

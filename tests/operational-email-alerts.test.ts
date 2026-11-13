@@ -2,7 +2,7 @@ import { afterEach, aroundEach, expect, inject, it } from "vitest";
 import OperationalBulkCapture from "./support/operational-bulk-capture";
 import { startSupabaseRequestDiagnostics, type RequestTestPhase } from "./support/request-failure-diagnostics";
 import { operationalBulkCase as bulkCase } from "./support/operational-bulk-protocol";
-import { withDocumentOverviewPlan } from "./support/document-overview-plan";
+import { withDocumentOverviewFailure } from "./support/document-overview-failure";
 import { promotedSuperAdministrator, revokeSuperAdministratorFixture } from "./support/platform";
 import { provisionedUser } from "./support/clients";
 import { deactivateAccountFixture, deleteAccountFixture, setVerifiedAccountEmailFixture } from "./support/accounts";
@@ -825,11 +825,12 @@ it(bulkCase, async ({ task, signal }) => {
         const source = await measure("upload", () => uploadSourceFile(company.client, worker.jobs, { companyId: company.companyId, fileName: "related-bulk.xlsx", bytes: workbookFile("xlsx", [["Invoice"], ...Array.from({ length: 1001 }, (_, index) => [`INV-${index}`])]) }));
         if (!source.ok) throw new Error(source.error);
         await measure("bulk_split", () => worker.runNextJob());
-        const documents = await measure("readback_assertions", () => withDocumentOverviewPlan(company.client, company.companyId,
+        const documents = await measure("readback_assertions", () => withDocumentOverviewFailure(company.client, company.companyId,
           () => listCompanyDocuments(company.client, company.companyId),
           { root: process.cwd(), databaseUrl: inject("databaseUrl"), supabaseUrl: inject("supabaseUrl"), sourceFileId: source.value.id, failure: {
             ready: () => bulkCapture?.hasActiveContext({ databaseUrl: inject("databaseUrl"), supabaseUrl: inject("supabaseUrl") }) ?? false,
             firstFailure: () => bulkDiagnostics?.firstFailure(), observeOriginal: error => bulkDiagnostics?.observeFailure(error),
+            firstOverviewReadback: () => bulkDiagnostics?.firstOverviewReadback(),
             bodyStartedAt, timeoutMs: task.timeout, signal,
           } }));
         expect(documents.filter(document => document.sourceFileId === source.value.id)).toHaveLength(1001);

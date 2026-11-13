@@ -139,8 +139,11 @@ function requestReport(raw: unknown) {
       elapsedMs: numeric(item.headersMs) ? item.headersMs : null,
     };
   };
+  const firstOverview = record.firstOverviewReadback && typeof record.firstOverviewReadback === "object" ? record.firstOverviewReadback as Record<string, unknown> : null;
+  const firstOverviewClean = clean(firstOverview);
   return {
     firstFailure: clean(record.firstFailure),
+    firstOverviewReadback: firstOverview?.ordinal === 1 && firstOverviewClean ? { ...firstOverviewClean, ordinal: 1, completed: firstOverview.completed === true } : null,
     requests: Array.isArray(record.observations) ? record.observations.slice(-32).map(clean).filter(Boolean) : [],
     stageFailures: Array.isArray(record.stageFailures) ? record.stageFailures.slice(-16).map(clean).filter(Boolean) : [],
     phases: Array.isArray(record.phases) ? record.phases.slice(-64).flatMap(item => item && phaseSet.has(item.phase) && numeric(item.elapsedMs) ? [{ phase: item.phase, elapsedMs: item.elapsedMs }] : []) : [],
