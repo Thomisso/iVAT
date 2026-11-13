@@ -8,6 +8,14 @@ export type Representative = {
   lastName: string;
   birthDate: string;
   evidenceNumber: string;
+} | {
+  code: "4a" | "4c";
+  personType: "P";
+  name: string;
+  ico: string;
+  signatoryFirstName: string;
+  signatoryLastName: string;
+  signatoryCapacity: string;
 };
 export type RepresentativeError = "invalid_representative";
 function calendarDate(value: string) {
@@ -21,7 +29,15 @@ export function parseRepresentative(input: unknown, complete = true): Result<Rep
   if (typeof input !== "object" || Array.isArray(input)) return refused;
   const raw = input as Record<string, unknown>;
   const text = (key: string) => typeof raw[key] === "string" ? raw[key].trim() : "";
-  if (["firstName", "lastName", "birthDate", "evidenceNumber"].some(key => raw[key] !== undefined && typeof raw[key] !== "string")) return refused;
+  if (["firstName", "lastName", "birthDate", "evidenceNumber", "name", "ico", "signatoryFirstName", "signatoryLastName", "signatoryCapacity"].some(key => raw[key] !== undefined && typeof raw[key] !== "string")) return refused;
+  if (raw.personType === "P" && (raw.code === "4a" || raw.code === "4c")) {
+    const value: Representative = { code: raw.code, personType: "P", name: text("name"), ico: text("ico"),
+      signatoryFirstName: text("signatoryFirstName"), signatoryLastName: text("signatoryLastName"), signatoryCapacity: text("signatoryCapacity") };
+    if (value.name.length > 255 || (value.ico && !/^\d{1,10}$/.test(value.ico))
+      || value.signatoryFirstName.length > 20 || value.signatoryLastName.length > 36 || value.signatoryCapacity.length > 40
+      || (complete && (!value.name || !value.ico || !value.signatoryFirstName || !value.signatoryLastName || !value.signatoryCapacity))) return refused;
+    return { ok: true, value };
+  }
   if ((raw.code !== "4a" && raw.code !== "4b") || raw.personType !== "F") return refused;
   const value: Representative = { code: raw.code, personType: "F", firstName: text("firstName"), lastName: text("lastName"), birthDate: text("birthDate"), evidenceNumber: text("evidenceNumber") };
   if (value.firstName.length > 20 || value.lastName.length > 36 || value.evidenceNumber.length > 36
@@ -30,9 +46,16 @@ export function parseRepresentative(input: unknown, complete = true): Result<Rep
   return { ok: true, value };
 }
 export function representativeFields(representative: Representative | null | undefined): Record<string, string> {
-  return representative ? { representativeMode: "override", representativeCode: representative.code, representativePersonType: representative.personType,
-    representativeFirstName: representative.firstName, representativeLastName: representative.lastName,
-    representativeBirthDate: representative.birthDate, representativeEvidenceNumber: representative.evidenceNumber } : { representativeMode: "off" };
+  if (!representative) return { representativeMode: "off" };
+  return { representativeMode: "override", representativeCode: representative.code, representativePersonType: representative.personType,
+    ...(representative.personType === "F" ? {
+      representativeFirstName: representative.firstName, representativeLastName: representative.lastName,
+      representativeBirthDate: representative.birthDate, representativeEvidenceNumber: representative.evidenceNumber,
+    } : {
+      representativeName: representative.name, representativeIco: representative.ico,
+      representativeSignatoryFirstName: representative.signatoryFirstName, representativeSignatoryLastName: representative.signatoryLastName,
+      representativeSignatoryCapacity: representative.signatoryCapacity,
+    }) };
 }
 export function resolveRepresentative(input: Record<string, string>, fallback: Representative | null | undefined): Result<Representative | null, RepresentativeError> {
   const mode = input.representativeMode;
@@ -44,5 +67,8 @@ export function resolveRepresentative(input: Record<string, string>, fallback: R
   if (mode !== "override") return { ok: false, error: "invalid_representative" };
   return parseRepresentative({ code: input.representativeCode, personType: input.representativePersonType,
     firstName: input.representativeFirstName, lastName: input.representativeLastName,
-    birthDate: input.representativeBirthDate, evidenceNumber: input.representativeEvidenceNumber }, false);
+    birthDate: input.representativeBirthDate, evidenceNumber: input.representativeEvidenceNumber,
+    name: input.representativeName, ico: input.representativeIco,
+    signatoryFirstName: input.representativeSignatoryFirstName, signatoryLastName: input.representativeSignatoryLastName,
+    signatoryCapacity: input.representativeSignatoryCapacity }, false);
 }

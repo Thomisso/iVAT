@@ -83,17 +83,20 @@ export function drawFormHeader(page: PDFPage, font: PDFFont, header: VatReportEx
     }
     cell(nameLines[0], [42.8, 349, 566.7, 365.5], { size: nameSize });
     cell(nameLines.slice(1).join(""), [42.7, 368.9, 396.6, 385.4], { size: nameSize });
-    cell([details.signatoryFirstName, details.signatoryLastName, details.signatoryCapacity].filter(Boolean).join(" "), [49.9, vat ? 683.1 : 705.4, 559.6, vat ? 699.6 : 721.9]);
+
   } else {
     cell(company.lastName, [42.7, 400, 339.9, 416.5]);
     cell(company.firstName, [354.3, 400, 495.2, 416.5]);
   }
+  if (details.personType === "P" || details.representative?.personType === "P") {
+    cell([details.signatoryFirstName, details.signatoryLastName, details.signatoryCapacity].filter(Boolean).join(" "), [49.9, vat ? 683.1 : 705.4, 559.6, vat ? 699.6 : 721.9]);
+  }
   const representative = details.representative;
   if (representative) {
     cell(representative.code, [191.6, vat ? 576.1 : 598.4, 219.4, vat ? 592.6 : 614.9]);
-    cell([representative.firstName, representative.lastName].filter(Boolean).join(" "), [49.9, vat ? 605.8 : 628.1, 559.6, vat ? 622.3 : 644.6]);
-    const date = representative.birthDate ? representative.birthDate.split("-").reverse().join(".") : "";
-    cell([date, representative.evidenceNumber].filter(Boolean).join(" / "), [49.9, vat ? 634.2 : 656.5, 559.6, vat ? 650.7 : 673]);
+    cell(representative.personType === "P" ? representative.name : [representative.firstName, representative.lastName].filter(Boolean).join(" "), [49.9, vat ? 605.8 : 628.1, 559.6, vat ? 622.3 : 644.6]);
+    const date = representative.personType === "F" && representative.birthDate ? representative.birthDate.split("-").reverse().join(".") : "";
+    cell(representative.personType === "P" ? representative.ico : [date, representative.evidenceNumber].filter(Boolean).join(" / "), [49.9, vat ? 634.2 : 656.5, 559.6, vat ? 650.7 : 673]);
   }
   const address = details.address;
   cell(address?.city, [42.8, 439.6, vat ? 298.8 : 482.9, 456.2]);
