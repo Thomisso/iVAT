@@ -179,3 +179,21 @@ export async function completeSourceUpload(client: AppClient, jobs: JobQueue, id
   await dispatch.send(splitJob(identity.sourceFileId));
   return { ok: true, value: { id: identity.sourceFileId } };
 }
+
+export type UploadBatchRecovery = {
+  batchId: string;
+  plannedFileCount: number;
+  legacy: boolean;
+  items: { id: string; sha256: string; groupId?: string; fileName: string | null; byteSize: number | null; attemptId?: string | null; complete: boolean }[];
+};
+
+/** A Batch URL is context only. PostgreSQL rechecks its creator, Company access and MFA. */
+export async function getUploadBatchRecovery(client: AppClient, companyId: string, batchId: string): Promise<Result<UploadBatchRecovery, "forbidden">> {
+  if (!isUuid(companyId) || !isUuid(batchId)) return { ok: false, error: "forbidden" };
+  const { data, error } = await client.rpc("get_upload_batch_recovery", { target_company_id: companyId, target_batch_id: batchId });
+  if (error) {
+    if (error.code === "42501") return { ok: false, error: "forbidden" };
+    throw error;
+  }
+  return { ok: true, value: data as UploadBatchRecovery };
+}

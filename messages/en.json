@@ -488,7 +488,13 @@
     "groupPreparing": "This photograph belongs to a confirmed group; its complete basis is being prepared.",
     "groupUnavailable": "The group basis is unavailable and processing did not complete. Review the available original evidence before continuing.",
     "groupManual": "Prepare whole group for manual review",
-    "groupRetry": "Retry preparing the whole group"
+    "groupRetry": "Retry preparing the whole group",
+    "localDraftUnavailable": "Local recovery storage is unavailable. You can still upload now; to return later, open this Batch and select the same files again.",
+    "sameDeviceRecoveryHint": "Continuation uses this device and the same account. Saved files may be removed by your device; reselect identical bytes when needed. Cross-device file recovery is not guaranteed.",
+    "reselectFile": "Select the same file again",
+    "unidentifiedSource": "Source file awaiting selection",
+    "sourceBytesUnknown": "Select the original file to establish its name and size.",
+    "checkStoredSource": "Check server state"
   },
   "returnContext": {
     "counterparty": "← Back to Counterparty",
@@ -630,7 +636,9 @@
     "deleteRefused": {
       "batch_processing": "The batch can be deleted only after processing finishes.",
       "period_locked": "A Document of this batch lies in a finalized Reporting Period. An Administrator must unlock the period before the batch can be deleted."
-    }
+    },
+    "resumeBatch": "Resume this Batch",
+    "legacyRecoveryBoundary": "This older Batch retained only a file count. Only known transfer identities can be recovered; unknown files and their original selection order cannot be reconstructed."
   },
   "dateInput": {
     "calendarFor": "Choose date for {label}",
@@ -826,7 +834,8 @@
     "invalid_alert_preference": "Invalid alert preference.",
     "verified_email_required": "Verify your current account email before enabling alerts.",
     "invalid_representative": "Select a supported representative and enter a valid first name, last name and birth date or evidence number.",
-    "group_evidence_unavailable": "The original evidence or its stored representation is missing or invalid. This immutable group cannot be recovered; start a new upload with complete photographs."
+    "group_evidence_unavailable": "The original evidence or its stored representation is missing or invalid. This immutable group cannot be recovered; start a new upload with complete photographs.",
+    "upload_file_required": "Select the identical original file to continue. Its name alone does not establish matching content."
   },
   "aiUsage": {
     "platformNav": "Platform AI usage",
