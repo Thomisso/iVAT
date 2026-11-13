@@ -82,7 +82,7 @@ export type ProportionalDeduction = {
   operatingExpenseConfirmed: boolean;
   actualUseConfirmed: boolean;
   origin: "user";
-  basis?: ClaimBasis;
+  basis?: ClaimBasis & { earliestClaimPeriod?: string | null };
 };
 
 export type ExtractionPayload = {

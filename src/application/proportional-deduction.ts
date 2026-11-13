@@ -1,7 +1,18 @@
-import type { ExtractionPayload, RateBreakdownLine } from "./extraction-payload";
-import { claimBasisKey } from "./partial-claim";
+import type { ExtractionPayload, ProportionalDeduction, RateBreakdownLine } from "./extraction-payload";
+import { claimBasis, claimBasisKey } from "./partial-claim";
 import { validatedDocumentCzkConversion } from "./exchange-rates";
 import { halers, amount, assessedVat } from "./money";
+
+/** The §75 decision also depends on the Earliest Claim Period, independently of assignment. */
+export function proportionalDeductionBasis(payload: ExtractionPayload): NonNullable<ProportionalDeduction["basis"]> {
+  return { ...claimBasis(payload), earliestClaimPeriod: payload.claimEligibility?.period ?? null };
+}
+
+/** Legacy immutable Versions predate the additional period binding. New writes always bind it. */
+export function proportionalDeductionBasisMatches(basis: NonNullable<ProportionalDeduction["basis"]>, payload: ExtractionPayload): boolean {
+  return claimBasisKey(basis) === claimBasisKey(payload)
+    && (!("earliestClaimPeriod" in basis) || basis.earliestClaimPeriod === (payload.claimEligibility?.period ?? null));
+}
 
 /** Exact independent reduction in minor units, half away from zero. */
 function reduce(value: string, percentage: number): string {
@@ -21,7 +32,7 @@ export function proportionalDeductionRates(payload: ExtractionPayload): RateBrea
     || !payload.rateBreakdown.length
     || Object.keys(choice).some(key => !["percentage", "confirmed", "operatingExpenseConfirmed", "actualUseConfirmed", "origin", "basis"].includes(key))) return null;
   try {
-    if (choice.basis && claimBasisKey(choice.basis) !== claimBasisKey(payload)) return null;
+    if (choice.basis && !proportionalDeductionBasisMatches(choice.basis, payload)) return null;
     let net = BigInt(0), vat = BigInt(0);
     const seen = new Set<number>();
     const rates: RateBreakdownLine[] = [];

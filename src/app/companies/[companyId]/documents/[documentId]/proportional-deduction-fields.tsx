@@ -3,9 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { ExtractionPayload } from "@/application/extraction-payload";
-import { claimBasis, claimBasisKey } from "@/application/partial-claim";
 import { validatedDocumentCzkConversion } from "@/application/exchange-rates";
-import { proportionalDeductionSummary } from "@/application/proportional-deduction";
+import { proportionalDeductionBasis, proportionalDeductionBasisMatches, proportionalDeductionSummary } from "@/application/proportional-deduction";
 import { Button } from "@/components/button";
 import { Notice } from "@/components/notice";
 import { Money } from "@/components/money";
@@ -26,7 +25,8 @@ export function ProportionalDeductionFields({ payload, editable, values, rateRow
   const [actual, setActual] = useState(values["proportionalDeduction.actualUseConfirmed"] ? values["proportionalDeduction.actualUseConfirmed"] === "true" : saved?.actualUseConfirmed ?? false);
   const [confirmed, setConfirmed] = useState(values["proportionalDeduction.confirmed"] ? values["proportionalDeduction.confirmed"] === "true" : saved?.confirmed ?? false);
   const [basis, setBasis] = useState(() => {
-    if (!("proportionalDeduction.basis" in values)) return saved?.basis;
+    if (!("proportionalDeduction.basis" in values)) return saved?.basis
+      ? { earliestClaimPeriod: payload.claimEligibility?.period ?? null, ...saved.basis } : undefined;
     try { return values["proportionalDeduction.basis"] ? JSON.parse(values["proportionalDeduction.basis"]) as NonNullable<ExtractionPayload["proportionalDeduction"]>["basis"] : undefined; }
     catch { return undefined; }
   });
@@ -38,8 +38,11 @@ export function ProportionalDeductionFields({ payload, editable, values, rateRow
       if (form.getAttribute("aria-busy") !== "true") {
         const current = formSource(form, payload);
         const data = new FormData(form);
+        let claimEligibility = current.claimEligibility;
+        try { claimEligibility = data.get("claimEligibility") ? JSON.parse(String(data.get("claimEligibility"))) : undefined; }
+        catch { claimEligibility = undefined; }
         // A conflicting selection is displayed as invalid and refused by the database.
-        setSource({ ...current, partialClaim: data.get("partialClaim.mode") === "selected" ? { confirmed: false, rateBreakdown: [] } : undefined });
+        setSource({ ...current, claimEligibility, partialClaim: data.get("partialClaim.mode") === "selected" ? { confirmed: false, rateBreakdown: [] } : undefined });
       }
     });
     read();
@@ -47,7 +50,7 @@ export function ProportionalDeductionFields({ payload, editable, values, rateRow
     return () => { form.removeEventListener("input", read); form.removeEventListener("change", read); };
   }, [payload, editable, rateRows]);
   const changed = (() => {
-    try { return basis !== undefined && claimBasisKey(basis) !== claimBasisKey(source); }
+    try { return basis !== undefined && !proportionalDeductionBasisMatches(basis, source); }
     catch { return true; }
   })();
   const candidate: ExtractionPayload = { ...source, proportionalDeduction: { percentage: /^\d+$/.test(percentage) ? Number(percentage) : null,
@@ -74,7 +77,7 @@ export function ProportionalDeductionFields({ payload, editable, values, rateRow
       <input type="hidden" name="proportionalDeduction.basis" value={basis ? JSON.stringify(basis) : ""} />
       {saved && (!confirmed || changed) && <p>{t("previous", { percentage: saved.percentage ?? "" })}</p>}
       {editable && (!confirmed || changed) && <Button type="button" disabled={!operating || !actual || !/^[1-9][0-9]?$/.test(percentage)}
-        onClick={() => { setBasis(claimBasis(source)); setConfirmed(true); }}>{t("confirm")}</Button>}
+        onClick={() => { setBasis(proportionalDeductionBasis(source)); setConfirmed(true); }}>{t("confirm")}</Button>}
       {!claimed && <p role="alert">{t("invalid")}</p>}
       <p>{t("alternatives")}</p>
       {claimed && <table><thead><tr><th>{t("rate")}</th><th>{t("original")}</th><th>{t("claimed")}</th><th>{t("unclaimed")}</th></tr></thead>
