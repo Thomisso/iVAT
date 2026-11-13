@@ -28,13 +28,18 @@ use production SMTP for tests. A missing or invalid canonical origin prevents
 dispatch. The five-minute grace period begins with the first authoritative worker
 observation, so restarting after an unobserved outage does not backdate eligibility.
 
-Private episodes preserve root identity across impact-count changes. The first
-slice attempts each eligible recipient once; accepted, refused, definite failure
-and unknown are distinct durable outcomes. A crash after claim or an uncertain
-SMTP response is not automatically retried. Acceptance means the SMTP server
-accepted the message, without an Inbox or exactly-once guarantee. No reminders or
-recovery messages are sent by this first slice (#321); #322 owns that later policy.
-The active dashboard and existing audit/remediation flows remain the authorities.
+Private episodes preserve root identity across impact-count changes. Each eligible
+recipient gets one first-alert attempt; only their accepted first alert qualifies
+them for reminders and one recovery message for that resolved episode. Reminders
+wait at least 24 elapsed hours after first acceptance and the latest actual
+first/reminder dispatch attempt, without catch-up bursts. Accepted, refused,
+definite failure and unknown remain distinct durable outcomes. Each receipt gets
+one attempt; uncertain outcomes are never blindly resent, and an unknown reminder
+suppresses later reminders while uncertain. Recovery describes only its episode,
+even during a later recurrence. Messages contain safe problem labels, impact
+counts and protected links. SMTP acceptance does not guarantee Inbox or
+exactly-once delivery; a stopped worker cannot report its own outage. The active
+dashboard and existing audit/remediation flows remain the authorities.
 
 ## Prerequisites
 
