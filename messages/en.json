@@ -2127,6 +2127,7 @@
     "default": "Use Company defaults",
     "off": "No representative",
     "generalNatural": "4a — general representative, natural person",
+    "professionalNatural": "4b — tax adviser or lawyer, natural person",
     "firstName": "Representative first name",
     "lastName": "Representative last name",
     "birthDate": "Representative birth date",

@@ -71,7 +71,7 @@ it.each([
     byteSize: exported.value.bytes.length,
     sha256: createHash("sha256").update(exported.value.bytes).digest("hex"),
     schemaVersion,
-    serializerVersion: "3",
+    serializerVersion: "4",
     authorUserId: expect.any(String),
     authorEmail: expect.stringContaining("@example.test"),
     createdAt: expect.any(String),
@@ -102,7 +102,7 @@ it.each([
         kind: "draft",
         sha256: history[0].sha256,
         schema_version: schemaVersion,
-        serializer_version: "3",
+        serializer_version: "4",
       },
     }),
   );
