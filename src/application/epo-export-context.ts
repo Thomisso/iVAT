@@ -46,14 +46,20 @@ export async function resolveEpoExportDetails(
     phone: supplied("phone", defaults?.phone),
     address: address.ok ? address.value.address : undefined,
   };
-  return { ok: true, value: input.company.personType === "natural"
-    ? { ...common, personType: "F" }
-    : {
-      ...common, personType: "P",
-      signatoryFirstName: supplied("signatoryFirstName", defaults?.signatoryFirstName),
-      signatoryLastName: supplied("signatoryLastName", defaults?.signatoryLastName),
-      signatoryCapacity: supplied("signatoryCapacity", defaults?.signatoryCapacity),
-    } };
+  const personType = input.company.personType === "natural" ? "F" : "P";
+  // A PO representative has its own explicitly confirmed signatory. Company
+  // defaults and account identity never supply a different legal person's signer.
+  if (representative.value?.personType === "P") return { ok: true, value: { ...common, personType,
+    signatoryFirstName: representative.value.signatoryFirstName,
+    signatoryLastName: representative.value.signatoryLastName,
+    signatoryCapacity: representative.value.signatoryCapacity,
+  } };
+  return { ok: true, value: personType === "F" ? { ...common, personType } : {
+    ...common, personType,
+    signatoryFirstName: supplied("signatoryFirstName", defaults?.signatoryFirstName),
+    signatoryLastName: supplied("signatoryLastName", defaults?.signatoryLastName),
+    signatoryCapacity: supplied("signatoryCapacity", defaults?.signatoryCapacity),
+  } };
 }
 
 /** Header-only preparation for previews. Reads the authorized saved report and

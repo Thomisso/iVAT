@@ -73,9 +73,10 @@ export function ExportForm({
   const filingDetailsComplete = Boolean(defaults?.taxOffice)
     && (!defaults?.territorialOffice || isTerritorialOffice(defaults.taxOffice ?? "", defaults.territorialOffice))
     && (format !== "dphdp3" || isEconomicActivity(defaults?.economicActivity ?? ""))
-    && (personType === "natural" || Boolean(
+    && (defaults?.representative?.personType === "P" || personType === "natural" || Boolean(
     defaults?.signatoryFirstName && defaults.signatoryLastName && defaults.signatoryCapacity,
   ));
+  const savedSignatory = defaults?.representative?.personType === "P" ? defaults.representative : defaults;
   const [representationRevision, setRepresentationRevision] = useState(0);
   const [editing, setEditing] = useState(!filingDetailsComplete);
   const showFields = opened && (!wizard || Boolean(epoAddress));
@@ -162,10 +163,10 @@ export function ExportForm({
           <div><dt>{t("taxOffice")}</dt><dd>{defaults?.taxOffice ? t(`taxOffices.${defaults.taxOffice}`) : t("notSet")}</dd></div>
           <div><dt>{t("territorialOffice")}</dt><dd>{TERRITORIAL_OFFICES.find((office) => office.code === defaults?.territorialOffice)?.name ?? t("notSet")}</dd></div>
           {format === "dphdp3" && <div><dt>{t("economicActivity")}</dt><dd>{defaults?.economicActivity ?? t("notSet")}</dd></div>}
-          {personType === "legal" && <div><dt>{t("signatory")}</dt><dd>{defaults?.signatoryFirstName
-            ? `${defaults.signatoryFirstName} ${defaults.signatoryLastName} · ${defaults.signatoryCapacity}`
+          {(personType === "legal" || defaults?.representative?.personType === "P") && <div><dt>{t("signatory")}</dt><dd>{savedSignatory?.signatoryFirstName
+            ? `${savedSignatory.signatoryFirstName} ${savedSignatory.signatoryLastName} · ${savedSignatory.signatoryCapacity}`
             : t("notSet")}</dd></div>}
-          <div><dt>{t("representative")}</dt><dd>{defaults?.representative ? `${defaults.representative.firstName} ${defaults.representative.lastName} · ${defaults.representative.code}/${defaults.representative.personType}` : t("noRepresentative")}</dd></div>
+          <div><dt>{t("representative")}</dt><dd>{defaults?.representative ? `${defaults.representative.personType === "P" ? defaults.representative.name : `${defaults.representative.firstName} ${defaults.representative.lastName}`} · ${defaults.representative.code}/${defaults.representative.personType}` : t("noRepresentative")}</dd></div>
           <div><dt>{t("email")}</dt><dd>{defaults?.email ?? t("notSet")}</dd></div>
           <div><dt>{t("phone")}</dt><dd>{defaults?.phone ?? t("notSet")}</dd></div>
           <div><dt>{t("serializedAddress")}</dt><dd>{serializedAddress ?? t("epoAddressMissing")}</dd></div>

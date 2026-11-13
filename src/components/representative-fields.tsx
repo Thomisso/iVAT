@@ -9,9 +9,14 @@ export function RepresentativeFields({ values, allowDefault = false, onChange }:
   values: Record<string, string>; allowDefault?: boolean; onChange?: (fields: Record<string, string>) => void;
 }) {
   const t = useTranslations("representation");
-  const [selection, setSelection] = useState(values.representativeMode === "override" ? values.representativeCode ?? "4a" : values.representativeMode ?? (allowDefault ? "default" : "off"));
+  const [selection, setSelection] = useState(values.representativeMode === "override" ? (values.representativePersonType === "P" ? `${values.representativeCode}/P` : values.representativeCode ?? "4a") : values.representativeMode ?? (allowDefault ? "default" : "off"));
   const [fields, setFields] = useState(values);
-  const mode = selection === "4a" || selection === "4b" ? "override" : selection;
+  const variants: Record<string, { code: string; personType: string }> = {
+    "4a": { code: "4a", personType: "F" }, "4b": { code: "4b", personType: "F" },
+    "4a/P": { code: "4a", personType: "P" }, "4c/P": { code: "4c", personType: "P" },
+  };
+  const variant = variants[selection];
+  const mode = variant ? "override" : selection;
   return <fieldset>
     <legend>{t("title")}</legend>
     <label className="iv-field">
@@ -21,21 +26,35 @@ export function RepresentativeFields({ values, allowDefault = false, onChange }:
         const next = event.currentTarget.value;
         setSelection(next);
         const cleared = { representativeFirstName: "", representativeLastName: "", representativeBirthDate: "", representativeEvidenceNumber: "",
-          representativeName: "", representativeIco: "" };
+          representativeName: "", representativeIco: "", representativeSignatoryFirstName: "", representativeSignatoryLastName: "", representativeSignatoryCapacity: "" };
         setFields(cleared);
-        onChange?.({ ...cleared, representativeMode: next === "4a" || next === "4b" ? "override" : next,
-          representativeCode: next === "4a" || next === "4b" ? next : "", representativePersonType: next === "4a" || next === "4b" ? "F" : "" });
+        onChange?.({ ...cleared, representativeMode: variants[next] ? "override" : next,
+          representativeCode: variants[next]?.code ?? "", representativePersonType: variants[next]?.personType ?? "" });
       }}>
         {allowDefault && <option value="default">{t("default")}</option>}
         <option value="off">{t("off")}</option>
         <option value="4a">{t("generalNatural")}</option>
         <option value="4b">{t("professionalNatural")}</option>
+        <option value="4a/P">{t("generalLegal")}</option>
+        <option value="4c/P">{t("professionalLegal")}</option>
       </select>
     </label>
     {mode === "override" && <div key={selection}>
-      <input type="hidden" name="representativeCode" value={selection} />
-      <input type="hidden" name="representativePersonType" value="F" />
-      <div className="form-row">
+      <input type="hidden" name="representativeCode" value={variant.code} />
+      <input type="hidden" name="representativePersonType" value={variant.personType} />
+      {variant.personType === "P" ? <>
+        <TextField label={t("name")} name="representativeName" maxLength={255} defaultValue={fields.representativeName ?? ""} />
+        <TextField label={t("ico")} name="representativeIco" maxLength={10} defaultValue={fields.representativeIco ?? ""} />
+        <fieldset>
+          <legend>{t("signatory")}</legend>
+          <p className="iv-field-hint">{t("signatoryHint")}</p>
+          <div className="form-row">
+            <TextField label={t("signatoryFirstName")} name="representativeSignatoryFirstName" maxLength={20} defaultValue={fields.representativeSignatoryFirstName ?? ""} />
+            <TextField label={t("signatoryLastName")} name="representativeSignatoryLastName" maxLength={36} defaultValue={fields.representativeSignatoryLastName ?? ""} />
+          </div>
+          <TextField label={t("signatoryCapacity")} name="representativeSignatoryCapacity" maxLength={40} defaultValue={fields.representativeSignatoryCapacity ?? ""} />
+        </fieldset>
+      </> : <><div className="form-row">
         <TextField label={t("firstName")} name="representativeFirstName" maxLength={20} defaultValue={fields.representativeFirstName ?? ""} />
         <TextField label={t("lastName")} name="representativeLastName" maxLength={36} defaultValue={fields.representativeLastName ?? ""} />
       </div>
@@ -43,7 +62,7 @@ export function RepresentativeFields({ values, allowDefault = false, onChange }:
         <TextField label={t("birthDate")} type="date" name="representativeBirthDate" defaultValue={fields.representativeBirthDate ?? ""} />
         <TextField label={t("evidenceNumber")} name="representativeEvidenceNumber" maxLength={36} defaultValue={fields.representativeEvidenceNumber ?? ""} />
       </div>
-      <p className="iv-field-hint">{t("identityHint")}</p>
+      <p className="iv-field-hint">{t("identityHint")}</p></>}
     </div>}
     <p className="iv-field-hint">{t("scopeHint")}</p>
   </fieldset>;

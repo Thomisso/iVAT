@@ -16,7 +16,7 @@ export const EPO_SCHEMA_VERSIONS = {
   dphdp3: "03.01.04",
   dphkh1: "03.01.15",
 } as const;
-export const EPO_SERIALIZER_VERSION = "4";
+export const EPO_SERIALIZER_VERSION = "5";
 
 export type ExportVatReportError =
   | EpoXmlError

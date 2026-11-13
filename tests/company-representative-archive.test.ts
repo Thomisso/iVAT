@@ -11,7 +11,7 @@ import { testWorker } from "./support/worker";
 const representative = { code: "4a", personType: "F", firstName: "Alena", lastName: "Zástupná", birthDate: "1981-02-03", evidenceNumber: "" } as const;
 const filing = { taxOffice: "451", territorialOffice: "2003", economicActivity: "621000", signatoryFirstName: "Jana", signatoryLastName: "Podpisová", signatoryCapacity: "jednatelka", email: "", phone: "", epoAddressOverride: null };
 
-it("includes the saved Representation Profile and exact immutable XML/PDF bytes in a worker-verified Company archive", async () => {
+it.each([representative, { code: "4c", personType: "P", name: "Atlas Poradenství s.r.o.", ico: "00123456", signatoryFirstName: "Irena", signatoryLastName: "Podpisová", signatoryCapacity: "jednatelka" }] as const)("includes the saved $code/$personType Representation Profile and exact immutable XML/PDF bytes in a worker-verified Company archive", async representative => {
   const company = await administratorWithCompany();
   expect(await saveCompanyFilingDefaults(company.client, { ...filing, companyId: company.companyId, representative })).toEqual({ ok: true, value: null });
   expect((await generateVatReport(company.client, { companyId: company.companyId, period: "2026-10" })).ok).toBe(true);
@@ -29,7 +29,7 @@ it("includes the saved Representation Profile and exact immutable XML/PDF bytes 
   expect(archive[`vat-report-artifacts/${xml.value.artifactId}/${xml.value.fileName}`]).toEqual(storedXml.bytes);
   expect(archive[`vat-report-pdf-artifacts/${pdf.value.artifactId}/${pdf.value.fileName}`]).toEqual(pdf.value.bytes);
   expect(JSON.parse(strFromU8(archive["vat-report-pdf-artifacts.json"]))).toEqual([
-    expect.objectContaining({ id: pdf.value.artifactId, format: "dphdp3", kind: "draft", resolvedDetails: expect.objectContaining({ representative }), authorUserId: company.userId, serializerVersion: "4" }),
+    expect.objectContaining({ id: pdf.value.artifactId, format: "dphdp3", kind: "draft", resolvedDetails: expect.objectContaining({ representative }), authorUserId: company.userId, serializerVersion: "5" }),
   ]);
   expect(await worker.runJobs()).toEqual([]);
   expect(await getCompanyDataExportStatus(company.client, { companyId: company.companyId, exportId: download.value.exportId })).toEqual({ ok: true, value: "completed" });

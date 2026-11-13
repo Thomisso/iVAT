@@ -359,6 +359,7 @@ export async function deleteReportingYearAction(_state: FormState, formData: For
 }
 
 const FILING_DEFAULT_FIELDS = [
+  "representativeName", "representativeIco", "representativeSignatoryFirstName", "representativeSignatoryLastName", "representativeSignatoryCapacity",
   "representativeMode", "representativeCode", "representativePersonType", "representativeFirstName", "representativeLastName", "representativeBirthDate", "representativeEvidenceNumber",
   "taxOffice",
   "territorialOffice",
