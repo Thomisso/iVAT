@@ -5,6 +5,7 @@ import { getCounterpartyStatistics, type CounterpartyStatisticsFilters } from "@
 import { withCompanyReturnTo } from "@/application/return-context";
 import { DataTable } from "@/components/data-table";
 import { Money } from "@/components/money";
+import { Icon } from "@/components/icon";
 import { formatDate } from "@/lib/format-date";
 
 export async function TradeStatistics({ client, companyId, counterpartyId, search }: {
@@ -48,7 +49,7 @@ export async function TradeStatistics({ client, companyId, counterpartyId, searc
         <option value="unknown">{t("unknownCurrency")}</option>
       </select></label>
       <label><span>{t("contributions")}</span><select className="iv-input" name="contribution" defaultValue={statistics.contribution}>
-        {["dated", "complete", "missing_amounts", "missing_date"].map(value => <option key={value} value={value}>{t(value)}</option>)}
+        {["dated", "complete", "missing_amounts", "missing_date", "czk_complete", "missing_czk"].map(value => <option key={value} value={value}>{t(value)}</option>)}
       </select></label>
       <button className="iv-btn iv-btn-primary" type="submit">{directory("filter")}</button>
       <Link href={base}>{t("reset")}</Link>
@@ -59,6 +60,18 @@ export async function TradeStatistics({ client, companyId, counterpartyId, searc
     </li>)}</ul>
     <p><Link href={href({ contribution: "missing_date", page: 1 })}>{t("missingDates", { count: statistics.missingDateCount })}</Link></p>
     <p><Link href={href({ contribution: "missing_amounts", page: 1 })}>{t("missingAmounts", { count: statistics.missingAmountCount })}</Link></p>
+    {statistics.czkGroups.length > 0 && <>
+      <h3>{t("czkSummary")}</h3><p>{t("czkDescription")}</p>
+      <DataTable caption={t("czkSummary")} rows={statistics.czkGroups.map(group => ({ ...group, id: group.direction }))} columns={[
+        { key: "direction", header: t("direction"), render: row => t(row.direction) },
+        { key: "documentCount", header: t("count"), align: "right", render: row => <Link href={href({ direction: row.direction, contribution: "dated", page: 1 })}>{row.documentCount}</Link> },
+        ...(["netAmount", "vatAmount", "grossAmount"] as const).map(key => ({ key, header: t(({ netAmount: "czkNetAmount", vatAmount: "czkVatAmount", grossAmount: "czkGrossAmount" } as const)[key]), align: "right" as const,
+          render: (row: typeof statistics.czkGroups[number]) => row[key] === null ? money(null) : <Link href={href({ direction: row.direction, contribution: "czk_complete", page: 1 })}>{money(row[key])}</Link> })),
+        { key: "amountCount", header: t("czkContributors"), align: "right", render: row => <Link href={href({ direction: row.direction, contribution: "czk_complete", page: 1 })}>{t("coverage", { count: row.amountCount, total: row.documentCount })}</Link> },
+        { key: "missingAmountCount", header: t("missing_czk"), align: "right", render: row => <Link href={href({ direction: row.direction, contribution: "missing_czk", page: 1 })}>{row.missingAmountCount}</Link> },
+        { key: "coverage", header: t("coverageStatus"), render: row => <span><Icon name={row.missingAmountCount ? "alert" : "check"} />{t(row.missingAmountCount ? "czkIncomplete" : "czkComplete")}</span> },
+      ]} />
+    </>}
     {statistics.groups.length ? <DataTable caption={t("summary")} rows={statistics.groups.map((group, index) => ({ ...group, id: index }))} columns={[
       { key: "direction", header: t("direction"), render: row => t(row.direction) },
       { key: "currency", header: t("currency"), render: row => row.currency ?? t("unknownCurrency") },
@@ -73,8 +86,10 @@ export async function TradeStatistics({ client, companyId, counterpartyId, searc
       { key: "direction", header: t("direction"), render: row => t(row.direction) },
       { key: "currency", header: t("currency"), render: row => row.currency ?? t("unknownCurrency") },
       ...(["netAmount", "vatAmount", "grossAmount"] as const).map(key => ({ key, header: t(key), align: "right" as const, render: (row: typeof statistics.entries[number]) => money(row[key]) })),
+      ...(["czkNetAmount", "czkVatAmount", "czkGrossAmount"] as const).map(key => ({ key, header: t(key), align: "right" as const, render: (row: typeof statistics.entries[number]) => money(row[key]) })),
       { key: "notes", header: t("notes"), render: row => <>
         {!row.complete && <p>{t("incomplete")}</p>}
+        {!row.czkComplete && <p>{t("czkExcluded")}</p>}
         {row.grossMismatch && <p>{t("grossMismatch")}</p>}
       </> },
     ]} /> : <p>{t("emptyDocuments")}</p>}

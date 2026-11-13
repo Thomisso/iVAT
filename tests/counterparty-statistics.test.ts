@@ -92,18 +92,50 @@ it("covers more than 1000 Documents and pages the exact population even under a 
   const owner = await administratorWithCompany();
   await knownSupplierFixture(owner);
   const [party] = (await listCounterparties(owner.client, owner.companyId)).entries;
-  const payload = { ...SAMPLE_EXTRACTION, counterpartyLink: { id: party.id }, totals: { netAmount: "0.01", vatAmount: "0.02", grossAmount: "0.03" } };
-  const ids = await legacyCounterpartyTradeFixture(owner, Array.from({ length: 1001 }, () => ({ payload })));
+  const payload = { ...SAMPLE_EXTRACTION, counterpartyLink: { id: party.id }, currency: "EUR",
+    totals: { netAmount: "0.01", vatAmount: "0.02", grossAmount: "0.03" } };
+  const converted = { ...payload, czkConversion: { originalCurrency: "EUR", source: "CNB" as const, rate: "0.5", unit: 1,
+    rateDate: payload.taxPointDate!, rateBreakdown: [{ rate: 21 as const, netAmount: "0.01", vatAmount: "0.01" }],
+    totals: { netAmount: "0.01", vatAmount: "0.01", grossAmount: "0.02" } } };
+  const ids = await legacyCounterpartyTradeFixture(owner, Array.from({ length: 1001 }, (_, index) => ({ payload: index < 950 ? converted : payload })));
   await withPostgrestRowLimit(3, companyDocumentRowLimitProbe(owner.client, owner.companyId), async () => {
     const first = await getCounterpartyStatistics(owner.client, owner.companyId, party.id, { year: "2026" });
-    expect(first).toMatchObject({ ok: true, value: { total: 1001, pageCount: 21, groups: [{ documentCount: 1001, netAmount: "10.01", vatAmount: "20.02", grossAmount: "30.03" }] } });
+    expect(first).toMatchObject({ ok: true, value: { total: 1001, pageCount: 21,
+      groups: [{ currency: "EUR", documentCount: 1001, netAmount: "10.01", vatAmount: "20.02", grossAmount: "30.03" }],
+      czkGroups: [{ documentCount: 1001, amountCount: 950, missingAmountCount: 51, netAmount: "9.50", vatAmount: "9.50", grossAmount: "19.00" }],
+    } });
     const observed: string[] = [];
-    for (let page = 1; page <= 21; page++) {
-      const result = await getCounterpartyStatistics(owner.client, owner.companyId, party.id, { year: "2026", page: String(page), contribution: "complete", direction: "incoming", currency: "CZK" });
-      if (!result.ok) throw new Error(result.error);
-      observed.push(...result.value.entries.map(row => row.documentId));
+    const contributing: string[] = [];
+    // Read-only bounded batches retain every page and exact id coverage.
+    for (let batch = 1; batch <= 21; batch += 3) {
+      const pages = await Promise.all(Array.from({ length: Math.min(3, 22 - batch) }, (_, offset) =>
+        getCounterpartyStatistics(owner.client, owner.companyId, party.id, { year: "2026", page: String(batch + offset),
+          contribution: "complete", direction: "incoming", currency: "EUR" })));
+      for (const result of pages) {
+        if (!result.ok) throw new Error(result.error);
+        observed.push(...result.value.entries.map(row => row.documentId));
+        contributing.push(...result.value.entries.filter(row => row.czkComplete).map(row => row.documentId));
+      }
     }
-    expect(observed.sort()).toEqual(ids.sort());
+    expect(observed.sort()).toEqual([...ids].sort());
+    expect(contributing.sort()).toEqual(ids.slice(0, 950).sort());
+    const missing: string[] = [];
+    for (let page = 1; page <= 2; page++) {
+      const result = await getCounterpartyStatistics(owner.client, owner.companyId, party.id, { year: "2026", page: String(page),
+        contribution: "missing_czk", direction: "incoming", currency: "EUR" });
+      if (!result.ok) throw new Error(result.error);
+      expect(result.value.total).toBe(51);
+      expect(result.value.pageCount).toBe(2);
+      missing.push(...result.value.entries.map(row => row.documentId));
+    }
+    expect(missing.sort()).toEqual(ids.slice(950).sort());
+    const complete = await getCounterpartyStatistics(owner.client, owner.companyId, party.id, { year: "2026", page: "19",
+      contribution: "czk_complete", direction: "incoming", currency: "EUR" });
+    if (!complete.ok) throw new Error(complete.error);
+    expect(complete.value.total).toBe(950);
+    expect(complete.value.pageCount).toBe(19);
+    expect(complete.value.entries).toHaveLength(50);
+    expect(complete.value.entries.every(row => ids.slice(0, 950).includes(row.documentId))).toBe(true);
   });
 });
 
@@ -134,7 +166,7 @@ it("preserves Company access for effective Roles and refuses foreign Company and
   expect(sameOrganization.error?.code).toBe("42501");
 });
 
-it("keeps signed original currencies, old trade and advisory gross discrepancies independently of claim eligibility", async () => {
+it("keeps stored full CZK trade, signed originals and exact omissions independently of claim eligibility", async () => {
   const owner = await administratorWithCompany();
   await knownSupplierFixture(owner);
   const [party] = (await listCounterparties(owner.client, owner.companyId)).entries;
@@ -143,7 +175,10 @@ it("keeps signed original currencies, old trade and advisory gross discrepancies
     { payload: { ...base, partialClaim: { confirmed: true, rateBreakdown: [{ rate: 21, netAmount: "100.00", vatAmount: "21.00" }] } } },
     { payload: { ...base, documentType: "credit_note", totals: { netAmount: "-100.00", vatAmount: "-21.00", grossAmount: "-121.00" } } },
     { payload: { ...base, direction: "outgoing", totals: { netAmount: "500.00", vatAmount: "105.00", grossAmount: "605.00" } } },
-    { payload: { ...base, currency: "EUR", totals: { netAmount: "100.00", vatAmount: "21.00", grossAmount: "121.00" } } },
+    { payload: { ...base, currency: "EUR", totals: { netAmount: "100.00", vatAmount: "21.00", grossAmount: "121.00" },
+      czkConversion: { originalCurrency: "EUR", source: "CNB", rate: "25", unit: 1, rateDate: "2026-10-01",
+        rateBreakdown: [{ rate: 21, netAmount: "2500.00", vatAmount: "525.00" }],
+        totals: { netAmount: "2500.00", vatAmount: "525.00", grossAmount: "3025.00" } } } },
     { payload: { ...base, currency: "EUR", totals: { netAmount: "40.00", vatAmount: "8.40", grossAmount: "48.40" } } },
     { payload: { ...base, totals: { netAmount: "1000.00", vatAmount: "210.00", grossAmount: "1210.00" } }, status: "needs_review" },
     { payload: base, status: "rejected" }, { payload: base, status: "processing" }, { payload: base, superseded: true },
@@ -155,9 +190,19 @@ it("keeps signed original currencies, old trade and advisory gross discrepancies
     { direction: "incoming", currency: "CZK", documentCount: 2, netAmount: "900.00", vatAmount: "189.00", grossAmount: "1089.00" },
     { direction: "incoming", currency: "EUR", documentCount: 2, netAmount: "140.00", vatAmount: "29.40", grossAmount: "169.40" },
     { direction: "outgoing", currency: "CZK", documentCount: 1, netAmount: "500.00", vatAmount: "105.00", grossAmount: "605.00" },
+  ], czkGroups: [
+    { direction: "incoming", documentCount: 4, amountCount: 3, missingAmountCount: 1,
+      netAmount: "3400.00", vatAmount: "714.00", grossAmount: "4114.00" },
+    { direction: "outgoing", documentCount: 1, amountCount: 1, missingAmountCount: 0,
+      netAmount: "500.00", vatAmount: "105.00", grossAmount: "605.00" },
   ] } });
   if (!result.ok) throw new Error(result.error);
   expect(result.value.entries.map(row => row.documentId).sort()).toEqual(ids.slice(0, 5).sort());
+  for (const [contribution, expected] of [["czk_complete", [ids[0], ids[1], ids[3]]], ["missing_czk", [ids[4]]]] as const) {
+    const drill = await getCounterpartyStatistics(owner.client, owner.companyId, party.id, { year: "2026", direction: "incoming", contribution });
+    if (!drill.ok) throw new Error(drill.error);
+    expect(drill.value.entries.map(row => row.documentId).sort()).toEqual([...expected].sort());
+  }
   const old = await legacyCounterpartyTradeFixture(owner, [{ payload: { ...base, taxPointDate: "2020-01-01", totals: { netAmount: "0.01", vatAmount: "0.02", grossAmount: "0.04" } } }]);
   expect(await getCounterpartyStatistics(owner.client, owner.companyId, party.id, { year: "2020" })).toMatchObject({ ok: true, value: {
     total: 1, groups: [{ netAmount: "0.01", vatAmount: "0.02", grossAmount: "0.04" }], entries: [{ documentId: old[0], grossAmount: "0.04", grossMismatch: true }],
@@ -189,4 +234,98 @@ it("moves trade to the current stable link once and preserves it after directory
   expect(await getCounterpartyStatistics(owner.client, owner.companyId, currentId, { year: "2026" })).toMatchObject({ ok: true, value: {
     total: 1, groups: [{ direction: "incoming", netAmount: "1000.00" }], entries: [{ documentId: ids[0], version: 2 }],
   } });
+});
+
+it("omits malformed and stale stored fixings while preserving zero, signed and unavailable CZK contributions", async () => {
+  const owner = await administratorWithCompany();
+  await knownSupplierFixture(owner);
+  const [party] = (await listCounterparties(owner.client, owner.companyId)).entries;
+  const base = { ...SAMPLE_EXTRACTION, counterpartyLink: { id: party.id }, currency: "EUR", taxPointDate: "2026-10-01",
+    totals: { netAmount: "100.00", vatAmount: "21.00", grossAmount: "121.00" } };
+  const conversion = { originalCurrency: "EUR", source: "CNB" as const, rate: "25", unit: 1, rateDate: "2026-09-30",
+    rateBreakdown: [{ rate: 21 as const, netAmount: "2500.00", vatAmount: "525.00" }],
+    totals: { netAmount: "2500.00", vatAmount: "525.00", grossAmount: "3025.00" } };
+  const invalid = [
+    undefined,
+    { ...conversion, originalCurrency: "USD" },
+    { ...conversion, source: "unverified" },
+    { ...conversion, rateDate: "2026-10-02" },
+    { ...conversion, rateDate: "2026-02-30" },
+    { ...conversion, rateDate: "0000-01-01" },
+    { ...conversion, rateDate: "yesterday" },
+    { ...conversion, rate: "0" },
+    { ...conversion, rate: "-25" },
+    { ...conversion, rate: "NaN" },
+    { ...conversion, unit: 0 },
+    { ...conversion, unit: 1.5 },
+    { ...conversion, unit: "1" },
+    { ...conversion, totals: { ...conversion.totals, vatAmount: null } },
+    { ...conversion, totals: { ...conversion.totals, netAmount: "2500" } },
+    { ...conversion, totals: { ...conversion.totals, grossAmount: "3024.00" } },
+    { ...conversion, rate: "24" },
+  ];
+  // Historical malformed data is setup only; observations remain the real User query.
+  const omitted = await legacyCounterpartyTradeFixture(owner, invalid.map(czkConversion => ({
+    payload: { ...base, czkConversion } as typeof base,
+  })));
+  const allMissing = await getCounterpartyStatistics(owner.client, owner.companyId, party.id, { year: "2026" });
+  expect(allMissing).toMatchObject({ ok: true, value: { total: 17,
+    groups: [{ currency: "EUR", documentCount: 17, netAmount: "1700.00", vatAmount: "357.00", grossAmount: "2057.00" }],
+    czkGroups: [{ direction: "incoming", documentCount: 17, amountCount: 0, missingAmountCount: 17,
+      netAmount: null, vatAmount: null, grossAmount: null }],
+  } });
+  const valid = await legacyCounterpartyTradeFixture(owner, [
+    { payload: { ...base, totals: { netAmount: "0.00", vatAmount: "0.00", grossAmount: "0.00" },
+      czkConversion: { ...conversion, totals: { netAmount: "0.00", vatAmount: "0.00", grossAmount: "0.00" } } } },
+    { payload: { ...base, documentType: "credit_note", totals: { netAmount: "-100.00", vatAmount: "-21.00", grossAmount: "-121.00" },
+      czkConversion: { ...conversion, totals: { netAmount: "-2500.00", vatAmount: "-525.00", grossAmount: "-3025.00" } } } },
+    { payload: { ...base, totals: { netAmount: "0.01", vatAmount: "0.00", grossAmount: "0.01" },
+      czkConversion: { ...conversion, rate: "0.5", totals: { netAmount: "0.01", vatAmount: "0.00", grossAmount: "0.01" } } } },
+    { payload: { ...base, documentType: "credit_note", totals: { netAmount: "-0.01", vatAmount: "0.00", grossAmount: "-0.01" },
+      czkConversion: { ...conversion, rate: "0.5", totals: { netAmount: "-0.01", vatAmount: "0.00", grossAmount: "-0.01" } } } },
+  ]);
+  expect(await getCounterpartyStatistics(owner.client, owner.companyId, party.id, { year: "2026" })).toMatchObject({ ok: true, value: {
+    total: 21, czkGroups: [{ documentCount: 21, amountCount: 4, missingAmountCount: 17,
+      netAmount: "-2500.00", vatAmount: "-525.00", grossAmount: "-3025.00" }],
+  } });
+  for (const [contribution, expected] of [["czk_complete", valid], ["missing_czk", omitted]] as const) {
+    const drill = await getCounterpartyStatistics(owner.client, owner.companyId, party.id, { year: "2026", currency: "EUR", contribution });
+    if (!drill.ok) throw new Error(drill.error);
+    expect(drill.value.entries.map(row => row.documentId).sort()).toEqual([...expected].sort());
+    expect(drill.value.total).toBe(expected.length);
+  }
+});
+
+it("uses the current full-Document conversion and discloses incomplete originals without trusting historical or reduced amounts", async () => {
+  const owner = await administratorWithCompany();
+  await knownSupplierFixture(owner);
+  const [party] = (await listCounterparties(owner.client, owner.companyId)).entries;
+  const base = { ...SAMPLE_EXTRACTION, counterpartyLink: { id: party.id }, currency: "EUR", taxPointDate: "2026-10-01",
+    totals: { netAmount: "100.00", vatAmount: "21.00", grossAmount: "121.00" } };
+  const conversion = { originalCurrency: "EUR", source: "CNB" as const, rate: "2500", unit: 100, rateDate: "2026-09-30",
+    rateBreakdown: [{ rate: 21 as const, netAmount: "2500.00", vatAmount: "525.00" }],
+    totals: { netAmount: "2500.00", vatAmount: "525.00", grossAmount: "3025.00" } };
+  const ids = await legacyCounterpartyTradeFixture(owner, [
+    { previous: { ...base, czkConversion: conversion }, payload: base },
+    { payload: { ...base, czkConversion: conversion, partialClaim: { confirmed: true,
+      rateBreakdown: [{ rate: 21, netAmount: "10.00", vatAmount: "2.10" }] },
+      proportionalDeduction: { percentage: 40, confirmed: true, operatingExpenseConfirmed: true, actualUseConfirmed: true, origin: "user" } } },
+    { payload: { ...base, currency: "CZK", totals: { netAmount: "100.00", vatAmount: null, grossAmount: "121.00" } } },
+    { payload: { ...base, currency: null, czkConversion: { ...conversion, originalCurrency: null } } as unknown as typeof base },
+    { payload: { ...base, totals: { netAmount: "100.00", vatAmount: null, grossAmount: "121.00" }, czkConversion: conversion } },
+    { payload: { ...base, documentNumber: "SAVED-GROSS-ADVISORY", totals: { netAmount: "0.01", vatAmount: "0.02", grossAmount: "0.04" },
+      czkConversion: { ...conversion, totals: { netAmount: "0.25", vatAmount: "0.50", grossAmount: "1.00" } } } },
+  ]);
+  expect(await getCounterpartyStatistics(owner.client, owner.companyId, party.id, { year: "2026" })).toMatchObject({ ok: true, value: {
+    total: 6, missingAmountCount: 3,
+    czkGroups: [{ documentCount: 6, amountCount: 2, missingAmountCount: 4, netAmount: "2500.25", vatAmount: "525.50", grossAmount: "3026.00" }],
+  } });
+  const contributors = await getCounterpartyStatistics(owner.client, owner.companyId, party.id, { year: "2026", contribution: "czk_complete" });
+  if (!contributors.ok) throw new Error(contributors.error);
+  expect(contributors.value.entries.map(row => row.documentId).sort()).toEqual([ids[1], ids[5]].sort());
+  expect(contributors.value.entries.find(row => row.documentId === ids[5])).toMatchObject({ grossMismatch: true,
+    czkNetAmount: "0.25", czkVatAmount: "0.50", czkGrossAmount: "1.00" });
+  const missing = await getCounterpartyStatistics(owner.client, owner.companyId, party.id, { year: "2026", contribution: "missing_czk" });
+  if (!missing.ok) throw new Error(missing.error);
+  expect(missing.value.entries.map(row => row.documentId).sort()).toEqual([ids[0], ids[2], ids[3], ids[4]].sort());
 });

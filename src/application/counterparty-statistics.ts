@@ -14,9 +14,11 @@ export type CounterpartyTradeDocument = {
   documentId: string; version: number; documentNumber: string | null; taxPointDate: string | null;
   direction: "incoming" | "outgoing"; currency: string | null; complete: boolean;
   netAmount: string | null; vatAmount: string | null; grossAmount: string | null;
-  grossMismatch: boolean;
+  grossMismatch: boolean; czkComplete: boolean;
+  czkNetAmount: string | null; czkVatAmount: string | null; czkGrossAmount: string | null;
 };
-type StatisticsData = { groups: CounterpartyTradeGroup[]; entries: Omit<CounterpartyTradeDocument, "grossMismatch">[];
+export type CounterpartyCzkTradeGroup = Omit<CounterpartyTradeGroup, "currency">;
+type StatisticsData = { czkGroups: CounterpartyCzkTradeGroup[]; groups: CounterpartyTradeGroup[]; entries: Omit<CounterpartyTradeDocument, "grossMismatch">[];
   total: number; missingDateCount: number; missingAmountCount: number };
 export type CounterpartyStatistics = Omit<StatisticsData, "entries"> & {
   entries: CounterpartyTradeDocument[];
@@ -44,7 +46,7 @@ export async function getCounterpartyStatistics(client: AppClient, companyId: st
   const page = Number(input.page ?? "1");
   if (!/^\d{4}$/.test(year) || !validDate(from) || !validDate(to) || from > to
     || !["", "incoming", "outgoing"].includes(direction) || (currency !== "unknown" && !/^([A-Z]{3})?$/.test(currency))
-    || !["dated", "complete", "missing_amounts", "missing_date"].includes(contribution)
+    || !["dated", "complete", "missing_amounts", "missing_date", "czk_complete", "missing_czk"].includes(contribution)
     || !Number.isSafeInteger(page) || page < 1 || page > 2147483647) return { ok: false, error: "invalid_statistics_filter" };
   const { data, error } = await client.rpc("counterparty_statistics", {
     target_company_id: companyId, target_counterparty_id: counterpartyId,
