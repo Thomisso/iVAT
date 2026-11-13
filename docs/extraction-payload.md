@@ -159,7 +159,7 @@ The original Source File and immutable Extraction Versions remain unchanged;
 explicit reprocessing creates a new version through the existing worker flow.
 
 
-## Proportional Deduction (§ 75, CZK)
+## Proportional Deduction (§ 75)
 
 `proportionalDeduction` is optional human accounting metadata, separate from
 `partialClaim`: `{percentage, origin: "user", confirmed,
@@ -179,9 +179,16 @@ Invalid or unconfirmed decisions block approval and new report operations.
 Earlier Versions and report/artifact bytes are never rewritten.
 
 The current slice supports incoming domestic invoices, receipts and simplified
-tax documents in CZK at 21% and 12%. Credit/debit notes, fixed assets, estimates,
+tax documents at 21% and 12%. Foreign-currency decisions reduce each original
+net/VAT amount first, then use the same saved ČNB fixing as the full Document.
+The saved currency, fixing metadata, full totals and each rate row must still
+correspond to the current source amounts; missing or invalid conversion blocks
+approval and report inclusion. The B.2/B.3 threshold uses the full converted
+gross amount, and the Unclaimed Portion remains in the original currency,
+without treating conversion rounding as expenditure.
+
+Credit/debit notes, fixed assets, estimates,
 § 76, advances, reverse charge, EU supplies and combination with Partial Claim
-are unsupported. Foreign currency is refused until the separately tracked
-conversion slice is delivered. The broader re-confirmation lifecycle remains in
+are unsupported. The broader re-confirmation lifecycle remains in
 #295; financial-basis changes already retain the previous percentage and invalidate
 confirmation rather than restoring full amounts.

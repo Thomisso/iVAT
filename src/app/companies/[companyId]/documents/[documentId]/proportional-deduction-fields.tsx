@@ -4,8 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { ExtractionPayload } from "@/application/extraction-payload";
 import { claimBasis, claimBasisKey } from "@/application/partial-claim";
+import { validatedDocumentCzkConversion } from "@/application/exchange-rates";
 import { proportionalDeductionSummary } from "@/application/proportional-deduction";
 import { Button } from "@/components/button";
+import { Notice } from "@/components/notice";
 import { Money } from "@/components/money";
 import { TextField } from "@/components/text-field";
 import { formSource } from "./partial-claim-fields";
@@ -60,6 +62,8 @@ export function ProportionalDeductionFields({ payload, editable, values, rateRow
     <input type="hidden" name="proportionalDeduction.mode" value={enabled ? "proportional" : saved ? "full" : "absent"} />
     {enabled && <>
       <p>{t("scope")}</p><p>{t("rounding")}</p>
+      {source.currency && source.currency !== "CZK" && <><p>{t("conversion")}</p>
+        {!validatedDocumentCzkConversion(source) && <Notice tone="danger">{t("conversionRequired")}</Notice>}</>}
       <TextField label={t("percentage")} name="proportionalDeduction.percentage" inputMode="numeric" mono value={percentage} disabled={!editable}
         onChange={event => { setPercentage(event.target.value); setConfirmed(false); }} />
       <label><input type="checkbox" checked={operating} disabled={!editable} onChange={event => { setOperating(event.target.checked); setConfirmed(false); }} /> {t("operating")}</label>

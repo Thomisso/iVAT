@@ -237,7 +237,10 @@ export function omitZeroRateBreakdownRows(payload: ExtractionPayload, { omitEmpt
     ...(payload.czkConversion ? {
       czkConversion: {
         ...payload.czkConversion,
-        rateBreakdown: payload.czkConversion.rateBreakdown.filter((line) => !isZeroRateBreakdownLine(line)),
+        // Keep malformed saved metadata visible to its validator instead of crashing review.
+        rateBreakdown: Array.isArray(payload.czkConversion.rateBreakdown)
+          ? payload.czkConversion.rateBreakdown.filter((line) => !line || !isZeroRateBreakdownLine(line))
+          : payload.czkConversion.rateBreakdown,
       },
     } : {}),
   };

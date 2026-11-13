@@ -1228,6 +1228,7 @@
       "claim_document_type_required": "Choose a Document type before confirming claim eligibility.",
       "claim_deadline_expired": "The claim filing deadline has expired. A new approval cannot establish timely filing.",
       "claimed_period_after_deadline": "This period ends too late for an ordinary claim before the filing deadline. Choose an earlier eligible period.",
+      "proportional_deduction_conversion_required": "A valid saved CZK conversion of the full Document is required for this foreign-currency proportional deduction.",
       "proportional_deduction_invalid": "Confirm a supported actual-use proportional deduction (1–99%).",
       "proportional_claim_year_mismatch": "The proportional claim period must be in the Earliest Claim Period’s calendar year."
     },
@@ -1409,7 +1410,9 @@
     "proportionalDeduction": {
       "title": "Proportional deduction (§ 75)",
       "enable": "Use a manually confirmed actual-use ratio",
-      "scope": "Only ordinary incoming domestic operating expenditure in CZK. Fixed assets, estimates, § 76, advances and combinations with Partial Claim are unsupported.",
+      "scope": "Only ordinary incoming domestic operating expenditure. Foreign amounts use the full Document’s saved CZK conversion. Fixed assets, estimates, § 76, advances and combinations with Partial Claim are unsupported.",
+      "conversion": "Reduce the original currency amounts first, then use the full Document’s saved exchange rate. Currency rounding is not an Unclaimed Portion.",
+      "conversionRequired": "A valid saved CZK conversion of the full Document is required for this foreign-currency proportional deduction.",
       "rounding": "Round the actual percentage upward to a whole percentage under § 75(3). Enter the final coefficient, 1–99%, for the entire Document.",
       "percentage": "Actual-use coefficient (%)",
       "operating": "I confirm this is ordinary operating expenditure, outside fixed-asset acquisition and its related expenditure.",
