@@ -112,6 +112,9 @@ it("drops a late file hash after disposal and keeps the replacement account's qu
 it("pins an attempt across an automatic network retry instead of adopting the replacement", async () => {
   const storage: UploadDraftStorage = { async read() { return null; }, async write() {} };
   const bodies: Record<string, unknown>[] = [];
+  const admission = Promise.withResolvers<Response>();
+  const retryRequested = Promise.withResolvers<void>();
+  const refusal = Promise.withResolvers<Response>();
   class FailedRequest extends EventTarget {
     upload = new EventTarget(); response = null; status = 0; responseURL = "";
     open() {} setRequestHeader() {} abort() { this.dispatchEvent(new Event("abort")); }
@@ -121,18 +124,26 @@ it("pins an attempt across an automatic network retry instead of adopting the re
   vi.stubGlobal("crypto", webcrypto);
   vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
     const body = JSON.parse(init.body as string);
-    if (url.endsWith("/upload-batches")) return Response.json({ ok: true, value: { id: "batch" } });
+    if (url.endsWith("/upload-batches")) return admission.promise;
     bodies.push(body);
-    return Response.json(bodies.length === 1
-      ? { ok: true, value: { attemptId: "attempt-A", confirmedBytes: 0, byteSize: 3, complete: false } }
-      : { ok: false, error: "upload_attempt_changed" }, { status: bodies.length === 1 ? 200 : 409 });
+    if (bodies.length === 1) return Response.json({ ok: true, value: { attemptId: "attempt-A", confirmedBytes: 0, byteSize: 3, complete: false } });
+    retryRequested.resolve();
+    return refusal.promise;
   });
   await mount(storage);
   await select();
   await vi.waitFor(async () => { await act(async () => {}); expect(container.textContent).toContain("page.png"); });
   await submit();
+  expect(bodies).toEqual([]);
+  await act(async () => {
+    admission.resolve(Response.json({ ok: true, value: { id: "batch" } }));
+    await retryRequested.promise;
+  });
+  expect(container.textContent).not.toContain("upload_attempt_changed");
+  await act(async () => { refusal.resolve(Response.json({ ok: false, error: "upload_attempt_changed" }, { status: 409 })); });
+  // dispatchEvent cannot await an async submit handler. Observe the terminal refusal.
+  await vi.waitFor(async () => { await act(async () => {}); expect(container.textContent).toContain("upload_attempt_changed"); });
   expect(bodies.map(body => body.expectedAttemptId)).toEqual([undefined, "attempt-A"]);
-  expect(container.textContent).toContain("upload_attempt_changed");
   expect(navigation.push).not.toHaveBeenCalled();
 });
 
