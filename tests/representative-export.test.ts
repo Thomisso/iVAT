@@ -10,6 +10,46 @@ import { administratorWithCompany, companyMember } from "./support/fixtures";
 
 const representative = { code: "4a", personType: "F", firstName: "Alena", lastName: "Zástupná", birthDate: "1981-02-03", evidenceNumber: "" } as const;
 const filing = { taxOffice: "451", territorialOffice: "2003", economicActivity: "621000", signatoryFirstName: "Jana", signatoryLastName: "Podpisová", signatoryCapacity: "jednatelka", email: "", phone: "", epoAddressOverride: null };
+it("exports a professional natural-person default with either permitted identifier for both taxpayers and formats", async () => {
+  const { updateCompanyIdentity } = await import("@/application/companies");
+  const { companyDetails } = await import("./support/fixtures");
+  for (const personType of ["natural", "legal"] as const) {
+    const company = await administratorWithCompany();
+    if (personType === "natural") expect(await updateCompanyIdentity(company.client, { companyId: company.companyId, ...companyDetails({ personType, firstName: "Karel", lastName: "Daňový", name: "Karel Daňový" }) })).toEqual({ ok: true, value: null });
+    await generateVatReport(company.client, { companyId: company.companyId, period: "2026-10" });
+    const user = await companyMember(company);
+    for (const identity of [{ birthDate: "1981-02-03", evidenceNumber: "" }, { birthDate: "", evidenceNumber: "SYN-123" }]) {
+      const professional = { ...representative, code: "4b", firstName: "Eva", lastName: "Poradná", ...identity } as const;
+      expect(await saveCompanyFilingDefaults(company.client, { ...filing, companyId: company.companyId, representative: professional })).toEqual({ ok: true, value: null });
+      expect((await getCompanyFilingDefaults(company.client, company.companyId))?.representative).toEqual(professional);
+      for (const format of ["dphdp3", "dphkh1"] as const) {
+        const input = { companyId: company.companyId, period: "2026-10", format, details: { preparedOn: "2026-10-27" } };
+        const xml = await exportVatReport(user.client, input);
+        if (!xml.ok) throw new Error(xml.error);
+        expect(xml.value.xml).toContain('zast_kod="4b"');
+        expect(xml.value.xml).toContain('zast_typ="F"');
+        expect(xml.value.xml).toContain('zast_jmeno="Eva"');
+        expect(xml.value.xml).toContain('zast_prijmeni="Poradná"');
+        expect(xml.value.xml).toContain(identity.birthDate ? 'zast_dat_nar="03.02.1981"' : 'zast_ev_cislo="SYN-123"');
+        expect(xml.value.xml).not.toMatch(identity.birthDate ? /zast_ev_cislo=/ : /zast_dat_nar=/);
+        expect(xml.value.xml).not.toMatch(/zast_(?:nazev|ic)=/);
+        if (personType === "natural") { expect(xml.value.xml).toContain('jmeno="Karel"'); expect(xml.value.xml).not.toContain("opr_"); }
+        else expect(xml.value.xml).toContain('opr_jmeno="Jana"');
+        const saved = await readVatReportArtifact(user.client, { companyId: company.companyId, artifactId: xml.value.artifactId });
+        expect(saved?.bytes).toEqual(xml.value.bytes);
+        expect(saved?.artifact).toMatchObject({ resolvedDetails: { representative: professional }, authorUserId: user.userId, serializerVersion: "4", schemaVersion: format === "dphdp3" ? "03.01.04" : "03.01.15" });
+        const pdf = format === "dphdp3" ? await exportVatReturnPdf(user.client, input) : await exportControlStatementPdf(user.client, input, undefined);
+        if (!pdf.ok) throw new Error(pdf.error);
+        expect(await pdfField(pdf.value.bytes, format === "dphdp3" ? [191.6, 576.1, 219.4, 592.6] : [191.6, 598.4, 219.4, 614.9])).toBe("4b");
+        expect(await pdfField(pdf.value.bytes, format === "dphdp3" ? [49.9, 605.8, 559.6, 622.3] : [49.9, 628.1, 559.6, 644.6])).toBe("Eva Poradná");
+        expect(await pdfField(pdf.value.bytes, format === "dphdp3" ? [49.9, 634.2, 559.6, 650.7] : [49.9, 656.5, 559.6, 673])).toBe(identity.birthDate ? "03.02.1981" : "SYN-123");
+        const storedPdf = await readVatReportPdfArtifact(user.client, { companyId: company.companyId, artifactId: pdf.value.artifactId! });
+        expect(storedPdf?.bytes).toEqual(pdf.value.bytes);
+        expect(storedPdf?.artifact).toMatchObject({ resolvedDetails: { representative: professional }, serializerVersion: "4", authorUserId: user.userId });
+      }
+    }
+  }
+});
 async function pdfText(bytes: Uint8Array) {
   const task = getDocument({ data: bytes.slice(), useSystemFonts: true });
   const pdf = await task.promise;
@@ -65,8 +105,9 @@ it("distinguishes omission, one-off override and explicit off without rewriting 
   const original = await exportVatReport(company.client, input);
   if (!original.ok) throw new Error(original.error);
   const archived = await readVatReportArtifact(company.client, { companyId: company.companyId, artifactId: original.value.artifactId });
-  const changed = await exportVatReport(company.client, { ...input, details: { ...input.details, representativeMode: "override", representativeCode: "4a", representativePersonType: "F", representativeFirstName: "Pavel", representativeLastName: "Jiný", representativeBirthDate: "", representativeEvidenceNumber: "SYN-123", representativeName: "stale corporation", representativeIco: "12345678" } });
+  const changed = await exportVatReport(company.client, { ...input, details: { ...input.details, representativeMode: "override", representativeCode: "4b", representativePersonType: "F", representativeFirstName: "Pavel", representativeLastName: "Jiný", representativeBirthDate: "", representativeEvidenceNumber: "SYN-123", representativeName: "stale corporation", representativeIco: "12345678" } });
   if (!changed.ok) throw new Error(changed.error);
+  expect(changed.value.xml).toContain('zast_kod="4b"');
   expect(changed.value.xml).toContain('zast_jmeno="Pavel"');
   expect(changed.value.xml).toContain('zast_ev_cislo="SYN-123"');
   expect(changed.value.xml).not.toMatch(/zast_(?:dat_nar|nazev|ic)=/);
@@ -77,8 +118,42 @@ it("distinguishes omission, one-off override and explicit off without rewriting 
   const again = await exportVatReport(company.client, input);
   if (!again.ok) throw new Error(again.error);
   expect(again.value.xml).toContain('zast_jmeno="Alena"');
-  await saveCompanyFilingDefaults(company.client, { ...filing, companyId: company.companyId, representative: { ...representative, firstName: "Marie" } });
+  await saveCompanyFilingDefaults(company.client, { ...filing, companyId: company.companyId, representative: { ...representative, code: "4b", firstName: "Marie" } });
   expect(await readVatReportArtifact(company.client, { companyId: company.companyId, artifactId: original.value.artifactId })).toEqual(archived);
+});
+
+it("retains compatible serializer-3 XML/PDF bytes and metadata after saving a professional profile", async () => {
+  const company = await administratorWithCompany();
+  await saveCompanyFilingDefaults(company.client, { ...filing, companyId: company.companyId, representative });
+  await generateVatReport(company.client, { companyId: company.companyId, period: "2026-10" });
+  for (const format of ["dphdp3", "dphkh1"] as const) {
+    await saveCompanyFilingDefaults(company.client, { ...filing, companyId: company.companyId, representative });
+    const input = { companyId: company.companyId, period: "2026-10", details: { preparedOn: "2026-10-27" } };
+    const xml = await exportVatReport(company.client, { ...input, format });
+    const pdf = format === "dphdp3" ? await exportVatReturnPdf(company.client, input) : await exportControlStatementPdf(company.client, input, undefined);
+    if (!xml.ok || !pdf.ok) throw new Error("Fixture export failed");
+    const current = await readVatReportArtifact(company.client, { companyId: company.companyId, artifactId: xml.value.artifactId });
+    if (!current) throw new Error("Fixture archive missing");
+    const common = { target_company_id: company.companyId, target_vat_report_id: current.artifact.vatReportId,
+      target_report_generated_at: current.artifact.reportGeneratedAt, target_format: format,
+      target_resolved_details: JSON.parse(JSON.stringify(current.artifact.resolvedDetails)),
+      target_schema_version: format === "dphdp3" ? "03.01.04" : "03.01.15", target_serializer_version: "3" };
+    // Exercise the retained public contract of a compatible older caller; do not reserialize history.
+    const oldXml = await company.client.rpc("create_draft_vat_report_artifact", { ...common, target_file_name: xml.value.fileName, target_xml_base64: Buffer.from(xml.value.bytes).toString("base64") });
+    const oldPdf = await company.client.rpc("create_vat_report_pdf_artifact", { ...common, target_pdf_base64: Buffer.from(pdf.value.bytes).toString("base64") });
+    expect(oldXml.error).toBeNull(); expect(oldPdf.error).toBeNull();
+    const xmlRead = { companyId: company.companyId, artifactId: oldXml.data! };
+    const pdfRead = { companyId: company.companyId, artifactId: oldPdf.data! };
+    const beforeXml = await readVatReportArtifact(company.client, xmlRead);
+    const beforePdf = await readVatReportPdfArtifact(company.client, pdfRead);
+    expect(beforeXml?.artifact.serializerVersion).toBe("3"); expect(beforePdf?.artifact.serializerVersion).toBe("3");
+    expect(beforeXml?.bytes).toEqual(xml.value.bytes); expect(beforePdf?.bytes).toEqual(pdf.value.bytes);
+    expect(await saveCompanyFilingDefaults(company.client, { ...filing, companyId: company.companyId, representative: { ...representative, code: "4b", firstName: "Eva" } })).toEqual({ ok: true, value: null });
+    expect(await readVatReportArtifact(company.client, xmlRead)).toEqual(beforeXml);
+    expect(await readVatReportPdfArtifact(company.client, pdfRead)).toEqual(beforePdf);
+    expect((await company.client.rpc("create_draft_vat_report_artifact", { ...common, target_serializer_version: "999", target_file_name: xml.value.fileName, target_xml_base64: Buffer.from(xml.value.bytes).toString("base64") })).error?.hint).toBe("invalid_export_details");
+    expect((await company.client.rpc("create_vat_report_pdf_artifact", { ...common, target_serializer_version: "999", target_pdf_base64: Buffer.from(pdf.value.bytes).toString("base64") })).error?.hint).toBe("invalid_export_details");
+  }
 });
 
 it("keeps natural taxpayers, their natural representative and the account author distinct, including direct legacy exports", async () => {
@@ -120,21 +195,28 @@ it("allows incomplete representative previews but refuses incomplete XML and all
   await saveCompanyFilingDefaults(company.client, { ...filing, companyId: company.companyId, representative });
   await generateVatReport(company.client, { companyId: company.companyId, period: "2026-10" });
   const input = { companyId: company.companyId, period: "2026-10" };
-  const selected = { preparedOn: "2026-10-27", representativeMode: "override", representativeCode: "4a", representativePersonType: "F", representativeFirstName: "Eva", representativeLastName: "", representativeBirthDate: "", representativeEvidenceNumber: "" };
+  const selected = { preparedOn: "2026-10-27", representativeMode: "override", representativeCode: "4b", representativePersonType: "F", representativeFirstName: "Eva", representativeLastName: "", representativeBirthDate: "", representativeEvidenceNumber: "" };
   for (const format of ["dphdp3", "dphkh1"] as const) {
     const preview = format === "dphdp3" ? await exportVatReturnPdf(company.client, { ...input, details: selected }) : await exportControlStatementPdf(company.client, { ...input, details: selected }, undefined);
     if (!preview.ok) throw new Error(preview.error);
     expect(await pdfText(preview.value.bytes)).toContain("Eva");
     expect(await exportVatReport(company.client, { ...input, format, details: selected })).toEqual({ ok: false, error: "invalid_representative" });
+    for (const missing of [{ representativeFirstName: "", representativeLastName: "Poradná", representativeBirthDate: "1981-02-03" }, { representativeFirstName: "Eva", representativeLastName: "Poradná", representativeBirthDate: "" }]) {
+      const details = { ...selected, ...missing };
+      expect(await exportVatReport(company.client, { ...input, format, details })).toEqual({ ok: false, error: "invalid_representative" });
+      expect((format === "dphdp3" ? await exportVatReturnPdf(company.client, { ...input, details }) : await exportControlStatementPdf(company.client, { ...input, details }, undefined)).ok).toBe(true);
+    }
     for (const patch of [
-      { representativeCode: "4b", representativePersonType: "F" }, { representativeCode: "4b", representativePersonType: "P" },
+      { representativeCode: "4b", representativePersonType: "P" },
       { representativeCode: "4c", representativePersonType: "F" }, { representativeCode: "4c", representativePersonType: "P" },
       { representativeCode: "4a", representativePersonType: "P" }, { representativeCode: "1" },
       { representativeBirthDate: "1981-02-30" }, { representativeFirstName: "X".repeat(21) },
       { representativeLastName: "Y".repeat(37) }, { representativeEvidenceNumber: "Z".repeat(37) },
       { representativeMode: "unknown" },
     ]) {
-      expect(await exportVatReport(company.client, { ...input, format, details: { ...selected, representativeLastName: "Jiná", representativeBirthDate: "1981-02-03", ...patch } })).toEqual({ ok: false, error: "invalid_representative" });
+      const details = { ...selected, representativeLastName: "Jiná", representativeBirthDate: "1981-02-03", ...patch };
+      expect(await exportVatReport(company.client, { ...input, format, details })).toEqual({ ok: false, error: "invalid_representative" });
+      expect(format === "dphdp3" ? await exportVatReturnPdf(company.client, { ...input, details }) : await exportControlStatementPdf(company.client, { ...input, details }, undefined)).toEqual({ ok: false, error: "invalid_representative" });
     }
   }
 });
@@ -144,21 +226,23 @@ it("enforces existing default permissions and tenant isolation at the direct RPC
   const user = await companyMember(company);
   const { provisionedUser } = await import("./support/clients");
   const outsider = await provisionedUser();
-  const input = { ...filing, companyId: company.companyId, representative };
+  const professional = { ...representative, code: "4b" } as const;
+  const input = { ...filing, companyId: company.companyId, representative: professional };
   expect(await saveCompanyFilingDefaults(company.client, input)).toEqual({ ok: true, value: null });
   expect(await saveCompanyFilingDefaults(user.client, input)).toEqual({ ok: false, error: "forbidden" });
   expect(await saveCompanyFilingDefaults(outsider.client, input)).toEqual({ ok: false, error: "forbidden" });
   expect(await getCompanyFilingDefaults(outsider.client, company.companyId)).toBeNull();
   expect((await outsider.client.from("company_filing_defaults").select("representative").eq("company_id", company.companyId)).data).toEqual([]);
   expect((await outsider.client.from("company_filing_defaults").update({ representative: null }).eq("company_id", company.companyId)).error?.code).toBe("42501");
-  const rpc = { target_company_id: company.companyId, new_tax_office: "451", new_territorial_office: "2003", new_economic_activity: "621000", new_signatory_first_name: "Jana", new_signatory_last_name: "Podpisová", new_signatory_capacity: "jednatelka", new_email: "", new_phone: "", new_epo_street_name: "", new_epo_house_number: "", new_epo_orientation_number: "", new_epo_city: "", new_epo_postal_code: "", epo_address_confirmed: false, new_representative: representative };
+  const rpc = { target_company_id: company.companyId, new_tax_office: "451", new_territorial_office: "2003", new_economic_activity: "621000", new_signatory_first_name: "Jana", new_signatory_last_name: "Podpisová", new_signatory_capacity: "jednatelka", new_email: "", new_phone: "", new_epo_street_name: "", new_epo_house_number: "", new_epo_orientation_number: "", new_epo_city: "", new_epo_postal_code: "", epo_address_confirmed: false, new_representative: professional };
   expect((await user.client.rpc("set_company_filing_defaults", rpc)).error?.code).toBe("42501");
   expect((await outsider.client.rpc("set_company_filing_defaults", rpc)).error?.code).toBe("42501");
-  for (const profile of [{ ...representative, code: "4b" }, { ...representative, personType: "P" }, { ...representative, birthDate: "1981-02-30" }, { ...representative, firstName: "" }, { ...representative, firstName: 123 }]) {
+  expect((await company.client.rpc("set_company_filing_defaults", rpc)).error).toBeNull();
+  for (const profile of [{ ...professional, personType: "P" }, { ...professional, code: "4c" }, { ...professional, birthDate: "1981-02-30" }, { ...professional, firstName: "" }, { ...professional, firstName: 123 }, { ...professional, lastName: "" }, { ...professional, birthDate: "", evidenceNumber: "" }, { ...professional, evidenceNumber: "X".repeat(37) }]) {
     const refused = await company.client.rpc("set_company_filing_defaults", { ...rpc, new_representative: profile });
     expect(refused.error?.hint).toBe("invalid_representative");
   }
-  expect((await getCompanyFilingDefaults(company.client, company.companyId))?.representative).toEqual(representative);
+  expect((await getCompanyFilingDefaults(company.client, company.companyId))?.representative).toEqual(professional);
   const { listAuditEvents } = await import("@/application/audit");
   const audit = JSON.stringify(await listAuditEvents(company.client, company.organizationId));
   expect(audit).not.toMatch(/Alena|Zástupná|1981-02-03|representative|Podpisová/);
@@ -180,7 +264,7 @@ it("preserves finalized report state and historical final artifacts when default
     if (!first.ok) throw new Error(first.error);
     const readInput = { companyId: company.companyId, artifactId: first.value.artifactId };
     const archive = await readVatReportArtifact(user.client, readInput);
-    await saveCompanyFilingDefaults(company.client, { ...filing, companyId: company.companyId, representative: { ...representative, firstName: "Marie" } });
+    await saveCompanyFilingDefaults(company.client, { ...filing, companyId: company.companyId, representative: { ...representative, code: "4b", firstName: "Marie" } });
     const next = await exportFinalVatReport(user.client, { ...input, details: { ...input.details, representativeMode: "off" } });
     if (!next.ok) throw new Error(next.error);
     expect(next.value.xml).not.toContain("zast_");
@@ -216,7 +300,7 @@ it("archives complete PDF exports immutably without changing XML progress, while
     const read = { companyId: company.companyId, artifactId: pdf.value.artifactId };
     const archive = await readVatReportPdfArtifact(user.client, read);
     expect(archive?.bytes).toEqual(pdf.value.bytes);
-    expect(archive?.artifact).toMatchObject({ kind: "draft", periodLockId: null, format, schemaVersion: format === "dphdp3" ? "03.01.04" : "03.01.15", serializerVersion: "3", authorUserId: user.userId });
+    expect(archive?.artifact).toMatchObject({ kind: "draft", periodLockId: null, format, schemaVersion: format === "dphdp3" ? "03.01.04" : "03.01.15", serializerVersion: "4", authorUserId: user.userId });
     expect(await readVatReportPdfArtifact(outsider.client, read)).toBeNull();
     expect(await listVatReportPdfArtifacts(outsider.client, input)).toEqual([]);
     expect((await outsider.client.from("vat_report_pdf_artifact").select("id").eq("id", read.artifactId)).data).toEqual([]);
@@ -225,7 +309,7 @@ it("archives complete PDF exports immutably without changing XML progress, while
     expect(await readVatReportPdfArtifact(user.client, read)).toEqual(archive);
     expect((await user.client.from("vat_report_pdf_artifact").update({ file_name: "changed.pdf" }).eq("id", read.artifactId)).error?.code).toBe("42501");
     expect((await user.client.from("vat_report_pdf_artifact").delete().eq("id", read.artifactId)).error?.code).toBe("42501");
-    await saveCompanyFilingDefaults(company.client, { ...filing, companyId: company.companyId, representative: { ...representative, firstName: "Marie" } });
+    await saveCompanyFilingDefaults(company.client, { ...filing, companyId: company.companyId, representative: { ...representative, code: "4b", firstName: "Marie" } });
     expect(await readVatReportPdfArtifact(user.client, read)).toEqual(archive);
   }
   expect(await getVatReportExportProgress(user.client, { companyId: input.companyId, period: input.period, reportGeneratedAt: report.generatedAt, kind: "draft" })).toEqual({ downloadedFormats: [], skippedFormats: [] });

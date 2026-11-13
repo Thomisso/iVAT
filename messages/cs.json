@@ -2121,6 +2121,7 @@
     "default": "Použít výchozí údaje společnosti",
     "off": "Bez zástupce",
     "generalNatural": "4a — obecný zmocněnec, fyzická osoba",
+    "professionalNatural": "4b — daňový poradce nebo advokát, fyzická osoba",
     "firstName": "Jméno zástupce",
     "lastName": "Příjmení zástupce",
     "birthDate": "Datum narození zástupce",

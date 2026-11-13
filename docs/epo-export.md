@@ -50,13 +50,14 @@ Schema provenance, mappings, rounding and update instructions are in
 [`schemas/epo/README.md`](../schemas/epo/README.md). Tests compare exports with
 hand-authored XML and validate success and refusal cases without external services.
 
-## Representation Profile (#318)
+## Representation Profile (#318, #319)
 
 Administrators can save one protected Company Representation Profile. The current
-slice supports general natural-person representatives (`4a/F`), for both natural
-and legal Company taxpayers. Other representation kinds are refused with
-`invalid_representative`; professional and legal-person kinds remain separate
-implementation tickets.
+slice supports general natural-person representatives (`4a/F`) and natural-person
+tax advisers or lawyers (`4b/F`), for both natural and legal Company taxpayers.
+Other representation kinds are refused with `invalid_representative`; legal-person
+representation remains a separate implementation ticket. These fields do not
+verify professional registration.
 
 XML, PDF and header previews share the resolved export context. `representativeMode`
 may be omitted or `default` to use the Company default, `off` to explicitly remove
@@ -71,7 +72,8 @@ in both vendored official schemas. Incomplete review PDFs remain available.
 Taxpayer identity still comes from the saved VAT Report. Existing `signatory*`
 fields identify the Authorized Signatory, never the Representative or the
 account author. New XML artifacts retain their exact resolved representative
-profile, schema and serializer versions with their immutable bytes. Editing the
+profile, official schema versions and serializer version `4` with their immutable bytes.
+Previously archived versions remain readable without reserialization. Editing the
 Company profile does not rewrite historical artifacts. Complete PDF downloads
 archive their exact bytes and resolved filing context
 in a separate immutable Company-scoped archive. They appear in export history

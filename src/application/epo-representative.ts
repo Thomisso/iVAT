@@ -2,7 +2,7 @@ import type { Result } from "./client";
 
 /** Supported representation data, independent of the taxpayer and export author. */
 export type Representative = {
-  code: "4a";
+  code: "4a" | "4b";
   personType: "F";
   firstName: string;
   lastName: string;
@@ -22,8 +22,8 @@ export function parseRepresentative(input: unknown, complete = true): Result<Rep
   const raw = input as Record<string, unknown>;
   const text = (key: string) => typeof raw[key] === "string" ? raw[key].trim() : "";
   if (["firstName", "lastName", "birthDate", "evidenceNumber"].some(key => raw[key] !== undefined && typeof raw[key] !== "string")) return refused;
-  if (raw.code !== "4a" || raw.personType !== "F") return refused;
-  const value: Representative = { code: "4a", personType: "F", firstName: text("firstName"), lastName: text("lastName"), birthDate: text("birthDate"), evidenceNumber: text("evidenceNumber") };
+  if ((raw.code !== "4a" && raw.code !== "4b") || raw.personType !== "F") return refused;
+  const value: Representative = { code: raw.code, personType: "F", firstName: text("firstName"), lastName: text("lastName"), birthDate: text("birthDate"), evidenceNumber: text("evidenceNumber") };
   if (value.firstName.length > 20 || value.lastName.length > 36 || value.evidenceNumber.length > 36
     || (value.birthDate && !calendarDate(value.birthDate))
     || (complete && (!value.firstName || !value.lastName || (!value.birthDate && !value.evidenceNumber)))) return refused;
