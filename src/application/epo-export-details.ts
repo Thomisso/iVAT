@@ -52,10 +52,10 @@ export type ExportDetails = {
       signatoryLastName: string;
       signatoryCapacity: string;
     }
-  | { personType: "F" }
+  | { personType: "F"; signatoryFirstName?: string; signatoryLastName?: string; signatoryCapacity?: string }
 );
 
-/** Validates the resolved direct-filing details at the final server-side seam. */
+/** Validates the resolved filing details at the final server-side seam. */
 export function parseExportDetails(
   input: Record<string, unknown>,
   format: EpoFormat = "dphdp3",
@@ -83,7 +83,7 @@ export function parseExportDetails(
     return refused;
   const common = { ...(representative.value ? { representative: representative.value } : {}), taxOffice: value("taxOffice"), territorialOffice: value("taxOffice") === "13" ? "4000" : value("territorialOffice"), economicActivity: value("economicActivity"), preparedOn: date, email, phone };
   if (
-    value("personType") === "P" &&
+    (value("personType") === "P" || (value("personType") === "F" && representative.value?.personType === "P")) &&
     bounded("signatoryFirstName", 20) &&
     bounded("signatoryLastName", 36) &&
     bounded("signatoryCapacity", 40)
@@ -92,14 +92,14 @@ export function parseExportDetails(
       ok: true,
       value: {
         ...common,
-        personType: "P",
+        personType: value("personType") as "P" | "F",
         signatoryFirstName: value("signatoryFirstName"),
         signatoryLastName: value("signatoryLastName"),
         signatoryCapacity: value("signatoryCapacity"),
       },
     };
   }
-  if (value("personType") === "F")
+  if (value("personType") === "F" && representative.value?.personType !== "P")
     return {
       ok: true,
       value: {

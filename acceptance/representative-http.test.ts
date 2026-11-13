@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { strFromU8, unzipSync } from "fflate";
-import { getCompanyFilingDefaults } from "@/application/company-filing-defaults";
+import { getCompanyFilingDefaults, saveCompanyFilingDefaults } from "@/application/company-filing-defaults";
 import { getCompanyDataExportStatus, softDeleteCompany } from "@/application/company-deletion";
 import { generateVatReport } from "@/application/vat-reports";
 import { readVatReportArtifact } from "@/application/epo-export";
@@ -33,7 +33,7 @@ it("saves a profile through the real settings action and serves matching XML/PDF
   const refusedHtml = await refusedSave.text();
   expect(refusedHtml).toContain("Select a supported representative");
   expect(refusedHtml).toContain('value="Name exceeding twenty characters"');
-  expect((await getCompanyFilingDefaults(company.client, company.companyId))?.representative?.firstName).toBe("Alena");
+  expect((await getCompanyFilingDefaults(company.client, company.companyId))?.representative).toMatchObject({ firstName: "Alena" });
   value(await generateVatReport(company.client, { companyId: company.companyId, period: "2026-10" }));
   const user = await companyMember(company);
   const request = await httpAs(user.client);
@@ -48,7 +48,7 @@ it("saves a profile through the real settings action and serves matching XML/PDF
     expect(xmlText).toContain('zast_kod="4b"');
     expect(xmlText).toContain('zast_jmeno="Alena"');
     expect(xmlText).toContain('zast_dat_nar="03.02.1981"');
-    expect((await readVatReportArtifact(user.client, { companyId: company.companyId, artifactId: xml.headers.get("x-ivat-artifact-id")! }))?.artifact.resolvedDetails.representative?.firstName).toBe("Alena");
+    expect((await readVatReportArtifact(user.client, { companyId: company.companyId, artifactId: xml.headers.get("x-ivat-artifact-id")! }))?.artifact.resolvedDetails.representative).toMatchObject({ firstName: "Alena" });
     const pdfPath = format === "dphdp3" ? `${prefix}/pdf` : `${prefix}/control-statement/pdf`;
     const pdf = await request(pdfPath, { method: "POST", body: new URLSearchParams({ preparedOn: "2026-10-27" }) });
     expect(pdf.status).toBe(200);
@@ -59,7 +59,7 @@ it("saves a profile through the real settings action and serves matching XML/PDF
     retained.push({ id: artifactId, fileName: `${format.toUpperCase()}-2026-10.pdf`, bytes: pdfBytes, mediaType: "pdf" });
     const stored = await readVatReportPdfArtifact(user.client, { companyId: company.companyId, artifactId });
     expect(stored?.bytes).toEqual(pdfBytes);
-    expect(stored?.artifact.resolvedDetails.representative?.firstName).toBe("Alena");
+    expect(stored?.artifact.resolvedDetails.representative).toMatchObject({ firstName: "Alena" });
     const archivePath = `${prefix}/artifacts/${artifactId}`;
     const historical = await request(archivePath);
     expect(historical.status).toBe(200);
@@ -109,6 +109,116 @@ it("saves a profile through the real settings action and serves matching XML/PDF
   expect((await request(`${prefix}/pdf`, { method: "POST", body: new URLSearchParams({ preparedOn: "2026-10-27" }) })).status).toBe(200);
   expect(value(await getCompanyDataExportStatus(company.client, receipt))).toBe("stale");
   expect(await softDeleteCompany(company.client, receipt)).toEqual({ ok: false, error: "stale_export" });
+});
+
+
+it.each(["natural", "legal"] as const)("saves legal representation and its own signatory through settings for a %s taxpayer", async taxpayer => {
+  const company = await administratorWithCompany("Legal representative HTTP organization");
+  const { updateCompanyIdentity } = await import("@/application/companies");
+  const { companyDetails } = await import("../tests/support/fixtures");
+  if (taxpayer === "natural") value(await updateCompanyIdentity(company.client, { companyId: company.companyId, ...companyDetails({ personType: "natural", firstName: "Karel", lastName: "Daňový", name: "Karel Daňový" }) }));
+  const admin = await httpAs(company.client);
+  const settingsPath = `/companies/${company.companyId}/settings/vat`;
+  let html = await (await admin(settingsPath)).text();
+  expect(html).toContain("4a — general representative, legal person");
+  expect(html).toContain("4c — tax advisory legal person");
+  const legal = { representativeMode: "override", representativeCode: "4a", representativePersonType: "P", representativeName: "Atlas Poradenství s.r.o.", representativeIco: "00123456", representativeSignatoryFirstName: "Irena", representativeSignatoryLastName: "Podpisová", representativeSignatoryCapacity: "jednatelka" };
+  const form = filingForm(html);
+  for (const [key, entry] of Object.entries({ taxOffice: "451", territorialOffice: "2003", economicActivity: "621000", signatoryFirstName: "Jana", signatoryLastName: "Stará", signatoryCapacity: "jednatelka", ...legal })) form.set(key, entry);
+  expect((await admin(settingsPath, { method: "POST", headers: { Origin: baseUrl() }, body: form })).status).toBe(200);
+  expect((await getCompanyFilingDefaults(company.client, company.companyId))?.representative).toEqual({ code: "4a", personType: "P", name: "Atlas Poradenství s.r.o.", ico: "00123456", signatoryFirstName: "Irena", signatoryLastName: "Podpisová", signatoryCapacity: "jednatelka" });
+  html = await (await admin(settingsPath)).text();
+  expect(html).toContain('value="4a/P" selected=""');
+  expect(html).toContain('name="representativeSignatoryFirstName"');
+  const invalidForm = filingForm(html);
+  invalidForm.set("representativeSignatoryFirstName", "");
+  const refused = await admin(settingsPath, { method: "POST", headers: { Origin: baseUrl() }, body: invalidForm });
+  const refusedHtml = await refused.text();
+  expect(refusedHtml).toContain('value="4a/P" selected=""');
+  expect(refusedHtml).toContain('value="Atlas Poradenství s.r.o."');
+  expect(refusedHtml).toContain("Select a supported representative");
+  value(await generateVatReport(company.client, { companyId: company.companyId, period: "2026-10" }));
+  const user = await companyMember(company);
+  const request = await httpAs(user.client);
+  const outsider = await httpAs((await provisionedUser()).client);
+  const prefix = `/companies/${company.companyId}/vat-reports/2026-10`;
+  for (const format of ["dphdp3", "dphkh1"] as const) {
+    const pdfPath = format === "dphdp3" ? `${prefix}/pdf` : `${prefix}/control-statement/pdf`;
+    for (const code of ["4a", "4c"]) {
+      const fields = { ...legal, format, representativeCode: code };
+      const xml = await request(`${prefix}/xml`, { method: "POST", body: new URLSearchParams(fields) });
+      expect(xml.status).toBe(200);
+      const xmlText = await xml.text();
+      for (const attribute of [taxpayer === "natural" ? 'typ_ds="F"' : 'typ_ds="P"', `zast_kod="${code}"`, 'zast_typ="P"', 'zast_nazev="Atlas Poradenství s.r.o."', 'zast_ic="00123456"', 'opr_jmeno="Irena"', 'opr_prijmeni="Podpisová"', 'opr_postaveni="jednatelka"']) expect(xmlText).toContain(attribute);
+      expect(xmlText).not.toMatch(/zast_(?:jmeno|prijmeni|dat_nar|ev_cislo)=/);
+      const pdf = await request(pdfPath, { method: "POST", body: new URLSearchParams(fields) });
+      expect(pdf.status).toBe(200);
+      expect(pdf.headers.get("content-type")).toBe("application/pdf");
+      const bytes = new Uint8Array(await pdf.arrayBuffer());
+      const id = pdf.headers.get("x-ivat-artifact-id")!;
+      const archive = await readVatReportPdfArtifact(user.client, { companyId: company.companyId, artifactId: id });
+      expect(archive?.bytes).toEqual(bytes);
+      expect(archive?.artifact).toMatchObject({ serializerVersion: "5", authorUserId: user.userId, resolvedDetails: { personType: taxpayer === "natural" ? "F" : "P", signatoryFirstName: "Irena", representative: { code, personType: "P", ico: "00123456" } } });
+      expect((await outsider(`${prefix}/artifacts/${id}`)).status).toBe(404);
+      for (const key of ["representativeName", "representativeIco", "representativeSignatoryFirstName", "representativeSignatoryLastName", "representativeSignatoryCapacity"]) {
+        const incomplete = { ...fields, [key]: "" };
+        const xml = await request(`${prefix}/xml`, { method: "POST", body: new URLSearchParams(incomplete) });
+        expect(xml.status).toBe(422);
+        expect(await xml.json()).toMatchObject({ error: "invalid_representative" });
+        expect((await request(pdfPath, { method: "POST", body: new URLSearchParams(incomplete) })).status).toBe(200);
+      }
+      const invalid = { ...fields, representativeIco: "12A" };
+      for (const route of [`${prefix}/xml`, pdfPath]) expect((await request(route, { method: "POST", body: new URLSearchParams(invalid) })).status).toBe(422);
+      const off = await request(`${prefix}/xml`, { method: "POST", body: new URLSearchParams({ ...fields, representativeMode: "off" }) });
+      expect(off.status).toBe(200);
+      const offXml = await off.text();
+      expect(offXml).not.toContain("zast_");
+      if (taxpayer === "natural") expect(offXml).not.toContain("opr_");
+      else expect(offXml).toContain('opr_jmeno="Jana"');
+    }
+    const fromDefault = await request(`${prefix}/xml`, { method: "POST", body: new URLSearchParams({ format }) });
+    expect(await fromDefault.text()).toContain('zast_kod="4a"');
+  }
+  const history = await (await request(`${prefix}/exports`)).text();
+  expect(history).toContain("Atlas Poradenství s.r.o.");
+  expect(history).toContain("00123456");
+  expect(history).toContain("Irena Podpisová");
+});
+
+
+it("exports a legal taxpayer with no direct signatory through its legal representative and serves matching form constraints", async () => {
+  const company = await administratorWithCompany("Representative signatory form HTTP organization");
+  const representative = { code: "4a", personType: "P", name: "Atlas Poradenství s.r.o.", ico: "00123456", signatoryFirstName: "Irena", signatoryLastName: "Podpisová", signatoryCapacity: "jednatelka" } as const;
+  // An incomplete tax office opens the actual server-rendered editor, while
+  // the PO profile is complete and has no unrelated direct taxpayer signatory.
+  value(await saveCompanyFilingDefaults(company.client, { companyId: company.companyId, taxOffice: "", territorialOffice: "", economicActivity: "621000", signatoryFirstName: "", signatoryLastName: "", signatoryCapacity: "", email: "", phone: "", epoAddressOverride: null, representative }));
+  value(await generateVatReport(company.client, { companyId: company.companyId, period: "2026-10" }));
+  const request = await httpAs((await companyMember(company)).client);
+  const prefix = `/companies/${company.companyId}/vat-reports/2026-10`;
+  for (const format of ["dphdp3", "dphkh1"] as const) {
+    const html = await (await request(`${prefix}/${format === "dphdp3" ? "vat-return" : "control-statement"}`)).text();
+    const form = html.match(/<form\b[^>]*>[\s\S]*?<\/form>/g)?.find(part => part.includes('name="representativeVariant"'));
+    expect(form).toBeDefined();
+    for (const name of ["signatoryFirstName", "signatoryLastName", "signatoryCapacity"]) {
+      const input = form!.match(new RegExp(`<input\\b(?=[^>]*\\bname="${name}")[^>]*>`))?.[0];
+      expect(input).toBeDefined();
+      expect(input).not.toMatch(/\brequired(?:=|\s|>)/);
+    }
+    const fields = { format, taxOffice: "451", preparedOn: "2026-10-27", representativeMode: "override", representativeCode: format === "dphdp3" ? "4a" : "4c", representativePersonType: "P", representativeName: "Atlas Poradenství s.r.o.", representativeIco: "00123456", representativeSignatoryFirstName: "Irena", representativeSignatoryLastName: "Podpisová", representativeSignatoryCapacity: "jednatelka" };
+    const xml = await request(`${prefix}/xml`, { method: "POST", body: new URLSearchParams(fields) });
+    expect(xml.status).toBe(200);
+    const text = await xml.text();
+    expect(text).toContain('typ_ds="P"'); expect(text).toContain('opr_jmeno="Irena"'); expect(text).toContain('zast_typ="P"');
+    const pdf = await request(format === "dphdp3" ? `${prefix}/pdf` : `${prefix}/control-statement/pdf`, { method: "POST", body: new URLSearchParams(fields) });
+    expect(pdf.status).toBe(200);
+    expect((await readVatReportPdfArtifact(company.client, { companyId: company.companyId, artifactId: pdf.headers.get("x-ivat-artifact-id")! }))?.artifact.resolvedDetails).toMatchObject({ personType: "P", signatoryFirstName: "Irena" });
+    const off = await request(`${prefix}/xml`, { method: "POST", body: new URLSearchParams({ ...fields, representativeMode: "off" }) });
+    expect(off.status).toBe(422); expect(await off.json()).toMatchObject({ error: "invalid_export_details" });
+    const natural = await request(`${prefix}/xml`, { method: "POST", body: new URLSearchParams({ ...fields, representativeCode: "4b", representativePersonType: "F", representativeFirstName: "Eva", representativeLastName: "Poradná", representativeEvidenceNumber: "SYN-123" }) });
+    expect(natural.status).toBe(422); expect(await natural.json()).toMatchObject({ error: "invalid_export_details" });
+    const again = await request(`${prefix}/xml`, { method: "POST", body: new URLSearchParams({ format, taxOffice: "451", preparedOn: "2026-10-27" }) });
+    expect(again.status).toBe(200); expect(await again.text()).toContain('opr_jmeno="Irena"');
+  }
 });
 
 function filingForm(html: string) {

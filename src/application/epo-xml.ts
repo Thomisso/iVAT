@@ -42,9 +42,10 @@ function party(report: ComputedVatReport, details: ExportDetails): string {
   const address = details.address ?? c;
   return element("VetaP", {
     ...(details.representative ? { zast_kod: details.representative.code, zast_typ: details.representative.personType,
+      ...(details.representative.personType === "P" ? { zast_nazev: details.representative.name, zast_ic: details.representative.ico } : {
       zast_jmeno: details.representative.firstName, zast_prijmeni: details.representative.lastName,
       zast_dat_nar: details.representative.birthDate ? epoDate(details.representative.birthDate) : undefined,
-      zast_ev_cislo: details.representative.evidenceNumber || undefined } : {}),
+      zast_ev_cislo: details.representative.evidenceNumber || undefined }) } : {}),
     c_ufo: details.taxOffice,
     c_pracufo: details.territorialOffice || undefined,
     dic: c.vatId.replace(/^CZ/, ""),
@@ -60,7 +61,7 @@ function party(report: ComputedVatReport, details: ExportDetails): string {
     stat: "ČESKÁ REPUBLIKA",
     email: details.email || undefined,
     c_telef: details.phone || undefined,
-    ...(details.personType === "P"
+    ...(details.personType === "P" || details.representative?.personType === "P"
       ? {
           opr_jmeno: details.signatoryFirstName,
           opr_prijmeni: details.signatoryLastName,
@@ -128,11 +129,9 @@ export async function createEpoXml(
     email: details.email,
     phone: details.phone,
     personType: details.personType,
-    ...(details.personType === "P" ? {
-      signatoryFirstName: details.signatoryFirstName,
-      signatoryLastName: details.signatoryLastName,
-      signatoryCapacity: details.signatoryCapacity,
-    } : {}),
+    signatoryFirstName: details.signatoryFirstName,
+    signatoryLastName: details.signatoryLastName,
+    signatoryCapacity: details.signatoryCapacity,
   }, format);
   if (!parsed.ok) return parsed;
   details = { ...parsed.value, address: details.address };
