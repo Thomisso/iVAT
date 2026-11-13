@@ -1,5 +1,6 @@
 import { Client } from "pg";
 import { inject } from "vitest";
+import type { AppClient } from "@/application/client";
 
 /** Auth state not writable by an ordinary User, for revocation verification only. */
 export async function alertAccountFixture(userId: string, state: "unverified" | "email_change") {
@@ -28,6 +29,27 @@ export async function companyAlertConfigurationFixture(companyId: string): Promi
     if (!result.rows[0]) throw new Error("Missing fixture assignment");
     return result.rows[0].configuration_id;
   } finally { await database.end(); }
+}
+
+/** Holds real authenticated public commands open on separate connections so
+ * concurrent commits are deterministic. Claims come from the real Auth session;
+ * only transaction timing bypasses PostgREST's one-request transaction wrapper. */
+export async function manualReviewTransactionFixture(client: AppClient) {
+  const session = await client.auth.getSession();
+  if (!session.data.session) throw new Error("Missing real fixture session");
+  const claims = JSON.parse(Buffer.from(session.data.session.access_token.split(".")[1], "base64url").toString());
+  const database = new Client({ connectionString: inject("databaseUrl") });
+  await database.connect();
+  await database.query("begin");
+  await database.query("set local role authenticated");
+  await database.query("set local statement_timeout='8s'");
+  await database.query("set local lock_timeout='8s'");
+  await database.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify(claims)]);
+  return {
+    review: (documentId: string) => database.query("select public.start_manual_document_review($1)", [documentId]),
+    commit: () => database.query("commit"),
+    async close() { try { await database.query("rollback"); } finally { await database.end(); } },
+  };
 }
 
 /** Prior synthetic tenants are intentionally retained, like a long-running

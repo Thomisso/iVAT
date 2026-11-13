@@ -12,6 +12,47 @@ returns setof public.company language sql stable security definer set search_pat
 $$;
 revoke all on function private.operational_alert_companies(uuid) from public, anon, authenticated, service_role;
 
+-- Keep current issue eligibility authoritative for both the human inventory
+-- and bounded root checks; transient issues still remain visible in-app.
+create function private.is_active_ai_processing_issue(target_issue public.ai_processing_issue)
+returns boolean language sql stable security definer set search_path = '' as $$
+  select (
+    ((target_issue).target_kind = 'document' and exists (select 1 from public.document target
+      where target.id = (target_issue).target_id and target.superseded_at is null
+        and target.status::text = case when (target_issue).state = 'terminal' then 'failed' else 'waiting_for_platform' end))
+    or ((target_issue).target_kind = 'source_file' and exists (select 1 from public.source_file target
+      where target.id = (target_issue).target_id
+        and target.status::text = case when (target_issue).state = 'terminal' then 'failed' else 'waiting_for_platform' end))
+  );
+$$;
+revoke all on function private.is_active_ai_processing_issue(public.ai_processing_issue) from public, anon, authenticated, service_role;
+
+create or replace function private.list_platform_ai_processing_issues()
+returns jsonb
+language plpgsql stable security definer set search_path = ''
+as $$
+begin
+return (
+    select coalesce(jsonb_agg(jsonb_build_object(
+      'target_kind', issue.target_kind,
+      'target_id', issue.target_id,
+      'state', issue.state,
+      'classification', issue.classification,
+      'company_id', issue.company_id,
+      'company_name', company.name,
+      'configuration_id', issue.configuration_id,
+      'configuration_label', configuration.label,
+      'provider', coalesce(configuration.provider, issue.provider),
+      'first_detected_at', issue.first_detected_at
+    ) order by issue.first_detected_at, issue.target_kind, issue.target_id), '[]'::jsonb)
+    from public.ai_processing_issue issue
+    join public.company company on company.id = issue.company_id
+    left join public.ai_configuration configuration on configuration.id = issue.configuration_id
+    where company.deleted_at is null and private.is_active_ai_processing_issue(issue)
+  );
+end;
+$$;
+
 -- A synchronous resolution check must not rebuild every tenant's platform
 -- inventory for every Document and its nested Company revision update.
 -- Root existence has the same eligibility as operational_alert_candidates,
@@ -68,14 +109,7 @@ begin
         and (issue.configuration_id = scope_id or (issue.configuration_id is null and issue.company_id = scope_id))
         and issue.classification::text = kind
         and (issue.state = 'terminal' or issue.classification <> 'provider_unavailable')
-        and (
-          (issue.target_kind = 'document' and exists (select 1 from public.document target
-            where target.id = issue.target_id and target.superseded_at is null
-              and target.status::text = case when issue.state = 'terminal' then 'failed' else 'waiting_for_platform' end))
-          or (issue.target_kind = 'source_file' and exists (select 1 from public.source_file target
-            where target.id = issue.target_id
-              and target.status::text = case when issue.state = 'terminal' then 'failed' else 'waiting_for_platform' end))
-        )
+        and private.is_active_ai_processing_issue(issue)
     );
   end if;
 end;
@@ -102,6 +136,45 @@ returns void language sql security definer set search_path = '' as $$
   select private.close_resolved_operational_alerts(null::uuid[]);
 $$;
 
+-- Collect only scope identities, never financial data or recipients. The rows
+-- belong to one transaction, are unexposed, and are removed before it commits.
+create table private.operational_alert_resolution_observation (
+  transaction_id xid8 not null,
+  scope_id uuid not null,
+  exports_only boolean not null,
+  primary key (transaction_id, scope_id)
+);
+revoke all on private.operational_alert_resolution_observation from public, anon, authenticated, service_role;
+alter table private.operational_alert_resolution_observation enable row level security;
+
+create function private.flush_operational_alert_resolution()
+returns trigger language plpgsql security definer set search_path = '' as $$
+declare
+  work_scopes uuid[];
+  export_scopes uuid[];
+begin
+  select array_agg(scope_id) filter (where not exports_only),
+    array_agg(scope_id) filter (where exports_only)
+  into work_scopes, export_scopes
+  from private.operational_alert_resolution_observation where transaction_id = pg_current_xact_id();
+  if work_scopes is null and export_scopes is null then return null; end if;
+
+  -- All Company/Source/queue mutations are finished before taking the alert
+  -- lock. A second committer waits here without either transaction needing any
+  -- more Company locks, then gets a fresh READ COMMITTED snapshot for its check.
+  -- The same lock excludes reconcile/claim creating or dispatching a stale root.
+  perform pg_advisory_xact_lock(321, 1);
+  delete from private.operational_alert_resolution_observation where transaction_id = pg_current_xact_id();
+  if work_scopes is not null then perform private.close_resolved_operational_alerts(work_scopes); end if;
+  if export_scopes is not null then perform private.close_resolved_operational_alerts(export_scopes, true); end if;
+  return null;
+end;
+$$;
+revoke all on function private.flush_operational_alert_resolution() from public, anon, authenticated, service_role;
+create constraint trigger flush_operational_alert_resolution
+  after insert on private.operational_alert_resolution_observation
+  deferrable initially deferred for each row execute function private.flush_operational_alert_resolution();
+
 create or replace function private.observe_operational_alert_resolution()
 returns trigger language plpgsql security definer set search_path = '' as $$
 declare
@@ -114,7 +187,6 @@ declare
   target_id uuid;
   company_id uuid;
 begin
-  if not exists (select 1 from private.operational_alert_episode where resolved_at is null) then return null; end if;
   if tg_op <> 'INSERT' then previous := to_jsonb(old); end if;
   if tg_op <> 'DELETE' then current := to_jsonb(new); end if;
   if tg_table_schema = 'pgboss' then
@@ -146,15 +218,20 @@ begin
   -- Scope membership includes OLD assignments/issues as well as NEW ones.
   -- Root existence checks every Company still in that shared root, so partial
   -- remediation preserves the original episode and grace period.
-  if scope_ids is not null then
-    perform private.close_resolved_operational_alerts(scope_ids, exports_only);
-  end if;
+  -- Record even when no episode is currently visible: a concurrent worker may
+  -- observe the old committed work before this transaction commits. The commit
+  -- check must serialize with that new observation as well.
+  insert into private.operational_alert_resolution_observation as observation (transaction_id, scope_id, exports_only)
+  select pg_current_xact_id(), scope, exports_only from unnest(scope_ids) scope
+  on conflict (transaction_id, scope_id) do update set exports_only = false
+    where observation.exports_only and not excluded.exports_only;
   return null;
 end;
 $$;
 
--- Row transition identities let observation stay bounded even during bulk
--- writes. AFTER rows see durable request/status changes before the next command.
+-- Row transition identities keep collection bounded during bulk writes. The
+-- deferred constraint flush finishes before the public command commits/returns,
+-- independently of worker ticks, without locking alert state mid-mutation.
 drop trigger alert_document_resolution on public.document;
 create trigger alert_document_resolution after insert or update or delete on public.document for each row execute function private.observe_operational_alert_resolution();
 drop trigger alert_source_resolution on public.source_file;
@@ -181,12 +258,17 @@ declare candidate record;
 begin
   if auth.role() <> 'service_role' then raise exception 'forbidden' using errcode = '42501'; end if;
   if observed_at is null then raise exception 'invalid observation' using errcode = '22023'; end if;
-  perform pg_advisory_xact_lock(321, 1);
-  -- pg-boss owns its schema and may be initialized after application migrations.
+  -- Install before the alert lock: CREATE TRIGGER needs a queue-table lock,
+  -- while a queue mutation may already hold that table and be awaiting its
+  -- commit-time alert check. Installation has its own consistent lock order.
   if to_regclass('pgboss.job') is not null and not exists (select 1 from pg_trigger
       where tgrelid = to_regclass('pgboss.job') and tgname = 'alert_job_resolution') then
-    execute 'create trigger alert_job_resolution after insert or update or delete on pgboss.job for each row execute function private.observe_operational_alert_resolution()';
+    perform pg_advisory_xact_lock(321, 2);
+    if not exists (select 1 from pg_trigger where tgrelid = to_regclass('pgboss.job') and tgname = 'alert_job_resolution') then
+      execute 'create trigger alert_job_resolution after insert or update or delete on pgboss.job for each row execute function private.observe_operational_alert_resolution()';
+    end if;
   end if;
+  perform pg_advisory_xact_lock(321, 1);
   perform private.close_resolved_operational_alerts();
   for candidate in select * from private.operational_alert_candidates() order by root_key loop
     insert into private.operational_alert_episode(root_key, kind, detail_href, impact, eligible_since, last_observed_at)
