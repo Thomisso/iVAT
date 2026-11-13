@@ -100,6 +100,13 @@ assumptions:
     verification: On 2026-11-11, real gh returned 200 for both commits and the self-comparison, and 404 for their disconnected comparison. The minimized production caller failed before the fix and then returned revision_not_in_history. Public CLI/Git fixture regressions passed for retained and removed historical objects, invalidated delivery, blocked dependent readiness and stopped the original owner. The existing HTTPS simulation verifier passed all 17 foundation scenarios with 27 captured requests; it does not model these Git graph paths. Removed-object behavior is controlled fixture evidence, not a live deletion experiment.
     source: scripts/agent-tracking/evidence.mjs; scripts/tests/agent-tracker-final.test.mjs; scripts/tests/agent-tracker-history.test.mjs; scripts/tests/support/agent-tracker-gh.mjs; scripts/verify-agent-tracker-transport.mjs
     updated_at: "2026-11-11"
+  - id: mapped-actions-dispatch-admission
+    status: supported
+    claim: Against this stand-in, the real gh/controller preserves a known active FIFO-head dispatch, consumes canonical receipts first and retries only a verified completed run with its unchanged event envelope.
+    reason: The mock exposes only Actions run storage/metadata; the actual controller decides admission and the actual worker produces receipts. Run ID, repository, workflow path and workflow_dispatch event establish the mapped run identity; completion alone establishes no acknowledgment.
+    verification: On 2026-11-13, agent-tracking-342-dispatch-admission passed all existing real-gh HTTPS scenarios plus active-status admission, queued future intents, permission/HTML/malformed metadata refusals, completed-without-receipt exact-envelope retry, receipt recovery despite Actions permission loss and ambiguous dispatch-response recovery. Public CLI/Git tests separately cover linked-worktree restart, rejected receipts, receipt arrival during the run read and invalid metadata identity. Official current REST workflow-runs documentation and read-only GET of Thomisso/iVAT run 43454295185 corroborated the consumed id, repository.full_name, path, event and status fields. This evidence does not establish universal exactly-once workflow creation or live Actions scheduling/permissions.
+    source: https://docs.github.com/en/rest/actions/workflow-runs#get-a-workflow-run; https://github.com/Thomisso/iVAT/actions/runs/43454295185; scripts/verify-agent-tracker-transport.mjs; scripts/tests/agent-tracker-dispatch.test.mjs; postman/mocks/github-agent/default.js
+    updated_at: "2026-11-13"
 fingerprints:
   - id: agent-tracking-254-deleted-node
     date: "2026-11-10"
@@ -160,4 +167,8 @@ fingerprints:
   - id: agent-tracking-269-history-rewrite
     date: "2026-11-11"
     commit: a004e8db95c7c723b395245eaecdb0733f155b97 with dirty issue 269 history-evidence repair and regression fixtures
+    cli: Postman CLI 1.73.0; gh 2.101.0; Node 22.22.3
+  - id: agent-tracking-342-dispatch-admission
+    date: "2026-11-13"
+    commit: 148955fed99c0c429dc37cf045eaaea3c7b0147c with dirty issue 342 dispatch admission, CLI process regressions and HTTPS Actions metadata scenarios; private exact-tree handoff evidence retained separately
     cli: Postman CLI 1.73.0; gh 2.101.0; Node 22.22.3
