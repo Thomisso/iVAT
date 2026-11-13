@@ -18,7 +18,7 @@ import {
   returnDocumentToReview,
 } from "@/application/documents";
 import { getCompany, updateCompanyIdentity } from "@/application/companies";
-import { uploadSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import {
   finalizeVatReport,
   generateVatReport,

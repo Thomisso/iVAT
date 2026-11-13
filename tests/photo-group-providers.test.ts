@@ -6,7 +6,7 @@ import { platformAnthropicAiProvider } from "@/ai/anthropic";
 import { platformOpenAiProvider } from "@/ai/openai";
 import { SAMPLE_EXTRACTION } from "@/ai/fake";
 import { beginUploadBatch } from "@/application/upload-batches";
-import { uploadSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import { getPhotoGroup, photoGroupPath } from "@/application/photo-groups";
 import { listExtractionVersions } from "@/application/documents";
 import { administratorWithCompany, assignAiConfigurationFixture } from "./support/fixtures";

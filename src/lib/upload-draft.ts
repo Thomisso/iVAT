@@ -10,6 +10,7 @@ export type UploadItem = {
   retryable: boolean;
   sha256: string;
   groupId?: string;
+  attemptId?: string | null;
 };
 export type UploadDraft = { batchId: string | null; items: UploadItem[] };
 export type UploadDraftChange =

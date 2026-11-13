@@ -1,3 +1,5 @@
+> Historical #315 baseline. This document records the initial four-segment, pre-attempt protocol. For the current attempt IDs, trusted validation receipts, publication and dual-bucket cleanup contract, see [Source File transfer lifecycle](upload-transfers.md).
+
 # Source File byte transfer
 
 Child #315 of #286 adds byte continuation to an existing frozen Upload Batch item.

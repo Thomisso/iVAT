@@ -1,7 +1,9 @@
+import { completeSourceUpload } from "./support/source-upload";
+import { sourceUploadAttempt } from "./support/source-upload";
 import { expect, inject, it } from "vitest";
 import { beginUploadBatch } from "@/application/upload-batches";
 import { getSourceFile, readSourceFile } from "@/application/source-files";
-import { reconcileSourceUpload, appendSourceUpload, completeSourceUpload } from "@/application/source-upload-transfers";
+import { reconcileSourceUpload, appendSourceUpload } from "@/application/source-upload-transfers";
 import { administratorWithCompany } from "./support/fixtures";
 import { selectFixtureFiles } from "./support/files";
 import { testWorker } from "./support/worker";
@@ -13,14 +15,14 @@ it("reconciles an interrupted immutable item and completes only its missing byte
   const { files: [file], selectedFiles } = selectFixtureFiles("receipt.png");
   const batch = await beginUploadBatch(owner.client, { companyId: owner.companyId, fileCount: 1, selectedFiles });
   if (!batch.ok) throw new Error(batch.error);
-  const identity = { companyId: owner.companyId, batchId: batch.value.id, sourceFileId: file.sourceFileId,
-    fileName: file.fileName, byteSize: file.bytes.length, sha256: selectedFiles[0].sha256 };
-  expect(await reconcileSourceUpload(owner.client, identity)).toEqual({ ok: true, value: { confirmedBytes: 0, byteSize: file.bytes.length, complete: false } });
-  expect(await appendSourceUpload(owner.client, { ...identity, offset: 0, bytes: file.bytes.slice(0, 20) })).toEqual({ ok: true, value: { confirmedBytes: 20, byteSize: file.bytes.length, complete: false } });
+  const identity = await sourceUploadAttempt(owner.client, { companyId: owner.companyId, batchId: batch.value.id, sourceFileId: file.sourceFileId,
+    fileName: file.fileName, byteSize: file.bytes.length, sha256: selectedFiles[0].sha256 });
+  expect(await reconcileSourceUpload(owner.client, identity)).toEqual({ ok: true, value: { attemptId: expect.any(String), confirmedBytes: 0, byteSize: file.bytes.length, complete: false } });
+  expect(await appendSourceUpload(owner.client, { ...identity, offset: 0, bytes: file.bytes.slice(0, 20) })).toEqual({ ok: true, value: { attemptId: expect.any(String), confirmedBytes: 20, byteSize: file.bytes.length, complete: false } });
   expect(await getSourceFile(owner.client, owner.companyId, file.sourceFileId)).toBeNull();
   expect(worker.queued).toEqual([]);
-  expect(await reconcileSourceUpload(owner.client, identity)).toEqual({ ok: true, value: { confirmedBytes: 20, byteSize: file.bytes.length, complete: false } });
-  expect(await appendSourceUpload(owner.client, { ...identity, offset: 20, bytes: file.bytes.slice(20) })).toEqual({ ok: true, value: { confirmedBytes: file.bytes.length, byteSize: file.bytes.length, complete: false } });
+  expect(await reconcileSourceUpload(owner.client, identity)).toEqual({ ok: true, value: { attemptId: expect.any(String), confirmedBytes: 20, byteSize: file.bytes.length, complete: false } });
+  expect(await appendSourceUpload(owner.client, { ...identity, offset: 20, bytes: file.bytes.slice(20) })).toEqual({ ok: true, value: { attemptId: expect.any(String), confirmedBytes: file.bytes.length, byteSize: file.bytes.length, complete: false } });
   expect(await completeSourceUpload(owner.client, worker.jobs, identity)).toEqual({ ok: true, value: { id: file.sourceFileId } });
   const original = await readSourceFile(owner.client, owner.companyId, file.sourceFileId);
   expect(original?.bytes).toEqual(file.bytes);
@@ -33,8 +35,8 @@ it("refuses spliced bytes at a confirmed offset and incomplete completion withou
   const { files: [file], selectedFiles } = selectFixtureFiles("receipt.png");
   const batch = await beginUploadBatch(owner.client, { companyId: owner.companyId, fileCount: 1, selectedFiles });
   if (!batch.ok) throw new Error(batch.error);
-  const identity = { companyId: owner.companyId, batchId: batch.value.id, sourceFileId: file.sourceFileId,
-    fileName: file.fileName, byteSize: file.bytes.length, sha256: selectedFiles[0].sha256 };
+  const identity = await sourceUploadAttempt(owner.client, { companyId: owner.companyId, batchId: batch.value.id, sourceFileId: file.sourceFileId,
+    fileName: file.fileName, byteSize: file.bytes.length, sha256: selectedFiles[0].sha256 });
   expect((await appendSourceUpload(owner.client, { ...identity, offset: 0, bytes: file.bytes.slice(0, 20) })).ok).toBe(true);
   expect(await appendSourceUpload(owner.client, { ...identity, offset: 0, bytes: new Uint8Array(20) })).toEqual({ ok: false, error: "invalid_choice" });
   expect(await appendSourceUpload(owner.client, { ...identity, offset: 21, bytes: file.bytes.slice(21) })).toEqual({ ok: false, error: "invalid_choice" });
@@ -56,8 +58,8 @@ it("concurrent finalization and recovery after dispatch failure converge on one 
   const { files: [file], selectedFiles } = selectFixtureFiles("receipt.png");
   const batch = await beginUploadBatch(owner.client, { companyId: owner.companyId, fileCount: 1, selectedFiles });
   if (!batch.ok) throw new Error(batch.error);
-  const identity = { companyId: owner.companyId, batchId: batch.value.id, sourceFileId: file.sourceFileId,
-    fileName: file.fileName, byteSize: file.bytes.length, sha256: selectedFiles[0].sha256 };
+  const identity = await sourceUploadAttempt(owner.client, { companyId: owner.companyId, batchId: batch.value.id, sourceFileId: file.sourceFileId,
+    fileName: file.fileName, byteSize: file.bytes.length, sha256: selectedFiles[0].sha256 });
   expect((await appendSourceUpload(owner.client, { ...identity, offset: 0, bytes: file.bytes })).ok).toBe(true);
   await expect(completeSourceUpload(owner.client, { async send() { throw new Error("lost dispatch response"); } }, identity)).rejects.toThrow("lost dispatch response");
   const { PgBoss } = await import("pg-boss");
@@ -108,8 +110,8 @@ it("checks final actual checksum and format before creating Source Files or AI w
     if (!batch.ok) throw new Error(batch.error);
     const bytes = file.bytes.slice();
     if (!invalidFormat) bytes[bytes.length - 1] ^= 1;
-    const identity = { companyId: owner.companyId, batchId: batch.value.id, sourceFileId: file.sourceFileId,
-      fileName: file.fileName, byteSize: bytes.length, sha256: selectedFiles[0].sha256 };
+    const identity = await sourceUploadAttempt(owner.client, { companyId: owner.companyId, batchId: batch.value.id, sourceFileId: file.sourceFileId,
+      fileName: file.fileName, byteSize: bytes.length, sha256: selectedFiles[0].sha256 });
     expect((await appendSourceUpload(owner.client, { ...identity, offset: 0, bytes })).ok).toBe(true);
     expect(await completeSourceUpload(owner.client, worker.jobs, identity)).toEqual({ ok: false, error: invalidFormat ? "content_does_not_match_format" : "upload_checksum_mismatch" });
     expect(await getSourceFile(owner.client, owner.companyId, file.sourceFileId)).toBeNull();
@@ -130,8 +132,8 @@ it("pins manifest identity and applies current byte, page and batch limits at co
   const { files, selectedFiles } = selectFixtureFiles("receipt.png", "two-invoices.pdf");
   const batch = await beginUploadBatch(owner.client, { companyId: owner.companyId, fileCount: 2, selectedFiles });
   if (!batch.ok) throw new Error(batch.error);
-  const identities = files.map((file, index) => ({ companyId: owner.companyId, batchId: batch.value.id, sourceFileId: file.sourceFileId,
-    fileName: file.fileName, byteSize: file.bytes.length, sha256: selectedFiles[index].sha256 }));
+  const identities = await Promise.all(files.map(async (file, index) => sourceUploadAttempt(owner.client, { companyId: owner.companyId, batchId: batch.value.id, sourceFileId: file.sourceFileId,
+    fileName: file.fileName, byteSize: file.bytes.length, sha256: selectedFiles[index].sha256 })));
   for (const [index, file] of files.entries()) expect((await appendSourceUpload(owner.client, { ...identities[index], offset: 0, bytes: file.bytes })).ok).toBe(true);
   const identity = identities[0];
   for (const mismatch of [{ sha256: "a".repeat(64) }, { sourceFileId: randomUUID() }, { fileName: "different.png" }, { byteSize: files[0].bytes.length + 1 }]) {
@@ -161,8 +163,8 @@ it("assembles every confirmed portion beyond the actual PostgREST response cap",
   const { files: [file], selectedFiles } = selectFixtureFiles("receipt.png");
   const batch = await beginUploadBatch(owner.client, { companyId: owner.companyId, fileCount: 1, selectedFiles });
   if (!batch.ok) throw new Error(batch.error);
-  const identity = { companyId: owner.companyId, batchId: batch.value.id, sourceFileId: file.sourceFileId,
-    fileName: file.fileName, byteSize: file.bytes.length, sha256: selectedFiles[0].sha256 };
+  const identity = await sourceUploadAttempt(owner.client, { companyId: owner.companyId, batchId: batch.value.id, sourceFileId: file.sourceFileId,
+    fileName: file.fileName, byteSize: file.bytes.length, sha256: selectedFiles[0].sha256 });
   for (const [offset, end] of [[0, 20], [20, 40], [40, file.bytes.length]]) {
     expect((await appendSourceUpload(owner.client, { ...identity, offset, bytes: file.bytes.slice(offset, end) })).ok).toBe(true);
   }

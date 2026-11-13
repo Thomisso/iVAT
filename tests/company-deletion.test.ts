@@ -12,7 +12,7 @@ import {
   softDeleteCompany,
 } from "@/application/company-deletion";
 import { approveDocument, listDocuments, mergeDocuments } from "@/application/documents";
-import { uploadSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import {
   finalizeVatReport,
   generateVatReport,

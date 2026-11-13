@@ -1,5 +1,5 @@
 import { createConfirmedManualDocument, setOctoberImportFixture } from "./support/claim-eligibility";
-import { uploadSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import { listDocuments } from "@/application/documents";
 import { fixtureFile } from "./support/files";
 import { testWorker } from "./support/worker";

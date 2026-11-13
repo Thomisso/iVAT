@@ -5,7 +5,7 @@ import { administratorWithCompany, assignAiConfigurationFixture } from "../../te
 import { testWorker } from "../../tests/support/worker";
 import { fixtureFile } from "../../tests/support/files";
 import { setOctoberImportFixture } from "../../tests/support/claim-eligibility";
-import { uploadSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "../../tests/support/source-upload";
 import { listCompanyDocuments, listExtractionVersions } from "@/application/documents";
 
 export function baseUrl() {

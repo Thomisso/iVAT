@@ -1,5 +1,7 @@
 "use server";
 
+import { sourceUploadValidation } from "@/lib/source-upload-validation";
+
 import { recoverPhotoGroup } from "@/application/photo-groups";
 import { resolveRepresentative } from "@/application/epo-representative";
 
@@ -422,7 +424,7 @@ export async function uploadSourceFileAction(_state: FormState, formData: FormDa
     companyId,
     fileName: file instanceof File ? file.name : "",
     bytes: file instanceof File ? new Uint8Array(await file.arrayBuffer()) : new Uint8Array(),
-  });
+  }, sourceUploadValidation());
   if (!result.ok) return refused(result.error, formData, []);
   redirect(`/companies/${companyId}/source-files/${result.value.id}`);
 }

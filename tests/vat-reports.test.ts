@@ -14,7 +14,7 @@ import {
   updateCompany,
 } from "@/application/companies";
 import { listAuditEvents } from "@/application/audit";
-import { uploadSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import {
   administratorWithCompany,
   knownSupplierFixture,

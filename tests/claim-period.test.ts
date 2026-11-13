@@ -23,7 +23,7 @@ import { getReportingPeriodReadiness } from "@/application/reporting-period-read
 import { provisionedUser } from "./support/clients";
 import { inject } from "vitest";
 import { Client as DatabaseClient } from "pg";
-import { uploadSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import { fakeAiProvider } from "@/ai/fake";
 import { testWorker } from "./support/worker";
 import { assignAiConfigurationFixture } from "./support/fixtures";

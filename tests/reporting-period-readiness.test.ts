@@ -23,7 +23,7 @@ import {
   generateVatReport,
   getVatReport,
 } from "@/application/vat-reports";
-import { uploadSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import {
   administratorWithCompany,
   assignAiConfigurationFixture as enableAiProcessing,

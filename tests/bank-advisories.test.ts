@@ -5,7 +5,7 @@ import { getDocumentReview } from "@/application/document-review";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { approveDocument, correctDocument, documentPeriodLocks, listDocuments, listExtractionVersions } from "@/application/documents";
 import { getReportingPeriodReadiness } from "@/application/reporting-period-readiness";
-import { uploadSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import { finalizeVatReport, generateVatReport, getVatReport } from "@/application/vat-reports";
 import { administratorWithCompany, assignAiConfigurationFixture, companyMember, knownSupplierFixture } from "./support/fixtures";
 import { fixtureFile } from "./support/files";

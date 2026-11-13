@@ -118,7 +118,7 @@ async function completeCompanyExport(
     const bytes = await buildCompanyDataArchive(receipt.snapshot, async (sourceFile) => {
       const stored = await system.storage
         .from(SOURCE_FILE_BUCKET)
-        .download(sourceFileObjectPath(receipt.companyId, sourceFile.id));
+        .download(sourceFileObjectPath(receipt.companyId, sourceFile.id, sourceFile.storageAttemptId));
       if (stored.error) throw stored.error;
       return new Uint8Array(await stored.data.arrayBuffer());
     }, async path => {
@@ -221,10 +221,10 @@ async function providerAvailability(
 
 const BLOCKED_JOB_RECHECK_SECONDS = 60;
 
-async function download(system: SystemClient, companyId: string, sourceFileId: string): Promise<Uint8Array> {
+async function download(system: SystemClient, companyId: string, sourceFileId: string, storageAttemptId?: string | null): Promise<Uint8Array> {
   const { data, error } = await system.storage
     .from(SOURCE_FILE_BUCKET)
-    .download(sourceFileObjectPath(companyId, sourceFileId));
+    .download(sourceFileObjectPath(companyId, sourceFileId, storageAttemptId));
   if (error) throw error;
   return new Uint8Array(await data.arrayBuffer());
 }
@@ -236,18 +236,19 @@ async function downloadForProcessing(
     id: string;
     format: SourceFileFormat;
     normalizedFormat: SourceFileFormat | null;
+    storageAttemptId?: string | null;
   },
 ): Promise<{ format: SourceFileFormat; bytes: Uint8Array }> {
   if ((file.format === "heic" || file.format === "heif") && file.normalizedFormat === "jpeg") {
     const { data, error } = await system.storage
       .from(SOURCE_FILE_BUCKET)
-      .download(sourceFileDerivativeObjectPath(file.companyId, file.id));
+      .download(sourceFileDerivativeObjectPath(file.companyId, file.id, file.storageAttemptId));
     if (error) throw error;
     return { format: "jpeg", bytes: new Uint8Array(await data.arrayBuffer()) };
   }
   return {
     format: file.format,
-    bytes: await download(system, file.companyId, file.id),
+    bytes: await download(system, file.companyId, file.id, file.storageAttemptId),
   };
 }
 
@@ -273,7 +274,7 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
   }
   const { data: file, error } = await system
     .from("source_file")
-    .select("id, organization_id, company_id, format, normalized_format, page_count, status, split_request_id")
+    .select("id, organization_id, company_id, format, normalized_format, storage_attempt_id, page_count, status, split_request_id")
     .eq("id", sourceFileId)
     .single();
   if (error) throw error;
@@ -310,6 +311,7 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
         id: file.id,
         format: file.format,
         normalizedFormat: file.normalized_format,
+        storageAttemptId: file.storage_attempt_id,
       });
       const input = sourceFileInput(processingFile.format, processingFile.bytes, file.page_count);
       const { documents, model, usage } = await ai.split(input, {
@@ -360,7 +362,7 @@ async function extractDocument(
 ) {
   const { data: document, error } = await system
     .from("document")
-    .select("id, organization_id, company_id, source_file_id, first_page, last_page, source_sheet, first_row, last_row, status, superseded_at, extraction_request_id, source_file (format, normalized_format, normalized_sha256, sha256)")
+    .select("id, organization_id, company_id, source_file_id, first_page, last_page, source_sheet, first_row, last_row, status, superseded_at, extraction_request_id, source_file (format, normalized_format, normalized_sha256, sha256, storage_attempt_id)")
     .eq("id", documentId)
     .single();
   if (error) throw error;
@@ -425,6 +427,7 @@ async function extractDocument(
         id: sourceFileId,
         format: document.source_file!.format,
         normalizedFormat: document.source_file!.normalized_format,
+        storageAttemptId: document.source_file!.storage_attempt_id,
       });
       const range = document.first_row === null
         ? { firstPage, lastPage }

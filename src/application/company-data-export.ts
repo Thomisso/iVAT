@@ -98,7 +98,7 @@ export async function buildCompanyDataArchive(
       const derivative = page.normalizedDerivative;
       if (!source || source.sha256 !== page.sourceSha256 || source.normalizedDerivative?.sha256 !== derivative.sha256
         || source.normalizedDerivative.byteSize !== derivative.byteSize || source.normalizedDerivative.format !== derivative.format) return null;
-      const bytes = await readObject(sourceFileDerivativeObjectPath(company.id, source.id));
+      const bytes = await readObject(sourceFileDerivativeObjectPath(company.id, source.id, source.storageAttemptId));
       if (!bytes || bytes.length !== derivative.byteSize || createHash("sha256").update(bytes).digest("hex") !== derivative.sha256) return null;
       archive[`source-files/${source.id}/normalized.jpeg`] = bytes;
     }

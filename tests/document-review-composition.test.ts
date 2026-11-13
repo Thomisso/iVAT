@@ -1,6 +1,7 @@
 import { expect, inject, it } from "vitest";
 import { SAMPLE_EXTRACTION, fakeAiProvider } from "@/ai/fake";
-import { uploadSourceFile, readSourceFile } from "@/application/source-files";
+import { readSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import { createManualDocument, listDocuments, listExtractionVersions, saveAndApproveDocument } from "@/application/documents";
 import { getDocumentReview } from "@/application/document-review";
 import { getDocumentQueuePosition } from "@/application/document-queue";

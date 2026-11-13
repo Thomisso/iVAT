@@ -2,7 +2,7 @@ import { setOctoberImportFixture } from "./support/claim-eligibility";
 import { describe, expect, it } from "vitest";
 import { approveDocument, listDocuments, listDuplicateWarnings } from "@/application/documents";
 import type { ExtractionPayload } from "@/application/extraction-payload";
-import { uploadSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { fixtureFile } from "./support/files";
 import {

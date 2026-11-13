@@ -3,7 +3,7 @@ import { listAuditActors, listAuditCompanies, listAuditEventPage, listAuditEvent
 import { listMyCompanies } from "@/application/companies";
 import { exportCompanyData, softDeleteCompany } from "@/application/company-deletion";
 import { listMyOrganizations } from "@/application/organizations";
-import { uploadSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import { listMemberships, removeMembership } from "@/application/memberships";
 import { provisionedAccount, provisionedUser, uniqueEmail } from "./support/clients";
 import { fixtureFile } from "./support/files";

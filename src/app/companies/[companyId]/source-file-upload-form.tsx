@@ -80,11 +80,11 @@ async function finishBrowserUploadBatch(companyId: string, batchId: string, sign
   if (!response.ok) throw new Error("upload batch could not be finished");
 }
 
-type ConfirmedProgress = { confirmedBytes: number; byteSize: number; complete: boolean };
-type ProgressResult = { ok: true; value: ConfirmedProgress } | { ok: false; error: string };
+type ConfirmedProgress = { attemptId: string | null; confirmedBytes: number; byteSize: number; complete: boolean };
+type ProgressResult = { ok: true; value: ConfirmedProgress } | { ok: false; error: string; attemptId?: string };
 
 function sendPortion(
-  path: string, batchId: string, item: UploadItem, offset: number,
+  path: string, batchId: string, item: UploadItem, attemptId: string, offset: number,
   update: (change: Partial<UploadItem>) => void, signal: AbortSignal,
 ): Promise<ProgressResult | TransportResult> {
   return new Promise((resolve) => {
@@ -96,6 +96,7 @@ function sendPortion(
     request.setRequestHeader("Upload-Byte-Size", String(item.file.size));
     request.setRequestHeader("Upload-Sha256", item.sha256);
     request.setRequestHeader("Upload-Offset", String(offset));
+    request.setRequestHeader("Upload-Attempt-Id", attemptId);
     request.upload.addEventListener("progress", (event) => {
       if (event.lengthComputable) update({ progress: Math.min(99, Math.round(((offset + event.loaded) / item.file.size) * 100)) });
     });
@@ -122,10 +123,10 @@ async function sendFile(
 ): Promise<TransportResult> {
   const path = `/companies/${encodeURIComponent(companyId)}/source-files/${encodeURIComponent(item.id)}/transfer`;
   const identity = { batchId, fileName: item.file.name, byteSize: item.file.size, sha256: item.sha256 };
-  const command = async (complete = false) => {
+  const command = async (complete = false, expectedAttemptId: string | null | undefined = item.attemptId): Promise<ProgressResult> => {
     const response = await fetch(path, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...identity, complete }), signal, redirect: "follow",
+      body: JSON.stringify({ ...identity, complete, expectedAttemptId }), signal, redirect: "follow",
     });
     if (response.redirected) return { ok: false, error: "upload_authentication_required" } as const;
     if (response.status >= 500) throw new Error("upload unavailable");
@@ -133,11 +134,16 @@ async function sendFile(
   };
   try {
     const reconciled = await command();
-    if (!reconciled.ok) return { kind: "refused", error: reconciled.error };
+    if (!reconciled.ok) {
+      if (reconciled.attemptId) update({ attemptId: reconciled.attemptId });
+      return { kind: "refused", error: reconciled.error };
+    }
+    const attemptId = reconciled.value.attemptId;
+    update({ attemptId });
     let offset = reconciled.value.confirmedBytes;
     update({ confirmedBytes: offset, progress: Math.min(99, Math.round(offset / item.file.size * 100)) });
     while (!reconciled.value.complete && offset < item.file.size && !signal.aborted) {
-      const portion = await sendPortion(path, batchId, item, offset, update, signal);
+      const portion = await sendPortion(path, batchId, item, attemptId!, offset, update, signal);
       if ("kind" in portion) return portion;
       if (!portion.ok) return { kind: "refused", error: portion.error };
       if (portion.value.confirmedBytes <= offset) return { kind: "retryable_failure" };
@@ -145,7 +151,7 @@ async function sendFile(
       update({ confirmedBytes: offset });
     }
     if (signal.aborted) return { kind: "retryable_failure" };
-    const completed = await command(true);
+    const completed = await command(true, attemptId);
     return completed.ok ? { kind: "uploaded" } : { kind: "refused", error: completed.error };
   } catch {
     return { kind: "retryable_failure" };
@@ -336,6 +342,36 @@ export function SourceFileUploadForm({ companyId, userId, limits }: { companyId:
     }
   }
 
+  async function retireOrRestart(index: number, action: "cancel" | "restart") {
+    if (!batchId) return;
+    const item = itemsRef.current[index];
+    if (!item.attemptId) return;
+    setPending(true);
+    const controller = new AbortController();
+    activeUpload.current = controller;
+    try {
+      const response = await fetch(`/companies/${encodeURIComponent(companyId)}/source-files/${encodeURIComponent(item.id)}/transfer`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal,
+        body: JSON.stringify({ batchId, fileName: item.file.name, byteSize: item.file.size, sha256: item.sha256,
+          expectedAttemptId: item.attemptId, [action]: true }),
+      });
+      if (response.redirected) { update(index, { status: "refused", error: "upload_authentication_required", retryable: true }); return; }
+      if (response.status >= 500) throw new Error("upload unavailable");
+      const result = await response.json() as ProgressResult;
+      if (!result.ok) { update(index, { attemptId: result.attemptId ?? item.attemptId, status: "refused", error: result.error, retryable: false }); return; }
+      if (result.value.complete) {
+        update(index, { attemptId: result.value.attemptId, confirmedBytes: result.value.byteSize, progress: 100, status: "uploaded", error: null, retryable: false });
+        await writeDraft(draftKey, { batchId, items: itemsRef.current });
+        return;
+      }
+      update(index, { attemptId: result.value.attemptId, confirmedBytes: 0, progress: 0,
+        status: action === "restart" ? "queued" : "refused", error: action === "restart" ? null : "upload_cancelled", retryable: action === "restart" });
+      await writeDraft(draftKey, { batchId, items: itemsRef.current });
+      if (action === "restart") await uploadFile(companyId, batchId, itemsRef.current[index], change => update(index, change), controller.signal);
+    } catch { setError("upload_failed"); }
+    finally { setPending(false); }
+  }
+
   async function retry(index: number) {
     if (!batchId) return;
     setPending(true);
@@ -482,6 +518,9 @@ export function SourceFileUploadForm({ companyId, userId, limits }: { companyId:
               disabled={pending || selecting} onClick={() => removeItem(item.id)} />}
           </span>
           {item.error && <FormError error={item.error} />}
+          {(item.error === "upload_expired" || item.error === "upload_cancelled") && item.attemptId && <Button size="sm" onClick={() => void retireOrRestart(index, "restart")} disabled={pending}>{t("restartFullUpload")}</Button>}
+          {batchId && item.attemptId && item.status !== "uploaded" && item.error !== "upload_cancelled" && <Button size="sm" variant="ghost" onClick={() => void retireOrRestart(index, "cancel")} disabled={pending}>{t("cancelTransfer")}</Button>}
+          {item.error === "upload_attempt_changed" && <Button size="sm" disabled={pending} onClick={() => { update(index, { attemptId: undefined }); void retry(index); }}>{t("checkCurrentTransfer")}</Button>}
           {item.retryable && <Button size="sm" onClick={() => void retry(index)} disabled={pending}>
             {t("retryUpload", { name: item.file.name })}
           </Button>}

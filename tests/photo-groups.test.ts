@@ -1,3 +1,4 @@
+import { withStoredObjectCorruption } from "./support/upload-lifecycle";
 import { createClient } from "@supabase/supabase-js";
 import { asUserClient } from "@/application/client";
 import { Client as DatabaseClient } from "pg";
@@ -10,7 +11,8 @@ import { listAuditEvents } from "@/application/audit";
 import { createHash, randomUUID } from "node:crypto";
 import { describe, expect, it, inject } from "vitest";
 import { beginUploadBatch, finishUploadBatch, getUploadBatch, deleteUploadBatch } from "@/application/upload-batches";
-import { uploadSourceFile, readSourceFile, readSourceFileDerivative, getSourceFile } from "@/application/source-files";
+import { readSourceFile, readSourceFileDerivative, getSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import { getDocument, listExtractionVersions, readDocumentPages, splitDocument, listCompanyDocuments, startManualDocumentReview, reprocessDocument, correctDocument, approveDocument } from "@/application/documents";
 import { getPhotoGroup, readPhotoGroupBasis, recoverPhotoGroup } from "@/application/photo-groups";
 import { listMemberships, removeMembership } from "@/application/memberships";
@@ -397,7 +399,7 @@ describe("User-confirmed Photo Groups", () => {
         if (!ordinary.ok) throw new Error(ordinary.error);
         bytes = (await readSourceFileDerivative(owner.client, owner.companyId, ordinary.value.id))!.bytes;
       } else { bytes = bytes.slice(); bytes[bytes.length - 1] ^= 1; }
-      expect((await storage.upload(path, bytes, { upsert: true, contentType: failure === "original" ? "image/heic" : "image/jpeg" })).error).toBeNull();
+      expect((await withStoredObjectCorruption(() => storage.upload(path, bytes, { upsert: true, contentType: failure === "original" ? "image/heic" : "image/jpeg" }))).error).toBeNull();
     }
     await finishUploadBatch(owner.client, batch.value.id);
     const errors = await worker.runJobsConcurrently();
