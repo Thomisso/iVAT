@@ -3,7 +3,7 @@ import { expect, it } from "vitest";
 import { SAMPLE_EXTRACTION, fakeAiProvider } from "@/ai/fake";
 import { setCurrentReportingYear } from "@/application/companies";
 import { createManualDocument, correctDocument, approveDocument, listDocuments, updateDocumentReporting } from "@/application/documents";
-import { uploadSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "../support/source-upload";
 import { generateVatReport, finalizeVatReport } from "@/application/vat-reports";
 import { exportFinalVatReport } from "@/application/epo-export";
 import { saveCompanyFilingDefaults } from "@/application/company-filing-defaults";

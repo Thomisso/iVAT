@@ -10,7 +10,8 @@ import {
   updateAiConfiguration,
 } from "@/application/ai-configurations";
 import { listCompanyDocuments } from "@/application/documents";
-import { getSourceFile, uploadSourceFile } from "@/application/source-files";
+import { getSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import { fakeAiProvider } from "@/ai/fake";
 import { administratorWithCompany, companyMember } from "./support/fixtures";
 import { fixtureFile } from "./support/files";

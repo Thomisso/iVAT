@@ -8,7 +8,8 @@ import { getPhotoGroup, photoGroupPath, readPhotoGroupBasis } from "@/applicatio
 import { getCompanyAiProcessingAllowance } from "@/application/ai-processing-allowance";
 import { getCompanyDataExportStatus } from "@/application/company-deletion";
 import { beginUploadBatch, finishUploadBatch } from "@/application/upload-batches";
-import { readSourceFileDerivative, uploadSourceFile } from "@/application/source-files";
+import { readSourceFileDerivative } from "@/application/source-files";
+import { uploadSourceFile } from "../tests/support/source-upload";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { testWorker } from "../tests/support/worker";
 import { administratorWithCompany, assignAiConfigurationFixture } from "../tests/support/fixtures";
@@ -120,11 +121,14 @@ it("uploads frozen ordered photographs through native Auth HTTP and preserves th
     const transferPath = `${path}/source-files/${file.sourceFileId}/transfer`;
     const sha256 = createHash("sha256").update(file.bytes).digest("hex");
     const identity = { batchId, fileName: file.fileName, byteSize: file.bytes.length, sha256 };
-    expect((await request(transferPath, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(identity) })).status).toBe(200);
+    const reconciled = await request(transferPath, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(identity) });
+    expect(reconciled.status).toBe(200);
+    const attemptId = (await reconciled.json()).value.attemptId;
     expect((await request(transferPath, { method: "PUT", headers: {
       "Upload-Batch-Id": batchId, "Upload-File-Name": encodeURIComponent(file.fileName), "Upload-Byte-Size": String(file.bytes.length), "Upload-Sha256": sha256, "Upload-Offset": "0",
+      "Upload-Attempt-Id": attemptId,
     }, body: Buffer.from(file.bytes) })).status).toBe(200);
-    const complete = () => request(transferPath, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...identity, complete: true }) });
+    const complete = () => request(transferPath, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...identity, expectedAttemptId: attemptId, complete: true }) });
     expect((await complete()).status).toBe(201);
     expect((await complete()).status).toBe(201);
   }

@@ -13,7 +13,8 @@ import { openAiProvider } from "@/ai/openai";
 import { SAMPLE_EXTRACTION } from "@/ai/fake";
 import { getDocumentReview } from "@/application/document-review";
 import { listDocuments } from "@/application/documents";
-import { getSourceFile, readSourceFile, uploadSourceFile } from "@/application/source-files";
+import { getSourceFile, readSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import { administratorWithCompany, assignAiConfigurationFixture } from "./support/fixtures";
 import { testWorker } from "./support/worker";
 

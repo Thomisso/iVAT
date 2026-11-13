@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { beginUploadBatch, finishUploadBatch, getUploadBatch, listUploadBatches } from "@/application/upload-batches";
-import { uploadSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import { administratorWithCompany, companyMember, legacyUploadBatchFixture } from "./support/fixtures";
 import { fixtureFile } from "./support/files";
 import { testWorker } from "./support/worker";

@@ -18,7 +18,8 @@ import { administratorWithCompany, companyMember } from "./support/fixtures";
 import { testWorker } from "./support/worker";
 import { SAMPLE_EXTRACTION } from "@/ai/fake";
 import { approveDocument, correctDocument, getDocument, listCompanyDocuments, listExtractionVersions, rejectDocument } from "@/application/documents";
-import { defineSourceDocuments, readSourceFile, uploadSourceFile } from "@/application/source-files";
+import { defineSourceDocuments, readSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import { fixtureFile, multiSheetWorkbookFile } from "./support/files";
 import { getVatReport } from "@/application/vat-reports";
 

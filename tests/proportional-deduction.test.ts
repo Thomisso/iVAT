@@ -155,7 +155,7 @@ it("one actual-use coefficient reduces both rates independently and rounds VAT R
 });
 
 it("AI cannot author a proportional decision, including malformed metadata, or introduce its legal findings", async () => {
-  const { uploadSourceFile } = await import("@/application/source-files");
+  const { uploadSourceFile } = await import("./support/source-upload");
   const { listDocuments } = await import("@/application/documents");
   const { assignAiConfigurationFixture } = await import("./support/fixtures");
   const { setOctoberImportFixture } = await import("./support/claim-eligibility");

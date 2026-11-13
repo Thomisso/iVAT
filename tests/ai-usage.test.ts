@@ -3,7 +3,7 @@ import type { AiProvider, AiUsage } from "@/application/ai-provider";
 import { listAiConfigurations, listAiModelPrices, setAiModelPrices } from "@/application/ai-configurations";
 import { addAiUsageModelsFixture } from "./support/ai-usage";
 import { listPlatformAiUsage, listPlatformAiUsageModels } from "@/application/ai-usage";
-import { uploadSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import { SAMPLE_EXTRACTION } from "@/ai/fake";
 import { fixtureFile } from "./support/files";
 import { provisionedUser } from "./support/clients";

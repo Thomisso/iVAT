@@ -9,6 +9,7 @@ import { createBoss, createProcessingQueues, pgBossJobQueue } from "@/lib/jobs";
 import { configuredVatPayerRegistry } from "@/vat-registry";
 import { runOperationalAlertTick } from "@/application/operational-alert-worker";
 import { smtpOperationalAlertMailer } from "@/mail/smtp-operational-alert-mailer";
+import { runSourceUploadCleanupTick } from "@/application/source-upload-cleanup";
 import { configuredExchangeRates } from "@/cnb";
 
 // Background job runner (ADR-0002). The handlers live in the application layer
@@ -25,6 +26,15 @@ const boss = createBoss({ supervise: true });
 let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
 let alertTimer: ReturnType<typeof setInterval> | undefined;
 let alertTick: Promise<void> | undefined;
+let uploadCleanupTimer: ReturnType<typeof setInterval> | undefined;
+let uploadCleanupTick: Promise<void> | undefined;
+
+function reconcileUploadCleanup() {
+  if (uploadCleanupTick) return;
+  uploadCleanupTick = runSourceUploadCleanupTick(system)
+    .catch(() => console.error("[worker] temporary upload cleanup failed"))
+    .finally(() => { uploadCleanupTick = undefined; });
+}
 
 function reconcileAlerts() {
   if (alertTick || !process.env.APP_ORIGIN) return;
@@ -83,6 +93,9 @@ async function main() {
   await heartbeat();
   if (!process.env.APP_ORIGIN) console.error("[worker] operational alerts require canonical APP_ORIGIN");
   reconcileAlerts();
+  reconcileUploadCleanup();
+  uploadCleanupTimer = setInterval(reconcileUploadCleanup, 30_000);
+  uploadCleanupTimer.unref();
   alertTimer = setInterval(reconcileAlerts, 30_000);
   alertTimer.unref();
   if (process.env.WORKER_HEALTH_FILE) {
@@ -97,7 +110,8 @@ async function main() {
 async function shutdown() {
   clearInterval(heartbeatTimer);
   clearInterval(alertTimer);
-  await alertTick;
+  clearInterval(uploadCleanupTimer);
+  await Promise.all([alertTick, uploadCleanupTick]);
   console.log("[worker] stopping");
   await boss.stop({ graceful: true });
   process.exit(0);

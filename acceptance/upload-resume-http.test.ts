@@ -1,3 +1,4 @@
+import { sourceUploadAttempt } from "../tests/support/source-upload";
 import { setTimeout as delay } from "node:timers/promises";
 import { expect, it } from "vitest";
 import { beginUploadBatch } from "@/application/upload-batches";
@@ -14,21 +15,24 @@ it("reconciles real interrupted HTTP bytes and retries a lost completion respons
   const batch = value(await beginUploadBatch(owner.client, { companyId: owner.companyId, fileCount: 1, selectedFiles }));
   const identity = { batchId: batch.id, fileName: file.fileName, byteSize: file.bytes.length, sha256: selectedFiles[0].sha256 };
   const path = `/companies/${owner.companyId}/source-files/${file.sourceFileId}/transfer`;
+  let attemptId = "";
   const reconcile = () => request(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(identity) });
   const append = (offset: number, bytes: Uint8Array) => request(path, { method: "PUT", headers: {
     "Upload-Batch-Id": batch.id, "Upload-File-Name": encodeURIComponent(file.fileName), "Upload-Byte-Size": String(file.bytes.length),
-    "Upload-Sha256": selectedFiles[0].sha256, "Upload-Offset": String(offset),
+    "Upload-Sha256": selectedFiles[0].sha256, "Upload-Offset": String(offset), "Upload-Attempt-Id": attemptId,
   }, body: Buffer.from(bytes) });
   const started = await reconcile();
   expect(started.status).toBe(200);
-  expect(await started.json()).toEqual({ ok: true, value: { confirmedBytes: 0, byteSize: file.bytes.length, complete: false } });
+  const state = await started.json();
+  expect(state).toEqual({ ok: true, value: { attemptId: expect.any(String), confirmedBytes: 0, byteSize: file.bytes.length, complete: false } });
+  attemptId = state.value.attemptId;
   const portion = await append(0, file.bytes.slice(0, 20));
   expect(portion.status).toBe(200);
   // Lose the first response body and obtain confirmation from the server again.
   expect((await (await reconcile()).json()).value.confirmedBytes).toBe(20);
   expect((await append(0, file.bytes.slice(0, 20))).status).toBe(200);
   expect((await append(20, file.bytes.slice(20))).status).toBe(200);
-  const complete = () => request(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...identity, complete: true }) });
+  const complete = () => request(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...identity, expectedAttemptId: attemptId, complete: true }) });
   const responses = await Promise.all([complete(), complete()]);
   expect(responses.map(response => response.status)).toEqual([201, 201]);
   expect(await (await complete()).json()).toEqual({ ok: true, value: { id: file.sourceFileId } });
@@ -61,10 +65,12 @@ it("refuses anonymous, foreign-account and revoked-access continuation including
   const path = `/companies/${owner.companyId}/source-files/${file.sourceFileId}/transfer`;
   const init = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(identity) };
   const request = await httpAs(member.client);
-  expect((await request(path, init)).status).toBe(200);
+  const state = await request(path, init);
+  expect(state.status).toBe(200);
+  const attemptId = (await state.json()).value.attemptId;
   const portion = await request(path, { method: "PUT", headers: {
     "Upload-Batch-Id": batch.id, "Upload-File-Name": encodeURIComponent(file.fileName), "Upload-Byte-Size": String(file.bytes.length),
-    "Upload-Sha256": selectedFiles[0].sha256, "Upload-Offset": "0",
+    "Upload-Sha256": selectedFiles[0].sha256, "Upload-Offset": "0", "Upload-Attempt-Id": attemptId,
   }, body: Buffer.from(file.bytes.slice(0, 20)) });
   expect(portion.status).toBe(200);
   expect((await portion.json()).value.confirmedBytes).toBe(20);
@@ -83,7 +89,7 @@ it("refuses anonymous, foreign-account and revoked-access continuation including
   const membership = management.users.find(user => user.userId === member.userId)!.memberships.find(item => item.companyId === owner.companyId)!;
   value(await removeMembership(owner.client, membership.id));
   expect((await request(path, init)).status).toBe(403);
-  const direct = await member.client.rpc("confirm_source_upload_chunk", { target_source_file_id: file.sourceFileId, chunk_offset: 0, chunk_byte_size: 1, chunk_sha256: selectedFiles[0].sha256 });
+  const direct = await member.client.rpc("confirm_source_upload_chunk", { target_source_file_id: file.sourceFileId, expected_attempt_id: attemptId, chunk_offset: 0, chunk_byte_size: 1, chunk_sha256: selectedFiles[0].sha256 });
   expect(direct.error?.code).toBe("42501");
   const stored = await member.client.storage.from("source-upload-chunks").upload(`${owner.companyId}/${file.sourceFileId}/0/${selectedFiles[0].sha256}`, new Uint8Array([1]), { contentType: "application/octet-stream" });
   expect(stored.error).not.toBeNull();
@@ -97,7 +103,7 @@ it("requires native reauthentication and MFA before the same account can continu
   const owner = await administratorWithCompany();
   const { files: [file], selectedFiles } = selectFixtureFiles("receipt.png");
   const batch = value(await beginUploadBatch(owner.client, { companyId: owner.companyId, fileCount: 1, selectedFiles }));
-  const identity = { companyId: owner.companyId, sourceFileId: file.sourceFileId, batchId: batch.id, fileName: file.fileName, byteSize: file.bytes.length, sha256: selectedFiles[0].sha256 };
+  const identity = await sourceUploadAttempt(owner.client, { companyId: owner.companyId, sourceFileId: file.sourceFileId, batchId: batch.id, fileName: file.fileName, byteSize: file.bytes.length, sha256: selectedFiles[0].sha256 });
   value(await appendSourceUpload(owner.client, { ...identity, offset: 0, bytes: file.bytes.slice(0, 20) }));
   const enrollment = value(await beginTotpEnrollment(owner.client));
   value(await completeTotpEnrollment(owner.client, { factorId: enrollment.factorId, code: totp(enrollment.secret) }));

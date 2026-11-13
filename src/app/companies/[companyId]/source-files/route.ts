@@ -1,3 +1,4 @@
+import { sourceUploadValidation } from "@/lib/source-upload-validation";
 import { uploadSourceFile } from "@/application/source-files";
 import { jobQueue } from "@/lib/jobs";
 import { requireUserClient } from "@/lib/supabase/server";
@@ -19,7 +20,7 @@ export async function POST(
       file instanceof File
         ? new Uint8Array(await file.arrayBuffer())
         : new Uint8Array(),
-  });
+  }, sourceUploadValidation());
   if (!result.ok) {
     const status =
       result.error === "forbidden"

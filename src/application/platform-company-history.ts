@@ -26,7 +26,7 @@ export async function getPlatformCompanyHistory(
 
 async function readOriginal(client: AppClient, file: SourceFile): Promise<Uint8Array> {
   const { data, error } = await client.storage.from(SOURCE_FILE_BUCKET)
-    .download(sourceFileObjectPath(file.companyId, file.id));
+    .download(sourceFileObjectPath(file.companyId, file.id, file.storageAttemptId));
   if (error) throw error;
   return new Uint8Array(await data.arrayBuffer());
 }

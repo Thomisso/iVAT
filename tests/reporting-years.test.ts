@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { listCompanyDocuments } from "@/application/documents";
-import { uploadSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import {
   createCompany,
   createCompanyIdentity,

@@ -9,7 +9,7 @@ import { exportFinalVatReport, exportVatReport, readVatReportArtifact } from "@/
 import { listAuditEvents } from "@/application/audit";
 import type { ExtractionPayload } from "@/application/extraction-payload";
 import { testWorker } from "./support/worker";
-import { uploadSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import { fixtureFile } from "./support/files";
 import { setOctoberImportFixture } from "./support/claim-eligibility";
 import { withClaimDate } from "./support/claim-clock";

@@ -1,3 +1,4 @@
+import { getUploadBatchRecovery } from "@/application/source-upload-transfers";
 import Link from "next/link";
 import { currentUserId } from "@/application/auth";
 import { companyPageContext, withCompanyReturnTo } from "@/application/return-context";
@@ -50,6 +51,13 @@ export default async function UploadPage({
     getTranslations("periodFilter"),
   ]);
   if (!company) notFound();
+  const resumeBatchId = typeof query.resumeBatchId === "string" ? query.resumeBatchId : null;
+  const recovery = resumeBatchId ? await getUploadBatchRecovery(client, companyId, resumeBatchId) : null;
+  if (recovery && !recovery.ok) notFound();
+  const recovered = recovery?.ok ? recovery.value : null;
+  const recoveryDraft = recovered ? { batchId: recovered.batchId, items: recovered.items.map(item => ({ ...item,
+    kind: "picker" as const, progress: 0, confirmedBytes: 0, status: "refused" as const, error: "upload_file_required", retryable: false,
+  })) } : undefined;
   const hasNextPage = batches.length > HISTORY_PAGE_SIZE;
   const visibleBatches = batches.slice(0, HISTORY_PAGE_SIZE);
   return <PageLayout className="company-workspace" measure="wide">
@@ -61,7 +69,8 @@ export default async function UploadPage({
     </section>}
     <section className="panel upload-workspace-new" aria-labelledby="new-upload-title">
       <div><h2 id="new-upload-title">{workspace("newBatch")}</h2><p>{workspace("newBatchHint")}</p></div>
-      <SourceFileUploadForm key={`${userId}:${companyId}`} companyId={companyId} userId={userId} limits={limits} />
+      {recovered?.legacy && <p role="status">{workspace("legacyRecoveryBoundary")}</p>}
+      <SourceFileUploadForm key={`${userId}:${companyId}`} companyId={companyId} userId={userId} limits={limits} recoveryDraft={recoveryDraft} recoveryPlannedCount={recovered?.plannedFileCount} />
     </section>
     <section className="upload-history" aria-labelledby="upload-history-title">
       <div className="upload-section-heading"><div><h2 id="upload-history-title">{workspace("history")}</h2><p>{workspace("historyHint")}</p></div><span>{workspace("historyPage", { page: historyPage })}</span></div>
@@ -83,6 +92,7 @@ export default async function UploadPage({
               failures: batch.counts.failures,
             })}</span>
           </Link>
+          {batch.createdBy === userId && !batch.uploadFinishedAt && <Link href={`/companies/${companyId}/upload?resumeBatchId=${batch.id}`}>{workspace("resumeBatch")}</Link>}
         </li>)}
       </ol> : <EmptyState icon="inbox" title={workspace(createdFrom || createdTo ? "noMatchingBatches" : "noBatches")} />}
       {(historyPage > 1 || hasNextPage) && <nav className="upload-history-pagination" aria-label={workspace("historyPagination")}>

@@ -784,7 +784,7 @@ it(bulkCase, async () => {
   const measure = bulkDiagnostics?.runPhase ?? (async <T>(_phase: RequestTestPhase, run: () => Promise<T>) => run());
   const { assignAiConfigurationFixture } = await import("./support/fixtures");
   const { companyAlertConfigurationFixture } = await import("./support/operational-alerts");
-  const { uploadSourceFile } = await import("@/application/source-files");
+  const { uploadSourceFile } = await import("./support/source-upload");
   const { workbookFile } = await import("./support/files");
   const { testWorker } = await import("./support/worker");
   const admin = await measure("fixture", () => promotedSuperAdministrator("Related bulk subscriber")); subscribers.push(admin);
@@ -876,7 +876,7 @@ it("cancels a Source File incident immediately when manual Source recovery resol
 it("still invalidates a failed export synchronously when only its Company data revision changes", async () => {
   const { createBoss, createProcessingQueues } = await import("@/lib/jobs");
   const { exportCompanyData } = await import("@/application/company-deletion");
-  const { uploadSourceFile } = await import("@/application/source-files");
+  const { uploadSourceFile } = await import("./support/source-upload");
   const { fixtureFile } = await import("./support/files");
   const { company, start, tick, deliveries } = await scenario(1);
   process.loadEnvFile(".env.local");

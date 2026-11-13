@@ -404,6 +404,9 @@
     "companies": "Firmy"
   },
   "sourceFiles": {
+    "checkCurrentTransfer": "Ověřit aktuální přenos",
+    "restartFullUpload": "Zahájit nový přenos celého souboru",
+    "cancelTransfer": "Zrušit tento přenos",
     "manualStart": "Vymezit doklady ručně",
     "manualImage": "Vytvořit jeden doklad ručně",
     "manualWorkbookTitle": "Rozsahy řádků dokladů",
@@ -485,7 +488,13 @@
     "groupPreparing": "Fotografie je součástí potvrzené skupiny. Připravuje se její úplný podklad.",
     "groupUnavailable": "Podklad skupiny není dostupný a zpracování není dokončené. Před pokračováním zkontrolujte dostupné původní podklady.",
     "groupManual": "Připravit celou skupinu k ruční kontrole",
-    "groupRetry": "Zopakovat přípravu celé skupiny"
+    "groupRetry": "Zopakovat přípravu celé skupiny",
+    "localDraftUnavailable": "Místní úložiště pro obnovení není dostupné. Nyní můžete nahrávat; pro pozdější návrat otevřete tuto dávku a znovu vyberte stejné soubory.",
+    "sameDeviceRecoveryHint": "Pokračování používá toto zařízení a stejný účet. Zařízení může uložené soubory odstranit; v takovém případě znovu vyberte shodný obsah. Obnovení souborů mezi zařízeními není zaručeno.",
+    "reselectFile": "Znovu vybrat stejný soubor",
+    "unidentifiedSource": "Zdrojový soubor čekající na výběr",
+    "sourceBytesUnknown": "Vyberte původní soubor pro určení jeho názvu a velikosti.",
+    "checkStoredSource": "Ověřit stav na serveru"
   },
   "returnContext": {
     "counterparty": "← Zpět na protistranu",
@@ -627,7 +636,9 @@
     "deleteRefused": {
       "batch_processing": "Dávku lze smazat až po dokončení zpracování.",
       "period_locked": "Doklad z této dávky leží v uzavřeném období. Dávku lze smazat až poté, co Administrator období odemkne."
-    }
+    },
+    "resumeBatch": "Pokračovat v nahrávání dávky",
+    "legacyRecoveryBoundary": "Tato starší dávka zachovala pouze počet souborů. Obnovit lze jen známé přenosy; neznámé soubory ani původní pořadí výběru nelze zpětně určit."
   },
   "dateInput": {
     "calendarFor": "Vybrat datum pro {label}",
@@ -636,6 +647,9 @@
     "invalid": "Zadejte platné datum ve tvaru dd.mm.rrrr."
   },
   "errors": {
+    "upload_expired": "Neúplný přenos vypršel po sedmi dnech bez nově potvrzeného postupu. Zahajte nový přenos celého stejného souboru.",
+    "upload_cancelled": "Přenos byl zrušen. Můžete zahájit nový přenos celého stejného souboru.",
+    "upload_attempt_changed": "Tento přenos byl nahrazen. Před pokračováním znovu ověřte aktuální přenos.",
     "invalid_statistics_filter": "Zvolte platný rozsah DUZP a filtry.",
     "email_recovery_required": "Před použitím záložního kódu nebo pokračováním obnovy ověřte nový e-mail pro obnovu hesla.",
     "mfa_recovery_failed": "Obnovu MFA se nepodařilo dokončit. Účet zůstává omezený; zkuste to znovu nebo pokračujte po ověření nového e-mailu pro obnovu.",
@@ -820,7 +834,8 @@
     "invalid_alert_preference": "Neplatné nastavení upozornění.",
     "verified_email_required": "Před zapnutím upozornění ověřte aktuální e-mail účtu.",
     "invalid_representative": "Vyberte podporovaného zástupce a vyplňte platné jméno, příjmení a datum narození nebo evidenční číslo.",
-    "group_evidence_unavailable": "Původní podklady nebo jejich uložená reprezentace chybí či nejsou platné. Tuto neměnnou skupinu nelze obnovit; zahajte nový upload s úplnými fotografiemi."
+    "group_evidence_unavailable": "Původní podklady nebo jejich uložená reprezentace chybí či nejsou platné. Tuto neměnnou skupinu nelze obnovit; zahajte nový upload s úplnými fotografiemi.",
+    "upload_file_required": "Pro pokračování vyberte obsahově shodný původní soubor. Samotný název shodu obsahu neprokazuje."
   },
   "aiUsage": {
     "platformNav": "Využití AI na platformě",

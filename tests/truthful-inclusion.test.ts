@@ -12,7 +12,8 @@ import { finalizeVatReport, generateVatReport, getPeriodLock, getVatReport } fro
 import { saveCompanyFilingDefaults } from "@/application/company-filing-defaults";
 import { exportVatReport, readVatReportArtifact } from "@/application/epo-export";
 import { createHash } from "node:crypto";
-import { excludeSourceFile, getSourceFile, restoreSourceFile, uploadSourceFile } from "@/application/source-files";
+import { excludeSourceFile, getSourceFile, restoreSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import { setCurrentReportingYear } from "@/application/companies";
 import { pragueDate } from "@/application/reporting-periods";
 import { fixtureFile } from "./support/files";
