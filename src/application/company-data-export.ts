@@ -7,7 +7,7 @@ import type { CompanyFilingDefaults } from "./company-filing-defaults";
 import type { Document, ExtractionVersion } from "./documents";
 import type { VatReportArtifact } from "./epo-export";
 import type { VatReportPdfArtifact } from "./vat-report-pdf-artifacts";
-import type { SourceFile } from "./source-files";
+import { sourceFileDerivativeObjectPath, type SourceFile } from "./source-files";
 import type { VatReport, VatReportTransition } from "./vat-reports";
 
 export type CompanyExportSnapshot = {
@@ -90,6 +90,18 @@ export async function buildCompanyDataArchive(
     archive[`photo-groups/${group.id}/manifest.json`] = json(group);
     if (!group.basis) continue;
     if (!readObject) return null;
+    // Only new manifests require these intermediate objects. Historical
+    // manifests keep their exact archive bytes and are never regenerated.
+    for (const page of group.basis.pages) {
+      if (!page.normalizedDerivative) continue;
+      const source = sourceFiles.find(source => source.id === page.sourceFileId);
+      const derivative = page.normalizedDerivative;
+      if (!source || source.sha256 !== page.sourceSha256 || source.normalizedDerivative?.sha256 !== derivative.sha256
+        || source.normalizedDerivative.byteSize !== derivative.byteSize || source.normalizedDerivative.format !== derivative.format) return null;
+      const bytes = await readObject(sourceFileDerivativeObjectPath(company.id, source.id));
+      if (!bytes || bytes.length !== derivative.byteSize || createHash("sha256").update(bytes).digest("hex") !== derivative.sha256) return null;
+      archive[`source-files/${source.id}/normalized.jpeg`] = bytes;
+    }
     for (const object of [{ leaf: "basis.pdf", ...group.basis }, ...group.basis.pages.map(page => ({ ...page, leaf: `${page.page}.png` }))]) {
       const bytes = await readObject(photoGroupPath(group, object.leaf));
       if (!bytes || bytes.length !== object.byteSize || createHash("sha256").update(bytes).digest("hex") !== object.sha256) return null;

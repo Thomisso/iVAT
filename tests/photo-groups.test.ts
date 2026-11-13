@@ -3,23 +3,137 @@ import { exportCompanyData, getCompanyDataExportStatus } from "@/application/com
 import { getCompanyAiProcessingAllowance } from "@/application/ai-processing-allowance";
 import sharp from "sharp";
 import { listAuditEvents } from "@/application/audit";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { beginUploadBatch, finishUploadBatch, getUploadBatch, deleteUploadBatch } from "@/application/upload-batches";
-import { uploadSourceFile, readSourceFile } from "@/application/source-files";
+import { uploadSourceFile, readSourceFile, readSourceFileDerivative } from "@/application/source-files";
 import { getDocument, listExtractionVersions, readDocumentPages, splitDocument, listCompanyDocuments } from "@/application/documents";
 import { getPhotoGroup, readPhotoGroupBasis } from "@/application/photo-groups";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { administratorWithCompany, assignAiConfigurationFixture } from "./support/fixtures";
-import { fixtureFile, selectUploadFiles } from "./support/files";
+import { fixtureFile, heicFixture, rotatedHeicFixture, selectUploadFiles } from "./support/files";
 import { companySourceFileRowLimitProbe, withPostgrestRowLimit } from "./support/postgrest";
 import { PDFDocument } from "pdf-lib";
-import { testWorker } from "./support/worker";
+import { systemClient, testWorker } from "./support/worker";
 
 const jpegHash = "0896be252af2407fd12029be53cc41ea9747e33613fb5702a0e8c5b39b1fc7c1";
 const pngHash = "c414cd0e204de974f73753c7e28d7638e7b3691bb8b1a2bab6b25bb7fed7ce77";
 
 describe("User-confirmed Photo Groups", () => {
+  it("preserves mixed JPEG/PNG/HEIC/HEIF originals and extracts the ordered persisted normalized basis once", async () => {
+    const owner = await administratorWithCompany();
+    const groupId = randomUUID();
+    const selection = selectUploadFiles([
+      { fileName: "first.png", bytes: fixtureFile("receipt.png") },
+      { fileName: "second.heic", bytes: heicFixture() },
+      { fileName: "third.jpg", bytes: new Uint8Array(await sharp({ create: { width: 80, height: 120, channels: 3, background: "#ff0000" } }).jpeg().toBuffer()) },
+      { fileName: "fourth.heif", bytes: rotatedHeicFixture() },
+    ]);
+    const worker = testWorker(fakeAiProvider({ split: () => { throw new Error("Human boundaries must bypass AI Split"); }, extract: input => {
+      expect(input.pageCount).toBe(4);
+      expect(input.pageImages?.map(page => createHash("sha256").update(page.bytes).digest("hex")).filter((_, index) => index === 1 || index === 3)).toEqual([
+        "9339c93194e6e0fd13c075a0d9a8351d3ff52f186af16c16d4fc09ef827539a1",
+        "e8e79f3d7576bb64bab656481dd2cceaa72bf6831da8b0470379dd764120da43",
+      ]);
+      return { ...SAMPLE_EXTRACTION, sourceLocations: [{ fieldPath: "documentNumber", kind: "page", page: 4, x: 0.1, y: 0.2, width: 0.3, height: 0.1 }] };
+    } }));
+    await assignAiConfigurationFixture(owner.client, worker.jobs, { companyId: owner.companyId, provider: worker.ai });
+    const batch = await beginUploadBatch(owner.client, { companyId: owner.companyId, fileCount: 4, selectedFiles: selection.selectedFiles.map(file => ({ ...file, groupId })) });
+    if (!batch.ok) throw new Error(batch.error);
+    for (const file of [...selection.files].reverse()) expect(await uploadSourceFile(owner.client, worker.jobs, { companyId: owner.companyId, batchId: batch.value.id, ...file })).toEqual({ ok: true, value: { id: file.sourceFileId } });
+    await finishUploadBatch(owner.client, batch.value.id);
+    expect(await worker.runJobsConcurrently()).toEqual([]);
+    const group = await getPhotoGroup(owner.client, owner.companyId, groupId);
+    expect(group?.basis?.pages.map(page => page.sourceFileId)).toEqual(selection.files.map(file => file.sourceFileId));
+    expect((await listCompanyDocuments(owner.client, owner.companyId)).map(document => document.id)).toEqual([groupId]);
+    const versions = await listExtractionVersions(owner.client, owner.companyId, groupId);
+    expect(versions).toHaveLength(1);
+    expect(versions[0].payload.sourceEvidence?.basis).toEqual({ kind: "photo_group", format: "pdf", sha256: group?.basis?.sha256, groupId });
+    expect(versions[0].payload.sourceEvidence?.fields.documentNumber.locations).toEqual([{ kind: "page", page: 4, x: 0.1, y: 0.2, width: 0.3, height: 0.1 }]);
+    expect((await PDFDocument.load((await readDocumentPages(owner.client, owner.companyId, groupId))!.bytes)).getPageCount()).toBe(4);
+    for (const file of selection.files) expect((await readSourceFile(owner.client, owner.companyId, file.sourceFileId))?.bytes).toEqual(file.bytes);
+    for (const [index, expected] of [[1, "5a1dd9a99bd1a6d750a131e9a7148f70be5d95475861b3b57bcb44668e6f6cc8"], [3, "268da1a5dfca47126246de862aedef33128afaddd56265457d5dea20beffaf22"]] as const) {
+      const derivative = await readSourceFileDerivative(owner.client, owner.companyId, selection.files[index].sourceFileId);
+      expect(derivative?.bytes.length).toBe(664);
+      expect(createHash("sha256").update(derivative!.bytes).digest("hex")).toBe(expected);
+      expect(group?.basis?.pages[index]).toMatchObject({ normalizedDerivative: { format: "jpeg", sha256: expected, byteSize: 664 } });
+    }
+    expect(await getCompanyAiProcessingAllowance(owner.client, owner.companyId)).toEqual({ ok: true, value: { used: 1, allowance: 50, waitingDocuments: 0 } });
+    expect((await getUploadBatch(owner.client, owner.companyId, batch.value.id))?.actualFileCount).toBe(4);
+    const exported = await exportCompanyData(owner.client, worker.jobs, { companyId: owner.companyId });
+    if (!exported.ok) throw new Error(exported.error);
+    const archive = unzipSync(exported.value.bytes);
+    expect(JSON.parse(strFromU8(archive[`photo-groups/${groupId}/manifest.json`]))).toEqual(group);
+    for (const file of selection.files) expect(archive[`source-files/${file.sourceFileId}/${file.fileName}`]).toEqual(file.bytes);
+    for (const index of [1, 3]) expect(archive[`source-files/${selection.files[index].sourceFileId}/normalized.jpeg`]).toEqual((await readSourceFileDerivative(owner.client, owner.companyId, selection.files[index].sourceFileId))?.bytes);
+    for (const page of group!.basis!.pages) expect(createHash("sha256").update(archive[`photo-groups/${groupId}/${page.page}.png`]).digest("hex")).toBe(page.sha256);
+    expect(archive[`photo-groups/${groupId}/basis.pdf`]).toEqual((await readDocumentPages(owner.client, owner.companyId, groupId))?.bytes);
+    expect(await worker.runJobs()).toEqual([]);
+    expect(await getCompanyDataExportStatus(owner.client, { companyId: owner.companyId, exportId: exported.value.exportId })).toEqual({ ok: true, value: "completed" });
+    const storage = systemClient().storage.from("source-files");
+    const missingNormalization = `${owner.companyId}/${selection.files[1].sourceFileId}/normalized.jpeg`;
+    expect((await storage.remove([missingNormalization])).error).toBeNull();
+    expect(await exportCompanyData(owner.client, worker.jobs, { companyId: owner.companyId })).toEqual({ ok: false, error: "export_failed" });
+    expect((await getPhotoGroup(owner.client, owner.companyId, groupId))?.basis).toEqual(group?.basis);
+    expect(await deleteUploadBatch(owner.client, { companyId: owner.companyId, batchId: batch.value.id })).toEqual({ ok: true, value: null });
+    for (const file of selection.files) expect((await storage.download(`${owner.companyId}/${file.sourceFileId}`)).error).not.toBeNull();
+    for (const file of [selection.files[1], selection.files[3]]) expect((await storage.download(`${owner.companyId}/${file.sourceFileId}/normalized.jpeg`)).error).not.toBeNull();
+    for (const leaf of ["basis.pdf", "1.png", "2.png", "3.png", "4.png"]) expect((await storage.download(`${owner.companyId}/${selection.files[0].sourceFileId}/group/${leaf}`)).error).not.toBeNull();
+  });
+
+  it.each(["missing", "corrupt", "stale", "original"] as const)("refuses a %s stored HEIC representation without regenerating evidence", async failure => {
+    const owner = await administratorWithCompany(), worker = testWorker();
+    const groupId = randomUUID();
+    const selection = selectUploadFiles([{ fileName: "page.heic", bytes: heicFixture() }, { fileName: "other.png", bytes: fixtureFile("receipt.png") }]);
+    const batch = await beginUploadBatch(owner.client, { companyId: owner.companyId, fileCount: 2, selectedFiles: selection.selectedFiles.map(file => ({ ...file, groupId })) });
+    if (!batch.ok) throw new Error(batch.error);
+    for (const file of selection.files) expect((await uploadSourceFile(owner.client, worker.jobs, { companyId: owner.companyId, batchId: batch.value.id, ...file })).ok).toBe(true);
+    const storage = systemClient().storage.from("source-files");
+    const path = `${owner.companyId}/${selection.files[0].sourceFileId}${failure === "original" ? "" : "/normalized.jpeg"}`;
+    if (failure === "missing") expect((await storage.remove([path])).error).toBeNull();
+    else {
+      let bytes = failure === "original" ? heicFixture() : (await readSourceFileDerivative(owner.client, owner.companyId, selection.files[0].sourceFileId))!.bytes;
+      if (failure === "stale") {
+        const ordinary = await uploadSourceFile(owner.client, worker.jobs, { companyId: owner.companyId, fileName: "rotated.heif", bytes: rotatedHeicFixture() });
+        if (!ordinary.ok) throw new Error(ordinary.error);
+        bytes = (await readSourceFileDerivative(owner.client, owner.companyId, ordinary.value.id))!.bytes;
+      } else { bytes = bytes.slice(); bytes[bytes.length - 1] ^= 1; }
+      expect((await storage.upload(path, bytes, { upsert: true, contentType: failure === "original" ? "image/heic" : "image/jpeg" })).error).toBeNull();
+    }
+    await finishUploadBatch(owner.client, batch.value.id);
+    const errors = await worker.runJobsConcurrently();
+    expect(errors.length).toBeGreaterThan(0);
+    if (failure !== "missing") expect(errors).toContainEqual(expect.objectContaining({ message: failure === "original" ? "Photo Group original checksum mismatch" : "Photo Group normalization checksum mismatch" }));
+    expect((await getPhotoGroup(owner.client, owner.companyId, groupId))?.basis).toBeNull();
+    expect(await getDocument(owner.client, owner.companyId, groupId)).toBeNull();
+    expect((await getUploadBatch(owner.client, owner.companyId, batch.value.id))?.outcome).toBe("failure");
+    if (failure === "missing") expect((await storage.download(path)).error).not.toBeNull();
+    if (failure !== "original") expect((await readSourceFile(owner.client, owner.companyId, selection.files[0].sourceFileId))?.bytes).toEqual(heicFixture());
+  });
+
+  it("enforces mixed original totals through direct writes and the final PDF byte limit after normalization", async () => {
+    const { promotedSuperAdministrator } = await import("./support/platform");
+    const { getUploadLimits } = await import("@/application/source-files");
+    const { setPlatformUploadLimits } = await import("@/application/platform-administration");
+    const owner = await administratorWithCompany(), platform = await promotedSuperAdministrator("Mixed Photo Group limits"), worker = testWorker();
+    const previous = await getUploadLimits(platform.client);
+    const groupId = randomUUID();
+    const selection = selectUploadFiles([{ fileName: "page.heic", bytes: heicFixture() }, { fileName: "other.png", bytes: fixtureFile("receipt.png") }]);
+    const batch = await beginUploadBatch(owner.client, { companyId: owner.companyId, fileCount: 2, selectedFiles: selection.selectedFiles.map(file => ({ ...file, groupId })) });
+    if (!batch.ok) throw new Error(batch.error);
+    try {
+      expect((await setPlatformUploadLimits(platform.client, { ...previous, maxFileBytes: 1400 })).ok).toBe(true);
+      expect((await uploadSourceFile(owner.client, worker.jobs, { companyId: owner.companyId, batchId: batch.value.id, ...selection.files[0] })).ok).toBe(true);
+      expect(await uploadSourceFile(owner.client, worker.jobs, { companyId: owner.companyId, batchId: batch.value.id, ...selection.files[1] })).toEqual({ ok: false, error: "file_too_large" });
+      expect((await owner.client.from("source_file").insert({ id: selection.files[1].sourceFileId, organization_id: owner.organizationId, company_id: owner.companyId, upload_batch_id: batch.value.id, file_name: "other.png", format: "png", byte_size: selection.files[1].bytes.length, sha256: selection.selectedFiles[1].sha256, page_count: 1 })).error?.hint).toBe("file_too_large");
+      expect((await setPlatformUploadLimits(platform.client, { ...previous, maxFileBytes: 1500 })).ok).toBe(true);
+      expect((await uploadSourceFile(owner.client, worker.jobs, { companyId: owner.companyId, batchId: batch.value.id, ...selection.files[1] })).ok).toBe(true);
+      await finishUploadBatch(owner.client, batch.value.id);
+      expect(await worker.runJobsConcurrently()).toContainEqual(expect.objectContaining({ message: "Photo Group PDF basis exceeds platform limit" }));
+      expect((await getPhotoGroup(owner.client, owner.companyId, groupId))?.basis).toBeNull();
+      expect(await getDocument(owner.client, owner.companyId, groupId)).toBeNull();
+    } finally { await setPlatformUploadLimits(platform.client, previous); }
+  });
   it("preserves ordered originals and sends one stored basis to one Extraction, despite AI Split boundaries", async () => {
     const owner = await administratorWithCompany();
     const groupId = randomUUID(), batchId = randomUUID(), first = randomUUID(), second = randomUUID();
