@@ -69,12 +69,12 @@ export function proportionalUnclaimedPortion(payload: ExtractionPayload) {
   return { rateBreakdown, netAmount: amount(net), vatAmount: amount(vat), grossAmount: amount(net + vat) };
 }
 
-/** Shared review/list totals use the same per-rate rounding as reports. */
+/** Shared review/list totals retain original currency and the reports' per-rate rounding. */
 export function proportionalDeductionSummary(payload: ExtractionPayload) {
   const rates = proportionalDeductionRates(payload);
   if (!rates) return null;
   const net = rates.reduce((sum, line) => sum + halers(line.netAmount), BigInt(0));
   const vat = rates.reduce((sum, line) => sum + halers(line.vatAmount), BigInt(0));
-  return { percentage: payload.proportionalDeduction!.percentage!, rateBreakdown: rates,
+  return { currency: payload.currency!, percentage: payload.proportionalDeduction!.percentage!, rateBreakdown: rates,
     netAmount: amount(net), vatAmount: amount(vat), grossAmount: amount(net + vat), unclaimed: proportionalUnclaimedPortion(payload) };
 }
