@@ -6,6 +6,7 @@ import type { Company, ReportingYear } from "./companies";
 import type { CompanyFilingDefaults } from "./company-filing-defaults";
 import type { Document, ExtractionVersion } from "./documents";
 import type { VatReportArtifact } from "./epo-export";
+import type { VatReportPdfArtifact } from "./vat-report-pdf-artifacts";
 import type { SourceFile } from "./source-files";
 import type { VatReport, VatReportTransition } from "./vat-reports";
 
@@ -25,6 +26,7 @@ export type CompanyExportSnapshot = {
   vatReports: (VatReport & { generatedBy: string })[];
   vatReportTransitions: VatReportTransition[];
   vatReportArtifacts: (VatReportArtifact & { xmlBase64: string })[];
+  vatReportPdfArtifacts?: (VatReportPdfArtifact & { pdfBase64: string })[];
   vatReportDownloadAcknowledgements?: { artifactId: string; periodLockId?: string | null; acknowledgedAt: string; acknowledgedBy: string }[];
   vatReportDraftSkips?: { id: string; vatReportId: string; reportGeneratedAt: string; skippedFormats: string[]; skippedAt: string; skippedBy: string }[];
 };
@@ -58,6 +60,10 @@ export async function buildCompanyDataArchive(
     void xmlBase64;
     return artifact;
   });
+  const pdfArtifactMetadata = snapshot.vatReportPdfArtifacts?.map(({ pdfBase64, ...artifact }) => {
+    void pdfBase64;
+    return artifact;
+  });
   const archive: Record<string, Uint8Array> = {
     "company.json": json({ ...company, setupSteps, reportingYears }),
     "source-files.json": json(sourceFiles),
@@ -66,6 +72,7 @@ export async function buildCompanyDataArchive(
     "vat-reports.json": json(vatReports),
     "vat-report-transitions.json": json(vatReportTransitions),
     "vat-report-artifacts.json": json(artifactMetadata),
+    ...(pdfArtifactMetadata ? { "vat-report-pdf-artifacts.json": json(pdfArtifactMetadata) } : {}),
     ...(snapshot.vatReportDownloadAcknowledgements ? {
       "vat-report-download-acknowledgements.json": json(snapshot.vatReportDownloadAcknowledgements),
     } : {}),
@@ -94,6 +101,12 @@ export async function buildCompanyDataArchive(
     const sha256 = createHash("sha256").update(bytes).digest("hex");
     if (bytes.length !== artifact.byteSize || sha256 !== artifact.sha256) return null;
     archive[`vat-report-artifacts/${artifact.id}/${archiveLeaf(artifact.fileName)}`] = bytes;
+  }
+  for (const artifact of snapshot.vatReportPdfArtifacts ?? []) {
+    const bytes = new Uint8Array(Buffer.from(artifact.pdfBase64, "base64"));
+    const sha256 = createHash("sha256").update(bytes).digest("hex");
+    if (bytes.length !== artifact.byteSize || sha256 !== artifact.sha256) return null;
+    archive[`vat-report-pdf-artifacts/${artifact.id}/${archiveLeaf(artifact.fileName)}`] = bytes;
   }
   // ZIP timestamps are fixed so independent route/worker builds have the same digest.
   return zipSync(archive, { level: 6, mtime: new Date("1980-01-01T00:00:00.000Z") });
