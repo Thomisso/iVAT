@@ -10,6 +10,11 @@ import { administratorWithCompany, companyMember } from "./support/fixtures";
 
 const representative = { code: "4a", personType: "F", firstName: "Alena", lastName: "Zástupná", birthDate: "1981-02-03", evidenceNumber: "" } as const;
 const filing = { taxOffice: "451", territorialOffice: "2003", economicActivity: "621000", signatoryFirstName: "Jana", signatoryLastName: "Podpisová", signatoryCapacity: "jednatelka", email: "", phone: "", epoAddressOverride: null };
+type StoredArtifact = NonNullable<Awaited<ReturnType<typeof readVatReportArtifact>>> | NonNullable<Awaited<ReturnType<typeof readVatReportPdfArtifact>>>;
+function expectSameArtifact(actual: StoredArtifact | null, before: StoredArtifact | null) {
+  expect(actual?.artifact).toEqual(before?.artifact);
+  expect(actual && before && Buffer.compare(actual.bytes, before.bytes)).toBe(0);
+}
 it("exports a professional natural-person default with either permitted identifier for both taxpayers and formats", async () => {
   const { updateCompanyIdentity } = await import("@/application/companies");
   const { companyDetails } = await import("./support/fixtures");
@@ -44,7 +49,8 @@ it("exports a professional natural-person default with either permitted identifi
         expect(await pdfField(pdf.value.bytes, format === "dphdp3" ? [49.9, 605.8, 559.6, 622.3] : [49.9, 628.1, 559.6, 644.6])).toBe("Eva Poradná");
         expect(await pdfField(pdf.value.bytes, format === "dphdp3" ? [49.9, 634.2, 559.6, 650.7] : [49.9, 656.5, 559.6, 673])).toBe(identity.birthDate ? "03.02.1981" : "SYN-123");
         const storedPdf = await readVatReportPdfArtifact(user.client, { companyId: company.companyId, artifactId: pdf.value.artifactId! });
-        expect(storedPdf?.bytes).toEqual(pdf.value.bytes);
+        // Compare every archived byte natively; object traversal dominates these large PDFs.
+        expect(storedPdf && Buffer.compare(storedPdf.bytes, pdf.value.bytes)).toBe(0);
         expect(storedPdf?.artifact).toMatchObject({ resolvedDetails: { representative: professional }, serializerVersion: "5", authorUserId: user.userId });
       }
     }
@@ -357,7 +363,7 @@ it("never labels legal representative semantics with an older serializer and ret
   await generateVatReport(company.client, { companyId: company.companyId, period: "2026-10" });
   const { getVatReport } = await import("@/application/vat-reports");
   const report = (await getVatReport(company.client, company.companyId, "2026-10"))!;
-  const retained: { id: string; fileName: string; bytes: Uint8Array; media: "xml" | "pdf"; before: unknown }[] = [];
+  const retained: { id: string; fileName: string; bytes: Uint8Array; media: "xml" | "pdf"; before: StoredArtifact | null }[] = [];
   const legal = { code: "4c", personType: "P", name: "Atlas Poradenství s.r.o.", ico: "00123456", signatoryFirstName: "Irena", signatoryLastName: "Podpisová", signatoryCapacity: "jednatelka" } as const;
   for (const format of ["dphdp3", "dphkh1"] as const) {
     const input = { companyId: company.companyId, period: "2026-10", details: { preparedOn: "2026-10-27" } };
@@ -380,7 +386,7 @@ it("never labels legal representative semantics with an older serializer and ret
       expect((await company.client.rpc("create_vat_report_pdf_artifact", { ...poContext, target_pdf_base64: Buffer.from(pdf.value.bytes).toString("base64") })).error?.hint).toBe("invalid_export_details");
       await saveCompanyFilingDefaults(company.client, { ...filing, companyId: company.companyId, representative: legal });
       expect(await readVatReportArtifact(company.client, { companyId: company.companyId, artifactId: oldXml.data! })).toEqual(beforeXml);
-      expect(await readVatReportPdfArtifact(company.client, { companyId: company.companyId, artifactId: oldPdf.data! })).toEqual(beforePdf);
+      expectSameArtifact(await readVatReportPdfArtifact(company.client, { companyId: company.companyId, artifactId: oldPdf.data! }), beforePdf);
       await saveCompanyFilingDefaults(company.client, { ...filing, companyId: company.companyId, representative });
     }
   }
@@ -413,9 +419,10 @@ it("never labels legal representative semantics with an older serializer and ret
   expect(JSON.parse(strFromU8(archive["company.json"])).filingDefaults.representative).toEqual(legal);
   for (const retainedArtifact of retained) {
     const directory = retainedArtifact.media === "xml" ? "vat-report-artifacts" : "vat-report-pdf-artifacts";
-    expect(archive[`${directory}/${retainedArtifact.id}/${retainedArtifact.fileName}`]).toEqual(retainedArtifact.bytes);
+    const archivedBytes = archive[`${directory}/${retainedArtifact.id}/${retainedArtifact.fileName}`];
+    expect(archivedBytes && Buffer.compare(archivedBytes, retainedArtifact.bytes)).toBe(0);
     const read = { companyId: company.companyId, artifactId: retainedArtifact.id };
-    expect(retainedArtifact.media === "xml" ? await readVatReportArtifact(company.client, read) : await readVatReportPdfArtifact(company.client, read)).toEqual(retainedArtifact.before);
+    expectSameArtifact(retainedArtifact.media === "xml" ? await readVatReportArtifact(company.client, read) : await readVatReportPdfArtifact(company.client, read), retainedArtifact.before);
   }
   expect(await worker.runJobs()).toEqual([]);
 });
