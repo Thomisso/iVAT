@@ -173,3 +173,36 @@ it("uploads frozen ordered photographs through native Auth HTTP and preserves th
   expect((await foreignRequest(`${path}/documents/${groupId}/content`)).status).toBe(404);
   expect((await foreignRequest(`${path}/source-files/${selection.files[0].sourceFileId}/content`)).status).toBe(404);
 });
+
+it("offers whole-group manual recovery over native Auth HTTP and returns the same one-Document receipt", async () => {
+  const owner = await administratorWithCompany("HTTP group recovery");
+  const worker = testWorker();
+  value(await assignAiConfigurationFixture(owner.client, worker.jobs, { companyId: owner.companyId, provider: worker.ai }));
+  const groupId = randomUUID();
+  const selection = selectUploadFiles([{ fileName: "first.heic", bytes: heicFixture() }, { fileName: "second.png", bytes: fixtureFile("receipt.png") }]);
+  const batch = value(await beginUploadBatch(owner.client, { companyId: owner.companyId, fileCount: 2, selectedFiles: selection.selectedFiles.map(file => ({ ...file, groupId })) }));
+  for (const file of selection.files) value(await uploadSourceFile(owner.client, worker.jobs, { companyId: owner.companyId, batchId: batch.id, ...file }));
+  await finishUploadBatch(owner.client, batch.id);
+  const request = await httpAs(owner.client), path = `/companies/${owner.companyId}`;
+  const source = await request(`${path}/source-files/${selection.files[1].sourceFileId}`);
+  expect(source.status).toBe(200);
+  expect((await source.text()).includes("Prepare whole group for manual review")).toBe(true);
+  const recover = () => request(`${path}/photo-groups/${groupId}/recovery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "manual" }) });
+  const first = await recover();
+  expect(first.status).toBe(200);
+  expect(await first.json()).toEqual({ ok: true, value: { id: groupId } });
+  expect((await recover()).status).toBe(200);
+  await expect.poll(async () => (await getDocument(owner.client, owner.companyId, groupId))?.status, { timeout: 30_000, interval: 200 }).toBe("needs_review");
+  expect((await recover()).status).toBe(200);
+  expect(await listExtractionVersions(owner.client, owner.companyId, groupId)).toEqual([]);
+  expect(value(await getCompanyAiProcessingAllowance(owner.client, owner.companyId)).used).toBe(0);
+  const basis = await request(`${path}/documents/${groupId}/content`);
+  expect(basis.headers.get("Content-Type")).toBe("application/pdf");
+  const bytes = new Uint8Array(await basis.arrayBuffer());
+  expect((await PDFDocument.load(bytes)).getPageCount()).toBe(2);
+  expect(createHash("sha256").update(bytes).digest("hex")).toBe((await getPhotoGroup(owner.client, owner.companyId, groupId))?.basis?.sha256);
+  for (const file of selection.files) expect(new Uint8Array(await (await request(`${path}/source-files/${file.sourceFileId}/content`)).arrayBuffer())).toEqual(file.bytes);
+  const foreign = await administratorWithCompany("HTTP foreign recovery"), forbidden = await httpAs(foreign.client);
+  expect((await forbidden(`${path}/photo-groups/${groupId}/recovery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: '{"mode":"manual"}' })).status).toBe(403);
+  expect((await request(`${path}/photo-groups/${groupId}/recovery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: '{"mode":"replace"}' })).status).toBe(400);
+});

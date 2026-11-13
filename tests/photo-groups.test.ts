@@ -1,25 +1,324 @@
+import { createClient } from "@supabase/supabase-js";
+import { asUserClient } from "@/application/client";
+import { Client as DatabaseClient } from "pg";
+import { pragueDate } from "@/application/reporting-periods";
 import { unzipSync, strFromU8 } from "fflate";
 import { exportCompanyData, getCompanyDataExportStatus } from "@/application/company-deletion";
 import { getCompanyAiProcessingAllowance } from "@/application/ai-processing-allowance";
 import sharp from "sharp";
 import { listAuditEvents } from "@/application/audit";
 import { createHash, randomUUID } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, inject } from "vitest";
 import { beginUploadBatch, finishUploadBatch, getUploadBatch, deleteUploadBatch } from "@/application/upload-batches";
-import { uploadSourceFile, readSourceFile, readSourceFileDerivative } from "@/application/source-files";
-import { getDocument, listExtractionVersions, readDocumentPages, splitDocument, listCompanyDocuments } from "@/application/documents";
-import { getPhotoGroup, readPhotoGroupBasis } from "@/application/photo-groups";
+import { uploadSourceFile, readSourceFile, readSourceFileDerivative, getSourceFile } from "@/application/source-files";
+import { getDocument, listExtractionVersions, readDocumentPages, splitDocument, listCompanyDocuments, startManualDocumentReview, reprocessDocument, correctDocument, approveDocument } from "@/application/documents";
+import { getPhotoGroup, readPhotoGroupBasis, recoverPhotoGroup } from "@/application/photo-groups";
+import { listMemberships, removeMembership } from "@/application/memberships";
+import { setOrganizationMfaRequired } from "@/application/mfa";
+import { generateVatReport, finalizeVatReport, getVatReport } from "@/application/vat-reports";
+import { setCurrentReportingYear } from "@/application/companies";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
-import { administratorWithCompany, assignAiConfigurationFixture } from "./support/fixtures";
+import { administratorWithCompany, assignAiConfigurationFixture, companyMember, knownSupplierFixture } from "./support/fixtures";
 import { fixtureFile, heicFixture, rotatedHeicFixture, selectUploadFiles } from "./support/files";
 import { companySourceFileRowLimitProbe, withPostgrestRowLimit } from "./support/postgrest";
 import { PDFDocument } from "pdf-lib";
+import { lockHistoricalPhotoGroupMemberFixture } from "./support/photo-group-recovery";
+import { supabaseHttpGateway } from "./support/supabase-http-gateway";
 import { systemClient, testWorker } from "./support/worker";
 
 const jpegHash = "0896be252af2407fd12029be53cc41ea9747e33613fb5702a0e8c5b39b1fc7c1";
 const pngHash = "c414cd0e204de974f73753c7e28d7638e7b3691bb8b1a2bab6b25bb7fed7ce77";
 
 describe("User-confirmed Photo Groups", () => {
+  it("takes over a failed group before a Document exists without creating member Documents or consuming AI", async () => {
+    const owner = await administratorWithCompany();
+    const gateway = await supabaseHttpGateway(inject("supabaseUrl"));
+    const worker = testWorker(fakeAiProvider(), undefined, undefined, { system: systemClient(gateway.url) });
+    await assignAiConfigurationFixture(owner.client, worker.jobs, { companyId: owner.companyId, provider: worker.ai });
+    const groupId = randomUUID();
+    const selection = selectUploadFiles([{ fileName: "first.heic", bytes: heicFixture() }, { fileName: "second.png", bytes: fixtureFile("receipt.png") }]);
+    const batch = await beginUploadBatch(owner.client, { companyId: owner.companyId, fileCount: 2, selectedFiles: selection.selectedFiles.map(file => ({ ...file, groupId })) });
+    if (!batch.ok) throw new Error(batch.error);
+    for (const file of selection.files) expect((await uploadSourceFile(owner.client, worker.jobs, { companyId: owner.companyId, batchId: batch.value.id, ...file })).ok).toBe(true);
+    await finishUploadBatch(owner.client, batch.value.id);
+    // Only the Storage transport fails; original and normalized bytes remain intact.
+    gateway.unavailable(true, "/storage/");
+    expect((await worker.runJobsConcurrently()).length).toBeGreaterThan(0);
+    gateway.unavailable(false);
+    expect(await getDocument(owner.client, owner.companyId, groupId)).toBeNull();
+    const input = { companyId: owner.companyId, groupId, mode: "manual" as const };
+    expect(await recoverPhotoGroup(owner.client, worker.jobs, input)).toEqual({ ok: true, value: { id: groupId } });
+    expect(await recoverPhotoGroup(owner.client, worker.jobs, input)).toEqual({ ok: true, value: { id: groupId } });
+    expect(await worker.runJobsConcurrently()).toEqual([]);
+    expect((await listCompanyDocuments(owner.client, owner.companyId)).map(document => [document.id, document.status])).toEqual([[groupId, "needs_review"]]);
+    expect(await listExtractionVersions(owner.client, owner.companyId, groupId)).toEqual([]);
+    expect(await getCompanyAiProcessingAllowance(owner.client, owner.companyId)).toMatchObject({ ok: true, value: { used: 0 } });
+    const group = await getPhotoGroup(owner.client, owner.companyId, groupId);
+    expect(group?.sourceFileIds).toEqual(selection.files.map(file => file.sourceFileId));
+    expect((await PDFDocument.load((await readPhotoGroupBasis(owner.client, owner.companyId, groupId))!.bytes)).getPageCount()).toBe(2);
+    for (const file of selection.files) expect((await readSourceFile(owner.client, owner.companyId, file.sourceFileId))?.bytes).toEqual(file.bytes);
+    expect(await listAuditEvents(owner.client, owner.organizationId)).toContainEqual(expect.objectContaining({ action: "photo_group.manual_review_requested", actorUserId: owner.userId, targetId: groupId }));
+    gateway.close();
+  });
+  it.each(["late success", "late failure"])("manual group takeover rejects %s from a superseded preparation worker", async outcome => {
+    const owner = await administratorWithCompany(), gateway = await supabaseHttpGateway(inject("supabaseUrl"));
+    const worker = testWorker(fakeAiProvider(), undefined, undefined, { system: systemClient(gateway.url) });
+    await assignAiConfigurationFixture(owner.client, worker.jobs, { companyId: owner.companyId, provider: worker.ai });
+    const groupId = randomUUID();
+    const selection = selectUploadFiles([{ fileName: "first.heic", bytes: heicFixture() }, { fileName: "second.png", bytes: fixtureFile("receipt.png") }]);
+    const batch = await beginUploadBatch(owner.client, { companyId: owner.companyId, fileCount: 2, selectedFiles: selection.selectedFiles.map(file => ({ ...file, groupId })) });
+    if (!batch.ok) throw new Error(batch.error);
+    for (const file of selection.files) expect((await uploadSourceFile(owner.client, worker.jobs, { companyId: owner.companyId, batchId: batch.value.id, ...file })).ok).toBe(true);
+    await finishUploadBatch(owner.client, batch.value.id);
+    const held = gateway.holdNext("/storage/");
+    const old = worker.runNextJob();
+    await held.started;
+    expect(await recoverPhotoGroup(owner.client, worker.jobs, { companyId: owner.companyId, groupId, mode: "manual" })).toEqual({ ok: true, value: { id: groupId } });
+    if (outcome === "late failure") gateway.unavailable(true, "/storage/");
+    held.release();
+    await old;
+    gateway.unavailable(false);
+    expect(await worker.runJobsConcurrently()).toEqual([]);
+    expect((await getDocument(owner.client, owner.companyId, groupId))?.status).toBe("needs_review");
+    expect(await listExtractionVersions(owner.client, owner.companyId, groupId)).toEqual([]);
+    expect((await listCompanyDocuments(owner.client, owner.companyId)).map(document => document.id)).toEqual([groupId]);
+    expect((await getPhotoGroup(owner.client, owner.companyId, groupId))?.preparation).toEqual({ mode: "manual", status: "ready", failure: null });
+    expect(await getCompanyAiProcessingAllowance(owner.client, owner.companyId)).toMatchObject({ ok: true, value: { used: 0 } });
+    gateway.close();
+  });
+
+  it("retries a temporary basis outage and lost queue acknowledgement as one successful Extraction", async () => {
+    const owner = await administratorWithCompany(), gateway = await supabaseHttpGateway(inject("supabaseUrl"));
+    const worker = testWorker(fakeAiProvider(), undefined, undefined, { system: systemClient(gateway.url) });
+    await assignAiConfigurationFixture(owner.client, worker.jobs, { companyId: owner.companyId, provider: worker.ai });
+    const groupId = randomUUID(), selection = selectUploadFiles([{ fileName: "first.png", bytes: fixtureFile("receipt.png") }, { fileName: "second.heif", bytes: rotatedHeicFixture() }]);
+    const batch = await beginUploadBatch(owner.client, { companyId: owner.companyId, fileCount: 2, selectedFiles: selection.selectedFiles.map(file => ({ ...file, groupId })) });
+    if (!batch.ok) throw new Error(batch.error);
+    for (const file of selection.files) expect((await uploadSourceFile(owner.client, worker.jobs, { companyId: owner.companyId, batchId: batch.value.id, ...file })).ok).toBe(true);
+    await finishUploadBatch(owner.client, batch.value.id);
+    gateway.unavailable(true, `/storage/v1/object/source-files/${owner.companyId}/${selection.files[0].sourceFileId}/group/basis.pdf`);
+    expect((await worker.runJobsConcurrently()).length).toBeGreaterThan(0);
+    gateway.unavailable(false);
+    expect((await systemClient().storage.from("source-files").list(`${owner.companyId}/${selection.files[0].sourceFileId}/group`)).data?.map(object => object.name)).toEqual(["1.png", "2.png"]);
+    const input = { companyId: owner.companyId, groupId, mode: "retry" as const };
+    await expect(recoverPhotoGroup(owner.client, { async send(job) { await worker.jobs.send(job); throw new Error("Lost queue acknowledgement"); } }, input)).rejects.toThrow("Lost queue acknowledgement");
+    expect(await recoverPhotoGroup(owner.client, worker.jobs, input)).toEqual({ ok: true, value: { id: groupId } });
+    expect(await worker.runJobsConcurrently()).toEqual([]);
+    expect((await listCompanyDocuments(owner.client, owner.companyId)).map(document => document.id)).toEqual([groupId]);
+    expect(await listExtractionVersions(owner.client, owner.companyId, groupId)).toHaveLength(1);
+    expect(await getCompanyAiProcessingAllowance(owner.client, owner.companyId)).toMatchObject({ ok: true, value: { used: 1 } });
+    expect((await getPhotoGroup(owner.client, owner.companyId, groupId))?.sourceFileIds).toEqual(selection.files.map(file => file.sourceFileId));
+    expect(await recoverPhotoGroup(owner.client, worker.jobs, input)).toEqual({ ok: false, error: "source_already_resolved" });
+    gateway.close();
+  });
+
+  it("uses ordinary Document takeover and explicit AI retry after grouped Extraction failure without changing prior evidence", async () => {
+    const owner = await administratorWithCompany(); let unavailable = true;
+    const worker = testWorker(fakeAiProvider({ extract: () => { if (unavailable) throw new Error("Controlled AI failure"); return SAMPLE_EXTRACTION; } }));
+    await assignAiConfigurationFixture(owner.client, worker.jobs, { companyId: owner.companyId, provider: worker.ai });
+    const groupId = randomUUID(), selection = selectUploadFiles([{ fileName: "first.heic", bytes: heicFixture() }, { fileName: "second.png", bytes: fixtureFile("receipt.png") }]);
+    const batch = await beginUploadBatch(owner.client, { companyId: owner.companyId, fileCount: 2, selectedFiles: selection.selectedFiles.map(file => ({ ...file, groupId })) });
+    if (!batch.ok) throw new Error(batch.error);
+    for (const file of selection.files) expect((await uploadSourceFile(owner.client, worker.jobs, { companyId: owner.companyId, batchId: batch.value.id, ...file })).ok).toBe(true);
+    await finishUploadBatch(owner.client, batch.value.id);
+    expect((await worker.runJobsConcurrently()).length).toBeGreaterThan(0);
+    const input = { companyId: owner.companyId, documentId: groupId };
+    expect((await getDocument(owner.client, owner.companyId, groupId))?.status).toBe("failed");
+    const before = await readPhotoGroupBasis(owner.client, owner.companyId, groupId);
+    expect(await getCompanyAiProcessingAllowance(owner.client, owner.companyId)).toMatchObject({ ok: true, value: { used: 0 } });
+    expect(await startManualDocumentReview(owner.client, input)).toEqual({ ok: true, value: null });
+    expect(await correctDocument(owner.client, { ...input, basedOnVersion: 0, payload: { ...SAMPLE_EXTRACTION, documentNumber: "GROUP-MANUAL" } })).toEqual({ ok: true, value: { version: 1 } });
+    const historical = (await listExtractionVersions(owner.client, owner.companyId, groupId))[0];
+    unavailable = false;
+    expect(await reprocessDocument(owner.client, worker.jobs, { ...input, confirmed: true })).toEqual({ ok: true, value: null });
+    expect(await worker.runJobsConcurrently()).toEqual([]);
+    const versions = await listExtractionVersions(owner.client, owner.companyId, groupId);
+    expect(versions.map(version => version.author.kind)).toEqual(["user", "ai"]);
+    expect(versions[0]).toEqual(historical);
+    expect(await getCompanyAiProcessingAllowance(owner.client, owner.companyId)).toMatchObject({ ok: true, value: { used: 1 } });
+    expect((await listCompanyDocuments(owner.client, owner.companyId)).map(document => document.id)).toEqual([groupId]);
+    expect((await readPhotoGroupBasis(owner.client, owner.companyId, groupId))?.bytes).toEqual(before?.bytes);
+  });
+
+  it("removes every group object and refuses a late Storage upload after takeover and batch deletion", async () => {
+    const owner = await administratorWithCompany(), gateway = await supabaseHttpGateway(inject("supabaseUrl"));
+    const worker = testWorker(fakeAiProvider(), undefined, undefined, { system: systemClient(gateway.url) });
+    const groupId = randomUUID(), selection = selectUploadFiles([{ fileName: "first.heic", bytes: heicFixture() }, { fileName: "second.png", bytes: fixtureFile("receipt.png") }]);
+    const batch = await beginUploadBatch(owner.client, { companyId: owner.companyId, fileCount: 2, selectedFiles: selection.selectedFiles.map(file => ({ ...file, groupId })) });
+    if (!batch.ok) throw new Error(batch.error);
+    for (const file of selection.files) expect((await uploadSourceFile(owner.client, worker.jobs, { companyId: owner.companyId, batchId: batch.value.id, ...file })).ok).toBe(true);
+    await finishUploadBatch(owner.client, batch.value.id);
+    const anchor = selection.files[0].sourceFileId;
+    const held = gateway.holdNext(`/storage/v1/object/source-files/${owner.companyId}/${anchor}/group/1.png`);
+    const old = worker.runNextJob(); await held.started;
+    expect(await recoverPhotoGroup(owner.client, worker.jobs, { companyId: owner.companyId, groupId, mode: "manual" })).toEqual({ ok: true, value: { id: groupId } });
+    expect(await worker.runJobsConcurrently()).toEqual([]);
+    expect((await getDocument(owner.client, owner.companyId, groupId))?.status).toBe("needs_review");
+    expect(await deleteUploadBatch(owner.client, { companyId: owner.companyId, batchId: batch.value.id })).toEqual({ ok: true, value: null });
+    held.release(); await old;
+    expect(await getPhotoGroup(owner.client, owner.companyId, groupId)).toBeNull();
+    expect(await listCompanyDocuments(owner.client, owner.companyId)).toEqual([]);
+    const storage = systemClient().storage.from("source-files");
+    for (const file of selection.files) expect((await storage.download(`${owner.companyId}/${file.sourceFileId}`)).error).not.toBeNull();
+    expect((await storage.download(`${owner.companyId}/${anchor}/normalized.jpeg`)).error).not.toBeNull();
+    expect((await storage.list(`${owner.companyId}/${anchor}/group`)).data).toEqual([]);
+    for (const leaf of ["1.png", "2.png", "basis.pdf"]) expect((await storage.download(`${owner.companyId}/${anchor}/group/${leaf}`)).error).not.toBeNull();
+    gateway.close();
+  });
+
+  it("rechecks foreign, revoked and MFA-restricted access at group recovery and direct RPC", async () => {
+    const owner = await administratorWithCompany(), member = await companyMember(owner), foreign = await administratorWithCompany(), worker = testWorker();
+    const groupId = randomUUID(), selection = selectUploadFiles([{ fileName: "first.png", bytes: fixtureFile("receipt.png") }, { fileName: "second.heic", bytes: heicFixture() }]);
+    const batch = await beginUploadBatch(owner.client, { companyId: owner.companyId, fileCount: 2, selectedFiles: selection.selectedFiles.map(file => ({ ...file, groupId })) });
+    if (!batch.ok) throw new Error(batch.error);
+    for (const file of selection.files) expect((await uploadSourceFile(owner.client, worker.jobs, { companyId: owner.companyId, batchId: batch.value.id, ...file })).ok).toBe(true);
+    const input = { companyId: owner.companyId, groupId, mode: "manual" as const };
+    expect(await getPhotoGroup(foreign.client, owner.companyId, groupId)).toBeNull();
+    expect((await foreign.client.from("photo_group").select("*").eq("id", groupId)).data).toEqual([]);
+    expect(await recoverPhotoGroup(foreign.client, worker.jobs, input)).toEqual({ ok: false, error: "forbidden" });
+    expect((await foreign.client.rpc("recover_photo_group", { target_group_id: groupId, recovery_mode: "manual" })).error?.code).toBe("42501");
+    // Retained identity reservations are internal metadata. The real authenticated
+    // role cannot read or modify them, including under another native user's id.
+    const database = new DatabaseClient({ connectionString: inject("databaseUrl") }); await database.connect();
+    try {
+      for (const sql of ["select * from private.photo_group_source_reservation where source_file_id=$1", "update private.photo_group_source_reservation set group_id=group_id where source_file_id=$1"]) {
+        await database.query("begin");
+        await database.query("set local role authenticated");
+        await database.query("select set_config('request.jwt.claims',$1,true)", [JSON.stringify({ sub: foreign.userId, role: "authenticated" })]);
+        await expect(database.query(sql, [selection.files[0].sourceFileId])).rejects.toMatchObject({ code: "42501" });
+        await database.query("rollback");
+      }
+    } finally { await database.end(); }
+    expect(await recoverPhotoGroup(member.client, worker.jobs, input)).toEqual({ ok: true, value: { id: groupId } });
+    const membership = (await listMemberships(owner.client, { organizationId: owner.organizationId, companyId: owner.companyId })).find(item => item.userId === member.userId)!;
+    expect(await removeMembership(owner.client, membership.id)).toEqual({ ok: true, value: null });
+    expect(await recoverPhotoGroup(member.client, worker.jobs, input)).toEqual({ ok: false, error: "forbidden" });
+    expect((await member.client.rpc("recover_photo_group", { target_group_id: groupId, recovery_mode: "manual" })).error?.code).toBe("42501");
+    expect((await setOrganizationMfaRequired(owner.client, { organizationId: owner.organizationId, required: true })).ok).toBe(true);
+    expect(await recoverPhotoGroup(owner.client, worker.jobs, input)).toEqual({ ok: false, error: "forbidden" });
+    expect((await owner.client.rpc("recover_photo_group", { target_group_id: groupId, recovery_mode: "manual" })).error?.code).toBe("42501");
+  });
+
+  it("refuses tenant uploads into a completed group basis namespace", async () => {
+    const owner = await administratorWithCompany(), worker = testWorker();
+    const groupId = randomUUID(), selection = selectUploadFiles([{ fileName: "first.png", bytes: fixtureFile("receipt.png") }, { fileName: "second.heic", bytes: heicFixture() }]);
+    const batch = await beginUploadBatch(owner.client, { companyId: owner.companyId, fileCount: 2, selectedFiles: selection.selectedFiles.map(file => ({ ...file, groupId })) });
+    if (!batch.ok) throw new Error(batch.error);
+    for (const file of selection.files) expect((await uploadSourceFile(owner.client, worker.jobs, { companyId: owner.companyId, batchId: batch.value.id, ...file })).ok).toBe(true);
+    await finishUploadBatch(owner.client, batch.value.id);
+    expect(await worker.runJobsConcurrently()).toEqual([]);
+    const forged = await owner.client.storage.from("source-files").upload(`${owner.companyId}/${selection.files[0].sourceFileId}/group/99.png`, fixtureFile("receipt.png"), { contentType: "image/png" });
+    expect(forged.error).not.toBeNull();
+    expect((await getPhotoGroup(owner.client, owner.companyId, groupId))?.basis?.pages).toHaveLength(2);
+  });
+
+  it("retains the grouped Document Period Lock for manual recovery, AI retry and deletion", async () => {
+    const owner = await administratorWithCompany(), worker = testWorker();
+    await knownSupplierFixture(owner);
+    const groupId = randomUUID(), selection = selectUploadFiles([{ fileName: "first.heic", bytes: heicFixture() }, { fileName: "second.png", bytes: fixtureFile("receipt.png") }]);
+    const batch = await beginUploadBatch(owner.client, { companyId: owner.companyId, fileCount: 2, selectedFiles: selection.selectedFiles.map(file => ({ ...file, groupId })) });
+    if (!batch.ok) throw new Error(batch.error);
+    for (const file of selection.files) expect((await uploadSourceFile(owner.client, worker.jobs, { companyId: owner.companyId, batchId: batch.value.id, ...file })).ok).toBe(true);
+    await finishUploadBatch(owner.client, batch.value.id);
+    expect(await recoverPhotoGroup(owner.client, worker.jobs, { companyId: owner.companyId, groupId, mode: "manual" })).toEqual({ ok: true, value: { id: groupId } });
+    expect(await worker.runJobsConcurrently()).toEqual([]);
+    const input = { companyId: owner.companyId, documentId: groupId };
+    expect(await correctDocument(owner.client, { ...input, basedOnVersion: 0, payload: { ...SAMPLE_EXTRACTION, taxPointDate: "2026-11-01", claimEligibility: { period: "2026-11", origin: "user", confirmed: true } } })).toEqual({ ok: true, value: { version: 1 } });
+    expect(await approveDocument(owner.client, { ...input, version: 1 })).toEqual({ ok: true, value: null });
+    expect((await setCurrentReportingYear(owner.client, { companyId: owner.companyId, year: 2026, filingFrequency: "monthly" })).ok).toBe(true);
+    const report = { companyId: owner.companyId, period: "2026-11" };
+    expect((await generateVatReport(owner.client, report)).ok).toBe(true);
+    expect(await finalizeVatReport(owner.client, { ...report, confirmed: true })).toEqual({ ok: true, value: null });
+    expect(await recoverPhotoGroup(owner.client, worker.jobs, { companyId: owner.companyId, groupId, mode: "manual" })).toEqual({ ok: false, error: "period_locked" });
+    expect(await startManualDocumentReview(owner.client, input)).toEqual({ ok: false, error: "not_recoverable" });
+    expect(await reprocessDocument(owner.client, worker.jobs, { ...input, confirmed: true })).toEqual({ ok: false, error: "period_locked" });
+    expect(await deleteUploadBatch(owner.client, { companyId: owner.companyId, batchId: batch.value.id })).toEqual({ ok: false, error: "period_locked" });
+  });
+
+  it("waits for every frozen original while the batch is open and preserves a manual group request", async () => {
+    const owner = await administratorWithCompany(), worker = testWorker();
+    const groupId = randomUUID(), selection = selectUploadFiles([{ fileName: "first.heic", bytes: heicFixture() }, { fileName: "second.png", bytes: fixtureFile("receipt.png") }]);
+    const batch = await beginUploadBatch(owner.client, { companyId: owner.companyId, fileCount: 2, selectedFiles: selection.selectedFiles.map(file => ({ ...file, groupId })) });
+    if (!batch.ok) throw new Error(batch.error);
+    expect((await uploadSourceFile(owner.client, worker.jobs, { companyId: owner.companyId, batchId: batch.value.id, ...selection.files[0] })).ok).toBe(true);
+    const input = { companyId: owner.companyId, groupId, mode: "manual" as const };
+    expect(await recoverPhotoGroup(owner.client, worker.jobs, input)).toEqual({ ok: true, value: { id: groupId } });
+    expect(await worker.runJobsConcurrently()).toEqual([]);
+    expect(await getDocument(owner.client, owner.companyId, groupId)).toBeNull();
+    expect((await getPhotoGroup(owner.client, owner.companyId, groupId))?.basis).toBeNull();
+    expect((await getUploadBatch(owner.client, owner.companyId, batch.value.id))?.outcome).toBe("processing");
+    expect((await getUploadBatch(owner.client, owner.companyId, batch.value.id))?.uploadFinishedAt).toBeNull();
+    expect((await uploadSourceFile(owner.client, worker.jobs, { companyId: owner.companyId, batchId: batch.value.id, ...selection.files[1] })).ok).toBe(true);
+    await finishUploadBatch(owner.client, batch.value.id);
+    expect(await worker.runJobsConcurrently()).toEqual([]);
+    expect((await listCompanyDocuments(owner.client, owner.companyId)).map(document => [document.id, document.status])).toEqual([[groupId, "needs_review"]]);
+    expect(await getCompanyAiProcessingAllowance(owner.client, owner.companyId)).toMatchObject({ ok: true, value: { used: 0 } });
+  });
+
+  it("refuses recovery when only a non-anchor member belongs to a retained locked Source snapshot", async () => {
+    const owner = await administratorWithCompany(), worker = testWorker();
+    const groupId = randomUUID(), selection = selectUploadFiles([{ fileName: "first.heic", bytes: heicFixture() }, { fileName: "second.png", bytes: fixtureFile("receipt.png") }]);
+    const batch = await beginUploadBatch(owner.client, { companyId: owner.companyId, fileCount: 2, selectedFiles: selection.selectedFiles.map(file => ({ ...file, groupId })) });
+    if (!batch.ok) throw new Error(batch.error);
+    for (const file of selection.files) expect((await uploadSourceFile(owner.client, worker.jobs, { companyId: owner.companyId, batchId: batch.value.id, ...file })).ok).toBe(true);
+    const second = (await getSourceFile(owner.client, owner.companyId, selection.files[1].sourceFileId))!;
+    const period = pragueDate(second.uploadedAt).slice(0, 7);
+    expect((await setCurrentReportingYear(owner.client, { companyId: owner.companyId, year: Number(period.slice(0, 4)), filingFrequency: "monthly" })).ok).toBe(true);
+    expect((await generateVatReport(owner.client, { companyId: owner.companyId, period })).ok).toBe(true);
+    const report = (await getVatReport(owner.client, owner.companyId, period))!;
+    await lockHistoricalPhotoGroupMemberFixture({
+      companyId: owner.companyId, organizationId: owner.organizationId, period,
+      reportId: report.id, userId: owner.userId, sourceFileId: second.id,
+    });
+    const before = await getVatReport(owner.client, owner.companyId, period);
+    for (const mode of ["manual", "retry"] as const) expect(await recoverPhotoGroup(owner.client, worker.jobs, { companyId: owner.companyId, groupId, mode })).toEqual({ ok: false, error: "period_locked" });
+    expect((await owner.client.rpc("recover_photo_group", { target_group_id: groupId, recovery_mode: "manual" })).error?.hint).toBe("period_locked");
+    expect(await getDocument(owner.client, owner.companyId, groupId)).toBeNull();
+    expect(await getVatReport(owner.client, owner.companyId, period)).toEqual(before);
+  });
+
+  it("refuses an undecodable original with valid identity and metadata without offering substitute evidence", async () => {
+    const owner = await administratorWithCompany(), worker = testWorker();
+    const invalid = fixtureFile("receipt.png").slice(); invalid[41] ^= 255;
+    const groupId = randomUUID(), selection = selectUploadFiles([{ fileName: "bad-pixels.png", bytes: invalid }, { fileName: "second.heic", bytes: heicFixture() }]);
+    const batch = await beginUploadBatch(owner.client, { companyId: owner.companyId, fileCount: 2, selectedFiles: selection.selectedFiles.map(file => ({ ...file, groupId })) });
+    if (!batch.ok) throw new Error(batch.error);
+    for (const file of selection.files) expect((await uploadSourceFile(owner.client, worker.jobs, { companyId: owner.companyId, batchId: batch.value.id, ...file })).ok).toBe(true);
+    await finishUploadBatch(owner.client, batch.value.id);
+    expect((await worker.runJobsConcurrently()).length).toBeGreaterThan(0);
+    expect(await getDocument(owner.client, owner.companyId, groupId)).toBeNull();
+    for (const mode of ["manual", "retry"] as const) expect(await recoverPhotoGroup(owner.client, worker.jobs, { companyId: owner.companyId, groupId, mode })).toEqual({ ok: false, error: "group_evidence_unavailable" });
+    expect((await readSourceFile(owner.client, owner.companyId, selection.files[0].sourceFileId))?.bytes).toEqual(invalid);
+  });
+
+  it.each(["original", "normalization"] as const)("refuses a late %s upload after deletion before any Source row exists", async kind => {
+    const owner = await administratorWithCompany(), gateway = await supabaseHttpGateway(inject("supabaseUrl")), worker = testWorker();
+    const proxy = asUserClient(createClient(gateway.url, inject("supabaseAnonKey"), { auth: { persistSession: false, autoRefreshToken: false } }));
+    const session = await owner.client.auth.getSession();
+    if (!session.data.session) throw new Error("Native Auth session missing");
+    expect((await proxy.auth.setSession(session.data.session)).error).toBeNull();
+    const groupId = randomUUID(), selection = selectUploadFiles([{ fileName: "first.heic", bytes: heicFixture() }, { fileName: "second.png", bytes: fixtureFile("receipt.png") }]);
+    const batch = await beginUploadBatch(owner.client, { companyId: owner.companyId, fileCount: 2, selectedFiles: selection.selectedFiles.map(file => ({ ...file, groupId })) });
+    if (!batch.ok) throw new Error(batch.error);
+    const sourceId = selection.files[0].sourceFileId;
+    const held = gateway.holdNext(`/storage/v1/object/source-files/${owner.companyId}/${sourceId}${kind === "normalization" ? "/normalized.jpeg" : ""}`);
+    const uploading = uploadSourceFile(proxy, worker.jobs, { companyId: owner.companyId, batchId: batch.value.id, ...selection.files[0] });
+    await held.started;
+    expect(await getSourceFile(owner.client, owner.companyId, sourceId)).toBeNull();
+    await finishUploadBatch(owner.client, batch.value.id);
+    expect(await deleteUploadBatch(owner.client, { companyId: owner.companyId, batchId: batch.value.id })).toEqual({ ok: true, value: null });
+    held.release();
+    expect(await uploading).toEqual({ ok: false, error: "forbidden" });
+    const storage = systemClient().storage.from("source-files");
+    expect((await storage.download(`${owner.companyId}/${sourceId}`)).error).not.toBeNull();
+    expect((await storage.download(`${owner.companyId}/${sourceId}/normalized.jpeg`)).error).not.toBeNull();
+    expect((await storage.list(`${owner.companyId}/${sourceId}`)).data).toEqual([]);
+    const replacementGroup = randomUUID();
+    expect(await beginUploadBatch(owner.client, { companyId: owner.companyId, fileCount: 2, selectedFiles: selection.selectedFiles.map(file => ({ ...file, groupId: replacementGroup })) })).toEqual({ ok: false, error: "invalid_choice" });
+    expect(await listCompanyDocuments(owner.client, owner.companyId)).toEqual([]);
+    gateway.close();
+  });
+
   it("preserves mixed JPEG/PNG/HEIC/HEIF originals and extracts the ordered persisted normalized basis once", async () => {
     const owner = await administratorWithCompany();
     const groupId = randomUUID();
@@ -107,6 +406,7 @@ describe("User-confirmed Photo Groups", () => {
     expect((await getPhotoGroup(owner.client, owner.companyId, groupId))?.basis).toBeNull();
     expect(await getDocument(owner.client, owner.companyId, groupId)).toBeNull();
     expect((await getUploadBatch(owner.client, owner.companyId, batch.value.id))?.outcome).toBe("failure");
+    for (const mode of ["manual", "retry"] as const) expect(await recoverPhotoGroup(owner.client, worker.jobs, { companyId: owner.companyId, groupId, mode })).toEqual({ ok: false, error: "group_evidence_unavailable" });
     if (failure === "missing") expect((await storage.download(path)).error).not.toBeNull();
     if (failure !== "original") expect((await readSourceFile(owner.client, owner.companyId, selection.files[0].sourceFileId))?.bytes).toEqual(heicFixture());
   });
@@ -132,6 +432,11 @@ describe("User-confirmed Photo Groups", () => {
       expect(await worker.runJobsConcurrently()).toContainEqual(expect.objectContaining({ message: "Photo Group PDF basis exceeds platform limit" }));
       expect((await getPhotoGroup(owner.client, owner.companyId, groupId))?.basis).toBeNull();
       expect(await getDocument(owner.client, owner.companyId, groupId)).toBeNull();
+      expect((await setPlatformUploadLimits(platform.client, previous)).ok).toBe(true);
+      expect(await recoverPhotoGroup(owner.client, worker.jobs, { companyId: owner.companyId, groupId, mode: "manual" })).toEqual({ ok: true, value: { id: groupId } });
+      expect(await worker.runJobsConcurrently()).toEqual([]);
+      expect((await getDocument(owner.client, owner.companyId, groupId))?.status).toBe("needs_review");
+      expect(await getCompanyAiProcessingAllowance(owner.client, owner.companyId)).toMatchObject({ ok: true, value: { used: 0 } });
     } finally { await setPlatformUploadLimits(platform.client, previous); }
   });
   it("preserves ordered originals and sends one stored basis to one Extraction, despite AI Split boundaries", async () => {

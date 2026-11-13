@@ -5,7 +5,7 @@ import { CompanyReturnLink } from "@/components/company-return-link";
 
 import { ManualSourceForm, ManualWorkbookForm, SourceExclusionForm } from "./manual-source-form";
 import { Notice } from "@/components/notice";
-import { defineSourceDocumentsAction, startManualSourceReviewAction, restoreSourceFileAction } from "@/app/actions";
+import { recoverPhotoGroupAction, defineSourceDocumentsAction, startManualSourceReviewAction, restoreSourceFileAction } from "@/app/actions";
 import { notFound } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
 import { mergeDocumentsAction, moveDocumentPageAction, reprocessDocumentAction, retrySplitAction } from "@/app/actions";
@@ -45,7 +45,9 @@ export default async function SourceFilePage({
       current: (await listExtractionVersions(client, companyId, document.id)).at(-1),
     })),
   );
-  const lockedSourcePeriod = await sourceFilePeriodLock(client, companyId, file.id);
+  const lockedSourcePeriod = photoGroup
+    ? (await Promise.all(photoGroup.sourceFileIds.map(id => sourceFilePeriodLock(client, companyId, id)))).find(Boolean)
+    : await sourceFilePeriodLock(client, companyId, file.id);
   const lockedPeriods = await documentPeriodLocks(client, companyId, documents.map((document) => document.id));
   const t = await getTranslations();
   const format = await getFormatter();
@@ -57,7 +59,7 @@ export default async function SourceFilePage({
   const waitingForAi = !company.aiProcessingEnabled && ["uploaded", "processing", "waiting_for_platform"].includes(file.status);
   const unresolvedSource = !photoGroup && documents.length === 0 && !["split", "rejected"].includes(file.status);
   // Nothing moves until the platform enables an assigned AI Configuration.
-  const processing =
+  const processing = (photoGroup && !photoGroup.basis && ["pending", "preparing"].includes(photoGroup.preparation.status)) ||
     company.aiProcessingEnabled &&
     (file.status === "uploaded" ||
       file.status === "processing" ||
@@ -86,7 +88,13 @@ export default async function SourceFilePage({
         </header>
         <section>
           <h2>{t("documents.title")}</h2>
-          {photoGroup && <Notice>{photoGroup.basis ? <Link href={`/companies/${companyId}/documents/${photoGroup.id}`}>{t("sourceFiles.groupDocument")}</Link> : t(file.status === "failed" ? "sourceFiles.groupUnavailable" : "sourceFiles.groupPreparing")}</Notice>}
+          {photoGroup && <Notice>{photoGroup.basis ? <Link href={`/companies/${companyId}/documents/${photoGroup.id}`}>{t("sourceFiles.groupDocument")}</Link> : t(photoGroup.preparation.status === "failed" ? "sourceFiles.groupUnavailable" : "sourceFiles.groupPreparing")}</Notice>}
+          {photoGroup && !photoGroup.basis && !lockedSourcePeriod && <>
+            {photoGroup.preparation.failure === "evidence_unavailable" ? <Notice tone="warning">{t("errors.group_evidence_unavailable")}</Notice> : <>
+              <CommandButton action={recoverPhotoGroupAction} fields={{ companyId, groupId: photoGroup.id, mode: "manual" }}>{t("sourceFiles.groupManual")}</CommandButton>
+              {photoGroup.preparation.status === "failed" && <CommandButton action={recoverPhotoGroupAction} fields={{ companyId, groupId: photoGroup.id, mode: "retry" }} variant="ai">{t("sourceFiles.groupRetry")}</CommandButton>}
+            </>}
+          </>}
           <p>
             {t("sourceFiles.status")}:{" "}
             <StatusBadge status={statusBadgeState(file.status, "source-file")}>

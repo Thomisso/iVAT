@@ -10,9 +10,9 @@ import type { ExchangeRateProvider } from "@/application/exchange-rates";
 import { fakeExchangeRates } from "@/cnb/fake";
 
 /** A client acting as the worker, as `worker/index.ts` creates it. */
-export function systemClient(): SystemClient {
+export function systemClient(url = inject("supabaseUrl")): SystemClient {
   return asSystemClient(
-    createClient(inject("supabaseUrl"), inject("supabaseSecretKey"), {
+    createClient(url, inject("supabaseSecretKey"), {
       auth: { persistSession: false, autoRefreshToken: false },
     }),
   );
@@ -28,6 +28,7 @@ export function testWorker(
   aiOrProviders: AiProvider | AiProvider[] = fakeAiProvider(),
   vatRegistry: VatPayerRegistry = fakeVatPayerRegistry(),
   exchangeRates: ExchangeRateProvider = fakeExchangeRates(),
+  options: { system?: SystemClient } = {},
 ) {
   const providers = Array.isArray(aiOrProviders) ? aiOrProviders : [aiOrProviders];
   const ai = providers[0];
@@ -39,7 +40,7 @@ export function testWorker(
     },
   };
   const worker = {
-    system: systemClient(),
+    system: options.system ?? systemClient(),
     providers: { get: (name: string) => providers.find((provider) => provider.name === name) },
     jobs,
     vatRegistry,

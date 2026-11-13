@@ -725,14 +725,14 @@ isOneToOne: false
                   ]
                 },"photo_group": {
                   Row: {
-                    "basis": Json | null,"company_id": string,"created_at": string,"created_by": string,"id": string,"organization_id": string,"source_file_ids": (string)[],"upload_batch_id": string
+                    "basis": Json | null,"company_id": string,"created_at": string,"created_by": string,"id": string,"organization_id": string,"preparation_failure": string | null,"preparation_lease_id": string | null,"preparation_lease_until": string | null,"preparation_mode": string,"preparation_request_id": string,"preparation_status": string,"source_file_ids": (string)[],"upload_batch_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "basis"?: Json | null,"company_id": string,"created_at"?: string,"created_by": string,"id": string,"organization_id": string,"source_file_ids": (string)[],"upload_batch_id": string
+                    "basis"?: Json | null,"company_id": string,"created_at"?: string,"created_by": string,"id": string,"organization_id": string,"preparation_failure"?: string | null,"preparation_lease_id"?: string | null,"preparation_lease_until"?: string | null,"preparation_mode"?: string,"preparation_request_id"?: string,"preparation_status"?: string,"source_file_ids": (string)[],"upload_batch_id": string
                   }
                   Update: {
-                    "basis"?: Json | null,"company_id"?: string,"created_at"?: string,"created_by"?: string,"id"?: string,"organization_id"?: string,"source_file_ids"?: (string)[],"upload_batch_id"?: string
+                    "basis"?: Json | null,"company_id"?: string,"created_at"?: string,"created_by"?: string,"id"?: string,"organization_id"?: string,"preparation_failure"?: string | null,"preparation_lease_id"?: string | null,"preparation_lease_until"?: string | null,"preparation_mode"?: string,"preparation_request_id"?: string,"preparation_status"?: string,"source_file_ids"?: (string)[],"upload_batch_id"?: string
                   }
                   Relationships: [
                     {
@@ -1218,6 +1218,9 @@ isOneToOne: false
 "claim_password_recovery":
 { Args: Record<PropertyKey, never>; Returns: string
                            },
+"claim_photo_group":
+{ Args: { "target_group_id": string,"target_lease_id": string,"target_request_id": string }; Returns: boolean
+                           },
 "clear_default_ai_configuration":
 { Args: Record<PropertyKey, never>; Returns: undefined
                            },
@@ -1248,7 +1251,7 @@ isOneToOne: false
 { Args: Record<PropertyKey, never>; Returns: undefined
                            },
 "complete_photo_group":
-{ Args: { "processed_basis": Json,"target_group_id": string }; Returns: string
+{ Args: { "processed_basis": Json,"target_group_id": string,"target_lease_id": string,"target_request_id": string }; Returns: string
                            },
 "complete_source_processing_dispatch":
 { Args: { "target_source_file_id": string,"target_split_request_id": string }; Returns: undefined
@@ -1359,8 +1362,11 @@ isOneToOne: false
 "fail_company_data_export":
 { Args: { "target_export_id": string }; Returns: undefined
                            },
+"fail_incomplete_photo_group":
+{ Args: { "target_group_id": string,"target_request_id": string }; Returns: undefined
+                           },
 "fail_photo_group":
-{ Args: { "target_source_file_id": string }; Returns: undefined
+{ Args: { "failure_code": string,"target_group_id": string,"target_lease_id": string,"target_request_id": string }; Returns: boolean
                            },
 "finalize_vat_report":
 { Args: { "finalization_confirmed": boolean,"target_company_id": string,"target_period": string }; Returns: undefined
@@ -1506,6 +1512,9 @@ isOneToOne: false
 "password_recovery_status":
 { Args: Record<PropertyKey, never>; Returns: string
                            },
+"photo_group_claim_current":
+{ Args: { "target_group_id": string,"target_lease_id": string,"target_request_id": string }; Returns: boolean
+                           },
 "platform_company_history":
 { Args: { "target_company_id": string }; Returns: Json
                            },
@@ -1556,6 +1565,9 @@ isOneToOne: false
 "record_split":
 { Args: { "source_ranges": Json,"target_source_file_id": string,"target_split_request_id": string }; Returns: undefined
                            },
+"recover_photo_group":
+{ Args: { "recovery_mode": string,"target_group_id": string }; Returns: string
+                           },
 "reject_document":
 { Args: { "rejection_reason"?: string,"target_document_id": string }; Returns: undefined
                            },
@@ -1564,6 +1576,9 @@ isOneToOne: false
                            },
 "release_mfa_replacement_operation":
 { Args: { "recovery_operation_id": string }; Returns: undefined
+                           },
+"release_photo_group_claim":
+{ Args: { "target_group_id": string,"target_lease_id": string,"target_request_id": string }; Returns: undefined
                            },
 "release_superadmin_identity":
 { Args: { "reserved_user_id": string }; Returns: undefined

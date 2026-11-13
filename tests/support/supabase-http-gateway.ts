@@ -9,8 +9,12 @@ export async function supabaseHttpGateway(target: string) {
   let failedPathPrefix = "/";
   let stalled = false;
   const paths: string[] = [];
+  let held: { prefix: string; entered: () => void; released: Promise<void> } | undefined;
   const server = createServer(async (request, response) => {
     paths.push(request.url ?? "/");
+    if (held && request.url?.startsWith(held.prefix)) {
+      const current = held; held = undefined; current.entered(); await current.released;
+    }
     // Hold the actual socket open without headers to exercise client deadlines.
     if (stalled) return;
     if ((unavailable && request.url?.startsWith(failedPathPrefix)) || refusalsRemaining > 0) {
@@ -43,6 +47,13 @@ export async function supabaseHttpGateway(target: string) {
   return {
     url: `http://127.0.0.1:${address.port}`,
     paths,
+    holdNext(prefix: string) {
+      let entered!: () => void, release!: () => void;
+      const started = new Promise<void>(resolve => { entered = resolve; });
+      const released = new Promise<void>(resolve => { release = resolve; });
+      held = { prefix, entered, released };
+      return { started, release };
+    },
     refuseNext: (count: number) => { refusalsRemaining = count; },
     unavailable: (value: boolean, pathPrefix = "/") => { unavailable = value; failedPathPrefix = pathPrefix; },
     stall: (value: boolean) => { stalled = value; },

@@ -1,5 +1,6 @@
 "use server";
 
+import { recoverPhotoGroup } from "@/application/photo-groups";
 import { resolveRepresentative } from "@/application/epo-representative";
 
 import { defineSourceDocuments, startManualSourceReview, excludeSourceFile, restoreSourceFile } from "@/application/source-files";
@@ -1095,6 +1096,12 @@ export async function retryFailedProcessingJobAction(
   ));
 }
 
+
+export async function recoverPhotoGroupAction(_state: FormState, data: FormData): Promise<FormState> {
+  const mode = field(data, "mode");
+  if (mode !== "manual" && mode !== "retry") return { error: "invalid_choice", values: {} };
+  return settled(await recoverPhotoGroup(await requireUserClient(), jobQueue, { companyId: field(data, "companyId"), groupId: field(data, "groupId"), mode }));
+}
 
 export async function startManualSourceReviewAction(_state: FormState, data: FormData): Promise<FormState> {
   return settled(await startManualSourceReview(await requireUserClient(), { companyId: field(data, "companyId"), sourceFileId: field(data, "sourceFileId") }));

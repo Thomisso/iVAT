@@ -483,7 +483,9 @@
     "photoGroupOriginals": "Seřazené původní fotografie",
     "groupDocument": "Zkontrolovat seskupený doklad",
     "groupPreparing": "Fotografie je součástí potvrzené skupiny. Připravuje se její úplný podklad.",
-    "groupUnavailable": "Podklad skupiny není dostupný. Originály zůstávají zachované, zpracování skupiny není dokončené."
+    "groupUnavailable": "Podklad skupiny není dostupný a zpracování není dokončené. Před pokračováním zkontrolujte dostupné původní podklady.",
+    "groupManual": "Připravit celou skupinu k ruční kontrole",
+    "groupRetry": "Zopakovat přípravu celé skupiny"
   },
   "returnContext": {
     "counterparty": "← Zpět na protistranu",
@@ -817,7 +819,8 @@
     "upload_checksum_mismatch": "Přijatá data neodpovídají vybranému souboru.",
     "invalid_alert_preference": "Neplatné nastavení upozornění.",
     "verified_email_required": "Před zapnutím upozornění ověřte aktuální e-mail účtu.",
-    "invalid_representative": "Vyberte podporovaného zástupce a vyplňte platné jméno, příjmení a datum narození nebo evidenční číslo."
+    "invalid_representative": "Vyberte podporovaného zástupce a vyplňte platné jméno, příjmení a datum narození nebo evidenční číslo.",
+    "group_evidence_unavailable": "Původní podklady nebo jejich uložená reprezentace chybí či nejsou platné. Tuto neměnnou skupinu nelze obnovit; zahajte nový upload s úplnými fotografiemi."
   },
   "aiUsage": {
     "platformNav": "Využití AI na platformě",

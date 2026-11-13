@@ -8,21 +8,9 @@ import { Button } from "@/components/button";
 import { DropZone } from "@/components/drop-zone";
 import { FormError } from "@/components/form-error";
 import { SOURCE_UPLOAD_CHUNK_BYTES } from "@/lib/upload-policy";
+import { changeUploadDraft, restoreUploadDraft, type UploadItem, type UploadDraft } from "@/lib/upload-draft";
 import { browserImagePreview } from "@/lib/browser-image-preview";
 
-type UploadItem = {
-  id: string;
-  file: File;
-  kind: "capture" | "picker";
-  progress: number;
-  confirmedBytes: number;
-  status: "queued" | "uploading" | "retrying" | "uploaded" | "refused";
-  error: string | null;
-  retryable: boolean;
-  sha256: string;
-  groupId?: string;
-};
-type UploadDraft = { batchId: string | null; items: UploadItem[] };
 type BatchResult = { ok: true; value: { id: string } } | { ok: false; error: string };
 type TransportResult =
   | { kind: "uploaded" }
@@ -265,8 +253,7 @@ export function SourceFileUploadForm({ companyId, userId, limits }: { companyId:
     setItems(next);
   };
   function removeItem(id: string) {
-    const remaining = itemsRef.current.filter((item) => item.id !== id);
-    const next = remaining.map(item => item.groupId && remaining.filter(other => other.groupId === item.groupId).length < 2 ? { ...item, groupId: undefined } : item);
+    const next = changeUploadDraft({ batchId, items: itemsRef.current }, { kind: "remove", id }).items;
     replaceItems(next);
     setError(next.length > limits.maxBatchFiles ? "too_many_files" : null);
     setDuplicateNotice(false);
@@ -279,12 +266,7 @@ export function SourceFileUploadForm({ companyId, userId, limits }: { companyId:
     void readDraft(draftKey).then(async (draft) => {
       if (!active) return;
       if (draft?.items.length) {
-        const restored = await Promise.all(draft.items.map(async (item) => ({ ...item,
-          sha256: item.sha256 ?? await contentHash(item.file),
-          confirmedBytes: 0,
-          status: item.status === "uploading" || item.status === "retrying" ? "refused" as const : item.status,
-          retryable: item.retryable || item.status === "uploading" || item.status === "retrying",
-        })));
+        const restored = (await restoreUploadDraft(draft, contentHash)).items;
         if (!active) return;
         itemsRef.current = restored;
         setItems(restored);
@@ -475,8 +457,7 @@ export function SourceFileUploadForm({ companyId, userId, limits }: { companyId:
       <FormError error={error} />
       {!batchId && items.length > 1 && <Button disabled={pending || selecting || selectedPhotos.length < 2} onClick={() => {
         const groupId = crypto.randomUUID();
-        const next = itemsRef.current.map(item => selectedPhotos.includes(item.id) ? { ...item, groupId } : item);
-        replaceItems(next.map(item => item.groupId && next.filter(other => other.groupId === item.groupId).length < 2 ? { ...item, groupId: undefined } : item));
+        replaceItems(changeUploadDraft({ batchId, items: itemsRef.current }, { kind: "group", ids: selectedPhotos, groupId }).items);
         setSelectedPhotos([]);
       }}>{t("groupPhotos")}</Button>}
       {items.length > 0 && <ul className="upload-items" aria-live="polite">
@@ -485,11 +466,11 @@ export function SourceFileUploadForm({ companyId, userId, limits }: { companyId:
           {!batchId && /\.(jpe?g|png|heic|heif)$/i.test(item.file.name) && <label><input type="checkbox" checked={selectedPhotos.includes(item.id)} disabled={pending || selecting}
             onChange={event => setSelectedPhotos(value => event.target.checked ? [...value, item.id] : value.filter(id => id !== item.id))} />{t("selectPhoto")}</label>}
           {item.groupId && <span>{t("groupPage", { group: items.findIndex(other => other.groupId === item.groupId) + 1, page: items.slice(0, index + 1).filter(other => other.groupId === item.groupId).length })}
-            {!batchId && <Button size="sm" disabled={pending || selecting} onClick={() => replaceItems(itemsRef.current.map(other => other.groupId === item.groupId ? { ...other, groupId: undefined } : other))}>{t("dissolveGroup")}</Button>}
+            {!batchId && <Button size="sm" disabled={pending || selecting} onClick={() => replaceItems(changeUploadDraft({ batchId, items: itemsRef.current }, { kind: "dissolve", groupId: item.groupId! }).items)}>{t("dissolveGroup")}</Button>}
           </span>}
           {!batchId && <span>
-            <Button size="sm" disabled={pending || selecting || index === 0} onClick={() => { const next = [...itemsRef.current]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; replaceItems(next); }}>{t("movePhotoEarlier")}</Button>
-            <Button size="sm" disabled={pending || selecting || index === items.length - 1} onClick={() => { const next = [...itemsRef.current]; [next[index + 1], next[index]] = [next[index], next[index + 1]]; replaceItems(next); }}>{t("movePhotoLater")}</Button>
+            <Button size="sm" disabled={pending || selecting || index === 0} onClick={() => { replaceItems(changeUploadDraft({ batchId, items: itemsRef.current }, { kind: "move", id: item.id, by: -1 }).items); }}>{t("movePhotoEarlier")}</Button>
+            <Button size="sm" disabled={pending || selecting || index === items.length - 1} onClick={() => { replaceItems(changeUploadDraft({ batchId, items: itemsRef.current }, { kind: "move", id: item.id, by: 1 }).items); }}>{t("movePhotoLater")}</Button>
           </span>}
           <div className="upload-item-progress">
             <progress max={100} value={item.progress} aria-label={t("uploadProgress", { name: item.file.name })} />

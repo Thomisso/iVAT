@@ -265,15 +265,7 @@ async function failOnFinalAttempt(attempt: Attempt, markFailed: () => Promise<vo
 }
 
 async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId: string, attempt: Attempt) {
-  let grouped: Awaited<ReturnType<typeof preparePhotoGroup>>;
-  try { grouped = await preparePhotoGroup(system, sourceFileId); }
-  catch (error) {
-    if (attempt.final) {
-      const failed = await system.rpc("fail_photo_group", { target_source_file_id: sourceFileId });
-      if (failed.error) throw failed.error;
-    }
-    throw error;
-  }
+  const grouped = await preparePhotoGroup(system, sourceFileId, attempt.final);
   if (grouped) {
     if (grouped.ready) await jobs.send(extractJob(grouped.group.id));
     else if (!grouped.terminal) await jobs.send(splitJob(sourceFileId), { startAfterSeconds: BLOCKED_JOB_RECHECK_SECONDS });
