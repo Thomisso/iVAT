@@ -1,14 +1,60 @@
 import * as XLSX from "xlsx";
 import { expect, it } from "vitest";
 import { SAMPLE_EXTRACTION } from "@/ai/fake";
-import { createManualDocument, listExtractionVersions, saveAndApproveDocument } from "@/application/documents";
-import { generateVatReport, finalizeVatReport } from "@/application/vat-reports";
+import { approveDocument, correctDocument, createManualDocument, listExtractionVersions, saveAndApproveDocument } from "@/application/documents";
+import { generateVatReport, finalizeVatReport, getVatReport } from "@/application/vat-reports";
 import { saveCompanyFilingDefaults } from "@/application/company-filing-defaults";
 import { readVatReportArtifact } from "@/application/epo-export";
 import { fakeVatPayerRegistry } from "@/vat-registry/fake";
 import { fakeExchangeRates } from "@/cnb/fake";
 import { administratorWithCompany } from "../tests/support/fixtures";
 import { httpAs, value } from "./support/http";
+
+it.each([
+  { currency: "EUR", label: "EUR", reportNet: "1500.00", reportVat: "315.00", xmlNet: "1500", xmlVat: "315" },
+  { currency: "CZK", label: "Kč", reportNet: "60.00", reportVat: "12.60", xmlNet: "60", xmlVat: "13" },
+])("$currency proportional summaries retain original units in detail, list and readiness while exports retain CZK", async ({ currency, label, reportNet, reportVat, xmlNet, xmlVat }) => {
+  const company = await administratorWithCompany();
+  const registry = fakeVatPayerRegistry();
+  const rates = fakeExchangeRates("25.00");
+  const payload = { ...SAMPLE_EXTRACTION, documentNumber: `HTTP-SUMMARY-${currency}`, currency,
+    rateBreakdown: [{ rate: 21, netAmount: "100.00", vatAmount: "21.00" }],
+    totals: { netAmount: "100.00", vatAmount: "21.00", grossAmount: "121.00" },
+    claimEligibility: { period: "2026-10", origin: "user" as const, confirmed: true } };
+  const document = value(await createManualDocument(company.client, { companyId: company.companyId, payload }, rates, registry));
+  const corrected = value(await correctDocument(company.client, { companyId: company.companyId, documentId: document.id, basedOnVersion: 1,
+    payload: { ...payload, proportionalDeduction: { percentage: 60, origin: "user", confirmed: true, operatingExpenseConfirmed: true, actualUseConfirmed: true } } }, rates, registry));
+  const request = await httpAs(company.client);
+  for (const route of [`documents/${document.id}`, "documents?view=all", "vat-reports?period=2026-10"]) {
+    const response = await request(`/companies/${company.companyId}/${route}`);
+    expect(response.status).toBe(200);
+    const html = (await response.text()).replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, "");
+    const summary = html.match(/<div\b[^>]*aria-label="Live VAT calculation"[^>]*>([\s\S]*?)<\/div>/)?.[1];
+    expect(summary, `shared summary rendered on ${route}`).toBeDefined();
+    const text = summary!.replace(/<[^>]*>/g, "").replace(/\s+/g, " ");
+    expect.soft(text, route).toContain(`Claimed net + VAT: 60,00 ${label} + 12,60 ${label}`);
+  }
+  value(await approveDocument(company.client, { companyId: company.companyId, documentId: document.id, version: corrected.version }));
+  value(await saveCompanyFilingDefaults(company.client, { companyId: company.companyId, taxOffice: "451", territorialOffice: "2003", economicActivity: "621000", signatoryFirstName: "Jana", signatoryLastName: "Nováková", signatoryCapacity: "jednatelka", email: "http@example.test", phone: "", epoAddressOverride: null }));
+  value(await generateVatReport(company.client, { companyId: company.companyId, period: "2026-10" }));
+  const report = (await getVatReport(company.client, company.companyId, "2026-10"))!;
+  expect(report.result.vatReturn.find(line => line.line === "40")).toMatchObject({ netAmount: reportNet, vatAmount: reportVat });
+  value(await finalizeVatReport(company.client, { companyId: company.companyId, period: "2026-10", confirmed: true }));
+  const prefix = `/companies/${company.companyId}/vat-reports/2026-10`;
+  for (const format of ["dphdp3", "dphkh1"]) {
+    const response = await request(`${prefix}/xml`, { method: "POST", body: new URLSearchParams({ format, kind: "final" }) });
+    expect(response.status).toBe(200);
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    const xml = new TextDecoder().decode(bytes);
+    expect(xml).toContain(format === "dphdp3" ? `pln23="${xmlNet}" odp_tuz23_nar="${xmlVat}"` : `zakl_dane1="${reportNet}" dan1="${reportVat}"`);
+    expect((await readVatReportArtifact(company.client, { companyId: company.companyId, artifactId: response.headers.get("x-ivat-artifact-id")! }))?.bytes).toEqual(bytes);
+  }
+  const workbook = await request(`${prefix}/xlsx`);
+  expect(workbook.status).toBe(200);
+  const sheets = XLSX.read(await workbook.arrayBuffer(), { type: "array" });
+  expect(XLSX.utils.sheet_to_json(sheets.Sheets.Included)).toMatchObject([{ Currency: currency, "Claimed net amount": 60,
+    "Claimed VAT amount": 12.6, "Unclaimed net amount": 40, "Unclaimed VAT amount": 8.4 }]);
+});
 
 it("authenticated foreign proportional review and XML/XLSX downloads use the saved full-Document fixing", async () => {
   const company = await administratorWithCompany();
