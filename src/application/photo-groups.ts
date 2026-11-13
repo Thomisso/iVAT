@@ -3,9 +3,9 @@ import { PDFDocument } from "pdf-lib";
 import sharp from "sharp";
 import { isUuid, type AppClient, type SystemClient } from "./client";
 import type { AiInput } from "./ai-provider";
-import { SOURCE_FILE_BUCKET, sourceFileObjectPath, type SourceFileFormat, type SourceFileStatus } from "./source-files";
+import { SOURCE_FILE_BUCKET, sourceFileDerivativeObjectPath, sourceFileObjectPath, type SourceFileFormat, type SourceFileStatus } from "./source-files";
 
-export type PhotoGroupBasis = { sha256: string; byteSize: number; pages: { page: number; sourceFileId: string; sourceSha256: string; sha256: string; byteSize: number; width: number; height: number }[] };
+export type PhotoGroupBasis = { sha256: string; byteSize: number; pages: { page: number; sourceFileId: string; sourceSha256: string; normalizedDerivative?: { format: "jpeg"; sha256: string; byteSize: number }; sha256: string; byteSize: number; width: number; height: number }[] };
 export type PhotoGroup = { id: string; companyId: string; batchId: string; sourceFileIds: string[]; createdBy: string; createdAt: string; basis: PhotoGroupBasis | null };
 const hash = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
 export const photoGroupPath = (group: PhotoGroup, leaf: string) => `${group.companyId}/${group.sourceFileIds[0]}/group/${leaf}`;
@@ -39,7 +39,7 @@ export async function preparePhotoGroup(system: SystemClient, sourceFileId: stri
   if (!found.data) return null;
   const group = mapGroup(found.data);
   if (group.basis) return { group, ready: true };
-  const sources: { id: string; sha256: string; format: SourceFileFormat; byte_size: number; status: SourceFileStatus }[] = [];
+  const sources: { id: string; sha256: string; format: SourceFileFormat; byte_size: number; status: SourceFileStatus; normalized_format: SourceFileFormat | null; normalized_byte_size: number | null; normalized_sha256: string | null }[] = [];
   // Bound the IN filter independently of the configured group limit. Continue
   // from the last actual row until empty: PostgREST may cap below our request.
   const memberBatchSize = 100;
@@ -47,7 +47,7 @@ export async function preparePhotoGroup(system: SystemClient, sourceFileId: stri
     const ids = group.sourceFileIds.slice(start, start + memberBatchSize);
     let afterId: string | undefined;
     for (;;) {
-      let query = system.from("source_file").select("id, sha256, format, byte_size, status")
+      let query = system.from("source_file").select("id, sha256, format, byte_size, status, normalized_format, normalized_byte_size, normalized_sha256")
         .eq("company_id", group.companyId).eq("upload_batch_id", group.batchId).in("id", ids)
         .order("id").limit(memberBatchSize);
       if (afterId) query = query.gt("id", afterId);
@@ -72,16 +72,29 @@ export async function preparePhotoGroup(system: SystemClient, sourceFileId: stri
   pdf.setCreationDate(new Date("1980-01-01T00:00:00Z"));
   pdf.setModificationDate(new Date("1980-01-01T00:00:00Z"));
   const basis: PhotoGroupBasis = { sha256: "", byteSize: 0, pages: [] };
-  let pixels = 0, bytesTotal = 0;
+  let pixels = 0, bytesTotal = 0, inputBytes = 0;
   for (const [index, id] of group.sourceFileIds.entries()) {
     const source = sources.find(source => source.id === id)!;
-    if (!["jpeg", "png"].includes(source.format)) throw new Error("Photo Group source format unsupported");
+    if (!["jpeg", "png", "heic", "heif"].includes(source.format)) throw new Error("Photo Group source format unsupported");
     const original = await system.storage.from(SOURCE_FILE_BUCKET).download(sourceFileObjectPath(group.companyId, id));
     if (original.error) throw original.error;
     const raw = new Uint8Array(await original.data.arrayBuffer());
     if (raw.length !== Number(source.byte_size) || hash(raw) !== source.sha256) throw new Error("Photo Group original checksum mismatch");
+    let input = raw;
+    let normalizedDerivative: PhotoGroupBasis["pages"][number]["normalizedDerivative"];
+    if (source.format === "heic" || source.format === "heif") {
+      if (source.normalized_format !== "jpeg" || !source.normalized_byte_size || !source.normalized_sha256) throw new Error("Photo Group normalization metadata unavailable");
+      if (Number(source.normalized_byte_size) > limits.data.max_source_file_bytes) throw new Error("Photo Group normalization exceeds platform limit");
+      const stored = await system.storage.from(SOURCE_FILE_BUCKET).download(sourceFileDerivativeObjectPath(group.companyId, id));
+      if (stored.error) throw stored.error;
+      input = new Uint8Array(await stored.data.arrayBuffer());
+      if (input.length !== Number(source.normalized_byte_size) || hash(input) !== source.normalized_sha256) throw new Error("Photo Group normalization checksum mismatch");
+      normalizedDerivative = { format: "jpeg", sha256: source.normalized_sha256, byteSize: input.length };
+    }
+    inputBytes += input.length;
+    if (inputBytes > limits.data.max_source_file_bytes) throw new Error("Photo Group normalized input exceeds platform limit");
     // Orientation is applied to the stored processed pages, never to originals.
-    const png = await sharp(raw, { limitInputPixels: 8_000_000 }).rotate().png().toBuffer({ resolveWithObject: true });
+    const png = await sharp(input, { limitInputPixels: 8_000_000 }).rotate().png().toBuffer({ resolveWithObject: true });
     pixels += png.info.width * png.info.height; bytesTotal += png.data.length;
     if (pixels > 100_000_000 || bytesTotal > Math.min(18 * 1024 * 1024, limits.data.max_source_file_bytes) || png.data.length > 3 * 1024 * 1024
       || Math.max(png.info.width, png.info.height) > (group.sourceFileIds.length > 20 ? 2000 : 8000)) throw new Error("Photo Group processed basis exceeds rendering limits");
@@ -89,7 +102,7 @@ export async function preparePhotoGroup(system: SystemClient, sourceFileId: stri
     const page = pdf.addPage([image.width, image.height]);
     page.drawImage(image, { x: 0, y: 0, width: image.width, height: image.height });
     await storeBasis(system, photoGroupPath(group, `${index + 1}.png`), png.data, "image/png");
-    basis.pages.push({ page: index + 1, sourceFileId: id, sourceSha256: source.sha256, sha256: hash(png.data), byteSize: png.data.length, width: image.width, height: image.height });
+    basis.pages.push({ page: index + 1, sourceFileId: id, sourceSha256: source.sha256, ...(normalizedDerivative ? { normalizedDerivative } : {}), sha256: hash(png.data), byteSize: png.data.length, width: image.width, height: image.height });
   }
   const bytes = await pdf.save();
   basis.sha256 = hash(bytes); basis.byteSize = bytes.length;

@@ -482,7 +482,7 @@ export function SourceFileUploadForm({ companyId, userId, limits }: { companyId:
       {items.length > 0 && <ul className="upload-items" aria-live="polite">
         {items.map((item, index) => <li key={item.id}>
           <span className="iv-mono">{item.file.name}</span>
-          {!batchId && /\.(jpe?g|png)$/i.test(item.file.name) && <label><input type="checkbox" checked={selectedPhotos.includes(item.id)} disabled={pending || selecting}
+          {!batchId && /\.(jpe?g|png|heic|heif)$/i.test(item.file.name) && <label><input type="checkbox" checked={selectedPhotos.includes(item.id)} disabled={pending || selecting}
             onChange={event => setSelectedPhotos(value => event.target.checked ? [...value, item.id] : value.filter(id => id !== item.id))} />{t("selectPhoto")}</label>}
           {item.groupId && <span>{t("groupPage", { group: items.findIndex(other => other.groupId === item.groupId) + 1, page: items.slice(0, index + 1).filter(other => other.groupId === item.groupId).length })}
             {!batchId && <Button size="sm" disabled={pending || selecting} onClick={() => replaceItems(itemsRef.current.map(other => other.groupId === item.groupId ? { ...other, groupId: undefined } : other))}>{t("dissolveGroup")}</Button>}

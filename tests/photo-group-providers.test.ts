@@ -10,7 +10,7 @@ import { uploadSourceFile } from "@/application/source-files";
 import { getPhotoGroup, photoGroupPath } from "@/application/photo-groups";
 import { listExtractionVersions } from "@/application/documents";
 import { administratorWithCompany, assignAiConfigurationFixture } from "./support/fixtures";
-import { fixtureFile, selectUploadFiles } from "./support/files";
+import { fixtureFile, heicFixture, rotatedHeicFixture, selectUploadFiles } from "./support/files";
 import { testWorker } from "./support/worker";
 
 it.each(["anthropic", "openai"] as const)("supplies %s the actual stored Photo Group pages without an additional PDF transform", async providerName => {
@@ -37,16 +37,18 @@ it.each(["anthropic", "openai"] as const)("supplies %s the actual stored Photo G
     await assignAiConfigurationFixture(owner.client, worker.jobs, { companyId: owner.companyId, provider: worker.ai });
     const selection = selectUploadFiles([
       { fileName: "first.jpg", bytes: new Uint8Array(await sharp({ create: { width: 80, height: 120, channels: 3, background: "#ff0000" } }).jpeg().toBuffer()) },
-      { fileName: "second.png", bytes: fixtureFile("receipt.png") },
+      { fileName: "second.heic", bytes: heicFixture() },
+      { fileName: "third.png", bytes: fixtureFile("receipt.png") },
+      { fileName: "fourth.heif", bytes: rotatedHeicFixture() },
     ]);
-    const batch = await beginUploadBatch(owner.client, { companyId: owner.companyId, fileCount: 2, selectedFiles: selection.selectedFiles.map(file => ({ ...file, groupId })) });
+    const batch = await beginUploadBatch(owner.client, { companyId: owner.companyId, fileCount: 4, selectedFiles: selection.selectedFiles.map(file => ({ ...file, groupId })) });
     if (!batch.ok) throw new Error(batch.error);
     for (const file of selection.files) expect((await uploadSourceFile(owner.client, worker.jobs, { companyId: owner.companyId, batchId: batch.value.id, ...file })).ok).toBe(true);
     expect(await worker.runJobs()).toEqual([]);
     const group = await getPhotoGroup(owner.client, owner.companyId, groupId);
-    expect(group?.basis?.pages).toHaveLength(2);
+    expect(group?.basis?.pages).toHaveLength(4);
     const images = received.filter(content => content.type === "image" || content.type === "input_image");
-    expect(images).toHaveLength(2);
+    expect(images).toHaveLength(4);
     for (const [index, image] of images.entries()) {
       const encoded = image.source?.data ?? image.image_url?.split(",")[1];
       const bytes = Buffer.from(encoded!, "base64");
@@ -55,7 +57,7 @@ it.each(["anthropic", "openai"] as const)("supplies %s the actual stored Photo G
       expect(bytes).toEqual(Buffer.from(await original.data.arrayBuffer()));
       expect(createHash("sha256").update(bytes).digest("hex")).toBe(group!.basis!.pages[index].sha256);
       const dimensions = await sharp(bytes).metadata();
-      expect([dimensions.width, dimensions.height]).toEqual(index === 0 ? [80, 120] : [1, 1]);
+      expect([dimensions.width, dimensions.height]).toEqual(index === 0 ? [80, 120] : index === 2 ? [1, 1] : [16, 16]);
     }
     const versions = await listExtractionVersions(owner.client, owner.companyId, groupId);
     expect(versions).toHaveLength(1);
