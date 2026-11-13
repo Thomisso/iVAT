@@ -39,7 +39,7 @@ afterEach(async () => {
   }
 });
 
-async function scenario(count = 2, locale: "cs" | "en" = "en") {
+async function scenario(count = 2, locale: "cs" | "en" = "en", startAt?: string) {
   const admin = await promotedSuperAdministrator("Operational subscriber"); subscribers.push(admin);
   await setOperationalAlertPreference(admin.client, { enabled: true, locale });
   const company = await companyWithWaitingDocuments(count); companies.push(company);
@@ -47,7 +47,7 @@ async function scenario(count = 2, locale: "cs" | "en" = "en") {
   const messages: OperationalAlertMessage[] = [];
   const mailer: OperationalAlertMailer = { async send(message) { messages.push(message); return "accepted"; } };
   const scopes = new Set([company.companyId]);
-  const start = Date.now() + 1000;
+  const start = startAt ? Date.parse(startAt) : Date.now() + 1000;
   const deliveries = async () => {
     const result = await listOperationalAlertDeliveries(admin.client);
     if (!result.ok) throw new Error(result.error);
@@ -66,6 +66,299 @@ async function scenario(count = 2, locale: "cs" | "en" = "en") {
   };
   return { admin, company, messages, mailer, tick, deliveries, start, scopes };
 }
+
+it("spaces reminders by literal elapsed twenty-four hours and never catches up missed windows", async () => {
+  const { messages, tick, deliveries } = await scenario(1, "en", "2026-01-01T09:55:00Z");
+  await tick(0);
+  await tick(300); // First accepted at 2026-01-01T10:00:00Z.
+  await tick(86699.999); // 2026-01-02T09:59:59.999Z.
+  expect(messages).toHaveLength(1);
+  await Promise.all([tick(86700), tick(86700)]); // 2026-01-02T10:00:00Z.
+  expect(messages).toHaveLength(2);
+  await tick(86700);
+  expect(messages).toHaveLength(2);
+  await tick(780300); // 2026-01-10T10:40:00Z, one opportunity after downtime.
+  expect(messages).toHaveLength(3);
+  await tick(780300);
+  expect(messages).toHaveLength(3);
+  const receipts = await deliveries();
+  expect(new Set(receipts.map(receipt => receipt.episodeId)).size).toBe(1);
+  expect(receipts.map(receipt => receipt.state)).toEqual(["accepted", "accepted", "accepted"]);
+  expect(receipts.map(receipt => [receipt.deliveryKind, receipt.reminderOrdinal])).toEqual([["first", 0], ["reminder", 1], ["reminder", 2]]);
+});
+
+it("cancels a queued reminder at remediation commit and sends one episode-specific recovery before fresh recurrence grace", async () => {
+  const { reprocessDocument } = await import("@/application/documents");
+  const { company, start, messages, tick, deliveries } = await scenario(1);
+  const [document] = await listCompanyDocuments(company.client, company.companyId);
+  await tick(0); await tick(300);
+  const [first] = await deliveries();
+  expect((await systemClient().rpc("reconcile_operational_alerts", { observed_at: new Date(start + 86700000).toISOString() })).error).toBeNull();
+  expect((await deliveries()).find(receipt => receipt.deliveryKind === "reminder")?.state).toBe("pending");
+  expect(await startManualDocumentReview(company.client, { companyId: company.companyId, documentId: document.id })).toEqual({ ok: true, value: null });
+  expect((await listCompanyDocuments(company.client, company.companyId))[0].status).toBe("needs_review");
+  expect((await deliveries()).find(receipt => receipt.deliveryKind === "reminder")).toEqual(expect.objectContaining({ state: "cancelled", resolvedAt: expect.any(String) }));
+  // Recurrence exists before recovery dispatch; recovery must describe only the old episode.
+  expect(await reprocessDocument(company.client, { async send() {} }, { companyId: company.companyId, documentId: document.id })).toEqual({ ok: true, value: null });
+  await Promise.all([tick(90000), tick(90000)]);
+  expect(messages).toHaveLength(2);
+  expect(messages[1].subject).toBe("iVAT: operational incident episode ended");
+  expect(messages[1].text).toContain("This incident episode ended. A later episode may still require attention.");
+  expect(messages[1].text).not.toContain("Documents: 1");
+  await tick(90299); expect(messages).toHaveLength(2);
+  await tick(90300); expect(messages).toHaveLength(3);
+  await tick(90300); expect(messages).toHaveLength(3);
+  const receipts = await deliveries();
+  expect(receipts.filter(receipt => receipt.episodeId === first.episodeId).map(receipt => receipt.deliveryKind).sort()).toEqual(["first", "recovery", "reminder"]);
+  expect(receipts.filter(receipt => receipt.episodeId !== first.episodeId)).toEqual([expect.objectContaining({ deliveryKind: "first", state: "accepted" })]);
+});
+
+it("anchors first qualification to acceptance and later spacing to the genuine delayed dispatch clock", async () => {
+  const { messages, mailer, tick, deliveries } = await scenario(1, "en", "2026-01-01T09:55:00Z");
+  await tick(0);
+  let now = "2026-01-01T10:00:00Z";
+  await runOperationalAlertTick(systemClient(), { appOrigin: "https://ivat.example.test", clock: () => now,
+    mailer: { async send(message) { messages.push(message); now = "2026-01-01T11:00:00Z"; return "accepted"; } } });
+  expect((await deliveries())[0]).toEqual(expect.objectContaining({ dispatchStartedAt: "2026-01-01T10:00:00+00:00", finishedAt: "2026-01-01T11:00:00+00:00" }));
+  await tick(90299.999); // Jan 2, 10:59:59.999: less than 24h since acceptance.
+  expect(messages).toHaveLength(1);
+  let samples = 0;
+  await runOperationalAlertTick(systemClient(), { appOrigin: "https://ivat.example.test", mailer,
+    clock: () => ++samples === 1 ? "2026-01-02T11:00:00Z" : "2026-01-02T12:00:00Z" });
+  expect(messages).toHaveLength(2);
+  expect((await deliveries())[1]).toEqual(expect.objectContaining({ dispatchStartedAt: "2026-01-02T12:00:00+00:00" }));
+  await tick(180299.999); // Jan 3, 11:59:59.999.
+  expect(messages).toHaveLength(2);
+  await tick(180300); // Jan 3, 12:00:00.
+  expect(messages).toHaveLength(3);
+});
+
+it.each(["refused", "failed", "unknown"] as const)("never qualifies reminders or recovery from a %s first, even for another qualified subscriber", async outcome => {
+  const { admin, company, tick, messages, deliveries } = await scenario(1);
+  const other = await promotedSuperAdministrator("Unqualified subscriber"); subscribers.push(other);
+  expect(await setOperationalAlertPreference(other.client, { enabled: true, locale: "en" })).toEqual({ ok: true, value: null });
+  const otherMessages: OperationalAlertMessage[] = [];
+  const transport: OperationalAlertMailer = { async send(message) {
+    (message.to === admin.email ? messages : otherMessages).push(message);
+    return message.to === admin.email ? "accepted" : outcome;
+  } };
+  await tick(0, transport); await tick(300, transport);
+  await tick(86700, transport);
+  expect(otherMessages).toHaveLength(1);
+  const [document] = await listCompanyDocuments(company.client, company.companyId);
+  expect(await startManualDocumentReview(company.client, { companyId: company.companyId, documentId: document.id })).toEqual({ ok: true, value: null });
+  await tick(86701, transport);
+  expect(otherMessages).toHaveLength(1);
+  expect((await deliveries()).map(receipt => receipt.deliveryKind).sort()).toEqual(["first", "recovery", "reminder"]);
+  const others = await listOperationalAlertDeliveries(other.client);
+  if (!others.ok) throw new Error(others.error);
+  expect(others.value.filter(receipt => receipt.rootKey.includes(company.companyId))).toEqual([expect.objectContaining({ deliveryKind: "first", state: outcome })]);
+});
+
+it.each(["accepted", "refused", "failed", "unknown", "throw"] as const)("keeps late first %s truthful after durable remediation and qualifies recovery only on acceptance", async outcome => {
+  const { company, messages, tick, deliveries } = await scenario(1);
+  const [document] = await listCompanyDocuments(company.client, company.companyId);
+  await tick(0);
+  let entered!: () => void; let release!: () => void;
+  const started = new Promise<void>(resolve => { entered = resolve; });
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const inFlight = tick(300, { async send(message) {
+    messages.push(message); entered(); await held;
+    if (outcome === "throw") throw new Error("private uncertain provider body");
+    return outcome;
+  } });
+  await started;
+  try {
+    expect(await startManualDocumentReview(company.client, { companyId: company.companyId, documentId: document.id })).toEqual({ ok: true, value: null });
+    expect((await listCompanyDocuments(company.client, company.companyId))[0].status).toBe("needs_review");
+    expect((await deliveries())[0]).toEqual(expect.objectContaining({ state: "sending", resolvedAt: expect.any(String) }));
+  } finally { release(); await inFlight; }
+  await Promise.all([tick(301), tick(301)]); await tick(302);
+  expect(messages).toHaveLength(outcome === "accepted" ? 2 : 1);
+  expect((await deliveries()).map(receipt => [receipt.deliveryKind, receipt.state])).toEqual(outcome === "accepted"
+    ? [["first", "accepted"], ["recovery", "accepted"]] : [["first", outcome === "throw" ? "unknown" : outcome]]);
+  expect(JSON.stringify(await deliveries())).not.toContain("private uncertain");
+});
+
+it.each(["accepted", "refused", "failed", "unknown", "throw"] as const)("counts a reminder %s attempt toward spacing and preserves one qualified recovery", async outcome => {
+  const { company, tick, messages, deliveries } = await scenario(1);
+  await tick(0); await tick(300);
+  const transport: OperationalAlertMailer = { async send(message) {
+    messages.push(message);
+    if (outcome === "throw") throw new Error("private SMTP failure");
+    return outcome;
+  } };
+  await Promise.all([tick(86700, transport), tick(86700, transport)]);
+  expect(messages).toHaveLength(2);
+  expect((await deliveries())[1].state).toBe(outcome === "throw" ? "unknown" : outcome);
+  await tick(173099.999, transport); expect(messages).toHaveLength(2);
+  await tick(173100, transport);
+  expect(messages).toHaveLength(outcome === "unknown" || outcome === "throw" ? 2 : 3);
+  await tick(864300, transport);
+  expect(messages).toHaveLength(outcome === "unknown" || outcome === "throw" ? 2 : 4);
+  const [document] = await listCompanyDocuments(company.client, company.companyId);
+  expect(await startManualDocumentReview(company.client, { companyId: company.companyId, documentId: document.id })).toEqual({ ok: true, value: null });
+  const before = messages.length;
+  await tick(864301); await tick(864302);
+  expect(messages).toHaveLength(before + 1);
+  expect((await deliveries()).filter(receipt => receipt.deliveryKind === "recovery")).toEqual([expect.objectContaining({ state: "accepted" })]);
+});
+
+for (const deliveryKind of ["reminder", "recovery"] as const) {
+  it.each(["opt_out", "role_removed", "deactivated", "unverified", "email_change"] as const)(`reauthorizes a queued ${deliveryKind} after %s`, async reason => {
+    const { admin, company, start, tick, messages, deliveries } = await scenario(1);
+    await tick(0); await tick(300);
+    if (deliveryKind === "recovery") {
+      const [document] = await listCompanyDocuments(company.client, company.companyId);
+      expect(await startManualDocumentReview(company.client, { companyId: company.companyId, documentId: document.id })).toEqual({ ok: true, value: null });
+      expect((await listCompanyDocuments(company.client, company.companyId))[0].status).toBe("needs_review");
+    }
+    expect((await systemClient().rpc("reconcile_operational_alerts", { observed_at: new Date(start + 86700000).toISOString() })).error).toBeNull();
+    const pending = (await deliveries()).find(receipt => receipt.deliveryKind === deliveryKind)!;
+    expect(pending.state).toBe("pending");
+    if (reason === "opt_out") await setOperationalAlertPreference(admin.client, { enabled: false, locale: "en" });
+    if (reason === "role_removed") await revokeSuperAdministratorFixture(admin.userId);
+    if (reason === "deactivated") await deactivateAccountFixture(admin.userId);
+    if (reason === "unverified" || reason === "email_change") {
+      const { alertAccountFixture } = await import("./support/operational-alerts");
+      await alertAccountFixture(admin.userId, reason);
+    }
+    // The actual worker rechecks at claim; stale planned IDs supply no authority.
+    await tick(86700);
+    expect(messages).toHaveLength(1);
+    expect((await systemClient().rpc("claim_operational_alert", { target_delivery_id: pending.id, observed_at: new Date(start + 86701000).toISOString() })).data).toBeNull();
+    if (reason !== "role_removed") {
+      expect((await deliveries()).find(receipt => receipt.id === pending.id)?.state).toBe("cancelled");
+    } else {
+      expect(await listOperationalAlertDeliveries(admin.client)).toEqual({ ok: false, error: "forbidden" });
+    }
+  });
+
+  it(`uses the current verified address and CS locale for a queued ${deliveryKind}`, async () => {
+    const { admin, company, start, tick, messages, deliveries } = await scenario(1);
+    await tick(0); await tick(300);
+    if (deliveryKind === "recovery") {
+      const [document] = await listCompanyDocuments(company.client, company.companyId);
+      await startManualDocumentReview(company.client, { companyId: company.companyId, documentId: document.id });
+    }
+    expect((await systemClient().rpc("reconcile_operational_alerts", { observed_at: new Date(start + 86700000).toISOString() })).error).toBeNull();
+    expect((await deliveries()).find(receipt => receipt.deliveryKind === deliveryKind)?.state).toBe("pending");
+    await setVerifiedAccountEmailFixture(admin.userId, `changed-${admin.userId}@example.test`);
+    expect(await setOperationalAlertPreference(admin.client, { enabled: true, locale: "cs" })).toEqual({ ok: true, value: null });
+    await tick(86700);
+    expect(messages).toHaveLength(2);
+    expect(messages[1].to).toBe(`changed-${admin.userId}@example.test`);
+    expect(messages[1].subject).toBe(deliveryKind === "reminder" ? "iVAT: trvající provozní blokace" : "iVAT: provozní incidentní epizoda skončila");
+    expect(messages[1].html).toContain(deliveryKind === "reminder" ? "Tato incidentní epizoda stále blokuje kritickou práci" : "Pozdější epizoda může stále vyžadovat zásah.");
+    expect(messages[1].text).toContain("https://ivat.example.test/platform/ai-settings");
+  });
+
+  it.each(["accepted", "refused", "failed", "unknown", "throw"] as const)(`records ${deliveryKind} %s without retrying its receipt`, async outcome => {
+    const { company, tick, messages, deliveries } = await scenario(1);
+    await tick(0); await tick(300);
+    if (deliveryKind === "recovery") {
+      const [document] = await listCompanyDocuments(company.client, company.companyId);
+      await startManualDocumentReview(company.client, { companyId: company.companyId, documentId: document.id });
+    }
+    const transport: OperationalAlertMailer = { async send(message) {
+      messages.push(message);
+      if (outcome === "throw") throw new Error("private provider response");
+      return outcome;
+    } };
+    await tick(86700, transport); await tick(86701, transport);
+    expect(messages).toHaveLength(2);
+    const receipt = (await deliveries()).find(receipt => receipt.deliveryKind === deliveryKind)!;
+    expect(receipt.state).toBe(outcome === "throw" ? "unknown" : outcome);
+    expect(messages[1].messageId).toContain(receipt.id);
+    if (deliveryKind === "recovery") {
+      await tick(259500, transport); expect(messages).toHaveLength(2);
+      expect((await deliveries()).filter(receipt => receipt.deliveryKind === "recovery")).toHaveLength(1);
+    }
+    expect(JSON.stringify(await deliveries())).not.toContain("private provider");
+  });
+}
+
+it.each(["first", "reminder", "recovery"] as const)("keeps interrupted %s unknown without blind resend and accepts only its original late token", async deliveryKind => {
+  const { company, start, tick, messages, deliveries } = await scenario(1);
+  await tick(0);
+  if (deliveryKind !== "first") await tick(300);
+  if (deliveryKind === "recovery") {
+    const [document] = await listCompanyDocuments(company.client, company.companyId);
+    await startManualDocumentReview(company.client, { companyId: company.companyId, documentId: document.id });
+  }
+  const at = deliveryKind === "first" ? 300 : 86700;
+  const observed = (seconds: number) => new Date(start + seconds * 1000).toISOString();
+  const system = systemClient();
+  expect((await system.rpc("reconcile_operational_alerts", { observed_at: observed(at) })).error).toBeNull();
+  const pending = (await deliveries()).find(receipt => receipt.deliveryKind === deliveryKind)!;
+  const claim = await system.rpc("claim_operational_alert", { target_delivery_id: pending.id, observed_at: observed(at) });
+  expect(claim.error).toBeNull(); expect(claim.data).not.toBeNull();
+  const token = (claim.data as { claimToken: string }).claimToken;
+  await tick(at + 119.999);
+  expect((await deliveries()).find(receipt => receipt.id === pending.id)?.state).toBe("sending");
+  await tick(at + 120);
+  expect((await deliveries()).find(receipt => receipt.id === pending.id)?.state).toBe("unknown");
+  const sent = messages.length;
+  await tick(at + 86400); expect(messages).toHaveLength(sent);
+  expect((await system.rpc("finish_operational_alert", { target_delivery_id: pending.id, target_claim_token: crypto.randomUUID(), transport_outcome: "accepted", observed_at: observed(at + 86401) })).error).toBeNull();
+  expect((await deliveries()).find(receipt => receipt.id === pending.id)?.state).toBe("unknown");
+  if (deliveryKind === "first") {
+    const [document] = await listCompanyDocuments(company.client, company.companyId);
+    await startManualDocumentReview(company.client, { companyId: company.companyId, documentId: document.id });
+  }
+  expect((await system.rpc("finish_operational_alert", { target_delivery_id: pending.id, target_claim_token: token, transport_outcome: "accepted", observed_at: observed(at + 86402) })).error).toBeNull();
+  expect((await system.rpc("finish_operational_alert", { target_delivery_id: pending.id, target_claim_token: token, transport_outcome: "refused", observed_at: observed(at + 86403) })).error).toBeNull();
+  expect((await deliveries()).find(receipt => receipt.id === pending.id)?.state).toBe("accepted");
+  await tick(at + 86403);
+  expect(messages).toHaveLength(sent + (deliveryKind === "recovery" ? 0 : 1));
+  if (deliveryKind === "first") expect((await deliveries()).find(receipt => receipt.deliveryKind === "recovery")?.state).toBe("accepted");
+});
+
+it("never inherits an earlier episode's accepted first when a recurrent first is uncertain", async () => {
+  const { reprocessDocument } = await import("@/application/documents");
+  const { company, messages, tick, deliveries } = await scenario(1);
+  const [document] = await listCompanyDocuments(company.client, company.companyId);
+  await tick(0); await tick(300);
+  const [old] = await deliveries();
+  await startManualDocumentReview(company.client, { companyId: company.companyId, documentId: document.id });
+  await tick(301); expect(messages).toHaveLength(2);
+  await reprocessDocument(company.client, { async send() {} }, { companyId: company.companyId, documentId: document.id });
+  await tick(302); await tick(601); expect(messages).toHaveLength(2);
+  await tick(602, { async send(message) { messages.push(message); return "unknown"; } });
+  expect(messages).toHaveLength(3);
+  await startManualDocumentReview(company.client, { companyId: company.companyId, documentId: document.id });
+  expect((await listCompanyDocuments(company.client, company.companyId))[0].status).toBe("needs_review");
+  await tick(603); await tick(86702);
+  expect(messages).toHaveLength(3);
+  expect((await deliveries()).filter(receipt => receipt.episodeId !== old.episodeId)).toEqual([
+    expect.objectContaining({ deliveryKind: "first", state: "unknown", resolvedAt: expect.any(String) }),
+  ]);
+});
+
+it.each(["cs", "en"] as const)("sends first, reminder and recovery through the real local SMTP adapter in %s", async locale => {
+  const { localSmtpCapture } = await import("./support/smtp-capture");
+  const { smtpOperationalAlertMailer } = await import("@/mail/smtp-operational-alert-mailer");
+  const capture = await localSmtpCapture("accepted");
+  try {
+    const { company, tick, deliveries } = await scenario(1, locale);
+    const mailer = smtpOperationalAlertMailer({ host: "127.0.0.1", port: capture.port, sender: "noreply@example.test", localCapture: true });
+    await tick(0, mailer); await tick(300, mailer); await tick(86700, mailer);
+    const [document] = await listCompanyDocuments(company.client, company.companyId);
+    await startManualDocumentReview(company.client, { companyId: company.companyId, documentId: document.id });
+    expect((await listCompanyDocuments(company.client, company.companyId))[0].status).toBe("needs_review");
+    await tick(86701, mailer); await tick(86702, mailer);
+    const receipts = await deliveries();
+    expect(receipts.map(receipt => [receipt.deliveryKind, receipt.state]).sort()).toEqual([
+      ["first", "accepted"], ["recovery", "accepted"], ["reminder", "accepted"],
+    ]);
+    const own = capture.messages.filter(message => receipts.some(receipt => message.includes(receipt.id)));
+    expect(own).toHaveLength(3);
+    for (const message of own) {
+      expect(message).toContain("Content-Type: text/plain; charset=utf-8");
+      expect(message).toContain("Content-Type: text/html; charset=utf-8");
+    }
+  } finally { await capture.close(); }
+});
 
 it("keeps alerts off until a SuperAdmin explicitly opts in on their verified account", async () => {
   const admin = await promotedSuperAdministrator("Alert preferences");
@@ -208,6 +501,8 @@ it("refuses worker transitions to users and preserves the human MFA requirement"
   expect((await weak.auth.signInWithPassword({ email: admin.email, password: "correct-horse-battery" })).error).toBeNull();
   expect(await getOperationalAlertPreference(weak)).toEqual({ ok: false, error: "forbidden" });
   expect(await setOperationalAlertPreference(weak, { enabled: true, locale: "cs" })).toEqual({ ok: false, error: "forbidden" });
+  expect(await listOperationalAlertDeliveries(weak)).toEqual({ ok: false, error: "forbidden" });
+  expect(await listOperationalAlertDeliveries(ordinary.client)).toEqual({ ok: false, error: "forbidden" });
   for (const client of [ordinary.client, admin.client, weak]) {
     expect((await client.rpc("reconcile_operational_alerts")).error?.code).toBe("42501");
     expect((await client.rpc("claim_operational_alert", { target_delivery_id: crypto.randomUUID() })).error?.code).toBe("42501");
@@ -242,6 +537,24 @@ it("groups a shared configuration across Companies and keeps the same episode as
   expect(messages[0].text).toContain("Documents: 4"); expect(messages[0].text).toContain("Companies: 2");
   expect(JSON.stringify(messages)).not.toContain("PRIVATE"); expect(JSON.stringify(messages)).not.toContain("private-provider-credential");
   expect(await deliveries()).toEqual([expect.objectContaining({ state: "accepted", impact: { documents: 4, companies: 2, exportJobs: 0, sourceFiles: 0 } })]);
+  const [first] = await deliveries();
+  for (const document of await listCompanyDocuments(company.client, company.companyId)) {
+    await startManualDocumentReview(company.client, { companyId: company.companyId, documentId: document.id });
+  }
+  expect((await listCompanyDocuments(company.client, company.companyId)).every(document => document.status === "needs_review")).toBe(true);
+  await tick(86700);
+  expect(messages).toHaveLength(2);
+  expect(messages[1].text).toContain("Companies: 1"); expect(messages[1].text).toContain("Documents: 3");
+  expect((await deliveries()).map(receipt => [receipt.episodeId, receipt.deliveryKind, receipt.resolvedAt])).toEqual([
+    [first.episodeId, "first", null], [first.episodeId, "reminder", null],
+  ]);
+  for (const document of await listCompanyDocuments(second.client, second.companyId)) {
+    await startManualDocumentReview(second.client, { companyId: second.companyId, documentId: document.id });
+  }
+  expect((await listCompanyDocuments(second.client, second.companyId)).every(document => document.status === "needs_review")).toBe(true);
+  await tick(86701); await tick(86702);
+  expect(messages).toHaveLength(3);
+  expect((await deliveries()).filter(receipt => receipt.deliveryKind === "recovery")).toEqual([expect.objectContaining({ episodeId: first.episodeId, state: "accepted" })]);
 });
 
 it("keeps transient provider warnings and exhausted allowance without waiting work in-app", async () => {
@@ -321,7 +634,10 @@ it("cancels pending delivery synchronously and starts fresh grace after manual r
   await tick(601); expect(messages).toHaveLength(1);
 });
 
-it.each(["independent", "overlapping"] as const)("ends a shared incident at concurrent remediation commits (%s) and requires full fresh grace for recurrence", async interleaving => {
+it.each([
+  ["independent", "first"], ["overlapping", "first"],
+  ["independent", "reminder"], ["overlapping", "reminder"],
+] as const)("ends a shared incident at concurrent remediation commits (%s, pending %s) and requires full fresh grace for recurrence", async (interleaving, deliveryKind) => {
   const { createAiConfiguration, assignCompanyAiConfiguration } = await import("@/application/ai-configurations");
   const { reprocessDocument } = await import("@/application/documents");
   const { manualReviewTransactionFixture } = await import("./support/operational-alerts");
@@ -338,8 +654,10 @@ it.each(["independent", "overlapping"] as const)("ends a shared incident at conc
     await classifiedDocumentIssueFixture(document.id, { classification: "invalid_credentials", state: "waiting_for_platform", configurationId: configuration.value.id });
   }
   await tick(0);
-  expect((await systemClient().rpc("reconcile_operational_alerts", { observed_at: new Date(start + 300000).toISOString() })).error).toBeNull();
-  const [oldDelivery] = await deliveries();
+  if (deliveryKind === "reminder") await tick(300);
+  const due = deliveryKind === "reminder" ? 86700 : 300;
+  expect((await systemClient().rpc("reconcile_operational_alerts", { observed_at: new Date(start + due * 1000).toISOString() })).error).toBeNull();
+  const oldDelivery = (await deliveries()).find(receipt => receipt.deliveryKind === deliveryKind)!;
   expect(oldDelivery).toEqual(expect.objectContaining({ state: "pending", resolvedAt: null, impact: { companies: 2, documents: 2, sourceFiles: 0, exportJobs: 0 } }));
   if (interleaving === "overlapping") {
     const { generateInvitationLink, acceptInvitation } = await import("@/application/memberships");
@@ -354,7 +672,7 @@ it.each(["independent", "overlapping"] as const)("ends a shared incident at conc
     await Promise.all(transactions.map((transaction, index) => transaction.review(documents[index].id)));
     // Reconciliation also completes while both Companies are locked. It sees
     // their still-committed blockage; it cannot deadlock on Company locks.
-    expect((await systemClient().rpc("reconcile_operational_alerts", { observed_at: new Date(start + 300000).toISOString() })).error).toBeNull();
+    expect((await systemClient().rpc("reconcile_operational_alerts", { observed_at: new Date(start + due * 1000).toISOString() })).error).toBeNull();
     if (interleaving === "overlapping") {
       // The first transaction needs the second Company later in its command.
       // The second can commit without waiting for an alert lock held by the
@@ -370,15 +688,16 @@ it.each(["independent", "overlapping"] as const)("ends a shared incident at conc
   for (const [index, owner] of [company, second].entries()) {
     expect((await listCompanyDocuments(owner.client, owner.companyId)).find(document => document.id === documents[index].id)?.status).toBe("needs_review");
   }
-  expect(await deliveries()).toEqual([expect.objectContaining({ id: oldDelivery.id, state: "cancelled", resolvedAt: expect.any(String) })]);
+  expect((await deliveries()).find(receipt => receipt.id === oldDelivery.id)).toEqual(expect.objectContaining({ state: "cancelled", resolvedAt: expect.any(String) }));
   await reprocessDocument(company.client, { async send() {} }, { companyId: company.companyId, documentId: documents[0].id });
   await classifiedDocumentIssueFixture(documents[0].id, { classification: "invalid_credentials", state: "waiting_for_platform", configurationId: configuration.value.id });
-  await tick(301); await tick(600); expect(messages).toHaveLength(0);
-  await tick(601); expect(messages).toHaveLength(1);
-  expect(await deliveries()).toEqual([
-    expect.objectContaining({ id: oldDelivery.id, state: "cancelled" }),
-    expect.objectContaining({ id: expect.not.stringMatching(oldDelivery.id), state: "accepted", impact: { companies: 1, documents: 1, sourceFiles: 0, exportJobs: 0 } }),
+  const afterRecovery = deliveryKind === "reminder" ? 2 : 0;
+  await tick(due + 1); await tick(due + 300); expect(messages).toHaveLength(afterRecovery);
+  await tick(due + 301); expect(messages).toHaveLength(afterRecovery + 1);
+  expect((await deliveries()).filter(receipt => receipt.episodeId !== oldDelivery.episodeId)).toEqual([
+    expect.objectContaining({ deliveryKind: "first", state: "accepted", impact: { companies: 1, documents: 1, sourceFiles: 0, exportJobs: 0 } }),
   ]);
+  expect((await deliveries()).filter(receipt => receipt.episodeId === oldDelivery.episodeId && receipt.deliveryKind === "recovery")).toHaveLength(deliveryKind === "reminder" ? 1 : 0);
 });
 
 it("closes an incident first observed while remediation is uncommitted before the command commits", async () => {
@@ -491,8 +810,9 @@ it("observes both configuration scopes on reassignment while another Company pre
   const [remaining] = await listCompanyDocuments(second.client, second.companyId);
   await startManualDocumentReview(second.client, { companyId: second.companyId, documentId: remaining.id });
   expect(await deliveries()).toEqual([expect.objectContaining({ rootKey: `waiting_documents:${first.value.id}`, resolvedAt: expect.any(String) })]);
-  await tick(598); expect(messages).toHaveLength(1);
-  await tick(599); expect(messages).toHaveLength(2);
+  await tick(598); expect(messages).toHaveLength(2);
+  expect(messages[1].subject).toBe("iVAT: operational incident episode ended");
+  await tick(599); expect(messages).toHaveLength(3);
 });
 
 it("cancels a Source File incident immediately when manual Source recovery resolves its work", async () => {
@@ -579,7 +899,8 @@ it("includes durable terminal processing failure and failed export with truthful
     expect(await closeFailedExportAttempt(admin.client, exportJob.id, exportJob.retryCount)).toEqual({ ok: true, value: null });
     expect(await takeOverFailedProcessingJob(admin.client, processingId)).toEqual({ ok: true, value: null });
     expect((await listCompanyDocuments(company.client, company.companyId))[0].status).toBe("needs_review");
-    await tick(600); expect(messages).toHaveLength(2);
+    await tick(600); expect(messages).toHaveLength(4);
+    expect((await deliveries()).filter(delivery => delivery.deliveryKind === "recovery")).toHaveLength(2);
     expect((await deliveries()).every(delivery => delivery.resolvedAt !== null)).toBe(true);
   } finally { await boss.stop(); }
 });
