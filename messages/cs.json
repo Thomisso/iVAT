@@ -2099,7 +2099,7 @@
   "representation": {
     "title": "Zástupce",
     "selection": "Zastupování",
-    "default": "Použít výchozí údaje Company",
+    "default": "Použít výchozí údaje společnosti",
     "off": "Bez zástupce",
     "generalNatural": "4a — obecný zmocněnec, fyzická osoba",
     "firstName": "Jméno zástupce",
