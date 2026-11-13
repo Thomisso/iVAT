@@ -282,14 +282,22 @@ export async function uploadSourceFile(
     return { ok: true, value: { id: existing.id } };
   }
 
+  const batchId = input.batchId;
+  if (batchId && !validator) return { ok: false, error: "forbidden" };
+  const beginValidation = batchId ? () => client.rpc("begin_source_file_validation", { target_company_id: company.id, target_batch_id: batchId, target_source_file_id: id,
+    original_file_name: fileName, original_byte_size: input.bytes.length, original_sha256: sha256 }) : undefined;
+  // Register native ownership before any object PUT, including historical
+  // count-only Batches whose Source UUID is not part of a selected manifest.
+  const claim = beginValidation ? await beginValidation() : undefined;
+  if (claim?.error) {
+    if (claim.error.code === "42501") return { ok: false, error: "forbidden" };
+    if (claim.error.hint === "invalid_choice") return { ok: false, error: "invalid_choice" };
+    throw claim.error;
+  }
   const stored = await storeSourceFileObjects(client, { companyId: company.id, sourceFileId: id, format, bytes: input.bytes });
   if (!stored.ok) return stored;
 
-  if (input.batchId) {
-    const batchId = input.batchId;
-    if (!validator) return { ok: false, error: "forbidden" };
-    const beginValidation = () => client.rpc("begin_source_file_validation", { target_company_id: company.id, target_batch_id: batchId, target_source_file_id: id,
-      original_file_name: fileName, original_byte_size: input.bytes.length, original_sha256: sha256 });
+  if (claim && beginValidation && validator) {
     // The validator proves stored content; only this native client can decide
     // whether a concurrent publication or authority change has settled the command.
     const recoverValidation = async (): Promise<Result<{ id: string }, UploadSourceFileError> | undefined> => {
@@ -315,12 +323,6 @@ export async function uploadSourceFile(
       const current = await prepareSourceFile(client, input);
       if (!current.ok) return current;
     };
-    const claim = await beginValidation();
-    if (claim.error) {
-      if (claim.error.code === "42501") return { ok: false, error: "forbidden" };
-      if (claim.error.hint === "invalid_choice") return { ok: false, error: "invalid_choice" };
-      throw claim.error;
-    }
     let verified;
     try { verified = await validator.validateAndStage(claim.data); }
     catch (error) {

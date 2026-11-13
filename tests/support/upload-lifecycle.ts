@@ -10,7 +10,8 @@ export async function legacyUploadLayoutFixture(sourceFileId: string) {
 
 /** Pause a real Storage transaction AFTER INSERT/RLS, before it commits. An
  * empty cleanup snapshot therefore cannot yet see this admitted object's row. */
-export async function delayedTemporaryWrite<T, R>(name: string, upload: () => Promise<T>, during: (finish: () => Promise<T>) => Promise<R>, bucket: "source-upload-chunks" | "source-files" = "source-upload-chunks") {
+export async function delayedTemporaryWrite<T, R>(name: string, upload: () => Promise<T>, during: (finish: () => Promise<T>) => Promise<R>, bucket: "source-upload-chunks" | "source-files" = "source-upload-chunks", permissionProbesToSkip = 0) {
+  if (!Number.isInteger(permissionProbesToSkip) || permissionProbesToSkip < 0) throw new Error("Invalid permission probe count");
   if (!/^[a-z0-9/.-]+$/.test(name)) throw new Error("Invalid fixture object name");
   const barrier = new Client({ connectionString: inject("databaseUrl") });
   const observer = new Client({ connectionString: inject("databaseUrl") });
@@ -23,8 +24,14 @@ export async function delayedTemporaryWrite<T, R>(name: string, upload: () => Pr
   try {
     await barrier.query("select pg_advisory_lock(317,9)");
     const pid = (await barrier.query<{ pid: number }>("select pg_backend_pid() pid")).rows[0].pid;
-    await barrier.query(`create function private.test_delay_upload_commit() returns trigger language plpgsql as $$
-      begin if new.bucket_id='${bucket}' and new.name='${name}' then perform pg_advisory_xact_lock(317,9); end if; return new; end $$;
+    // Storage probes permissions with rolled-back INSERTs. A sequence
+    // survives those rollbacks, so callers can pause the final provider commit.
+    if (permissionProbesToSkip) await barrier.query("create sequence private.test_upload_insert_count");
+    await barrier.query(`create function private.test_delay_upload_commit() returns trigger language plpgsql security definer set search_path='' as $$
+      declare admission bigint; begin if new.bucket_id='${bucket}' and new.name='${name}' then
+      ${permissionProbesToSkip ? "admission:=nextval('private.test_upload_insert_count');" : ""}
+      if ${permissionProbesToSkip ? `admission>${permissionProbesToSkip}` : "true"} then perform pg_advisory_xact_lock(317,9); end if;
+      end if; return new; end $$;
       create trigger test_delay_upload_commit after insert on storage.objects for each row execute function private.test_delay_upload_commit()`);
     pending = upload();
     const deadline = Date.now() + 5_000;
@@ -38,7 +45,7 @@ export async function delayedTemporaryWrite<T, R>(name: string, upload: () => Pr
   } finally {
     await release();
     await Promise.allSettled(pending ? [pending] : []);
-    try { await barrier.query("drop trigger if exists test_delay_upload_commit on storage.objects; drop function if exists private.test_delay_upload_commit()"); }
+    try { await barrier.query("drop trigger if exists test_delay_upload_commit on storage.objects; drop function if exists private.test_delay_upload_commit(); drop sequence if exists private.test_upload_insert_count"); }
     finally { await barrier.end(); await observer.end(); }
   }
 }

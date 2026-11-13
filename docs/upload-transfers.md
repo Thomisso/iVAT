@@ -94,5 +94,7 @@ also applies this rule to definer-based manual attachment; a reserved UUID canno
 escape its Batch by omitting or changing that Batch. Genuine historical
 count-only Batches retain their creator/count semantics and obtain content proof
 without inventing a frozen manifest. Unreserved unbatched uploads are unchanged.
+Every ordinary Batch upload registers native ownership before its first object
+write, so finish or deletion cannot leave an unregistered canonical original or derivative.
 Legacy admission is retired under the Company/Batch locks before temporary
 canonical cleanup, preventing publication from racing an already selected delete.
