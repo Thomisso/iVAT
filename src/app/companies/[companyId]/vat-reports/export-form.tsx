@@ -77,6 +77,12 @@ export function ExportForm({
     defaults?.signatoryFirstName && defaults.signatoryLastName && defaults.signatoryCapacity,
   ));
   const savedSignatory = defaults?.representative?.personType === "P" ? defaults.representative : defaults;
+  // The wizard also renders without a shared PDF/XML context. Track the
+  // selection here so native constraints follow the same effective profile.
+  const [representationSelection, setRepresentationSelection] = useState({ mode: "default", personType: "" });
+  const representativePersonType = representationSelection.mode === "default" ? defaults?.representative?.personType
+    : representationSelection.mode === "override" ? representationSelection.personType : undefined;
+  const directSignatoryRequired = personType === "legal" && representativePersonType !== "P";
   const [representationRevision, setRepresentationRevision] = useState(0);
   const [editing, setEditing] = useState(!filingDetailsComplete);
   const showFields = opened && (!wizard || Boolean(epoAddress));
@@ -172,7 +178,13 @@ export function ExportForm({
           <div><dt>{t("serializedAddress")}</dt><dd>{serializedAddress ?? t("epoAddressMissing")}</dd></div>
           {epoAddress && <div><dt>{t("addressSource")}</dt><dd>{t(`addressSources.${epoAddress.source}`)}</dd></div>}
         </dl>
-        <RepresentativeFields key={representationRevision} allowDefault values={{ ...representativeFields(defaults?.representative), representativeMode: "default" }} onChange={fields => currentExport?.update(fields)} />
+        <RepresentativeFields key={representationRevision} allowDefault values={{ ...representativeFields(defaults?.representative), representativeMode: "default" }} onChange={fields => {
+          setRepresentationSelection({ mode: fields.representativeMode, personType: fields.representativePersonType });
+          currentExport?.update(fields);
+          const selectedType = fields.representativeMode === "default" ? defaults?.representative?.personType
+            : fields.representativeMode === "override" ? fields.representativePersonType : undefined;
+          if (personType === "legal" && selectedType !== "P" && !(defaults?.signatoryFirstName && defaults.signatoryLastName && defaults.signatoryCapacity)) setEditing(true);
+        }} />
         {!epoAddress && !wizard && <div className="iv-notice iv-notice-warning" role="alert">
           <p>{t("epoAddressRequired")}</p>
           <Link href={`/companies/${companyId}/settings/vat#filing-defaults`}>{t("completeEpoAddress")}</Link>
@@ -182,16 +194,16 @@ export function ExportForm({
           {personType === "legal" && <fieldset>
             <legend>{t("signatory")}</legend>
             <div className="form-row">
-              <TextField label={t("firstName")} name="signatoryFirstName" required maxLength={20} defaultValue={defaults?.signatoryFirstName ?? ""} />
-              <TextField label={t("lastName")} name="signatoryLastName" required maxLength={36} defaultValue={defaults?.signatoryLastName ?? ""} />
+              <TextField label={t("firstName")} name="signatoryFirstName" required={directSignatoryRequired} maxLength={20} defaultValue={defaults?.signatoryFirstName ?? ""} />
+              <TextField label={t("lastName")} name="signatoryLastName" required={directSignatoryRequired} maxLength={36} defaultValue={defaults?.signatoryLastName ?? ""} />
             </div>
-            <TextField label={t("capacity")} name="signatoryCapacity" required maxLength={40} defaultValue={defaults?.signatoryCapacity ?? ""} />
+            <TextField label={t("capacity")} name="signatoryCapacity" required={directSignatoryRequired} maxLength={40} defaultValue={defaults?.signatoryCapacity ?? ""} />
           </fieldset>}
           <div className="form-row">
             <TextField label={t("email")} name="email" type="email" maxLength={255} defaultValue={defaults?.email ?? ""} />
             <TextField label={t("phone")} name="phone" type="tel" maxLength={14} defaultValue={defaults?.phone ?? ""} />
           </div>
-          {filingDetailsComplete && <Button type="button" variant="secondary" onClick={() => { currentExport?.reset(); setRepresentationRevision(value => value + 1); setEditing(false); if (wizard) setOpened(false); }}>{t("useSaved")}</Button>}
+          {filingDetailsComplete && <Button type="button" variant="secondary" onClick={() => { currentExport?.reset(); setRepresentationSelection({ mode: "default", personType: "" }); setRepresentationRevision(value => value + 1); setEditing(false); if (wizard) setOpened(false); }}>{t("useSaved")}</Button>}
         </> : <Button type="button" variant="secondary" onClick={() => setEditing(true)}>{t("editForExport")}</Button>}
         </>}
         <FormError error={error} />
