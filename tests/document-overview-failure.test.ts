@@ -167,6 +167,23 @@ it("bounds a pending optional field and rejects late results without inventing i
   expect(io.calls).not.toContain("plain"); expect(f.output()).toBe(output);
   expect(JSON.parse(output).optionalMetadata.buildConfig).toMatchObject({ available: false, sqlState: null });
 });
+it("expires the observer timer during optional metadata and preserves error, cleanup reserve and closure before late completion", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+  const f = fixture(); let release!: () => void; io.build = new Promise<void>(resolve => { release = resolve; });
+  const pending = f.run();
+  await vi.waitFor(() => expect(io.calls.some(call => call.startsWith("select setting from pg_config"))).toBe(true));
+  expect(f.controller.signal.aborted).toBe(false);
+  await vi.advanceTimersByTimeAsync(5000);
+  expect(await pending).toBe(f.original); expect(f.controller.signal.aborted).toBe(false);
+  expect(io.calls).toContain("end"); expect(io.calls.at(-1)).toBe("public_finally");
+  expect(io.calls).not.toContain("set local role authenticated"); expect(io.calls).not.toContain("plain"); expect(io.calls).not.toContain("analyze");
+  const output = f.output(); const report = JSON.parse(output);
+  expect(report).toMatchObject({ unavailable: true, cleanupReserveMs: 4000, optionalMetadata: { buildConfig: { available: false, sqlState: null } } });
+  expect(report.captureCapMs).toBeLessThanOrEqual(5000);
+  expect(f.context.failure.bodyStartedAt + f.context.failure.timeoutMs - performance.now()).toBeGreaterThanOrEqual(4000);
+  release(); await vi.advanceTimersByTimeAsync(0);
+  expect(f.output()).toBe(output); expect(io.calls).not.toContain("plain"); expect(io.calls).not.toContain("analyze");
+});
 it.each(["rollback", "release savepoint overview_probe"])("retains the original error and closes when %s rejects", async command => {
   const f = fixture(); io.rejectQuery = command; expect(await f.run()).toBe(f.original);
   expect(io.calls).toContain(command); expect(io.calls).toContain("end"); expect(f.output()).not.toContain("private_cleanup_canary");
