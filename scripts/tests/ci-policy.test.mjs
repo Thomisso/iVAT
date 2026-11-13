@@ -145,6 +145,8 @@ test("long verification branches start independently after fast policy selection
 
 function fullExecutions(jobs, command) {
   return jobs.flatMap(job => {
+    // An explicit diagnostic-only job never supplies full verification evidence.
+    if (job.body.match(/^    if: needs\.profile\.outputs\.diagnostic == 'true'$/m)) return [];
     if (job.body.match(/^    if: .*outputs\.profile == 'draft'/m)) return [];
     const shards = job.body.match(/^        shard: \[(.+)\]$/m)?.[1].split(",").map(Number) ?? [undefined];
     const steps = job.body.split(/(?=^      - )/m).slice(1);
@@ -208,7 +210,7 @@ test("configured stable gates reject every failed, cancelled, missing or skipped
         const plan = verificationPlan(input);
         const outputs = publishedOutputs(jobs, plan);
         const results = Object.fromEntries(jobs.map(job => {
-          const scope = job.body.match(/^    if: needs\.profile\.outputs\.([A-Za-z]+) == 'true'$/m)?.[1];
+          const scope = job.body.match(/^    if: needs\.profile\.outputs\.([A-Za-z]+) == 'true'(?: && needs\.profile\.outputs\.diagnostic != 'true')?$/m)?.[1];
           return [job.id, scope && outputs[scope] !== "true" ? "skipped" : "success"];
         }));
         Object.assign(results, changes);
@@ -229,7 +231,7 @@ test("configured stable gates reject every failed, cancelled, missing or skipped
         }
       }
     }
-    for (const job of jobs.filter(job => !gates.includes(job) && !job.body.includes("run: node scripts/ci-pr-evidence.mjs record"))) {
+    for (const job of jobs.filter(job => !gates.includes(job) && !job.body.includes("run: node scripts/ci-pr-evidence.mjs record") && !job.body.match(/^    if: needs\.profile\.outputs\.diagnostic == 'true'$/m))) {
       assert.ok(covered.has(job.id), `${workflow}/${job.id} contributes actual result evidence to a stable gate`);
     }
   }
@@ -256,7 +258,7 @@ test("configured jobs consume actual published scopes for documentation, drafts 
       const selected = jobs.filter(job => !job.body.includes("run: node scripts/ci-policy.mjs gate") && !job.body.includes("run: node scripts/ci-policy.mjs\n") && !job.body.includes("run: node scripts/ci-pr-evidence.mjs record")).filter(job => {
         const condition = job.body.match(/^    if: (.+)$/m)?.[1];
         if (!condition) return true;
-        const scope = condition.match(/^needs\.profile\.outputs\.([A-Za-z]+) == 'true'$/)?.[1];
+        const scope = condition.match(/^needs\.profile\.outputs\.([A-Za-z]+) == 'true'(?: && needs\.profile\.outputs\.diagnostic != 'true')?$/)?.[1];
         assert.ok(scope, `workflow condition must consume a published scope: ${condition}`);
         return outputs[scope] === "true";
       }).map(job => job.id);

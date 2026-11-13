@@ -30,7 +30,8 @@ jobs:
       profile: ${{ steps.profile.outputs.profile }}
       plan: ${{ steps.profile.outputs.plan }}
       run: ${{ steps.selection.outputs.run }}
-      reuse: ${{ steps.selection.outputs.reuse }}
+      reuse: ${{ steps.diagnostic.outputs.reuse }}
+      diagnostic: ${{ steps.diagnostic.outputs.diagnostic }}
       common: ${{ steps.selection.outputs.common }}
       tracker: ${{ steps.selection.outputs.tracker }}
       release: ${{ steps.selection.outputs.release }}
@@ -44,7 +45,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: node --test scripts/tests/ci-policy.test.mjs scripts/tests/ci-scopes.test.mjs scripts/tests/ci-main.test.mjs scripts/tests/ci-pr-events.test.mjs scripts/tests/ci-pr-evidence.test.mjs scripts/tests/ci-timings.test.mjs scripts/tests/http-acceptance-policy.test.mjs
+      - run: node --test scripts/tests/ci-policy.test.mjs scripts/tests/ci-scopes.test.mjs scripts/tests/ci-main.test.mjs scripts/tests/ci-pr-events.test.mjs scripts/tests/ci-pr-evidence.test.mjs scripts/tests/ci-timings.test.mjs scripts/tests/http-acceptance-policy.test.mjs scripts/tests/operational-bulk-diagnostic.test.mjs
       - id: profile
         name: Select verification plan
         env:
@@ -57,6 +58,12 @@ jobs:
           PLAN: ${{ steps.profile.outputs.plan }}
           GH_TOKEN: ${{ github.token }}
           PR_WORKFLOW_FILE: ci.yml
+      - id: diagnostic
+        name: Temporary exact-branch diagnostic selection
+        run: node scripts/operational-bulk-diagnostic.mjs
+        env:
+          IVAT_OPERATIONAL_DIAGNOSTIC_MODE: post_cleanup_catalog_344
+          PR_REUSE: ${{ steps.selection.outputs.reuse }}
       - name: Migrations already on main are unchanged
         if: github.event_name == 'pull_request'
         env:
@@ -141,7 +148,7 @@ jobs:
       matrix:
         shard: [1, 2, 3]
     needs: profile
-    if: needs.profile.outputs.application == 'true'
+    if: needs.profile.outputs.application == 'true' && needs.profile.outputs.diagnostic != 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Reserve Supabase ports before network setup
@@ -180,7 +187,82 @@ jobs:
       # Each shard owns its runner/database; files within it remain serial.
       - name: Complete application shard
         run: npm run test:serial -- --shard=${{ matrix.shard }}/3
+        env:
+          IVAT_OPERATIONAL_BULK_CAPTURE: "1"
+          IVAT_DOCUMENT_OVERVIEW_FAILURE_CAPTURE: "1"
+      - name: Upload sanitized operational bulk capture
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: operational-bulk-capture-${{ matrix.shard }}
+          path: |
+            test-results/operational-bulk-capture/capture.jsonl
+            test-results/operational-bulk-capture/request.jsonl
+            test-results/operational-bulk-capture/postgres.jsonl
+            test-results/operational-bulk-capture/waits.jsonl
+            test-results/operational-bulk-capture/catalog.jsonl
+            test-results/document-overview-failure.json
+          if-no-files-found: ignore
+          retention-days: 3
       - name: Stop the disposable database
+        if: always()
+        run: npm run db:stop -- --no-backup
+
+  # Temporary observation only. A skipped full matrix keeps check FAILED and
+  # PR verification evidence SKIPPED; these 89 cases cannot approve the app.
+  operational-bulk-diagnostic:
+    name: Operational bulk diagnostic (89 cases; no full verification)
+    needs: profile
+    if: needs.profile.outputs.diagnostic == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reserve Supabase ports before network setup
+        run: |
+          reserved=$(sysctl -n net.ipv4.ip_local_reserved_ports)
+          sudo sysctl -w "net.ipv4.ip_local_reserved_ports=${reserved:+$reserved,}54320-54329"
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install PDF renderer
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils
+      - name: Prove exact diagnostic inventory before database startup
+        run: |
+          npx vitest list --config vitest.operational-bulk-diagnostic.config.ts tests/operational-email-alerts.test.ts --filesOnly --json > /tmp/operational-diagnostic-files.json
+          npx vitest list --config vitest.operational-bulk-inventory.config.ts tests/operational-email-alerts.test.ts --no-static-parse --json > /tmp/operational-diagnostic-cases.json
+          node scripts/operational-bulk-diagnostic.mjs inventory /tmp/operational-diagnostic-files.json /tmp/operational-diagnostic-cases.json
+      - name: Start local Supabase
+        run: npm run db:start -- --profile=e2e
+      - name: Generated database types match the migrations
+        run: |
+          npm run db:types
+          git diff --exit-code src/lib/database.types.ts
+      - name: Observe only the 89 operational cases
+        run: npx vitest run --config vitest.operational-bulk-diagnostic.config.ts tests/operational-email-alerts.test.ts --maxWorkers=1
+        env:
+          IVAT_OPERATIONAL_BULK_CAPTURE: "1"
+          IVAT_DOCUMENT_OVERVIEW_FAILURE_CAPTURE: "1"
+          IVAT_POST_CLEANUP_CATALOG: "1"
+          IVAT_OPERATIONAL_DIAGNOSTIC_MODE: post_cleanup_catalog_344
+      - name: Upload sanitized focused diagnostic capture
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: operational-bulk-capture-focused
+          path: |
+            test-results/operational-bulk-capture/capture.jsonl
+            test-results/operational-bulk-capture/request.jsonl
+            test-results/operational-bulk-capture/postgres.jsonl
+            test-results/operational-bulk-capture/waits.jsonl
+            test-results/operational-bulk-capture/catalog.jsonl
+            test-results/document-overview-failure.json
+          if-no-files-found: ignore
+          retention-days: 3
+      - name: Stop the disposable diagnostic database
         if: always()
         run: npm run db:stop -- --no-backup
 
