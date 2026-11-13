@@ -15,12 +15,17 @@ it("saves a profile through the real settings action and serves matching XML/PDF
   const settingsPath = `/companies/${company.companyId}/settings/vat`;
   const settings = await adminRequest(settingsPath);
   expect(settings.status).toBe(200);
-  const form = filingForm(await settings.text());
-  for (const [name, entry] of Object.entries({ taxOffice: "451", territorialOffice: "2003", economicActivity: "621000", signatoryFirstName: "Jana", signatoryLastName: "Podpisová", signatoryCapacity: "jednatelka", email: "", phone: "", representativeMode: "override", representativeCode: "4a", representativePersonType: "F", representativeFirstName: "Alena", representativeLastName: "Zástupná", representativeBirthDate: "1981-02-03", representativeEvidenceNumber: "" })) form.set(name, entry);
+  const settingsHtml = await settings.text();
+  expect(settingsHtml).toContain("4b — tax adviser or lawyer, natural person");
+  const form = filingForm(settingsHtml);
+  for (const [name, entry] of Object.entries({ taxOffice: "451", territorialOffice: "2003", economicActivity: "621000", signatoryFirstName: "Jana", signatoryLastName: "Podpisová", signatoryCapacity: "jednatelka", email: "", phone: "", representativeMode: "override", representativeCode: "4b", representativePersonType: "F", representativeFirstName: "Alena", representativeLastName: "Zástupná", representativeBirthDate: "1981-02-03", representativeEvidenceNumber: "" })) form.set(name, entry);
   const saved = await adminRequest(settingsPath, { method: "POST", headers: { Origin: baseUrl() }, body: form });
   expect(saved.status).toBe(200);
-  expect((await getCompanyFilingDefaults(company.client, company.companyId))?.representative?.firstName).toBe("Alena");
-  const refusedForm = filingForm(await (await adminRequest(settingsPath)).text());
+  expect((await getCompanyFilingDefaults(company.client, company.companyId))?.representative).toMatchObject({ code: "4b", firstName: "Alena" });
+  const savedHtml = await (await adminRequest(settingsPath)).text();
+  expect(savedHtml.includes('value="4b" selected=""')).toBe(true);
+  expect(savedHtml.includes('name="representativeCode" value="4b"')).toBe(true);
+  const refusedForm = filingForm(savedHtml);
   for (const [key, entry] of form.entries()) if (!key.startsWith("$ACTION")) refusedForm.set(key, entry);
   refusedForm.set("representativeFirstName", "Name exceeding twenty characters");
   const refusedSave = await adminRequest(settingsPath, { method: "POST", headers: { Origin: baseUrl() }, body: refusedForm });
@@ -40,6 +45,7 @@ it("saves a profile through the real settings action and serves matching XML/PDF
     expect(xml.status).toBe(200);
     const xmlText = await xml.text();
     retained.push({ id: xml.headers.get("x-ivat-artifact-id")!, fileName: `DRAFT_${format.toUpperCase()}_2026-10.xml`, bytes: new TextEncoder().encode(xmlText), mediaType: "xml" });
+    expect(xmlText).toContain('zast_kod="4b"');
     expect(xmlText).toContain('zast_jmeno="Alena"');
     expect(xmlText).toContain('zast_dat_nar="03.02.1981"');
     expect((await readVatReportArtifact(user.client, { companyId: company.companyId, artifactId: xml.headers.get("x-ivat-artifact-id")! }))?.artifact.resolvedDetails.representative?.firstName).toBe("Alena");
@@ -65,7 +71,15 @@ it("saves a profile through the real settings action and serves matching XML/PDF
     const off = await request(`${prefix}/xml`, { method: "POST", body: new URLSearchParams({ format, representativeMode: "off" }) });
     expect(off.status).toBe(200);
     expect(await off.text()).not.toContain("zast_");
-    const invalid = new URLSearchParams({ format, representativeMode: "override", representativeCode: "4b", representativePersonType: "F" });
+    const incomplete = new URLSearchParams({ format, representativeMode: "override", representativeCode: "4b", representativePersonType: "F", representativeFirstName: "Eva" });
+    const incompleteXml = await request(`${prefix}/xml`, { method: "POST", body: incomplete });
+    expect(incompleteXml.status).toBe(422);
+    expect(await incompleteXml.json()).toMatchObject({ error: "invalid_representative" });
+    const incompletePdf = await request(pdfPath, { method: "POST", body: incomplete });
+    expect(incompletePdf.status).toBe(200);
+    const incompleteArchive = await readVatReportPdfArtifact(user.client, { companyId: company.companyId, artifactId: incompletePdf.headers.get("x-ivat-artifact-id")! });
+    expect(incompleteArchive?.artifact.resolvedDetails.representative).toEqual({ code: "4b", personType: "F", firstName: "Eva", lastName: "", birthDate: "", evidenceNumber: "" });
+    const invalid = new URLSearchParams({ format, representativeMode: "override", representativeCode: "4b", representativePersonType: "P" });
     const refusedXml = await request(`${prefix}/xml`, { method: "POST", body: invalid });
     expect(refusedXml.status).toBe(422);
     expect(await refusedXml.json()).toMatchObject({ error: "invalid_representative" });
@@ -82,7 +96,7 @@ it("saves a profile through the real settings action and serves matching XML/PDF
   const exported = await adminRequest(`/companies/${company.companyId}/export`, { method: "POST" });
   expect(exported.status).toBe(200);
   const archive = unzipSync(new Uint8Array(await exported.arrayBuffer()));
-  expect(JSON.parse(strFromU8(archive["company.json"])).filingDefaults.representative).toMatchObject({ code: "4a", personType: "F", firstName: "Alena", lastName: "Zástupná", birthDate: "1981-02-03" });
+  expect(JSON.parse(strFromU8(archive["company.json"])).filingDefaults.representative).toMatchObject({ code: "4b", personType: "F", firstName: "Alena", lastName: "Zástupná", birthDate: "1981-02-03" });
   for (const artifact of retained) {
     const directory = artifact.mediaType === "pdf" ? "vat-report-pdf-artifacts" : "vat-report-artifacts";
     expect(archive[`${directory}/${artifact.id}/${artifact.fileName}`]).toEqual(artifact.bytes);
