@@ -21,7 +21,7 @@ export function operationalCaptureFixture() {
     async logs(_container, since, until, accept) { calls.push("docker_logs_snapshot"); windows.push({ since, until }); for (const chunk of serverChunks) accept(chunk); },
     async connect() {
       calls.push("pg_connect"); await connectBarrier; if (failConnect) throw new Error("private_connect_canary");
-      return { async sample() { calls.push("pg_sample"); return sample(); }, async close() { calls.push("pg_close"); } };
+      return { async sample() { calls.push("pg_sample"); return sample(); }, async catalog() { calls.push("pg_catalog"); return { server_version_num: "170011", server_build: "PostgreSQL x86_64 private_build_canary", jit: "on", jit_provider: "llvmjit", jit_above_cost: "100000", jit_inline_above_cost: "500000", jit_optimize_above_cost: "500000", plan_cache_mode: "auto", native_role_limits: true, jitAvailability: { available: true, value: true, sqlState: null }, private_token_canary: "private_password_canary" }; }, async close() { calls.push("pg_close"); } };
     },
   };
   const event = {
@@ -30,7 +30,7 @@ export function operationalCaptureFixture() {
   };
   return {
     root, calls, event, logs, io, windows,
-    reporter: new OperationalBulkCapture(io, { IVAT_OPERATIONAL_BULK_CAPTURE: "1" }),
+    reporter: new OperationalBulkCapture(io, { IVAT_OPERATIONAL_BULK_CAPTURE: "1", IVAT_POST_CLEANUP_CATALOG: "1" }),
     serverLog(bytes: string) { serverChunks.push(bytes); },
     blockInspect() { let release!: () => void; inspectBarrier = new Promise<void>(resolve => { release = resolve; }); return release; },
     blockConnect() { let release!: () => void; connectBarrier = new Promise<void>(resolve => { release = resolve; }); return release; },

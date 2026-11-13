@@ -28,7 +28,7 @@ aroundEach(async (run, { task }) => {
     bulkDiagnostics = startSupabaseRequestDiagnostics({ reportOnSuccess: true, announce: true });
     await run();
   } finally {
-    try { capture.recordRequestReport(bulkDiagnostics?.finish()); }
+    try { await capture.postCleanupCatalog(); capture.recordRequestReport(bulkDiagnostics?.finish()); }
     finally { bulkDiagnostics = undefined; bulkCapture = undefined; await capture.end(); }
   }
 });

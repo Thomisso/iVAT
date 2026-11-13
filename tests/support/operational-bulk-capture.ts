@@ -3,6 +3,7 @@ import path from "node:path";
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { Client } from "pg";
+import { readPostCleanupCatalog } from "./post-cleanup-catalog";
 import { localSupabaseContext } from "../../scripts/supabase-status.mjs";
 import { operationalBulkCase, requestTestPhases } from "./operational-bulk-protocol";
 
@@ -20,7 +21,8 @@ export function validateCaptureContext(input: ContextInput) {
       if (!/^ivat-wt[1-9][0-9]?$/.test(project)) throw unavailable();
     } else {
       const env = input.environment;
-      if (env.CI !== "true" || env.GITHUB_ACTIONS !== "true" || !/^\d+$/.test(env.GITHUB_RUN_ID ?? "") || env.GITHUB_JOB !== "full" || input.workspace !== input.root) throw unavailable();
+      const diagnostic = env.GITHUB_JOB === "operational-bulk-diagnostic" && env.GITHUB_HEAD_REF === "fix/operational-post-cleanup-catalog-344" && env.IVAT_POST_CLEANUP_CATALOG === "1";
+      if (env.CI !== "true" || env.GITHUB_ACTIONS !== "true" || !/^\d+$/.test(env.GITHUB_RUN_ID ?? "") || (env.GITHUB_JOB !== "full" && !diagnostic) || input.workspace !== input.root) throw unavailable();
     }
     return { container: `supabase_db_${project}`, databasePort: db.port, databaseUrl: input.provided.databaseUrl };
   } catch { throw unavailable(); }
@@ -69,7 +71,7 @@ export function createPostgresFrameReader(emit: (frame: PgFrame) => void) {
 }
 
 type WaitRow = { wait_event_type: unknown; blocker_count: unknown };
-type Connection = { sample(): Promise<WaitRow[]>; close(): Promise<void> };
+type Connection = { sample(): Promise<WaitRow[]>; catalog(active: () => boolean): Promise<unknown>; close(): Promise<void> };
 export type CaptureTransport = {
   context(root: string): { isLinkedWorktree: boolean; generatedWorkdir: string };
   config(file: string): string;
@@ -117,6 +119,7 @@ const transport: CaptureTransport = {
     try { await client.connect(); } catch (error) { await client.end().catch(() => {}); throw error; }
     return {
       async sample() { if (failed) throw new Error("capture connection unavailable"); return (await client.query("select wait_event_type,cardinality(pg_blocking_pids(pid))::int as blocker_count from pg_stat_activity where datname=current_database() and pid<>pg_backend_pid() and backend_type='client backend' and state<>'idle' limit 32")).rows; },
+      catalog: active => readPostCleanupCatalog(client, () => !failed && active()),
       async close() { await client.end(); if (failed) throw new Error("capture connection unavailable"); },
     };
   },
@@ -153,7 +156,7 @@ function requestReport(raw: unknown) {
 export type CaptureCase = { name: string; moduleId: string; root: string; provided: { supabaseUrl: string; databaseUrl: string } };
 /** Explicitly awaited by the worker's aroundEach; no reporter notification is a gate. */
 export default class OperationalBulkCapture {
-  private state: "idle" | "starting" | "active" | "stopped" = "idle";
+  private state: "idle" | "starting" | "active" | "finishing" | "stopped" = "idle";
   private root = "";
   private started = 0;
   private since = "";
@@ -168,6 +171,17 @@ export default class OperationalBulkCapture {
   private sampling = false;
   private connection?: Connection;
   private stopping?: Promise<void>;
+  private catalogStop?: () => void;
+  private closing?: Promise<void>;
+  private closeConnection() {
+    const connection = this.connection; this.connection = undefined;
+    if (!connection || this.closing) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    this.closing = Promise.race([
+      Promise.resolve().then(() => connection.close()).catch(() => { this.sampleUnavailable = true; }),
+      new Promise<void>(resolve => { timer = setTimeout(() => { this.sampleUnavailable = true; resolve(); }, 250); }),
+    ]).finally(() => clearTimeout(timer));
+  }
   private bytes = 0;
   private truncated = false;
   private requestCaptured = false;
@@ -179,14 +193,15 @@ export default class OperationalBulkCapture {
     // Only synchronous cleanup belongs in a real process-exit callback. Never
     // acquire a new Docker child while the worker is terminating.
     this.exiting = true; this.state = "stopped"; this.until ||= new Date().toISOString();
+    this.catalogStop?.();
     this.logAbort.abort();
     this.logUnavailable = true; clearInterval(this.interval); clearTimeout(this.deadline);
-    const close = () => { const connection = this.connection; this.connection = undefined; void connection?.close().catch(() => {}); };
+    const close = () => this.closeConnection();
     close(); void this.startup.then(close);
     if (this.root) this.write("capture.jsonl", { reason: "runner_exit", startedAtUtc: this.since, endedAtUtc: this.until, armed: this.armed, requestCaptured: this.requestCaptured, logUnavailable: true });
   };
   constructor(private readonly io: CaptureTransport = transport, private readonly environment: Record<string, string | undefined> = process.env) {}
-  private write(file: "postgres.jsonl" | "waits.jsonl" | "request.jsonl" | "capture.jsonl", value: object) {
+  private write(file: "postgres.jsonl" | "waits.jsonl" | "request.jsonl" | "capture.jsonl" | "catalog.jsonl", value: object) {
     try {
       const line = JSON.stringify(value) + "\n";
       if (this.bytes + line.length > 1048576 && file !== "capture.jsonl") { this.truncated = true; return; }
@@ -222,7 +237,7 @@ export default class OperationalBulkCapture {
     fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
     if (fs.realpathSync(directory) !== directory) throw unavailable();
     fs.chmodSync(directory, 0o700);
-    const files = ["capture.jsonl", "request.jsonl", "postgres.jsonl", "waits.jsonl"].map(file => path.join(directory, file));
+    const files = ["capture.jsonl", "request.jsonl", "postgres.jsonl", "waits.jsonl", "catalog.jsonl"].map(file => path.join(directory, file));
     if (files.some(file => fs.existsSync(file) && (!fs.lstatSync(file).isFile() || fs.lstatSync(file).isSymbolicLink()))) throw unavailable();
     for (const file of files) { fs.writeFileSync(file, "", { mode: 0o600 }); fs.chmodSync(file, 0o600); }
     this.root = root; this.container = selected.container; this.provided = test.provided;
@@ -247,13 +262,71 @@ export default class OperationalBulkCapture {
     const report = requestReport(raw);
     if (report) { this.write("request.jsonl", report); this.requestCaptured = true; }
   }
+  /** Called by the awaited worker only after body-finally and afterEach return.
+   * It never reads business rows or replays a public request/plan. */
+  async postCleanupCatalog() {
+    if (this.environment.IVAT_POST_CLEANUP_CATALOG !== "1" || this.state !== "active" || !this.connection) return;
+    this.state = "finishing"; this.until ||= new Date().toISOString();
+    clearInterval(this.interval);
+    const cap = Math.min(1000, 120000 - (performance.now() - this.started) - 250);
+    if (cap < 250) { this.write("catalog.jsonl", { source: "diagnostic_session", phase: "post_cleanup", unavailable: true }); return; }
+    let active = true, expired = false;
+    let reject!: (error: Error) => void;
+    const stopped = new Promise<never>((_, fail) => { reject = fail; }); void stopped.catch(() => {});
+    const close = () => this.closeConnection();
+    this.catalogStop = () => { if (!active) return; active = false; reject(unavailable()); close(); };
+    const timer = setTimeout(() => { expired = true; this.catalogStop?.(); }, cap - 250);
+    // An unresponsive sample is bounded too; its late result is discarded by
+    // the finishing state and cannot hold the teardown open after this cap.
+    const pending = this.pending;
+    this.pending = Promise.race([pending, stopped]).catch(() => {});
+    const report: Record<string, unknown> = { source: "diagnostic_session", phase: "post_cleanup", originalEffectiveSettings: false, originalJitUse: false, originalPlanStatistics: false };
+    try {
+      await Promise.race([pending, stopped]);
+      if (!active || this.state !== "finishing" || !this.connection) throw unavailable();
+      const raw = await Promise.race([this.connection.catalog(() => active && this.state === "finishing"), stopped]) as Record<string, unknown>;
+      if (!active || this.state !== "finishing") return;
+      const number = (value: unknown, minimum = 0) => typeof value === "string" && /^-?\d+(?:\.\d+)?$/.test(value) && Number.isFinite(Number(value)) && Number(value) >= minimum ? Number(value) : null;
+      const availability = raw?.jitAvailability as Record<string, unknown> | undefined;
+      const statistics = raw?.statistics as Record<string, unknown> | undefined;
+      const statisticNumber = (value: unknown, minimum = 0) => typeof value === "number" && Number.isFinite(value) && value >= minimum ? value : null;
+      Object.assign(report, {
+        serverVersionNum: number(raw?.server_version_num),
+        architecture: typeof raw?.server_build === "string" ? raw.server_build.match(/\b(x86_64|aarch64|arm64)\b/)?.[1] ?? null : null,
+        jit: raw?.jit === "on" ? true : raw?.jit === "off" ? false : null,
+        jitProvider: raw?.jit_provider === "llvmjit" ? "llvmjit" : null,
+        jitAboveCost: number(raw?.jit_above_cost, -1), jitInlineAboveCost: number(raw?.jit_inline_above_cost, -1), jitOptimizeAboveCost: number(raw?.jit_optimize_above_cost, -1),
+        planCacheMode: ["auto", "force_custom_plan", "force_generic_plan"].includes(String(raw?.plan_cache_mode)) ? raw.plan_cache_mode : null,
+        jitAvailability: { available: availability?.available === true, value: availability?.available === true && typeof availability.value === "boolean" ? availability.value : null, sqlState: typeof availability?.sqlState === "string" && /^[0-9A-Z]{5}$/.test(availability.sqlState) ? availability.sqlState : null },
+        nativeRoleLimits: typeof raw?.native_role_limits === "boolean" ? raw.native_role_limits : null,
+        statistics: {
+          available: statistics?.available === true,
+          sqlState: typeof statistics?.sqlState === "string" && /^[0-9A-Z]{5}$/.test(statistics.sqlState) ? statistics.sqlState : null,
+          relations: statistics?.available === true && Array.isArray(statistics.relations) ? statistics.relations.slice(0, 3).flatMap(row => row && ["document", "source_file", "extraction_version"].includes(row.relation) ? [{
+            relation: row.relation, rows: statisticNumber(row.rows, -1), pages: statisticNumber(row.pages),
+            analyzeCount: statisticNumber(row.analyze_count), autoanalyzeCount: statisticNumber(row.autoanalyze_count), lastAutoanalyzeAgeMs: statisticNumber(row.last_autoanalyze_age_ms),
+          }] : []) : [],
+        },
+      });
+    } catch (error) {
+      report.unavailable = true; report.deadlineExpired = expired;
+      report.sqlState = error && typeof error === "object" && "code" in error && typeof error.code === "string" && /^[0-9A-Z]{5}$/.test(error.code) ? error.code : null;
+    }
+    finally {
+      active = false; clearTimeout(timer); this.catalogStop = undefined;
+      if (expired) await this.closing;
+      if (this.state === "finishing" && !this.exiting) this.write("catalog.jsonl", report);
+    }
+  }
   async end(reason = "target_finished") {
     if (this.stopping) return this.stopping;
     this.state = "stopped"; this.until ||= new Date().toISOString();
+    this.catalogStop?.();
     clearInterval(this.interval); clearTimeout(this.deadline);
     this.stopping = (async () => {
       await this.startup; await this.pending;
-      await this.connection?.close().catch(() => { this.sampleUnavailable = true; }); this.connection = undefined;
+      this.closeConnection();
+      await this.closing;
       // Bounded historical read, not a new sampling interval: the worker awaits
       // this drain before the next test or CI's disposable DB teardown.
       if (this.armed && this.container && !this.exiting) {
