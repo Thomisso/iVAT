@@ -174,3 +174,34 @@ describe("actual awaited worker capture boundary", () => {
     expect(order).toEqual(["inspect-start", "inspect-finish", "pg-ready", "beforeEach-fixture", "body", "afterEach-cleanup", "pg-close", "snapshot", "capture-closed"]);
   });
 });
+
+it("stops through its registered process-exit boundary without acquiring a new log reader", async () => {
+  vi.useFakeTimers();
+  const fixture = capture(); const existing = new Set(process.listeners("exit"));
+  await fixture.reporter.begin(fixture.event);
+  const handlers = process.listeners("exit").filter(handler => !existing.has(handler));
+  expect(handlers).toHaveLength(1);
+  handlers[0](0); // Invoke only this fixture's OS boundary; do not terminate Vitest.
+  await vi.advanceTimersByTimeAsync(1000);
+  await fixture.reporter.end("runner_exit");
+  expect(fixture.calls.filter(call => call === "pg_close")).toHaveLength(1);
+  expect(fixture.calls).not.toContain("pg_sample");
+  expect(fixture.calls).not.toContain("docker_logs_snapshot");
+});
+
+it("aborts an already draining log reader when the worker exits", async () => {
+  const fixture = capture(); const existing = new Set(process.listeners("exit"));
+  let opened!: () => void;
+  const open = new Promise<void>(resolve => { opened = resolve; });
+  let aborted = false;
+  fixture.io.logs = async (_container, _since, _until, _accept, signal) => {
+    opened();
+    await new Promise<void>(resolve => signal!.addEventListener("abort", () => { aborted = true; resolve(); }, { once: true }));
+  };
+  await fixture.reporter.begin(fixture.event);
+  const finish = fixture.reporter.end(); await open;
+  const handler = process.listeners("exit").find(value => !existing.has(value))!;
+  handler(0); await finish;
+  expect(aborted).toBe(true);
+  expect(fixture.calls.filter(call => call === "pg_close")).toHaveLength(1);
+});

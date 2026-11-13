@@ -74,7 +74,7 @@ export type CaptureTransport = {
   context(root: string): { isLinkedWorktree: boolean; generatedWorkdir: string };
   config(file: string): string;
   inspect(container: string): Promise<unknown>;
-  logs(container: string, since: string, until: string, accept: (chunk: string) => void): Promise<void>;
+  logs(container: string, since: string, until: string, accept: (chunk: string) => void, signal?: AbortSignal): Promise<void>;
   connect(url: string): Promise<Connection>;
 };
 const exec = promisify(execFile);
@@ -85,16 +85,20 @@ const transport: CaptureTransport = {
     const { stdout } = await exec("docker", ["inspect", "--format", "{{json .NetworkSettings.Ports}}", container], { timeout: 2000, maxBuffer: 65536 });
     return JSON.parse(stdout);
   },
-  async logs(container, since, until, accept) {
+  async logs(container, since, until, accept, signal) {
+    if (signal?.aborted) throw new Error("capture log unavailable");
     await new Promise<void>((resolve, reject) => {
       const child = spawn("docker", ["logs", "--since", since, "--until", until, container], { stdio: ["ignore", "pipe", "pipe"] });
       let ended = false, bytes = 0;
       const complete = (ok: boolean) => {
         if (ended) return; ended = true; clearTimeout(deadline);
-        if (!ok) child.kill("SIGTERM");
+        signal?.removeEventListener("abort", abort);
+        if (!ok) child.kill("SIGKILL");
         if (ok) resolve(); else reject(new Error("capture log unavailable"));
       };
       const deadline = setTimeout(() => complete(false), 2000);
+      const abort = () => complete(false);
+      signal?.addEventListener("abort", abort, { once: true });
       const receive = (chunk: Buffer) => {
         if (ended) return;
         bytes += chunk.byteLength;
@@ -108,10 +112,12 @@ const transport: CaptureTransport = {
   },
   async connect(url) {
     const client = new Client({ connectionString: url, connectionTimeoutMillis: 1000, query_timeout: 1000 });
+    let failed = false;
+    client.on("error", () => { failed = true; });
     try { await client.connect(); } catch (error) { await client.end().catch(() => {}); throw error; }
     return {
-      async sample() { return (await client.query("select wait_event_type,cardinality(pg_blocking_pids(pid))::int as blocker_count from pg_stat_activity where datname=current_database() and pid<>pg_backend_pid() and backend_type='client backend' and state<>'idle' limit 32")).rows; },
-      async close() { await client.end(); },
+      async sample() { if (failed) throw new Error("capture connection unavailable"); return (await client.query("select wait_event_type,cardinality(pg_blocking_pids(pid))::int as blocker_count from pg_stat_activity where datname=current_database() and pid<>pg_backend_pid() and backend_type='client backend' and state<>'idle' limit 32")).rows; },
+      async close() { await client.end(); if (failed) throw new Error("capture connection unavailable"); },
     };
   },
 };
@@ -163,7 +169,18 @@ export default class OperationalBulkCapture {
   private requestCaptured = false;
   private logUnavailable = false;
   private sampleUnavailable = false;
-  private readonly exit = () => { void this.end("runner_exit"); };
+  private readonly logAbort = new AbortController();
+  private exiting = false;
+  private readonly exit = () => {
+    // Only synchronous cleanup belongs in a real process-exit callback. Never
+    // acquire a new Docker child while the worker is terminating.
+    this.exiting = true; this.state = "stopped"; this.until ||= new Date().toISOString();
+    this.logAbort.abort();
+    this.logUnavailable = true; clearInterval(this.interval); clearTimeout(this.deadline);
+    const close = () => { const connection = this.connection; this.connection = undefined; void connection?.close().catch(() => {}); };
+    close(); void this.startup.then(close);
+    if (this.root) this.write("capture.jsonl", { reason: "runner_exit", startedAtUtc: this.since, endedAtUtc: this.until, armed: this.armed, requestCaptured: this.requestCaptured, logUnavailable: true });
+  };
   constructor(private readonly io: CaptureTransport = transport, private readonly environment: Record<string, string | undefined> = process.env) {}
   private write(file: "postgres.jsonl" | "waits.jsonl" | "request.jsonl" | "capture.jsonl", value: object) {
     try {
@@ -225,16 +242,16 @@ export default class OperationalBulkCapture {
   }
   async end(reason = "target_finished") {
     if (this.stopping) return this.stopping;
-    this.state = "stopped"; this.until = new Date().toISOString();
+    this.state = "stopped"; this.until ||= new Date().toISOString();
     clearInterval(this.interval); clearTimeout(this.deadline);
     this.stopping = (async () => {
       await this.startup; await this.pending;
       await this.connection?.close().catch(() => { this.sampleUnavailable = true; }); this.connection = undefined;
       // Bounded historical read, not a new sampling interval: the worker awaits
       // this drain before the next test or CI's disposable DB teardown.
-      if (this.armed && this.container) {
+      if (this.armed && this.container && !this.exiting) {
         const reader = createPostgresFrameReader(frame => this.write("postgres.jsonl", frame));
-        try { await this.io.logs(this.container, this.since, this.until, chunk => reader.accept(chunk)); }
+        try { await this.io.logs(this.container, this.since, this.until, chunk => reader.accept(chunk), this.logAbort.signal); }
         catch { this.logUnavailable = true; }
         reader.finish();
       }
