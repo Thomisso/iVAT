@@ -68,7 +68,7 @@ export async function TradeStatistics({ client, companyId, counterpartyId, searc
     ]} /> : <p>{t("emptySummary")}</p>}
     <h3>{t("documents")}</h3><p>{t("countDocuments", { count: statistics.total })}</p>
     {statistics.entries.length ? <DataTable caption={t("documents")} rows={statistics.entries.map(document => ({ ...document, id: document.documentId }))} columns={[
-      { key: "documentNumber", header: t("document"), render: row => <Link href={withCompanyReturnTo(companyId, `/companies/${companyId}/documents/${row.documentId}?version=${row.version}`, href())}>{row.documentNumber ?? directory("unnumberedDocument")}</Link> },
+      { key: "documentNumber", header: t("document"), mono: true, render: row => <Link href={withCompanyReturnTo(companyId, `/companies/${companyId}/documents/${row.documentId}?version=${row.version}`, href())}>{row.documentNumber ?? directory("unnumberedDocument")}</Link> },
       { key: "taxPointDate", header: t("taxPointDate"), render: row => row.taxPointDate ? formatDate(row.taxPointDate) : t("missingDate") },
       { key: "direction", header: t("direction"), render: row => t(row.direction) },
       { key: "currency", header: t("currency"), render: row => row.currency ?? t("unknownCurrency") },

@@ -3,6 +3,7 @@ import {
   AiProviderError,
   withProviderResponse,
   type AiCallContext,
+  type AiGenerationLimits,
   type AiInput,
   type AiProvider,
   type AiProcessingIssueClassification,
@@ -68,6 +69,7 @@ async function structuredResponse(
   prompt: string,
   schemaName: string,
   schema: object,
+  limits?: AiGenerationLimits,
 ): Promise<{ model: string; modelReported?: boolean; value: unknown; usage?: AiUsage; raw: string }> {
   let response: Response;
   try {
@@ -80,6 +82,7 @@ async function structuredResponse(
       body: JSON.stringify({
         model,
         store: false,
+        ...(limits ? { max_output_tokens: limits.maxOutputTokens } : {}),
         input: [{
           role: "user",
           content: [...nativeContent(input), { type: "input_text", text: prompt }],
@@ -153,7 +156,7 @@ export function openAiProvider(options: OpenAiProviderOptions): AiProvider {
   return {
     name: "openai",
     region: "global",
-    async split(input) {
+    async split(input, _context, limits) {
       const spreadsheet = input.text !== undefined;
       const result = await structuredResponse(
         options,
@@ -164,6 +167,7 @@ export function openAiProvider(options: OpenAiProviderOptions): AiProvider {
           : pageSplitPrompt(input.pageCount),
         "ivat_split",
         spreadsheet ? SPREADSHEET_SPLIT_SCHEMA : SPLIT_SCHEMA,
+        limits,
       );
       return {
         model: result.model,
@@ -172,7 +176,7 @@ export function openAiProvider(options: OpenAiProviderOptions): AiProvider {
         ...(result.usage ? { usage: result.usage } : {}),
       };
     },
-    async extract(input) {
+    async extract(input, _context, limits) {
       input = await prepareExtractionInput(input);
       const result = await structuredResponse(
         options,
@@ -181,6 +185,7 @@ export function openAiProvider(options: OpenAiProviderOptions): AiProvider {
         EXTRACTION_PROMPT,
         "ivat_extraction",
         extractionSchema(input),
+        limits,
       );
       return {
         model: result.model,
@@ -208,11 +213,11 @@ export function platformOpenAiProvider(
   return {
     name: "openai",
     region: "global",
-    async split(input, context) {
-      return configured(context).split(input, context);
+    async split(input, context, limits) {
+      return configured(context).split(input, context, limits);
     },
-    async extract(input, context) {
-      return configured(context).extract(input, context);
+    async extract(input, context, limits) {
+      return configured(context).extract(input, context, limits);
     },
   };
 }
