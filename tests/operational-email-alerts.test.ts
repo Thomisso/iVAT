@@ -2,6 +2,7 @@ import { afterEach, aroundEach, expect, inject, it } from "vitest";
 import OperationalBulkCapture from "./support/operational-bulk-capture";
 import { startSupabaseRequestDiagnostics, type RequestTestPhase } from "./support/request-failure-diagnostics";
 import { operationalBulkCase as bulkCase } from "./support/operational-bulk-protocol";
+import { withDocumentOverviewPlan } from "./support/document-overview-plan";
 import { promotedSuperAdministrator, revokeSuperAdministratorFixture } from "./support/platform";
 import { provisionedUser } from "./support/clients";
 import { deactivateAccountFixture, deleteAccountFixture, setVerifiedAccountEmailFixture } from "./support/accounts";
@@ -821,7 +822,9 @@ it(bulkCase, async () => {
         const source = await measure("upload", () => uploadSourceFile(company.client, worker.jobs, { companyId: company.companyId, fileName: "related-bulk.xlsx", bytes: workbookFile("xlsx", [["Invoice"], ...Array.from({ length: 1001 }, (_, index) => [`INV-${index}`])]) }));
         if (!source.ok) throw new Error(source.error);
         await measure("bulk_split", () => worker.runNextJob());
-        const documents = await measure("readback_assertions", () => listCompanyDocuments(company.client, company.companyId));
+        const documents = await measure("readback_assertions", () => withDocumentOverviewPlan(company.client, company.companyId,
+          () => listCompanyDocuments(company.client, company.companyId),
+          { root: process.cwd(), databaseUrl: inject("databaseUrl"), supabaseUrl: inject("supabaseUrl") }));
         expect(documents.filter(document => document.sourceFileId === source.value.id)).toHaveLength(1001);
         expect(documents.find(document => document.id === blocked.id)?.status).toBe("waiting_for_platform");
         await measure("tick_299", () => tick(299)); expect(await measure("receipts", ownDeliveries)).toEqual([]);
