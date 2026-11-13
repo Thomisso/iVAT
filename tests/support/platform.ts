@@ -35,3 +35,9 @@ export async function promotedSuperAdministrator(organizationName: string, sessi
   if (promoted.error) throw promoted.error;
   return { ...user, client: aal2Client(user.userId, sessionPrefix) };
 }
+
+/** Platform role revocation has no public Application command. */
+export async function revokeSuperAdministratorFixture(userId: string) {
+  const revoked = await systemClient().from("platform_user").delete().eq("user_id", userId);
+  if (revoked.error) throw revoked.error;
+}

@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from "vitest";
-import { promotedSuperAdministrator } from "./support/platform";
+import { promotedSuperAdministrator, revokeSuperAdministratorFixture } from "./support/platform";
 import { provisionedUser } from "./support/clients";
 import { getOperationalAlertPreference, setOperationalAlertPreference, listOperationalAlertDeliveries } from "@/application/operational-email-alerts";
 
@@ -8,7 +8,7 @@ import { listCompanyDocuments, startManualDocumentReview } from "@/application/d
 import { systemClient } from "./support/worker";
 import { runOperationalAlertTick, type OperationalAlertMailer, type OperationalAlertMessage } from "@/application/operational-alert-worker";
 
-import { documentAlertRequest } from "./support/operational-alerts";
+import { clearOperationalAlertAllowanceFixture, documentAlertRequest } from "./support/operational-alerts";
 
 const companies: Awaited<ReturnType<typeof companyWithWaitingDocuments>>[] = [];
 const subscribers: Awaited<ReturnType<typeof promotedSuperAdministrator>>[] = [];
@@ -17,7 +17,7 @@ afterEach(async () => {
     for (const document of await listCompanyDocuments(company.client, company.companyId)) {
       await startManualDocumentReview(company.client, { companyId: company.companyId, documentId: document.id });
     }
-    expect((await systemClient().from("company").update({ ai_processing_allowance: null }).eq("id", company.companyId)).error).toBeNull();
+    await clearOperationalAlertAllowanceFixture(company.companyId);
     expect((await listCompanyDocuments(company.client, company.companyId)).every(document => document.status === "needs_review")).toBe(true);
   }
   for (const subscriber of subscribers.splice(0)) await systemClient().auth.admin.deleteUser(subscriber.userId);
@@ -125,7 +125,7 @@ it.each(["opt_out", "role_removed", "deactivated", "unverified", "email_change"]
   expect(planned.error).toBeNull();
   expect((planned.data as string[]).length).toBeGreaterThan(0);
   if (reason === "opt_out") await setOperationalAlertPreference(admin.client, { enabled: false, locale: "en" });
-  if (reason === "role_removed") await system.from("platform_user").delete().eq("user_id", admin.userId);
+  if (reason === "role_removed") await revokeSuperAdministratorFixture(admin.userId);
   if (reason === "deactivated") await system.auth.admin.updateUserById(admin.userId, { ban_duration: "24h" });
   if (reason === "unverified" || reason === "email_change") {
     const { alertAccountFixture } = await import("./support/operational-alerts");
@@ -244,15 +244,21 @@ it("keeps transient provider warnings and exhausted allowance without waiting wo
 
 it("sends for actual allowance waits while an 80-percent Company remains warning-only", async () => {
   const { setCompanyAiProcessingAllowance } = await import("@/application/ai-processing-allowance");
-  const { companyWithManyReportDocuments } = await import("./support/fixtures");
-  const { admin, company, tick, messages } = await scenario(1);
+  const { companyWithManyReportDocuments, assignAiConfigurationFixture } = await import("./support/fixtures");
+  const { companyAlertConfigurationFixture } = await import("./support/operational-alerts");
+  const { testWorker } = await import("./support/worker");
+  const { admin, company, tick, messages, scopes } = await scenario(1);
   const high = await companyWithManyReportDocuments(8); companies.push(high);
   expect(await setCompanyAiProcessingAllowance(admin.client, { async send() {} }, { companyId: high.companyId, allowance: 10 })).toEqual({ ok: true, value: null });
   const [document] = await listCompanyDocuments(company.client, company.companyId);
-  expect(await setCompanyAiProcessingAllowance(admin.client, { async send() {} }, { companyId: company.companyId, allowance: 0 })).toEqual({ ok: true, value: null });
+  const worker = testWorker();
+  await assignAiConfigurationFixture(company.client, worker.jobs, { companyId: company.companyId, provider: worker.ai });
+  scopes.add(await companyAlertConfigurationFixture(company.companyId));
+  expect(await setCompanyAiProcessingAllowance(admin.client, worker.jobs, { companyId: company.companyId, allowance: 0 })).toEqual({ ok: true, value: null });
   // The allowance mutation requeues work; the genuine handler discovers that
   // zero allowance still requires a wait before an extraction can begin.
-  expect((await systemClient().from("document").update({ status: "waiting_for_allowance" }).eq("id", document.id)).error).toBeNull();
+  expect(await worker.runJobs()).toEqual([]);
+  expect((await listCompanyDocuments(company.client, company.companyId)).find(waiting => waiting.id === document.id)?.status).toBe("waiting_for_allowance");
   await tick(0); await tick(299); expect(messages).toHaveLength(0);
   await tick(300); expect(messages).toHaveLength(1);
   expect(messages[0].text).toContain("Documents: 1");
@@ -545,18 +551,25 @@ it("still invalidates a failed export synchronously when only its Company data r
 it("includes durable terminal processing failure and failed export with truthful units", async () => {
   const { createBoss, createProcessingQueues } = await import("@/lib/jobs");
   const { exportCompanyData, getCompanyDataExportStatus } = await import("@/application/company-deletion");
-  const { closeFailedExportAttempt, takeOverFailedProcessingJob } = await import("@/application/processing-administration");
+  const { closeFailedExportAttempt, takeOverFailedProcessingJob, listFailedProcessingJobs } = await import("@/application/processing-administration");
+  const { legacyUnclassifiedFailedDocumentFixture } = await import("./support/operational-alerts");
   const { admin, company, tick, messages, deliveries } = await scenario(1);
   const [document] = await listCompanyDocuments(company.client, company.companyId);
   process.loadEnvFile(".env.local");
   const boss = createBoss({ supervise: false }); await boss.start(); await createProcessingQueues(boss);
   try {
-    // The handler's durable terminal state and pg-boss's failed attempt agree.
-    expect((await systemClient().from("document").update({ status: "failed" }).eq("id", document.id)).error).toBeNull();
+    // Retained unclassified failure, not proof of today's classified AI handler:
+    // the real pg-boss attempt and public remediation below exercise that legacy path.
+    await legacyUnclassifiedFailedDocumentFixture(document.id);
     const processingId = await boss.send("extract-document", { documentId: document.id }, { retryLimit: 0 });
     if (!processingId) throw new Error("processing enqueue failed");
     const processingJobs = await boss.fetch("extract-document", { includeMetadata: true, batchSize: 100 });
-    await boss.fail("extract-document", processingJobs.map(job => job.id), { message: "PRIVATE_PROVIDER_RESPONSE" });
+    const processingJob = processingJobs.find(job => job.id === processingId);
+    if (!processingJob) throw new Error("Processing claim failed");
+    await boss.fail("extract-document", processingJob.id, { message: "PRIVATE_PROVIDER_RESPONSE" });
+    const failures = await listFailedProcessingJobs(admin.client);
+    if (!failures.ok) throw new Error(failures.error);
+    expect(failures.value).toContainEqual(expect.objectContaining({ id: processingId, name: "extract-document", targetId: document.id, retryCount: processingJob.retryCount }));
     const exported = await exportCompanyData(company.client, { async send(job) { await boss.send(job.name, job.data, { retryLimit: 0 }); } }, { companyId: company.companyId });
     if (!exported.ok) throw new Error(exported.error);
     expect((await systemClient().rpc("fail_company_data_export", { target_export_id: exported.value.exportId })).error).toBeNull();

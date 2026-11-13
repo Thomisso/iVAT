@@ -41,6 +41,28 @@ export async function assignedCompanyWithDisabledAiFixture(companyId: string) {
   finally { await database.end(); }
 }
 
+/** Cleanup only: remove a scenario's allowance so it cannot affect later tests. */
+export async function clearOperationalAlertAllowanceFixture(companyId: string) {
+  const database = new Client({ connectionString: inject("databaseUrl") });
+  await database.connect();
+  try { await database.query("update public.company set ai_processing_allowance=null where id=$1", [companyId]); }
+  finally { await database.end(); }
+}
+
+/** A retained pre-classification/interrupted worker state: the Document was
+ * marked Failed before a classified AI issue could be recorded. A current
+ * cooperative handler always records that additional issue/root, so this is
+ * deliberately legacy queue-alert setup, not claimed current handler proof. */
+export async function legacyUnclassifiedFailedDocumentFixture(documentId: string) {
+  const database = new Client({ connectionString: inject("databaseUrl") });
+  await database.connect();
+  try {
+    const result = await database.query(`update public.document set status='failed'
+      where id=$1 and status='uploaded' and not exists (select 1 from public.ai_processing_issue where target_kind='document' and target_id=$1)`, [documentId]);
+    if (result.rowCount !== 1) throw new Error("Legacy failure fixture requires one unclassified uploaded Document");
+  } finally { await database.end(); }
+}
+
 /** Holds real authenticated public commands open on separate connections so
  * concurrent commits are deterministic. Claims come from the real Auth session;
  * only transaction timing bypasses PostgREST's one-request transaction wrapper. */
