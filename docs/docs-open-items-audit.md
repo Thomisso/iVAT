@@ -8,6 +8,8 @@
 
 **Úplná zbývající triage:** [potvrzené Q26–Q49](qa-remaining-triage.md) pokrývají všechny další explicitní QA odklady a provozní návaznosti. Produktové otázky jsou uzavřené. Vybrané #283–#288 mají úplná zadání a ready-for-agent, se zachovanými skutečnými blockery; výzkum/údržba jsou #289/#290, potvrzené odklady #291. DNS podklad Q40 je připravený, neodeslaný. Právní faktická brána #277 a lidská příprava #281 zůstávají samostatné.
 
+**Navazující ticketizace:** [rozcestník specifikací, dětí a konkrétních follow-upů](qa-ticket-index.md) doplňuje stav k 13. 11. 2026. Původní auditní počty níže zůstávají historickým záznamem; nové issues ani připravené implementace se nevydávají za dodání.
+
 Tento inventář nevytváří závazek implementovat všechny budoucí nápady. Rozlišuje potvrzené zadání, explicitní odklad, skutečnou mezeru v kvalitě či důkazech a historický text. Čtení kódu a uzavření issue samo neprokazuje všechny runtime/klientské akceptační scénáře.
 
 ## QA v7 po jednotlivých bodech
