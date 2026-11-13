@@ -64,6 +64,14 @@ _Avoid_: Import, job, dávka (in code)
 A single file uploaded or imported into a Company, preserved unchanged. May contain one or more Documents.
 _Avoid_: Upload, attachment, document (when meaning the file)
 
+**Upload Transfer**:
+The private, incomplete bytes and server-confirmed progress for one immutable Upload Batch item. It becomes a Source File only after validated publication.
+_Avoid_: Source File (before publication), Document
+
+**Upload Attempt**:
+One generation of an Upload Transfer. A full restart creates a new attempt for the same immutable item; retired attempts cannot continue a replacement's progress.
+_Avoid_: Session (when meaning a transport generation), access token
+
 **Photo Group**:
 A User-confirmed ordered set of original photographs of one Document, fixed when its Upload Batch starts. Its processed basis is separate from the unchanged Source Files.
 _Avoid_: Automatic group, merged original

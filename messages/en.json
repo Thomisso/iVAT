@@ -404,6 +404,9 @@
     "companies": "Companies"
   },
   "sourceFiles": {
+    "checkCurrentTransfer": "Check the current transfer",
+    "restartFullUpload": "Start a new full transfer",
+    "cancelTransfer": "Cancel this transfer",
     "manualStart": "Define Documents manually",
     "manualImage": "Create one Document manually",
     "manualWorkbookTitle": "Document worksheet ranges",
@@ -636,6 +639,9 @@
     "invalid": "Enter a valid date as dd.mm.yyyy."
   },
   "errors": {
+    "upload_expired": "This incomplete transfer expired after seven days without new confirmed progress. Start a new full transfer of the same file.",
+    "upload_cancelled": "This transfer was cancelled. You can start a new full transfer of the same file.",
+    "upload_attempt_changed": "This transfer was replaced. Reconcile the current attempt before continuing.",
     "invalid_statistics_filter": "Choose a valid Tax Point Date range and filters.",
     "email_recovery_required": "Verify a fresh password recovery email before using a backup code or continuing recovery.",
     "mfa_recovery_failed": "MFA recovery could not finish. Your account remains restricted; try again or resume after verifying a new recovery email.",
