@@ -1,5 +1,7 @@
 import { expect, it } from "vitest";
+import { strFromU8, unzipSync } from "fflate";
 import { getCompanyFilingDefaults } from "@/application/company-filing-defaults";
+import { getCompanyDataExportStatus, softDeleteCompany } from "@/application/company-deletion";
 import { generateVatReport } from "@/application/vat-reports";
 import { readVatReportArtifact } from "@/application/epo-export";
 import { readVatReportPdfArtifact } from "@/application/vat-report-pdf-artifacts";
@@ -32,10 +34,12 @@ it("saves a profile through the real settings action and serves matching XML/PDF
   const request = await httpAs(user.client);
   const prefix = `/companies/${company.companyId}/vat-reports/2026-10`;
   const outsiderRequest = await httpAs((await provisionedUser()).client);
+  const retained: { id: string; fileName: string; bytes: Uint8Array; mediaType: "xml" | "pdf" }[] = [];
   for (const format of ["dphdp3", "dphkh1"] as const) {
     const xml = await request(`${prefix}/xml`, { method: "POST", body: new URLSearchParams({ format, preparedOn: "2026-10-27" }) });
     expect(xml.status).toBe(200);
     const xmlText = await xml.text();
+    retained.push({ id: xml.headers.get("x-ivat-artifact-id")!, fileName: `DRAFT_${format.toUpperCase()}_2026-10.xml`, bytes: new TextEncoder().encode(xmlText), mediaType: "xml" });
     expect(xmlText).toContain('zast_jmeno="Alena"');
     expect(xmlText).toContain('zast_dat_nar="03.02.1981"');
     expect((await readVatReportArtifact(user.client, { companyId: company.companyId, artifactId: xml.headers.get("x-ivat-artifact-id")! }))?.artifact.resolvedDetails.representative?.firstName).toBe("Alena");
@@ -46,6 +50,7 @@ it("saves a profile through the real settings action and serves matching XML/PDF
     expect(pdf.headers.get("cache-control")).toBe("private, no-store");
     const artifactId = pdf.headers.get("x-ivat-artifact-id")!;
     const pdfBytes = new Uint8Array(await pdf.arrayBuffer());
+    retained.push({ id: artifactId, fileName: `${format.toUpperCase()}-2026-10.pdf`, bytes: pdfBytes, mediaType: "pdf" });
     const stored = await readVatReportPdfArtifact(user.client, { companyId: company.companyId, artifactId });
     expect(stored?.bytes).toEqual(pdfBytes);
     expect(stored?.artifact.resolvedDetails.representative?.firstName).toBe("Alena");
@@ -74,6 +79,22 @@ it("saves a profile through the real settings action and serves matching XML/PDF
   expect(html.includes("Alena Zástupná · 03.02.1981")).toBe(true);
   expect(html).toContain("DPHDP3-2026-10.pdf");
   expect(html).toContain("DPHKH1-2026-10.pdf");
+  const exported = await adminRequest(`/companies/${company.companyId}/export`, { method: "POST" });
+  expect(exported.status).toBe(200);
+  const archive = unzipSync(new Uint8Array(await exported.arrayBuffer()));
+  expect(JSON.parse(strFromU8(archive["company.json"])).filingDefaults.representative).toMatchObject({ code: "4a", personType: "F", firstName: "Alena", lastName: "Zástupná", birthDate: "1981-02-03" });
+  for (const artifact of retained) {
+    const directory = artifact.mediaType === "pdf" ? "vat-report-pdf-artifacts" : "vat-report-artifacts";
+    expect(archive[`${directory}/${artifact.id}/${artifact.fileName}`]).toEqual(artifact.bytes);
+  }
+  expect(JSON.parse(strFromU8(archive["vat-report-pdf-artifacts.json"]))).toEqual(expect.arrayContaining(
+    retained.filter(artifact => artifact.mediaType === "pdf").map(artifact => expect.objectContaining({ id: artifact.id, resolvedDetails: expect.objectContaining({ representative: expect.objectContaining({ firstName: "Alena" }) }) })),
+  ));
+  const receipt = { companyId: company.companyId, exportId: exported.headers.get("X-Company-Export-Id")! };
+  await expect.poll(async () => value(await getCompanyDataExportStatus(company.client, receipt)), { timeout: 30_000, interval: 200 }).toBe("completed");
+  expect((await request(`${prefix}/pdf`, { method: "POST", body: new URLSearchParams({ preparedOn: "2026-10-27" }) })).status).toBe(200);
+  expect(value(await getCompanyDataExportStatus(company.client, receipt))).toBe("stale");
+  expect(await softDeleteCompany(company.client, receipt)).toEqual({ ok: false, error: "stale_export" });
 });
 
 function filingForm(html: string) {
