@@ -483,7 +483,7 @@
     "photoGroupOriginals": "Ordered original photographs",
     "groupDocument": "Review the grouped Document",
     "groupPreparing": "This photograph belongs to a confirmed group; its complete basis is being prepared.",
-    "groupUnavailable": "The group basis is unavailable. Originals remain preserved; this group has not completed processing.",
+    "groupUnavailable": "The group basis is unavailable and processing did not complete. Review the available original evidence before continuing.",
     "groupManual": "Prepare whole group for manual review",
     "groupRetry": "Retry preparing the whole group"
   },

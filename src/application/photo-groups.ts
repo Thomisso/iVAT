@@ -105,7 +105,7 @@ export async function preparePhotoGroup(system: SystemClient, sourceFileId: stri
   try {
     const limits = await system.from("platform_settings").select("max_source_file_bytes, max_source_file_pages").single();
     if (limits.error) throw limits.error;
-    if (group.sourceFileIds.length > limits.data.max_source_file_pages || sources.reduce((sum, source) => sum + Number(source.byte_size), 0) > limits.data.max_source_file_bytes) throw new PhotoGroupEvidenceError("Photo Group exceeds platform limits");
+    if (group.sourceFileIds.length > limits.data.max_source_file_pages || sources.reduce((sum, source) => sum + Number(source.byte_size), 0) > limits.data.max_source_file_bytes) throw new Error("Photo Group exceeds platform limits");
     const pdf = await PDFDocument.create();
     pdf.setCreationDate(new Date("1980-01-01T00:00:00Z"));
     pdf.setModificationDate(new Date("1980-01-01T00:00:00Z"));
@@ -122,7 +122,7 @@ export async function preparePhotoGroup(system: SystemClient, sourceFileId: stri
       let normalizedDerivative: PhotoGroupBasis["pages"][number]["normalizedDerivative"];
       if (source.format === "heic" || source.format === "heif") {
         if (source.normalized_format !== "jpeg" || !source.normalized_byte_size || !source.normalized_sha256) throw new PhotoGroupEvidenceError("Photo Group normalization metadata unavailable");
-        if (Number(source.normalized_byte_size) > limits.data.max_source_file_bytes) throw new PhotoGroupEvidenceError("Photo Group normalization exceeds platform limit");
+        if (Number(source.normalized_byte_size) > limits.data.max_source_file_bytes) throw new Error("Photo Group normalization exceeds platform limit");
         const stored = await system.storage.from(SOURCE_FILE_BUCKET).download(sourceFileDerivativeObjectPath(group.companyId, id));
         if (stored.error) throw stored.error;
         input = new Uint8Array(await stored.data.arrayBuffer());
@@ -130,12 +130,13 @@ export async function preparePhotoGroup(system: SystemClient, sourceFileId: stri
         normalizedDerivative = { format: "jpeg", sha256: source.normalized_sha256, byteSize: input.length };
       }
       inputBytes += input.length;
-      if (inputBytes > limits.data.max_source_file_bytes) throw new PhotoGroupEvidenceError("Photo Group normalized input exceeds platform limit");
+      if (inputBytes > limits.data.max_source_file_bytes) throw new Error("Photo Group normalized input exceeds platform limit");
       // Orientation is applied to the stored processed pages, never to originals.
       const png = await sharp(input, { limitInputPixels: 8_000_000 }).rotate().png().toBuffer({ resolveWithObject: true })
         .catch(() => { throw new PhotoGroupEvidenceError("Photo Group photograph cannot be decoded"); });
       pixels += png.info.width * png.info.height; bytesTotal += png.data.length;
-      if (pixels > 100_000_000 || bytesTotal > Math.min(18 * 1024 * 1024, limits.data.max_source_file_bytes) || png.data.length > 3 * 1024 * 1024
+      if (bytesTotal > limits.data.max_source_file_bytes) throw new Error("Photo Group processed basis exceeds platform limit");
+      if (pixels > 100_000_000 || bytesTotal > 18 * 1024 * 1024 || png.data.length > 3 * 1024 * 1024
         || Math.max(png.info.width, png.info.height) > (group.sourceFileIds.length > 20 ? 2000 : 8000)) throw new PhotoGroupEvidenceError("Photo Group processed basis exceeds rendering limits");
       const image = await pdf.embedPng(png.data);
       const page = pdf.addPage([image.width, image.height]);
@@ -146,7 +147,7 @@ export async function preparePhotoGroup(system: SystemClient, sourceFileId: stri
     }
     const bytes = await pdf.save();
     basis.sha256 = hash(bytes); basis.byteSize = bytes.length;
-    if (bytes.length > limits.data.max_source_file_bytes) throw new PhotoGroupEvidenceError("Photo Group PDF basis exceeds platform limit");
+    if (bytes.length > limits.data.max_source_file_bytes) throw new Error("Photo Group PDF basis exceeds platform limit");
     if (!(await current())) return { group, ready: false, terminal: true };
     await storeBasis(system, photoGroupPath(group, "basis.pdf"), bytes, "application/pdf");
     const completed = await system.rpc("complete_photo_group", { target_group_id: group.id, processed_basis: basis, target_request_id: requestId, target_lease_id: leaseId });

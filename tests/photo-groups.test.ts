@@ -434,6 +434,11 @@ describe("User-confirmed Photo Groups", () => {
       expect(await worker.runJobsConcurrently()).toContainEqual(expect.objectContaining({ message: "Photo Group PDF basis exceeds platform limit" }));
       expect((await getPhotoGroup(owner.client, owner.companyId, groupId))?.basis).toBeNull();
       expect(await getDocument(owner.client, owner.companyId, groupId)).toBeNull();
+      expect((await setPlatformUploadLimits(platform.client, previous)).ok).toBe(true);
+      expect(await recoverPhotoGroup(owner.client, worker.jobs, { companyId: owner.companyId, groupId, mode: "manual" })).toEqual({ ok: true, value: { id: groupId } });
+      expect(await worker.runJobsConcurrently()).toEqual([]);
+      expect((await getDocument(owner.client, owner.companyId, groupId))?.status).toBe("needs_review");
+      expect(await getCompanyAiProcessingAllowance(owner.client, owner.companyId)).toMatchObject({ ok: true, value: { used: 0 } });
     } finally { await setPlatformUploadLimits(platform.client, previous); }
   });
   it("preserves ordered originals and sends one stored basis to one Extraction, despite AI Split boundaries", async () => {
