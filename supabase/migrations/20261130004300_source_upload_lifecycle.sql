@@ -71,6 +71,9 @@ insert into private.source_upload_identity(source_file_id,organization_id,compan
  order by (f->>'id')::uuid,b.created_at,b.id on conflict do nothing;
 create function private.enroll_source_upload() returns trigger language plpgsql security definer set search_path='' as $$
 begin
+ if exists(select 1 from private.source_upload_validation v where v.source_file_id=new.source_file_id and v.legacy
+ and (v.file_name<>new.file_name or v.expected_byte_size<>new.byte_size or v.expected_sha256<>new.sha256)) then
+ raise exception 'immutable full-file identity mismatch' using errcode='P0001',hint='invalid_choice'; end if;
  insert into private.source_upload_identity(source_file_id,organization_id,company_id,upload_batch_id,transfer_owned,legacy_cleanup)
  values(new.source_file_id,new.organization_id,new.company_id,new.upload_batch_id,true,true)
  on conflict(source_file_id) do update set transfer_owned=true,legacy_cleanup=true,legacy_retired=true

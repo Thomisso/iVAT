@@ -195,3 +195,12 @@ it("refuses attaching a reserved manifest UUID through the manual Document defin
  const {attachDocumentSource}=await import("@/application/documents");
  expect(await attachDocumentSource(owner.client,{companyId:owner.companyId,documentId:manual.id,sourceFileId:selection.files[0].sourceFileId,fileName:"receipt.png",bytes:selection.files[0].bytes})).toEqual({ok:false,error:"forbidden"});
 });
+
+it("keeps the pinned full-file identity when changing to resumable transport",async()=>{
+ const owner=await administratorWithCompany();const {selectFixtureFiles}=await import("./support/files");const selected=selectFixtureFiles("receipt.png");
+ const batch=value(await beginUploadBatch(owner.client,{companyId:owner.companyId,fileCount:1,selectedFiles:selected.selectedFiles})),file=selected.files[0];
+ const identity={companyId:owner.companyId,batchId:batch.id,sourceFileId:file.sourceFileId,fileName:file.fileName,byteSize:file.bytes.length,sha256:selected.selectedFiles[0].sha256};
+ expect((await owner.client.rpc("begin_source_file_validation",{target_company_id:owner.companyId,target_batch_id:batch.id,target_source_file_id:file.sourceFileId,original_file_name:file.fileName,original_byte_size:file.bytes.length,original_sha256:identity.sha256})).error).toBeNull();
+ expect(await reconcileSourceUpload(owner.client,{...identity,fileName:"renamed.png"})).toMatchObject({ok:false,error:"invalid_choice"});
+ expect(value(await reconcileSourceUpload(owner.client,identity)).confirmedBytes).toBe(0);
+});
