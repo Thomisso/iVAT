@@ -286,16 +286,51 @@ export async function uploadSourceFile(
   if (!stored.ok) return stored;
 
   if (input.batchId) {
+    const batchId = input.batchId;
     if (!validator) return { ok: false, error: "forbidden" };
-    const claim = await client.rpc("begin_source_file_validation", { target_company_id: company.id, target_batch_id: input.batchId, target_source_file_id: id,
+    const beginValidation = () => client.rpc("begin_source_file_validation", { target_company_id: company.id, target_batch_id: batchId, target_source_file_id: id,
       original_file_name: fileName, original_byte_size: input.bytes.length, original_sha256: sha256 });
+    // The validator proves stored content; only this native client can decide
+    // whether a concurrent publication or authority change has settled the command.
+    const recoverValidation = async (): Promise<Result<{ id: string }, UploadSourceFileError> | undefined> => {
+      const { data: recorded, error: readError } = await client.from("source_file")
+        .select("id, upload_batch_id, file_name, format, byte_size, sha256")
+        .eq("id", id).eq("company_id", company.id).maybeSingle();
+      if (readError) {
+        if (readError.code === "42501") return { ok: false, error: "forbidden" };
+        throw readError;
+      }
+      if (recorded) {
+        if (recorded.upload_batch_id !== batchId || recorded.file_name !== fileName || recorded.format !== format
+          || Number(recorded.byte_size) !== input.bytes.length || recorded.sha256 !== sha256) return { ok: false, error: "invalid_choice" };
+        await jobs.send(splitJob(id));
+        return { ok: true, value: { id } };
+      }
+      const authority = await beginValidation();
+      if (authority.error) {
+        if (authority.error.code === "42501") return { ok: false, error: "forbidden" };
+        if (authority.error.hint === "invalid_choice") return { ok: false, error: "invalid_choice" };
+        throw authority.error;
+      }
+      const current = await prepareSourceFile(client, input);
+      if (!current.ok) return current;
+    };
+    const claim = await beginValidation();
     if (claim.error) {
       if (claim.error.code === "42501") return { ok: false, error: "forbidden" };
       if (claim.error.hint === "invalid_choice") return { ok: false, error: "invalid_choice" };
       throw claim.error;
     }
-    const verified = await validator.validateAndStage(claim.data);
+    let verified;
+    try { verified = await validator.validateAndStage(claim.data); }
+    catch (error) {
+      const recovered = await recoverValidation();
+      if (recovered) return recovered;
+      throw error;
+    }
     if (!verified.ok) {
+      const recovered = await recoverValidation();
+      if (recovered) return recovered;
       const error = verified.error;
       if (error === "upload_incomplete" || error === "upload_checksum_mismatch") return { ok: false, error: "invalid_choice" };
       if (error === "upload_expired" || error === "upload_cancelled" || error === "upload_attempt_changed") return { ok: false, error: "forbidden" };
@@ -330,7 +365,7 @@ export async function uploadSourceFile(
       return { ok: true, value: { id } };
     }
     if (error.code === "42501") return { ok: false, error: "forbidden" };
-    if (error.hint === "identical_file" || error.hint === "too_many_files" || error.hint === "invalid_choice" || error.hint === "file_too_large" || error.hint === "unsupported_format") return { ok: false, error: error.hint };
+    if (error.hint === "identical_file" || error.hint === "too_many_files" || error.hint === "invalid_choice" || error.hint === "file_too_large" || error.hint === "too_many_pages" || error.hint === "unsupported_format") return { ok: false, error: error.hint };
     throw error;
   }
   await jobs.send(splitJob(id));

@@ -70,6 +70,9 @@ Pre-lifecycle attempts keep their existing four-segment object layout
 segments and cannot delete a replacement's five-segment objects. New transfer originals and derivatives use exact attempt-owned paths in
 `source-files`. Unpublished ownership becomes permanently retired on expiry,
 cancel, finish or deletion, so their tombstones collect late writes safely.
+Authorized Batch deletion also retires exact published attempt keys once their
+Source is removed. A concurrent validator's late original or derivative remains
+discoverable after an empty sweep; retained published Source references stay protected.
 Published ownership protects retained evidence; replacement attempts use
 different paths. Legacy canonical unpublished names are also registered, and
 manifest identity reservations survive cascades. Existing published legacy paths,

@@ -317,7 +317,16 @@ begin
   for t in select * from public.source_upload_transfer where upload_batch_id=old.id order by source_file_id for update loop
     perform private.retire_source_upload(t,case when (private.source_upload_progress(t)->>'complete')::boolean then 'completed' else 'cancelled' end);
   end loop;
-  update private.source_upload_identity set legacy_cleanup=true where upload_batch_id=old.id and transfer_owned;
+  -- The authorized deletion removes Source rows before deleting the Batch.
+  -- Published is permanent only while its original is retained: a validator
+  -- admitted before publication may still finish either exact object PUT later.
+  update private.source_upload_validation v set state='retired'
+  where v.upload_batch_id=old.id and not exists(select 1 from public.source_file s
+    where s.id=v.source_file_id and s.company_id=v.company_id
+      and ((v.legacy and s.storage_attempt_id is null) or (not v.legacy and s.storage_attempt_id=v.attempt_id)));
+  update private.source_upload_identity r set legacy_cleanup=true,legacy_retired=true
+  where r.upload_batch_id=old.id and not exists(select 1 from public.source_file s
+    where s.id=r.source_file_id and s.company_id=r.company_id and s.storage_attempt_id is null);
   return old;
 end;
 $$;
