@@ -98,6 +98,12 @@ it("returns stored CZK coverage and exact contributing or excluded links with th
   expect(trade).toContain("Stored CZK summary");
   expect(trade).toContain("4 114,00");
   expect(trade).toContain("Incomplete CZK total");
+  for (const label of ["Incomplete CZK total", "Complete CZK total"]) {
+    const statusCell = [...trade.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/g)].find(match => match[1].includes(label))?.[1];
+    expect(statusCell).toBeDefined();
+    expect(statusCell).toMatch(/<svg\b[^>]*aria-hidden="true"/);
+    expect(statusCell).toContain(label);
+  }
   expect(trade).toContain("CZK contributors");
   expect(trade).toContain("3 of 4");
   expect(trade).toContain("1 of 1");

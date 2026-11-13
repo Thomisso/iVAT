@@ -5,6 +5,7 @@ import { getCounterpartyStatistics, type CounterpartyStatisticsFilters } from "@
 import { withCompanyReturnTo } from "@/application/return-context";
 import { DataTable } from "@/components/data-table";
 import { Money } from "@/components/money";
+import { Icon } from "@/components/icon";
 import { formatDate } from "@/lib/format-date";
 
 export async function TradeStatistics({ client, companyId, counterpartyId, search }: {
@@ -68,7 +69,7 @@ export async function TradeStatistics({ client, companyId, counterpartyId, searc
           render: (row: typeof statistics.czkGroups[number]) => row[key] === null ? money(null) : <Link href={href({ direction: row.direction, contribution: "czk_complete", page: 1 })}>{money(row[key])}</Link> })),
         { key: "amountCount", header: t("czkContributors"), align: "right", render: row => <Link href={href({ direction: row.direction, contribution: "czk_complete", page: 1 })}>{t("coverage", { count: row.amountCount, total: row.documentCount })}</Link> },
         { key: "missingAmountCount", header: t("missing_czk"), align: "right", render: row => <Link href={href({ direction: row.direction, contribution: "missing_czk", page: 1 })}>{row.missingAmountCount}</Link> },
-        { key: "coverage", header: t("coverageStatus"), render: row => t(row.missingAmountCount ? "czkIncomplete" : "czkComplete") },
+        { key: "coverage", header: t("coverageStatus"), render: row => <span><Icon name={row.missingAmountCount ? "alert" : "check"} />{t(row.missingAmountCount ? "czkIncomplete" : "czkComplete")}</span> },
       ]} />
     </>}
     {statistics.groups.length ? <DataTable caption={t("summary")} rows={statistics.groups.map((group, index) => ({ ...group, id: index }))} columns={[
