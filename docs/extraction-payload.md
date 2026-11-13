@@ -2,9 +2,7 @@
 
 The payload of an Extraction Version: structured data read by an AI provider or entered by a User. The TypeScript definition is `ExtractionPayload` in [`src/application/extraction-payload.ts`](../src/application/extraction-payload.ts). Change both together.
 
-AI-extracted fields are a proposal ([ADR-0003](adr/0003-ai-extracts-rules-engine-computes.md)). Only Approved Documents count towards a VAT Report. Human review is the default; a Company may explicitly enable automatic approval of eligible new AI Extractions, including requested reruns, under [ADR-0019](adr/0019-optional-company-automatic-approval.md). Automatic approval requires no errors, warnings or Duplicate Warning, supported report classification, required verification and an available unlocked Reporting Period. Provider confidence is not an approval criterion. Enabling the policy does not approve a backlog, and manual corrections or refreshed Bank Account Checks do not trigger it. Approval history distinguishes automatic approval from a human decision.
-
-The payload also preserves non-AI accounting metadata and server-bound provenance for its immutable Extraction Version. A Document's Reporting Period assignment, including its Deferred Claim, is stored separately on the Document; `claimEligibility` records the Earliest Claim Period, not that assignment.
+The payload is a proposal (ADR-0003). Nothing in it counts towards a VAT Report until a human approves the Document. The Deferred Claim belongs to the Document, not to the payload.
 
 ## Conventions
 
@@ -39,7 +37,6 @@ The payload also preserves non-AI accounting metadata and server-bound provenanc
 | `originalDocumentNumber` | string | For a Credit Note, the number of the Document it corrects |
 | `partialClaim` | `{ confirmed, rateBreakdown, basis?, zeroConfirmed? }`, optional | Explicit human selection of separate supplies. Absence retains full-Document reporting; an unconfirmed selection never silently restores a full claim. Full source Rate Breakdown and totals remain unchanged. |
 | `proportionalDeduction` | `{ percentage, origin, confirmed, operatingExpenseConfirmed, actualUseConfirmed, basis? }`, optional | Explicit manual § 75 actual-use decision, separate from Partial Claim. One whole percentage 1–99 applies to the entire supported operating Document; source amounts remain unchanged. |
-| `claimEligibility` | `{ period, origin, confirmed, basis? }`, optional | Non-AI Earliest Claim Period metadata. `origin` is `user` or `same_period`; the server binds the decisive facts in `basis`. Absence or an unconfirmed/stale value leaves ordinary incoming domestic claim eligibility unresolved. |
 | `czkConversion` | object, optional | Derived CZK rate breakdown/totals plus original currency, ČNB rate, quoted unit, actual fixing date and source. Printed amounts stay unchanged. |
 | `counterpartyLink` | object or null, optional | Server-validated Counterparty `id` and a `recorded` Party-shaped snapshot of its directory details when this Version was saved. Absence permits automatic normalized identity matching; explicit null preserves a human unlink. Supplier/customer fields remain the Document’s own data. |
 | `sourceEvidence` | object, optional | Server-bound source references for this immutable Version: Source File/Document identity, original hash and oriented original or normalized basis, original page range or worksheet/absolute row and column range, `extractionVersionId`, original AI request, and per-field locations with `origin` and `originalValue`. |
@@ -129,51 +126,9 @@ or reduced deduction. One Document still has one Reporting Period.
 }
 ```
 
-## Reporting Period assignment
-
-A Document defaults to the generated Reporting Period of its `taxPointDate`.
-Its separate `claimedReportingPeriod` (`document.claimed_reporting_period` in
-PostgreSQL) records a Deferred Claim; null retains the Tax Point Date's default.
-A new Deferred Claim must select a later generated, unlocked Reporting Period
-while the Document is in review, satisfy the filing deadline and, once eligibility
-is confirmed, be no earlier than the Earliest Claim Period. It does not change
-`taxPointDate` or the immutable payload. The supported scope under
-[ADR-0020](adr/0020-claim-eligibility-is-distinct-from-tax-point-period.md) is an
-incoming `domestic` invoice, receipt or simplified tax document. Reverse charge
-and EU self-assessment retain one common period; legacy unsupported deferrals
-require resolution before new report preparation. Stored historical reports
-remain unchanged.
-
 ## Earliest Claim Period
 
-Optional `claimEligibility` is non-AI accounting metadata:
-`{ period, origin: "user" | "same_period", confirmed, basis? }`. A User explicitly
-confirms a generated Earliest Claim Period no earlier than the Tax Point Date's
-period. Independently of whether automatic approval is enabled, the server may
-establish `origin: "same_period"` only when DUZP, issue date and the actual Source
-File Import Date all belong to that generated period. This rule does not itself
-approve a Document or establish earlier possession from a later upload.
-
-The database binds `basis` to the then-current document type, Direction, VAT Regime,
-DUZP, issue date, Source File identity and Prague Import Date. A Document without a
-Source File has null source identity and Import Date in that basis; it cannot
-qualify for the same-period rule. AI cannot supply or confirm this metadata.
-Manual omission inherits the previous value. Changed decisive facts invalidate a
-prior human confirmation, and a new AI Extraction preserves a previous human
-choice as unconfirmed, requiring renewed human confirmation. The server may
-recalculate a previous same-period value from the new facts. Earlier immutable
-Versions retain their recorded values and origins.
-
-This accounting provenance is distinct from provider `confidence`, source field
-locations and `sourceEvidence`. It is included in the additive review projection
-and locked-base inheritance alongside directory, Partial Claim and source evidence
-extensions. Historical Versions without it remain readable, but missing,
-unconfirmed or stale eligibility blocks approval and new report preparation for
-ordinary incoming domestic claims; absence is not proof of a violation. A confirmed
-zero Partial Claim still requires eligibility confirmation but does not exercise a
-deduction or carry a claim deadline. Current deadline evaluation is implemented in
-[`src/application/claim-eligibility.ts`](../src/application/claim-eligibility.ts)
-and the database transitions; it does not rewrite historical Versions or reports.
+Optional `claimEligibility` is non-AI accounting metadata: `{period, origin: "user" | "same_period", confirmed, basis}`. A User explicitly confirms a generated period; the accepted rule may establish the same period only when DUZP, issue date and the actual Source File Import Date all belong to it. The database binds `basis` to the then-current document type, Direction, VAT Regime, DUZP, issue date, Source File identity and Prague Import Date. No Source File means no invented Import Date. Changed decisive facts or AI replacement invalidate a prior human confirmation; immutable earlier Versions retain their original value and origin. The metadata is included in the additive review projection and locked-base inheritance alongside directory, Partial Claim and source evidence extensions. Missing eligibility is unresolved, not proof of a violation, and blocks approval/new preparation for ordinary incoming domestic claims. Deadline calculations belong to the separate deadline workflow.
 
 ## PDF Extraction page basis (#253)
 
