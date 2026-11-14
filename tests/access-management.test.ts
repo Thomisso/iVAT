@@ -172,3 +172,25 @@ it("uses membership-free AAL2 SuperAdmin context for blocked tenants while prese
   // Exact direct target remains immutable even through the Organization filter.
   expect(await removeMembership(platform.client, directMembershipId)).toEqual({ ok: false, error: "forbidden" });
 });
+
+
+it("searches email case-insensitively only within the authorized selected Users without treating Invitations as Users", async () => {
+  const owner = await administratorWithCompany("Email search");
+  const member = await companyMember(owner);
+  const foreign = await administratorWithCompany("Private search");
+  const invitation = await generateInvitationLink(owner.client, {
+    organizationId: owner.organizationId, companyId: owner.companyId,
+    email: "pending-search@example.test", role: "administrator", acceptUrl: "http://localhost/invitations/accept",
+  });
+  if (!invitation.ok) throw new Error(invitation.error);
+  const matching = await listAccessManagement(owner.client, { ...owner, emailSearch: `  ${member.email.toUpperCase()}  ` });
+  if (!matching.ok) throw new Error(matching.error);
+  expect(matching.value.users.map(user => user.userId)).toEqual([member.userId]);
+  expect(matching.value.pendingInvitations).toEqual([expect.objectContaining({ email: "pending-search@example.test" })]);
+  for (const emailSearch of [foreign.email, "pending-search@example.test", "%_", "no-match@example.test"]) {
+    const result = await listAccessManagement(owner.client, { ...owner, emailSearch });
+    if (!result.ok) throw new Error(result.error);
+    expect(result.value.users).toEqual([]);
+  }
+  expect(await listAccessManagement(owner.client, { organizationId: foreign.organizationId, companyId: foreign.companyId, emailSearch: foreign.email })).toEqual({ ok: false, error: "forbidden" });
+});

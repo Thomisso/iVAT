@@ -16,7 +16,8 @@ import {
 } from "@/application/upload-batches";
 import { createCompany } from "@/application/companies";
 import { listAuditEvents } from "@/application/audit";
-import { retrySplit, uploadSourceFile } from "@/application/source-files";
+import { retrySplit } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import { listCompanyDocuments, reprocessDocument } from "@/application/documents";
 import {
   administratorWithCompany,

@@ -5,7 +5,7 @@ import { administratorWithCompany, assignAiConfigurationFixture, companyMember }
 import { promotedSuperAdministrator } from "./support/platform";
 import { createCounterparty, listCounterparties, updateCounterparty } from "@/application/counterparties";
 import { SAMPLE_EXTRACTION, fakeAiProvider } from "@/ai/fake";
-import { uploadSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import { getDocumentReview } from "@/application/document-review";
 import { getDocument, listDocuments, listExtractionVersions, startManualDocumentReview, correctDocument, reprocessDocument, createManualDocument, approveDocument, returnDocumentToReview } from "@/application/documents";
 import { extractJob } from "@/application/processing";

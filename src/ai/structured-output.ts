@@ -258,3 +258,8 @@ export function extractionPayload(provider: string, value: unknown, input?: Pick
   }
   return payload;
 }
+
+/** Shared with the evaluator so prompt identity describes the actual page Split request. */
+export function pageSplitPrompt(pageCount: number): string {
+  return `Identify the inclusive page range of every Document in this ${pageCount}-page Source File.`;
+}

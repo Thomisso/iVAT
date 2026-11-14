@@ -298,6 +298,17 @@
     "saved": "Filing defaults saved."
   },
   "members": {
+    "searchEmail": "Search by email",
+    "applyFilters": "Apply filters",
+    "noSearchResults": "No users match this email in the selected scope.",
+    "showMemberships": "Show Memberships ({count}) for {email}",
+    "memberships": "Memberships",
+    "organizationRoles": "Scoped Roles",
+    "effectiveRole": "Effective Access",
+    "rolesByMembership": "See each Membership’s Role",
+    "status": "Status",
+    "expiry": "Expires",
+    "actions": "Actions",
     "managementScope": "Management scope",
     "applyScope": "Apply scope",
     "organizationScope": "Organization: {name}",
@@ -328,7 +339,7 @@
     "scopedAccessIntro": "Each action changes only the named Membership. Other Memberships can retain Effective Access. Removing a Membership does not delete the sign-in account.",
     "changeRole": "Change Role",
     "remove": "Remove access",
-    "pendingTitle": "Pending invitations",
+    "pendingTitle": "Invitations",
     "pendingNone": "No invitations are waiting for acceptance.",
     "expires": "Expires {date}",
     "source": {
@@ -372,12 +383,30 @@
       "introduction": "Open the invitation and explicitly accept access. A new user chooses a password; an existing user keeps their credentials.",
       "linkLabel": "Open invitation",
       "expiry": "This invitation is single-use and expires seven days after it was created."
-    }
+    },
+    "confirmMembershipTitle": "Review Membership change",
+    "confirmMembershipPerson": "Person: {email}. Membership: {membership}.",
+    "confirmMembershipScope": "Exact scope: {scope}. Current Role: {role}.",
+    "confirmMembershipRemoval": "This concrete Membership will be removed.",
+    "confirmMembershipRole": "This concrete Membership will change to {role}.",
+    "organizationImpact": "This Organization Membership supplies inherited access to the following Companies. Review the remaining access in each Company.",
+    "platformAccessSurvives": "SuperAdmin platform access remains.",
+    "noCompanyImpact": "No active Companies are affected.",
+    "companyAccessRemoved": "No access to this Company will remain through Memberships.",
+    "companyAccessSurvives": "Access to this Company remains as {role}.",
+    "survivingMembership": "Remaining Membership: {scope}, {role} ({membership}).",
+    "revalidatedOnConfirmation": "The database will check the current access and safeguards again when you confirm. If the impact changes, review it again.",
+    "confirmMembershipChange": "Confirm Membership change",
+    "cancelMembershipChange": "Cancel change",
+    "selfChangeHint": "You cannot remove your own Membership or demote yourself from Administrator. Ask another authorized person to arrange the handover."
   },
   "dashboard": {
     "companies": "Companies"
   },
   "sourceFiles": {
+    "checkCurrentTransfer": "Check the current transfer",
+    "restartFullUpload": "Start a new full transfer",
+    "cancelTransfer": "Cancel this transfer",
     "manualStart": "Define Documents manually",
     "manualImage": "Create one Document manually",
     "manualWorkbookTitle": "Document worksheet ranges",
@@ -414,7 +443,7 @@
     "removePhoto": "Remove photo",
     "orChooseFiles": "or choose existing files",
     "draftRestored": "Draft restored. No file is marked uploaded until the server stores it.",
-    "uploadProgress": "Upload progress for {name}",
+    "uploadProgress": "Estimated transfer progress for {name}",
     "retryUpload": "Retry {name}",
     "removeFile": "Remove {name}",
     "identicalFileOmitted": "Identical file contents are already in the queue; another copy was not added.",
@@ -445,9 +474,30 @@
     "hash": "SHA-256 hash",
     "status": "Status",
     "dropTitle": "Drop a Source File here",
-    "chooseFile": "Choose a file"
+    "chooseFile": "Choose a file",
+    "serverConfirmed": "Server stored: {bytes} of {total} bytes",
+    "transferEstimate": "Transfer estimate: {percent}%",
+    "groupPhotos": "Group selected photos as one Document",
+    "selectPhoto": "Select photograph for grouping",
+    "groupPage": "Group {group} · page {page}",
+    "dissolveGroup": "Dissolve group",
+    "movePhotoEarlier": "Move earlier",
+    "movePhotoLater": "Move later",
+    "photoGroupOriginals": "Ordered original photographs",
+    "groupDocument": "Review the grouped Document",
+    "groupPreparing": "This photograph belongs to a confirmed group; its complete basis is being prepared.",
+    "groupUnavailable": "The group basis is unavailable and processing did not complete. Review the available original evidence before continuing.",
+    "groupManual": "Prepare whole group for manual review",
+    "groupRetry": "Retry preparing the whole group",
+    "localDraftUnavailable": "Local recovery storage is unavailable. You can still upload now; to return later, open this Batch and select the same files again.",
+    "sameDeviceRecoveryHint": "Continuation uses this device and the same account. Saved files may be removed by your device; reselect identical bytes when needed. Cross-device file recovery is not guaranteed.",
+    "reselectFile": "Select the same file again",
+    "unidentifiedSource": "Source file awaiting selection",
+    "sourceBytesUnknown": "Select the original file to establish its name and size.",
+    "checkStoredSource": "Check server state"
   },
   "returnContext": {
+    "counterparty": "← Back to Counterparty",
     "company": "← Back to Company",
     "documents": "← Back to Documents",
     "document": "← Back to Document",
@@ -586,7 +636,9 @@
     "deleteRefused": {
       "batch_processing": "The batch can be deleted only after processing finishes.",
       "period_locked": "A Document of this batch lies in a finalized Reporting Period. An Administrator must unlock the period before the batch can be deleted."
-    }
+    },
+    "resumeBatch": "Resume this Batch",
+    "legacyRecoveryBoundary": "This older Batch retained only a file count. Only known transfer identities can be recovered; unknown files and their original selection order cannot be reconstructed."
   },
   "dateInput": {
     "calendarFor": "Choose date for {label}",
@@ -595,6 +647,10 @@
     "invalid": "Enter a valid date as dd.mm.yyyy."
   },
   "errors": {
+    "upload_expired": "This incomplete transfer expired after seven days without new confirmed progress. Start a new full transfer of the same file.",
+    "upload_cancelled": "This transfer was cancelled. You can start a new full transfer of the same file.",
+    "upload_attempt_changed": "This transfer was replaced. Reconcile the current attempt before continuing.",
+    "invalid_statistics_filter": "Choose a valid Tax Point Date range and filters.",
     "email_recovery_required": "Verify a fresh password recovery email before using a backup code or continuing recovery.",
     "mfa_recovery_failed": "MFA recovery could not finish. Your account remains restricted; try again or resume after verifying a new recovery email.",
     "mfa_recovery_required": "Complete your authorized MFA recovery before using this action.",
@@ -765,7 +821,21 @@
     "claim_document_type_required": "Choose a Document type before confirming claim eligibility.",
     "claim_deadline_expired": "The claim filing deadline has expired. A new approval cannot establish timely filing.",
     "claimed_period_after_deadline": "This period ends too late for an ordinary claim before the filing deadline. Choose an earlier eligible period.",
-    "counterparty_resolution_required": "Resolve the Counterparty identity before approval. Select an existing entry, restore an archived match, or explicitly confirm creation without identifiers. Changed directory warnings must be reviewed."
+    "counterparty_resolution_required": "Resolve the Counterparty identity before approval. Select an existing entry, restore an archived match, or explicitly confirm creation without identifiers. Changed directory warnings must be reviewed.",
+    "organization_creation_failed": "The Organization could not be saved. Please try again.",
+    "membership_self_change": "You cannot remove your own Membership or demote yourself from Administrator. Ask another authorized person to arrange the handover.",
+    "membership_last_administrator": "This change would remove the last scoped Administrator. Another person must hold an Administrator Membership first.",
+    "membership_change_stale": "Access changed while you were reviewing. Cancel this confirmation and review the current impact again.",
+    "proportional_deduction_invalid": "Confirm a supported actual-use proportional deduction (1–99%).",
+    "proportional_claim_year_mismatch": "The proportional claim period must be in the Earliest Claim Period’s calendar year.",
+    "upload_authentication_required": "Sign in again with the same account, then retry this upload.",
+    "upload_incomplete": "Some bytes are still missing. Retry the upload.",
+    "upload_checksum_mismatch": "The received bytes do not match the selected file.",
+    "invalid_alert_preference": "Invalid alert preference.",
+    "verified_email_required": "Verify your current account email before enabling alerts.",
+    "invalid_representative": "Select a supported representative and enter a valid first name, last name and birth date or evidence number.",
+    "group_evidence_unavailable": "The original evidence or its stored representation is missing or invalid. This immutable group cannot be recovered; start a new upload with complete photographs.",
+    "upload_file_required": "Select the identical original file to continue. Its name alone does not establish matching content."
   },
   "aiUsage": {
     "platformNav": "Platform AI usage",
@@ -936,7 +1006,9 @@
     "maxBatchFiles": "Maximum Source Files per batch",
     "saveLimits": "Save upload limits",
     "retainedHistory": "Retained history",
-    "companyIdentity": "{name} · IČO {ico}"
+    "companyIdentity": "{name} · IČO {ico}",
+    "createOrganization": "Create Organization",
+    "createCompany": "Add Company"
   },
   "passwordChange": {
     "title": "Change password",
@@ -1173,7 +1245,10 @@
       "deferred_claim_not_supported": "Shared deferral is not supported for this regime. Resolve the Document manually before preparing a new report.",
       "claim_document_type_required": "Choose a Document type before confirming claim eligibility.",
       "claim_deadline_expired": "The claim filing deadline has expired. A new approval cannot establish timely filing.",
-      "claimed_period_after_deadline": "This period ends too late for an ordinary claim before the filing deadline. Choose an earlier eligible period."
+      "claimed_period_after_deadline": "This period ends too late for an ordinary claim before the filing deadline. Choose an earlier eligible period.",
+      "proportional_deduction_conversion_required": "A valid saved CZK conversion of the full Document is required for this foreign-currency proportional deduction.",
+      "proportional_deduction_invalid": "Confirm a supported actual-use proportional deduction (1–99%).",
+      "proportional_claim_year_mismatch": "The proportional claim period must be in the Earliest Claim Period’s calendar year."
     },
     "noDocumentImage": "This Document came from spreadsheet rows and has no document image.",
     "sections": {
@@ -1349,7 +1424,31 @@
     "approvalHuman": "Approved by a User",
     "approvalUnknown": "Approval recorded; original decision details are unknown",
     "approvalVersion": "Version {version}",
-    "approvalVersionUnknown": "Version not recorded"
+    "approvalVersionUnknown": "Version not recorded",
+    "proportionalDeduction": {
+      "title": "Proportional deduction (§ 75)",
+      "enable": "Use a manually confirmed actual-use ratio",
+      "scope": "Only ordinary incoming domestic operating expenditure. Foreign amounts use the full Document’s saved CZK conversion. Fixed assets, estimates, § 76, advances and combinations with Partial Claim are unsupported.",
+      "conversion": "Reduce the original currency amounts first, then use the full Document’s saved exchange rate. Currency rounding is not an Unclaimed Portion.",
+      "conversionRequired": "A valid saved CZK conversion of the full Document is required for this foreign-currency proportional deduction.",
+      "rounding": "Round the actual percentage upward to a whole percentage under § 75(3). Enter the final coefficient, 1–99%, for the entire Document.",
+      "percentage": "Actual-use coefficient (%)",
+      "operating": "I confirm this is ordinary operating expenditure, outside fixed-asset acquisition and its related expenditure.",
+      "actual": "I confirm the ratio reflects already known actual use, not an estimate.",
+      "confirm": "Confirm this ratio and these source amounts",
+      "previous": "Previous ratio: {percentage} %. Confirm it again for the current data.",
+      "invalid": "Enter a whole percentage from 1 to 99, confirm both statements and the ratio, and resolve unsupported combinations or source discrepancies.",
+      "alternatives": "For 0% explicitly disable this mode and use Partial Claim with its zero confirmation. For 100% explicitly disable this mode and use full amounts. Disable Partial Claim before selecting a proportional deduction.",
+      "rate": "VAT rate",
+      "original": "Original net + VAT",
+      "claimed": "Claimed net + VAT",
+      "unclaimed": "Unclaimed net + VAT",
+      "unavailable": "Unavailable until source totals reconcile",
+      "filing": "Export and Finalization do not submit a tax return or perform an annual correction. The selected period must be in the Earliest Claim Period’s calendar year; the filing deadline still applies.",
+      "total": "Total",
+      "rateValue": "{rate} %",
+      "amountSeparator": "+"
+    }
   },
   "duplicateWarning": {
     "document_identity": "Possible duplicate: the counterparty VAT ID, document number and direction match an earlier Document.",
@@ -1605,7 +1704,7 @@
     },
     "noExportArtifacts": "No stored export artifacts",
     "noExportArtifactsHint": "Create the appropriate statutory output from the VAT Return or Control Statement screen. Stored artifact history will remain period-scoped here.",
-    "exportArtifacts": "Stored XML artifacts",
+    "exportArtifacts": "Stored XML and PDF artifacts",
     "artifactForm": "Form",
     "artifactActions": "Actions",
     "artifactChecksum": "SHA-256 checksum",
@@ -1705,7 +1804,9 @@
       "463": "FÚ pro Moravskoslezský kraj",
       "464": "FÚ pro Zlínský kraj",
       "13": "Specializovaný finanční úřad"
-    }
+    },
+    "representative": "Representative",
+    "noRepresentative": "No representative"
   },
   "platformHistory": {
     "title": "Company history: {company}",
@@ -1783,7 +1884,10 @@
     "claimLastFilingDate": "Claim must be exercised by filing no later than: {date}",
     "claimEvaluatedOn": "Assessed as of: {date}",
     "claimLatestPeriod": "Latest available ordinary period: {period}",
-    "claimFilingNote": "Preparation, Finalization and XML export do not submit a return. Saved reports and archived XML retain their recorded data."
+    "claimFilingNote": "Preparation, Finalization and XML export do not submit a return. Saved reports and archived XML retain their recorded data.",
+    "proportionalRatio": "Proportional deduction: {percentage} %",
+    "proportionalClaimed": "Claimed net + VAT:",
+    "amountSeparator": "+"
   },
   "reportingWorkbook": {
     "columns": {
@@ -1824,6 +1928,19 @@
       "included": "included",
       "proposed": "proposed",
       "unavailable": "unavailable"
+    },
+    "deductionColumns": {
+      "deductionMode": "Deduction mode",
+      "percentage": "Ratio (%)",
+      "claimedNetAmount": "Claimed net amount",
+      "claimedVatAmount": "Claimed VAT amount",
+      "unclaimedNetAmount": "Unclaimed net amount",
+      "unclaimedVatAmount": "Unclaimed VAT amount"
+    },
+    "deductionModes": {
+      "proportional": "Proportional deduction",
+      "partialClaim": "Partial Claim",
+      "full": "Full deduction"
     }
   },
   "authEmails": {
@@ -1871,6 +1988,66 @@
       "unrecognized": "The payment identifier is not a recognized bank account; publication remains undetermined."
     }
   },
+  "counterpartyTrade": {
+    "czkSummary": "Stored CZK summary",
+    "czkDescription": "Full Document amounts in CZK, using original CZK totals or the valid saved conversion. Missing or invalid amounts are excluded; no historical exchange rate is refreshed.",
+    "czkContributors": "CZK contributors",
+    "coverage": "{count} of {total}",
+    "coverageStatus": "CZK coverage",
+    "czkIncomplete": "Incomplete CZK total",
+    "czkComplete": "Complete CZK total",
+    "czk_complete": "CZK amount contributors",
+    "missing_czk": "Excluded from CZK",
+    "czkExcluded": "Excluded from CZK: full amounts or a valid stored conversion are unavailable.",
+    "czkNetAmount": "Net (CZK)",
+    "czkVatAmount": "VAT (CZK)",
+    "czkGrossAmount": "Gross (CZK)",
+    "directionCount": "{direction} Documents: {count}",
+    "title": "Trade statistics",
+    "description": "Current Approved Documents, full original amounts, separately by direction and currency. Claim eligibility does not reduce trade. Amounts include only Documents with complete original totals and currency.",
+    "yearFilter": "Calendar year filter",
+    "year": "Calendar year",
+    "chooseYear": "Choose year",
+    "filters": "Tax Point Date and contribution filters",
+    "from": "Tax Point Date from (inclusive)",
+    "to": "Tax Point Date to (inclusive)",
+    "direction": "Direction",
+    "allDirections": "Both directions",
+    "incoming": "Incoming",
+    "outgoing": "Outgoing",
+    "currency": "Original currency",
+    "allCurrencies": "All original currencies",
+    "contributions": "Document contribution",
+    "dated": "All dated Documents",
+    "complete": "Amount contributors",
+    "missing_amounts": "Incomplete original amounts or currency",
+    "missing_date": "Documents without Tax Point Date",
+    "reset": "Current calendar year",
+    "period": "Tax Point Date: {from} – {to} (inclusive)",
+    "missingDates": "Undated Documents excluded from the date range: {count}",
+    "missingAmounts": "Documents in this date range without complete original amounts or currency: {count}",
+    "summary": "Original-currency summary",
+    "count": "Documents",
+    "netAmount": "Original net",
+    "vatAmount": "Original VAT",
+    "grossAmount": "Original gross",
+    "amountCount": "Amount contributors",
+    "unknownCurrency": "Unknown currency",
+    "documents": "Matching current Approved Documents",
+    "document": "Document",
+    "countDocuments": "Matching Documents: {count}",
+    "taxPointDate": "Tax Point Date",
+    "missingDate": "Tax Point Date unavailable",
+    "notes": "Notes",
+    "incomplete": "Excluded from amount totals: original amounts or currency incomplete.",
+    "grossMismatch": "Stored gross differs from net + VAT",
+    "emptySummary": "No current Approved Documents in this Tax Point Date range.",
+    "emptyDocuments": "No Documents match these contribution filters.",
+    "pagination": "Trade Document pages",
+    "unavailableAmount": "Unavailable",
+    "invalidFilters": "Choose a valid Tax Point Date range and filters.",
+    "unavailable": "Trade statistics are unavailable. Try again."
+  },
   "counterparties": {
     "title": "Counterparty Directory",
     "description": "Suppliers and customers of this Company.",
@@ -1916,6 +2093,7 @@
     "next": "Next",
     "page": "Page {page} of {total}",
     "linkedDocuments": "Linked Documents",
+    "historicalLinks": "Current and historical Counterparty links in all Document states.",
     "linkedCount": "Documents: {count}",
     "unnumberedDocument": "Document without a number",
     "noLinkedDocuments": "No linked Documents.",
@@ -1929,5 +2107,56 @@
     "save": "Save approval policy",
     "saving": "Saving…",
     "saved": "Automatic approval policy saved."
+  },
+  "organizationCreation": {
+    "title": "Create Organization",
+    "intro": "Prepare an Organization in the closed pilot. You can add Companies and invite its first Administrator later.",
+    "name": "Organization name",
+    "create": "Create Organization",
+    "cancel": "Back to administration"
+  },
+  "operationalAlerts": {
+    "title": "Operational email alerts",
+    "intro": "Receive grouped alerts after five minutes of critical work blockage on your current verified account email.",
+    "enabled": "Enable operational email alerts",
+    "save": "Save preference",
+    "subject": "iVAT: critical operational blockage",
+    "reminderSubject": "iVAT: continuing operational blockage",
+    "reminderHeading": "This incident episode still blocks critical work",
+    "recoverySubject": "iVAT: operational incident episode ended",
+    "recoveryHeading": "The incident episode from your earlier alert ended",
+    "recoveryContext": "This incident episode ended. A later episode may still require attention.",
+    "recoveryRemediation": "Sign in to review current operational problems",
+    "heading": "Critical work has been blocked for at least five minutes",
+    "companies": "Companies",
+    "documents": "Documents",
+    "sourceFiles": "Source Files",
+    "exportJobs": "Export jobs",
+    "remediation": "Sign in to review and resolve the blockage",
+    "impact": "Companies: {companies, number}\nDocuments: {documents, number}\nSource Files: {sourceFiles, number}\nExport jobs: {exportJobs, number}",
+    "body": "{heading}\n\n{problem}\n{impact}\n\n{remediation}\n{link}"
+  },
+  "representation": {
+    "title": "Representative",
+    "selection": "Representation",
+    "default": "Use Company defaults",
+    "off": "No representative",
+    "generalNatural": "4a — general representative, natural person",
+    "professionalNatural": "4b — tax adviser or lawyer, natural person",
+    "generalLegal": "4a — general representative, legal person",
+    "professionalLegal": "4c — tax advisory legal person",
+    "name": "Representative legal name",
+    "ico": "Representative identification number",
+    "signatory": "Representative’s authorized physical signatory",
+    "signatoryHint": "Confirm the physical person signing for this representative. Company signatory details are separate.",
+    "signatoryFirstName": "Signatory first name",
+    "signatoryLastName": "Signatory last name",
+    "signatoryCapacity": "Relationship to the representative",
+    "firstName": "Representative first name",
+    "lastName": "Representative last name",
+    "birthDate": "Representative birth date",
+    "evidenceNumber": "Representative evidence number",
+    "identityHint": "Enter first name, last name and at least a birth date or evidence number.",
+    "scopeHint": "These details do not verify power of attorney. iVAT does not file the report."
   }
 }

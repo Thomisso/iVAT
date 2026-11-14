@@ -4,9 +4,9 @@ import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { downloadVatReportXml } from "@/lib/vat-report-download";
 import { FormError } from "./form-error";
 
-export function VatReportArtifactDownload({ companyId, period, artifactId, fileName, format, kind, eligible }: {
+export function VatReportArtifactDownload({ companyId, period, artifactId, fileName, format, kind, eligible, mediaType }: {
   companyId: string; period: string; artifactId: string; fileName: string; format: string;
-  kind: "draft" | "final"; eligible: boolean;
+  kind: "draft" | "final"; eligible: boolean; mediaType?: string;
 }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,5 +31,5 @@ export function VatReportArtifactDownload({ companyId, period, artifactId, fileN
       setPending(false);
     }
   }
-  return <><a href={href} download={fileName} aria-disabled={pending || undefined} onClick={download}>{fileName}</a><FormError error={error} /></>;
+  return <><a href={href} download={fileName} aria-disabled={pending || undefined} onClick={mediaType === "application/pdf" ? undefined : download}>{fileName}</a><FormError error={error} /></>;
 }

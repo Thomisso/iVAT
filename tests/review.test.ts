@@ -23,7 +23,7 @@ import {
 import type { ExtractionPayload } from "@/application/extraction-payload";
 import { getReportingPeriodReadiness } from "@/application/reporting-period-readiness";
 import { finalizeVatReport, generateVatReport, getVatReport } from "@/application/vat-reports";
-import { uploadSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { provisionedUser } from "./support/clients";
 import { fixtureFile } from "./support/files";

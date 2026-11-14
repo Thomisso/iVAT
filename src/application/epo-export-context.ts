@@ -1,3 +1,4 @@
+import { resolveRepresentative, type RepresentativeError } from "./epo-representative";
 import type { AppClient, Result } from "./client";
 import { getCompanyFilingDefaults, resolveEpoAddress } from "./company-filing-defaults";
 import type { ExportDetails } from "./epo-export-details";
@@ -24,14 +25,17 @@ export async function resolveEpoExportDetails(
     details: Record<string, string>;
     today: string;
   },
-): Promise<ExportDetails> {
+): Promise<Result<ExportDetails, RepresentativeError>> {
   const defaults = await getCompanyFilingDefaults(client, input.companyId);
+  const representative = resolveRepresentative(input.details, defaults?.representative);
+  if (!representative.ok) return representative;
   const address = resolveEpoAddress(input.company, defaults);
   const supplied = (key: string, fallback: string | null | undefined) =>
     (Object.hasOwn(input.details, key) ? input.details[key] : (fallback ?? "")).trim();
   const taxOffice = supplied("taxOffice", defaults?.taxOffice);
   const territorialOffice = supplied("territorialOffice", defaults?.territorialOffice);
   const common = {
+    ...(representative.value ? { representative: representative.value } : {}),
     taxOffice,
     // Preserve nonempty mismatches for strict XML validation. The specialized
     // office supplies 4000 only when no territorial office was selected.
@@ -42,14 +46,20 @@ export async function resolveEpoExportDetails(
     phone: supplied("phone", defaults?.phone),
     address: address.ok ? address.value.address : undefined,
   };
-  return input.company.personType === "natural"
-    ? { ...common, personType: "F" }
-    : {
-      ...common, personType: "P",
-      signatoryFirstName: supplied("signatoryFirstName", defaults?.signatoryFirstName),
-      signatoryLastName: supplied("signatoryLastName", defaults?.signatoryLastName),
-      signatoryCapacity: supplied("signatoryCapacity", defaults?.signatoryCapacity),
-    };
+  const personType = input.company.personType === "natural" ? "F" : "P";
+  // A PO representative has its own explicitly confirmed signatory. Company
+  // defaults and account identity never supply a different legal person's signer.
+  if (representative.value?.personType === "P") return { ok: true, value: { ...common, personType,
+    signatoryFirstName: representative.value.signatoryFirstName,
+    signatoryLastName: representative.value.signatoryLastName,
+    signatoryCapacity: representative.value.signatoryCapacity,
+  } };
+  return { ok: true, value: personType === "F" ? { ...common, personType } : {
+    ...common, personType,
+    signatoryFirstName: supplied("signatoryFirstName", defaults?.signatoryFirstName),
+    signatoryLastName: supplied("signatoryLastName", defaults?.signatoryLastName),
+    signatoryCapacity: supplied("signatoryCapacity", defaults?.signatoryCapacity),
+  } };
 }
 
 /** Header-only preparation for previews. Reads the authorized saved report and
@@ -58,15 +68,14 @@ export async function getVatReportExportHeader(
   client: AppClient,
   input: { companyId: string; period: string; details?: Record<string, string> },
   now: () => Date = () => new Date(),
-): Promise<Result<VatReportExportHeader, "report_not_found">> {
+): Promise<Result<VatReportExportHeader, "report_not_found" | RepresentativeError>> {
   const report = await getVatReport(client, input.companyId, input.period);
   if (!report) return { ok: false, error: "report_not_found" };
+  const details = await resolveEpoExportDetails(client, { companyId: input.companyId, company: report.result.company, details: input.details ?? {}, today: todayInPrague(now()) });
+  if (!details.ok) return details;
   return { ok: true, value: {
     company: report.result.company,
     period: report.period,
-    details: await resolveEpoExportDetails(client, {
-      companyId: input.companyId, company: report.result.company,
-      details: input.details ?? {}, today: todayInPrague(now()),
-    }),
+    details: details.value,
   } };
 }

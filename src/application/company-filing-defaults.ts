@@ -1,3 +1,4 @@
+import { parseRepresentative, type Representative } from "./epo-representative";
 import { isUuid, type AppClient, type Result } from "./client";
 import { epoIdentityFindings } from "./companies";
 import { TAX_OFFICES, type ExportDetails } from "./epo-export-details";
@@ -10,6 +11,7 @@ export type ResolvedEpoAddress = {
 };
 
 export type CompanyFilingDefaults = {
+  representative?: Representative | null;
   taxOffice: string | null;
   economicActivity: string | null;
   territorialOffice: string | null;
@@ -35,6 +37,7 @@ export type SaveCompanyFilingDefaultsInput = Omit<CompanyFilingDefaults, "taxOff
 };
 
 export type CompanyFilingDefaultsError =
+  | "invalid_representative"
   | "forbidden"
   | "invalid_filing_defaults"
   | "epo_override_not_required"
@@ -112,6 +115,8 @@ export async function saveCompanyFilingDefaults(
   input: SaveCompanyFilingDefaultsInput,
 ): Promise<Result<null, CompanyFilingDefaultsError>> {
   if (!isUuid(input.companyId)) return { ok: false, error: "forbidden" };
+  const representative = parseRepresentative(input.representative);
+  if (!representative.ok) return representative;
   const value = normalize(input);
   if (invalidDefaults(value)) return { ok: false, error: "invalid_filing_defaults" };
   if (value.epoAddressOverride && !input.epoAddressConfirmed) {
@@ -120,6 +125,7 @@ export async function saveCompanyFilingDefaults(
   const address = value.epoAddressOverride;
   const { error } = await client.rpc("set_company_filing_defaults", {
     target_company_id: input.companyId,
+    new_representative: representative.value as import("@/lib/database.types").Json,
     new_tax_office: value.taxOffice ?? "",
     new_economic_activity: value.economicActivity ?? "",
     new_territorial_office: value.territorialOffice ?? "",
@@ -136,6 +142,7 @@ export async function saveCompanyFilingDefaults(
     epo_address_confirmed: input.epoAddressConfirmed ?? false,
   });
   if (error?.code === "42501") return { ok: false, error: "forbidden" };
+  if (error?.code === "P0001" && error.hint === "invalid_representative") return { ok: false, error: "invalid_representative" };
   if (error?.code === "P0001" && error.hint === "epo_override_not_required") {
     return { ok: false, error: "epo_override_not_required" };
   }
@@ -154,12 +161,15 @@ export async function getCompanyFilingDefaults(
   if (!isUuid(companyId)) return null;
   const { data, error } = await client
     .from("company_filing_defaults")
-    .select("tax_office, economic_activity, territorial_office, signatory_first_name, signatory_last_name, signatory_capacity, email, phone, epo_street_name, epo_house_number, epo_orientation_number, epo_city, epo_postal_code, epo_address_confirmed_at")
+    .select("representative, tax_office, economic_activity, territorial_office, signatory_first_name, signatory_last_name, signatory_capacity, email, phone, epo_street_name, epo_house_number, epo_orientation_number, epo_city, epo_postal_code, epo_address_confirmed_at")
     .eq("company_id", companyId)
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
+  const representative = parseRepresentative(data.representative);
+  if (!representative.ok) throw new Error("Stored representative profile is invalid");
   return {
+    ...(representative.value ? { representative: representative.value } : {}),
     taxOffice: data.tax_office,
     economicActivity: data.economic_activity,
     territorialOffice: data.territorial_office,

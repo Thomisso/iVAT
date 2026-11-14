@@ -1,3 +1,4 @@
+import { preparePhotoGroup, photoGroupAiInput } from "./photo-groups";
 import { prepareExtractionInput } from "./pdf-extraction";
 import { bindSourceEvidence } from "./source-locations";
 import {
@@ -59,7 +60,7 @@ export const PROCESSING_JOB_NAMES: ProcessingJob["name"][] = [
 ];
 
 export interface JobQueue {
-  send(job: ProcessingJob, options?: { startAfterSeconds?: number }): Promise<void>;
+  send(job: ProcessingJob, options?: { startAfterSeconds?: number; jobId?: string }): Promise<void>;
 }
 
 export interface AiProviderRegistry {
@@ -117,7 +118,11 @@ async function completeCompanyExport(
     const bytes = await buildCompanyDataArchive(receipt.snapshot, async (sourceFile) => {
       const stored = await system.storage
         .from(SOURCE_FILE_BUCKET)
-        .download(sourceFileObjectPath(receipt.companyId, sourceFile.id));
+        .download(sourceFileObjectPath(receipt.companyId, sourceFile.id, sourceFile.storageAttemptId));
+      if (stored.error) throw stored.error;
+      return new Uint8Array(await stored.data.arrayBuffer());
+    }, async path => {
+      const stored = await system.storage.from(SOURCE_FILE_BUCKET).download(path);
       if (stored.error) throw stored.error;
       return new Uint8Array(await stored.data.arrayBuffer());
     });
@@ -216,10 +221,10 @@ async function providerAvailability(
 
 const BLOCKED_JOB_RECHECK_SECONDS = 60;
 
-async function download(system: SystemClient, companyId: string, sourceFileId: string): Promise<Uint8Array> {
+async function download(system: SystemClient, companyId: string, sourceFileId: string, storageAttemptId?: string | null): Promise<Uint8Array> {
   const { data, error } = await system.storage
     .from(SOURCE_FILE_BUCKET)
-    .download(sourceFileObjectPath(companyId, sourceFileId));
+    .download(sourceFileObjectPath(companyId, sourceFileId, storageAttemptId));
   if (error) throw error;
   return new Uint8Array(await data.arrayBuffer());
 }
@@ -231,18 +236,19 @@ async function downloadForProcessing(
     id: string;
     format: SourceFileFormat;
     normalizedFormat: SourceFileFormat | null;
+    storageAttemptId?: string | null;
   },
 ): Promise<{ format: SourceFileFormat; bytes: Uint8Array }> {
   if ((file.format === "heic" || file.format === "heif") && file.normalizedFormat === "jpeg") {
     const { data, error } = await system.storage
       .from(SOURCE_FILE_BUCKET)
-      .download(sourceFileDerivativeObjectPath(file.companyId, file.id));
+      .download(sourceFileDerivativeObjectPath(file.companyId, file.id, file.storageAttemptId));
     if (error) throw error;
     return { format: "jpeg", bytes: new Uint8Array(await data.arrayBuffer()) };
   }
   return {
     format: file.format,
-    bytes: await download(system, file.companyId, file.id),
+    bytes: await download(system, file.companyId, file.id, file.storageAttemptId),
   };
 }
 
@@ -260,9 +266,15 @@ async function failOnFinalAttempt(attempt: Attempt, markFailed: () => Promise<vo
 }
 
 async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId: string, attempt: Attempt) {
+  const grouped = await preparePhotoGroup(system, sourceFileId, attempt.final);
+  if (grouped) {
+    if (grouped.ready) await jobs.send(extractJob(grouped.group.id));
+    else if (!grouped.terminal) await jobs.send(splitJob(sourceFileId), { startAfterSeconds: BLOCKED_JOB_RECHECK_SECONDS });
+    return;
+  }
   const { data: file, error } = await system
     .from("source_file")
-    .select("id, organization_id, company_id, format, normalized_format, page_count, status, split_request_id")
+    .select("id, organization_id, company_id, format, normalized_format, storage_attempt_id, page_count, status, split_request_id")
     .eq("id", sourceFileId)
     .single();
   if (error) throw error;
@@ -299,6 +311,7 @@ async function splitSourceFile({ system, providers, jobs }: Worker, sourceFileId
         id: file.id,
         format: file.format,
         normalizedFormat: file.normalized_format,
+        storageAttemptId: file.storage_attempt_id,
       });
       const input = sourceFileInput(processingFile.format, processingFile.bytes, file.page_count);
       const { documents, model, usage } = await ai.split(input, {
@@ -349,7 +362,7 @@ async function extractDocument(
 ) {
   const { data: document, error } = await system
     .from("document")
-    .select("id, organization_id, company_id, source_file_id, first_page, last_page, source_sheet, first_row, last_row, status, superseded_at, extraction_request_id, source_file (format, normalized_format, normalized_sha256, sha256)")
+    .select("id, organization_id, company_id, source_file_id, first_page, last_page, source_sheet, first_row, last_row, status, superseded_at, extraction_request_id, source_file (format, normalized_format, normalized_sha256, sha256, storage_attempt_id)")
     .eq("id", documentId)
     .single();
   if (error) throw error;
@@ -414,11 +427,13 @@ async function extractDocument(
         id: sourceFileId,
         format: document.source_file!.format,
         normalizedFormat: document.source_file!.normalized_format,
+        storageAttemptId: document.source_file!.storage_attempt_id,
       });
       const range = document.first_row === null
         ? { firstPage, lastPage }
         : { sheetName: document.source_sheet!, firstRow: document.first_row, lastRow: document.last_row! };
-      const input = await documentInput(processingFile.format, processingFile.bytes, range);
+      const groupedInput = await photoGroupAiInput(system, document.id);
+      const input = groupedInput?.input ?? await documentInput(processingFile.format, processingFile.bytes, range);
       const { model, payload: extractedPayload, usage } = await ai.extract(input, {
         organizationId: document.organization_id,
         configuration: availability.configuration!,
@@ -431,7 +446,8 @@ async function extractDocument(
       if (companyError) throw companyError;
       const evidencePayload = bindSourceEvidence(extractedPayload, {
         sourceFileId, documentId: document.id, sha256: document.source_file!.sha256,
-        requestId: document.extraction_request_id, format: processingFile.format, firstPage, lastPage,
+        requestId: document.extraction_request_id, format: groupedInput ? "pdf" : processingFile.format, firstPage, lastPage,
+        photoGroup: groupedInput ? { id: groupedInput.group.id, sha256: groupedInput.group.basis!.sha256 } : undefined,
         workbookEvidence: input.workbookEvidence,
         normalizedSha256: ["heic", "heif"].includes(document.source_file!.format)
           && document.source_file!.normalized_format === "jpeg" ? document.source_file!.normalized_sha256 : undefined,
@@ -442,6 +458,7 @@ async function extractDocument(
         // Partial Claim is a human decision. Ignore even malformed provider
         // metadata before financial findings; PostgreSQL preserves prior choices.
         partialClaim: undefined,
+        proportionalDeduction: undefined,
         direction: detectDocumentDirection(
           extractedPayload,
           { ico: company.ico, vatId: company.vat_id },

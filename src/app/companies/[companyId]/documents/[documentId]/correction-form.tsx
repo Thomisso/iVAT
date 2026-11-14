@@ -3,6 +3,7 @@
 import { useCompanyReviewShortcuts } from "@/components/company-shortcuts";
 import { ReviewActions, useReviewWorkspace } from "./review-workspace";
 import { useReviewDraft } from "./review-guard";
+import { ProportionalDeductionFields } from "./proportional-deduction-fields";
 import { PartialClaimFields } from "./partial-claim-fields";
 import { ClaimEligibilityFields } from "./claim-eligibility-fields";
 
@@ -18,6 +19,7 @@ import {
   isZeroRateBreakdownLine,
   type ExtractionPayload,
 } from "@/application/extraction-payload";
+import { validatedDocumentCzkConversion } from "@/application/exchange-rates";
 import type { ValidationFinding } from "@/application/document-validation";
 import { findingMessage as messageOf } from "./finding-message";
 import { Button } from "@/components/button";
@@ -84,6 +86,7 @@ export function CorrectionForm({
   // Keep this draft's base until our explicit save actually succeeds.
   const [base, setBase] = useState({ version: currentVersion, payload: currentPayload, findings: currentFindings, requestId, displayedBankAccountCheckId, displayedReviewContext, extractionVersionId });
   const { version, payload, findings } = base;
+  const czkConversion = payload.proportionalDeduction ? validatedDocumentCzkConversion(payload) : payload.czkConversion;
   const [direction, setDirection] = useState(payload.direction);
   const [clientErrors, setClientErrors] = useState<{ field: string; message: string }[]>([]);
   const [keepCounterpartyEditor, setKeepCounterpartyEditor] = useState(editable);
@@ -243,6 +246,7 @@ export function CorrectionForm({
   const errors = (state.findings ?? findings).filter(item => item.severity === "error");
   const fieldLabel = (field: string) => {
     if (field === "claimEligibility") return t("claimEligibility.title");
+    if (field === "proportionalDeduction") return t("proportionalDeduction.title");
     if (field === "partialClaim") return t("partialClaim.title");
     const labels: Record<string, string> = { proposedVatRegime: "vatRegime", "totals.netAmount": "totalNet", "totals.vatAmount": "totalVat", "totals.grossAmount": "totalGross", partialClaim: "totalNet" };
     const key = `fields.${labels[field] ?? field.split(".").at(-1)!}`;
@@ -253,6 +257,7 @@ export function CorrectionForm({
     workspace?.showData();
     const wrapper = [...(form.current?.querySelectorAll<HTMLElement>("[data-source-field]") ?? [])].find(element => element.dataset.sourceField === field);
     const target = field === "claimEligibility" ? form.current?.querySelector<HTMLElement>("#earliest-claim-period")
+      : field === "proportionalDeduction" ? form.current?.querySelector<HTMLElement>(editable ? "#proportional-deduction-enabled" : "#proportional-deduction")
       : field === "partialClaim" ? form.current?.querySelector<HTMLElement>(editable ? "#partial-claim-enabled" : "#partial-claim")
       : wrapper?.querySelector<HTMLElement>('input:not([type="hidden"]):not([type="date"]),select')
         ?? [...(form.current?.elements ?? [])].find(element => element instanceof HTMLElement && element.getAttribute("name") === field) as HTMLElement | undefined;
@@ -262,7 +267,7 @@ export function CorrectionForm({
 
   const comparisonRows = state.conflict ? Object.entries(state.values).flatMap(([name, submitted]) => {
     // Receipts, directory identities and validation bases are not editable fields.
-    if (["companyId", "documentId", "basedOnVersion", "requestId", "displayedBankAccountCheckId", "displayedReviewContext", "acknowledgement", "intent", "nextDocumentId", "queueQuery", "returnTo", "counterpartyId", "partialClaim.basis"].includes(name)) return [];
+    if (["companyId", "documentId", "basedOnVersion", "requestId", "displayedBankAccountCheckId", "displayedReviewContext", "acknowledgement", "intent", "nextDocumentId", "queueQuery", "returnTo", "counterpartyId", "partialClaim.basis", "proportionalDeduction.basis"].includes(name)) return [];
     const currentPayload = state.conflict!.payload;
     const path = name.replace(/^partialClaim\.(\d+)\./, "partialClaim.rateBreakdown.$1.");
     const current = path.split(".").reduce<unknown>((entry, part) => entry !== null && typeof entry === "object" ? (entry as Record<string, unknown>)[part] : undefined, currentPayload);
@@ -443,23 +448,24 @@ export function CorrectionForm({
           )}
         </div>
       </fieldset>
+      <ProportionalDeductionFields key={`proportional-${version}`} payload={payload} editable={editable} values={state.values} rateRows={lines} />
       <PartialClaimFields key={version} payload={payload} editable={editable} values={state.values} rateRows={lines} />
-      {payload.czkConversion && (
+      {czkConversion && (
         <fieldset>
           <legend>{t("sections.czkConversion")}</legend>
           <p>
             {t("czkConversion.rate", {
-              unit: payload.czkConversion.unit,
-              currency: payload.czkConversion.originalCurrency,
-              rate: payload.czkConversion.rate,
-              date: payload.czkConversion.rateDate,
-              source: payload.czkConversion.source,
+              unit: czkConversion.unit,
+              currency: czkConversion.originalCurrency,
+              rate: czkConversion.rate,
+              date: czkConversion.rateDate,
+              source: czkConversion.source,
             })}
           </p>
           <table className="rate-breakdown">
             <thead><tr><th>{t("fields.rate")}</th><th>{t("fields.netAmountCzk")}</th><th>{t("fields.vatAmountCzk")}</th></tr></thead>
             <tbody>
-              {payload.czkConversion.rateBreakdown.filter((line) => !isZeroRateBreakdownLine(line)).map((line, index) => (
+              {czkConversion.rateBreakdown.filter((line) => !isZeroRateBreakdownLine(line)).map((line, index) => (
                 <tr key={`${line.rate}-${index}`}>
                   <td>{line.rate}</td><td className="iv-mono">{line.netAmount}</td><td className="iv-mono">{line.vatAmount}</td>
                 </tr>
@@ -468,9 +474,9 @@ export function CorrectionForm({
           </table>
           <p className="iv-mono">
             {t("czkConversion.totals", {
-              net: payload.czkConversion.totals.netAmount ?? t("notSet"),
-              vat: payload.czkConversion.totals.vatAmount ?? t("notSet"),
-              gross: payload.czkConversion.totals.grossAmount ?? t("notSet"),
+              net: czkConversion.totals.netAmount ?? t("notSet"),
+              vat: czkConversion.totals.vatAmount ?? t("notSet"),
+              gross: czkConversion.totals.grossAmount ?? t("notSet"),
             })}
           </p>
         </fieldset>

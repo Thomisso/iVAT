@@ -3,6 +3,7 @@ import {
   AiProviderError,
   withProviderResponse,
   type AiCallContext,
+  type AiGenerationLimits,
   type AiInput,
   type AiProvider,
   type AiProcessingIssueClassification,
@@ -14,6 +15,7 @@ import {
   extractionPayload,
   interpreted,
   pageRanges,
+  pageSplitPrompt,
   parsedOrNull,
   rowRanges,
   SPREADSHEET_SPLIT_SCHEMA,
@@ -67,7 +69,8 @@ async function structuredResponse(
   prompt: string,
   schemaName: string,
   schema: object,
-): Promise<{ model: string; value: unknown; usage?: AiUsage; raw: string }> {
+  limits?: AiGenerationLimits,
+): Promise<{ model: string; modelReported?: boolean; value: unknown; usage?: AiUsage; raw: string }> {
   let response: Response;
   try {
     response = await fetch(`${options.baseUrl ?? "https://api.openai.com/v1"}/responses`, {
@@ -79,6 +82,7 @@ async function structuredResponse(
       body: JSON.stringify({
         model,
         store: false,
+        ...(limits ? { max_output_tokens: limits.maxOutputTokens } : {}),
         input: [{
           role: "user",
           content: [...nativeContent(input), { type: "input_text", text: prompt }],
@@ -140,6 +144,7 @@ async function structuredResponse(
   return {
     raw,
     model: typeof result.model === "string" ? result.model : model,
+    ...(typeof result.model !== "string" ? { modelReported: false } : {}),
     value,
     ...(typeof usage?.input_tokens === "number" && typeof usage.output_tokens === "number"
       ? { usage: { inputTokens: usage.input_tokens, outputTokens: usage.output_tokens } }
@@ -151,7 +156,7 @@ export function openAiProvider(options: OpenAiProviderOptions): AiProvider {
   return {
     name: "openai",
     region: "global",
-    async split(input) {
+    async split(input, _context, limits) {
       const spreadsheet = input.text !== undefined;
       const result = await structuredResponse(
         options,
@@ -159,17 +164,19 @@ export function openAiProvider(options: OpenAiProviderOptions): AiProvider {
         input,
         spreadsheet
           ? "Identify every Document in this workbook table. A list normally has one Document per data row; a single invoice may span several rows. Return each inclusive row set and its sheet name."
-          : `Identify the inclusive page range of every Document in this ${input.pageCount}-page Source File.`,
+          : pageSplitPrompt(input.pageCount),
         "ivat_split",
         spreadsheet ? SPREADSHEET_SPLIT_SCHEMA : SPLIT_SCHEMA,
+        limits,
       );
       return {
         model: result.model,
+        ...(result.modelReported === false ? { modelReported: false } : {}),
         documents: interpreted(result.raw, () => spreadsheet ? rowRanges("OpenAI", result.value) : pageRanges("OpenAI", result.value)),
         ...(result.usage ? { usage: result.usage } : {}),
       };
     },
-    async extract(input) {
+    async extract(input, _context, limits) {
       input = await prepareExtractionInput(input);
       const result = await structuredResponse(
         options,
@@ -178,9 +185,11 @@ export function openAiProvider(options: OpenAiProviderOptions): AiProvider {
         EXTRACTION_PROMPT,
         "ivat_extraction",
         extractionSchema(input),
+        limits,
       );
       return {
         model: result.model,
+        ...(result.modelReported === false ? { modelReported: false } : {}),
         payload: interpreted(result.raw, () => extractionPayload("OpenAI", result.value, input)),
         ...(result.usage ? { usage: result.usage } : {}),
       };
@@ -204,11 +213,11 @@ export function platformOpenAiProvider(
   return {
     name: "openai",
     region: "global",
-    async split(input, context) {
-      return configured(context).split(input, context);
+    async split(input, context, limits) {
+      return configured(context).split(input, context, limits);
     },
-    async extract(input, context) {
-      return configured(context).extract(input, context);
+    async extract(input, context, limits) {
+      return configured(context).extract(input, context, limits);
     },
   };
 }

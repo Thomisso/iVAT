@@ -40,6 +40,16 @@ _Avoid_: Permission level, profile
 A User restores access after losing an authenticator by proving email ownership and a prepared backup MFA code, then establishing a replacement authenticator.
 _Avoid_: MFA bypass, backup-code login
 
+## Platform operations
+
+**Operational Alert**:
+An optional email to a SuperAdmin about a continuing critical blockage of active platform work, grouped by its root cause.
+_Avoid_: Company notification, delivery confirmation
+
+**Incident Episode**:
+One continuous period in which the same operational root cause critically blocks active work. Changes in affected Companies or work counts belong to the same episode while any blockage remains.
+_Avoid_: Error occurrence, incident history
+
 ## Documents
 
 **Upload Queue**:
@@ -54,8 +64,24 @@ _Avoid_: Import, job, dávka (in code)
 A single file uploaded or imported into a Company, preserved unchanged. May contain one or more Documents.
 _Avoid_: Upload, attachment, document (when meaning the file)
 
+**Upload Transfer**:
+The private, incomplete bytes and server-confirmed progress for one immutable Upload Batch item. It becomes a Source File only after validated publication.
+_Avoid_: Source File (before publication), Document
+
+**Upload Attempt**:
+One generation of an Upload Transfer. A full restart creates a new attempt for the same immutable item; retired attempts cannot continue a replacement's progress.
+_Avoid_: Session (when meaning a transport generation), access token
+
+**Photo Group**:
+A User-confirmed ordered set of original photographs of one Document, fixed when its Upload Batch starts. Its processed basis is separate from the unchanged Source Files.
+_Avoid_: Automatic group, merged original
+
+**Processed Basis**:
+The preserved representation actually supplied for Extraction, with its identity and page order traceable to the original source evidence.
+_Avoid_: Original, Source File (when meaning a derived representation)
+
 **Document**:
-One financial document (invoice, credit note, receipt, simplified tax document…), entered manually or identified within a Source File by a page range or row set. A Document can exist without a Source File.
+One financial document (invoice, credit note, receipt, simplified tax document…), entered manually, identified within a Source File by a page range or row set, or explicitly bounded by a Photo Group. A Document can exist without a Source File.
 _Avoid_: Doklad (in code), file, record
 
 **Direction**:
@@ -122,8 +148,12 @@ _Avoid_: Deleted Document, failed Extraction
 A User's explicit selection of amounts for eligible separate supplies on an incoming Document, by VAT rate, while preserving the Document's full amounts. It is independent of data discrepancies and distinct from statutory proportional or reduced deduction.
 _Avoid_: Rounding correction, corrected total
 
+**Proportional Deduction**:
+A User's explicitly confirmed input-VAT deduction under § 75 based on already known actual economic use, using one whole percentage for the entire Document. It is distinct from selecting separate supplies through a Partial Claim and from reduced deduction under § 76.
+_Avoid_: Partial Claim, estimated coefficient, reduced deduction
+
 **Unclaimed Portion**:
-The difference between a Document's full amounts and its explicitly selected Partial Claim, by VAT rate. It does not classify expenses for income tax or absorb discrepancies in extracted data.
+The difference between a Document's full amounts and its explicitly selected Partial Claim or Proportional Deduction, by VAT rate. It does not classify expenses for income tax or absorb discrepancies in extracted data.
 _Avoid_: Non-tax expense, balancing amount
 
 **Return to Review**:
@@ -199,3 +229,15 @@ _Avoid_: Closing, freeze
 **Manual Classification Required**:
 A flag on a Document whose VAT Regime is outside the regimes iVAT supports; such Documents are excluded from VAT Reports.
 _Avoid_: Unsupported, error
+
+**Representative**:
+A person identified as acting for the Company in the filing details of a VAT Report export. The Representative is distinct from the Company taxpayer, the export's author and any Authorized Signatory; entering these details does not establish or verify power of attorney.
+_Avoid_: Company User, export author, verified proxy
+
+**Representation Profile**:
+A Company's saved default Representative details, which a User can replace or explicitly disable for one export without changing the default.
+_Avoid_: Membership, Role, power of attorney record
+
+**Authorized Signatory**:
+The natural person identified as authorized to sign for a legal person in a VAT Report export, with their relationship to that legal person. This identity is separate from the Representative and the export's author.
+_Avoid_: Representative (when meaning the signatory), export author

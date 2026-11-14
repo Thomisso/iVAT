@@ -14,7 +14,7 @@ import {
   updateCompany,
 } from "@/application/companies";
 import { listAuditEvents } from "@/application/audit";
-import { uploadSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import {
   administratorWithCompany,
   knownSupplierFixture,
@@ -28,6 +28,7 @@ import { fixtureFile } from "./support/files";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { testWorker } from "./support/worker";
 import { withSupabaseRequestDiagnostics } from "./support/request-failure-diagnostics";
+import { withUnrelatedOperationalIncident } from "./support/operational-alerts";
 
 async function companyWithReportDocuments() {
   const admin = await administratorWithCompany();
@@ -345,7 +346,7 @@ it("a malformed AI date cannot block generation from valid Documents", async () 
   ).toBe(true);
 });
 
-it("generates from more Documents than the API row cap without losing exclusions", async () => {
+it("generates from more Documents than the API row cap without losing exclusions", async () => withUnrelatedOperationalIncident(async () => {
   await withSupabaseRequestDiagnostics(async (setPhase) => {
     const a = await companyWithManyReportDocuments(1001);
     setPhase("generation");
@@ -362,4 +363,4 @@ it("generates from more Documents than the API row cap without losing exclusions
     expect(report.result.excludedDocuments).toHaveLength(1001);
     expect(report.result.excludedDocuments.map(document => document.reason)).toEqual(Array(1001).fill("not_approved"));
   });
-}, 60000);
+}), 60000);

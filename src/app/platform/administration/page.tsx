@@ -179,6 +179,7 @@ export default async function PlatformAdministrationPage() {
 
         <section className="panel">
           <h2>{t("organizations")}</h2>
+          <Link className="iv-btn iv-btn-primary iv-btn-md" href="/platform/organizations/new">{t("createOrganization")}</Link>
           <DataTable
             caption={t("organizations")}
             rows={organizations.value}
@@ -207,14 +208,17 @@ export default async function PlatformAdministrationPage() {
                 key: "action",
                 header: t("action"),
                 render: (organization) => (
-                  <CommandButton
-                    action={setPlatformOrganizationBlockedAction}
-                    fields={{ organizationId: organization.id, blocked: String(!organization.blocked) }}
-                    variant={organization.blocked ? "secondary" : "danger"}
-                    size="sm"
-                  >
-                    {organization.blocked ? t("unblock") : t("block")}
-                  </CommandButton>
+                  <div className="processing-job-actions">
+                    <Link className="iv-btn iv-btn-secondary iv-btn-sm" href={`/companies/new?organizationId=${organization.id}`}>{t("createCompany")}</Link>
+                    <CommandButton
+                      action={setPlatformOrganizationBlockedAction}
+                      fields={{ organizationId: organization.id, blocked: String(!organization.blocked) }}
+                      variant={organization.blocked ? "secondary" : "danger"}
+                      size="sm"
+                    >
+                      {organization.blocked ? t("unblock") : t("block")}
+                    </CommandButton>
+                  </div>
                 ),
               },
             ]}

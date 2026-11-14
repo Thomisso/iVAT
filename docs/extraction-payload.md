@@ -36,6 +36,7 @@ The payload is a proposal (ADR-0003). Nothing in it counts towards a VAT Report 
 | `reverseChargeCode` | string | Official Control Statement subject code for `domestic_reverse_charge`; otherwise `null` |
 | `originalDocumentNumber` | string | For a Credit Note, the number of the Document it corrects |
 | `partialClaim` | `{ confirmed, rateBreakdown, basis?, zeroConfirmed? }`, optional | Explicit human selection of separate supplies. Absence retains full-Document reporting; an unconfirmed selection never silently restores a full claim. Full source Rate Breakdown and totals remain unchanged. |
+| `proportionalDeduction` | `{ percentage, origin, confirmed, operatingExpenseConfirmed, actualUseConfirmed, basis? }`, optional | Explicit manual § 75 actual-use decision, separate from Partial Claim. One whole percentage 1–99 applies to the entire supported operating Document; source amounts remain unchanged. |
 | `czkConversion` | object, optional | Derived CZK rate breakdown/totals plus original currency, ČNB rate, quoted unit, actual fixing date and source. Printed amounts stay unchanged. |
 | `counterpartyLink` | object or null, optional | Server-validated Counterparty `id` and a `recorded` Party-shaped snapshot of its directory details when this Version was saved. Absence permits automatic normalized identity matching; explicit null preserves a human unlink. Supplier/customer fields remain the Document’s own data. |
 | `sourceEvidence` | object, optional | Server-bound source references for this immutable Version: Source File/Document identity, original hash and oriented original or normalized basis, original page range or worksheet/absolute row and column range, `extractionVersionId`, original AI request, and per-field locations with `origin` and `originalValue`. |
@@ -156,3 +157,45 @@ Transport formats follow the official [OpenAI image input contract](https://deve
 and [Anthropic vision contract](https://platform.claude.com/docs/en/build-with-claude/vision).
 The original Source File and immutable Extraction Versions remain unchanged;
 explicit reprocessing creates a new version through the existing worker flow.
+
+
+## Proportional Deduction (§ 75)
+
+`proportionalDeduction` is optional human accounting metadata, separate from
+`partialClaim`: `{percentage, origin: "user", confirmed,
+operatingExpenseConfirmed, actualUseConfirmed, basis}`. One whole percentage
+1–99 applies to every supported rate. Both scope confirmations are explicit:
+ordinary operating expenditure outside fixed-asset acquisition and already
+known actual use rather than an estimate. The User supplies the final coefficient
+rounded upward to a whole percentage. Zero and full claims require an explicit
+choice of the existing modes; they are refused in this mode.
+
+The database binds the financial `basis` using the same source facts as a Partial
+Claim, plus `earliestClaimPeriod` for a Proportional Deduction. Changing that
+period retains the previous percentage but requires fresh confirmation. An
+allowed reassignment within the earliest year preserves the decision; existing
+eligibility, year and deadline guards still apply. Legacy immutable Versions
+retain their previous basis shape, and new writes bind the period without
+rewriting history. The immutable Extraction Version supplies author and time, and a
+`document.proportional_deduction_changed` audit event references its id and
+version. AI metadata is stripped before financial findings and at insertion;
+an existing manual decision is retained as unconfirmed after AI replacement.
+Invalid or unconfirmed decisions block approval and new report operations.
+Earlier Versions and report/artifact bytes are never rewritten.
+
+The current slice supports incoming domestic invoices, receipts and simplified
+tax documents at 21% and 12%. Foreign-currency decisions reduce each original
+net/VAT amount first, then use the same saved ČNB fixing as the full Document.
+The saved currency, fixing metadata, full totals and each rate row must still
+correspond to the current source amounts; missing or invalid conversion blocks
+approval and report inclusion. The B.2/B.3 threshold uses the full converted
+gross amount, and the Unclaimed Portion remains in the original currency,
+without treating conversion rounding as expenditure.
+
+Credit/debit notes, fixed assets, estimates,
+§ 76, advances, reverse charge, EU supplies and combination with Partial Claim
+are unsupported. Financial-basis changes and AI reruns retain the previous
+percentage for comparison and invalidate confirmation rather than restoring
+full amounts. Return to Review and a fresh human decision remain subject to
+Period Locks; changing these inputs does not perform an annual correction or file
+a return.

@@ -31,7 +31,8 @@ import {
   retryFailedProcessingJob,
 } from "@/application/processing-administration";
 import { listPlatformOperationalProblems } from "@/application/operational-problems";
-import { listSourceFiles, uploadSourceFile, retrySplit, getSourceFile } from "@/application/source-files";
+import { listSourceFiles, retrySplit, getSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import { beginUploadBatch } from "@/application/upload-batches";
 import {
   createBoss,

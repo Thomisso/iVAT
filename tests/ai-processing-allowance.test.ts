@@ -18,7 +18,7 @@ import {
   listExtractionVersions,
   reprocessDocument,
 } from "@/application/documents";
-import { uploadSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import { getCompany } from "@/application/companies";
 import { listPlatformAuditEvents } from "@/application/audit";
 import { listPlatformOperationalProblems } from "@/application/operational-problems";

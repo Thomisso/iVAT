@@ -5,7 +5,7 @@ import { acknowledgeVatReportDownload, exportVatReport } from "@/application/epo
 import { getVatProcessingWizard } from "@/application/vat-processing";
 import { finalizeVatReport, generateVatReport } from "@/application/vat-reports";
 import { approveDocument, listDocuments } from "@/application/documents";
-import { uploadSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import {
   administratorWithCompany,
   assignAiConfigurationFixture as enableAiProcessing,

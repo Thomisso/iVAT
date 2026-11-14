@@ -11,7 +11,8 @@ import { administratorWithCompany, assignAiConfigurationFixture, companyDetails,
 import { promotedSuperAdministrator } from "./support/platform";
 import { provisionedUser } from "./support/clients";
 import { systemClient, testWorker } from "./support/worker";
-import { uploadSourceFile, readSourceFile } from "@/application/source-files";
+import { readSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import { approveDocument, listDocuments, returnDocumentToReview } from "@/application/documents";
 import { finalizeVatReport, generateVatReport, getPeriodLock, unlockReportingPeriod } from "@/application/vat-reports";
 import { exportCompanyData, softDeleteCompany } from "@/application/company-deletion";

@@ -13,6 +13,34 @@ Production records, credentials, backup archives and account-specific design
 references stay outside Git. See [repository publication](docs/publication.md)
 for the cleanup and history-cutover requirements.
 
+## Operational email alerts
+
+MFA-verified SuperAdmins can opt in under Platform Settings. Delivery uses their
+current verified Auth email, with the language captured from the application's
+current CS/EN language when saving the preference. Preferences are off by default.
+An address undergoing an unverified change is ineligible until verified.
+
+The existing `npm run worker` process reconciles critical work every 30 seconds
+without an open platform page. Configure canonical `APP_ORIGIN` and the same
+managed `SMTP_*` transport used for Invitations; production requires authenticated
+TLS. Explicit `SMTP_LOCAL_CAPTURE=true` is restricted to loopback capture. Never
+use production SMTP for tests. A missing or invalid canonical origin prevents
+dispatch. The five-minute grace period begins with the first authoritative worker
+observation, so restarting after an unobserved outage does not backdate eligibility.
+
+Private episodes preserve root identity across impact-count changes. Each eligible
+recipient gets one first-alert attempt; only their accepted first alert qualifies
+them for reminders and one recovery message for that resolved episode. Reminders
+wait at least 24 elapsed hours after first acceptance and the latest actual
+first/reminder dispatch attempt, without catch-up bursts. Accepted, refused,
+definite failure and unknown remain distinct durable outcomes. Each receipt gets
+one attempt; uncertain outcomes are never blindly resent, and an unknown reminder
+suppresses later reminders while uncertain. Recovery describes only its episode,
+even during a later recurrence. Messages contain safe problem labels, impact
+counts and protected links. SMTP acceptance does not guarantee Inbox or
+exactly-once delivery; a stopped worker cannot report its own outage. The active
+dashboard and existing audit/remediation flows remain the authorities.
+
 ## Prerequisites
 
 - Node.js 22+
@@ -27,8 +55,9 @@ npm run dev                  # app on http://localhost:3000
 npm run worker               # background worker, in a second terminal
 ```
 
-Open http://localhost:3000/login. Public registration is closed (future design:
-[#158](https://github.com/Thomisso/iVAT/issues/158)). For a fresh local QA account,
+Open http://localhost:3000/login. Public registration is closed. MFA-verified SuperAdmins can create an empty
+Organization in platform administration, then add Companies or invite its first
+Administrator through the existing membership management. For a fresh local QA account,
 run `npm run dev:seed`; it privately provisions the User, signs in through Auth,
 and prints sign-in details. Local SuperAdmin bootstrap and administrator-issued
 Invitations remain the supported provisioning paths. Signed-in Administrators

@@ -15,7 +15,7 @@ async function thumbnail(request: Request, context: RouteContext<"/companies/[co
     }
   }
   const result = await exportControlStatementThumbnail(await requireUserClient(), { companyId, period, details });
-  return result.ok ? downloadResponse(result.value) : refusalResponse(result.error, { status: 404 });
+  return result.ok ? downloadResponse(result.value) : refusalResponse(result.error, { status: result.error === "report_not_found" ? 404 : 422 });
 }
 export const GET = thumbnail;
 export const POST = thumbnail;

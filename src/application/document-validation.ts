@@ -1,3 +1,5 @@
+import { validatedDocumentCzkConversion } from "./exchange-rates";
+import { proportionalDeductionRates } from "./proportional-deduction";
 import { partialClaimRates } from "./partial-claim";
 import type { ExtractionPayload } from "./extraction-payload";
 import { domesticCounterpartyVatIdOptional, missingRequiredReportingVatId } from "./vat-rules";
@@ -285,9 +287,18 @@ export function validateDocument(
     });
   }
 
+  findings.push(...proportionalFindings(payload));
   if (payload.partialClaim && !partialClaimRates(payload)) findings.push(error("partialClaim", "partial_claim_invalid"));
 
   return findings;
+}
+
+function proportionalFindings(payload: ExtractionPayload): ValidationFinding[] {
+  if (!payload.proportionalDeduction) return [];
+  if (payload.currency !== "CZK" && !validatedDocumentCzkConversion(payload)) {
+    return [error("czkConversion", "proportional_deduction_conversion_required")];
+  }
+  return proportionalDeductionRates(payload) ? [] : [error("proportionalDeduction", "proportional_deduction_invalid")];
 }
 
 /** Apply current advisory rules when reading immutable historical findings. */
@@ -307,10 +318,11 @@ export function currentValidationFindings(
     .map<ValidationFinding>((finding) => historicalGrossError && finding.code === "total_gross_amount_mismatch"
     ? grossWarning ?? { ...finding, severity: "warning" } : finding)
     .map(finding => requiredFields.find(required => required.code === finding.code && required.field === finding.field) ?? finding);
+  const requiredRatio = proportionalFindings(payload);
   const requiredClaim = payload.partialClaim && !partialClaimRates(payload) ? [error("partialClaim", "partial_claim_invalid")] : [];
   const requiredRegime = !payload.proposedVatRegime
     ? [error("proposedVatRegime", "vat_regime_required")]
     : [];
-  return [...current, ...[...paymentFindings(payload), ...requiredFields, ...requiredRegime, ...requiredClaim]
+  return [...current, ...[...paymentFindings(payload), ...requiredFields, ...requiredRegime, ...requiredRatio, ...requiredClaim]
     .filter((finding) => !current.some((entry) => entry.code === finding.code))];
 }

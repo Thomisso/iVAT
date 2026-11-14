@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { listCompanyDocuments } from "@/application/documents";
 import { NO_REPORTING_PERIOD } from "@/application/reporting-periods";
-import { uploadSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import { beginUploadBatch, finishUploadBatch, listUploadBatches } from "@/application/upload-batches";
 import {
   administratorWithCompany,

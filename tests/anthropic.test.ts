@@ -28,6 +28,19 @@ async function anthropicStandIn(
 }
 
 describe("Anthropic AI provider", () => {
+  it("sends the evaluator generated-token ceiling on the real Messages request", async () => {
+    let requestBody: unknown;
+    const baseUrl = await anthropicStandIn((_request, body, response) => {
+      requestBody = body;
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({ model: "bounded", usage: { input_tokens: 8, output_tokens: 9 },
+        content: [{ type: "text", text: JSON.stringify({ documents: [{ firstPage: 1, lastPage: 1 }] }) }] }));
+    });
+    const provider = anthropicAiProvider({ apiKey: "synthetic", splitModel: "bounded", extractModel: "bounded", baseUrl });
+    const result = await provider.split({ format: "png", mediaType: "image/png", bytes: new Uint8Array([1]), pageCount: 1 }, undefined, { maxOutputTokens: 100 });
+    expect(requestBody).toMatchObject({ max_tokens: 100 });
+    expect(result.usage).toEqual({ inputTokens: 8, outputTokens: 9 });
+  });
   it("discards unsupported PDF locations without losing valid financial values", async () => {
     const valid = { fieldPath: "rateBreakdown.0.vatAmount", kind: "page", page: 2, x: 0.6, y: 0.7, width: 0.2, height: 0.05 };
     let requestBody: unknown;

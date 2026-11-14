@@ -3,7 +3,7 @@ import { configuredVatPayerRegistry } from "@/vat-registry";
 import { configuredExchangeRates } from "@/cnb";
 import { fakeAiProvider, SAMPLE_EXTRACTION } from "@/ai/fake";
 import { listDocuments, listExtractionVersions } from "@/application/documents";
-import { uploadSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import { administratorWithCompany, assignAiConfigurationFixture } from "./support/fixtures";
 import { fixtureFile } from "./support/files";
 import { testWorker } from "./support/worker";

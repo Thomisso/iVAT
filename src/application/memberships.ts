@@ -69,7 +69,7 @@ export type InviteMemberInput = {
 };
 
 export type InvitationError = "invalid_invitation" | "forbidden" | "invitation_failed";
-export type AcceptInvitationError = "auth_unavailable" | "invitation_invalid" | "invitation_used" | "invitation_expired" | "invitation_cancelled" | "invitation_replaced" | "forbidden";
+export type AcceptInvitationError = "membership_self_change" | "auth_unavailable" | "invitation_invalid" | "invitation_used" | "invitation_expired" | "invitation_cancelled" | "invitation_replaced" | "forbidden";
 export type InvitationOnboarding =
   | { status: "invalid" | "used" | "expired" | "cancelled" | "replaced" }
   | { status: "valid"; email: string; existingUser: boolean; companyId: string | null };
@@ -169,7 +169,7 @@ export async function getInvitationOnboarding(
 
 function invitationRefusal(error: { code?: string; hint?: string | null }): AcceptInvitationError | null {
   const refusal = databaseRefusal(error);
-  return refusal === "forbidden" || refusal === "invitation_invalid" || refusal === "invitation_used"
+  return refusal === "membership_self_change" || refusal === "forbidden" || refusal === "invitation_invalid" || refusal === "invitation_used"
     || refusal === "invitation_expired" || refusal === "invitation_cancelled" || refusal === "invitation_replaced" ? refusal : null;
 }
 
@@ -348,7 +348,7 @@ export type AccessManagement = {
  * Scalar JSON keeps scope choices, Users, Memberships and Invitations complete. */
 export async function listAccessManagement(
   client: AppClient,
-  input: { organizationId: string; companyId: string | null },
+  input: { organizationId: string; companyId: string | null; emailSearch?: string },
 ): Promise<Result<AccessManagement, "forbidden">> {
   if (!isUuid(input.organizationId) || (input.companyId !== null && !isUuid(input.companyId))) return { ok: false, error: "forbidden" };
   const { data, error } = await client.rpc("list_access_management", {
@@ -359,7 +359,8 @@ export async function listAccessManagement(
     throw error;
   }
   const result = data as unknown as Omit<AccessManagement, "users"> & { users: CompanyAccessDatabaseRow[] };
-  return { ok: true, value: { ...result, users: result.users.map(user => ({
+  const emailSearch = input.emailSearch?.trim().toLowerCase() ?? "";
+  return { ok: true, value: { ...result, users: result.users.filter(user => user.email.toLowerCase().includes(emailSearch)).map(user => ({
     userId: user.user_id, email: user.email, effectiveRole: input.companyId === null ? null : user.role,
     memberships: user.memberships.map(membership => ({
       id: membership.id, organizationId: membership.organization_id, companyId: membership.company_id,
@@ -381,19 +382,24 @@ export async function listPendingInvitations(
   return data as unknown as PendingInvitation[];
 }
 
+export type MembershipChangeError = "forbidden" | "membership_self_change" | "membership_last_administrator" | "membership_change_stale";
+
 export async function changeMembershipRole(
   client: AppClient,
-  input: { membershipId: string; role: MembershipRole },
-): Promise<Result<null, "forbidden">> {
+  input: { membershipId: string; role: MembershipRole; confirmationToken?: string },
+): Promise<Result<null, MembershipChangeError>> {
   if (!isUuid(input.membershipId) || (input.role !== "administrator" && input.role !== "user")) {
     return { ok: false, error: "forbidden" };
   }
-  const { error } = await client.rpc("change_membership_role", {
+  const { error } = input.confirmationToken !== undefined ? await client.rpc("confirm_membership_change", {
+    target_membership_id: input.membershipId, next_role: input.role, confirmation_token: input.confirmationToken,
+  }) : await client.rpc("change_membership_role", {
     target_membership_id: input.membershipId,
     target_role: input.role,
   });
   if (error) {
-    if (databaseRefusal(error) === "forbidden") return { ok: false, error: "forbidden" };
+    const refusal = databaseRefusal(error);
+    if (refusal === "forbidden" || refusal === "membership_self_change" || refusal === "membership_last_administrator" || refusal === "membership_change_stale") return { ok: false, error: refusal };
     throw error;
   }
   return { ok: true, value: null };
@@ -402,12 +408,44 @@ export async function changeMembershipRole(
 export async function removeMembership(
   client: AppClient,
   membershipId: string,
-): Promise<Result<null, "forbidden">> {
+  confirmationToken?: string,
+): Promise<Result<null, MembershipChangeError>> {
   if (!isUuid(membershipId)) return { ok: false, error: "forbidden" };
-  const { error } = await client.rpc("remove_membership", { target_membership_id: membershipId });
+  const { error } = confirmationToken !== undefined ? await client.rpc("confirm_membership_change", {
+    target_membership_id: membershipId,
+    // PostgreSQL accepts null although the generated enum argument type cannot express it.
+    next_role: null as unknown as MembershipRole, confirmation_token: confirmationToken,
+  }) : await client.rpc("remove_membership", { target_membership_id: membershipId });
   if (error) {
-    if (databaseRefusal(error) === "forbidden") return { ok: false, error: "forbidden" };
+    const refusal = databaseRefusal(error);
+    if (refusal === "forbidden" || refusal === "membership_self_change" || refusal === "membership_last_administrator" || refusal === "membership_change_stale") return { ok: false, error: refusal };
     throw error;
   }
   return { ok: true, value: null };
+}
+
+export type MembershipChangeImpact = {
+  membership: Membership & { scopeName: string };
+  role: MembershipRole | null;
+  platformAccess: boolean;
+  companies: { companyId: string; name: string; role: MembershipRole | null;
+    memberships: { id: string; source: "organization" | "company"; role: MembershipRole; scopeName: string }[] }[];
+  confirmationToken: string;
+};
+
+/** Read only: cancelling after this query does not change Memberships or audit. */
+export async function previewMembershipChange(
+  client: AppClient,
+  input: { membershipId: string; role: MembershipRole | null },
+): Promise<Result<MembershipChangeImpact, MembershipChangeError>> {
+  if (!isUuid(input.membershipId) || (input.role !== null && input.role !== "administrator" && input.role !== "user")) return { ok: false, error: "forbidden" };
+  const { data, error } = await client.rpc("preview_membership_change", {
+    target_membership_id: input.membershipId, next_role: input.role as MembershipRole,
+  });
+  if (error) {
+    const refusal = databaseRefusal(error);
+    if (refusal === "forbidden" || refusal === "membership_self_change" || refusal === "membership_last_administrator" || refusal === "membership_change_stale") return { ok: false, error: refusal };
+    throw error;
+  }
+  return { ok: true, value: data as unknown as MembershipChangeImpact };
 }

@@ -1,3 +1,4 @@
+import { readPhotoGroupBasis } from "./photo-groups";
 import { getCurrentDocumentReviewFindings, prepareDocumentCounterparty } from "./document-review-findings";
 import { listCompanyReportingYears } from "./companies";
 import { reportingPeriodForDate, reportingPeriodsOf, reportingPeriodStart } from "./reporting-periods";
@@ -407,6 +408,8 @@ export async function readDocumentPages(
   const selected = requestedVersion === undefined ? undefined
     : (await listExtractionVersions(client, companyId, documentId)).find((version) => version.version === requestedVersion);
   if (requestedVersion !== undefined && !selected) return null;
+  const groupBasis = await readPhotoGroupBasis(client, companyId, documentId);
+  if (groupBasis) return { fileName: "photo-group.pdf", mediaType: "application/pdf", bytes: groupBasis.bytes };
   const stored = await readSourceFile(client, companyId, document.sourceFileId);
   if (!stored) return null;
   const { file, bytes } = stored;
@@ -535,7 +538,7 @@ export async function correctDocument(
  * User reviewed; it is refused if a newer one has been recorded.
  */
 const CLAIM_ELIGIBILITY_ERRORS = [
-  "claimed_period_after_deadline", "claim_deadline_expired", "claim_document_type_required",
+  "proportional_claim_year_mismatch", "proportional_deduction_invalid", "claimed_period_after_deadline", "claim_deadline_expired", "claim_document_type_required",
   "claim_eligibility_required", "invalid_earliest_claim_period", "claimed_period_before_earliest", "deferred_claim_not_supported",
 ] as const;
 export type ClaimEligibilityError = (typeof CLAIM_ELIGIBILITY_ERRORS)[number];
@@ -870,7 +873,8 @@ export async function listDeferredClaimPeriods(client: AppClient, companyId: str
   const candidates = reportingPeriodsOf(years).filter((period) => {
     const start = reportingPeriodStart(period)!;
     const earliest = payload.claimEligibility?.confirmed ? reportingPeriodStart(payload.claimEligibility.period) : null;
-    return start > reportingPeriodStart(source)! && (zero || firstOrdinaryFilingDate(period)! <= deadline!.lastFilingDate) && (!earliest || start >= earliest);
+    return start > reportingPeriodStart(source)! && (zero || firstOrdinaryFilingDate(period)! <= deadline!.lastFilingDate) && (!earliest || start >= earliest)
+      && (!payload.proportionalDeduction || period.slice(0, 4) === (payload.claimEligibility?.period ?? source).slice(0, 4));
   });
   if (!candidates.length) return [];
   const { data, error } = await client.from("period_lock").select("period").eq("company_id", companyId).in("period", candidates);

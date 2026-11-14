@@ -2,15 +2,8 @@ import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { listAuditEvents } from "@/application/audit";
 import { createCompany } from "@/application/companies";
-import {
-  getSourceFile,
-  listSourceFiles,
-  readSourceFile,
-  readSourceFileDerivative,
-  SOURCE_FILE_BUCKET,
-  sourceFileObjectPath,
-  uploadSourceFile,
-} from "@/application/source-files";
+import { getSourceFile, listSourceFiles, readSourceFile, readSourceFileDerivative, SOURCE_FILE_BUCKET, sourceFileObjectPath } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import { administratorWithCompany, companyDetails } from "./support/fixtures";
 import { fixtureFile, heicFixture, rotatedHeicFixture, workbookFile } from "./support/files";
 import { testWorker } from "./support/worker";

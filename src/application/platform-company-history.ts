@@ -1,3 +1,4 @@
+import { readPhotoGroupObject } from "./photo-groups";
 import { isUuid, type AppClient, type Result } from "./client";
 import type { AuditEvent } from "./audit";
 import { buildCompanyDataArchive, type CompanyExportSnapshot } from "./company-data-export";
@@ -25,7 +26,7 @@ export async function getPlatformCompanyHistory(
 
 async function readOriginal(client: AppClient, file: SourceFile): Promise<Uint8Array> {
   const { data, error } = await client.storage.from(SOURCE_FILE_BUCKET)
-    .download(sourceFileObjectPath(file.companyId, file.id));
+    .download(sourceFileObjectPath(file.companyId, file.id, file.storageAttemptId));
   if (error) throw error;
   return new Uint8Array(await data.arrayBuffer());
 }
@@ -50,7 +51,7 @@ export async function downloadPlatformCompanyHistory(
 ): Promise<Result<{ bytes: Uint8Array; fileName: string }, "forbidden">> {
   const history = await getPlatformCompanyHistory(client, companyId);
   if (!history.ok) return history;
-  const bytes = await buildCompanyDataArchive(history.value.snapshot, (file) => readOriginal(client, file));
+  const bytes = await buildCompanyDataArchive(history.value.snapshot, (file) => readOriginal(client, file), path => readPhotoGroupObject(client, path));
   if (!bytes) throw new Error("Retained Company archive could not be assembled");
   return { ok: true, value: { bytes, fileName: `iVAT-history-${history.value.snapshot.company.ico}.zip` } };
 }

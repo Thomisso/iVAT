@@ -7,11 +7,11 @@ import { claimBasis, claimBasisKey, partialClaimRates, unclaimedPortion } from "
 import { Button } from "@/components/button";
 import { TextField } from "@/components/text-field";
 
-function formSource(form: HTMLFormElement, payload: ExtractionPayload): ExtractionPayload {
+export function formSource(form: HTMLFormElement, payload: ExtractionPayload): ExtractionPayload {
   const data = new FormData(form);
   const value = (name: string) => String(data.get(name) ?? "").trim() || null;
   const rows = [...new Set([...data.keys()].flatMap(key => /^rateBreakdown\.(\d+)\./.exec(key)?.[1] ?? []))].sort((a, b) => Number(a) - Number(b));
-  return normalizeExtractionPayload({ ...payload, partialClaim: undefined,
+  return normalizeExtractionPayload({ ...payload, partialClaim: undefined, proportionalDeduction: undefined,
     documentType: value("documentType") as ExtractionPayload["documentType"],
     direction: value("direction") as ExtractionPayload["direction"], currency: value("currency"),
     proposedVatRegime: value("proposedVatRegime") as ExtractionPayload["proposedVatRegime"], taxPointDate: value("taxPointDate"),

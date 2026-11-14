@@ -3,6 +3,7 @@ import {
   AiProviderError,
   withProviderResponse,
   type AiCallContext,
+  type AiGenerationLimits,
   type AiInput,
   type AiProvider,
   type AiProcessingIssueClassification,
@@ -14,6 +15,7 @@ import {
   extractionPayload,
   interpreted,
   pageRanges,
+  pageSplitPrompt,
   parsedOrNull,
   rowRanges,
   SPREADSHEET_SPLIT_SCHEMA,
@@ -64,7 +66,8 @@ async function structuredMessage(
   input: AiInput,
   prompt: string,
   schema: object,
-): Promise<{ model: string; value: unknown; usage?: AiUsage; raw: string }> {
+  limits?: AiGenerationLimits,
+): Promise<{ model: string; modelReported?: boolean; value: unknown; usage?: AiUsage; raw: string }> {
   let response: Response;
   try {
     response = await fetch(`${options.baseUrl ?? "https://api.anthropic.com"}/v1/messages`, {
@@ -76,7 +79,7 @@ async function structuredMessage(
       },
       body: JSON.stringify({
         model,
-        max_tokens: 4096,
+        max_tokens: limits?.maxOutputTokens ?? 4096,
         messages: [{ role: "user", content: [...nativeContent(input), { type: "text", text: prompt }] }],
         output_config: { format: { type: "json_schema", schema } },
       }),
@@ -136,6 +139,7 @@ async function structuredMessage(
   return {
     raw,
     model: typeof result.model === "string" ? result.model : model,
+    ...(typeof result.model !== "string" ? { modelReported: false } : {}),
     value,
     ...(typeof usage?.input_tokens === "number" && typeof usage.output_tokens === "number"
       ? { usage: { inputTokens: usage.input_tokens, outputTokens: usage.output_tokens } }
@@ -147,7 +151,7 @@ export function anthropicAiProvider(options: AnthropicAiProviderOptions): AiProv
   return {
     name: "anthropic",
     region: "global",
-    async split(input) {
+    async split(input, _context, limits) {
       const spreadsheet = input.text !== undefined;
       const result = await structuredMessage(
         options,
@@ -155,16 +159,18 @@ export function anthropicAiProvider(options: AnthropicAiProviderOptions): AiProv
         input,
         spreadsheet
           ? "Identify every Document in this workbook table. A list normally has one Document per data row; a single invoice may span several rows. Return each inclusive row set and its sheet name."
-          : `Identify the inclusive page range of every Document in this ${input.pageCount}-page Source File.`,
+          : pageSplitPrompt(input.pageCount),
         spreadsheet ? SPREADSHEET_SPLIT_SCHEMA : SPLIT_SCHEMA,
+        limits,
       );
       return {
         model: result.model,
+        ...(result.modelReported === false ? { modelReported: false } : {}),
         documents: interpreted(result.raw, () => spreadsheet ? rowRanges("Anthropic", result.value) : pageRanges("Anthropic", result.value)),
         ...(result.usage ? { usage: result.usage } : {}),
       };
     },
-    async extract(input) {
+    async extract(input, _context, limits) {
       input = await prepareExtractionInput(input);
       const result = await structuredMessage(
         options,
@@ -172,9 +178,11 @@ export function anthropicAiProvider(options: AnthropicAiProviderOptions): AiProv
         input,
         EXTRACTION_PROMPT,
         extractionSchema(input),
+        limits,
       );
       return {
         model: result.model,
+        ...(result.modelReported === false ? { modelReported: false } : {}),
         payload: interpreted(result.raw, () => extractionPayload("Anthropic", result.value, input)),
         ...(result.usage ? { usage: result.usage } : {}),
       };
@@ -198,11 +206,11 @@ export function platformAnthropicAiProvider(
   return {
     name: "anthropic",
     region: "global",
-    async split(input, context) {
-      return configured(context).split(input, context);
+    async split(input, context, limits) {
+      return configured(context).split(input, context, limits);
     },
-    async extract(input, context) {
-      return configured(context).extract(input, context);
+    async extract(input, context, limits) {
+      return configured(context).extract(input, context, limits);
     },
   };
 }

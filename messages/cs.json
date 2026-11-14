@@ -298,6 +298,17 @@
     "saved": "Výchozí údaje podání byly uloženy."
   },
   "members": {
+    "searchEmail": "Hledat podle e-mailu",
+    "applyFilters": "Použít filtry",
+    "noSearchResults": "V tomto rozsahu neodpovídá e-mailu žádný uživatel.",
+    "showMemberships": "Zobrazit členství ({count}) pro {email}",
+    "memberships": "Členství",
+    "organizationRoles": "Role v rozsazích",
+    "effectiveRole": "Výsledný přístup",
+    "rolesByMembership": "Role je uvedena u každého členství",
+    "status": "Stav",
+    "expiry": "Platnost do",
+    "actions": "Akce",
     "managementScope": "Rozsah správy",
     "applyScope": "Použít rozsah",
     "organizationScope": "Organizace: {name}",
@@ -328,7 +339,7 @@
     "scopedAccessIntro": "Každá akce mění pouze uvedené členství. Jiná členství mohou zachovat výsledný přístup. Odebráním členství se přihlašovací účet nesmaže.",
     "changeRole": "Změnit roli",
     "remove": "Odebrat přístup",
-    "pendingTitle": "Čekající pozvánky",
+    "pendingTitle": "Pozvánky",
     "pendingNone": "Žádná pozvánka nečeká na přijetí.",
     "expires": "Platnost skončí {date}",
     "source": {
@@ -372,12 +383,30 @@
       "introduction": "Otevřete pozvánku a výslovně přijměte přístup. Nový uživatel si zvolí heslo, existující použije stávající přihlášení.",
       "linkLabel": "Otevřít pozvánku",
       "expiry": "Pozvánka je jednorázová a platí sedm dní od vytvoření."
-    }
+    },
+    "confirmMembershipTitle": "Zkontrolovat změnu členství",
+    "confirmMembershipPerson": "Osoba: {email}. Členství: {membership}.",
+    "confirmMembershipScope": "Přesný rozsah: {scope}. Současná role: {role}.",
+    "confirmMembershipRemoval": "Toto konkrétní členství bude odebráno.",
+    "confirmMembershipRole": "Toto konkrétní členství se změní na roli {role}.",
+    "organizationImpact": "Toto členství v organizaci poskytuje zděděný přístup do následujících společností. Zkontrolujte zbývající přístup v každé společnosti.",
+    "platformAccessSurvives": "Platformový přístup SuperAdmin zůstává.",
+    "noCompanyImpact": "Změna neovlivní žádné aktivní společnosti.",
+    "companyAccessRemoved": "V této společnosti nezůstane přístup prostřednictvím členství.",
+    "companyAccessSurvives": "Přístup do této společnosti zůstává s rolí {role}.",
+    "survivingMembership": "Zbývající členství: {scope}, {role} ({membership}).",
+    "revalidatedOnConfirmation": "Databáze při potvrzení znovu ověří aktuální přístup a ochranná pravidla. Pokud se dopad změní, znovu jej zkontrolujte.",
+    "confirmMembershipChange": "Potvrdit změnu členství",
+    "cancelMembershipChange": "Zrušit změnu",
+    "selfChangeHint": "Vlastní členství nelze odebrat ani si snížit roli Správce. O předání požádejte jinou oprávněnou osobu."
   },
   "dashboard": {
     "companies": "Firmy"
   },
   "sourceFiles": {
+    "checkCurrentTransfer": "Ověřit aktuální přenos",
+    "restartFullUpload": "Zahájit nový přenos celého souboru",
+    "cancelTransfer": "Zrušit tento přenos",
     "manualStart": "Vymezit doklady ručně",
     "manualImage": "Vytvořit jeden doklad ručně",
     "manualWorkbookTitle": "Rozsahy řádků dokladů",
@@ -414,7 +443,7 @@
     "removePhoto": "Odstranit fotografii",
     "orChooseFiles": "nebo vyberte existující soubory",
     "draftRestored": "Koncept byl obnoven. Soubor není označený jako nahraný, dokud ho server neuloží.",
-    "uploadProgress": "Průběh nahrávání souboru {name}",
+    "uploadProgress": "Odhad průběhu přenosu souboru {name}",
     "retryUpload": "Zkusit znovu: {name}",
     "removeFile": "Odebrat {name}",
     "identicalFileOmitted": "Totožný obsah už je ve frontě; další kopie nebyla přidána.",
@@ -445,9 +474,30 @@
     "hash": "Otisk SHA-256",
     "status": "Stav",
     "dropTitle": "Přetáhněte sem zdrojový soubor",
-    "chooseFile": "Vybrat soubor"
+    "chooseFile": "Vybrat soubor",
+    "serverConfirmed": "Uloženo serverem: {bytes} z {total} bajtů",
+    "transferEstimate": "Odhad přenosu: {percent} %",
+    "groupPhotos": "Seskupit vybrané fotografie jako jeden doklad",
+    "selectPhoto": "Vybrat fotografii do skupiny",
+    "groupPage": "Skupina {group} · strana {page}",
+    "dissolveGroup": "Rozpustit skupinu",
+    "movePhotoEarlier": "Posunout dříve",
+    "movePhotoLater": "Posunout později",
+    "photoGroupOriginals": "Seřazené původní fotografie",
+    "groupDocument": "Zkontrolovat seskupený doklad",
+    "groupPreparing": "Fotografie je součástí potvrzené skupiny. Připravuje se její úplný podklad.",
+    "groupUnavailable": "Podklad skupiny není dostupný a zpracování není dokončené. Před pokračováním zkontrolujte dostupné původní podklady.",
+    "groupManual": "Připravit celou skupinu k ruční kontrole",
+    "groupRetry": "Zopakovat přípravu celé skupiny",
+    "localDraftUnavailable": "Místní úložiště pro obnovení není dostupné. Nyní můžete nahrávat; pro pozdější návrat otevřete tuto dávku a znovu vyberte stejné soubory.",
+    "sameDeviceRecoveryHint": "Pokračování používá toto zařízení a stejný účet. Zařízení může uložené soubory odstranit; v takovém případě znovu vyberte shodný obsah. Obnovení souborů mezi zařízeními není zaručeno.",
+    "reselectFile": "Znovu vybrat stejný soubor",
+    "unidentifiedSource": "Zdrojový soubor čekající na výběr",
+    "sourceBytesUnknown": "Vyberte původní soubor pro určení jeho názvu a velikosti.",
+    "checkStoredSource": "Ověřit stav na serveru"
   },
   "returnContext": {
+    "counterparty": "← Zpět na protistranu",
     "company": "← Zpět na firmu",
     "documents": "← Zpět na doklady",
     "document": "← Zpět na doklad",
@@ -586,7 +636,9 @@
     "deleteRefused": {
       "batch_processing": "Dávku lze smazat až po dokončení zpracování.",
       "period_locked": "Doklad z této dávky leží v uzavřeném období. Dávku lze smazat až poté, co Administrator období odemkne."
-    }
+    },
+    "resumeBatch": "Pokračovat v nahrávání dávky",
+    "legacyRecoveryBoundary": "Tato starší dávka zachovala pouze počet souborů. Obnovit lze jen známé přenosy; neznámé soubory ani původní pořadí výběru nelze zpětně určit."
   },
   "dateInput": {
     "calendarFor": "Vybrat datum pro {label}",
@@ -595,6 +647,10 @@
     "invalid": "Zadejte platné datum ve tvaru dd.mm.rrrr."
   },
   "errors": {
+    "upload_expired": "Neúplný přenos vypršel po sedmi dnech bez nově potvrzeného postupu. Zahajte nový přenos celého stejného souboru.",
+    "upload_cancelled": "Přenos byl zrušen. Můžete zahájit nový přenos celého stejného souboru.",
+    "upload_attempt_changed": "Tento přenos byl nahrazen. Před pokračováním znovu ověřte aktuální přenos.",
+    "invalid_statistics_filter": "Zvolte platný rozsah DUZP a filtry.",
     "email_recovery_required": "Před použitím záložního kódu nebo pokračováním obnovy ověřte nový e-mail pro obnovu hesla.",
     "mfa_recovery_failed": "Obnovu MFA se nepodařilo dokončit. Účet zůstává omezený; zkuste to znovu nebo pokračujte po ověření nového e-mailu pro obnovu.",
     "mfa_recovery_required": "Před touto akcí dokončete svou oprávněnou obnovu MFA.",
@@ -765,7 +821,21 @@
     "claim_document_type_required": "Vyberte typ dokladu, aby bylo možné potvrdit způsobilost uplatnění.",
     "claim_deadline_expired": "Lhůta pro uplatnění nároku podáním již uplynula. Nové schválení nemůže doložit včasné podání.",
     "claimed_period_after_deadline": "Toto období končí příliš pozdě pro běžné uplatnění před koncem lhůty podání. Zvolte dřívější přípustné období.",
-    "counterparty_resolution_required": "Před schválením vyřešte identitu protistrany. Vyberte existující záznam, obnovte archivovanou shodu nebo výslovně potvrďte vytvoření bez identifikátorů. Změněná upozornění adresáře je nutné zkontrolovat."
+    "counterparty_resolution_required": "Před schválením vyřešte identitu protistrany. Vyberte existující záznam, obnovte archivovanou shodu nebo výslovně potvrďte vytvoření bez identifikátorů. Změněná upozornění adresáře je nutné zkontrolovat.",
+    "organization_creation_failed": "Organizaci se nepodařilo uložit. Zkuste to prosím znovu.",
+    "membership_self_change": "Vlastní členství nelze odebrat ani si snížit roli Správce. O předání požádejte jinou oprávněnou osobu.",
+    "membership_last_administrator": "Tato změna by odebrala posledního správce v daném rozsahu. Nejprve musí mít členství s rolí Správce jiná osoba.",
+    "membership_change_stale": "Během kontroly se přístup změnil. Zrušte toto potvrzení a znovu zkontrolujte aktuální dopad.",
+    "proportional_deduction_invalid": "Potvrďte podporovaný poměrný odpočet podle skutečného využití (1–99 %).",
+    "proportional_claim_year_mismatch": "Období poměrného odpočtu musí patřit do kalendářního roku nejdřívějšího přípustného období.",
+    "upload_authentication_required": "Přihlaste se znovu stejným účtem a opakujte nahrávání.",
+    "upload_incomplete": "Některé části souboru ještě chybí. Opakujte nahrávání.",
+    "upload_checksum_mismatch": "Přijatá data neodpovídají vybranému souboru.",
+    "invalid_alert_preference": "Neplatné nastavení upozornění.",
+    "verified_email_required": "Před zapnutím upozornění ověřte aktuální e-mail účtu.",
+    "invalid_representative": "Vyberte podporovaného zástupce a vyplňte platné jméno, příjmení a datum narození nebo evidenční číslo.",
+    "group_evidence_unavailable": "Původní podklady nebo jejich uložená reprezentace chybí či nejsou platné. Tuto neměnnou skupinu nelze obnovit; zahajte nový upload s úplnými fotografiemi.",
+    "upload_file_required": "Pro pokračování vyberte obsahově shodný původní soubor. Samotný název shodu obsahu neprokazuje."
   },
   "aiUsage": {
     "platformNav": "Využití AI na platformě",
@@ -936,7 +1006,9 @@
     "maxBatchFiles": "Maximum zdrojových souborů v dávce",
     "saveLimits": "Uložit limity nahrávání",
     "retainedHistory": "Dochovaná historie",
-    "companyIdentity": "{name} · IČO {ico}"
+    "companyIdentity": "{name} · IČO {ico}",
+    "createOrganization": "Vytvořit organizaci",
+    "createCompany": "Přidat společnost"
   },
   "passwordChange": {
     "title": "Změna hesla",
@@ -1173,7 +1245,10 @@
       "deferred_claim_not_supported": "Společný odklad není pro tento režim podporován. Případ vyřešte ručně před novou přípravou výkazu.",
       "claim_document_type_required": "Vyberte typ dokladu, aby bylo možné potvrdit způsobilost uplatnění.",
       "claim_deadline_expired": "Lhůta pro uplatnění nároku podáním již uplynula. Nové schválení nemůže doložit včasné podání.",
-      "claimed_period_after_deadline": "Toto období končí příliš pozdě pro běžné uplatnění před koncem lhůty podání. Zvolte dřívější přípustné období."
+      "claimed_period_after_deadline": "Toto období končí příliš pozdě pro běžné uplatnění před koncem lhůty podání. Zvolte dřívější přípustné období.",
+      "proportional_deduction_conversion_required": "Pro poměrný odpočet v cizí měně je nutný platný uložený přepočet celého dokladu do CZK.",
+      "proportional_deduction_invalid": "Potvrďte podporovaný poměrný odpočet podle skutečného využití (1–99 %).",
+      "proportional_claim_year_mismatch": "Období poměrného odpočtu musí patřit do kalendářního roku nejdřívějšího přípustného období."
     },
     "noDocumentImage": "Tento doklad vznikl z řádků tabulky a nemá obraz dokladu.",
     "sections": {
@@ -1349,7 +1424,31 @@
     "approvalHuman": "Schválil uživatel",
     "approvalUnknown": "Schválení je zaznamenáno; původní podrobnosti rozhodnutí nejsou známy",
     "approvalVersion": "Verze {version}",
-    "approvalVersionUnknown": "Verze není zaznamenána"
+    "approvalVersionUnknown": "Verze není zaznamenána",
+    "proportionalDeduction": {
+      "title": "Poměrný odpočet (§ 75)",
+      "enable": "Použít ručně potvrzený poměr skutečného využití",
+      "scope": "Pouze běžné tuzemské přijaté provozní výdaje. Cizí měna používá uložený přepočet celého dokladu do CZK. Dlouhodobý majetek, odhady, § 76, zálohy a kombinace s částečným uplatněním nejsou podporovány.",
+      "conversion": "Nejprve se poměrně sníží částky v původní měně a potom se použije uložený kurz celého dokladu. Měnové zaokrouhlení není neuplatněnou částí.",
+      "conversionRequired": "Pro poměrný odpočet v cizí měně je nutný platný uložený přepočet celého dokladu do CZK.",
+      "rounding": "Skutečný procentní podíl zaokrouhlete podle § 75 odst. 3 na celé procento nahoru. Zadejte konečný koeficient 1–99 % pro celý doklad.",
+      "percentage": "Koeficient skutečného využití (%)",
+      "operating": "Potvrzuji běžný provozní výdaj mimo pořízení dlouhodobého majetku a výdaje do něj vstupující.",
+      "actual": "Potvrzuji, že poměr odpovídá již známému skutečnému využití, nikoli odhadu.",
+      "confirm": "Potvrdit poměr a tyto původní částky",
+      "previous": "Předchozí poměr: {percentage} %. Potvrďte jej znovu pro aktuální údaje.",
+      "invalid": "Zadejte celé procento od 1 do 99, potvrďte obě prohlášení i poměr a vyřešte nepodporované kombinace či chyby původních částek.",
+      "alternatives": "Pro 0 % výslovně vypněte tento režim a použijte částečné uplatnění s potvrzením nulového nároku. Pro 100 % jej výslovně vypněte a použijte plné částky. Před zapnutím poměru vypněte částečné uplatnění.",
+      "rate": "Sazba DPH",
+      "original": "Původní základ + DPH",
+      "claimed": "Uplatněný základ + DPH",
+      "unclaimed": "Neuplatněný základ + DPH",
+      "unavailable": "Nedostupné do vyřešení původních součtů",
+      "filing": "Export ani finalizace nejsou podáním ani roční korekcí. Zvolené období musí patřit do kalendářního roku nejdřívějšího přípustného období; nadále platí lhůta skutečného podání.",
+      "total": "Celkem",
+      "rateValue": "{rate} %",
+      "amountSeparator": "+"
+    }
   },
   "duplicateWarning": {
     "document_identity": "Možný duplikát: DIČ protistrany, číslo dokladu a směr se shodují se starším dokladem.",
@@ -1605,7 +1704,7 @@
     },
     "noExportArtifacts": "Žádné uložené exportní artefakty",
     "noExportArtifactsHint": "Příslušný zákonný výstup vytvořte na obrazovce přiznání k DPH nebo kontrolního hlášení. Historie uložených artefaktů zůstane zde u daného období.",
-    "exportArtifacts": "Uložené XML artefakty",
+    "exportArtifacts": "Uložené XML a PDF artefakty",
     "artifactForm": "Formulář",
     "artifactActions": "Akce",
     "artifactChecksum": "Kontrolní součet SHA-256",
@@ -1705,7 +1804,9 @@
       "463": "FÚ pro Moravskoslezský kraj",
       "464": "FÚ pro Zlínský kraj",
       "13": "Specializovaný finanční úřad"
-    }
+    },
+    "representative": "Zástupce",
+    "noRepresentative": "Bez zástupce"
   },
   "platformHistory": {
     "title": "Historie firmy: {company}",
@@ -1783,7 +1884,10 @@
     "claimLastFilingDate": "Nárok je nutné uplatnit podáním nejpozději: {date}",
     "claimEvaluatedOn": "Rozhodné datum posouzení: {date}",
     "claimLatestPeriod": "Poslední dostupné běžné období: {period}",
-    "claimFilingNote": "Příprava, finalizace ani export XML nejsou podáním přiznání. Uložené výkazy a archivní XML zachovávají své zaznamenané údaje."
+    "claimFilingNote": "Příprava, finalizace ani export XML nejsou podáním přiznání. Uložené výkazy a archivní XML zachovávají své zaznamenané údaje.",
+    "proportionalRatio": "Poměrný odpočet: {percentage} %",
+    "proportionalClaimed": "Uplatněný základ + DPH:",
+    "amountSeparator": "+"
   },
   "reportingWorkbook": {
     "columns": {
@@ -1824,6 +1928,19 @@
       "included": "zahrnuto",
       "proposed": "navrženo",
       "unavailable": "nedostupné"
+    },
+    "deductionColumns": {
+      "deductionMode": "Režim odpočtu",
+      "percentage": "Poměr (%)",
+      "claimedNetAmount": "Uplatněný základ",
+      "claimedVatAmount": "Uplatněná DPH",
+      "unclaimedNetAmount": "Neuplatněný základ",
+      "unclaimedVatAmount": "Neuplatněná DPH"
+    },
+    "deductionModes": {
+      "proportional": "Poměrný odpočet",
+      "partialClaim": "Částečné uplatnění",
+      "full": "Plné uplatnění"
     }
   },
   "authEmails": {
@@ -1871,6 +1988,66 @@
       "unrecognized": "Platební údaj není rozpoznaným bankovním účtem; zveřejnění zůstává neurčené."
     }
   },
+  "counterpartyTrade": {
+    "czkSummary": "Souhrn uložených částek v CZK",
+    "czkDescription": "Celé částky dokladů v CZK z původních korunových částek nebo platného uloženého přepočtu. Chybějící a neplatné částky se nezahrnují; historický kurz se neobnovuje.",
+    "czkContributors": "Přispívající do CZK",
+    "coverage": "{count} z {total}",
+    "coverageStatus": "Úplnost CZK",
+    "czkIncomplete": "Neúplný součet CZK",
+    "czkComplete": "Úplný součet CZK",
+    "czk_complete": "Doklady přispívající do CZK",
+    "missing_czk": "Vynechané z CZK",
+    "czkExcluded": "Vynecháno z CZK: celé částky nebo platný uložený přepočet nejsou dostupné.",
+    "czkNetAmount": "Základ (CZK)",
+    "czkVatAmount": "DPH (CZK)",
+    "czkGrossAmount": "Celkem (CZK)",
+    "directionCount": "{direction} doklady: {count}",
+    "title": "Obchodní statistiky",
+    "description": "Aktuální schválené doklady, celé původní částky, odděleně podle směru a měny. Nárok na odpočet nesnižuje obchodní hodnotu. Součty zahrnují jen doklady s úplnými původními částkami a měnou.",
+    "yearFilter": "Filtr kalendářního roku",
+    "year": "Kalendářní rok",
+    "chooseYear": "Zvolit rok",
+    "filters": "Filtry DUZP a příspěvků",
+    "from": "DUZP od (včetně)",
+    "to": "DUZP do (včetně)",
+    "direction": "Směr",
+    "allDirections": "Oba směry",
+    "incoming": "Přijaté",
+    "outgoing": "Vydané",
+    "currency": "Původní měna",
+    "allCurrencies": "Všechny původní měny",
+    "contributions": "Příspěvek dokladu",
+    "dated": "Všechny datované doklady",
+    "complete": "Doklady přispívající částkami",
+    "missing_amounts": "Neúplné původní částky nebo měna",
+    "missing_date": "Doklady bez DUZP",
+    "reset": "Aktuální kalendářní rok",
+    "period": "DUZP: {from} – {to} (včetně)",
+    "missingDates": "Doklady bez DUZP mimo časový rozsah: {count}",
+    "missingAmounts": "Doklady v rozsahu bez úplných původních částek nebo měny: {count}",
+    "summary": "Souhrn v původních měnách",
+    "count": "Doklady",
+    "netAmount": "Původní základ",
+    "vatAmount": "Původní DPH",
+    "grossAmount": "Původní celkem",
+    "amountCount": "Doklady v součtu částek",
+    "unknownCurrency": "Neznámá měna",
+    "documents": "Odpovídající aktuální schválené doklady",
+    "document": "Doklad",
+    "countDocuments": "Odpovídající doklady: {count}",
+    "taxPointDate": "DUZP",
+    "missingDate": "DUZP není k dispozici",
+    "notes": "Poznámky",
+    "incomplete": "Mimo součet částek: neúplné původní částky nebo měna.",
+    "grossMismatch": "Uložená celková částka se liší od základu + DPH",
+    "emptySummary": "V tomto rozsahu DUZP nejsou aktuální schválené doklady.",
+    "emptyDocuments": "Těmto filtrům příspěvků neodpovídají žádné doklady.",
+    "pagination": "Stránky obchodních dokladů",
+    "unavailableAmount": "Nedostupné",
+    "invalidFilters": "Zvolte platný rozsah DUZP a filtry.",
+    "unavailable": "Obchodní statistiky nejsou dostupné. Zkuste to znovu."
+  },
   "counterparties": {
     "title": "Adresář protistran",
     "description": "Dodavatelé a odběratelé této firmy.",
@@ -1916,6 +2093,7 @@
     "next": "Další",
     "page": "Stránka {page} z {total}",
     "linkedDocuments": "Navázané doklady",
+    "historicalLinks": "Aktuální i historické vazby na protistranu ve všech stavech dokladů.",
     "linkedCount": "Doklady: {count}",
     "unnumberedDocument": "Doklad bez čísla",
     "noLinkedDocuments": "Žádné navázané doklady.",
@@ -1929,5 +2107,56 @@
     "save": "Uložit pravidla schvalování",
     "saving": "Ukládám…",
     "saved": "Nastavení automatického schvalování bylo uloženo."
+  },
+  "organizationCreation": {
+    "title": "Vytvořit organizaci",
+    "intro": "Založte organizaci v uzavřeném pilotu. Společnosti a prvního správce můžete přidat později.",
+    "name": "Název organizace",
+    "create": "Vytvořit organizaci",
+    "cancel": "Zpět do administrace"
+  },
+  "operationalAlerts": {
+    "title": "Provozní upozornění e-mailem",
+    "intro": "Dostávejte seskupená upozornění po pěti minutách kritické blokace práce na aktuální ověřený e-mail svého účtu.",
+    "enabled": "Zapnout provozní upozornění e-mailem",
+    "save": "Uložit nastavení",
+    "subject": "iVAT: kritická provozní blokace",
+    "reminderSubject": "iVAT: trvající provozní blokace",
+    "reminderHeading": "Tato incidentní epizoda stále blokuje kritickou práci",
+    "recoverySubject": "iVAT: provozní incidentní epizoda skončila",
+    "recoveryHeading": "Incidentní epizoda z dřívějšího upozornění skončila",
+    "recoveryContext": "Tato incidentní epizoda skončila. Pozdější epizoda může stále vyžadovat zásah.",
+    "recoveryRemediation": "Přihlaste se pro kontrolu aktuálních provozních problémů",
+    "heading": "Kritická práce je blokována alespoň pět minut",
+    "companies": "Společnosti",
+    "documents": "Doklady",
+    "sourceFiles": "Zdrojové soubory",
+    "exportJobs": "Exportní úlohy",
+    "remediation": "Přihlaste se pro kontrolu a nápravu blokace",
+    "impact": "Společnosti: {companies, number}\nDoklady: {documents, number}\nZdrojové soubory: {sourceFiles, number}\nExportní úlohy: {exportJobs, number}",
+    "body": "{heading}\n\n{problem}\n{impact}\n\n{remediation}\n{link}"
+  },
+  "representation": {
+    "title": "Zástupce",
+    "selection": "Zastupování",
+    "default": "Použít výchozí údaje společnosti",
+    "off": "Bez zástupce",
+    "generalNatural": "4a — obecný zmocněnec, fyzická osoba",
+    "professionalNatural": "4b — daňový poradce nebo advokát, fyzická osoba",
+    "generalLegal": "4a — obecný zmocněnec, právnická osoba",
+    "professionalLegal": "4c — právnická osoba vykonávající daňové poradenství",
+    "name": "Název zástupce",
+    "ico": "Identifikační číslo zástupce",
+    "signatory": "Oprávněná fyzická osoba zástupce",
+    "signatoryHint": "Potvrďte fyzickou osobu oprávněnou k podpisu za tohoto zástupce. Podpisové údaje daňového subjektu jsou samostatné.",
+    "signatoryFirstName": "Jméno oprávněné osoby",
+    "signatoryLastName": "Příjmení oprávněné osoby",
+    "signatoryCapacity": "Vztah k zástupci",
+    "firstName": "Jméno zástupce",
+    "lastName": "Příjmení zástupce",
+    "birthDate": "Datum narození zástupce",
+    "evidenceNumber": "Evidenční číslo zástupce",
+    "identityHint": "Vyplňte jméno, příjmení a alespoň datum narození nebo evidenční číslo.",
+    "scopeHint": "Údaje neověřují plnou moc. iVAT výkaz nepodává."
   }
 }

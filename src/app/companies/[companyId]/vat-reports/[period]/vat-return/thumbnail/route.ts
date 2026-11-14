@@ -12,7 +12,7 @@ async function thumbnail(request: Request, context: RouteContext<"/companies/[co
     } catch { return refusalResponse("invalid_export_details", { status: 400 }); }
   }
   const result = await exportVatReturnThumbnail(await requireUserClient(), { companyId, period, details });
-  if (!result.ok) return refusalResponse(result.error, { status: 404 });
+  if (!result.ok) return refusalResponse(result.error, { status: result.error === "report_not_found" ? 404 : 422 });
   return downloadResponse(result.value);
 }
 export const GET = thumbnail;

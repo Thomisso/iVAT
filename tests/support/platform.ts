@@ -28,10 +28,21 @@ export function aal2Client(userId: string, sessionPrefix = "platform-test") {
 /** A signed-up Organization Administrator promoted through the test fixture boundary. */
 export async function promotedSuperAdministrator(organizationName: string, sessionPrefix = "platform-test") {
   const user = await provisionedUser(organizationName);
+  await promoteSuperAdministratorFixture(user.userId);
+  return { ...user, client: aal2Client(user.userId, sessionPrefix) };
+}
+
+/** Change only the fixture Role; callers retain their own native Auth/MFA client. */
+export async function promoteSuperAdministratorFixture(userId: string) {
   const promoted = await systemClient().from("platform_user").insert({
-    user_id: user.userId,
+    user_id: userId,
     role: "super_admin",
   });
   if (promoted.error) throw promoted.error;
-  return { ...user, client: aal2Client(user.userId, sessionPrefix) };
+}
+
+/** Platform role revocation has no public Application command. */
+export async function revokeSuperAdministratorFixture(userId: string) {
+  const revoked = await systemClient().from("platform_user").delete().eq("user_id", userId);
+  if (revoked.error) throw revoked.error;
 }

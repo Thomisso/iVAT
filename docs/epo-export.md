@@ -49,3 +49,48 @@ directly without parsing a display string.
 Schema provenance, mappings, rounding and update instructions are in
 [`schemas/epo/README.md`](../schemas/epo/README.md). Tests compare exports with
 hand-authored XML and validate success and refusal cases without external services.
+
+## Representation Profile (#318–#320)
+
+Administrators can save one protected Company Representation Profile. The current
+slice supports general natural-person representatives (`4a/F`), natural-person
+tax advisers or lawyers (`4b/F`), general legal-person representatives (`4a/P`)
+and legal-person tax advisers (`4c/P`), for both natural and legal Company
+taxpayers. Other code/type combinations are refused with `invalid_representative`.
+These fields do not verify professional registration.
+
+XML, PDF and header previews share the resolved export context. `representativeMode`
+may be omitted or `default` to use the Company default, `off` to explicitly remove
+all representative fields, or `override` for request-only details. Overrides use
+`representativeCode`, `representativePersonType`, `representativeFirstName`,
+`representativeLastName`, `representativeBirthDate` (ISO calendar date) and
+`representativeEvidenceNumber`. The server retains only fields for the selected
+variant. Names are bounded to 20/36 characters and the evidence number to 36;
+strict XML requires both names and a birth date or evidence number, as annotated
+in both vendored official schemas. Incomplete review PDFs remain available.
+
+Legal profiles instead contain `name` (maximum 255 characters), `ico` (1–10
+decimal digits, preserving leading zeros), and their explicitly confirmed
+`signatoryFirstName`, `signatoryLastName`, `signatoryCapacity` (20/36/40 characters).
+The corresponding override fields are `representativeName`, `representativeIco`
+and `representativeSignatoryFirstName/LastName/Capacity`. Strict defaults and XML
+require all five fields; incomplete supported PDF reviews retain supplied values
+without inventing the rest. Switching variants drops incompatible identity fields.
+
+Taxpayer identity still comes from the saved VAT Report. Company `signatory*`
+fields identify the direct taxpayer's Authorized Signatory. A PO representative
+uses its separately confirmed signatory, including for a natural taxpayer; the
+Company signatory and account author never fill that role implicitly. These roles
+may be occupied by the same person when explicitly supplied. New XML and PDF
+artifacts retain the exact resolved representative and signatory, official schema
+versions and serializer version `5` with their immutable bytes. Older serializer
+write guards refuse PO representative metadata rather than mislabeling new semantics.
+Previously archived versions remain readable without reserialization. Editing the
+Company profile does not rewrite historical artifacts. Complete PDF downloads
+archive their exact bytes and resolved filing context
+in a separate immutable Company-scoped archive. They appear in export history
+and never count as XML download acknowledgements or Finalization evidence.
+Header/thumbnail previews remain ephemeral, and incomplete full PDF review
+exports remain available and retain their incomplete context. Audit payloads
+contain no raw representative names, dates or
+profile. These details neither verify power of attorney nor submit a report.

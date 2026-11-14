@@ -6,7 +6,7 @@ import type { Database } from "@/lib/database.types";
 import { asUserClient } from "@/application/client";
 import { createCompany } from "@/application/companies";
 import { listMyOrganizations } from "@/application/organizations";
-import { uploadSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./source-upload";
 import { createManualDocument, approveDocument } from "@/application/documents";
 import { saveCompanyFilingDefaults } from "@/application/company-filing-defaults";
 import { generateVatReport } from "@/application/vat-reports";

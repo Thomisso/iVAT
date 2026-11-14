@@ -243,7 +243,7 @@ export async function companyWithManyReportDocuments(
   existingCompany?: Awaited<ReturnType<typeof administratorWithCompany>>,
 ) {
   const { PDFDocument } = await import("pdf-lib");
-  const { uploadSourceFile } = await import("@/application/source-files");
+  const { uploadSourceFile } = await import("./source-upload");
   const { SAMPLE_EXTRACTION } = await import("@/ai/fake");
   const admin = existingCompany ?? await administratorWithCompany();
   const system = systemClient();
@@ -316,7 +316,7 @@ export async function companyWithManyReportDocuments(
 /** A Company with more than one PostgREST page of uploaded Documents waiting for Extraction. */
 export async function companyWithWaitingDocuments(count: number) {
   const { PDFDocument } = await import("pdf-lib");
-  const { uploadSourceFile } = await import("@/application/source-files");
+  const { uploadSourceFile } = await import("./source-upload");
   const admin = await administratorWithCompany("Paged AI resume");
   const pageCount = Math.min(50, count);
   const pdf = await PDFDocument.create();
@@ -349,7 +349,7 @@ export async function companyWithWaitingDocuments(count: number) {
 export async function uploadBatchWithWaitingDocuments(count: number) {
   const { PDFDocument } = await import("pdf-lib");
   const { beginUploadBatch, finishUploadBatch } = await import("@/application/upload-batches");
-  const { uploadSourceFile } = await import("@/application/source-files");
+  const { uploadSourceFile } = await import("./source-upload");
   const admin = await administratorWithCompany("Paged upload batch");
   const fileCount = Math.ceil(count / 50);
   const pdf = await PDFDocument.create();

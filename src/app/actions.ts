@@ -1,5 +1,10 @@
 "use server";
 
+import { sourceUploadValidation } from "@/lib/source-upload-validation";
+
+import { recoverPhotoGroup } from "@/application/photo-groups";
+import { resolveRepresentative } from "@/application/epo-representative";
+
 import { defineSourceDocuments, startManualSourceReview, excludeSourceFile, restoreSourceFile } from "@/application/source-files";
 
 import { refreshBankAccountCheck } from "@/application/bank-account-checks";
@@ -39,7 +44,7 @@ import {
   generateReportingYears,
   setFirstReportingMonth,
 } from "@/application/reporting-years";
-import { cancelInvitation, changeMembershipRole, completeInvitationOnboarding, generateInvitationLink, getInvitationOnboarding, inviteMember, removeMembership, replaceInvitationLink } from "@/application/memberships";
+import { previewMembershipChange, type MembershipChangeImpact, cancelInvitation, changeMembershipRole, completeInvitationOnboarding, generateInvitationLink, getInvitationOnboarding, inviteMember, removeMembership, replaceInvitationLink } from "@/application/memberships";
 import { configuredInvitationUrls, invitationAuthentication, invitationMailer } from "@/lib/invitations";
 import {
   saveAndApproveDocument,
@@ -356,6 +361,8 @@ export async function deleteReportingYearAction(_state: FormState, formData: For
 }
 
 const FILING_DEFAULT_FIELDS = [
+  "representativeName", "representativeIco", "representativeSignatoryFirstName", "representativeSignatoryLastName", "representativeSignatoryCapacity",
+  "representativeMode", "representativeCode", "representativePersonType", "representativeFirstName", "representativeLastName", "representativeBirthDate", "representativeEvidenceNumber",
   "taxOffice",
   "territorialOffice",
   "economicActivity",
@@ -377,9 +384,12 @@ export async function saveCompanyFilingDefaultsAction(
   _state: FormState,
   formData: FormData,
 ): Promise<FormState> {
+  const representative = resolveRepresentative(Object.fromEntries(FILING_DEFAULT_FIELDS.map(name => [name, field(formData, name)])), null);
+  if (!representative.ok) return refused(representative.error, formData, FILING_DEFAULT_FIELDS);
   const useEpoAddressOverride = field(formData, "useEpoAddressOverride") === "yes";
   const result = await saveCompanyFilingDefaults(await requireUserClient(), {
     companyId: field(formData, "companyId"),
+    representative: representative.value,
     taxOffice: field(formData, "taxOffice"),
     territorialOffice: field(formData, "territorialOffice"),
     economicActivity: field(formData, "economicActivity"),
@@ -415,7 +425,7 @@ export async function uploadSourceFileAction(_state: FormState, formData: FormDa
     companyId,
     fileName: file instanceof File ? file.name : "",
     bytes: file instanceof File ? new Uint8Array(await file.arrayBuffer()) : new Uint8Array(),
-  });
+  }, sourceUploadValidation());
   if (!result.ok) return refused(result.error, formData, []);
   redirect(`/companies/${companyId}/source-files/${result.value.id}`);
 }
@@ -588,11 +598,23 @@ function payloadFromForm(formData: FormData): ExtractionPayload {
   let basisValid = true;
   try { basis = optionalField(formData, "partialClaim.basis") ? JSON.parse(field(formData, "partialClaim.basis")) : undefined; }
   catch { basisValid = false; }
+  let proportionalBasis: NonNullable<ExtractionPayload["proportionalDeduction"]>["basis"];
+  let proportionalBasisValid = true;
+  try { proportionalBasis = optionalField(formData, "proportionalDeduction.basis") ? JSON.parse(field(formData, "proportionalDeduction.basis")) : undefined; }
+  catch { proportionalBasisValid = false; }
   let claimEligibility: ExtractionPayload["claimEligibility"];
   try { claimEligibility = optionalField(formData, "claimEligibility") ? JSON.parse(field(formData, "claimEligibility")) : undefined; }
   catch { claimEligibility = undefined; }
   return {
     schemaVersion: 1,
+    ...(field(formData, "proportionalDeduction.mode") === "full" ? { proportionalDeduction: null }
+      : field(formData, "proportionalDeduction.mode") === "proportional" ? { proportionalDeduction: {
+        percentage: /^\d+$/.test(field(formData, "proportionalDeduction.percentage")) ? Number(field(formData, "proportionalDeduction.percentage")) : null,
+        confirmed: proportionalBasisValid && field(formData, "proportionalDeduction.confirmed") === "true",
+        operatingExpenseConfirmed: field(formData, "proportionalDeduction.operatingExpenseConfirmed") === "true",
+        actualUseConfirmed: field(formData, "proportionalDeduction.actualUseConfirmed") === "true", origin: "user" as const,
+        ...(proportionalBasis ? { basis: proportionalBasis } : {}),
+      } } : {}),
     ...(claimEligibility ? { claimEligibility } : {}),
     documentType: optionalField(formData, "documentType") as ExtractionPayload["documentType"],
     documentNumber: optionalField(formData, "documentNumber"),
@@ -883,17 +905,38 @@ export async function acceptInvitationAction(_state: FormState, formData: FormDa
   redirect("/");
 }
 
+export async function previewMembershipChangeAction(_state: { error: string | null; values: Record<string, string>; impact: MembershipChangeImpact | null }, formData: FormData): Promise<{ error: string | null; values: Record<string, string>; impact: MembershipChangeImpact | null }> {
+  const client = await requireUserClient();
+  const membershipId = field(formData, "membershipId");
+  const role = (field(formData, "role") || null) as "administrator" | "user" | null;
+  const values = { role: field(formData, "role") };
+  if (field(formData, "confirm") === "1") {
+    const confirmationToken = field(formData, "confirmationToken");
+    if (!confirmationToken) return { error: "membership_change_stale", values, impact: null };
+    const result = role === null ? await removeMembership(client, membershipId, confirmationToken)
+      : await changeMembershipRole(client, { membershipId, role, confirmationToken });
+    if (!result.ok) return { error: result.error, values, impact: null };
+    refresh();
+    return { error: null, values, impact: null };
+  }
+  const result = await previewMembershipChange(client, { membershipId, role });
+  return { error: result.ok ? null : result.error, values, impact: result.ok ? result.value : null };
+}
+
 export async function changeMembershipRoleAction(_state: FormState, formData: FormData): Promise<FormState> {
+  if (!field(formData, "confirmationToken")) return refused("membership_change_stale", formData, ["role"]);
   const result = await changeMembershipRole(await requireUserClient(), {
     membershipId: field(formData, "membershipId"),
     role: field(formData, "role") as "administrator" | "user",
+    confirmationToken: field(formData, "confirmationToken"),
   });
   if (!result.ok) return refused(result.error, formData, ["role"]);
   return settled(result);
 }
 
 export async function removeMembershipAction(_state: FormState, formData: FormData): Promise<FormState> {
-  return settled(await removeMembership(await requireUserClient(), field(formData, "membershipId")));
+  if (!field(formData, "confirmationToken")) return refused("membership_change_stale", formData, []);
+  return settled(await removeMembership(await requireUserClient(), field(formData, "membershipId"), field(formData, "confirmationToken")));
 }
 
 export async function createAiConfigurationAction(
@@ -1056,6 +1099,12 @@ export async function retryFailedProcessingJobAction(
   ));
 }
 
+
+export async function recoverPhotoGroupAction(_state: FormState, data: FormData): Promise<FormState> {
+  const mode = field(data, "mode");
+  if (mode !== "manual" && mode !== "retry") return { error: "invalid_choice", values: {} };
+  return settled(await recoverPhotoGroup(await requireUserClient(), jobQueue, { companyId: field(data, "companyId"), groupId: field(data, "groupId"), mode }));
+}
 
 export async function startManualSourceReviewAction(_state: FormState, data: FormData): Promise<FormState> {
   return settled(await startManualSourceReview(await requireUserClient(), { companyId: field(data, "companyId"), sourceFileId: field(data, "sourceFileId") }));

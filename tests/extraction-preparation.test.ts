@@ -5,7 +5,7 @@ import { getCompanyAiProcessingAllowance } from "@/application/ai-processing-all
 import { listPlatformAiUsage } from "@/application/ai-usage";
 import { correctDocument, createManualDocument, getDocument, listDocuments, listExtractionVersions } from "@/application/documents";
 import type { ExtractionPayload } from "@/application/extraction-payload";
-import { uploadSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import { fakeExchangeRates } from "@/cnb/fake";
 import { fakeVatPayerRegistry } from "@/vat-registry/fake";
 import { administratorWithCompany, assignAiConfigurationFixture } from "./support/fixtures";

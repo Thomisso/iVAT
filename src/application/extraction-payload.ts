@@ -75,7 +75,18 @@ export type PartialClaim = {
   rateBreakdown: DraftRateBreakdownLine[];
 };
 
+/** A manual §75 actual-use decision; amounts always remain those of the source. */
+export type ProportionalDeduction = {
+  percentage: number | null;
+  confirmed: boolean;
+  operatingExpenseConfirmed: boolean;
+  actualUseConfirmed: boolean;
+  origin: "user";
+  basis?: ClaimBasis & { earliestClaimPeriod?: string | null };
+};
+
 export type ExtractionPayload = {
+  proportionalDeduction?: ProportionalDeduction | null;
   /** Human accounting confirmation or the accepted same-period rule; never AI authority. */
   claimEligibility?: {
     period: string;
@@ -226,7 +237,10 @@ export function omitZeroRateBreakdownRows(payload: ExtractionPayload, { omitEmpt
     ...(payload.czkConversion ? {
       czkConversion: {
         ...payload.czkConversion,
-        rateBreakdown: payload.czkConversion.rateBreakdown.filter((line) => !isZeroRateBreakdownLine(line)),
+        // Keep malformed saved metadata visible to its validator instead of crashing review.
+        rateBreakdown: Array.isArray(payload.czkConversion.rateBreakdown)
+          ? payload.czkConversion.rateBreakdown.filter((line) => !line || !isZeroRateBreakdownLine(line))
+          : payload.czkConversion.rateBreakdown,
       },
     } : {}),
   };

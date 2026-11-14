@@ -8,7 +8,8 @@ import {
   reprocessDocument,
   updateDocumentReporting,
 } from "@/application/documents";
-import { getSourceFile, listSourceFiles, readSourceFile, retrySplit, uploadSourceFile } from "@/application/source-files";
+import { getSourceFile, listSourceFiles, readSourceFile, retrySplit } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import { anonymousClient, provisionedUser } from "./support/clients";
 import { fixtureFile } from "./support/files";
 import { systemClient, testWorker } from "./support/worker";

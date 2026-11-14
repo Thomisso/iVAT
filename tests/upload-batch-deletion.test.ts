@@ -6,7 +6,8 @@ import { getCompanyAiProcessingAllowance } from "@/application/ai-processing-all
 import { listAuditEvents } from "@/application/audit";
 import { approveDocument, listCompanyDocuments, listExtractionVersions } from "@/application/documents";
 import { finalizeVatReport, generateVatReport } from "@/application/vat-reports";
-import { listSourceFiles, SOURCE_FILE_BUCKET, uploadSourceFile } from "@/application/source-files";
+import { listSourceFiles, SOURCE_FILE_BUCKET } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import {
   beginUploadBatch,
   deleteUploadBatch,

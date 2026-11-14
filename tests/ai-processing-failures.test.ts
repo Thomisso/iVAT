@@ -5,7 +5,8 @@ import { getCompanyAiProcessingAllowance } from "@/application/ai-processing-all
 import { listPlatformAiProcessingIssues } from "@/application/ai-processing-interventions";
 import { getDocument, listDocuments } from "@/application/documents";
 import { listFailedAiResponses } from "@/application/processing-administration";
-import { getSourceFile, uploadSourceFile } from "@/application/source-files";
+import { getSourceFile } from "@/application/source-files";
+import { uploadSourceFile } from "./support/source-upload";
 import { administratorWithCompany, assignAiConfigurationFixture } from "./support/fixtures";
 import { fixtureFile } from "./support/files";
 import { promotedSuperAdministrator } from "./support/platform";
